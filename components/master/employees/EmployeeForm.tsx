@@ -43,7 +43,6 @@ export default function EmployeeForm({
     bank_account: '',
     bank_account_holder: '',
     currency: 'IDR',
-    length_of_service: '',
     profile_picture_url: '',
   });
 

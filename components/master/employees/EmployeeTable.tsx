@@ -6,7 +6,6 @@ import { Avatar } from '@/components/ui/Avatar';
 import SortButton from '@/components/ui/SortButton';
 import SortIndicator from '@/components/ui/SortIndicator';
 import { EmployeeStatus } from '@/types/employee';
-import { getLengthOfServiceDisplay, getLengthOfServiceInMonths } from '@/utils/dateCalculations';
 
 interface Employee {
   employee_id: string;
@@ -127,22 +126,7 @@ export default function EmployeeTable({
                   'Join Date'
                 )}
               </th>
-             
-              {/* TAMBAH HEADER UNTUK LENGTH OF SERVICE */}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                {onSort ? (
-                  <SortButton
-                    sortKey="length_of_service"
-                    currentSort={sortConfig}
-                    onSort={onSort}
-                    className="font-medium"
-                  >
-                    Length of Service
-                  </SortButton>
-                ) : (
-                  'Length of Service'
-                )}
-              </th>
+            
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
@@ -151,7 +135,6 @@ export default function EmployeeTable({
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {employees.map((employee) => {
-              const lengthOfService = getLengthOfServiceDisplay(employee.join_date, employee.resign_date);              
               return (
                 <tr key={employee.employee_id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -208,13 +191,7 @@ export default function EmployeeTable({
                       <SortIndicator direction={sortConfig.direction} />
                     )}
                   </td>
-                  {/* TD UNTUK LENGTH OF SERVICE */}
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {lengthOfService}
-                    {sortConfig?.key === 'length_of_service' && (
-                      <SortIndicator direction={sortConfig.direction} />
-                    )}
-                  </td>
+                  
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
                       <Link

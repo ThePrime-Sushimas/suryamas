@@ -28,7 +28,6 @@ interface Employee {
   bank_account: string;
   bank_account_holder: string;
   currency: string;
-  length_of_service: string;
   profile_picture_url: string | null;
 }
 

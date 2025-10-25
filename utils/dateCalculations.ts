@@ -73,12 +73,7 @@ export function calculateLengthOfService(
 
 // For display purposes
 export function getLengthOfServiceDisplay(joinDate: string, resignDate: string | null = null): string {
-  const { formatted } = calculateLengthOfService(joinDate, resignDate);
-  return formatted;
+  const { years, months, days } = calculateLengthOfService(joinDate, resignDate);
+  return `${years} year${years !== 1 ? 's' : ''} ${months} month${months !== 1 ? 's' : ''} ${days} day${days !== 1 ? 's' : ''}`;
 }
 
-// For sorting by length of service
-export function getLengthOfServiceInMonths(joinDate: string, resignDate: string | null = null): number {
-  const { totalMonths } = calculateLengthOfService(joinDate, resignDate);
-  return totalMonths;
-}
