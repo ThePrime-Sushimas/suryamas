@@ -5,6 +5,7 @@ import { supabase } from '@/src/lib/supabaseClient';
 import EmployeeTable from '@/components/master/employees/EmployeeTable';
 import Pagination from '@/components/ui/Pagination';
 import PaginationInfo from '@/components/ui/PaginationInfo';
+import SortButton from '@/components/ui/SortButton';
 import Link from 'next/link';
 
 interface Employee {
@@ -29,7 +30,13 @@ export default function EmployeesPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Fetch employees dengan database-level pagination
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState<{
+    key: string;
+    direction: 'asc' | 'desc';
+  } | null>({ key: 'join_date', direction: 'desc' });
+
+  // Fetch employees dengan database-level pagination dan sorting
   const fetchEmployees = async () => {
     try {
       setLoading(true);
@@ -41,27 +48,35 @@ export default function EmployeesPage() {
       // Build query dengan filters
       let query = supabase
         .from('employees')
-        .select('*', { count: 'exact' }); // Get total count
+        .select('*', { count: 'exact' });
 
-      // Apply search filter - AKAN PAKAI INDEX jika ada
+      // Apply search filter
       if (searchTerm) {
         query = query.or(`full_name.ilike.%${searchTerm}%,employee_id.ilike.%${searchTerm}%,job_position.ilike.%${searchTerm}%`);
       }
 
-      // Apply branch filter - AKAN PAKAI INDEX idx_employees_branch
+      // Apply branch filter
       if (selectedBranch) {
         query = query.eq('branch_name', selectedBranch);
       }
 
-      // Apply status filter - AKAN PAKAI INDEX idx_employees_status  
+      // Apply status filter
       if (selectedStatus) {
         query = query.eq('status_employee', selectedStatus);
       }
 
-      // Execute query dengan sorting - AKAN PAKAI INDEX idx_employees_join_date
-      const { data, error, count } = await query
-        .order('join_date', { ascending: false })
-        .range(from, to);
+      // Apply sorting
+      if (sortConfig) {
+        query = query.order(sortConfig.key, { 
+          ascending: sortConfig.direction === 'asc' 
+        });
+      } else {
+        // Default sorting
+        query = query.order('join_date', { ascending: false });
+      }
+
+      // Execute query
+      const { data, error, count } = await query.range(from, to);
 
       if (error) throw error;
 
@@ -75,15 +90,33 @@ export default function EmployeesPage() {
     }
   };
 
-  // Fetch data ketika filters/pagination berubah
+  // Handle sort
+  const handleSort = (key: string) => {
+    setSortConfig(current => {
+      if (current?.key === key) {
+        return {
+          key,
+          direction: current.direction === 'asc' ? 'desc' : 'asc'
+        };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
+  // Clear sort
+  const clearSort = () => {
+    setSortConfig(null);
+  };
+
+  // Fetch data ketika filters/pagination/sorting berubah
   useEffect(() => {
     fetchEmployees();
-  }, [currentPage, itemsPerPage, searchTerm, selectedBranch, selectedStatus]);
+  }, [currentPage, itemsPerPage, searchTerm, selectedBranch, selectedStatus, sortConfig]);
 
-  // Reset ke page 1 ketika search/filter berubah
+  // Reset ke page 1 ketika search/filter/sort berubah
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedBranch, selectedStatus]);
+  }, [searchTerm, selectedBranch, selectedStatus, sortConfig]);
 
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
@@ -125,18 +158,17 @@ export default function EmployeesPage() {
           </div>
         </div>
 
-        {/* Stats - Real count dari database */}
+        {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white p-4 rounded-lg shadow">
             <div className="text-2xl font-bold text-gray-900">{totalCount}</div>
             <div className="text-gray-600">Total Employees</div>
           </div>
-          {/* Stats lainnya bisa di-fetch terpisah jika needed */}
         </div>
 
-        {/* Search & Filters */}
+        {/* Search, Filters & Sort Controls */}
         <div className="bg-white p-4 rounded-lg shadow mb-6">
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-4 mb-4">
             <input
               type="text"
               placeholder="Search by name, ID, or position..."
@@ -145,7 +177,6 @@ export default function EmployeesPage() {
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             
-            {/* Branch Filter - AKAN PAKAI INDEX */}
             <select 
               value={selectedBranch}
               onChange={(e) => setSelectedBranch(e.target.value)}
@@ -157,7 +188,6 @@ export default function EmployeesPage() {
               ))}
             </select>
             
-            {/* Status Filter - AKAN PAKAI INDEX */}
             <select 
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
@@ -169,22 +199,92 @@ export default function EmployeesPage() {
               ))}
             </select>
           </div>
+
+          {/* Sort Controls */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-sm font-medium text-gray-700">Sort by:</span>
+            
+            <SortButton
+              sortKey="full_name"
+              currentSort={sortConfig}
+              onSort={handleSort}
+              className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
+            >
+              Name
+            </SortButton>
+            
+            <SortButton
+              sortKey="job_position"
+              currentSort={sortConfig}
+              onSort={handleSort}
+              className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
+            >
+              Position
+            </SortButton>
+            
+            <SortButton
+              sortKey="branch_name"
+              currentSort={sortConfig}
+              onSort={handleSort}
+              className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
+            >
+              Branch
+            </SortButton>
+            
+            <SortButton
+              sortKey="join_date"
+              currentSort={sortConfig}
+              onSort={handleSort}
+              className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
+            >
+              Join Date
+            </SortButton>
+            
+            <SortButton
+              sortKey="status_employee"
+              currentSort={sortConfig}
+              onSort={handleSort}
+              className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
+            >
+              Status
+            </SortButton>
+
+            {sortConfig && (
+              <button
+                onClick={clearSort}
+                className="text-sm px-3 py-1 text-red-600 hover:text-red-800 underline"
+              >
+                Clear Sort
+              </button>
+            )}
+          </div>
+
+          {/* Active Sort Indicator */}
+          {sortConfig && (
+            <div className="mt-2 text-sm text-blue-600">
+              Sorted by: <span className="font-semibold capitalize">
+                {sortConfig.key.replace('_', ' ')}
+              </span> ({sortConfig.direction === 'asc' ? 'Ascending' : 'Descending'})
+            </div>
+          )}
         </div>
 
-        {/* Employee Table - HANYA data yang ditampilkan */}
-        <EmployeeTable employees={employees} />
+        {/* Employee Table */}
+        <EmployeeTable 
+          employees={employees} 
+          sortConfig={sortConfig}
+          onSort={handleSort}
+        />
 
-        {/* Pagination Section - SANGAT KEPAKE! */}
+        {/* Pagination Section */}
         {(totalCount > 0 || searchTerm || selectedBranch || selectedStatus) && (
           <div className="mt-6 space-y-4">
-            {/* Pagination Info */}
             <PaginationInfo
               showingFrom={totalCount === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1}
               showingTo={Math.min(currentPage * itemsPerPage, totalCount)}
               totalItems={totalCount}
             />
 
-            {/* Pagination Controls */}
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
