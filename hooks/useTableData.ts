@@ -40,7 +40,6 @@ export function useTableData<T>(
     
     // Metadata
     showingFrom: (currentPage - 1) * itemsPerPage + 1,
-    showingTo: Math.min(currentPage * itemsPerPage, totalItems),
-    totalItems
+    showingTo: Math.min(currentPage * itemsPerPage, totalItems)
   };
 }
