@@ -1,18 +1,19 @@
+// next.config.js - PERBAIKI
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    turbo: {
-      rules: {
-        // Exclude problematic modules from client-side bundling
-        '*.css': {
-          loaders: ['postcss-loader'],
-          as: '*.css',
-        },
-      },
-    },
-  },
+  // HAPUS BAGIAN INI:
+  // experimental: {
+  //   turbo: {
+  //     rules: {
+  //       '*.css': {
+  //         loaders: ['postcss-loader'],
+  //         as: '*.css',
+  //       },
+  //     },
+  //   },
+  // },
+  
   webpack: (config) => {
-    // Add fallbacks for Node.js modules
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
@@ -21,7 +22,7 @@ const nextConfig = {
     };
     return config;
   },
-  // Tambahkan konfigurasi images di sini
+  
   images: {
     remotePatterns: [
       {

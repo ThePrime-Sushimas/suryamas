@@ -34,12 +34,12 @@ export function useTableData<T>(
     currentPage,
     totalPages,
     setCurrentPage,
-    totalItems,
     itemsPerPage,
     setItemsPerPage,
     
     // Metadata
     showingFrom: (currentPage - 1) * itemsPerPage + 1,
-    showingTo: Math.min(currentPage * itemsPerPage, totalItems)
+    showingTo: Math.min(currentPage * itemsPerPage, totalItems),
+    totalItems  
   };
 }
