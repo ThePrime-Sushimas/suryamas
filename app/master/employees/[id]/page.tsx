@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { supabase } from '@/src/lib/supabaseClient';
 import EmployeeCard from '@/components/master/employees/EmployeeCard';
 import Link from 'next/link';
+import { EmployeeStatus } from '@/types/employee';
 
 interface Employee {
   employee_id: string;
@@ -13,7 +14,7 @@ interface Employee {
   job_position: string;
   join_date: string;
   resign_date: string | null;
-  status_employee: string;
+  status_employee: EmployeeStatus;
   end_date: string | null;
   sign_date: string | null;
   email: string;

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { EmployeeStatus } from '@/types/employee';
 import ProfilePictureUpload from './ProfilePictureUpload';
 
 interface EmployeeFormProps {
@@ -23,7 +24,7 @@ export default function EmployeeForm({
     job_position: '',
     join_date: '',
     resign_date: '',
-    status_employee: 'Contract',
+    status_employee: EmployeeStatus.CONTRACT,
     end_date: '',
     sign_date: '',
     email: '',
@@ -52,6 +53,32 @@ export default function EmployeeForm({
     }
   }, [initialData]);
 
+    // Auto-set resign_date ketika status berubah ke 'Resign' atau 'Terminated'
+    useEffect(() => {
+      if ((formData.status_employee === 'Resign' || formData.status_employee === 'Terminated') && !formData.resign_date) {
+        setFormData(prev => ({
+          ...prev,
+          resign_date: new Date().toISOString().split('T')[0] // Today's date
+        }));
+      } else if (!['Resign', 'Terminated'].includes(formData.status_employee) && formData.resign_date) {
+        // Clear resign_date jika status bukan 'Resign' atau 'Terminated'
+        setFormData(prev => ({
+          ...prev,
+          resign_date: ''
+        }));
+      }
+    }, [formData.status_employee]);
+  
+    // Auto-clear end_date jika status bukan contract/part time
+    useEffect(() => {
+      if (!['Contract', 'Part Time'].includes(formData.status_employee) && formData.end_date) {
+        setFormData(prev => ({
+          ...prev,
+          end_date: ''
+        }));
+      }
+    }, [formData.status_employee]);  
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     setFormData(prev => ({
@@ -62,7 +89,16 @@ export default function EmployeeForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    
+    // Convert empty strings to null for date fields
+    const submitData = {
+      ...formData,
+      resign_date: formData.resign_date || null,
+      end_date: formData.end_date || null,
+      sign_date: formData.sign_date || null,
+    };
+    
+    onSubmit(submitData);
   };
 
   const branches = ['CIBINONG', 'CONDET', 'DEPOK', 'GALAXY', 'GRANDWIS', 'SERPONG', 'PUSAT'];
@@ -127,6 +163,7 @@ export default function EmployeeForm({
           >
             <option value="RESTAURANT">RESTAURANT</option>
             <option value="OFFICE">OFFICE</option>
+            <option value="CENTRAL">CENTRAL</option>
           </select>
         </div>
 
@@ -151,6 +188,22 @@ export default function EmployeeForm({
         {/* Employment Details */}
         <div className="md:col-span-2 mt-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Employment Details</h3>
+        </div>
+
+        {/* Sign Date */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Sign Date *
+          </label>
+          <input
+            type="date"
+            name="sign_date"
+            value={formData.sign_date || ''}
+            onChange={handleChange}
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <p className="text-sm text-gray-500 mt-1">Tanggal penandatanganan kontrak</p>
         </div>
 
         <div>
@@ -180,6 +233,8 @@ export default function EmployeeForm({
             <option value="Permanent">Permanent</option>
             <option value="Contract">Contract</option>
             <option value="Part Time">Part Time</option>
+            <option value="Resign">Resign</option>
+            <option value="Terminated">Terminated</option>
           </select>
         </div>
 
@@ -200,6 +255,41 @@ export default function EmployeeForm({
             ))}
           </select>
         </div>
+        {/* End Date (Conditional) */}
+        {(formData.status_employee === 'Contract' || formData.status_employee === 'Part_Time') && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              End Date
+            </label>
+            <input
+              type="date"
+              name="end_date"
+              value={formData.end_date || ''}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <p className="text-sm text-gray-500 mt-1">Tanggal berakhir kontrak</p>
+          </div>
+        )}
+
+        {/* Resign Date (Conditional) */}
+        {(formData.status_employee === 'Resign' || formData.status_employee === 'Terminated') && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Resign Date
+            </label>
+            <input
+              type="date"
+              name="resign_date"
+              value={formData.resign_date || ''}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              {!initialData?.resign_date ? 'Otomatis terisi hari ini' : 'Tanggal resign'}
+            </p>
+          </div>
+        )}
 
         {/* Personal Information */}
         <div className="md:col-span-2 mt-6">

@@ -1,4 +1,6 @@
 'use client';
+import { EmployeeStatus } from '@/types/employee';
+import { getLengthOfServiceDisplay } from '@/utils/dateCalculations';
 
 interface Employee {
   employee_id: string;
@@ -7,7 +9,7 @@ interface Employee {
   job_position: string;
   join_date: string;
   resign_date: string | null;
-  status_employee: string;
+  status_employee: EmployeeStatus;
   end_date: string | null;
   sign_date: string | null;
   email: string;
@@ -46,6 +48,8 @@ export default function EmployeeCard({ employee, onClick, sortable = false }: Em
     });
   };
 
+  const lengthOfService = getLengthOfServiceDisplay(employee.join_date, employee.resign_date);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Permanent':
@@ -54,6 +58,8 @@ export default function EmployeeCard({ employee, onClick, sortable = false }: Em
         return 'text-orange-800 uppercase';
       case 'Part Time':
         return 'text-blue-800 uppercase';
+      case 'Resign':
+        return 'text-red-800 uppercase';
       default:
         return 'text-gray-800 uppercase';
     }
@@ -142,6 +148,10 @@ export default function EmployeeCard({ employee, onClick, sortable = false }: Em
                     {employee.status_employee}
                   </span>
                 </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Sign Date</label>
+                  <p className="text-gray-900">{formatDate(employee.sign_date)}</p>
+                </div>              
                 <div 
                   onClick={() => handleCardClick('join_date')}
                   className={sortable ? 'cursor-pointer hover:bg-gray-50 p-2 rounded' : ''}
@@ -156,10 +166,16 @@ export default function EmployeeCard({ employee, onClick, sortable = false }: Em
                     <p className="text-gray-900">{formatDate(employee.end_date)}</p>
                   </div>
                 )}
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Length of Service</label>
-                  <p className="text-gray-900">{employee.length_of_service}</p>
-                </div>
+                {employee.resign_date && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Resign Date</label>
+                      <p className="text-gray-900">{formatDate(employee.resign_date)}</p>
+                    </div>
+                  )}
+              <div>
+                <label className="text-sm font-medium text-gray-500">Length of Service</label>
+                <p className="text-gray-900">{lengthOfService}</p>
+              </div>
               </div>
             </div>
 

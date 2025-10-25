@@ -7,13 +7,14 @@ import Pagination from '@/components/ui/Pagination';
 import PaginationInfo from '@/components/ui/PaginationInfo';
 import SortButton from '@/components/ui/SortButton';
 import Link from 'next/link';
+import { EmployeeStatus } from '@/types/employee';
 
 interface Employee {
   employee_id: string;
   full_name: string;
   job_position: string;
   branch_name: string;
-  status_employee: string;
+  status_employee: EmployeeStatus;
   email: string;
   join_date: string;
 }
@@ -49,6 +50,7 @@ export default function EmployeesPage() {
       let query = supabase
         .from('employees')
         .select('*', { count: 'exact' });
+        
 
       // Apply search filter
       if (searchTerm) {
