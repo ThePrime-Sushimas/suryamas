@@ -1,6 +1,7 @@
 'use client';
 import { EmployeeStatus } from '@/types/employee';
 import { getLengthOfServiceDisplay } from '@/utils/dateCalculations';
+import Link from 'next/link';
 
 interface Employee {
   employee_id: string;
@@ -35,9 +36,15 @@ interface EmployeeCardProps {
   employee: Employee;
   onClick?: (employee: Employee, sortBy: string) => void;
   sortable?: boolean;
+  showActions?: boolean;  
 }
 
-export default function EmployeeCard({ employee, onClick, sortable = false }: EmployeeCardProps) {
+export default function EmployeeCard({ 
+  employee, 
+  onClick, 
+  sortable = false, 
+  showActions = false 
+}: EmployeeCardProps) {
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('id-ID', {
@@ -94,26 +101,41 @@ export default function EmployeeCard({ employee, onClick, sortable = false }: Em
         className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 rounded-t-lg text-white"
         onClick={() => handleCardClick('name')}
       >
-        <div className="flex items-center space-x-4">
-          {employee.profile_picture_url ? (
-            <img
-              src={employee.profile_picture_url}
-              alt={employee.full_name}
-              className="h-16 w-16 rounded-full object-cover border-2 border-white"
-            />
-          ) : (
-            <div className="h-16 w-16 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-              <span className="text-xl font-bold">
-                {employee.full_name.split(' ').map(n => n[0]).join('')}
-              </span>
+        <div className="flex items-center justify-between"> {/* ✅ UBAH KE FLEX BETWEEN */}
+          <div className="flex items-center space-x-4">
+            {employee.profile_picture_url ? (
+              <img
+                src={employee.profile_picture_url}
+                alt={employee.full_name}
+                className="h-16 w-16 rounded-full object-cover border-2 border-white"
+              />
+            ) : (
+              <div className="h-16 w-16 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                <span className="text-xl font-bold">
+                  {employee.full_name.split(' ').map(n => n[0]).join('')}
+                </span>
+              </div>
+            )}
+            <div>
+              <h2 className="text-2xl font-bold uppercase">{employee.full_name}</h2>
+              <p className="text-blue-100">
+                {employee.job_position} • {employee.employee_id}
+              </p>
+            </div>
+          </div>
+          
+          {/* ✅ TAMBAHKAN ACTION BUTTONS */}
+          {showActions && (
+            <div className="flex space-x-2">
+              <Link
+                href={`/master/employees/${employee.employee_id}/edit`}
+                className="bg-black-600 text-white px-4 py-2 rounded-lg hover:bg-black-700 transition-colors"
+              >
+                Edit Employee
+              </Link>
+              {/* Bisa tambahkan tombol lain seperti Delete, View Details, dll */}
             </div>
           )}
-          <div>
-            <h2 className="text-2xl font-bold uppercase">{employee.full_name}</h2>
-            <p className="text-blue-100">
-              {employee.job_position} • {employee.employee_id}
-            </p>
-          </div>
         </div>
       </div>
 
@@ -217,7 +239,7 @@ export default function EmployeeCard({ employee, onClick, sortable = false }: Em
                   <p className="text-gray-900">{employee.ptkp_status}</p>
                 </div>
               </div>
-            </div>
+            </div>  
 
             {/* Address */}
             <div>

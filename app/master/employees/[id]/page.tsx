@@ -95,30 +95,14 @@ export default function EmployeeDetailPage() {
           >
             ← Back to Employees
           </Link>
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{employee.full_name}</h1>
-              <p className="text-gray-600 mt-2">
-                {employee.job_position} • {employee.employee_id}
-              </p>
-            </div>
-            <div className="flex space-x-3">
-              <Link
-                href={`/master/employees/${employee.employee_id}/edit`}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-              >
-                Edit Employee
-              </Link>
-              <button className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">
-                Delete
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Employee Card */}
-        <EmployeeCard employee={employee} />
-      </div>
+        <EmployeeCard 
+          employee={employee} 
+          showActions={true} // ✅ TAMPILKAN TOMBOL EDIT
+        />      
+        </div>
     </div>
   );
 }

@@ -101,6 +101,7 @@ export default function EditEmployeePage() {
 
         {/* Form */}
         <div className="bg-white rounded-lg shadow p-6">
+          
           <EmployeeForm 
             onSubmit={handleSubmit}
             loading={updating}
