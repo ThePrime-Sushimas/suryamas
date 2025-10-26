@@ -35,7 +35,6 @@ export default function EmployeeForm({
     ptkp_status: 'TK/0',
     mobile_phone: '',
     branch_name: '',
-    parent_branch_name: '',
     religion: '',
     gender: 'Male',
     marital_status: 'Single',
@@ -297,26 +296,28 @@ export default function EmployeeForm({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Email
+            Email *
           </label>
           <input
             type="email"
             name="email"
             value={formData.email}
             onChange={handleChange}
+            required
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Mobile Phone
+            Mobile Phone *
           </label>
           <input
             type="text"
             name="mobile_phone"
             value={formData.mobile_phone}
             onChange={handleChange}
+            required
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
