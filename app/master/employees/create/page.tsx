@@ -21,7 +21,7 @@ export default function CreateEmployeePage() {
       if (error) throw error;
 
       // Redirect ke detail page setelah berhasil
-      router.push(`/employees/${data[0].employee_id}`);
+      router.push(`/master/employees/${data[0].employee_id}`);
     } catch (error) {
       console.error('Error creating employee:', error);
       alert('Failed to create employee');

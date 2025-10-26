@@ -145,12 +145,15 @@ export default function EmployeeTable({
                         size="sm"
                       />
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
+                      <Link 
+                          href={`/master/employees/${employee.employee_id}`}
+                          className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors"
+                        >
                           {employee.full_name}
                           {sortConfig?.key === 'full_name' && (
                             <SortIndicator direction={sortConfig.direction} />
                           )}
-                        </div>
+                        </Link>                        
                         <div className="text-sm text-gray-500">
                           {employee.employee_id}
                         </div>
@@ -190,24 +193,7 @@ export default function EmployeeTable({
                     {sortConfig?.key === 'join_date' && (
                       <SortIndicator direction={sortConfig.direction} />
                     )}
-                  </td>
-                  
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <Link
-                        href={`/master/employees/${employee.employee_id}`}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        View
-                      </Link>
-                      <Link
-                        href={`/master/employees/${employee.employee_id}/edit`}
-                        className="text-green-600 hover:text-green-900"
-                      >
-                        Edit
-                      </Link>
-                    </div>
-                  </td>
+                  </td>              
                 </tr>
               );
             })}
