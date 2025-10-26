@@ -19,6 +19,23 @@ interface Employee {
   join_date: string;
 }
 
+// Custom hook untuk debounce
+function useDebounce(value: string, delay: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +54,9 @@ export default function EmployeesPage() {
     direction: 'asc' | 'desc';
   } | null>({ key: 'join_date', direction: 'desc' });
 
+  // Debounce search term
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
   // Fetch employees dengan database-level pagination dan sorting
   const fetchEmployees = async () => {
     try {
@@ -50,11 +70,10 @@ export default function EmployeesPage() {
       let query = supabase
         .from('employees')
         .select('*', { count: 'exact' });
-        
 
-      // Apply search filter
-      if (searchTerm) {
-        query = query.or(`full_name.ilike.%${searchTerm}%,employee_id.ilike.%${searchTerm}%,job_position.ilike.%${searchTerm}%`);
+      // Apply search filter menggunakan debouncedSearchTerm
+      if (debouncedSearchTerm) {
+        query = query.or(`full_name.ilike.%${debouncedSearchTerm}%,employee_id.ilike.%${debouncedSearchTerm}%,job_position.ilike.%${debouncedSearchTerm}%`);
       }
 
       // Apply branch filter
@@ -92,6 +111,16 @@ export default function EmployeesPage() {
     }
   };
 
+  // Fetch data ketika filters/pagination/sorting berubah
+  useEffect(() => {
+    fetchEmployees();
+  }, [currentPage, itemsPerPage, debouncedSearchTerm, selectedBranch, selectedStatus, sortConfig]);
+
+  // Reset ke page 1 ketika search/filter/sort berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, selectedBranch, selectedStatus, sortConfig]);
+
   // Handle sort
   const handleSort = (key: string) => {
     setSortConfig(current => {
@@ -110,21 +139,23 @@ export default function EmployeesPage() {
     setSortConfig(null);
   };
 
-  // Fetch data ketika filters/pagination/sorting berubah
-  useEffect(() => {
-    fetchEmployees();
-  }, [currentPage, itemsPerPage, searchTerm, selectedBranch, selectedStatus, sortConfig]);
-
-  // Reset ke page 1 ketika search/filter/sort berubah
-  useEffect(() => {
+  // Clear all filters
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setSelectedBranch('');
+    setSelectedStatus('');
+    setSortConfig({ key: 'join_date', direction: 'desc' });
     setCurrentPage(1);
-  }, [searchTerm, selectedBranch, selectedStatus, sortConfig]);
+  };
 
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   // Get unique values untuk dropdown filters
   const branches = [...new Set(employees.map(e => e.branch_name).filter(Boolean))];
   const statuses = [...new Set(employees.map(e => e.status_employee))];
+
+  // Check if any filter is active
+  const isFilterActive = debouncedSearchTerm || selectedBranch || selectedStatus;
 
   if (loading && employees.length === 0) {
     return (
@@ -250,7 +281,6 @@ export default function EmployeesPage() {
             >
               Status
             </SortButton>
-          
 
             {sortConfig && (
               <button
@@ -280,7 +310,7 @@ export default function EmployeesPage() {
         />
 
         {/* Pagination Section */}
-        {(totalCount > 0 || searchTerm || selectedBranch || selectedStatus) && (
+        {(totalCount > 0 || isFilterActive) && (
           <div className="mt-6 space-y-4">
             <PaginationInfo
               showingFrom={totalCount === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1}
@@ -310,18 +340,14 @@ export default function EmployeesPage() {
               </svg>
             </div>
             <p className="text-gray-500 text-lg font-medium">
-              {searchTerm || selectedBranch || selectedStatus 
+              {isFilterActive 
                 ? 'No employees match your criteria' 
                 : 'No employees found'
               }
             </p>
-            {(searchTerm || selectedBranch || selectedStatus) && (
+            {isFilterActive && (
               <button
-                onClick={() => {
-                  setSearchTerm('');
-                  setSelectedBranch('');
-                  setSelectedStatus('');
-                }}
+                onClick={clearAllFilters}
                 className="mt-2 text-blue-600 hover:text-blue-800 underline"
               >
                 Clear all filters
