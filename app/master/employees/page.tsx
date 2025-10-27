@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/src/lib/supabaseClient';
 import EmployeeTable from '@/components/master/employees/EmployeeTable';
 import Pagination from '@/components/ui/Pagination';
 import PaginationInfo from '@/components/ui/PaginationInfo';
@@ -17,6 +16,21 @@ interface Employee {
   status_employee: EmployeeStatus;
   email: string;
   join_date: string;
+}
+
+interface ApiResponse {
+  employees: Employee[];
+  pagination: {
+    current_page: number;
+    total_pages: number;
+    total_count: number;
+  };
+  stats: {
+    total_count: number;
+    contract_count: number;
+    permanent_count: number;
+    part_time_count: number;
+  };
 }
 
 // Custom hook untuk debounce
@@ -37,7 +51,21 @@ function useDebounce(value: string, delay: number) {
 }
 
 export default function EmployeesPage() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [data, setData] = useState<ApiResponse>({
+    employees: [],
+    pagination: {
+      current_page: 1,
+      total_pages: 0,
+      total_count: 0
+    },
+    stats: {
+      total_count: 0,
+      contract_count: 0,
+      permanent_count: 0,
+      part_time_count: 0
+    }
+  });
+  
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('');
@@ -46,7 +74,6 @@ export default function EmployeesPage() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [totalCount, setTotalCount] = useState(0);
 
   // Sorting state
   const [sortConfig, setSortConfig] = useState<{
@@ -57,63 +84,51 @@ export default function EmployeesPage() {
   // Debounce search term
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-  // Fetch employees dengan database-level pagination dan sorting
-  const fetchEmployees = async () => {
+  // Fetch data dari API
+  const fetchData = async () => {
     try {
       setLoading(true);
       
-      // Calculate range untuk Supabase
-      const from = (currentPage - 1) * itemsPerPage;
-      const to = from + itemsPerPage - 1;
+      // Build query parameters
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: itemsPerPage.toString(),
+      });
 
-      // Build query dengan filters
-      let query = supabase
-        .from('employees')
-        .select('*', { count: 'exact' });
-
-      // Apply search filter menggunakan debouncedSearchTerm
+      // Tambahkan filters jika ada
       if (debouncedSearchTerm) {
-        query = query.or(`full_name.ilike.%${debouncedSearchTerm}%,employee_id.ilike.%${debouncedSearchTerm}%,job_position.ilike.%${debouncedSearchTerm}%`);
+        params.append('search', debouncedSearchTerm);
       }
-
-      // Apply branch filter
       if (selectedBranch) {
-        query = query.eq('branch_name', selectedBranch);
+        params.append('branch', selectedBranch);
       }
-
-      // Apply status filter
       if (selectedStatus) {
-        query = query.eq('status_employee', selectedStatus);
+        params.append('status', selectedStatus);
       }
-
-      // Apply sorting
       if (sortConfig) {
-        query = query.order(sortConfig.key, { 
-          ascending: sortConfig.direction === 'asc' 
-        });
-      } else {
-        // Default sorting
-        query = query.order('join_date', { ascending: false });
+        params.append('sort_by', sortConfig.key);
+        params.append('sort_order', sortConfig.direction);
       }
 
-      // Execute query
-      const { data, error, count } = await query.range(from, to);
+      const response = await fetch(`/api/employees?${params.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch data');
+      }
 
-      if (error) throw error;
-
-      setEmployees(data || []);
-      setTotalCount(count || 0);
+      const result = await response.json();
+      setData(result);
       
     } catch (error) {
-      console.error('Error fetching employees:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch data ketika filters/pagination/sorting berubah
+  // Fetch data ketika parameters berubah
   useEffect(() => {
-    fetchEmployees();
+    fetchData();
   }, [currentPage, itemsPerPage, debouncedSearchTerm, selectedBranch, selectedStatus, sortConfig]);
 
   // Reset ke page 1 ketika search/filter/sort berubah
@@ -148,16 +163,14 @@ export default function EmployeesPage() {
     setCurrentPage(1);
   };
 
-  const totalPages = Math.ceil(totalCount / itemsPerPage);
-
-  // Get unique values untuk dropdown filters
-  const branches = [...new Set(employees.map(e => e.branch_name).filter(Boolean))];
-  const statuses = [...new Set(employees.map(e => e.status_employee))];
+  // Get unique values untuk dropdown filters (dari data yang sudah ada)
+  const branches = [...new Set(data.employees.map(e => e.branch_name).filter(Boolean))];
+  const statuses = [...new Set(data.employees.map(e => e.status_employee))];
 
   // Check if any filter is active
   const isFilterActive = debouncedSearchTerm || selectedBranch || selectedStatus;
 
-  if (loading && employees.length === 0) {
+  if (loading && data.employees.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
         <div className="max-w-7xl mx-auto">
@@ -191,11 +204,32 @@ export default function EmployeesPage() {
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Stats - DATA DARI API */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-2xl font-bold text-gray-900">{totalCount}</div>
+            <div className="text-2xl font-bold text-gray-900">{data.stats.total_count}</div>
             <div className="text-gray-600">Total Employees</div>
+          </div>
+          
+          <div className="bg-white p-4 rounded-lg shadow">
+            <div className="text-2xl font-bold text-gray-900">
+              {data.stats.contract_count}
+            </div>
+            <div className="text-gray-600">Contract</div>
+          </div>
+          
+          <div className="bg-white p-4 rounded-lg shadow">
+            <div className="text-2xl font-bold text-gray-900">
+              {data.stats.permanent_count}
+            </div>
+            <div className="text-gray-600">Permanent</div>
+          </div>
+          
+          <div className="bg-white p-4 rounded-lg shadow">
+            <div className="text-2xl font-bold text-gray-900">
+              {data.stats.part_time_count}
+            </div>
+            <div className="text-gray-600">Part Time</div>
           </div>
         </div>
 
@@ -304,23 +338,23 @@ export default function EmployeesPage() {
 
         {/* Employee Table */}
         <EmployeeTable 
-          employees={employees} 
+          employees={data.employees} 
           sortConfig={sortConfig}
           onSort={handleSort}
         />
 
         {/* Pagination Section */}
-        {(totalCount > 0 || isFilterActive) && (
+        {(data.pagination.total_count > 0 || isFilterActive) && (
           <div className="mt-6 space-y-4">
             <PaginationInfo
-              showingFrom={totalCount === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1}
-              showingTo={Math.min(currentPage * itemsPerPage, totalCount)}
-              totalItems={totalCount}
+              showingFrom={data.pagination.total_count === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1}
+              showingTo={Math.min(currentPage * itemsPerPage, data.pagination.total_count)}
+              totalItems={data.pagination.total_count}
             />
 
             <Pagination
               currentPage={currentPage}
-              totalPages={totalPages}
+              totalPages={data.pagination.total_pages}
               onPageChange={setCurrentPage}
               itemsPerPage={itemsPerPage}
               onItemsPerPageChange={(newSize) => {
@@ -332,7 +366,7 @@ export default function EmployeesPage() {
         )}
 
         {/* Empty State */}
-        {totalCount === 0 && !loading && (
+        {data.pagination.total_count === 0 && !loading && (
           <div className="text-center py-12 bg-white rounded-lg shadow">
             <div className="text-gray-400 mb-4">
               <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
