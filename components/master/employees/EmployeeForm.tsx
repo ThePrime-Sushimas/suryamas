@@ -275,7 +275,7 @@ export default function EmployeeForm({
           </select>
         </div>
         {/* End Date (Conditional) */}
-        {(formData.status_employee === 'Contract' || formData.status_employee === 'Part_Time') && (
+        {(formData.status_employee === 'Contract' || formData.status_employee === 'Part Time') && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               End Date

@@ -49,25 +49,15 @@ export async function GET(request: Request) {
 
     if (error) throw error;
 
-    // Get statistics - TOTAL semua data (tanpa filter)
-    const { count: totalCount } = await supabase
+    // Get statistics with single query
+    const { data: statsData } = await supabase
       .from('employees')
-      .select('*', { count: 'exact', head: true });
+      .select('status_employee');
 
-    const { count: contractCount } = await supabase
-      .from('employees')
-      .select('*', { count: 'exact', head: true })
-      .eq('status_employee', 'Contract');
-
-    const { count: permanentCount } = await supabase
-      .from('employees')
-      .select('*', { count: 'exact', head: true })
-      .eq('status_employee', 'Permanent');
-
-    const { count: partTimeCount } = await supabase
-      .from('employees')
-      .select('*', { count: 'exact', head: true })
-      .eq('status_employee', 'Part Time');
+    const totalCount = statsData?.length || 0;
+    const contractCount = statsData?.filter(e => e.status_employee === 'Contract').length || 0;
+    const permanentCount = statsData?.filter(e => e.status_employee === 'Permanent').length || 0;
+    const partTimeCount = statsData?.filter(e => e.status_employee === 'Part Time').length || 0;
 
     return NextResponse.json({
       employees: employees || [],
@@ -77,10 +67,10 @@ export async function GET(request: Request) {
         total_count: count || 0
       },
       stats: {
-        total_count: totalCount || 0,
-        contract_count: contractCount || 0,
-        permanent_count: permanentCount || 0,
-        part_time_count: partTimeCount || 0
+        total_count: totalCount,
+        contract_count: contractCount,
+        permanent_count: permanentCount,
+        part_time_count: partTimeCount
       }
     });
   } catch (error) {

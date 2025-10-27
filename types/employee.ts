@@ -2,7 +2,7 @@
 export enum EmployeeStatus {
     PERMANENT = 'Permanent',
     CONTRACT = 'Contract',
-    PART_TIME = 'Part_Time',
+    PART_TIME = 'Part Time',
     RESIGN = 'Resign',
     TERMINATED = 'Terminated'
   }
