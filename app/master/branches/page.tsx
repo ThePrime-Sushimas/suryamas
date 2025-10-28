@@ -8,6 +8,7 @@ import SortButton from '@/components/ui/SortButton';
 import Link from 'next/link';
 import { Branch } from '@/types/branch';
 
+
 interface ApiResponse {
   branches: Branch[];
   pagination: {
@@ -176,28 +177,6 @@ export default function BranchesPage() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-2xl font-bold text-gray-900">{data.stats.total_count}</div>
-            <div className="text-gray-600">Total Branches</div>
-          </div>
-          
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-2xl font-bold text-green-600">
-              {data.stats.active_count}
-            </div>
-            <div className="text-gray-600">Active</div>
-          </div>
-          
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-2xl font-bold text-red-600">
-              {data.stats.inactive_count}
-            </div>
-            <div className="text-gray-600">Inactive</div>
-          </div>
-        </div>
-
         {/* Search & Filters */}
         <div className="bg-white p-4 rounded-lg shadow mb-6">
           <div className="flex flex-col sm:flex-row gap-4 mb-4">
@@ -207,8 +186,7 @@ export default function BranchesPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            
+            />            
             <select 
               value={selectedKota}
               onChange={(e) => setSelectedKota(e.target.value)}
@@ -218,8 +196,7 @@ export default function BranchesPage() {
               {kotas.map(kota => (
                 <option key={kota} value={kota}>{kota}</option>
               ))}
-            </select>
-            
+            </select>            
             <select 
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
