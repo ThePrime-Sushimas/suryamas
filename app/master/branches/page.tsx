@@ -65,7 +65,7 @@ export default function BranchesPage() {
     direction: 'asc' | 'desc';
   } | null>({ key: 'created_at', direction: 'desc' });
 
-  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+  const debouncedSearchTerm = useDebounce(searchTerm, 200);
 
   const fetchData = async () => {
     try {

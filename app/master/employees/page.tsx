@@ -69,7 +69,7 @@ export default function EmployeesPage() {
   } | null>({ key: 'join_date', direction: 'desc' });
 
   // Debounce search term
-  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+  const debouncedSearchTerm = useDebounce(searchTerm, 200);
 
   // Fetch data dari API
   const fetchData = async () => {
