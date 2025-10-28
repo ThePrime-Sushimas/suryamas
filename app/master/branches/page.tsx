@@ -16,11 +16,6 @@ interface ApiResponse {
     total_pages: number;
     total_count: number;
   };
-  stats: {
-    total_count: number;
-    active_count: number;
-    inactive_count: number;
-  };
 }
 
 function useDebounce(value: string, delay: number) {
@@ -46,11 +41,6 @@ export default function BranchesPage() {
       current_page: 1,
       total_pages: 0,
       total_count: 0
-    },
-    stats: {
-      total_count: 0,
-      active_count: 0,
-      inactive_count: 0
     }
   });
   
@@ -187,25 +177,6 @@ export default function BranchesPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />            
-            <select 
-              value={selectedKota}
-              onChange={(e) => setSelectedKota(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Cities</option>
-              {kotas.map(kota => (
-                <option key={kota} value={kota}>{kota}</option>
-              ))}
-            </select>            
-            <select 
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
           </div>
 
           {/* Sort Controls */}
