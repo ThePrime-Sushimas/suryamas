@@ -122,7 +122,21 @@ export default function EmployeeForm({
     onSubmit(submitData);
   };
 
-  const branches = ['CIBINONG', 'CONDET', 'DEPOK', 'GALAXY', 'GRANDWIS', 'SERPONG', 'PUSAT'];
+  const [branches, setBranches] = useState<string[]>([]);
+  useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        const response = await fetch('/api/branches?limit=100');
+        const data = await response.json();
+        const branchNames = data.branches?.map((branch: any) => branch.nama_branch) || [];
+        setBranches(branchNames);
+      } catch (error) {
+        console.error('Error fetching branches:', error);
+      }
+    };
+    fetchBranches();
+  }, []);
+
   const positions = ['SUSHIMAN', 'BARISTA', 'SERVER', 'COOK', 'MANAGER', 'SEKRETARIS', 'DISHWASHER', 'HELPER', 'Stock Keeper'];
 
   return (
