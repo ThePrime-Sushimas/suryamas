@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import EmployeeTable from '@/components/master/employees/EmployeeTable';
 import Pagination from '@/components/ui/Pagination';
 import PaginationInfo from '@/components/ui/PaginationInfo';
-import SortButton from '@/components/ui/SortButton';
 import Link from 'next/link';
 import { EmployeeStatus } from '@/types/employee';
 
@@ -192,8 +191,6 @@ export default function EmployeesPage() {
           </div>
         </div>
 
-
-
         {/* Search, Filters & Sort Controls */}
         <div className="bg-white p-4 rounded-lg shadow mb-6">
           <div className="flex flex-col sm:flex-row gap-4 mb-4">
@@ -203,19 +200,7 @@ export default function EmployeesPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            
-            <select 
-              value={selectedBranch}
-              onChange={(e) => setSelectedBranch(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Branches</option>
-              {branches.map(branch => (
-                <option key={branch} value={branch}>{branch}</option>
-              ))}
-            </select>
-            
+            />        
             <select 
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
@@ -227,22 +212,22 @@ export default function EmployeesPage() {
               ))}
             </select>
           </div>
-
+          
         {/* Branch Filter Buttons */}
         <div className="flex flex-wrap gap-2 items-center">
           <span className="text-sm font-medium text-gray-700">Filter by Branch:</span>
           
-          <button
-            onClick={() => setSelectedBranch('')}
-            className={`text-sm px-3 py-1 border rounded transition-colors ${
-              selectedBranch === '' 
-                ? 'bg-blue-600 text-white border-blue-600' 
-                : 'border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            All Branches
-          </button>
-          
+        {/* All Branches */}
+        <button
+          onClick={() => setSelectedBranch('')}
+          className={`text-sm px-3 py-1 border rounded transition-colors ${
+            selectedBranch === '' 
+              ? 'bg-blue-600 text-white border-blue-600' 
+              : 'border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          All Branches
+        </button>          
           {branches.map(branch => (
             <button
               key={branch}
@@ -256,15 +241,6 @@ export default function EmployeesPage() {
               {branch}
             </button>
           ))}
-          
-          {selectedBranch && (
-            <button
-              onClick={() => setSelectedBranch('')}
-              className="text-sm px-3 py-1 text-red-600 hover:text-red-800 underline"
-            >
-              Clear Branch
-            </button>
-          )}
         </div>
         </div>
 
