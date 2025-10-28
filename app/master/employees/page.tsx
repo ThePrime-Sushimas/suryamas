@@ -25,12 +25,6 @@ interface ApiResponse {
     total_pages: number;
     total_count: number;
   };
-  stats: {
-    total_count: number;
-    contract_count: number;
-    permanent_count: number;
-    part_time_count: number;
-  };
 }
 
 // Custom hook untuk debounce
@@ -57,12 +51,6 @@ export default function EmployeesPage() {
       current_page: 1,
       total_pages: 0,
       total_count: 0
-    },
-    stats: {
-      total_count: 0,
-      contract_count: 0,
-      permanent_count: 0,
-      part_time_count: 0
     }
   });
   
@@ -204,34 +192,7 @@ export default function EmployeesPage() {
           </div>
         </div>
 
-        {/* Stats - DATA DARI API */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-2xl font-bold text-gray-900">{data.stats.total_count}</div>
-            <div className="text-gray-600">Total Employees</div>
-          </div>
-          
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-2xl font-bold text-gray-900">
-              {data.stats.contract_count}
-            </div>
-            <div className="text-gray-600">Contract</div>
-          </div>
-          
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-2xl font-bold text-gray-900">
-              {data.stats.permanent_count}
-            </div>
-            <div className="text-gray-600">Permanent</div>
-          </div>
-          
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-2xl font-bold text-gray-900">
-              {data.stats.part_time_count}
-            </div>
-            <div className="text-gray-600">Part Time</div>
-          </div>
-        </div>
+
 
         {/* Search, Filters & Sort Controls */}
         <div className="bg-white p-4 rounded-lg shadow mb-6">
@@ -305,47 +266,6 @@ export default function EmployeesPage() {
             </button>
           )}
         </div>
-
-        {/* Sort Controls yang lebih sederhana */}
-        <div className="flex flex-wrap gap-2 items-center mt-3">
-          <span className="text-sm font-medium text-gray-700">Sort by:</span>
-          
-          <SortButton
-            sortKey="full_name"
-            currentSort={sortConfig}
-            onSort={handleSort}
-            className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
-          >
-            Name
-          </SortButton>
-          
-          <SortButton
-            sortKey="join_date"
-            currentSort={sortConfig}
-            onSort={handleSort}
-            className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
-          >
-            Join Date
-          </SortButton>
-
-          {sortConfig && (
-            <button
-              onClick={clearSort}
-              className="text-sm px-3 py-1 text-red-600 hover:text-red-800 underline"
-            >
-              Clear Sort
-            </button>
-          )}
-        </div>
-        
-          {/* Active Sort Indicator */}
-          {sortConfig && (
-            <div className="mt-2 text-sm text-blue-600">
-              Sorted by: <span className="font-semibold capitalize">
-                {sortConfig.key.replace('_', ' ')}
-              </span> ({sortConfig.direction === 'asc' ? 'Ascending' : 'Descending'})
-            </div>
-          )}
         </div>
 
         {/* Employee Table */}
