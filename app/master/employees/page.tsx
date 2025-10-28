@@ -267,65 +267,77 @@ export default function EmployeesPage() {
             </select>
           </div>
 
-          {/* Sort Controls */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-sm font-medium text-gray-700">Sort by:</span>
-            
-            <SortButton
-              sortKey="full_name"
-              currentSort={sortConfig}
-              onSort={handleSort}
-              className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
+        {/* Branch Filter Buttons */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="text-sm font-medium text-gray-700">Filter by Branch:</span>
+          
+          <button
+            onClick={() => setSelectedBranch('')}
+            className={`text-sm px-3 py-1 border rounded transition-colors ${
+              selectedBranch === '' 
+                ? 'bg-blue-600 text-white border-blue-600' 
+                : 'border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            All Branches
+          </button>
+          
+          {branches.map(branch => (
+            <button
+              key={branch}
+              onClick={() => setSelectedBranch(branch)}
+              className={`text-sm px-3 py-1 border rounded transition-colors ${
+                selectedBranch === branch 
+                  ? 'bg-blue-600 text-white border-blue-600' 
+                  : 'border-gray-300 hover:bg-gray-50'
+              }`}
             >
-              Name
-            </SortButton>
-            
-            <SortButton
-              sortKey="job_position"
-              currentSort={sortConfig}
-              onSort={handleSort}
-              className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
+              {branch}
+            </button>
+          ))}
+          
+          {selectedBranch && (
+            <button
+              onClick={() => setSelectedBranch('')}
+              className="text-sm px-3 py-1 text-red-600 hover:text-red-800 underline"
             >
-              Position
-            </SortButton>
-            
-            <SortButton
-              sortKey="branch_name"
-              currentSort={sortConfig}
-              onSort={handleSort}
-              className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
-            >
-              Branch
-            </SortButton>
-            
-            <SortButton
-              sortKey="join_date"
-              currentSort={sortConfig}
-              onSort={handleSort}
-              className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
-            >
-              Join Date
-            </SortButton>
-            
-            <SortButton
-              sortKey="status_employee"
-              currentSort={sortConfig}
-              onSort={handleSort}
-              className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
-            >
-              Status
-            </SortButton>
+              Clear Branch
+            </button>
+          )}
+        </div>
 
-            {sortConfig && (
-              <button
-                onClick={clearSort}
-                className="text-sm px-3 py-1 text-red-600 hover:text-red-800 underline"
-              >
-                Clear Sort
-              </button>
-            )}
-          </div>
+        {/* Sort Controls yang lebih sederhana */}
+        <div className="flex flex-wrap gap-2 items-center mt-3">
+          <span className="text-sm font-medium text-gray-700">Sort by:</span>
+          
+          <SortButton
+            sortKey="full_name"
+            currentSort={sortConfig}
+            onSort={handleSort}
+            className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
+          >
+            Name
+          </SortButton>
+          
+          <SortButton
+            sortKey="join_date"
+            currentSort={sortConfig}
+            onSort={handleSort}
+            className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
+          >
+            Join Date
+          </SortButton>
 
+          {sortConfig && (
+            <button
+              onClick={clearSort}
+              className="text-sm px-3 py-1 text-red-600 hover:text-red-800 underline"
+            >
+              Clear Sort
+            </button>
+          )}
+        </div>
+        
           {/* Active Sort Indicator */}
           {sortConfig && (
             <div className="mt-2 text-sm text-blue-600">
