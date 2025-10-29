@@ -1,0 +1,39 @@
+import { NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabaseClient';
+
+export async function GET() {
+  try {
+    const { data, error } = await supabase
+      .from('roles')
+      .select(`
+        *,
+        permissions:role_permissions(
+          permission:permissions(*)
+        )
+      `)
+      .order('hierarchy_level', { ascending: false });
+
+    if (error) throw error;
+
+    // Get user count for each role
+    const rolesWithCounts = await Promise.all(
+      (data || []).map(async (role) => {
+        const { count: userCount } = await supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true })
+          .eq('role_id', role.id);
+
+        return {
+          ...role,
+          permission_count: role.permissions?.length || 0,
+          user_count: userCount || 0
+        };
+      })
+    );
+
+    return NextResponse.json({ roles: rolesWithCounts });
+  } catch (error) {
+    console.error('Error fetching roles:', error);
+    return NextResponse.json({ error: 'Failed to fetch roles' }, { status: 500 });
+  }
+}

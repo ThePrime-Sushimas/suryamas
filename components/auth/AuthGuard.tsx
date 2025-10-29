@@ -7,7 +7,8 @@ import LoadingSpinner from '@/components/layout/LoadingSpinner'
 
 interface AuthGuardProps {
   children: React.ReactNode
-  requiredRole?: string
+  requiredRole?: string;
+  requiredPermission?: string;
 }
 
 export default function AuthGuard({ children, requiredRole }: AuthGuardProps) {

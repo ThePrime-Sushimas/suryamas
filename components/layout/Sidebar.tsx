@@ -34,10 +34,16 @@ const menuItems: MenuItem[] = [
     roles: ['super_admin', 'admin', 'manager'],
     children: [
       {
-        name: 'Branches',
-        href: '/master/branches',
-        icon: '🏪',
+        name: 'Users',
+        href: '/master/users',
+        icon: '👤',
         roles: ['super_admin', 'admin']
+      },
+      {
+        name: 'Roles',
+        href: '/master/roles',
+        icon: '🔐',
+        roles: ['super_admin']
       },
       {
         name: 'Employees',
@@ -46,18 +52,12 @@ const menuItems: MenuItem[] = [
         roles: ['super_admin', 'admin', 'manager']
       },
       {
-        name: 'Menu Items',
-        href: '/master/menu',
-        icon: '📋',
-        roles: ['super_admin', 'admin', 'manager']
+        name: 'Branches',
+        href: '/master/branches',
+        icon: '🏪',
+        roles: ['super_admin', 'admin']
       }
     ]
-  },
-  {
-    name: 'Transactions',
-    href: '/transactions',
-    icon: '💳',
-    roles: ['super_admin', 'admin', 'manager', 'staff', 'cashier']
   },
   {
     name: 'Reports',
@@ -66,10 +66,24 @@ const menuItems: MenuItem[] = [
     roles: ['super_admin', 'admin', 'manager']
   },
   {
-    name: 'Settings',
-    href: '/settings',
+    name: 'System',
+    href: '/system',
     icon: '⚙️',
-    roles: ['super_admin', 'admin']
+    roles: ['super_admin', 'admin'],
+    children: [
+      {
+        name: 'Audit Logs',
+        href: '/system/audit-logs',
+        icon: '📋',
+        roles: ['super_admin', 'admin']
+      },
+      {
+        name: 'Settings',
+        href: '/system/settings',
+        icon: '🔧',
+        roles: ['super_admin']
+      }
+    ]
   }
 ]
 

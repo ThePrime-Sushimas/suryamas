@@ -4,12 +4,11 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  
+  const hasUserAccount = searchParams.get('has_user_account');
   const page = parseInt(searchParams.get('page') || '1');
   const limit = parseInt(searchParams.get('limit') || '10');
   const from = (page - 1) * limit;
   const to = from + limit - 1;
-
   const search = searchParams.get('search');
   const branch = searchParams.get('branch');
   const status = searchParams.get('status');
@@ -17,9 +16,36 @@ export async function GET(request: Request) {
   const sortOrder = searchParams.get('sort_order') || 'desc';
 
   try {
-    let query = supabase
-      .from('employees')
-      .select('*', { count: 'exact' });
+    let query;
+    
+    if (hasUserAccount === 'false') {
+      // Get employees without user accounts
+      const { data: users } = await supabase
+        .from('users')
+        .select('employee_id');
+
+      const existingEmployeeIds = users?.map(user => user.employee_id) || [];
+      
+      query = supabase
+        .from('employees')
+        .select(`
+          employee_id,
+          full_name,
+          email,
+          branch_name,
+          job_position
+        `, { count: 'exact' })
+        .eq('is_deleted', false);
+        
+      if (existingEmployeeIds.length > 0) {
+        query = query.not('employee_id', 'in', `(${existingEmployeeIds.join(',')})`);
+      }
+    } else {
+      query = supabase
+        .from('employees')
+        .select('*', { count: 'exact' })
+        .eq('is_deleted', false);
+    }
 
     if (search) {
       query = query.or(`full_name.ilike.%${search}%,employee_id.ilike.%${search}%,job_position.ilike.%${search}%`);

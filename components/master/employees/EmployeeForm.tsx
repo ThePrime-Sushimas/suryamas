@@ -334,7 +334,7 @@ export default function EmployeeForm({
           </label>
           <select
             name="religion"
-            value={formData.religion}
+            value={formData.religion || ''}
             onChange={handleChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
@@ -354,7 +354,7 @@ export default function EmployeeForm({
           <input
             type="email"
             name="email"
-            value={formData.email}
+            value={formData.email || ''}
             onChange={handleChange}
             required
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -368,7 +368,7 @@ export default function EmployeeForm({
           <input
             type="text"
             name="mobile_phone"
-            value={formData.mobile_phone}
+            value={formData.mobile_phone || ''}
             onChange={handleChange}
             required
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -381,7 +381,7 @@ export default function EmployeeForm({
           <input
             type="text"
             name="birth_place"
-            value={formData.birth_place}
+            value={formData.birth_place || ''}
             onChange={handleChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent uppercase"
             placeholder="Tempat lahir"
@@ -394,7 +394,7 @@ export default function EmployeeForm({
           <input
             type="date"
             name="birth_date"
-            value={formData.birth_date}
+            value={formData.birth_date || ''}
             onChange={handleChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
@@ -427,7 +427,7 @@ export default function EmployeeForm({
           <input
             type="text"
             name="bank_name"
-            value={formData.bank_name}
+            value={formData.bank_name || ''}
             onChange={handleChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent uppercase"
           />

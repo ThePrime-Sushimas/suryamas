@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import Header from './Header';
 import Sidebar from './Sidebar';
@@ -13,6 +14,7 @@ interface MainLayoutProps {
 
 export default function MainLayout({ children }: MainLayoutProps) {
   const { user, loading } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (loading) {
     return <LoadingSpinner />;
@@ -32,9 +34,13 @@ export default function MainLayout({ children }: MainLayoutProps) {
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-gray-50">
-        <Header />
+        <Header onMenuClick={() => setSidebarOpen(true)} />
         <div className="flex">
-          <Sidebar />
+          <Sidebar 
+            isOpen={sidebarOpen} 
+            onClose={() => setSidebarOpen(false)}
+            userRole={user?.role}
+          />
           <main className="flex-1 min-h-screen">
             {children}
           </main>
