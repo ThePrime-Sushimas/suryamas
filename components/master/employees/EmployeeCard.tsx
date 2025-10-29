@@ -36,14 +36,16 @@ interface EmployeeCardProps {
   employee: Employee;
   onClick?: (employee: Employee, sortBy: string) => void;
   sortable?: boolean;
-  showActions?: boolean;  
+  showActions?: boolean;
+  returnUrl?: string;
 }
 
 export default function EmployeeCard({ 
   employee, 
   onClick, 
   sortable = false, 
-  showActions = false 
+  showActions = false,
+  returnUrl 
 }: EmployeeCardProps) {
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '-';
@@ -128,7 +130,7 @@ export default function EmployeeCard({
           {showActions && (
             <div className="flex space-x-2">
               <Link
-                href={`/master/employees/${employee.employee_id}/edit`}
+                href={`/master/employees/${employee.employee_id}/edit${returnUrl ? `?returnUrl=${encodeURIComponent(returnUrl)}` : ''}`}
                 className="bg-black-600 text-white px-4 py-2 rounded-lg hover:bg-black-700 transition-colors"
               >
                 Edit Employee

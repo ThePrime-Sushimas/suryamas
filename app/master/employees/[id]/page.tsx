@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { supabase } from '@/src/lib/supabaseClient';
 import EmployeeCard from '@/components/master/employees/EmployeeCard';
 import Link from 'next/link';
@@ -38,8 +38,11 @@ interface Employee {
 
 export default function EmployeeDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  const returnUrl = searchParams.get('returnUrl') || '/master/employees';
 
   useEffect(() => {
     if (params.id) {
@@ -90,7 +93,7 @@ export default function EmployeeDetailPage() {
         {/* Header */}
         <div className="mb-6">
           <Link 
-            href="/master/employees"
+            href={returnUrl}
             className="text-blue-600 hover:text-blue-800 mb-4 inline-block"
           >
             ← Back to Employees
@@ -101,6 +104,7 @@ export default function EmployeeDetailPage() {
         <EmployeeCard 
           employee={employee} 
           showActions={true} // ✅ TAMPILKAN TOMBOL EDIT
+          returnUrl={returnUrl}
         />      
         </div>
     </div>

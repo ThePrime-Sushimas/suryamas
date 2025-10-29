@@ -2,6 +2,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Avatar } from '@/components/ui/Avatar';
 import SortButton from '@/components/ui/SortButton';
 import SortIndicator from '@/components/ui/SortIndicator';
@@ -34,19 +35,21 @@ export default function EmployeeTable({
   sortConfig,
   onSort 
 }: EmployeeTableProps) {
+  const searchParams = useSearchParams();
+  const currentUrl = `/master/employees?${searchParams.toString()}`;
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   // Jika mobile, render card view
   if (isMobile) {
-    return <EmployeeTableMobile employees={employees} />;
+    return <EmployeeTableMobile employees={employees} currentUrl={currentUrl} />;
   }
 
   // Desktop view (existing code)
-  return <EmployeeTableDesktop employees={employees} sortConfig={sortConfig} onSort={onSort} />;
+  return <EmployeeTableDesktop employees={employees} sortConfig={sortConfig} onSort={onSort} currentUrl={currentUrl} />;
 }
 
 // Mobile Component
-function EmployeeTableMobile({ employees }: { employees: Employee[] }) {
+function EmployeeTableMobile({ employees, currentUrl }: { employees: Employee[]; currentUrl: string }) {
   const [selectedImage, setSelectedImage] = useState<{ url: string; alt: string } | null>(null);
     const getStatusColor = (status: string) => {
     switch (status) {
@@ -94,7 +97,7 @@ function EmployeeTableMobile({ employees }: { employees: Employee[] }) {
                   />
                   <div>
                     <Link 
-                      href={`/master/employees/${employee.employee_id}`}
+                      href={`/master/employees/${employee.employee_id}?returnUrl=${encodeURIComponent(currentUrl)}`}
                       className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors"
                     >
                       {employee.full_name}
@@ -163,8 +166,9 @@ function EmployeeTableMobile({ employees }: { employees: Employee[] }) {
 function EmployeeTableDesktop({ 
   employees, 
   sortConfig,
-  onSort 
-}: EmployeeTableProps) {
+  onSort,
+  currentUrl 
+}: EmployeeTableProps & { currentUrl: string }) {
   const [selectedImage, setSelectedImage] = useState<{ url: string; alt: string } | null>(null);
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -292,7 +296,7 @@ function EmployeeTableDesktop({
                         />
                       <div className="ml-4">
                         <Link 
-                          href={`/master/employees/${employee.employee_id}`}
+                          href={`/master/employees/${employee.employee_id}?returnUrl=${encodeURIComponent(currentUrl)}`}
                           className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors"
                         >
                           {employee.full_name}
@@ -342,13 +346,13 @@ function EmployeeTableDesktop({
                   </td>              
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <Link 
-                      href={`/master/employees/${employee.employee_id}/edit`}
+                      href={`/master/employees/${employee.employee_id}/edit?returnUrl=${encodeURIComponent(currentUrl)}`}
                       className="text-blue-600 hover:text-blue-900 mr-4"
                     >
                       Edit
                     </Link>
                     <Link 
-                      href={`/master/employees/${employee.employee_id}`}
+                      href={`/master/employees/${employee.employee_id}?returnUrl=${encodeURIComponent(currentUrl)}`}
                       className="text-gray-600 hover:text-gray-900"
                     >
                       View

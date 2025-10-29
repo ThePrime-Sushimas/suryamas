@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { supabase } from '@/src/lib/supabaseClient';
 import EmployeeForm from '@/components/master/employees/EmployeeForm';
 import Link from 'next/link';
@@ -15,9 +15,12 @@ interface Employee {
 export default function EditEmployeePage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  
+  const returnUrl = searchParams.get('returnUrl') || '/master/employees';
 
   useEffect(() => {
     if (params.id) {
@@ -52,8 +55,8 @@ export default function EditEmployeePage() {
 
       if (error) throw error;
 
-      // Redirect ke detail page setelah berhasil
-      router.push(`/master/employees/${params.id}`);
+      // Redirect ke return URL setelah berhasil
+      router.push(returnUrl);
     } catch (error) {
       console.error('Error updating employee:', error);
       alert('Failed to update employee');
@@ -88,10 +91,10 @@ export default function EditEmployeePage() {
         {/* Header */}
         <div className="mb-6">
           <Link 
-            href={`/master/employees/${params.id}`}
+            href={returnUrl}
             className="text-blue-600 hover:text-blue-800 mb-4 inline-block"
           >
-            ← Back to Employee Details
+            ← Back to Employees
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Edit Employee</h1>
           <p className="text-gray-600 mt-2">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import EmployeeTable from '@/components/master/employees/EmployeeTable';
 import Pagination from '@/components/ui/Pagination';
 import PaginationInfo from '@/components/ui/PaginationInfo';
@@ -44,6 +45,9 @@ function useDebounce(value: string, delay: number) {
 }
 
 export default function EmployeesPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
   const [data, setData] = useState<ApiResponse>({
     employees: [],
     pagination: {
@@ -54,22 +58,39 @@ export default function EmployeesPage() {
   });
   
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedBranch, setSelectedBranch] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+  const [selectedBranch, setSelectedBranch] = useState(searchParams.get('branch') || '');
+  const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
   
   // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
+  const [itemsPerPage, setItemsPerPage] = useState(Number(searchParams.get('limit')) || 10);
 
   // Sorting state
   const [sortConfig, setSortConfig] = useState<{
     key: string;
     direction: 'asc' | 'desc';
-  } | null>({ key: 'join_date', direction: 'desc' });
+  } | null>({
+    key: searchParams.get('sort_by') || 'join_date',
+    direction: (searchParams.get('sort_order') as 'asc' | 'desc') || 'desc'
+  });
 
   // Debounce search term
   const debouncedSearchTerm = useDebounce(searchTerm, 200);
+
+  const updateURL = (params: Record<string, string | number | null>) => {
+    const url = new URLSearchParams(searchParams.toString());
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) {
+        url.set(key, value.toString());
+      } else {
+        url.delete(key);
+      }
+    });
+    
+    router.push(`?${url.toString()}`, { scroll: false });
+  };
 
   // Fetch data dari API
   const fetchData = async () => {
@@ -116,6 +137,18 @@ export default function EmployeesPage() {
   // Fetch data ketika parameters berubah
   useEffect(() => {
     fetchData();
+  }, [currentPage, itemsPerPage, debouncedSearchTerm, selectedBranch, selectedStatus, sortConfig]);
+
+  useEffect(() => {
+    updateURL({
+      page: currentPage,
+      limit: itemsPerPage,
+      search: debouncedSearchTerm || null,
+      branch: selectedBranch || null,
+      status: selectedStatus || null,
+      sort_by: sortConfig?.key || null,
+      sort_order: sortConfig?.direction || null
+    });
   }, [currentPage, itemsPerPage, debouncedSearchTerm, selectedBranch, selectedStatus, sortConfig]);
 
   // Reset ke page 1 ketika search/filter/sort berubah
