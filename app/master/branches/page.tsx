@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import BranchTable from '@/components/master/branches/BranchTable';
 import Pagination from '@/components/ui/Pagination';
 import PaginationInfo from '@/components/ui/PaginationInfo';
@@ -35,6 +36,9 @@ function useDebounce(value: string, delay: number) {
 }
 
 export default function BranchesPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
   const [data, setData] = useState<ApiResponse>({
     branches: [],
     pagination: {
@@ -45,18 +49,35 @@ export default function BranchesPage() {
   });
   
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedKota, setSelectedKota] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+  const [selectedKota, setSelectedKota] = useState(searchParams.get('kota') || '');
+  const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
+  const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
+  const [itemsPerPage, setItemsPerPage] = useState(Number(searchParams.get('limit')) || 10);
 
   const [sortConfig, setSortConfig] = useState<{
     key: string;
     direction: 'asc' | 'desc';
-  } | null>({ key: 'created_at', direction: 'desc' });
+  } | null>({
+    key: searchParams.get('sort_by') || 'created_at',
+    direction: (searchParams.get('sort_order') as 'asc' | 'desc') || 'desc'
+  });
 
   const debouncedSearchTerm = useDebounce(searchTerm, 200);
+
+  const updateURL = (params: Record<string, string | number | null>) => {
+    const url = new URLSearchParams(searchParams.toString());
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) {
+        url.set(key, value.toString());
+      } else {
+        url.delete(key);
+      }
+    });
+    
+    router.push(`?${url.toString()}`, { scroll: false });
+  };
 
   const fetchData = async () => {
     try {
@@ -100,6 +121,18 @@ export default function BranchesPage() {
 
   useEffect(() => {
     fetchData();
+  }, [currentPage, itemsPerPage, debouncedSearchTerm, selectedKota, selectedStatus, sortConfig]);
+
+  useEffect(() => {
+    updateURL({
+      page: currentPage,
+      limit: itemsPerPage,
+      search: debouncedSearchTerm || null,
+      kota: selectedKota || null,
+      status: selectedStatus || null,
+      sort_by: sortConfig?.key || null,
+      sort_order: sortConfig?.direction || null
+    });
   }, [currentPage, itemsPerPage, debouncedSearchTerm, selectedKota, selectedStatus, sortConfig]);
 
   useEffect(() => {

@@ -4,9 +4,10 @@ import Link from 'next/link';
 
 interface BranchMobileListProps {
   branches: Branch[];
+  currentUrl: string;
 }
 
-export default function BranchMobileList({ branches }: BranchMobileListProps) {
+export default function BranchMobileList({ branches, currentUrl }: BranchMobileListProps) {
   return (
     <div className="space-y-3 md:hidden">
       {branches.map((branch) => (
@@ -14,9 +15,9 @@ export default function BranchMobileList({ branches }: BranchMobileListProps) {
           <div className="flex justify-between items-start mb-2">
           <Link
                         href={`/master/branches/${branch.id_branch}`}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-            <h3 className="font-semibold text-gray-900">{branch.nama_branch}</h3>
+                        className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors"
+                        >
+            <h3 className="font-semibold text-blue-900">{branch.nama_branch}</h3>
             </Link>
             <span className={`px-2 py-1 text-xs rounded-full ${
               branch.is_active 
@@ -77,6 +78,15 @@ export default function BranchMobileList({ branches }: BranchMobileListProps) {
                 </span>
               </div>
             )}
+            
+            <div className="flex gap-2 pt-2 border-t border-gray-100">
+              <Link
+                href={`/master/branches/${branch.id_branch}/edit?returnUrl=${encodeURIComponent(currentUrl)}`}
+                className="text-indigo-600 hover:text-indigo-900 text-sm"
+              >
+                Edit
+              </Link>
+            </div>
           </div>
         </div>
       ))}

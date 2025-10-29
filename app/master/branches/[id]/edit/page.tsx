@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import BranchForm from '@/components/master/branches/BranchForm';
 import { Branch } from '@/types/branch';
@@ -11,9 +11,12 @@ import { useEmployeesCache } from '@/hooks/useEmployeesCache'; // ✅ Import hoo
 export default function EditBranchPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [branch, setBranch] = useState<Branch | null>(null);
   const { employees, loading: loadingEmployees } = useEmployeesCache(); // ✅ Gunakan hook
+  
+  const returnUrl = searchParams.get('returnUrl') || '/master/branches';
 
   // HAPUS useEffect fetchEmployees yang lama
 
@@ -52,7 +55,7 @@ export default function EditBranchPage() {
         throw new Error(errorData.error || 'Failed to update branch');
       }
 
-      router.push('/master/branches');
+      router.push(returnUrl);
     } catch (error) {
       console.error('Error updating branch:', error);
       alert(`Error updating branch: ${(error as Error).message}`);
@@ -69,7 +72,7 @@ export default function EditBranchPage() {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
-          <Link href="/master/branches" className="text-gray-600 hover:text-gray-900">
+          <Link href={returnUrl} className="text-gray-600 hover:text-gray-900">
             ← Back to Branches
           </Link>
           <h1 className="text-3xl font-bold text-gray-900 mt-4">Edit Branch</h1>

@@ -3,6 +3,7 @@
 import { Branch } from '@/types/branch';
 import SortIndicator from '@/components/ui/SortIndicator';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import BranchMobileList from './BranchMobileList';
 
 interface BranchTableProps {
@@ -15,6 +16,9 @@ interface BranchTableProps {
 }
 
 export default function BranchTable({ branches, sortConfig, onSort }: BranchTableProps) {
+  const searchParams = useSearchParams();
+  const currentUrl = `/master/branches?${searchParams.toString()}`;
+  
   const formatTime = (time: string) => {
     return time.slice(0, 5); // Remove seconds
   };
@@ -27,7 +31,7 @@ export default function BranchTable({ branches, sortConfig, onSort }: BranchTabl
   return (
     <>
       {/* Mobile View */}
-      <BranchMobileList branches={branches} />
+      <BranchMobileList branches={branches} currentUrl={currentUrl} />
       
       {/* Desktop View */}
       <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
@@ -104,7 +108,12 @@ export default function BranchTable({ branches, sortConfig, onSort }: BranchTabl
                     <div className="text-sm font-medium text-gray-900">{branch.brand}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{branch.nama_branch}</div>
+                  <Link
+                        href={`/master/branches/${branch.id_branch}`}
+                        className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors"
+                        >
+                  <h3 className="font-semibold text-blue  -900">{branch.nama_branch}</h3>
+                  </Link>
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-900 max-w-xs truncate" title={branch.alamat}>
@@ -139,13 +148,7 @@ export default function BranchTable({ branches, sortConfig, onSort }: BranchTabl
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
                       <Link
-                        href={`/master/branches/${branch.id_branch}`}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        View
-                      </Link>
-                      <Link
-                        href={`/master/branches/${branch.id_branch}/edit`}
+                        href={`/master/branches/${branch.id_branch}/edit?returnUrl=${encodeURIComponent(currentUrl)}`}
                         className="text-indigo-600 hover:text-indigo-900"
                       >
                         Edit
