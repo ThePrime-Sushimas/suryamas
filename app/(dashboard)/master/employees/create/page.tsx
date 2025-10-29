@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/src/lib/supabaseClient';
+import { supabase } from '@/lib/supabaseClient';
 import EmployeeForm from '@/components/master/employees/EmployeeForm';
 import Link from 'next/link';
 

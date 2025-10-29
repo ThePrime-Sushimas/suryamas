@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { supabase } from '@/src/lib/supabaseClient';
+import { supabase } from '@/lib/supabaseClient';
 import EmployeeCard from '@/components/master/employees/EmployeeCard';
 import Link from 'next/link';
 import { EmployeeStatus } from '@/types/employee';
