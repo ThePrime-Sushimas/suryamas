@@ -351,12 +351,6 @@ function EmployeeTableDesktop({
                     >
                       Edit
                     </Link>
-                    <Link 
-                      href={`/master/employees/${employee.employee_id}?returnUrl=${encodeURIComponent(currentUrl)}`}
-                      className="text-gray-600 hover:text-gray-900"
-                    >
-                      View
-                    </Link>
                   </td>
                 </tr>
               );
