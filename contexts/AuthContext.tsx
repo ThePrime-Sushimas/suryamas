@@ -109,30 +109,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(true)
       console.log('Login attempt:', credentials)
 
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Try database login first
+      try {
+        const response = await fetch('/api/users?search=' + credentials.username + '&limit=100')
+        if (response.ok) {
+          const data = await response.json()
+          const dbUser = data.users?.find((u: any) => u.username === credentials.username)
+          
+          if (dbUser && dbUser.is_active) {
+            // Get user with password_hash from database directly
+            const { data: userData, error } = await (await import('@/lib/supabaseClient')).supabase
+              .from('users')
+              .select(`
+                *,
+                role:roles(role_name, role_code),
+                employee:employees(full_name),
+                branch:branches(nama_branch)
+              `)
+              .eq('username', credentials.username)
+              .eq('is_active', true)
+              .single()
 
-      // Mock authentication - in real app, this would be an API call
+            if (!error && userData) {
+              // Decode password hash and verify
+              const storedPassword = Buffer.from(userData.password_hash || '', 'base64').toString()
+              
+              if (storedPassword === credentials.password) {
+                const userObj = {
+                  id: userData.id.toString(),
+                  username: userData.username,
+                  full_name: userData.employee?.full_name || userData.username,
+                  role: userData.role?.role_code?.toLowerCase() || 'staff',
+                  branch_name: userData.branch?.nama_branch || '',
+                  email: userData.email
+                }
+                
+                const token = `jwt-token-${userData.id}-${Date.now()}`
+                
+                localStorage.setItem('token', token)
+                localStorage.setItem('user', JSON.stringify(userObj))
+                sessionStorage.setItem('token', token)
+                sessionStorage.setItem('user', JSON.stringify(userObj))
+                
+                setUser(userObj)
+                console.log('Database login successful:', userObj)
+                return
+              }
+            }
+          }
+        }
+      } catch (apiError) {
+        console.log('API login failed, trying mock users:', apiError)
+      }
+
+      // Fallback to mock authentication
       const foundUser = mockUsers.find(u => 
         u.username === credentials.username && 
-        credentials.password === 'password' // Simple password for demo
+        credentials.password === 'password'
       )
 
       if (foundUser) {
-        console.log('User found:', foundUser)
+        console.log('Mock user found:', foundUser)
         
-        // Generate mock token
         const token = `mock-jwt-token-${foundUser.id}-${Date.now()}`
         
-        // Store in both localStorage and sessionStorage for redundancy
         localStorage.setItem('token', token)
         localStorage.setItem('user', JSON.stringify(foundUser))
         sessionStorage.setItem('token', token)
         sessionStorage.setItem('user', JSON.stringify(foundUser))
         
         setUser(foundUser)
-        console.log('Login successful, user set:', foundUser)
-        
+        console.log('Mock login successful:', foundUser)
         return
       }
 

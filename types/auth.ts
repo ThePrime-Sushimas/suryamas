@@ -1,10 +1,8 @@
-export type UserRole = 'admin' | 'manager' | 'employee';
-
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: UserRole;
+  role: string;
   avatar?: string;
   branch_id?: string;
   branch_name?: string;

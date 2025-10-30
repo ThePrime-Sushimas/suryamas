@@ -37,3 +37,37 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to fetch roles' }, { status: 500 });
   }
 }
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    
+    const { data, error } = await supabase
+      .from('roles')
+      .insert([{
+        role_code: body.role_code,
+        role_name: body.role_name,
+        description: body.description,
+        hierarchy_level: body.hierarchy_level,
+        is_active: body.is_active ?? true,
+        created_at: new Date().toISOString()
+      }])
+      .select();
+
+    if (error) {
+      console.error('Supabase error:', error);
+      return NextResponse.json(
+        { error: error.message || 'Failed to create role' },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ role: data[0] }, { status: 201 });
+  } catch (error) {
+    console.error('Error creating role:', error);
+    return NextResponse.json(
+      { error: 'Failed to create role' },
+      { status: 500 }
+    );
+  }
+}
