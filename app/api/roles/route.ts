@@ -3,27 +3,22 @@ import { supabase } from '@/lib/supabaseClient';
 
 export async function GET() {
   try {
+    // Single query with LEFT JOIN to get user count - fixes N+1 problem
     const { data, error } = await supabase
       .from('roles')
-      .select('*')
+      .select(`
+        *,
+        users!role_id(count)
+      `)
       .order('hierarchy_level', { ascending: false });
 
     if (error) throw error;
 
-    // Get user count for each role
-    const rolesWithCounts = await Promise.all(
-      (data || []).map(async (role) => {
-        const { count: userCount } = await supabase
-          .from('users')
-          .select('*', { count: 'exact', head: true })
-          .eq('role_id', role.id);
-
-        return {
-          ...role,
-          user_count: userCount || 0
-        };
-      })
-    );
+    // Transform data to include user_count
+    const rolesWithCounts = (data || []).map(role => ({
+      ...role,
+      user_count: role.users?.[0]?.count || 0
+    }));
 
     return NextResponse.json({ roles: rolesWithCounts });
   } catch (error) {
