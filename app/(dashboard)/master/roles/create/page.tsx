@@ -43,7 +43,7 @@ export default function CreateRolePage() {
     }
 
     if (formData.hierarchy_level < 1 || formData.hierarchy_level > 100) {
-      newErrors.hierarchy_level = 'Hierarchy level must be between 1-100';
+      newErrors.hierarchy_level = 'Hierarchy level must be between 1-100' as any;
     }
 
     setErrors(newErrors);

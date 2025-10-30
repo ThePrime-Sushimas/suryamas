@@ -163,33 +163,6 @@ export default function RolesPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Role Hierarchy</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {roles
-              .sort((a, b) => b.hierarchy_level - a.hierarchy_level)
-              .map((role) => (
-                <div key={role.id} className="flex items-center space-x-4 p-3 border rounded-lg">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="text-blue-600 font-bold text-sm">
-                      {role.hierarchy_level}
-                    </span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-medium">{role.role_name}</div>
-                    <div className="text-sm text-gray-500">{role.description}</div>
-                  </div>
-                  <Badge variant={role.is_active ? 'success' : 'error'}>
-                    {role.user_count} users
-                  </Badge>
-                </div>
-              ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
