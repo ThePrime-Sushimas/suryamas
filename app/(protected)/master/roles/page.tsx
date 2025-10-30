@@ -144,6 +144,11 @@ export default function RolesPage() {
                             Edit
                           </Button>
                         </Link>
+                        <Link href={`/master/roles/${role.id}/permissions`}>
+                          <Button variant="outline" size="sm">
+                            Permissions
+                          </Button>
+                        </Link>
                         <Button 
                           variant="outline" 
                           size="sm"

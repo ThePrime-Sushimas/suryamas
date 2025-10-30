@@ -15,7 +15,7 @@ interface LayoutClientProps {
 }
 
 export default function LayoutClient({ children }: LayoutClientProps) {
-  const { user, loading } = useAuth()
+  const { user } = useAuth()
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -24,17 +24,15 @@ export default function LayoutClient({ children }: LayoutClientProps) {
     setMounted(true)
   }, [])
 
-  console.log('LayoutClient - User:', user, 'Loading:', loading, 'Pathname:', pathname)
-
-  // Show loading spinner while checking auth or during initial mount
-  if (!mounted || loading) {
+  // Show loading spinner during initial mount
+  if (!mounted) {
     return <LoadingSpinner fullScreen />
   }
 
-  // Don't show layout for login page
-  const isLoginPage = pathname === '/login'
+  // Don't show layout for public pages
+  const isPublicPage = pathname.startsWith('/auth') || pathname === '/unauthorized' || pathname === '/'
 
-  if (isLoginPage) {
+  if (isPublicPage) {
     return (
       <>
         <ErrorBoundary>
@@ -44,18 +42,7 @@ export default function LayoutClient({ children }: LayoutClientProps) {
     )
   }
 
-  // If no user but not on login page, show loading while redirect happens
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <LoadingSpinner size="lg" />
-          <p className="mt-4 text-gray-600">Redirecting to login...</p>
-        </div>
-      </div>
-    )
-  }
-
+  // Layout for protected pages (auth handled by ProtectedLayout)
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}

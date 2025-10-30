@@ -22,7 +22,6 @@ export default function LoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      console.log('User already logged in, redirecting to:', callbackUrl)
       router.push(callbackUrl)
     }
   }, [user, callbackUrl, router])
@@ -40,12 +39,9 @@ export default function LoginPage() {
     setError('')
 
     try {
-      console.log('Attempting login with:', credentials)
       await login(credentials)
-      // Login successful - the useEffect above will handle redirect
-      console.log('Login successful in page component')
+      router.push('/dashboard')
     } catch (err: any) {
-      console.error('Login error in page:', err)
       setError(err.message || 'Login failed. Please try again.')
     } finally {
       setLoading(false)

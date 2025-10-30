@@ -107,7 +107,7 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
@@ -196,6 +196,13 @@ export default function UsersPage() {
                           onClick={() => router.push(`/master/users/${user.id}`)}
                         >
                           Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => router.push(`/master/users/${user.id}/permissions`)}
+                        >
+                          Permissions
                         </Button>
                         <Button
                           variant={user.is_active ? 'outline' : 'secondary'}

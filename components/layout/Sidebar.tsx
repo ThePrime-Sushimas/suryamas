@@ -46,6 +46,12 @@ const menuItems: MenuItem[] = [
         roles: ['super_admin']
       },
       {
+        name: 'Permissions',
+        href: '/master/permissions',
+        icon: '🔑',
+        roles: ['super_admin']
+      },
+      {
         name: 'Employees',
         href: '/master/employees',
         icon: '👥',

@@ -12,6 +12,7 @@ interface User {
   branch_id?: string
   branch_name?: string
   email?: string
+  permissions?: string[]
 }
 
 interface AuthContextType {
@@ -81,21 +82,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check if user is logged in on mount
     const checkAuth = async () => {
       try {
-        // Check both localStorage and sessionStorage for backup
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-        const userData = localStorage.getItem('user') || sessionStorage.getItem('user')
+        const token = localStorage.getItem('token')
+        const userData = localStorage.getItem('user')
         
         if (token && userData) {
           const userObj = JSON.parse(userData)
-          console.log('Found user in storage:', userObj)
           setUser(userObj)
         }
       } catch (error) {
-        console.error('Auth check failed:', error)
         localStorage.removeItem('token')
         localStorage.removeItem('user')
-        sessionStorage.removeItem('token')
-        sessionStorage.removeItem('user')
       } finally {
         setLoading(false)
       }
@@ -107,92 +103,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (credentials: { username: string; password: string }) => {
     try {
       setLoading(true)
-      console.log('Login attempt:', credentials)
-
-      // Try database login first
-      try {
-        const response = await fetch('/api/users?search=' + credentials.username + '&limit=100')
-        if (response.ok) {
-          const data = await response.json()
-          const dbUser = data.users?.find((u: any) => u.username === credentials.username)
-          
-          if (dbUser && dbUser.is_active) {
-            // Get user with password_hash from database directly
-            const { data: userData, error } = await (await import('@/lib/supabaseClient')).supabase
-              .from('users')
-              .select(`
-                *,
-                role:roles(role_name, role_code),
-                employee:employees(full_name),
-                branch:branches(nama_branch)
-              `)
-              .eq('username', credentials.username)
-              .eq('is_active', true)
-              .single()
-
-            if (!error && userData) {
-              // Decode password hash and verify
-              const storedPassword = Buffer.from(userData.password_hash || '', 'base64').toString()
-              
-              if (storedPassword === credentials.password) {
-                const userObj = {
-                  id: userData.id.toString(),
-                  username: userData.username,
-                  full_name: userData.employee?.full_name || userData.username,
-                  role: userData.role?.role_code?.toLowerCase() || 'staff',
-                  branch_name: userData.branch?.nama_branch || '',
-                  email: userData.email
-                }
-                
-                const token = `jwt-token-${userData.id}-${Date.now()}`
-                
-                localStorage.setItem('token', token)
-                localStorage.setItem('user', JSON.stringify(userObj))
-                sessionStorage.setItem('token', token)
-                sessionStorage.setItem('user', JSON.stringify(userObj))
-                
-                setUser(userObj)
-                console.log('Database login successful:', userObj)
-                return
-              }
-            }
-          }
-        }
-      } catch (apiError) {
-        console.log('API login failed, trying mock users:', apiError)
-      }
-
-      // Fallback to mock authentication
+      // Simple mock authentication for now
       const foundUser = mockUsers.find(u => 
         u.username === credentials.username && 
         credentials.password === 'password'
       )
 
       if (foundUser) {
-        console.log('Mock user found:', foundUser)
+        // Load user permissions from database if user exists in DB
+        try {
+          const permResponse = await fetch(`/api/users/${foundUser.id}/permissions`)
+          if (permResponse.ok) {
+            const permData = await permResponse.json()
+            foundUser.permissions = permData.permissions
+          }
+        } catch (permError) {
+          console.log('Could not load permissions from DB, using mock user')
+          // For super_admin, grant all permissions
+          if (foundUser.role === 'super_admin') {
+            foundUser.permissions = ['MASTER_ACCESS', 'FINANCE_ACCESS', 'SYSTEM_ACCESS', 'VIEW_REPORTS']
+          }
+        }
         
         const token = `mock-jwt-token-${foundUser.id}-${Date.now()}`
         
         localStorage.setItem('token', token)
         localStorage.setItem('user', JSON.stringify(foundUser))
-        sessionStorage.setItem('token', token)
-        sessionStorage.setItem('user', JSON.stringify(foundUser))
         
         setUser(foundUser)
-        console.log('Mock login successful:', foundUser)
         return
       }
 
-      console.log('User not found or invalid password')
       throw new Error('Invalid username or password')
       
     } catch (error) {
-      console.error('Login error:', error)
-      // Clear any partial auth data
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-      sessionStorage.removeItem('token')
-      sessionStorage.removeItem('user')
       setUser(null)
       throw error
     } finally {
@@ -201,33 +147,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
-    console.log('Logging out...')
     localStorage.removeItem('token')
     localStorage.removeItem('user')
-    sessionStorage.removeItem('token')
-    sessionStorage.removeItem('user')
     setUser(null)
-    router.push('/login')
+    router.push('/auth/login')
   }
 
-  const hasPermission = (requiredRole: string) => {
+  const hasPermission = (requiredPermission: string) => {
     if (!user) return false
     
-    const roleHierarchy: Record<string, number> = {
-      'super_admin': 5,
-      'admin': 4,
-      'manager': 3,
-      'staff': 2,
-      'cashier': 1
+    // Check if user has specific permission
+    if (user.permissions?.includes(requiredPermission)) {
+      return true
     }
     
-    return roleHierarchy[user.role] >= roleHierarchy[requiredRole]
+    // Fallback: allow all permissions for super_admin
+    if (user.role === 'super_admin') {
+      return true
+    }
+    
+    return false
   }
 
-  // Debug: log auth state changes
-  useEffect(() => {
-    console.log('Auth state updated - User:', user, 'Loading:', loading)
-  }, [user, loading])
+
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout, hasPermission }}>
