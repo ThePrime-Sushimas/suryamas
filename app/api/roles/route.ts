@@ -5,12 +5,7 @@ export async function GET() {
   try {
     const { data, error } = await supabase
       .from('roles')
-      .select(`
-        *,
-        permissions:role_permissions(
-          permission:permissions(*)
-        )
-      `)
+      .select('*')
       .order('hierarchy_level', { ascending: false });
 
     if (error) throw error;
@@ -25,7 +20,6 @@ export async function GET() {
 
         return {
           ...role,
-          permission_count: role.permissions?.length || 0,
           user_count: userCount || 0
         };
       })

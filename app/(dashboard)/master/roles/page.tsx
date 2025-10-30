@@ -14,7 +14,6 @@ interface Role {
   description: string;
   hierarchy_level: number;
   is_active: boolean;
-  permission_count: number;
   user_count: number;
   created_at: string;
 }
@@ -22,6 +21,7 @@ interface Role {
 export default function RolesPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<number | null>(null);
 
   const fetchRoles = async () => {
     try {
@@ -34,6 +34,28 @@ export default function RolesPage() {
       console.error('Error fetching roles:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (roleId: number) => {
+    if (!confirm('Are you sure you want to delete this role?')) return;
+    
+    setDeleting(roleId);
+    try {
+      const response = await fetch(`/api/roles/${roleId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        setRoles(roles.filter(role => role.id !== roleId));
+      } else {
+        alert('Failed to delete role');
+      }
+    } catch (error) {
+      console.error('Error deleting role:', error);
+      alert('Error deleting role');
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -76,7 +98,6 @@ export default function RolesPage() {
                 <TableHead>Role Name</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Hierarchy Level</TableHead>
-                <TableHead>Permissions</TableHead>
                 <TableHead>Users</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
@@ -85,13 +106,13 @@ export default function RolesPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8">
+                  <TableCell colSpan={7} className="text-center py-8">
                     <div className="animate-pulse">Loading roles...</div>
                   </TableCell>
                 </TableRow>
               ) : roles.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                     No roles found
                   </TableCell>
                 </TableRow>
@@ -108,11 +129,6 @@ export default function RolesPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {role.permission_count} permissions
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
                         {role.user_count} users
                       </Badge>
                     </TableCell>
@@ -123,11 +139,20 @@ export default function RolesPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
-                        <Link href={`/master/roles/${role.id}`}>
+                        <Link href={`/master/roles/${role.id}/edit`}>
                           <Button variant="outline" size="sm">
-                            Manage Permissions
+                            Edit
                           </Button>
                         </Link>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleDelete(role.id)}
+                          disabled={deleting === role.id}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          {deleting === role.id ? 'Deleting...' : 'Delete'}
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
