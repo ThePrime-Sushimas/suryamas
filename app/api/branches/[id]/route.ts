@@ -8,7 +8,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     
     const { data: branch, error } = await supabase
       .from('branches')
-      .select('*')
+      .select(`
+        *,
+        pic:employees!pic_id(
+          employee_id,
+          full_name,
+          email,
+          job_position
+        )
+      `)
       .eq('id_branch', id)
       .single();
 
@@ -24,19 +32,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         { error: 'Branch not found' },
         { status: 404 }
       );
-    }
-
-    // Get employee info for PIC
-    if (branch?.pic_id) {
-      const { data: employee } = await supabase
-        .from('employees')
-        .select('employee_id, full_name, email, job_position')
-        .eq('employee_id', branch.pic_id)
-        .single();
-      
-      if (employee) {
-        branch.pic = employee;
-      }
     }
 
     return NextResponse.json({ branch });

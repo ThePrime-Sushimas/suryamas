@@ -35,17 +35,18 @@ export async function GET(request: NextRequest) {
       throw error;
     }
 
-    // Get unique modules for filter
-    const { data: modules, error: moduleError } = await supabase
-      .from('permissions')
-      .select('module')
-      .order('module');
-
-    if (moduleError) {
-      console.error('Module query error:', moduleError);
+    // Get unique modules for filter - extract from current results to avoid extra query
+    const uniqueModules = [...new Set(permissions?.map(p => p.module).filter(Boolean) || [])];
+    
+    // If no results on current page, get all modules for filter
+    if (uniqueModules.length === 0 && !search && !module) {
+      const { data: allModules } = await supabase
+        .from('permissions')
+        .select('module')
+        .order('module');
+      
+      uniqueModules.push(...new Set(allModules?.map(m => m.module).filter(Boolean) || []));
     }
-
-    const uniqueModules = [...new Set(modules?.map(m => m.module) || [])];
 
     return NextResponse.json({
       permissions: permissions || [],

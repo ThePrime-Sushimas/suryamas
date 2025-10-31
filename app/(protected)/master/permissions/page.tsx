@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
@@ -8,13 +9,16 @@ import { Badge } from '@/components/ui/Badge';
 import { Permission, PermissionFormData, PermissionsResponse } from '@/types/permissions';
 
 export default function PermissionsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [modules, setModules] = useState<string[]>([]);
   const [tables, setTables] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [selectedModule, setSelectedModule] = useState('');
-  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState(searchParams.get('search') || '');
+  const [selectedModule, setSelectedModule] = useState(searchParams.get('module') || '');
+  const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
   const [totalPages, setTotalPages] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editingPermission, setEditingPermission] = useState<Permission | null>(null);
@@ -62,14 +66,40 @@ export default function PermissionsPage() {
     }
   };
 
+  const updateURL = (params: Record<string, string | number | null>) => {
+    const url = new URLSearchParams(searchParams.toString());
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) {
+        url.set(key, value.toString());
+      } else {
+        url.delete(key);
+      }
+    });
+    
+    router.push(`?${url.toString()}`, { scroll: false });
+  };
+
   useEffect(() => {
     fetchPermissions();
     fetchTables();
   }, [page, search, selectedModule]);
 
+  useEffect(() => {
+    updateURL({
+      page: page > 1 ? page : null,
+      search: search || null,
+      module: selectedModule || null
+    });
+  }, [page, search, selectedModule]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, selectedModule]);
+
   const fetchTables = async () => {
     try {
-      const response = await fetch('/api/database/tables');
+      const response = await fetch('/api/permissions/tables');
       if (response.ok) {
         const data = await response.json();
         setTables(data.tables || []);
@@ -159,7 +189,17 @@ export default function PermissionsPage() {
       table_name: permission.table_name || '',
       description: permission.description || ''
     });
-    setSelectedCrudAction('');
+    
+    // Auto-detect CRUD action from permission_code
+    let detectedAction = '';
+    if (permission.table_name && permission.permission_code.includes('.')) {
+      const action = permission.permission_code.split('.').pop();
+      if (['view', 'create', 'edit', 'delete'].includes(action || '')) {
+        detectedAction = action || '';
+      }
+    }
+    setSelectedCrudAction(detectedAction);
+    
     setShowModal(true);
   };
 
@@ -243,12 +283,18 @@ export default function PermissionsPage() {
         <Input
           placeholder="Cari permission..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
           className="max-w-sm"
         />
         <select
           value={selectedModule}
-          onChange={(e) => setSelectedModule(e.target.value)}
+          onChange={(e) => {
+            setSelectedModule(e.target.value);
+            setPage(1);
+          }}
           className="px-3 py-2 border rounded-md"
         >
           <option value="">Semua Modul</option>

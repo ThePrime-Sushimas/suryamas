@@ -206,7 +206,9 @@ export default function UsersPage() {
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{user.employee_name}</div>
+                        <Link href={`/master/users/${user.id}`} className="font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                          {user.employee_name}
+                        </Link>
                         <div className="text-sm text-gray-500">{user.employee_id}</div>
                       </div>
                     </TableCell>
@@ -236,7 +238,7 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
-                        <Link href={`/master/users/${user.id}`}>
+                        <Link href={`/master/users/${user.id}/edit`}>
                           <Button
                             variant="outline"
                             size="sm"
@@ -244,14 +246,7 @@ export default function UsersPage() {
                             Edit
                           </Button>
                         </Link>
-                        <Link href={`/master/users/${user.id}/permissions`}>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                          >
-                            Permissions
-                          </Button>
-                        </Link>
+
                         <Button
                           variant={user.is_active ? 'outline' : 'secondary'}
                           size="sm"

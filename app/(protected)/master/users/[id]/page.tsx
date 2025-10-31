@@ -61,7 +61,6 @@ export default function UserDetailPage() {
             onClick={() => router.back()}
             className="mb-2"
           >
-            // amazonq-ignore-next-line
             ← Kembali
           </Button>
           <h1 className="text-2xl font-bold">User Detail: {user.username}</h1>
@@ -72,12 +71,6 @@ export default function UserDetailPage() {
             onClick={() => router.push(`/master/users/${userId}/edit`)}
           >
             Edit User
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => router.push(`/master/users/${userId}/permissions`)}
-          >
-            Manage Permissions
           </Button>
         </div>
       </div>

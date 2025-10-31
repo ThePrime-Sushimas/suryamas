@@ -10,7 +10,7 @@ export async function GET() {
       .map(dirent => dirent.name)
       .filter(name => 
         // Filter out non-table folders
-        !['auth', 'database'].includes(name) &&
+        !['auth', 'database', 'permissions'].includes(name) &&
         !name.includes('.')
       );
 
