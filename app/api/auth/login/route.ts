@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 import bcrypt from 'bcryptjs';
-import { RolePermission } from '@/types/permissions';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,23 +11,15 @@ export async function POST(request: NextRequest) {
         { error: 'Username and password are required' },
         { status: 400 }
       );
-    }
-
-    // Get user with role and employee info
+    }    
+    
+    // Get user with related data
     const { data: user, error } = await supabase
       .from('users')
       .select(`
-        id,
-        username,
-        email,
-        password_hash,
-        is_active,
-        failed_login_attempts,
-        role_id,
-        branch_id,
-        employee_id,
+        *,
         employees!inner(full_name),
-        roles!inner(id, role_name, role_code),
+        roles!inner(role_name, role_code),
         branches!inner(nama_branch)
       `)
       .eq('username', username)
@@ -42,7 +33,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if account is locked
+    // Check account lock
     if (user.failed_login_attempts >= 5) {
       return NextResponse.json(
         { error: 'Account is locked due to too many failed attempts' },
@@ -50,23 +41,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify password - support both bcrypt and base64 formats
+    // Verify password
     let isValidPassword = false;
     
     if (user.password_hash.startsWith('$2b$')) {
-      // Bcrypt format
       isValidPassword = await bcrypt.compare(password, user.password_hash);
     } else {
-      // Base64 format (legacy)
-      isValidPassword = Buffer.from(password).toString('base64') === user.password_hash;
+      const inputBase64 = Buffer.from(password).toString('base64');
+      isValidPassword = inputBase64 === user.password_hash;
     }
 
     if (!isValidPassword) {
-      // Increment failed attempts
       await supabase
         .from('users')
         .update({ 
-          failed_login_attempts: user.failed_login_attempts + 1 
+          failed_login_attempts: (user.failed_login_attempts || 0) + 1 
         })
         .eq('id', user.id);
 
@@ -76,7 +65,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Reset failed attempts and update last login
+    // Reset failed attempts
     await supabase
       .from('users')
       .update({ 
@@ -85,33 +74,27 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', user.id);
 
-    // Get user permissions from role
-    const { data: rolePermissions, error: permError } = await supabase
+    // GET PERMISSIONS - QUERY YANG LEBIH SEDERHANA
+    const { data: permissions } = await supabase
       .from('role_permissions')
       .select(`
-        permissions(
-          permission_code
-        )
+        permission_code
       `)
-      .eq('role_id', user.roles[0]?.id);
-        
-    const userPermissions = rolePermissions?.map(rp => rp.permissions[0]?.permission_code).filter(Boolean) || [];
-    console.log('Mapped permissions:', userPermissions);
-    console.log('==================');
-    
-    // Fallback: If super admin has no permissions, give all access
-    const finalPermissions = userPermissions.length === 0 && user.roles[0]?.role_code === 'super_admin' 
-      ? ['*'] // Wildcard permission for super admin
-      : userPermissions;
+      .eq('role_id', user.role_id);
 
+    // Extract permission codes
+    const userPermissions = permissions?.map(p => p.permission_code).filter(Boolean) || [];
+    
+    // Prepare user data
     const userData = {
       id: user.id.toString(),
       username: user.username,
-      full_name: user.employees[0]?.full_name,
-      role: user.roles[0]?.role_code,
-      branch_name: user.branches[0]?.nama_branch,
+      full_name: user.employees?.full_name,
+      role: user.roles?.role_code,
+      branch_id: user.branch_id?.toString(),
+      branch_name: user.branches?.nama_branch,
       email: user.email,
-      permissions: finalPermissions
+      permissions: userPermissions
     };
 
     const token = `jwt-${user.id}-${Date.now()}`;

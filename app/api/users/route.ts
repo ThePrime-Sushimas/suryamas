@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
+import bcrypt from 'bcryptjs';
 
 export async function GET(request: NextRequest) {
   try {
@@ -73,8 +74,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { primary_branch_id, additional_branch_ids = [] } = body;
     
-    // Simple password hashing (in production, use bcrypt)
-    const passwordHash = Buffer.from(body.password).toString('base64');
+    // Secure password hashing with bcrypt
+    const passwordHash = await bcrypt.hash(body.password, 12);
     
     const { data, error } = await supabase
       .from('users')
