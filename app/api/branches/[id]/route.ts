@@ -92,3 +92,29 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     );
   }
 }
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    
+    // Soft delete by setting is_active to false
+    const { error } = await supabase
+      .from('branches')
+      .update({ 
+        is_active: false,
+        updated_at: new Date().toISOString(),
+        updated_by: 'SDE921SE0017'
+      })
+      .eq('id_branch', id);
+
+    if (error) throw error;
+
+    return NextResponse.json({ message: 'Branch deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting branch:', error);
+    return NextResponse.json(
+      { error: 'Error deleting branch' },
+      { status: 500 }
+    );
+  }
+}
