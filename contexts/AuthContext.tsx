@@ -25,52 +25,7 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Mock user data for demonstration
-const mockUsers: User[] = [
-  {
-    id: '1',
-    username: 'superadmin',
-    full_name: 'Super Administrator',
-    role: 'super_admin',
-    branch_name: 'Head Office',
-    email: 'superadmin@restaurant.com'
-  },
-  {
-    id: '2',
-    username: 'admin',
-    full_name: 'Administrator',
-    role: 'admin',
-    branch_name: 'Head Office',
-    email: 'admin@restaurant.com'
-  },
-  {
-    id: '3',
-    username: 'manager',
-    full_name: 'Branch Manager',
-    role: 'manager',
-    branch_id: 'branch-1',
-    branch_name: 'Central Branch',
-    email: 'manager@restaurant.com'
-  },
-  {
-    id: '4',
-    username: 'staff',
-    full_name: 'Restaurant Staff',
-    role: 'staff',
-    branch_id: 'branch-1',
-    branch_name: 'Central Branch',
-    email: 'staff@restaurant.com'
-  },
-  {
-    id: '5',
-    username: 'cashier',
-    full_name: 'Cashier',
-    role: 'cashier',
-    branch_id: 'branch-1',
-    branch_name: 'Central Branch',
-    email: 'cashier@restaurant.com'
-  }
-]
+
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -103,38 +58,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (credentials: { username: string; password: string }) => {
     try {
       setLoading(true)
-      // Simple mock authentication for now
-      const foundUser = mockUsers.find(u => 
-        u.username === credentials.username && 
-        credentials.password === 'password'
-      )
+      
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials)
+      })
 
-      if (foundUser) {
-        // Load user permissions from database if user exists in DB
-        try {
-          const permResponse = await fetch(`/api/users/${foundUser.id}/permissions`)
-          if (permResponse.ok) {
-            const permData = await permResponse.json()
-            foundUser.permissions = permData.permissions
-          }
-        } catch (permError) {
-          console.log('Could not load permissions from DB, using mock user')
-          // For super_admin, grant all permissions
-          if (foundUser.role === 'super_admin') {
-            foundUser.permissions = ['MASTER_ACCESS', 'FINANCE_ACCESS', 'SYSTEM_ACCESS', 'VIEW_REPORTS']
-          }
-        }
-        
-        const token = `mock-jwt-token-${foundUser.id}-${Date.now()}`
-        
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(foundUser))
-        
-        setUser(foundUser)
-        return
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Login failed')
       }
 
-      throw new Error('Invalid username or password')
+      const { user: foundUser, token } = await response.json()
+      
+      localStorage.setItem('token', token)
+      localStorage.setItem('user', JSON.stringify(foundUser))
+      
+      setUser(foundUser)
       
     } catch (error) {
       localStorage.removeItem('token')

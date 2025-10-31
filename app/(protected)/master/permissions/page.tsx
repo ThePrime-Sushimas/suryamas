@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Table } from '@/components/ui/Table';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { Permission, PermissionFormData, PermissionsResponse } from '@/types/permissions';
@@ -11,6 +10,7 @@ import { Permission, PermissionFormData, PermissionsResponse } from '@/types/per
 export default function PermissionsPage() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [modules, setModules] = useState<string[]>([]);
+  const [tables, setTables] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedModule, setSelectedModule] = useState('');
@@ -22,8 +22,10 @@ export default function PermissionsPage() {
     permission_code: '',
     permission_name: '',
     module: '',
+    table_name: '',
     description: ''
   });
+  const [selectedCrudAction, setSelectedCrudAction] = useState<string>('');
 
   const fetchPermissions = async () => {
     try {
@@ -62,43 +64,86 @@ export default function PermissionsPage() {
 
   useEffect(() => {
     fetchPermissions();
+    fetchTables();
   }, [page, search, selectedModule]);
+
+  const fetchTables = async () => {
+    try {
+      const response = await fetch('/api/database/tables');
+      if (response.ok) {
+        const data = await response.json();
+        setTables(data.tables || []);
+      }
+    } catch (error) {
+      console.error('Error fetching tables:', error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
-      const url = editingPermission 
-        ? `/api/permissions/${editingPermission.id}`
-        : '/api/permissions';
-      
-      const method = editingPermission ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
-        setShowModal(false);
-        setEditingPermission(null);
-        setFormData({
-          permission_code: '',
-          permission_name: '',
-          module: '',
-          description: ''
+      if (editingPermission) {
+        // Edit single permission
+        const response = await fetch(`/api/permissions/${editingPermission.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
         });
-        fetchPermissions();
-      } else {
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
+
+        if (!response.ok) {
           const error = await response.json();
           alert(error.error);
-        } else {
-          alert('Terjadi kesalahan pada server');
+          return;
+        }
+      } else if (selectedCrudAction && formData.table_name) {
+        // Create single permission for selected CRUD action
+        const permission = {
+          permission_code: `${formData.table_name}.${selectedCrudAction}`,
+          permission_name: `${selectedCrudAction.charAt(0).toUpperCase() + selectedCrudAction.slice(1)} ${formData.table_name}`,
+          module: formData.module || `${formData.table_name} Management`,
+          table_name: formData.table_name,
+          description: `Can ${selectedCrudAction} ${formData.table_name} records`
+        };
+
+        const response = await fetch('/api/permissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(permission)
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          alert(`Error creating ${permission.permission_code}: ${error.error}`);
+          return;
+        }
+      } else {
+        // Create single permission
+        const response = await fetch('/api/permissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          alert(error.error);
+          return;
         }
       }
+
+      setShowModal(false);
+      setEditingPermission(null);
+      setFormData({
+        permission_code: '',
+        permission_name: '',
+        module: '',
+        table_name: '',
+        description: ''
+      });
+      setSelectedCrudAction('');
+      fetchPermissions();
+      
     } catch (error) {
       console.error('Error saving permission:', error);
       alert('Terjadi kesalahan');
@@ -111,8 +156,10 @@ export default function PermissionsPage() {
       permission_code: permission.permission_code,
       permission_name: permission.permission_name,
       module: permission.module,
+      table_name: permission.table_name || '',
       description: permission.description || ''
     });
+    setSelectedCrudAction('');
     setShowModal(true);
   };
 
@@ -148,6 +195,11 @@ export default function PermissionsPage() {
       key: 'module', 
       label: 'Modul',
       render: (value: string) => <Badge variant="default">{value}</Badge>
+    },
+    { 
+      key: 'table_name', 
+      label: 'Tabel',
+      render: (value: string) => value ? <Badge variant="secondary">{value}</Badge> : '-'
     },
     { key: 'description', label: 'Deskripsi' },
     {
@@ -266,8 +318,10 @@ export default function PermissionsPage() {
             permission_code: '',
             permission_name: '',
             module: '',
+            table_name: '',
             description: ''
           });
+          setSelectedCrudAction('');
         }}
         title={editingPermission ? 'Edit Permission' : 'Tambah Permission'}
       >
@@ -290,6 +344,51 @@ export default function PermissionsPage() {
             onChange={(e) => setFormData(prev => ({ ...prev, module: e.target.value }))}
             required
           />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nama Tabel
+            </label>
+            <select
+              value={formData.table_name}
+              onChange={(e) => {
+                const tableName = e.target.value;
+                setFormData(prev => ({ ...prev, table_name: tableName }));
+                if (tableName) {
+                  setFormData(prev => ({ ...prev, module: `${tableName} Management` }));
+                }
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Pilih Tabel</option>
+              {tables.map(table => (
+                <option key={table} value={table}>{table}</option>
+              ))}
+            </select>
+          </div>
+
+          {formData.table_name && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                CRUD Action untuk {formData.table_name}
+              </label>
+              <select
+                value={selectedCrudAction}
+                onChange={(e) => setSelectedCrudAction(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Pilih Action</option>
+                <option value="view">View/Read - Can view records</option>
+                <option value="create">Create - Can add new records</option>
+                <option value="edit">Edit/Update - Can modify records</option>
+                <option value="delete">Delete - Can remove records</option>
+              </select>
+              {selectedCrudAction && (
+                <p className="text-xs text-gray-500 mt-2">
+                  Will create: {formData.table_name}.{selectedCrudAction}
+                </p>
+              )}
+            </div>
+          )}
           <Input
             label="Deskripsi"
             value={formData.description}

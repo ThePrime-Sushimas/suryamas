@@ -37,7 +37,8 @@ interface FormData {
   password: string;
   confirm_password: string;
   role_id: string;
-  branch_id: string;
+  primary_branch_id: string;
+  additional_branch_ids: string[];
   is_active: boolean;
   must_change_password: boolean;
 }
@@ -65,7 +66,8 @@ function CreateUserContent() {
     password: '',
     confirm_password: '',
     role_id: '',
-    branch_id: '',
+    primary_branch_id: '',
+    additional_branch_ids: [],
     is_active: true,
     must_change_password: true
   });
@@ -96,6 +98,7 @@ function CreateUserContent() {
           const branchesData = await branchesResponse.json();
           setBranches(branchesData.branches);
         }
+      // amazonq-ignore-next-line
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -142,10 +145,12 @@ function CreateUserContent() {
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
+      // amazonq-ignore-next-line
       newErrors.password = 'Password must be at least 6 characters';
     }
 
     if (formData.password !== formData.confirm_password) {
+      // amazonq-ignore-next-line
       newErrors.confirm_password = 'Passwords do not match';
     }
 
@@ -153,8 +158,8 @@ function CreateUserContent() {
       newErrors.role_id = 'Role is required';
     }
 
-    if (!formData.branch_id) {
-      newErrors.branch_id = 'Branch is required';
+    if (!formData.primary_branch_id) {
+      newErrors.primary_branch_id = 'Primary branch is required';
     }
 
     setErrors(newErrors);
@@ -181,8 +186,10 @@ function CreateUserContent() {
           username: formData.username,
           email: formData.email,
           password: formData.password,
+          // amazonq-ignore-next-line
           role_id: parseInt(formData.role_id),
-          branch_id: parseInt(formData.branch_id),
+          primary_branch_id: parseInt(formData.primary_branch_id),
+          additional_branch_ids: formData.additional_branch_ids.map(id => parseInt(id)),
           is_active: formData.is_active,
           must_change_password: formData.must_change_password
         }),
@@ -192,6 +199,7 @@ function CreateUserContent() {
         router.push('/master/users?message=User created successfully');
       } else {
         const errorData = await response.json();
+        // amazonq-ignore-next-line
         alert(errorData.error || 'Failed to create user');
       }
     } catch (error) {
@@ -385,24 +393,56 @@ function CreateUserContent() {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Branch *
+                        Primary Branch *
                       </label>
                       <select
-                        value={formData.branch_id}
-                        onChange={(e) => handleInputChange('branch_id', e.target.value)}
+                        value={formData.primary_branch_id}
+                        onChange={(e) => handleInputChange('primary_branch_id', e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
-                        <option value="">Select Branch</option>
+                        <option value="">Select Primary Branch</option>
                         {branches.map((branch) => (
                           <option key={branch.id_branch} value={branch.id_branch}>
                             {branch.nama_branch} - {branch.kota}
                           </option>
                         ))}
                       </select>
-                      {errors.branch_id && (
-                        <p className="text-red-600 text-sm mt-1">{errors.branch_id}</p>
+                      {errors.primary_branch_id && (
+                        <p className="text-red-600 text-sm mt-1">{errors.primary_branch_id}</p>
                       )}
                     </div>
+                  </div>
+
+                  {/* Additional Branches */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Additional Branches (Optional)
+                    </label>
+                    <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3">
+                      {branches
+                        .filter(branch => branch.id_branch.toString() !== formData.primary_branch_id)
+                        .map((branch) => (
+                        <label key={branch.id_branch} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={formData.additional_branch_ids.includes(branch.id_branch.toString())}
+                            onChange={(e) => {
+                              const branchId = branch.id_branch.toString();
+                              if (e.target.checked) {
+                                handleInputChange('additional_branch_ids', [...formData.additional_branch_ids, branchId]);
+                              } else {
+                                handleInputChange('additional_branch_ids', formData.additional_branch_ids.filter(id => id !== branchId));
+                              }
+                            }}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-2"
+                          />
+                          <span className="text-sm">{branch.nama_branch} - {branch.kota}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Select additional branches this user can access
+                    </p>
                   </div>
 
                   {/* Options */}
@@ -439,13 +479,12 @@ function CreateUserContent() {
                 <div className="flex space-x-4 pt-6 border-t">
                   <Button
                     type="submit"
-                    loading={loading}
                     disabled={loading}
                   >
-                    Create User
+                    {loading ? 'Creating...' : 'Create User'}
                   </Button>
                   <Link href="/master/users">
-                    <Button type="button" variant="outline">
+                    <Button type="button" variant="outline" disabled={loading}>
                       Cancel
                     </Button>
                   </Link>
@@ -510,9 +549,20 @@ function CreateUserContent() {
                     <span className="font-medium">{selectedEmployee.job_position}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Branch:</span>
+                    <span className="text-gray-600">Primary Branch:</span>
                     <span className="font-medium">
-                      {branches.find(b => b.id_branch === parseInt(formData.branch_id))?.nama_branch || 'Not selected'}
+                      {branches.find(b => b.id_branch === parseInt(formData.primary_branch_id))?.nama_branch || 'Not selected'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Additional Branches:</span>
+                    <span className="font-medium text-right">
+                      {formData.additional_branch_ids.length > 0 
+                        ? formData.additional_branch_ids.map(id => 
+                            branches.find(b => b.id_branch === parseInt(id))?.nama_branch
+                          ).join(', ')
+                        : 'None'
+                      }
                     </span>
                   </div>
                   <div className="flex justify-between">

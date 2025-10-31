@@ -41,7 +41,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { permission_code, permission_name, module, description } = body;
+    const { permission_code, permission_name, module, table_name, description } = body;
 
     // Validate required fields
     if (!permission_code || !permission_name || !module) {
@@ -72,6 +72,7 @@ export async function PUT(
         permission_code,
         permission_name,
         module,
+        table_name,
         description,
         updated_at: new Date().toISOString()
       })

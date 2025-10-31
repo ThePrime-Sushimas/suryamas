@@ -16,7 +16,7 @@ interface MenuItem {
   name: string
   href: string
   icon: string
-  roles: string[] // Roles yang diizinkan mengakses menu ini
+  permission?: string // Permission required to access this menu
   children?: MenuItem[]
 }
 
@@ -24,44 +24,43 @@ const menuItems: MenuItem[] = [
   {
     name: 'Dashboard',
     href: '/dashboard',
-    icon: '📊',
-    roles: ['super_admin', 'admin', 'manager', 'staff']
+    icon: '📊'
   },
   {
     name: 'Master Data',
     href: '/master',
     icon: '🗃️',
-    roles: ['super_admin', 'admin', 'manager'],
+    permission: 'master.access',
     children: [
       {
         name: 'Users',
         href: '/master/users',
         icon: '👤',
-        roles: ['super_admin', 'admin']
+        permission: 'users.view'
       },
       {
         name: 'Roles',
         href: '/master/roles',
         icon: '🔐',
-        roles: ['super_admin']
+        permission: 'roles.view'
       },
       {
         name: 'Permissions',
         href: '/master/permissions',
         icon: '🔑',
-        roles: ['super_admin']
+        permission: 'permissions.view'
       },
       {
         name: 'Employees',
         href: '/master/employees',
         icon: '👥',
-        roles: ['super_admin', 'admin', 'manager']
+        permission: 'employees.view'
       },
       {
         name: 'Branches',
         href: '/master/branches',
         icon: '🏪',
-        roles: ['super_admin', 'admin']
+        permission: 'branches.view'
       }
     ]
   },
@@ -69,25 +68,25 @@ const menuItems: MenuItem[] = [
     name: 'Reports',
     href: '/reports',
     icon: '📈',
-    roles: ['super_admin', 'admin', 'manager']
+    permission: 'reports.view'
   },
   {
     name: 'System',
     href: '/system',
     icon: '⚙️',
-    roles: ['super_admin', 'admin'],
+    permission: 'system.access',
     children: [
       {
         name: 'Audit Logs',
         href: '/system/audit-logs',
         icon: '📋',
-        roles: ['super_admin', 'admin']
+        permission: 'system.audit_logs'
       },
       {
         name: 'Settings',
         href: '/system/settings',
         icon: '🔧',
-        roles: ['super_admin']
+        permission: 'system.settings'
       }
     ]
   }
@@ -95,7 +94,7 @@ const menuItems: MenuItem[] = [
 
 export default function Sidebar({ isOpen, onClose, userRole }: SidebarProps) {
   const pathname = usePathname()
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
   const [expandedMenus, setExpandedMenus] = useState<string[]>([])
 
   const toggleMenu = (menuName: string) => {
@@ -106,13 +105,14 @@ export default function Sidebar({ isOpen, onClose, userRole }: SidebarProps) {
     )
   }
 
-  const hasAccess = (roles: string[]) => {
-    return userRole && roles.includes(userRole)
+  const hasAccess = (permission?: string) => {
+    if (!permission) return true; // No permission required
+    return hasPermission(permission);
   }
 
   const renderMenuItems = (items: MenuItem[]) => {
     return items
-      .filter(item => hasAccess(item.roles))
+      .filter(item => hasAccess(item.permission))
       .map(item => (
         <div key={item.href}>
           {item.children ? (

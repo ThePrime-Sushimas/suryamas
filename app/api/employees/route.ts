@@ -2,6 +2,25 @@
 import { supabase } from "@/lib/supabaseClient";
 import { NextResponse } from 'next/server';
 
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    
+    const { data: employee, error } = await supabase
+      .from('employees')
+      .insert([body])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({ employee }, { status: 201 });
+  } catch (error) {
+    console.error('Error creating employee:', error);
+    return NextResponse.json({ error: 'Error creating employee' }, { status: 500 });
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const hasUserAccount = searchParams.get('has_user_account');

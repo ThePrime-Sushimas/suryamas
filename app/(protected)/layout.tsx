@@ -5,20 +5,20 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import LayoutClient from '@/components/layout/LayoutClient';
 
-// Route permission mapping
+// Route permission mapping based on URL structure
 const getRoutePermission = (pathname: string): string | null => {
-  const permissionMap: Record<string, string> = {
-    '/master': 'MASTER_ACCESS',
-    '/finance': 'FINANCE_ACCESS', 
-    '/system': 'SYSTEM_ACCESS',
-    '/reports': 'VIEW_REPORTS'
-  };
-
-  for (const [route, permission] of Object.entries(permissionMap)) {
-    if (pathname.startsWith(route)) {
-      return permission;
+  if (pathname.startsWith('/master')) {
+    // Extract specific permission from URL
+    const parts = pathname.split('/');
+    if (parts[2]) {
+      return `${parts[2]}.view`; // e.g., users.view, roles.view
     }
+    return 'master.access';
   }
+  
+  if (pathname.startsWith('/finance')) return 'finance.access';
+  if (pathname.startsWith('/system')) return 'system.access';
+  if (pathname.startsWith('/reports')) return 'reports.view';
   
   return null; // No special permission required (dashboard, profile)
 };

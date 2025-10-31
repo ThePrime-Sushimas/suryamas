@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
 import EmployeeForm from '@/components/master/employees/EmployeeForm';
 import Link from 'next/link';
 
@@ -30,14 +29,14 @@ export default function EditEmployeePage() {
 
   const fetchEmployee = async () => {
     try {
-      const { data, error } = await supabase
-        .from('employees')
-        .select('*')
-        .eq('employee_id', params.id)
-        .single();
-
-      if (error) throw error;
-      setEmployee(data);
+      const response = await fetch(`/api/employees/${params.id}`);
+      
+      if (!response.ok) {
+        throw new Error('Employee not found');
+      }
+      
+      const { employee } = await response.json();
+      setEmployee(employee);
     } catch (error) {
       console.error('Error fetching employee:', error);
     } finally {
@@ -48,18 +47,21 @@ export default function EditEmployeePage() {
   const handleSubmit = async (formData: any) => {
     setUpdating(true);
     try {
-      const { error } = await supabase
-        .from('employees')
-        .update(formData)
-        .eq('employee_id', params.id);
+      const response = await fetch(`/api/employees/${params.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update employee');
+      }
 
-      // Redirect ke return URL setelah berhasil
       router.push(returnUrl);
     } catch (error) {
       console.error('Error updating employee:', error);
-      alert('Failed to update employee');
+      alert(error instanceof Error ? error.message : 'Failed to update employee');
     } finally {
       setUpdating(false);
     }

@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
 import EmployeeForm from '@/components/master/employees/EmployeeForm';
 import Link from 'next/link';
 
@@ -13,18 +12,22 @@ export default function CreateEmployeePage() {
   const handleSubmit = async (formData: any) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('employees')
-        .insert([formData])
-        .select();
+      const response = await fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create employee');
+      }
 
-      // Redirect ke detail page setelah berhasil
-      router.push(`/master/employees/${data[0].employee_id}`);
+      const { employee } = await response.json();
+      router.push(`/master/employees/${employee.employee_id}`);
     } catch (error) {
       console.error('Error creating employee:', error);
-      alert('Failed to create employee');
+      alert(error instanceof Error ? error.message : 'Failed to create employee');
     } finally {
       setLoading(false);
     }

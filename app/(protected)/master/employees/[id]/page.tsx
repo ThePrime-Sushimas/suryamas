@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
 import EmployeeCard from '@/components/master/employees/EmployeeCard';
 import Link from 'next/link';
 import { EmployeeStatus } from '@/types/employee';
@@ -52,14 +51,14 @@ export default function EmployeeDetailPage() {
 
   const fetchEmployee = async () => {
     try {
-      const { data, error } = await supabase
-        .from('employees')
-        .select('*')
-        .eq('employee_id', params.id)
-        .single();
-
-      if (error) throw error;
-      setEmployee(data);
+      const response = await fetch(`/api/employees/${params.id}`);
+      
+      if (!response.ok) {
+        throw new Error('Employee not found');
+      }
+      
+      const { employee } = await response.json();
+      setEmployee(employee);
     } catch (error) {
       console.error('Error fetching employee:', error);
     } finally {

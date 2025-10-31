@@ -123,21 +123,27 @@ export default function EmployeeForm({
   };
 
   const [branches, setBranches] = useState<string[]>([]);
+  const [positions, setPositions] = useState<string[]>([]);
+  
   useEffect(() => {
-    const fetchBranches = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch('/api/branches?limit=100');
-        const data = await response.json();
-        const branchNames = data.branches?.map((branch: any) => branch.nama_branch) || [];
-        setBranches(branchNames);
+        const [branchesRes, positionsRes] = await Promise.all([
+          fetch('/api/branches?limit=100'),
+          fetch('/api/employees/positions')
+        ]);
+        
+        const branchesData = await branchesRes.json();
+        const positionsData = await positionsRes.json();
+        
+        setBranches(branchesData.branches?.map((branch: any) => branch.nama_branch) || []);
+        setPositions(positionsData.positions || []);
       } catch (error) {
-        console.error('Error fetching branches:', error);
+        console.error('Error fetching data:', error);
       }
     };
-    fetchBranches();
+    fetchData();
   }, []);
-
-  const positions = ['SUSHIMAN', 'BARISTA', 'SERVER', 'COOK', 'MANAGER', 'SEKRETARIS', 'DISHWASHER', 'HELPER', 'Stock Keeper'];
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">

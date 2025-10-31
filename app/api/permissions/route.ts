@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { permission_code, permission_name, module, description } = body;
+    const { permission_code, permission_name, module, table_name, description } = body;
 
     // Validate required fields
     if (!permission_code || !permission_name || !module) {
@@ -108,6 +108,7 @@ export async function POST(request: NextRequest) {
         permission_code,
         permission_name,
         module,
+        table_name,
         description
       })
       .select()

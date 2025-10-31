@@ -19,6 +19,7 @@ interface User {
   employee_name: string;
   role_name: string;
   branch_name: string;
+  additional_branches_count: number;
   is_active: boolean;
   last_login: string;
   created_at: string;
@@ -47,6 +48,7 @@ export default function UsersPage() {
   });
   
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
   const [itemsPerPage, setItemsPerPage] = useState(Number(searchParams.get('limit')) || 10);
@@ -54,6 +56,7 @@ export default function UsersPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setError(null);
       
       const params = new URLSearchParams({
         page: currentPage.toString(),
@@ -64,7 +67,8 @@ export default function UsersPage() {
       const response = await fetch(`/api/users?${params.toString()}`);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch users');
+        const errorData = await response.json().catch(() => ({ error: 'Network error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to fetch users`);
       }
 
       const result = await response.json();
@@ -72,6 +76,8 @@ export default function UsersPage() {
       
     } catch (error) {
       console.error('Error fetching users:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load users');
+      setData({ users: [], pagination: { current_page: 1, total_pages: 0, total_count: 0 } });
     } finally {
       setLoading(false);
     }
@@ -86,8 +92,13 @@ export default function UsersPage() {
     setCurrentPage(1);
   };
 
+  const [toggleLoading, setToggleLoading] = useState<number | null>(null);
+
   const handleStatusToggle = async (userId: number, currentStatus: boolean) => {
+    if (toggleLoading) return;
+    
     try {
+      setToggleLoading(userId);
       const response = await fetch(`/api/users/${userId}`, {
         method: 'PATCH',
         headers: {
@@ -98,11 +109,17 @@ export default function UsersPage() {
         })
       });
 
-      if (response.ok) {
-        fetchData();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Network error' }));
+        throw new Error(errorData.error || 'Failed to update user status');
       }
+
+      await fetchData();
     } catch (error) {
       console.error('Error updating user status:', error);
+      alert(error instanceof Error ? error.message : 'Failed to update user status');
+    } finally {
+      setToggleLoading(null);
     }
   };
 
@@ -127,6 +144,26 @@ export default function UsersPage() {
           <CardTitle>Users List</CardTitle>
         </CardHeader>
         <CardContent>
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="text-red-600 text-sm font-medium">Error: {error}</div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setError(null);
+                    fetchData();
+                  }}
+                >
+                  Retry
+                </Button>
+              </div>
+            </div>
+          )}
+          
           <div className="mb-4">
             <Input
               placeholder="Search by username, email, or employee name..."
@@ -174,9 +211,18 @@ export default function UsersPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="info">{user.role_name}</Badge>
+                      <Badge variant="default">{user.role_name}</Badge>
                     </TableCell>
-                    <TableCell>{user.branch_name}</TableCell>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{user.branch_name}</div>
+                        {user.additional_branches_count > 0 && (
+                          <div className="text-xs text-gray-500">
+                            +{user.additional_branches_count} additional
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant={user.is_active ? 'success' : 'error'}>
                         {user.is_active ? 'Active' : 'Inactive'}
@@ -190,26 +236,29 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => router.push(`/master/users/${user.id}`)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => router.push(`/master/users/${user.id}/permissions`)}
-                        >
-                          Permissions
-                        </Button>
+                        <Link href={`/master/users/${user.id}`}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                          >
+                            Edit
+                          </Button>
+                        </Link>
+                        <Link href={`/master/users/${user.id}/permissions`}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                          >
+                            Permissions
+                          </Button>
+                        </Link>
                         <Button
                           variant={user.is_active ? 'outline' : 'secondary'}
                           size="sm"
                           onClick={() => handleStatusToggle(user.id, user.is_active)}
+                          disabled={toggleLoading === user.id}
                         >
-                          {user.is_active ? 'Deactivate' : 'Activate'}
+                          {toggleLoading === user.id ? 'Loading...' : (user.is_active ? 'Deactivate' : 'Activate')}
                         </Button>
                       </div>
                     </TableCell>

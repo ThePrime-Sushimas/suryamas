@@ -3,6 +3,7 @@ export interface Permission {
   permission_code: string;
   permission_name: string;
   module: string;
+  table_name?: string;
   description?: string;
   created_at: string;
   updated_at: string;
@@ -29,6 +30,7 @@ export interface PermissionFormData {
   permission_code: string;
   permission_name: string;
   module: string;
+  table_name?: string;
   description?: string;
 }
 
