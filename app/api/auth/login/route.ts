@@ -94,14 +94,7 @@ export async function POST(request: NextRequest) {
         )
       `)
       .eq('role_id', user.roles[0]?.id);
-
-    console.log('=== DEBUG LOGIN ===');
-    console.log('User ID:', user.id);
-    console.log('User role ID:', user.roles[0]?.id);
-    console.log('User role code:', user.roles[0]?.role_code);
-    console.log('Permission query error:', permError);
-    console.log('Raw role permissions:', rolePermissions);
-    
+        
     const userPermissions = rolePermissions?.map(rp => rp.permissions[0]?.permission_code).filter(Boolean) || [];
     console.log('Mapped permissions:', userPermissions);
     console.log('==================');
