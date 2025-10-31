@@ -1,16 +1,34 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Single query with LEFT JOIN to get user count - fixes N+1 problem
-    const { data, error } = await supabase
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const search = searchParams.get('search') || '';
+    
+    const offset = (page - 1) * limit;
+
+    // Build query
+    let query = supabase
       .from('roles')
       .select(`
         *,
         users!role_id(count)
-      `)
-      .order('hierarchy_level', { ascending: false });
+      `, { count: 'exact' });
+
+    // Add search filter
+    if (search) {
+      query = query.or(`role_name.ilike.%${search}%,role_code.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    // Add pagination and ordering
+    query = query
+      .order('hierarchy_level', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    const { data, error, count } = await query;
 
     if (error) throw error;
 
@@ -20,7 +38,17 @@ export async function GET() {
       user_count: role.users?.[0]?.count || 0
     }));
 
-    return NextResponse.json({ roles: rolesWithCounts });
+    const totalPages = Math.ceil((count || 0) / limit);
+
+    return NextResponse.json({
+      roles: rolesWithCounts,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalCount: count || 0,
+        limit
+      }
+    });
   } catch (error) {
     console.error('Error fetching roles:', error);
     return NextResponse.json({ error: 'Failed to fetch roles' }, { status: 500 });

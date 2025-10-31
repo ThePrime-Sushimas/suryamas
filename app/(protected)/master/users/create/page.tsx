@@ -45,7 +45,7 @@ interface FormData {
 
 export default function CreateUserPage() {
   return (
-    <AuthGuard requiredRole="super_admin">
+    <AuthGuard requiredPermission="users.create">
       <CreateUserContent />
     </AuthGuard>
   );
@@ -210,7 +210,7 @@ function CreateUserContent() {
     }
   };
 
-  const handleInputChange = (field: keyof FormData, value: string | boolean) => {
+  const handleInputChange = (field: keyof FormData, value: string | boolean | string[]) => {
     setFormData(prev => ({
       ...prev,
       [field]: value

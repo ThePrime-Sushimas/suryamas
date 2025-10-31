@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
+import Pagination from '@/components/ui/Pagination';
+import PaginationInfo from '@/components/ui/PaginationInfo';
 import { Permission, PermissionFormData, PermissionsResponse } from '@/types/permissions';
 
 export default function PermissionsPage() {
@@ -19,7 +21,9 @@ export default function PermissionsPage() {
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [selectedModule, setSelectedModule] = useState(searchParams.get('module') || '');
   const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
+  const [itemsPerPage, setItemsPerPage] = useState(Number(searchParams.get('limit')) || 10);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [editingPermission, setEditingPermission] = useState<Permission | null>(null);
   const [formData, setFormData] = useState<PermissionFormData>({
@@ -35,7 +39,7 @@ export default function PermissionsPage() {
     try {
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: '10',
+        limit: itemsPerPage.toString(),
         ...(search && { search }),
         ...(selectedModule && { module: selectedModule })
       });
@@ -55,6 +59,7 @@ export default function PermissionsPage() {
       setPermissions(data.permissions || []);
       setModules(data.modules || []);
       setTotalPages(data.pagination?.totalPages || 1);
+      setTotalCount(data.pagination?.total || 0);
       
     } catch (error) {
       console.error('Error fetching permissions:', error);
@@ -88,6 +93,7 @@ export default function PermissionsPage() {
   useEffect(() => {
     updateURL({
       page: page > 1 ? page : null,
+      limit: itemsPerPage !== 10 ? itemsPerPage : null,
       search: search || null,
       module: selectedModule || null
     });
@@ -329,29 +335,24 @@ export default function PermissionsPage() {
         </table>
       </div>
       
-      {totalPages > 1 && (
-        <div className="flex justify-center mt-4">
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage(page - 1)}
-              disabled={page === 1}
-            >
-              Previous
-            </Button>
-            <span className="px-3 py-1 text-sm">
-              Page {page} of {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage(page + 1)}
-              disabled={page === totalPages}
-            >
-              Next
-            </Button>
-          </div>
+      {(totalCount > 0 || search || selectedModule) && (
+        <div className="mt-6 space-y-4">
+          <PaginationInfo
+            showingFrom={totalCount === 0 ? 0 : ((page - 1) * itemsPerPage) + 1}
+            showingTo={Math.min(page * itemsPerPage, totalCount)}
+            totalItems={totalCount}
+          />
+
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            itemsPerPage={itemsPerPage}
+            onItemsPerPageChange={(newSize) => {
+              setItemsPerPage(newSize);
+              setPage(1);
+            }}
+          />
         </div>
       )}
 

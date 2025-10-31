@@ -1,10 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
+import { Input } from '@/components/ui/Input';
+import Pagination from '@/components/ui/Pagination';
+import PaginationInfo from '@/components/ui/PaginationInfo';
 import Link from 'next/link';
 
 interface Role {
@@ -19,16 +23,46 @@ interface Role {
 }
 
 export default function RolesPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [search, setSearch] = useState(searchParams.get('search') || '');
+  const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
+  const [itemsPerPage, setItemsPerPage] = useState(Number(searchParams.get('limit')) || 10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const updateURL = (params: Record<string, string | number | null>) => {
+    const url = new URLSearchParams(searchParams.toString());
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) {
+        url.set(key, value.toString());
+      } else {
+        url.delete(key);
+      }
+    });
+    
+    router.push(`?${url.toString()}`, { scroll: false });
+  };
 
   const fetchRoles = async () => {
     try {
-      const response = await fetch('/api/roles');
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: itemsPerPage.toString(),
+        ...(search && { search })
+      });
+
+      const response = await fetch(`/api/roles?${params}`);
       if (response.ok) {
         const data = await response.json();
-        setRoles(data.roles);
+        setRoles(data.roles || []);
+        setTotalPages(data.pagination?.totalPages || 1);
+        setTotalCount(data.pagination?.totalCount || 0);
       }
     } catch (error) {
       console.error('Error fetching roles:', error);
@@ -61,7 +95,19 @@ export default function RolesPage() {
 
   useEffect(() => {
     fetchRoles();
-  }, []);
+  }, [page, itemsPerPage, search]);
+
+  useEffect(() => {
+    updateURL({
+      page: page > 1 ? page : null,
+      limit: itemsPerPage !== 10 ? itemsPerPage : null,
+      search: search || null
+    });
+  }, [page, itemsPerPage, search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
 
   const getHierarchyColor = (level: number) => {
     if (level >= 90) return 'error';
@@ -89,6 +135,14 @@ export default function RolesPage() {
       <Card>
         <CardHeader>
           <CardTitle>System Roles</CardTitle>
+          <div className="mt-4">
+            <Input
+              placeholder="Search roles..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -167,6 +221,28 @@ export default function RolesPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Pagination Section */}
+      {(totalCount > 0 || search) && (
+        <div className="space-y-4">
+          <PaginationInfo
+            showingFrom={totalCount === 0 ? 0 : ((page - 1) * itemsPerPage) + 1}
+            showingTo={Math.min(page * itemsPerPage, totalCount)}
+            totalItems={totalCount}
+          />
+
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            itemsPerPage={itemsPerPage}
+            onItemsPerPageChange={(newSize) => {
+              setItemsPerPage(newSize);
+              setPage(1);
+            }}
+          />
+        </div>
+      )}
 
     </div>
   );

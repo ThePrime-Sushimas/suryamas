@@ -11,7 +11,7 @@ interface AuthGuardProps {
   requiredPermission?: string;
 }
 
-export default function AuthGuard({ children, requiredRole }: AuthGuardProps) {
+export default function AuthGuard({ children, requiredRole, requiredPermission }: AuthGuardProps) {
   const { user, loading, hasPermission } = useAuth()
   const pathname = usePathname()
 
@@ -25,8 +25,11 @@ export default function AuthGuard({ children, requiredRole }: AuthGuardProps) {
     return null
   }
 
-  // Check role-based access
-  if (requiredRole && !hasPermission(requiredRole)) {
+  // Check permission or role-based access
+  const accessDenied = (requiredPermission && !hasPermission(requiredPermission)) || 
+                      (requiredRole && !hasPermission(requiredRole));
+  
+  if (accessDenied) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-white rounded-lg shadow-sm p-6 text-center">
@@ -41,6 +44,9 @@ export default function AuthGuard({ children, requiredRole }: AuthGuardProps) {
           <p className="text-gray-600 mb-4">
             You don't have permission to access this page. 
             Your role: <span className="font-medium capitalize">{user.role}</span>
+            {requiredPermission && (
+              <><br />Required permission: <span className="font-medium">{requiredPermission}</span></>
+            )}
           </p>
           <button
             onClick={() => window.history.back()}

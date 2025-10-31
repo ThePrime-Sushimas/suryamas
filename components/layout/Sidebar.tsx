@@ -107,6 +107,10 @@ export default function Sidebar({ isOpen, onClose, userRole }: SidebarProps) {
 
   const hasAccess = (permission?: string) => {
     if (!permission) return true; // No permission required
+    
+    // Super admin with wildcard permission has access to everything
+    if (user?.permissions?.includes('*')) return true;
+    
     return hasPermission(permission);
   }
 

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
+import bcrypt from 'bcryptjs';
+import { RolePermission } from '@/types/permissions';
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,8 +24,11 @@ export async function POST(request: NextRequest) {
         password_hash,
         is_active,
         failed_login_attempts,
+        role_id,
+        branch_id,
+        employee_id,
         employees!inner(full_name),
-        roles!inner(role_name, role_code),
+        roles!inner(id, role_name, role_code),
         branches!inner(nama_branch)
       `)
       .eq('username', username)
@@ -45,8 +50,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify password (base64 encoded)
-    const isValidPassword = Buffer.from(password).toString('base64') === user.password_hash;
+    // Verify password - support both bcrypt and base64 formats
+    let isValidPassword = false;
+    
+    if (user.password_hash.startsWith('$2b$')) {
+      // Bcrypt format
+      isValidPassword = await bcrypt.compare(password, user.password_hash);
+    } else {
+      // Base64 format (legacy)
+      isValidPassword = Buffer.from(password).toString('base64') === user.password_hash;
+    }
 
     if (!isValidPassword) {
       // Increment failed attempts
@@ -72,22 +85,40 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', user.id);
 
-    // Get user permissions
-    const { data: permissions } = await supabase
-      .from('user_permissions_view')
-      .select('permission_code')
-      .eq('user_id', user.id);
+    // Get user permissions from role
+    const { data: rolePermissions, error: permError } = await supabase
+      .from('role_permissions')
+      .select(`
+        permissions(
+          permission_code
+        )
+      `)
+      .eq('role_id', user.roles[0]?.id);
 
-    const userPermissions = permissions?.map(p => p.permission_code) || [];
+    console.log('=== DEBUG LOGIN ===');
+    console.log('User ID:', user.id);
+    console.log('User role ID:', user.roles[0]?.id);
+    console.log('User role code:', user.roles[0]?.role_code);
+    console.log('Permission query error:', permError);
+    console.log('Raw role permissions:', rolePermissions);
+    
+    const userPermissions = rolePermissions?.map(rp => rp.permissions[0]?.permission_code).filter(Boolean) || [];
+    console.log('Mapped permissions:', userPermissions);
+    console.log('==================');
+    
+    // Fallback: If super admin has no permissions, give all access
+    const finalPermissions = userPermissions.length === 0 && user.roles[0]?.role_code === 'super_admin' 
+      ? ['*'] // Wildcard permission for super admin
+      : userPermissions;
 
     const userData = {
       id: user.id.toString(),
       username: user.username,
-      full_name: user.employees.full_name,
-      role: user.roles.role_code,
-      branch_name: user.branches.nama_branch,
+      full_name: user.employees[0]?.full_name,
+      role: user.roles[0]?.role_code,
+      branch_name: user.branches[0]?.nama_branch,
       email: user.email,
-      permissions: userPermissions
+      permissions: finalPermissions
     };
 
     const token = `jwt-${user.id}-${Date.now()}`;

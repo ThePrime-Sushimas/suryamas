@@ -53,25 +53,3 @@ export interface RolePermissionsResponse {
   permissions: Permission[];
   modules: string[];
 }
-
-export interface UserPermissionOverrideData {
-  id: number;
-  permission_code: string;
-  permission_name: string;
-  module: string;
-  description?: string;
-  has_role_permission: boolean;
-  override_status: 'granted' | 'revoked' | null;
-  override_id: number | null;
-}
-
-export interface UserPermissionOverridesResponse {
-  user: {
-    id: number;
-    username: string;
-    full_name: string;
-    role_name: string;
-  };
-  permissions: UserPermissionOverrideData[];
-  modules: string[];
-}
