@@ -1,10 +1,49 @@
 // app/dashboard/page.tsx
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+
+interface DashboardStats {
+  branches: number
+  employees: number
+  users: number
+}
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const [stats, setStats] = useState<DashboardStats>({ branches: 0, employees: 0, users: 0 })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [branchesRes, employeesRes, usersRes] = await Promise.all([
+          fetch('/api/branches?limit=1'),
+          fetch('/api/employees?limit=1'),
+          fetch('/api/users?limit=1')
+        ])
+
+        const [branchesData, employeesData, usersData] = await Promise.all([
+          branchesRes.json(),
+          employeesRes.json(), 
+          usersRes.json()
+        ])
+
+        setStats({
+          branches: branchesData.pagination?.total_count || 0,
+          employees: employeesData.pagination?.total_count || 0,
+          users: usersData.pagination?.total_count || 0
+        })
+      } catch (error) {
+        console.error('Error fetching stats:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchStats()
+  }, [])
 
   return (
     <div className="p-6">
@@ -27,7 +66,9 @@ export default function DashboardPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Branches</p>
-                <p className="text-2xl font-semibold text-gray-900">12</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {loading ? '...' : stats.branches}
+                </p>
               </div>
             </div>
           </div>
@@ -41,7 +82,9 @@ export default function DashboardPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Employees</p>
-                <p className="text-2xl font-semibold text-gray-900">84</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {loading ? '...' : stats.employees}
+                </p>
               </div>
             </div>
           </div>
@@ -50,12 +93,14 @@ export default function DashboardPage() {
             <div className="flex items-center">
               <div className="p-2 bg-purple-100 rounded-lg">
                 <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Revenue</p>
-                <p className="text-2xl font-semibold text-gray-900">$12,450</p>
+                <p className="text-sm font-medium text-gray-600">Users</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {loading ? '...' : stats.users}
+                </p>
               </div>
             </div>
           </div>
