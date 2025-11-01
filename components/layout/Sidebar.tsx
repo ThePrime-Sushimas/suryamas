@@ -114,9 +114,23 @@ export default function Sidebar({ isOpen, onClose, userRole }: SidebarProps) {
     return hasPermission(permission);
   }
 
+  const hasAccessToChildren = (children?: MenuItem[]) => {
+    if (!children) return false;
+    return children.some(child => hasAccess(child.permission));
+  }
+
+  const shouldShowMenuItem = (item: MenuItem) => {
+    // If item has children, show if user has access to any child
+    if (item.children) {
+      return hasAccessToChildren(item.children);
+    }
+    // If no children, check item's own permission
+    return hasAccess(item.permission);
+  }
+
   const renderMenuItems = (items: MenuItem[]) => {
     return items
-      .filter(item => hasAccess(item.permission))
+      .filter(item => shouldShowMenuItem(item))
       .map(item => (
         <div key={item.href}>
           {item.children ? (

@@ -20,6 +20,7 @@ interface AuthContextType {
   loading: boolean
   login: (credentials: { username: string; password: string }) => Promise<void>
   logout: () => void
+  refreshPermissions: () => Promise<void>
   hasPermission: (requiredRole: string) => boolean
 }
 
@@ -85,6 +86,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const refreshPermissions = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      if (!token) return
+      
+      const response = await fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      
+      if (response.ok) {
+        const userData = await response.json()
+        localStorage.setItem('user', JSON.stringify(userData.user))
+        setUser(userData.user)
+      }
+    } catch (error) {
+      console.error('Error refreshing permissions:', error)
+    }
+  }
+
   const logout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
@@ -94,6 +114,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasPermission = (requiredPermission: string) => {
     if (!user) return false
+    
+    // Check for wildcard permission first
+    if (user.permissions?.includes('*')) {
+      return true
+    }
     
     // Check if user has specific permission
     if (user.permissions?.includes(requiredPermission)) {
@@ -109,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, hasPermission }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshPermissions, hasPermission }}>
       {children}
     </AuthContext.Provider>
   )
