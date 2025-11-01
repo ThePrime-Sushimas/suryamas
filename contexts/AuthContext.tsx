@@ -25,13 +25,11 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
-  const pathname = usePathname()
+
 
   useEffect(() => {
     // Check if user is logged in on mount
@@ -109,8 +107,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     return false
   }
-
-
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout, hasPermission }}>

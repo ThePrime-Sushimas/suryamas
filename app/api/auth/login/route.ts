@@ -74,17 +74,39 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', user.id);
 
-    // GET PERMISSIONS - QUERY YANG LEBIH SEDERHANA
-    const { data: permissions } = await supabase
-      .from('role_permissions')
-      .select(`
-        permission_code
-      `)
-      .eq('role_id', user.role_id);
+// GET PERMISSIONS - ALTERNATIF QUERY
+const { data: rolePerms, error: permError } = await supabase
+  .from('role_permissions')
+  .select('permission_id')
+  .eq('role_id', user.role_id);
 
-    // Extract permission codes
-    const userPermissions = permissions?.map(p => p.permission_code).filter(Boolean) || [];
+console.log('=== DEBUG PERMISSIONS ===');
+console.log('User role_id:', user.role_id);
+console.log('Role permissions error:', permError);
+console.log('Role permissions data:', rolePerms);
+
+let userPermissions = [];
+
+if (rolePerms && rolePerms.length > 0) {
+  const permissionIds = rolePerms.map(rp => rp.permission_id);
+  console.log('Permission IDs:', permissionIds);
+  
+  const { data: perms, error: permsError } = await supabase
+    .from('permissions')
+    .select('permission_code')
+    .in('id', permissionIds);
     
+  console.log('Permissions error:', permsError);
+  console.log('Permissions data:', perms);
+  
+  userPermissions = perms?.map(p => p.permission_code) || [];
+}
+
+console.log('Final permissions:', userPermissions);
+console.log('========================');
+
+
+
     // Prepare user data
     const userData = {
       id: user.id.toString(),

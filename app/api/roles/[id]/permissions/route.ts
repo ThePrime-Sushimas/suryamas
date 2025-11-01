@@ -34,7 +34,7 @@ export async function GET(
     // Transform data to include assignment status
     const permissionsWithStatus = permissions?.map(permission => ({
       ...permission,
-      is_assigned: permission.role_permissions?.some(rp => rp.role_id === parseInt(id)) || false,
+      is_assigned: permission.role_permissions?.some((rp: any) => rp.role_id === parseInt(id)) || false,
       role_permissions: undefined // Remove the join data
     })) || [];
 
@@ -129,8 +129,9 @@ export async function PUT(
       if (insertError) throw insertError;
     }
 
+    // Supabase realtime akan otomatis notify semua subscriber
     return NextResponse.json({ 
-      message: 'Permissions role berhasil diupdate',
+      message: 'Permissions updated and synced to all users',
       assigned_count: permission_ids.length
     });
 

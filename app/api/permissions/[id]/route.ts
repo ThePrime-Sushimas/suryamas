@@ -110,7 +110,9 @@ export async function DELETE(
     // Check if permission is used in role_permissions
     const { data: rolePermissions } = await supabase
       .from('role_permissions')
-      .select('id')
+      .select(`
+        permissions!inner(permission_code)
+      `)
       .eq('permission_id', id)
       .limit(1);
 

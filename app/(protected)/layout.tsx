@@ -26,11 +26,12 @@ const getRoutePermission = (pathname: string): string | null => {
 export default function ProtectedLayout({ 
   children 
 }: { 
-  children: React.ReactNode 
+  children: React.ReactNode
 }) {
   const { user, hasPermission, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+
 
   useEffect(() => {
     if (loading) return;
@@ -60,12 +61,14 @@ export default function ProtectedLayout({
 
   // Don't render if not authenticated
   if (!user) {
-    return null;
+    return <></>;
   }
 
   // Single layout with permission checking
   return (
     <LayoutClient>
+      <div className="fixed top-4 right-4 z-50 max-w-md">
+      </div>
       {children}
     </LayoutClient>
   );
