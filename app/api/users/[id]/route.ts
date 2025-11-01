@@ -54,14 +54,10 @@ export async function GET(
       username: user.username,
       email: user.email,
       employee_id: user.employee_id,
-      employee_name: user.employees?.full_name,
       role_id: user.role_id,
-      role_name: user.roles?.role_name,
       primary_branch_id: primaryBranch?.branch_id,
-      primary_branch_name: primaryBranch?.branches?.nama_branch,
       additional_branches: additionalBranches.map(ab => ({
         id: ab.branch_id,
-        name: ab.branches?.nama_branch
       })),
       is_active: user.is_active,
       last_login: user.last_login,
