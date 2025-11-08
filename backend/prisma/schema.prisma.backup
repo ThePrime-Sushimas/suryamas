@@ -1,0 +1,271 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// User profiles (extends Supabase auth.users)
+model Profile {
+  id         String   @id @db.Uuid
+  email      String   @unique
+  full_name  String?
+  avatar_url String?
+  phone      String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  user_roles UserRole[]
+  expenses   Expense[]
+  requests   PettyCashRequest[]
+  settlements Settlement[]
+  purchase_orders PurchaseOrder[]
+  approvals  Approval[]
+  audit_logs AuditLog[]
+
+  @@map("profiles")
+}
+
+// Role-based access control
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  user_roles       UserRole[]
+  role_permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  resource    String   // e.g., 'pettycash', 'purchaseorder'
+  action      String   // e.g., 'create', 'read', 'update', 'delete', 'approve'
+  created_at  DateTime @default(now())
+
+  // Relations
+  role_permissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  id         String   @id @default(cuid())
+  user_id    String   @db.Uuid
+  role_id    String
+  created_at DateTime @default(now())
+
+  // Relations
+  user Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role Role    @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, role_id])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id            String @id @default(cuid())
+  role_id       String
+  permission_id String
+
+  // Relations
+  role       Role       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+
+  @@unique([role_id, permission_id])
+  @@map("role_permissions")
+}
+
+// Petty Cash Management
+model ExpenseCategory {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  expenses Expense[]
+
+  @@map("expense_categories")
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  user_id     String   @db.Uuid
+  category_id String
+  amount      Decimal  @db.Decimal(15, 2)
+  description String
+  receipt_url String?
+  status      String   @default("pending") // pending, approved, rejected
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  user     Profile         @relation(fields: [user_id], references: [id])
+  category ExpenseCategory @relation(fields: [category_id], references: [id])
+  approvals Approval[]
+
+  @@map("expenses")
+}
+
+model PettyCashRequest {
+  id          String   @id @default(cuid())
+  user_id     String   @db.Uuid
+  amount      Decimal  @db.Decimal(15, 2)
+  purpose     String
+  status      String   @default("pending") // pending, approved, rejected, disbursed
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  user      Profile    @relation(fields: [user_id], references: [id])
+  approvals Approval[]
+
+  @@map("pettycash_requests")
+}
+
+model Settlement {
+  id               String   @id @default(cuid())
+  user_id          String   @db.Uuid
+  request_id       String?
+  total_expenses   Decimal  @db.Decimal(15, 2)
+  remaining_amount Decimal? @db.Decimal(15, 2)
+  status           String   @default("pending") // pending, approved, rejected
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  // Relations
+  user      Profile    @relation(fields: [user_id], references: [id])
+  approvals Approval[]
+
+  @@map("settlements")
+}
+
+// Purchase Order Management
+model Supplier {
+  id           String   @id @default(cuid())
+  name         String
+  contact_info Json?
+  is_active    Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  // Relations
+  purchase_orders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id          String   @id @default(cuid())
+  po_number   String   @unique
+  user_id     String   @db.Uuid
+  supplier_id String
+  total_amount Decimal @db.Decimal(15, 2)
+  status      String   @default("draft") // draft, pending, approved, ordered, received, completed
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  user      Profile    @relation(fields: [user_id], references: [id])
+  supplier  Supplier   @relation(fields: [supplier_id], references: [id])
+  items     POItem[]
+  approvals Approval[]
+
+  @@map("purchase_orders")
+}
+
+model POItem {
+  id               String  @id @default(cuid())
+  purchase_order_id String
+  item_name        String
+  quantity         Int
+  unit_price       Decimal @db.Decimal(15, 2)
+  total_price      Decimal @db.Decimal(15, 2)
+
+  // Relations
+  purchase_order PurchaseOrder @relation(fields: [purchase_order_id], references: [id], onDelete: Cascade)
+
+  @@map("po_items")
+}
+
+// Approval Workflow
+model ApprovalFlow {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  entity_type String   // 'expense', 'pettycash_request', 'settlement', 'purchase_order'
+  steps       Json     // Array of approval steps with conditions
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("approval_flows")
+}
+
+model Approval {
+  id          String   @id @default(cuid())
+  entity_type String   // 'expense', 'pettycash_request', 'settlement', 'purchase_order'
+  entity_id   String
+  approver_id String   @db.Uuid
+  status      String   // 'pending', 'approved', 'rejected'
+  comments    String?
+  step_order  Int
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  approver        Profile            @relation(fields: [approver_id], references: [id])
+  expense         Expense?           @relation(fields: [entity_id], references: [id])
+  pettycash_request PettyCashRequest? @relation(fields: [entity_id], references: [id])
+  settlement      Settlement?        @relation(fields: [entity_id], references: [id])
+  purchase_order  PurchaseOrder?     @relation(fields: [entity_id], references: [id])
+
+  @@map("approvals")
+}
+
+// Notifications
+model Notification {
+  id         String   @id @default(cuid())
+  user_id    String   @db.Uuid
+  title      String
+  message    String
+  type       String   // 'info', 'warning', 'success', 'error'
+  is_read    Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  @@map("notifications")
+}
+
+// Audit Logging
+model AuditLog {
+  id          String   @id @default(cuid())
+  user_id     String?  @db.Uuid
+  action      String
+  entity_type String?
+  entity_id   String?
+  old_values  Json?
+  new_values  Json?
+  ip_address  String?
+  user_agent  String?
+  created_at  DateTime @default(now())
+
+  // Relations
+  user Profile? @relation(fields: [user_id], references: [id])
+
+  @@map("audit_logs")
+}
