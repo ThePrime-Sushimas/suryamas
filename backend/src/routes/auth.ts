@@ -1,9 +1,14 @@
 import { Router } from 'express'
-import { getProfile, updateProfile } from '../controllers/auth'
+import { register, login, getProfile, updateProfile } from '../controllers/auth'
 import { authenticate } from '../middleware/auth'
 
 const router = Router()
 
+// Public routes
+router.post('/register', register)
+router.post('/login', login)
+
+// Protected routes
 router.get('/profile', authenticate, getProfile)
 router.put('/profile', authenticate, updateProfile)
 

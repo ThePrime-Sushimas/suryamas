@@ -19,7 +19,7 @@ npm run dev
 
 Create `backend/.env`:
 ```
-PORT=3001
+PORT=3000
 SUPABASE_URL=your_supabase_url
 SUPABASE_SERVICE_KEY=your_supabase_service_key
 ```

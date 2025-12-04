@@ -1,8 +1,14 @@
 import dotenv from 'dotenv'
-import app from './app'
-
 dotenv.config()
 
-app.listen(3001, () => {
-  console.log('Server running on http://localhost:3001')
+import app from './app'
+
+const PORT = process.env.PORT || 3000
+const ENV = process.env.NODE_ENV || 'development'
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running in ${ENV} mode`)
+  console.log(`📍 Local: http://localhost:${PORT}`)
+  console.log(`📍 Health: http://localhost:${PORT}/health`)
+  console.log(`📍 API: http://localhost:${PORT}/api/auth`)
 })

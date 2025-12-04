@@ -1,9 +1,6 @@
-import { Request, Response, NextFunction } from 'express'
+import { Response, NextFunction } from 'express'
 import { supabase } from '../config/supabase'
-
-export interface AuthRequest extends Request {
-  user?: any
-}
+import { AuthRequest } from '../types'
 
 export const authenticate = async (
   req: AuthRequest,
