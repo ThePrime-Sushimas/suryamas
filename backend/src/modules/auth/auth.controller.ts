@@ -62,6 +62,34 @@ export class AuthController {
     await supabase.auth.signOut()
     sendSuccess(res, null, 'Logout successful')
   }
+
+  async forgotPassword(req: Request, res: Response) {
+    const { email } = req.body
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${process.env.FRONTEND_URL}/reset-password`
+    })
+
+    if (error) {
+      return sendError(res, error.message, 400)
+    }
+
+    sendSuccess(res, null, 'Password reset email sent')
+  }
+
+  async resetPassword(req: Request, res: Response) {
+    const { password } = req.body
+
+    const { error } = await supabase.auth.updateUser({
+      password
+    })
+
+    if (error) {
+      return sendError(res, error.message, 400)
+    }
+
+    sendSuccess(res, null, 'Password updated successfully')
+  }
 }
 
 export const authController = new AuthController()
