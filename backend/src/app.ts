@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import authRoutes from './modules/auth/auth.routes'
-import employeeRoutes from './modules/employee/employee.routes'
+import employeesRoutes from './modules/employees/employees.routes'
 import { errorHandler } from './middleware/error.middleware'
 
 const app = express()
@@ -19,7 +19,7 @@ app.get('/health', (req, res) => {
 
 // Module Routes
 app.use('/api/auth', authRoutes)
-app.use('/api/employees', employeeRoutes)
+app.use('/api/employees', employeesRoutes)
 
 // Error handler
 app.use(errorHandler)

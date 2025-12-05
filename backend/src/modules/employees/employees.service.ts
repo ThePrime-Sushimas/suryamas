@@ -1,9 +1,9 @@
-import { employeeRepository } from './employee.repository'
+import { employeesRepository } from './employees.repository'
 import { Employee } from '../../types/employee.types'
 
-export class EmployeeService {
+export class EmployeesService {
   async getProfile(userId: string): Promise<Employee> {
-    const employee = await employeeRepository.findByUserId(userId)
+    const employee = await employeesRepository.findByUserId(userId)
     
     if (!employee) {
       throw new Error('Employee profile not found')
@@ -19,7 +19,7 @@ export class EmployeeService {
       throw new Error('No valid fields to update')
     }
 
-    const employee = await employeeRepository.update(userId, allowedUpdates)
+    const employee = await employeesRepository.update(userId, allowedUpdates)
     
     if (!employee) {
       throw new Error('Failed to update employee profile')
@@ -29,4 +29,4 @@ export class EmployeeService {
   }
 }
 
-export const employeeService = new EmployeeService()
+export const employeesService = new EmployeesService()

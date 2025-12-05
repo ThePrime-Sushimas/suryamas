@@ -1,7 +1,7 @@
 import { supabase } from '../../config/supabase'
 import { Employee } from '../../types/employee.types'
 
-export class EmployeeRepository {
+export class EmployeesRepository {
   async findByUserId(userId: string): Promise<Employee | null> {
     const { data, error } = await supabase
       .from('employees')
@@ -37,4 +37,4 @@ export class EmployeeRepository {
   }
 }
 
-export const employeeRepository = new EmployeeRepository()
+export const employeesRepository = new EmployeesRepository()
