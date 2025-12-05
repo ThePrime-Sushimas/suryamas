@@ -1,10 +1,10 @@
 import { Response } from 'express'
-import { AuthRequest } from '../types/common.types'
-import { employeeService } from '../services/employee.service'
-import { sendSuccess, sendError } from '../utils/response.util'
+import { AuthRequest } from '../../types/common.types'
+import { employeeService } from './employee.service'
+import { sendSuccess, sendError } from '../../utils/response.util'
 
 export class EmployeeController {
-  async getProfile(req: AuthRequest, res: Response): Promise<void> {
+  async getProfile(req: AuthRequest, res: Response) {
     try {
       const employee = await employeeService.getProfile(req.user!.id)
       sendSuccess(res, employee)
@@ -13,10 +13,10 @@ export class EmployeeController {
     }
   }
 
-  async updateProfile(req: AuthRequest, res: Response): Promise<void> {
+  async updateProfile(req: AuthRequest, res: Response) {
     try {
       const employee = await employeeService.updateProfile(req.user!.id, req.body)
-      sendSuccess(res, employee, 'Profile updated successfully')
+      sendSuccess(res, employee, 'Profile updated')
     } catch (error) {
       sendError(res, (error as Error).message, 400)
     }

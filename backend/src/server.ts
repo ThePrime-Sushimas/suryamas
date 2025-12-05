@@ -12,7 +12,11 @@ app.listen(PORT, () => {
 ║   📍 http://localhost:${PORT}                ║
 ║   📍 Health: /health                      ║
 ║   📍 Auth: /api/auth                      ║
-║   📍 Employees: /api/employees            ║
+║     - POST /register                      ║
+║     - POST /login                         ║
+║     - POST /logout                        ║
+║     - GET  /profile                       ║
+║     - PUT  /profile                       ║
 ╚═══════════════════════════════════════════╝
   `)
 })

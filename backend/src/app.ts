@@ -1,8 +1,8 @@
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
-import authRoutes from './routes/auth.routes'
-import employeeRoutes from './routes/employee.routes'
+import authRoutes from './modules/auth/auth.routes'
+import employeeRoutes from './modules/employee/employee.routes'
 import { errorHandler } from './middleware/error.middleware'
 
 const app = express()
@@ -17,7 +17,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() })
 })
 
-// Routes
+// Module Routes
 app.use('/api/auth', authRoutes)
 app.use('/api/employees', employeeRoutes)
 

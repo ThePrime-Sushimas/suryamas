@@ -1,5 +1,5 @@
-import { supabase } from '../config/supabase'
-import { Employee } from '../types/employee.types'
+import { supabase } from '../../config/supabase'
+import { Employee } from '../../types/employee.types'
 
 export class EmployeeRepository {
   async findByUserId(userId: string): Promise<Employee | null> {
