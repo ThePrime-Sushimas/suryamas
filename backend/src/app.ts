@@ -4,6 +4,7 @@ import helmet from 'helmet'
 import authRoutes from './modules/auth/auth.routes'
 import employeesRoutes from './modules/employees/employees.routes'
 import { errorHandler } from './middleware/error.middleware'
+import { requestLogger } from './middleware/request-logger.middleware'
 
 const app = express()
 
@@ -11,6 +12,7 @@ const app = express()
 app.use(helmet())
 app.use(cors())
 app.use(express.json())
+app.use(requestLogger)
 
 // Health check
 app.get('/health', (req, res) => {
