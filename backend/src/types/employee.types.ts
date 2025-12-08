@@ -34,4 +34,5 @@ export interface Employee {
   created_at: string
   updated_at: string
   user_id: string | null
+  is_active?: boolean
 }
