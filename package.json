@@ -1,0 +1,26 @@
+{
+  "name": "suryamas",
+  "version": "1.0.0",
+  "description": "Backend AUTH with Express.js + Supabase",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThePrime-Sushimas/suryamas.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ThePrime-Sushimas/suryamas/issues"
+  },
+  "homepage": "https://github.com/ThePrime-Sushimas/suryamas#readme",
+  "dependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
