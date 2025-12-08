@@ -10,16 +10,7 @@ const app = express()
 
 // Middleware
 app.use(helmet())
-app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'https://suryamas.vercel.app',
-    process.env.FRONTEND_URL || ''
-  ].filter(Boolean),
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}))
+app.use(cors())
 app.use(express.json())
 app.use(requestLogger)
 
