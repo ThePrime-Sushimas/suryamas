@@ -23,7 +23,7 @@ export default function CreateEmployeePage() {
     e.preventDefault()
     setError('')
     try {
-      await createEmployee(formData)
+      await createEmployee(formData as any)
       alert('Employee created successfully!')
       navigate('/employees')
     } catch (err: any) {
