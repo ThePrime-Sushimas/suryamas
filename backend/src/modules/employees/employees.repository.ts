@@ -25,13 +25,15 @@ export class EmployeesRepository {
   }
 
   async searchByName(searchTerm: string): Promise<Employee[]> {
-    const { data, error } = await supabase
-      .from('employees')
-      .select('*')
-      .textSearch('full_name', searchTerm, {
-        type: 'websearch',  // Support: "Budi Sant", "Budi OR Santoso"
+    let query = supabase.from('employees').select('*')
+    
+    if (searchTerm && searchTerm.trim()) {
+      query = query.textSearch('full_name', searchTerm, {
+        type: 'websearch',
       })
-      .limit(20)
+    }
+    
+    const { data, error } = await query.limit(20)
   
     if (error) throw new Error(error.message)
     return data || []

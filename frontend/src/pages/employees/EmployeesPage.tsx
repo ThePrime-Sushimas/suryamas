@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useEmployeeStore } from '../../stores/employeeStore'
 
@@ -6,6 +6,10 @@ export default function EmployeesPage() {
   const { employees, searchEmployees, deleteEmployee, isLoading } = useEmployeeStore()
   const [searchQuery, setSearchQuery] = useState('')
   const navigate = useNavigate()
+
+  useEffect(() => {
+    searchEmployees('')
+  }, [])
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
