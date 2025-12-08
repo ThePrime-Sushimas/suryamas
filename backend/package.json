@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "railway:start": "npm run build && npm start"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.0",
