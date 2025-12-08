@@ -12,16 +12,25 @@ import EmployeesPage from './pages/employees/EmployeesPage'
 import CreateEmployeePage from './pages/employees/CreateEmployeePage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { token } = useAuthStore()
+  const { token, isInitialized } = useAuthStore()
+  
+  if (!isInitialized) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
+  }
+  
   return token ? <>{children}</> : <Navigate to="/login" />
 }
 
 function App() {
-  const { checkAuth } = useAuthStore()
+  const { checkAuth, isInitialized } = useAuthStore()
   
   useEffect(() => {
     checkAuth()
-  }, [])
+  }, [checkAuth])
+  
+  if (!isInitialized) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
+  }
   
   return (
     <BrowserRouter>
