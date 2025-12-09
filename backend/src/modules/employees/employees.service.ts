@@ -1,6 +1,8 @@
 import { employeesRepository } from './employees.repository'
 import { Employee } from '../../types/employee.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
+import { ExportService } from '../../services/export.service'
+import { ImportService } from '../../services/import.service'
 
 export class EmployeesService {
   async list(pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<PaginatedResponse<Employee>> {
@@ -105,6 +107,84 @@ export class EmployeesService {
 
   async delete(id: string): Promise<void> {
     await employeesRepository.delete(id)
+  }
+
+  async exportToExcel(filter?: any): Promise<Buffer> {
+    const data = await employeesRepository.exportData(filter)
+    const columns = [
+      { header: 'Employee ID', key: 'employee_id', width: 15 },
+      { header: 'Full Name', key: 'full_name', width: 25 },
+      { header: 'Job Position', key: 'job_position', width: 20 },
+      { header: 'Branch Name', key: 'branch_name', width: 20 },
+      { header: 'Parent Branch', key: 'parent_branch_name', width: 20 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'Mobile Phone', key: 'mobile_phone', width: 15 },
+      { header: 'NIK', key: 'nik', width: 20 },
+      { header: 'Birth Date', key: 'birth_date', width: 15 },
+      { header: 'Birth Place', key: 'birth_place', width: 20 },
+      { header: 'Age', key: 'age', width: 10 },
+      { header: 'Gender', key: 'gender', width: 12 },
+      { header: 'Religion', key: 'religion', width: 15 },
+      { header: 'Marital Status', key: 'marital_status', width: 15 },
+      { header: 'Address', key: 'citizen_id_address', width: 40 },
+      { header: 'Join Date', key: 'join_date', width: 15 },
+      { header: 'Resign Date', key: 'resign_date', width: 15 },
+      { header: 'Sign Date', key: 'sign_date', width: 15 },
+      { header: 'End Date', key: 'end_date', width: 15 },
+      { header: 'Status Employee', key: 'status_employee', width: 15 },
+      { header: 'Active', key: 'is_active', width: 10 },
+      { header: 'PTKP Status', key: 'ptkp_status', width: 15 },
+      { header: 'Bank Name', key: 'bank_name', width: 20 },
+      { header: 'Bank Account', key: 'bank_account', width: 20 },
+      { header: 'Bank Account Holder', key: 'bank_account_holder', width: 25 },
+      { header: 'Profile Picture', key: 'profile_picture', width: 50 },
+      { header: 'Created At', key: 'created_at', width: 20 },
+    ]
+    return await ExportService.generateExcel(data, columns)
+  }
+
+  async previewImport(buffer: Buffer): Promise<any[]> {
+    return await ImportService.parseExcel(buffer)
+  }
+
+  async importFromExcel(buffer: Buffer, skipDuplicates: boolean): Promise<any> {
+    const rows = await ImportService.parseExcel(buffer)
+    const requiredFields = ['employee_id', 'full_name']
+    
+    return await ImportService.processImport(
+      rows,
+      requiredFields,
+      async (row) => {
+        await employeesRepository.create({
+          employee_id: row.employee_id,
+          full_name: row.full_name,
+          job_position: row.job_position,
+          branch_name: row.branch_name,
+          parent_branch_name: row.parent_branch_name,
+          email: row.email,
+          mobile_phone: row.mobile_phone,
+          nik: row.nik,
+          birth_date: row.birth_date,
+          birth_place: row.birth_place,
+          age: row.age,
+          gender: row.gender,
+          religion: row.religion,
+          marital_status: row.marital_status,
+          citizen_id_address: row.citizen_id_address,
+          join_date: row.join_date,
+          resign_date: row.resign_date,
+          sign_date: row.sign_date,
+          end_date: row.end_date,
+          status_employee: row.status_employee,
+          is_active: row.active === 'true' || row.active === true || row.is_active === 'true' || row.is_active === true,
+          ptkp_status: row.ptkp_status,
+          bank_name: row.bank_name,
+          bank_account: row.bank_account,
+          bank_account_holder: row.bank_account_holder,
+        })
+      },
+      skipDuplicates
+    )
   }
 }
 

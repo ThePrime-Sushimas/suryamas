@@ -164,6 +164,26 @@ export class EmployeesRepository {
 
     return { branches, positions, statuses }
   }
+
+  async exportData(filter?: any): Promise<Employee[]> {
+    let query = supabase.from('employees').select('*')
+    
+    if (filter) {
+      if (filter.branch_name) query = query.eq('branch_name', filter.branch_name)
+      if (filter.is_active !== undefined) query = query.eq('is_active', filter.is_active)
+      if (filter.status_employee) query = query.eq('status_employee', filter.status_employee)
+      if (filter.job_position) query = query.eq('job_position', filter.job_position)
+    }
+    
+    const { data, error } = await query
+    if (error) throw new Error(error.message)
+    return data || []
+  }
+
+  async bulkCreate(employees: Partial<Employee>[]): Promise<void> {
+    const { error } = await supabase.from('employees').insert(employees)
+    if (error) throw new Error(error.message)
+  }
 }
 
 export const employeesRepository = new EmployeesRepository()

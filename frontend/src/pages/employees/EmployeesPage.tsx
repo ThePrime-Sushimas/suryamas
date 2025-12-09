@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useEmployeeStore } from '../../stores/employeeStore'
+import ExportButton from '../../components/ExportButton'
+import ImportModal from '../../components/ImportModal'
 
 export default function EmployeesPage() {
-  const { employees, searchEmployees, deleteEmployee, filterOptions, fetchFilterOptions, isLoading } = useEmployeeStore()
+  const { employees, searchEmployees, deleteEmployee, filterOptions, fetchFilterOptions, pagination, isLoading } = useEmployeeStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [sortField, setSortField] = useState('created_at')
@@ -14,12 +16,23 @@ export default function EmployeesPage() {
     status_employee: '',
     job_position: ''
   })
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [limit, setLimit] = useState(10)
   const navigate = useNavigate()
 
   useEffect(() => {
     fetchFilterOptions()
-    searchEmployees('', sortField, sortOrder, getActiveFilters())
+    searchEmployees('', sortField, sortOrder, getActiveFilters(), 1, limit)
   }, [])
+
+  const handlePageChange = async (page: number) => {
+    await searchEmployees(searchQuery, sortField, sortOrder, getActiveFilters(), page, limit)
+  }
+
+  const handleLimitChange = async (newLimit: number) => {
+    setLimit(newLimit)
+    await searchEmployees(searchQuery, sortField, sortOrder, getActiveFilters(), 1, newLimit)
+  }
 
   const getActiveFilters = () => {
     const activeFilters: any = {}
@@ -32,19 +45,19 @@ export default function EmployeesPage() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
-    await searchEmployees(searchQuery, sortField, sortOrder, getActiveFilters())
+    await searchEmployees(searchQuery, sortField, sortOrder, getActiveFilters(), 1, limit)
   }
 
   const handleClearSearch = async () => {
     setSearchQuery('')
-    await searchEmployees('', sortField, sortOrder, getActiveFilters())
+    await searchEmployees('', sortField, sortOrder, getActiveFilters(), 1, limit)
   }
 
   const handleSort = async (field: string) => {
     const newOrder = sortField === field && sortOrder === 'asc' ? 'desc' : 'asc'
     setSortField(field)
     setSortOrder(newOrder)
-    await searchEmployees(searchQuery, field, newOrder, getActiveFilters())
+    await searchEmployees(searchQuery, field, newOrder, getActiveFilters(), 1, limit)
   }
 
   const handleFilterChange = async (key: string, value: string) => {
@@ -55,12 +68,12 @@ export default function EmployeesPage() {
     if (newFilters.is_active) activeFilters.is_active = newFilters.is_active
     if (newFilters.status_employee) activeFilters.status_employee = newFilters.status_employee
     if (newFilters.job_position) activeFilters.job_position = newFilters.job_position
-    await searchEmployees(searchQuery, sortField, sortOrder, activeFilters)
+    await searchEmployees(searchQuery, sortField, sortOrder, activeFilters, 1, limit)
   }
 
   const handleClearFilters = async () => {
     setFilters({ branch_name: '', is_active: '', status_employee: '', job_position: '' })
-    await searchEmployees(searchQuery, sortField, sortOrder, {})
+    await searchEmployees(searchQuery, sortField, sortOrder, {}, 1, limit)
   }
 
   const SortIcon = ({ field }: { field: string }) => {
@@ -78,13 +91,30 @@ export default function EmployeesPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Employees</h1>
-        <button
-          onClick={() => navigate('/employees/create')}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-        >
-          + Create Employee
-        </button>
+        <div className="flex gap-2">
+          <ExportButton endpoint="/employees" filename="employees" filter={getActiveFilters()} />
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Import Excel
+          </button>
+          <button
+            onClick={() => navigate('/employees/create')}
+            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+          >
+            + Create Employee
+          </button>
+        </div>
       </div>
+
+      <ImportModal 
+        isOpen={showImportModal} 
+        onClose={() => setShowImportModal(false)}
+        onSuccess={() => searchEmployees(searchQuery, sortField, sortOrder, getActiveFilters(), 1, limit)}
+        endpoint="/employees"
+        title="Employees"
+      />
 
       <div className="bg-white shadow rounded-lg p-6 mb-6">
         <form onSubmit={handleSearch} className="space-y-4">
@@ -192,6 +222,7 @@ export default function EmployeesPage() {
       )}
 
       {employees.length > 0 ? (
+        <>
         <div className="bg-white shadow rounded-lg overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -291,6 +322,65 @@ export default function EmployeesPage() {
             </tbody>
           </table>
         </div>
+        
+        {pagination && (
+          <div className="bg-white shadow rounded-lg p-4 mt-4">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-600">
+                  Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} entries
+                </span>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-600">Rows per page:</label>
+                  <select
+                    value={limit}
+                    onChange={(e) => handleLimitChange(Number(e.target.value))}
+                    className="px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handlePageChange(1)}
+                  disabled={pagination.page === 1}
+                  className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                >
+                  First
+                </button>
+                <button
+                  onClick={() => handlePageChange(pagination.page - 1)}
+                  disabled={pagination.page === 1}
+                  className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                >
+                  Previous
+                </button>
+                <span className="text-sm text-gray-600 px-2">
+                  Page {pagination.page} of {pagination.totalPages}
+                </span>
+                <button
+                  onClick={() => handlePageChange(pagination.page + 1)}
+                  disabled={pagination.page === pagination.totalPages}
+                  className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                >
+                  Next
+                </button>
+                <button
+                  onClick={() => handlePageChange(pagination.totalPages)}
+                  disabled={pagination.page === pagination.totalPages}
+                  className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                >
+                  Last
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        </>
       ) : (
         <div className="bg-white shadow rounded-lg p-8 text-center text-gray-500">
           {searchQuery ? 'No employees found' : 'Search for employees to see results'}

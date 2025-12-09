@@ -5,6 +5,7 @@ import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
 import { filterMiddleware } from '../../middleware/filter.middleware'
 import { upload } from '../../middleware/upload.middleware'
+import { exportLimiter } from '../../middleware/rateLimiter.middleware'
 
 const router = Router()
 
@@ -20,6 +21,12 @@ router.get('/filter-options', authenticate, (req, res) => employeesController.ge
 router.get('/profile', authenticate, (req, res) => employeesController.getProfile(req, res))
 router.put('/profile', authenticate, (req, res) => employeesController.updateProfile(req, res))
 router.post('/profile/picture', authenticate, upload.single('picture'), (req, res) => employeesController.uploadProfilePicture(req, res))
+
+// Export & Import
+router.get('/export/token', authenticate, exportLimiter, (req, res) => employeesController.generateExportToken(req, res))
+router.get('/export', authenticate, filterMiddleware, (req, res) => employeesController.exportData(req as any, res))
+router.post('/import/preview', authenticate, upload.single('file'), (req, res) => employeesController.previewImport(req, res))
+router.post('/import', authenticate, upload.single('file'), (req, res) => employeesController.importData(req, res))
 
 // Employee CRUD
 router.post('/', authenticate, upload.single('profile_picture'), (req, res) => employeesController.create(req, res))

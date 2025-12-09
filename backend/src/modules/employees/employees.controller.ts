@@ -6,6 +6,7 @@ import { logInfo, logError } from '../../config/logger'
 import { PaginatedRequest } from '../../middleware/pagination.middleware'
 import { SortRequest } from '../../middleware/sort.middleware'
 import { FilterRequest } from '../../middleware/filter.middleware'
+import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
 
 export class EmployeesController {
   async list(req: PaginatedRequest & SortRequest, res: Response) {
@@ -179,6 +180,22 @@ export class EmployeesController {
       })
       sendError(res, (error as Error).message, 400)
     }
+  }
+
+  async generateExportToken(req: AuthRequest, res: Response) {
+    return handleExportToken(req, res)
+  }
+
+  async exportData(req: AuthRequest & FilterRequest, res: Response) {
+    return handleExport(req, res, (filter) => employeesService.exportToExcel(filter), 'employees')
+  }
+
+  async previewImport(req: AuthRequest, res: Response) {
+    return handleImportPreview(req, res, (buffer) => employeesService.previewImport(buffer))
+  }
+
+  async importData(req: AuthRequest, res: Response) {
+    return handleImport(req, res, (buffer, skip) => employeesService.importFromExcel(buffer, skip))
   }
 }
 

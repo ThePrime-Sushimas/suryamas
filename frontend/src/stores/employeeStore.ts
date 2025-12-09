@@ -12,11 +12,12 @@ interface EmployeeState {
   employees: Employee[]
   profile: Employee | null
   filterOptions: FilterOptions | null
+  pagination: { page: number; limit: number; total: number; totalPages: number } | null
   isLoading: boolean
   fetchProfile: () => Promise<void>
   updateProfile: (data: Partial<Employee>) => Promise<void>
   uploadProfilePicture: (file: File) => Promise<void>
-  searchEmployees: (query: string, sort?: string, order?: 'asc' | 'desc', filter?: any) => Promise<void>
+  searchEmployees: (query: string, sort?: string, order?: 'asc' | 'desc', filter?: any, page?: number, limit?: number) => Promise<void>
   fetchFilterOptions: () => Promise<void>
   createEmployee: (data: Partial<Employee>, profilePicture?: File) => Promise<void>
   deleteEmployee: (id: string) => Promise<void>
@@ -26,6 +27,7 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
   employees: [],
   profile: null,
   filterOptions: null,
+  pagination: null,
   isLoading: false,
 
   fetchProfile: async () => {
@@ -64,17 +66,22 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     }
   },
 
-  searchEmployees: async (query, sort = 'created_at', order = 'desc', filter = {}) => {
+  searchEmployees: async (query, sort = 'created_at', order = 'desc', filter = {}, page = 1, limit = 10) => {
     set({ isLoading: true })
     try {
       const params = new URLSearchParams({
         q: query,
         sort,
         order,
+        page: String(page),
+        limit: String(limit),
         ...filter
       })
       const { data } = await api.get<ApiResponse<Employee[]>>(`/employees/search?${params}`)
-      set({ employees: data.data })
+      set({ 
+        employees: data.data,
+        pagination: (data as any).pagination
+      })
     } finally {
       set({ isLoading: false })
     }
