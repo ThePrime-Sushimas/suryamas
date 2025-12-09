@@ -184,6 +184,16 @@ export class EmployeesRepository {
     const { error } = await supabase.from('employees').insert(employees)
     if (error) throw new Error(error.message)
   }
+
+  async bulkUpdateActive(ids: string[], isActive: boolean): Promise<void> {
+    const { error } = await supabase.from('employees').update({ is_active: isActive }).in('id', ids)
+    if (error) throw new Error(error.message)
+  }
+
+  async bulkDelete(ids: string[]): Promise<void> {
+    const { error } = await supabase.from('employees').delete().in('id', ids)
+    if (error) throw new Error(error.message)
+  }
 }
 
 export const employeesRepository = new EmployeesRepository()

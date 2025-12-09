@@ -7,6 +7,7 @@ import { PaginatedRequest } from '../../middleware/pagination.middleware'
 import { SortRequest } from '../../middleware/sort.middleware'
 import { FilterRequest } from '../../middleware/filter.middleware'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
+import { handleBulkUpdate, handleBulkDelete } from '../../utils/bulk.util'
 
 export class EmployeesController {
   async list(req: PaginatedRequest & SortRequest, res: Response) {
@@ -196,6 +197,14 @@ export class EmployeesController {
 
   async importData(req: AuthRequest, res: Response) {
     return handleImport(req, res, (buffer, skip) => employeesService.importFromExcel(buffer, skip))
+  }
+
+  async bulkUpdateActive(req: AuthRequest, res: Response) {
+    return handleBulkUpdate(req, res, (ids, data) => employeesService.bulkUpdateActive(ids, data.is_active), 'update active')
+  }
+
+  async bulkDelete(req: AuthRequest, res: Response) {
+    return handleBulkDelete(req, res, (ids) => employeesService.bulkDelete(ids))
   }
 }
 

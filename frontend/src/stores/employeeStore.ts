@@ -21,6 +21,8 @@ interface EmployeeState {
   fetchFilterOptions: () => Promise<void>
   createEmployee: (data: Partial<Employee>, profilePicture?: File) => Promise<void>
   deleteEmployee: (id: string) => Promise<void>
+  bulkUpdateActive: (ids: string[], isActive: boolean) => Promise<void>
+  bulkDelete: (ids: string[]) => Promise<void>
 }
 
 export const useEmployeeStore = create<EmployeeState>((set) => ({
@@ -122,6 +124,32 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
       await api.delete(`/employees/${id}`)
       set((state) => ({
         employees: state.employees.filter((e) => e.id !== id),
+      }))
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  bulkUpdateActive: async (ids, isActive) => {
+    set({ isLoading: true })
+    try {
+      await api.post('/employees/bulk/update-active', { ids, is_active: isActive })
+      set((state) => ({
+        employees: state.employees.map((e) => 
+          ids.includes(e.id) ? { ...e, is_active: isActive } : e
+        ),
+      }))
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  bulkDelete: async (ids) => {
+    set({ isLoading: true })
+    try {
+      await api.post('/employees/bulk/delete', { ids })
+      set((state) => ({
+        employees: state.employees.filter((e) => !ids.includes(e.id)),
       }))
     } finally {
       set({ isLoading: false })

@@ -109,6 +109,14 @@ export class EmployeesService {
     await employeesRepository.delete(id)
   }
 
+  async bulkUpdateActive(ids: string[], isActive: boolean): Promise<void> {
+    await employeesRepository.bulkUpdateActive(ids, isActive)
+  }
+
+  async bulkDelete(ids: string[]): Promise<void> {
+    await employeesRepository.bulkDelete(ids)
+  }
+
   async exportToExcel(filter?: any): Promise<Buffer> {
     const data = await employeesRepository.exportData(filter)
     const columns = [

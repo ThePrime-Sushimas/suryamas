@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { useEmployeeStore } from '../../stores/employeeStore'
 import ExportButton from '../../components/ExportButton'
 import ImportModal from '../../components/ImportModal'
+import BulkActionBar from '../../components/BulkActionBar'
+import { useBulkSelection } from '../../hooks/useBulkSelection'
 
 export default function EmployeesPage() {
-  const { employees, searchEmployees, deleteEmployee, filterOptions, fetchFilterOptions, pagination, isLoading } = useEmployeeStore()
+  const { employees, searchEmployees, deleteEmployee, bulkUpdateActive, bulkDelete, filterOptions, fetchFilterOptions, pagination, isLoading } = useEmployeeStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [sortField, setSortField] = useState('created_at')
@@ -18,6 +20,7 @@ export default function EmployeesPage() {
   })
   const [showImportModal, setShowImportModal] = useState(false)
   const [limit, setLimit] = useState(10)
+  const { selectedIds, selectAll, selectOne, clearSelection, isSelected, isAllSelected, selectedCount } = useBulkSelection(employees)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -87,11 +90,33 @@ export default function EmployeesPage() {
     }
   }
 
+  const handleBulkUpdateActive = async (isActive: boolean) => {
+    if (confirm(`Set ${selectedCount} employees to ${isActive ? 'Active' : 'Inactive'}?`)) {
+      await bulkUpdateActive(selectedIds, isActive)
+      clearSelection()
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (confirm(`Delete ${selectedCount} employees?`)) {
+      await bulkDelete(selectedIds)
+      clearSelection()
+    }
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Employees</h1>
         <div className="flex gap-2">
+          <BulkActionBar
+            selectedCount={selectedCount}
+            actions={[
+              { label: 'Set Active', onClick: () => handleBulkUpdateActive(true), className: 'px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700' },
+              { label: 'Set Inactive', onClick: () => handleBulkUpdateActive(false), className: 'px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700' },
+              { label: 'Delete', onClick: handleBulkDelete, className: 'px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700' },
+            ]}
+          />
           <ExportButton endpoint="/employees" filename="employees" filter={getActiveFilters()} />
           <button
             onClick={() => setShowImportModal(true)}
@@ -227,6 +252,9 @@ export default function EmployeesPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                  <input type="checkbox" checked={isAllSelected} onChange={(e) => selectAll(e.target.checked)} className="cursor-pointer" />
+                </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Photo</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('employee_id')}>Employee ID <SortIcon field="employee_id" /></th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('full_name')}>Name <SortIcon field="full_name" /></th>
@@ -259,6 +287,9 @@ export default function EmployeesPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {employees.map((employee) => (
                 <tr key={employee.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 whitespace-nowrap text-center">
+                    <input type="checkbox" checked={isSelected(employee.id)} onChange={(e) => selectOne(employee.id, e.target.checked)} className="cursor-pointer" />
+                  </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     {employee.profile_picture ? (
                       <img 

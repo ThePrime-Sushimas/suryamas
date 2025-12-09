@@ -28,6 +28,10 @@ router.get('/export', authenticate, filterMiddleware, (req, res) => employeesCon
 router.post('/import/preview', authenticate, upload.single('file'), (req, res) => employeesController.previewImport(req, res))
 router.post('/import', authenticate, upload.single('file'), (req, res) => employeesController.importData(req, res))
 
+// Bulk Actions
+router.post('/bulk/update-active', authenticate, (req, res) => employeesController.bulkUpdateActive(req, res))
+router.post('/bulk/delete', authenticate, (req, res) => employeesController.bulkDelete(req, res))
+
 // Employee CRUD
 router.post('/', authenticate, upload.single('profile_picture'), (req, res) => employeesController.create(req, res))
 router.get('/:id', authenticate, (req, res) => employeesController.getById(req, res))
