@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useEmployeeStore } from '../../stores/employeeStore'
 
 export default function ProfilePage() {
-  const { profile, fetchProfile, updateProfile, isLoading } = useEmployeeStore()
+  const { profile, fetchProfile, updateProfile, uploadProfilePicture, isLoading } = useEmployeeStore()
   const [isEditing, setIsEditing] = useState(false)
   const [activeTab, setActiveTab] = useState('personal')
   const [formData, setFormData] = useState<{
@@ -86,7 +86,37 @@ export default function ProfilePage() {
     <div className="max-w-3xl mx-auto">
       <div className="bg-white shadow rounded-lg p-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">My Profile</h1>
+          <div className="flex items-center gap-4">
+            {profile.profile_picture ? (
+              <img src={profile.profile_picture} alt="Profile" className="w-16 h-16 rounded-full object-cover" />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xl font-bold">
+                {profile.full_name.charAt(0)}
+              </div>
+            )}
+            <div>
+              <h1 className="text-2xl font-bold">{profile.full_name}</h1>
+              <label className="text-sm text-blue-600 hover:underline cursor-pointer">
+                Change photo
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    if (e.target.files?.[0]) {
+                      try {
+                        await uploadProfilePicture(e.target.files[0])
+                        await fetchProfile()
+                        alert('Profile picture updated successfully!')
+                      } catch (error: any) {
+                        alert(`Failed to upload: ${error.response?.data?.error || error.message}`)
+                      }
+                    }
+                  }}
+                />
+              </label>
+            </div>
+          </div>
           {!isEditing && (
             <button
               onClick={() => setIsEditing(true)}
@@ -284,10 +314,6 @@ export default function ProfilePage() {
                   <p className="font-medium">{profile.employee_id}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Full Name</p>
-                  <p className="font-medium">{profile.full_name}</p>
-                </div>
-                <div>
                   <p className="text-sm text-gray-500">NIK</p>
                   <p className="font-medium">{profile.nik || '-'}</p>
                 </div>
@@ -315,10 +341,14 @@ export default function ProfilePage() {
                   <p className="text-sm text-gray-500">Marital Status</p>
                   <p className="font-medium">{profile.marital_status || '-'}</p>
                 </div>
-                <div>
+                {/* <div>
                   <p className="text-sm text-gray-500">Profile Picture</p>
-                  <p className="font-medium">{profile.profile_picture ? 'Yes' : 'No'}</p>
-                </div>
+                  {profile.profile_picture ? (
+                    <img src={profile.profile_picture} alt="Profile" className="w-20 h-20 rounded-full object-cover" />
+                  ) : (
+                    <p className="font-medium">No picture</p>
+                  )}
+                </div> */}
               </div>
             )}
 

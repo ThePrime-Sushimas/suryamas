@@ -109,6 +109,19 @@ export class EmployeesRepository {
 
     if (error) throw new Error(error.message)
   }
+
+  async uploadFile(fileName: string, buffer: Buffer, contentType: string) {
+    return await supabase.storage
+      .from('profile-pictures')
+      .upload(fileName, buffer, { contentType, upsert: true })
+  }
+
+  getPublicUrl(fileName: string): string {
+    const { data } = supabase.storage
+      .from('profile-pictures')
+      .getPublicUrl(fileName)
+    return data.publicUrl
+  }
 }
 
 export const employeesRepository = new EmployeesRepository()

@@ -8,8 +8,9 @@ interface EmployeeState {
   isLoading: boolean
   fetchProfile: () => Promise<void>
   updateProfile: (data: Partial<Employee>) => Promise<void>
+  uploadProfilePicture: (file: File) => Promise<void>
   searchEmployees: (query: string) => Promise<void>
-  createEmployee: (data: Partial<Employee>) => Promise<void>
+  createEmployee: (data: Partial<Employee>, profilePicture?: File) => Promise<void>
   deleteEmployee: (id: string) => Promise<void>
 }
 
@@ -38,6 +39,22 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     }
   },
 
+  uploadProfilePicture: async (file: File) => {
+    set({ isLoading: true })
+    try {
+      const formData = new FormData()
+      formData.append('picture', file)
+      const { data } = await api.post<ApiResponse<{ profile_picture: string }>>('/employees/profile/picture', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      set((state) => ({
+        profile: state.profile ? { ...state.profile, profile_picture: data.data.profile_picture } : null
+      }))
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
   searchEmployees: async (query) => {
     set({ isLoading: true })
     try {
@@ -48,10 +65,21 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     }
   },
 
-  createEmployee: async (employeeData) => {
+  createEmployee: async (employeeData, profilePicture?: File) => {
     set({ isLoading: true })
     try {
-      await api.post('/employees', employeeData)
+      const formData = new FormData()
+      Object.entries(employeeData).forEach(([key, value]) => {
+        if (value !== '' && value !== null && value !== undefined) {
+          formData.append(key, value as string)
+        }
+      })
+      if (profilePicture) {
+        formData.append('profile_picture', profilePicture)
+      }
+      await api.post('/employees', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
     } finally {
       set({ isLoading: false })
     }

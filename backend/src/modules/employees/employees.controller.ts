@@ -24,7 +24,7 @@ export class EmployeesController {
   }
   async create(req: AuthRequest, res: Response) {
     try {
-      const employee = await employeesService.create(req.body)
+      const employee = await employeesService.create(req.body, req.file)
       logInfo('Employee created', { 
         employee_id: employee.employee_id,
         user: req.user?.id 
@@ -128,6 +128,38 @@ export class EmployeesController {
       logError('Failed to delete employee', {
         error: (error as Error).message,
         id: req.params.id,
+        user: req.user?.id
+      })
+      sendError(res, (error as Error).message, 400)
+    }
+  }
+
+  async uploadProfilePicture(req: AuthRequest, res: Response) {
+    try {
+      logInfo('Upload request received', { 
+        hasFile: !!req.file,
+        user: req.user?.id 
+      })
+      
+      if (!req.file) {
+        logError('No file in request', { user: req.user?.id })
+        return sendError(res, 'No file uploaded', 400)
+      }
+      
+      logInfo('Processing file upload', { 
+        filename: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        user: req.user?.id 
+      })
+      
+      const url = await employeesService.uploadProfilePicture(req.user!.id, req.file)
+      logInfo('Profile picture uploaded', { url, user: req.user?.id })
+      sendSuccess(res, { profile_picture: url }, 'Profile picture uploaded')
+    } catch (error) {
+      logError('Failed to upload profile picture', {
+        error: (error as Error).message,
+        stack: (error as Error).stack,
         user: req.user?.id
       })
       sendError(res, (error as Error).message, 400)

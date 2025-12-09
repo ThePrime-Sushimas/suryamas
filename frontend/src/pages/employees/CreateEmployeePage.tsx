@@ -11,19 +11,32 @@ export default function CreateEmployeePage() {
     full_name: '',
     job_position: '',
     branch_name: '',
+    parent_branch_name: '',
     ptkp_status: 'TK/0' as const,
     status_employee: 'Permanent' as 'Permanent' | 'Contract',
     join_date: '',
+    sign_date: '',
+    end_date: '',
+    email: '',
+    mobile_phone: '',
+    nik: '',
+    birth_date: '',
+    birth_place: '',
+    citizen_id_address: '',
     religion: '',
     gender: '',
     marital_status: '',
+    bank_name: '',
+    bank_account: '',
+    bank_account_holder: '',
   })
+  const [profilePicture, setProfilePicture] = useState<File | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     try {
-      await createEmployee(formData as any)
+      await createEmployee(formData as any, profilePicture || undefined)
       alert('Employee created successfully!')
       navigate('/employees')
     } catch (err: any) {
@@ -31,7 +44,7 @@ export default function CreateEmployeePage() {
     }
   }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
 
@@ -39,12 +52,15 @@ export default function CreateEmployeePage() {
     <div className="max-w-3xl mx-auto">
       <div className="bg-white shadow rounded-lg p-6">
         <h1 className="text-2xl font-bold mb-6">Create New Employee</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
             <div className="bg-red-50 text-red-600 p-3 rounded">{error}</div>
           )}
           
-          <div className="grid grid-cols-2 gap-4">
+          {/* Basic Info Section */}
+          <div className="border-b border-gray-200 pb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+            <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Employee ID *</label>
               <input
@@ -121,19 +137,106 @@ export default function CreateEmployeePage() {
                 <option value="Contract">Contract</option>
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Join Date *</label>
-              <input
-                type="date"
-                name="join_date"
-                required
-                value={formData.join_date}
-                onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Parent Branch</label>
+                <input
+                  type="text"
+                  name="parent_branch_name"
+                  value={formData.parent_branch_name}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Religion</label>
+          </div>
+
+          {/* Dates Section */}
+          <div className="border-b border-gray-200 pb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Dates</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Join Date *</label>
+                <input
+                  type="date"
+                  name="join_date"
+                  required
+                  value={formData.join_date}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Contract Sign Date</label>
+                <input
+                  type="date"
+                  name="sign_date"
+                  value={formData.sign_date}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Contract End Date</label>
+                <input
+                  type="date"
+                  name="end_date"
+                  value={formData.end_date}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Personal Info Section */}
+          <div className="border-b border-gray-200 pb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Personal Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">NIK</label>
+                <input
+                  type="text"
+                  name="nik"
+                  value={formData.nik}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Birth Date</label>
+                <input
+                  type="date"
+                  name="birth_date"
+                  value={formData.birth_date}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Birth Place</label>
+                <input
+                  type="text"
+                  name="birth_place"
+                  value={formData.birth_place}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Gender</label>
+                <select
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="">Select...</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Religion</label>
               <select
                 name="religion"
                 value={formData.religion}
@@ -149,21 +252,8 @@ export default function CreateEmployeePage() {
                 <option value="Other">Other</option>
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Gender</label>
-              <select
-                name="gender"
-                value={formData.gender}
-                onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-              >
-                <option value="">Select...</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Marital Status</label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Marital Status</label>
               <select
                 name="marital_status"
                 value={formData.marital_status}
@@ -176,6 +266,98 @@ export default function CreateEmployeePage() {
                 <option value="Divorced">Divorced</option>
                 <option value="Widow">Widow</option>
               </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Contact Section */}
+          <div className="border-b border-gray-200 pb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Email</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+              />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Mobile Phone</label>
+                <input
+                  type="text"
+                  name="mobile_phone"
+                  value={formData.mobile_phone}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700">Address (KTP)</label>
+                <textarea
+                  name="citizen_id_address"
+                  value={formData.citizen_id_address}
+                  onChange={handleChange}
+                  rows={3}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Banking Section */}
+          <div className="border-b border-gray-200 pb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Banking Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Bank Name</label>
+              <input
+                type="text"
+                name="bank_name"
+                value={formData.bank_name}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+              />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Bank Account</label>
+                <input
+                  type="text"
+                  name="bank_account"
+                  value={formData.bank_account}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700">Bank Account Holder</label>
+                <input
+                  type="text"
+                  name="bank_account_holder"
+                  value={formData.bank_account_holder}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Profile Picture Section */}
+          <div className="pb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Profile Picture</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Upload Photo</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setProfilePicture(e.target.files?.[0] || null)}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+              />
+              {profilePicture && (
+                <p className="text-sm text-gray-500 mt-1">Selected: {profilePicture.name}</p>
+              )}
             </div>
           </div>
 

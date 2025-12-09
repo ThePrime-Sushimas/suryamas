@@ -5,6 +5,7 @@ import { useEmployeeStore } from '../../stores/employeeStore'
 export default function EmployeesPage() {
   const { employees, searchEmployees, deleteEmployee, isLoading } = useEmployeeStore()
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -13,9 +14,12 @@ export default function EmployeesPage() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (searchQuery.trim()) {
-      await searchEmployees(searchQuery)
-    }
+    await searchEmployees(searchQuery)
+  }
+
+  const handleClearSearch = async () => {
+    setSearchQuery('')
+    await searchEmployees('')
   }
 
   const handleDelete = async (id: string, name: string) => {
@@ -52,14 +56,49 @@ export default function EmployeesPage() {
           >
             {isLoading ? 'Searching...' : 'Search'}
           </button>
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              disabled={isLoading}
+              className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 disabled:opacity-50"
+            >
+              Clear
+            </button>
+          )}
         </form>
       </div>
+
+      {selectedImage && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="relative w-1/2 p-4">
+            <img 
+              src={selectedImage} 
+              alt="Preview" 
+              className="w-full h-auto object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-6 right-6 text-white bg-black bg-opacity-50 rounded-full w-10 h-10 flex items-center justify-center hover:bg-opacity-75"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       {employees.length > 0 ? (
         <div className="bg-white shadow rounded-lg overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Photo
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                   Employee ID
                 </th>
@@ -84,7 +123,7 @@ export default function EmployeesPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
                   Actions
                 </th>
               </tr>
@@ -92,6 +131,20 @@ export default function EmployeesPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {employees.map((employee) => (
                 <tr key={employee.id}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {employee.profile_picture ? (
+                      <img 
+                        src={employee.profile_picture} 
+                        alt={employee.full_name} 
+                        className="w-10 h-10 rounded-full object-cover cursor-pointer hover:opacity-80" 
+                        onClick={() => setSelectedImage(employee.profile_picture)}
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold">
+                        {employee.full_name.charAt(0)}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {employee.employee_id}
                   </td>
@@ -129,7 +182,13 @@ export default function EmployeesPage() {
                       {employee.status_employee}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                    <button
+                      onClick={() => navigate(`/employees/${employee.id}`)}
+                      className="text-blue-600 hover:text-blue-900 mr-3"
+                    >
+                      View
+                    </button>
                     <button
                       onClick={() => handleDelete(employee.id, employee.full_name)}
                       className="text-red-600 hover:text-red-900"

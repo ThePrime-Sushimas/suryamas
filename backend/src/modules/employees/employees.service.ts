@@ -8,8 +8,21 @@ export class EmployeesService {
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
-  async create(data: Partial<Employee>): Promise<Employee> {
-    const employee = await employeesRepository.create(data)
+  async create(data: Partial<Employee>, file?: Express.Multer.File): Promise<Employee> {
+    let profilePictureUrl: string | null = null
+    
+    if (file) {
+      const fileName = `${Date.now()}-${file.originalname}`
+      const { error } = await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
+      if (!error) {
+        profilePictureUrl = employeesRepository.getPublicUrl(fileName)
+      }
+    }
+    
+    const employee = await employeesRepository.create({
+      ...data,
+      profile_picture: profilePictureUrl
+    })
     
     if (!employee) {
       throw new Error('Failed to create employee')
@@ -40,17 +53,40 @@ export class EmployeesService {
   async updateProfile(userId: string, updates: Partial<Employee>): Promise<Employee> {
     const { id, employee_id, user_id, created_at, ...allowedUpdates } = updates
 
-    if (Object.keys(allowedUpdates).length === 0) {
+    // Remove empty strings to avoid date validation errors
+    const cleanedUpdates = Object.fromEntries(
+      Object.entries(allowedUpdates).filter(([_, value]) => value !== '')
+    )
+
+    if (Object.keys(cleanedUpdates).length === 0) {
       throw new Error('No valid fields to update')
     }
 
-    const employee = await employeesRepository.update(userId, allowedUpdates)
+    const employee = await employeesRepository.update(userId, cleanedUpdates)
     
     if (!employee) {
       throw new Error('Failed to update employee profile')
     }
 
     return employee
+  }
+
+  async uploadProfilePicture(userId: string, file: Express.Multer.File): Promise<string> {
+    const fileName = `${userId}-${Date.now()}.${file.mimetype.split('/')[1]}`
+    const { data, error } = await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
+    
+    if (error) {
+      throw new Error(`Failed to upload image: ${error.message}`)
+    }
+    
+    const publicUrl = employeesRepository.getPublicUrl(fileName)
+    const updated = await employeesRepository.update(userId, { profile_picture: publicUrl })
+    
+    if (!updated) {
+      throw new Error('Failed to update profile picture in database')
+    }
+    
+    return publicUrl
   }
 
   async getById(id: string): Promise<Employee> {

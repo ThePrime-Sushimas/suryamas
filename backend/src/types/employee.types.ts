@@ -30,7 +30,7 @@ export interface Employee {
   religion: Religion | null
   gender: Gender | null
   marital_status: MaritalStatus | null
-  profile_picture: boolean
+  profile_picture: string | null
   created_at: string
   updated_at: string
   user_id: string | null

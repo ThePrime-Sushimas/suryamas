@@ -11,7 +11,7 @@ export default function HomePage() {
       
       {user ? (
         <div className="space-y-4">
-          <p className="text-lg">Hello, {user.email}!</p>
+          <p className="text-lg">Hello, {user.full_name}</p>
           <div className="flex justify-center gap-4">
             <Link
               to="/profile"

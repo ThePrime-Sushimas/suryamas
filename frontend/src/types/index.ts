@@ -24,7 +24,7 @@ export interface Employee {
   religion: 'Islam' | 'Christian' | 'Catholic' | 'Hindu' | 'Buddha' | 'Other' | null
   gender: 'Male' | 'Female' | null
   marital_status: 'Single' | 'Married' | 'Divorced' | 'Widow' | null
-  profile_picture: boolean
+  profile_picture: string | null
   created_at: string
   updated_at: string
   user_id: string | null
@@ -34,6 +34,7 @@ export interface Employee {
 export interface User {
   id: string
   email: string
+  full_name: string
   created_at: string
 }
 

@@ -32,7 +32,7 @@ export default function Navbar() {
           <div className="flex items-center">
             {user ? (
               <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-700">{user.email}</span>
+                <span className="text-sm text-gray-700">{user.full_name}</span>
                 <button
                   onClick={handleLogout}
                   className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
