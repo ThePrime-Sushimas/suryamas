@@ -27,11 +27,16 @@ export const useAuthStore = create<AuthState>((set) => ({
         password,
       })
       localStorage.setItem('token', data.data.access_token)
-      set({ user: data.data.user, token: data.data.access_token, isInitialized: true })
+      set({ token: data.data.access_token })
+      
+      // Fetch full profile data
+      const { data: profileData } = await api.get<ApiResponse<User>>('/employees/profile')
+      set({ user: profileData.data, isInitialized: true })
     } finally {
       set({ isLoading: false })
     }
   },
+  
 
   register: async (email, password, employee_id) => {
     set({ isLoading: true })
