@@ -9,7 +9,7 @@ interface EmployeeState {
   fetchProfile: () => Promise<void>
   updateProfile: (data: Partial<Employee>) => Promise<void>
   uploadProfilePicture: (file: File) => Promise<void>
-  searchEmployees: (query: string) => Promise<void>
+  searchEmployees: (query: string, sort?: string, order?: 'asc' | 'desc') => Promise<void>
   createEmployee: (data: Partial<Employee>, profilePicture?: File) => Promise<void>
   deleteEmployee: (id: string) => Promise<void>
 }
@@ -55,10 +55,10 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     }
   },
 
-  searchEmployees: async (query) => {
+  searchEmployees: async (query, sort = 'created_at', order = 'desc') => {
     set({ isLoading: true })
     try {
-      const { data } = await api.get<ApiResponse<Employee[]>>(`/employees/search?q=${query}`)
+      const { data } = await api.get<ApiResponse<Employee[]>>(`/employees/search?q=${query}&sort=${sort}&order=${order}`)
       set({ employees: data.data })
     } finally {
       set({ isLoading: false })
