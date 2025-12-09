@@ -45,7 +45,7 @@ export class EmployeesController {
   async search(req: PaginatedRequest & SortRequest & FilterRequest, res: Response) {
     try {
       const { q } = req.query
-      const result = await employeesService.search(q as string, req.pagination, req.sort, req.filter)
+      const result = await employeesService.search(q as string, req.pagination, req.sort, req.filterParams)
       res.json({
         success: true,
         data: result.data,

@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 
 export interface FilterRequest extends Request {
-  filter: {
+  filterParams: {
     branch_name?: string
     is_active?: boolean
     status_employee?: string
@@ -28,6 +28,6 @@ export const filterMiddleware = (req: Request, res: Response, next: NextFunction
     filter.job_position = req.query.job_position as string
   }
 
-  (req as FilterRequest).filter = filter
+  (req as FilterRequest).filterParams = filter
   next()
 }
