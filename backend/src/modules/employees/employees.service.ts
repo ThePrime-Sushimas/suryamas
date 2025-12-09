@@ -4,6 +4,7 @@ import { PaginatedResponse, createPaginatedResponse } from '../../utils/paginati
 import { ExportService } from '../../services/export.service'
 import { ImportService } from '../../services/import.service'
 import { calculateAge, calculateYearsOfService } from '../../utils/age.util'
+import { generateEmployeeId, getNextSequenceNumber } from '../../utils/employeeId.util'
 
 export class EmployeesService {
   async list(pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<PaginatedResponse<Employee>> {
@@ -23,8 +24,22 @@ export class EmployeesService {
       }
     }
     
+    // Auto-generate employee_id if not provided
+    let employeeId = data.employee_id
+    if (!employeeId && data.branch_name && data.join_date && data.job_position) {
+      const lastEmployeeId = await employeesRepository.getLastEmployeeId()
+      const nextSequence = getNextSequenceNumber(lastEmployeeId)
+      employeeId = generateEmployeeId(
+        data.branch_name,
+        data.join_date,
+        data.job_position,
+        nextSequence
+      )
+    }
+    
     const employee = await employeesRepository.create({
       ...data,
+      employee_id: employeeId,
       profile_picture: profilePictureUrl
     })
     

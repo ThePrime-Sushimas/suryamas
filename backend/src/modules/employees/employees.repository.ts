@@ -194,6 +194,18 @@ export class EmployeesRepository {
     const { error } = await supabase.from('employees').delete().in('id', ids)
     if (error) throw new Error(error.message)
   }
+
+  async getLastEmployeeId(): Promise<string | null> {
+    const { data, error } = await supabase
+      .from('employees')
+      .select('employee_id')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (error) throw new Error(error.message)
+    return data?.employee_id || null
+  }
 }
 
 export const employeesRepository = new EmployeesRepository()

@@ -142,29 +142,29 @@ export default function ProfilePage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Birth Date</label>
+                  <label className="block text-xs md:text-sm font-medium text-gray-700">Birth Date</label>
                   <input
                     type="date"
                     value={formData.birth_date}
                     onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Birth Place</label>
+                  <label className="block text-xs md:text-sm font-medium text-gray-700">Birth Place</label>
                   <input
                     type="text"
                     value={formData.birth_place}
                     onChange={(e) => setFormData({ ...formData, birth_place: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Gender</label>
+                  <label className="block text-xs md:text-sm font-medium text-gray-700">Gender</label>
                   <select
                     value={formData.gender}
                     onChange={(e) => setFormData({ ...formData, gender: e.target.value as '' | 'Male' | 'Female' })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
                   >
                     <option value="">Select</option>
                     <option value="Male">Male</option>
@@ -172,11 +172,11 @@ export default function ProfilePage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Religion</label>
+                  <label className="block text-xs md:text-sm font-medium text-gray-700">Religion</label>
                   <select
                     value={formData.religion}
                     onChange={(e) => setFormData({ ...formData, religion: e.target.value as '' | 'Islam' | 'Christian' | 'Catholic' | 'Hindu' | 'Buddha' | 'Other' })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
                   >
                     <option value="">Select</option>
                     <option value="Islam">Islam</option>
@@ -188,11 +188,11 @@ export default function ProfilePage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Marital Status</label>
+                  <label className="block text-xs md:text-sm font-medium text-gray-700">Marital Status</label>
                   <select
                     value={formData.marital_status}
                     onChange={(e) => setFormData({ ...formData, marital_status: e.target.value as '' | 'Single' | 'Married' | 'Divorced' | 'Widow' })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
                   >
                     <option value="">Select</option>
                     <option value="Single">Single</option>
@@ -208,30 +208,30 @@ export default function ProfilePage() {
               <h3 className="text-lg font-medium mb-4">Contact</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Email</label>
+                  <label className="block text-xs md:text-sm font-medium text-gray-700">Email</label>
                   <input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Mobile Phone</label>
+                  <label className="block text-xs md:text-sm font-medium text-gray-700">Mobile Phone</label>
                   <input
                     type="text"
                     value={formData.mobile_phone}
                     onChange={(e) => setFormData({ ...formData, mobile_phone: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
                   />
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">Address (KTP)</label>
+                <div className="md:col-span-2">
+                  <label className="block text-xs md:text-sm font-medium text-gray-700">Address (KTP)</label>
                   <textarea
                     value={formData.citizen_id_address}
                     onChange={(e) => setFormData({ ...formData, citizen_id_address: e.target.value })}
                     rows={3}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base"
                   />
                 </div>
               </div>
@@ -241,30 +241,30 @@ export default function ProfilePage() {
               <h3 className="text-lg font-medium mb-4">Banking</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Bank Name</label>
+                  <label className="block text-xs md:text-sm font-medium text-gray-700">Bank Name</label>
                   <input
                     type="text"
                     value={formData.bank_name}
                     onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Bank Account</label>
+                  <label className="block text-xs md:text-sm font-medium text-gray-700">Bank Account</label>
                   <input
                     type="text"
                     value={formData.bank_account}
                     onChange={(e) => setFormData({ ...formData, bank_account: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
                   />
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">Bank Account Holder</label>
+                <div className="md:col-span-2">
+                  <label className="block text-xs md:text-sm font-medium text-gray-700">Bank Account Holder</label>
                   <input
                     type="text"
                     value={formData.bank_account_holder}
                     onChange={(e) => setFormData({ ...formData, bank_account_holder: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
                   />
                 </div>
               </div>
@@ -314,41 +314,33 @@ export default function ProfilePage() {
                   <p className="font-medium">{profile.employee_id}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">NIK</p>
-                  <p className="font-medium">{profile.nik || '-'}</p>
+                  <p className="text-xs md:text-sm text-gray-500">NIK</p>
+                  <p className="font-medium text-sm md:text-base">{profile.nik || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Birth Date</p>
-                  <p className="font-medium">{profile.birth_date ? new Date(profile.birth_date).toLocaleDateString('id-ID') : '-'}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Birth Date</p>
+                  <p className="font-medium text-sm md:text-base">{profile.birth_date ? new Date(profile.birth_date).toLocaleDateString('id-ID') : '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Birth Place</p>
-                  <p className="font-medium">{profile.birth_place || '-'}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Birth Place</p>
+                  <p className="font-medium text-sm md:text-base">{profile.birth_place || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Age</p>
-                  <p className="font-medium">{profile.age || '-'}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Age</p>
+                  <p className="font-medium text-sm md:text-base">{profile.age || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Gender</p>
-                  <p className="font-medium">{profile.gender || '-'}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Gender</p>
+                  <p className="font-medium text-sm md:text-base">{profile.gender || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Religion</p>
-                  <p className="font-medium">{profile.religion || '-'}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Religion</p>
+                  <p className="font-medium text-sm md:text-base">{profile.religion || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Marital Status</p>
-                  <p className="font-medium">{profile.marital_status || '-'}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Marital Status</p>
+                  <p className="font-medium text-sm md:text-base">{profile.marital_status || '-'}</p>
                 </div>
-                {/* <div>
-                  <p className="text-sm text-gray-500">Profile Picture</p>
-                  {profile.profile_picture ? (
-                    <img src={profile.profile_picture} alt="Profile" className="w-20 h-20 rounded-full object-cover" />
-                  ) : (
-                    <p className="font-medium">No picture</p>
-                  )}
-                </div> */}
               </div>
             )}
 
@@ -359,12 +351,12 @@ export default function ProfilePage() {
                   <p className="font-medium">{profile.email || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Mobile Phone</p>
-                  <p className="font-medium">{profile.mobile_phone || '-'}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Mobile Phone</p>
+                  <p className="font-medium text-sm md:text-base">{profile.mobile_phone || '-'}</p>
                 </div>
-                <div className="col-span-2">
-                  <p className="text-sm text-gray-500">Address (KTP)</p>
-                  <p className="font-medium">{profile.citizen_id_address || '-'}</p>
+                <div className="md:col-span-2">
+                  <p className="text-xs md:text-sm text-gray-500">Address (KTP)</p>
+                  <p className="font-medium text-sm md:text-base">{profile.citizen_id_address || '-'}</p>
                 </div>
               </div>
             )}
@@ -376,42 +368,42 @@ export default function ProfilePage() {
                   <p className="font-medium">{profile.job_position}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Branch</p>
-                  <p className="font-medium">{profile.branch_name}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Branch</p>
+                  <p className="font-medium text-sm md:text-base">{profile.branch_name}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Parent Branch</p>
-                  <p className="font-medium">{profile.parent_branch_name || '-'}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Parent Branch</p>
+                  <p className="font-medium text-sm md:text-base">{profile.parent_branch_name || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Status</p>
-                  <p className="font-medium">{profile.status_employee}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Status</p>
+                  <p className="font-medium text-sm md:text-base">{profile.status_employee}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">PTKP Status</p>
-                  <p className="font-medium">{profile.ptkp_status}</p>
+                  <p className="text-xs md:text-sm text-gray-500">PTKP Status</p>
+                  <p className="font-medium text-sm md:text-base">{profile.ptkp_status}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Join Date</p>
-                  <p className="font-medium">{new Date(profile.join_date).toLocaleDateString('id-ID')}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Join Date</p>
+                  <p className="font-medium text-sm md:text-base">{new Date(profile.join_date).toLocaleDateString('id-ID')}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-500">Years of Service</p>
-                  <p className="font-medium">
+                <div className="md:col-span-2">
+                  <p className="text-xs md:text-sm text-gray-500">Years of Service</p>
+                  <p className="font-medium text-sm md:text-base">
                     {profile.years_of_service ? `${profile.years_of_service.years} years ${profile.years_of_service.months} months ${profile.years_of_service.days} days` : '-'}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Resign Date</p>
-                  <p className="font-medium">{profile.resign_date ? new Date(profile.resign_date).toLocaleDateString('id-ID') : '-'}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Resign Date</p>
+                  <p className="font-medium text-sm md:text-base">{profile.resign_date ? new Date(profile.resign_date).toLocaleDateString('id-ID') : '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Contract Sign Date</p>
-                  <p className="font-medium">{profile.sign_date ? new Date(profile.sign_date).toLocaleDateString('id-ID') : '-'}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Contract Sign Date</p>
+                  <p className="font-medium text-sm md:text-base">{profile.sign_date ? new Date(profile.sign_date).toLocaleDateString('id-ID') : '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Contract End Date</p>
-                  <p className="font-medium">{profile.end_date ? new Date(profile.end_date).toLocaleDateString('id-ID') : '-'}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Contract End Date</p>
+                  <p className="font-medium text-sm md:text-base">{profile.end_date ? new Date(profile.end_date).toLocaleDateString('id-ID') : '-'}</p>
                 </div>
               </div>
             )}
@@ -423,12 +415,12 @@ export default function ProfilePage() {
                   <p className="font-medium">{profile.bank_name || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Bank Account</p>
-                  <p className="font-medium">{profile.bank_account || '-'}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Bank Account</p>
+                  <p className="font-medium text-sm md:text-base">{profile.bank_account || '-'}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-500">Bank Account Holder</p>
-                  <p className="font-medium">{profile.bank_account_holder || '-'}</p>
+                <div className="md:col-span-2">
+                  <p className="text-xs md:text-sm text-gray-500">Bank Account Holder</p>
+                  <p className="font-medium text-sm md:text-base">{profile.bank_account_holder || '-'}</p>
                 </div>
               </div>
             )}
@@ -440,8 +432,8 @@ export default function ProfilePage() {
                   <p className="font-medium">{new Date(profile.created_at).toLocaleString('id-ID')}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Updated At</p>
-                  <p className="font-medium">{new Date(profile.updated_at).toLocaleString('id-ID')}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Updated At</p>
+                  <p className="font-medium text-sm md:text-base">{new Date(profile.updated_at).toLocaleString('id-ID')}</p>
                 </div>
               </div>
             )}

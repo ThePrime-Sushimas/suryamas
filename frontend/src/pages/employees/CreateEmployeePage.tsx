@@ -50,69 +50,69 @@ export default function CreateEmployeePage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="bg-white shadow rounded-lg p-6">
-        <h1 className="text-2xl font-bold mb-6">Create New Employee</h1>
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="bg-white shadow rounded-lg p-4 md:p-6">
+        <h1 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">Create New Employee</h1>
+        <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
           {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded">{error}</div>
+            <div className="bg-red-50 text-red-600 p-3 rounded text-sm md:text-base">{error}</div>
           )}
           
           {/* Basic Info Section */}
-          <div className="border-b border-gray-200 pb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="border-b border-gray-200 pb-4 md:pb-6">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Basic Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Employee ID *</label>
+              <label className="block text-xs md:text-sm font-medium text-gray-700">Employee ID <span className="text-gray-400">(Auto-generated)</span></label>
               <input
                 type="text"
                 name="employee_id"
-                required
                 value={formData.employee_id}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                placeholder="Leave empty for auto-generation"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px] bg-gray-50"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Full Name *</label>
+              <label className="block text-xs md:text-sm font-medium text-gray-700">Full Name *</label>
               <input
                 type="text"
                 name="full_name"
                 required
                 value={formData.full_name}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Job Position *</label>
+              <label className="block text-xs md:text-sm font-medium text-gray-700">Job Position *</label>
               <input
                 type="text"
                 name="job_position"
                 required
                 value={formData.job_position}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Branch *</label>
+              <label className="block text-xs md:text-sm font-medium text-gray-700">Branch *</label>
               <input
                 type="text"
                 name="branch_name"
                 required
                 value={formData.branch_name}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">PTKP Status *</label>
+              <label className="block text-xs md:text-sm font-medium text-gray-700">PTKP Status *</label>
               <select
                 name="ptkp_status"
                 required
                 value={formData.ptkp_status}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
               >
                 <option value="TK/0">TK/0</option>
                 <option value="TK/1">TK/1</option>
@@ -125,35 +125,35 @@ export default function CreateEmployeePage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Status *</label>
+              <label className="block text-xs md:text-sm font-medium text-gray-700">Status *</label>
               <select
                 name="status_employee"
                 required
                 value={formData.status_employee}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
               >
                 <option value="Permanent">Permanent</option>
                 <option value="Contract">Contract</option>
               </select>
             </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Parent Branch</label>
+                <label className="block text-xs md:text-sm font-medium text-gray-700">Parent Branch</label>
                 <input
                   type="text"
                   name="parent_branch_name"
                   value={formData.parent_branch_name}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
                 />
               </div>
             </div>
           </div>
 
           {/* Dates Section */}
-          <div className="border-b border-gray-200 pb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Dates</h3>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="border-b border-gray-200 pb-4 md:pb-6">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Dates</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Join Date *</label>
                 <input
@@ -189,9 +189,9 @@ export default function CreateEmployeePage() {
           </div>
 
           {/* Personal Info Section */}
-          <div className="border-b border-gray-200 pb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Personal Information</h3>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="border-b border-gray-200 pb-4 md:pb-6">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Personal Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">NIK</label>
                 <input
@@ -271,9 +271,9 @@ export default function CreateEmployeePage() {
           </div>
 
           {/* Contact Section */}
-          <div className="border-b border-gray-200 pb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="border-b border-gray-200 pb-4 md:pb-6">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Contact Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Email</label>
               <input
@@ -308,9 +308,9 @@ export default function CreateEmployeePage() {
           </div>
 
           {/* Banking Section */}
-          <div className="border-b border-gray-200 pb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Banking Information</h3>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="border-b border-gray-200 pb-4 md:pb-6">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Banking Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Bank Name</label>
               <input
@@ -345,8 +345,8 @@ export default function CreateEmployeePage() {
           </div>
 
           {/* Profile Picture Section */}
-          <div className="pb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Profile Picture</h3>
+          <div className="pb-4 md:pb-6">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Profile Picture</h3>
             <div>
               <label className="block text-sm font-medium text-gray-700">Upload Photo</label>
               <input
@@ -361,18 +361,18 @@ export default function CreateEmployeePage() {
             </div>
           </div>
 
-          <div className="flex space-x-3 pt-4">
+          <div className="flex flex-col md:flex-row gap-2 md:gap-3 pt-4">
             <button
               type="submit"
               disabled={isLoading}
-              className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+              className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 text-sm md:text-base min-h-[44px]"
             >
               {isLoading ? 'Creating...' : 'Create Employee'}
             </button>
             <button
               type="button"
               onClick={() => navigate('/employees')}
-              className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400"
+              className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 text-sm md:text-base min-h-[44px]"
             >
               Cancel
             </button>

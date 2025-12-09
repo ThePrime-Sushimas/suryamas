@@ -6,6 +6,9 @@ import ImportModal from '../../components/ImportModal'
 import BulkActionBar from '../../components/BulkActionBar'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import { useUrlState } from '../../hooks/useUrlState'
+import { useIsMobile } from '../../hooks/useMediaQuery'
+import EmployeeCard from '../../components/mobile/EmployeeCard'
+import FloatingActionButton from '../../components/mobile/FloatingActionButton'
 
 export default function EmployeesPage() {
   const { employees, searchEmployees, deleteEmployee, bulkUpdateActive, bulkDelete, filterOptions, fetchFilterOptions, pagination, isLoading } = useEmployeeStore()
@@ -100,11 +103,14 @@ export default function EmployeesPage() {
     }
   }
 
+  const isMobile = useIsMobile()
+
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Employees</h1>
-        <div className="flex gap-2">
+    <div className="relative">
+      <FloatingActionButton />
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 md:mb-6 gap-3">
+        <h1 className="text-xl md:text-2xl font-bold">Employees</h1>
+        <div className="flex flex-wrap gap-2">
           <BulkActionBar
             selectedCount={selectedCount}
             actions={[
@@ -116,15 +122,15 @@ export default function EmployeesPage() {
           <ExportButton endpoint="/employees" filename="employees" filter={getActiveFilters()} />
           <button
             onClick={() => setState({ showImport: 'true' })}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            className="bg-blue-600 text-white px-3 md:px-4 py-2 rounded hover:bg-blue-700 text-sm md:text-base min-h-[44px]"
           >
-            Import Excel
+            {isMobile ? 'Import' : 'Import Excel'}
           </button>
           <button
             onClick={() => navigate('/employees/create')}
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+            className="bg-green-600 text-white px-3 md:px-4 py-2 rounded hover:bg-green-700 text-sm md:text-base min-h-[44px]"
           >
-            + Create Employee
+            {isMobile ? '+ Add' : '+ Create Employee'}
           </button>
         </div>
       </div>
@@ -137,20 +143,20 @@ export default function EmployeesPage() {
         title="Employees"
       />
 
-      <div className="bg-white shadow rounded-lg p-6 mb-6">
-        <form onSubmit={handleSearch} className="space-y-4">
-          <div className="flex gap-3">
+      <div className="bg-white shadow rounded-lg p-4 md:p-6 mb-4 md:mb-6">
+        <form onSubmit={handleSearch} className="space-y-3 md:space-y-4">
+          <div className="flex flex-col md:flex-row gap-2 md:gap-3">
             <input
               type="text"
               placeholder="Search employees..."
               value={state.search}
               onChange={(e) => setState({ search: e.target.value })}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base min-h-[44px]"
             />
             <button
               type="submit"
               disabled={isLoading}
-              className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+              className="bg-blue-600 text-white px-4 md:px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 text-sm md:text-base min-h-[44px] whitespace-nowrap"
             >
               {isLoading ? 'Searching...' : 'Search'}
             </button>
@@ -159,19 +165,19 @@ export default function EmployeesPage() {
                 type="button"
                 onClick={handleClearSearch}
                 disabled={isLoading}
-                className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 disabled:opacity-50"
+                className="bg-gray-300 text-gray-700 px-4 md:px-6 py-2 rounded hover:bg-gray-400 disabled:opacity-50 text-sm md:text-base min-h-[44px] whitespace-nowrap"
               >
                 Clear
               </button>
             )}
           </div>
 
-          <div className="flex gap-3 items-center">
-            <span className="text-sm font-medium text-gray-700">Filters:</span>
+          <div className="flex flex-col md:flex-row gap-2 md:gap-3 md:items-center">
+            <span className="text-xs md:text-sm font-medium text-gray-700">Filters:</span>
             <select
               value={state.branch_name}
               onChange={(e) => handleFilterChange('branch_name', e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-gray-300 rounded-md text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px]"
             >
               <option value="">All Branches</option>
               {filterOptions?.branches.map(branch => (
@@ -181,7 +187,7 @@ export default function EmployeesPage() {
             <select
               value={state.status_employee}
               onChange={(e) => handleFilterChange('status_employee', e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-gray-300 rounded-md text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px]"
             >
               <option value="">All Status</option>
               {filterOptions?.statuses.map(status => (
@@ -191,7 +197,7 @@ export default function EmployeesPage() {
             <select
               value={state.is_active}
               onChange={(e) => handleFilterChange('is_active', e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-gray-300 rounded-md text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px]"
             >
               <option value="">All Active Status</option>
               <option value="true">Active</option>
@@ -200,7 +206,7 @@ export default function EmployeesPage() {
             <select
               value={state.job_position}
               onChange={(e) => handleFilterChange('job_position', e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-gray-300 rounded-md text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px]"
             >
               <option value="">All Positions</option>
               {filterOptions?.positions.map(position => (
@@ -211,7 +217,7 @@ export default function EmployeesPage() {
               <button
                 type="button"
                 onClick={handleClearFilters}
-                className="text-sm text-blue-600 hover:text-blue-800 underline"
+                className="text-xs md:text-sm text-blue-600 hover:text-blue-800 underline min-h-[44px] px-2"
               >
                 Clear Filters
               </button>
@@ -244,6 +250,19 @@ export default function EmployeesPage() {
 
       {employees.length > 0 ? (
         <>
+        {isMobile ? (
+          <div className="space-y-3">
+            {employees.map((employee) => (
+              <EmployeeCard
+                key={employee.id}
+                employee={employee}
+                onDelete={handleDelete}
+                isSelected={isSelected(employee.id)}
+                onSelect={selectOne}
+              />
+            ))}
+          </div>
+        ) : (
         <div className="bg-white shadow rounded-lg overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -353,20 +372,21 @@ export default function EmployeesPage() {
             </tbody>
           </table>
         </div>
+        )}
         
         {pagination && (
-          <div className="bg-white shadow rounded-lg p-4 mt-4">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-600">
+          <div className="bg-white shadow rounded-lg p-3 md:p-4 mt-3 md:mt-4">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 md:gap-0">
+              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+                <span className="text-xs md:text-sm text-gray-600">
                   Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} entries
                 </span>
                 <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-600">Rows per page:</label>
+                  <label className="text-xs md:text-sm text-gray-600">Rows:</label>
                   <select
                     value={state.limit}
                     onChange={(e) => setState({ limit: e.target.value, page: '1' })}
-                    className="px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-2 py-1 border rounded text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px]"
                   >
                     <option value="10">10</option>
                     <option value="20">20</option>
@@ -375,37 +395,37 @@ export default function EmployeesPage() {
                   </select>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center gap-1 md:gap-2">
                 <button
                   onClick={() => setState({ page: '1' })}
                   disabled={pagination.page === 1}
-                  className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm min-h-[44px]"
                 >
-                  First
+                  {isMobile ? '«' : 'First'}
                 </button>
                 <button
                   onClick={() => setState({ page: String(pagination.page - 1) })}
                   disabled={pagination.page === 1}
-                  className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm min-h-[44px]"
                 >
-                  Previous
+                  {isMobile ? '‹' : 'Previous'}
                 </button>
-                <span className="text-sm text-gray-600 px-2">
-                  Page {pagination.page} of {pagination.totalPages}
+                <span className="text-xs md:text-sm text-gray-600 px-2">
+                  {pagination.page}/{pagination.totalPages}
                 </span>
                 <button
                   onClick={() => setState({ page: String(pagination.page + 1) })}
                   disabled={pagination.page === pagination.totalPages}
-                  className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm min-h-[44px]"
                 >
-                  Next
+                  {isMobile ? '›' : 'Next'}
                 </button>
                 <button
                   onClick={() => setState({ page: String(pagination.totalPages) })}
                   disabled={pagination.page === pagination.totalPages}
-                  className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm min-h-[44px]"
                 >
-                  Last
+                  {isMobile ? '»' : 'Last'}
                 </button>
               </div>
             </div>
@@ -413,7 +433,7 @@ export default function EmployeesPage() {
         )}
         </>
       ) : (
-        <div className="bg-white shadow rounded-lg p-8 text-center text-gray-500">
+        <div className="bg-white shadow rounded-lg p-6 md:p-8 text-center text-gray-500 text-sm md:text-base">
           {state.search ? 'No employees found' : 'Search for employees to see results'}
         </div>
       )}
