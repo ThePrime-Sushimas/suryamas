@@ -23,16 +23,16 @@ export default function Navbar() {
                 <Link to="/employees" className="text-gray-700 hover:text-gray-900">
                   Employees
                 </Link>
-                <Link to="/profile" className="text-gray-700 hover:text-gray-900">
-                  Profile
-                </Link>
               </div>
             )}
           </div>
           <div className="flex items-center">
             {user ? (
               <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-700">{user.full_name}</span>
+                <Link to="/profile" className="flex items-center text-xl font-bold text-gray-900">
+                <span className="mx-2"> {user.full_name} </span>
+                <span className="text-sm text-blue- 900">({user.job_position})</span>                
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
