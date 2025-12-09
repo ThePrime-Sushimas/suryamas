@@ -4,11 +4,12 @@ import { employeesService } from './employees.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logInfo, logError } from '../../config/logger'
 import { PaginatedRequest } from '../../middleware/pagination.middleware'
+import { SortRequest } from '../../middleware/sort.middleware'
 
 export class EmployeesController {
-  async list(req: PaginatedRequest, res: Response) {
+  async list(req: PaginatedRequest & SortRequest, res: Response) {
     try {
-      const result = await employeesService.list(req.pagination)
+      const result = await employeesService.list(req.pagination, req.sort)
       res.json({
         success: true,
         data: result.data,
@@ -40,10 +41,10 @@ export class EmployeesController {
     }
   }
 
-  async search(req: PaginatedRequest, res: Response) {
+  async search(req: PaginatedRequest & SortRequest, res: Response) {
     try {
       const { q } = req.query
-      const result = await employeesService.search(q as string, req.pagination)
+      const result = await employeesService.search(q as string, req.pagination, req.sort)
       res.json({
         success: true,
         data: result.data,

@@ -3,8 +3,8 @@ import { Employee } from '../../types/employee.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
 
 export class EmployeesService {
-  async list(pagination: { page: number; limit: number; offset: number }): Promise<PaginatedResponse<Employee>> {
-    const { data, total } = await employeesRepository.findAll(pagination)
+  async list(pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<PaginatedResponse<Employee>> {
+    const { data, total } = await employeesRepository.findAll(pagination, sort)
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
@@ -31,8 +31,8 @@ export class EmployeesService {
     return employee
   }
 
-  async search(searchTerm: string, pagination: { page: number; limit: number; offset: number }): Promise<PaginatedResponse<Employee>> {
-    const { data, total } = await employeesRepository.searchByName(searchTerm, pagination)
+  async search(searchTerm: string, pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<PaginatedResponse<Employee>> {
+    const { data, total } = await employeesRepository.searchByName(searchTerm, pagination, sort)
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 

@@ -2,15 +2,16 @@ import { Router } from 'express'
 import { employeesController } from './employees.controller'
 import { authenticate } from '../../middleware/auth.middleware'
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
+import { sortMiddleware } from '../../middleware/sort.middleware'
 import { upload } from '../../middleware/upload.middleware'
 
 const router = Router()
 
-// List with pagination
-router.get('/', authenticate, paginationMiddleware, (req, res) => employeesController.list(req as any, res))
+// List with pagination & sort
+router.get('/', authenticate, paginationMiddleware, sortMiddleware, (req, res) => employeesController.list(req as any, res))
 
-// Search
-router.get('/search', authenticate, paginationMiddleware, (req, res) => employeesController.search(req as any, res))
+// Search with pagination & sort
+router.get('/search', authenticate, paginationMiddleware, sortMiddleware, (req, res) => employeesController.search(req as any, res))
 router.get('/autocomplete', authenticate, (req, res) => employeesController.autocomplete(req, res))
 
 // Profile (harus di atas /:id)

@@ -2,9 +2,15 @@ import { supabase } from '../../config/supabase'
 import { Employee } from '../../types/employee.types'
 
 export class EmployeesRepository {
-  async findAll(pagination: { limit: number; offset: number }): Promise<{ data: Employee[]; total: number }> {
+  async findAll(pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<{ data: Employee[]; total: number }> {
+    let query = supabase.from('employees').select('*')
+    
+    if (sort) {
+      query = query.order(sort.field, { ascending: sort.order === 'asc' })
+    }
+    
     const [{ data, error }, { count, error: countError }] = await Promise.all([
-      supabase.from('employees').select('*').range(pagination.offset, pagination.offset + pagination.limit - 1),
+      query.range(pagination.offset, pagination.offset + pagination.limit - 1),
       supabase.from('employees').select('*', { count: 'exact', head: true })
     ])
 
@@ -47,13 +53,17 @@ export class EmployeesRepository {
     return data
   }
 
-  async searchByName(searchTerm: string, pagination: { limit: number; offset: number }): Promise<{ data: Employee[]; total: number }> {
+  async searchByName(searchTerm: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<{ data: Employee[]; total: number }> {
     let query = supabase.from('employees').select('*')
     let countQuery = supabase.from('employees').select('*', { count: 'exact', head: true })
     
     if (searchTerm && searchTerm.trim()) {
       query = query.ilike('full_name', `%${searchTerm}%`)
       countQuery = countQuery.ilike('full_name', `%${searchTerm}%`)
+    }
+    
+    if (sort) {
+      query = query.order(sort.field, { ascending: sort.order === 'asc' })
     }
     
     const [{ data, error }, { count, error: countError }] = await Promise.all([
