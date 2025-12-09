@@ -53,13 +53,32 @@ export class EmployeesRepository {
     return data
   }
 
-  async searchByName(searchTerm: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<{ data: Employee[]; total: number }> {
+  async searchByName(searchTerm: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: any): Promise<{ data: Employee[]; total: number }> {
     let query = supabase.from('employees').select('*')
     let countQuery = supabase.from('employees').select('*', { count: 'exact', head: true })
     
     if (searchTerm && searchTerm.trim()) {
       query = query.ilike('full_name', `%${searchTerm}%`)
       countQuery = countQuery.ilike('full_name', `%${searchTerm}%`)
+    }
+    
+    if (filter) {
+      if (filter.branch_name) {
+        query = query.eq('branch_name', filter.branch_name)
+        countQuery = countQuery.eq('branch_name', filter.branch_name)
+      }
+      if (filter.is_active !== undefined) {
+        query = query.eq('is_active', filter.is_active)
+        countQuery = countQuery.eq('is_active', filter.is_active)
+      }
+      if (filter.status_employee) {
+        query = query.eq('status_employee', filter.status_employee)
+        countQuery = countQuery.eq('status_employee', filter.status_employee)
+      }
+      if (filter.job_position) {
+        query = query.eq('job_position', filter.job_position)
+        countQuery = countQuery.eq('job_position', filter.job_position)
+      }
     }
     
     if (sort) {
@@ -131,6 +150,19 @@ export class EmployeesRepository {
       .from('profile-pictures')
       .getPublicUrl(fileName)
     return data.publicUrl
+  }
+
+  async getFilterOptions(): Promise<{ branches: string[]; positions: string[]; statuses: string[] }> {
+    const [branchesRes, positionsRes] = await Promise.all([
+      supabase.from('employees').select('branch_name').order('branch_name'),
+      supabase.from('employees').select('job_position').order('job_position')
+    ])
+
+    const branches = [...new Set(branchesRes.data?.map(e => e.branch_name).filter(Boolean))] as string[]
+    const positions = [...new Set(positionsRes.data?.map(e => e.job_position).filter(Boolean))] as string[]
+    const statuses = ['Permanent', 'Contract']
+
+    return { branches, positions, statuses }
   }
 }
 

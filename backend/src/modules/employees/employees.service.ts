@@ -31,9 +31,13 @@ export class EmployeesService {
     return employee
   }
 
-  async search(searchTerm: string, pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<PaginatedResponse<Employee>> {
-    const { data, total } = await employeesRepository.searchByName(searchTerm, pagination, sort)
+  async search(searchTerm: string, pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: any): Promise<PaginatedResponse<Employee>> {
+    const { data, total } = await employeesRepository.searchByName(searchTerm, pagination, sort, filter)
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
+  }
+
+  async getFilterOptions() {
+    return await employeesRepository.getFilterOptions()
   }
 
   async autocomplete(query: string): Promise<{id: string, full_name: string}[]> {

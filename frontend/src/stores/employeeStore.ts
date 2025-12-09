@@ -2,14 +2,22 @@ import { create } from 'zustand'
 import api from '../lib/axios'
 import type { Employee, ApiResponse } from '../types'
 
+interface FilterOptions {
+  branches: string[]
+  positions: string[]
+  statuses: string[]
+}
+
 interface EmployeeState {
   employees: Employee[]
   profile: Employee | null
+  filterOptions: FilterOptions | null
   isLoading: boolean
   fetchProfile: () => Promise<void>
   updateProfile: (data: Partial<Employee>) => Promise<void>
   uploadProfilePicture: (file: File) => Promise<void>
-  searchEmployees: (query: string, sort?: string, order?: 'asc' | 'desc') => Promise<void>
+  searchEmployees: (query: string, sort?: string, order?: 'asc' | 'desc', filter?: any) => Promise<void>
+  fetchFilterOptions: () => Promise<void>
   createEmployee: (data: Partial<Employee>, profilePicture?: File) => Promise<void>
   deleteEmployee: (id: string) => Promise<void>
 }
@@ -17,6 +25,7 @@ interface EmployeeState {
 export const useEmployeeStore = create<EmployeeState>((set) => ({
   employees: [],
   profile: null,
+  filterOptions: null,
   isLoading: false,
 
   fetchProfile: async () => {
@@ -55,13 +64,28 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     }
   },
 
-  searchEmployees: async (query, sort = 'created_at', order = 'desc') => {
+  searchEmployees: async (query, sort = 'created_at', order = 'desc', filter = {}) => {
     set({ isLoading: true })
     try {
-      const { data } = await api.get<ApiResponse<Employee[]>>(`/employees/search?q=${query}&sort=${sort}&order=${order}`)
+      const params = new URLSearchParams({
+        q: query,
+        sort,
+        order,
+        ...filter
+      })
+      const { data } = await api.get<ApiResponse<Employee[]>>(`/employees/search?${params}`)
       set({ employees: data.data })
     } finally {
       set({ isLoading: false })
+    }
+  },
+
+  fetchFilterOptions: async () => {
+    try {
+      const { data } = await api.get<ApiResponse<FilterOptions>>('/employees/filter-options')
+      set({ filterOptions: data.data })
+    } catch (error) {
+      console.error('Failed to fetch filter options:', error)
     }
   },
 

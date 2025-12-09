@@ -3,32 +3,64 @@ import { useNavigate } from 'react-router-dom'
 import { useEmployeeStore } from '../../stores/employeeStore'
 
 export default function EmployeesPage() {
-  const { employees, searchEmployees, deleteEmployee, isLoading } = useEmployeeStore()
+  const { employees, searchEmployees, deleteEmployee, filterOptions, fetchFilterOptions, isLoading } = useEmployeeStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [sortField, setSortField] = useState('created_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [filters, setFilters] = useState({
+    branch_name: '',
+    is_active: '',
+    status_employee: '',
+    job_position: ''
+  })
   const navigate = useNavigate()
 
   useEffect(() => {
-    searchEmployees('', sortField, sortOrder)
+    fetchFilterOptions()
+    searchEmployees('', sortField, sortOrder, getActiveFilters())
   }, [])
+
+  const getActiveFilters = () => {
+    const activeFilters: any = {}
+    if (filters.branch_name) activeFilters.branch_name = filters.branch_name
+    if (filters.is_active) activeFilters.is_active = filters.is_active
+    if (filters.status_employee) activeFilters.status_employee = filters.status_employee
+    if (filters.job_position) activeFilters.job_position = filters.job_position
+    return activeFilters
+  }
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
-    await searchEmployees(searchQuery, sortField, sortOrder)
+    await searchEmployees(searchQuery, sortField, sortOrder, getActiveFilters())
   }
 
   const handleClearSearch = async () => {
     setSearchQuery('')
-    await searchEmployees('', sortField, sortOrder)
+    await searchEmployees('', sortField, sortOrder, getActiveFilters())
   }
 
   const handleSort = async (field: string) => {
     const newOrder = sortField === field && sortOrder === 'asc' ? 'desc' : 'asc'
     setSortField(field)
     setSortOrder(newOrder)
-    await searchEmployees(searchQuery, field, newOrder)
+    await searchEmployees(searchQuery, field, newOrder, getActiveFilters())
+  }
+
+  const handleFilterChange = async (key: string, value: string) => {
+    const newFilters = { ...filters, [key]: value }
+    setFilters(newFilters)
+    const activeFilters: any = {}
+    if (newFilters.branch_name) activeFilters.branch_name = newFilters.branch_name
+    if (newFilters.is_active) activeFilters.is_active = newFilters.is_active
+    if (newFilters.status_employee) activeFilters.status_employee = newFilters.status_employee
+    if (newFilters.job_position) activeFilters.job_position = newFilters.job_position
+    await searchEmployees(searchQuery, sortField, sortOrder, activeFilters)
+  }
+
+  const handleClearFilters = async () => {
+    setFilters({ branch_name: '', is_active: '', status_employee: '', job_position: '' })
+    await searchEmployees(searchQuery, sortField, sortOrder, {})
   }
 
   const SortIcon = ({ field }: { field: string }) => {
@@ -55,31 +87,85 @@ export default function EmployeesPage() {
       </div>
 
       <div className="bg-white shadow rounded-lg p-6 mb-6">
-        <form onSubmit={handleSearch} className="flex gap-3">
-          <input
-            type="text"
-            placeholder="Search employees..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            {isLoading ? 'Searching...' : 'Search'}
-          </button>
-          {searchQuery && (
+        <form onSubmit={handleSearch} className="space-y-4">
+          <div className="flex gap-3">
+            <input
+              type="text"
+              placeholder="Search employees..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
             <button
-              type="button"
-              onClick={handleClearSearch}
+              type="submit"
               disabled={isLoading}
-              className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 disabled:opacity-50"
+              className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
             >
-              Clear
+              {isLoading ? 'Searching...' : 'Search'}
             </button>
-          )}
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                disabled={isLoading}
+                className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 disabled:opacity-50"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          <div className="flex gap-3 items-center">
+            <span className="text-sm font-medium text-gray-700">Filters:</span>
+            <select
+              value={filters.branch_name}
+              onChange={(e) => handleFilterChange('branch_name', e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Branches</option>
+              {filterOptions?.branches.map(branch => (
+                <option key={branch} value={branch}>{branch}</option>
+              ))}
+            </select>
+            <select
+              value={filters.status_employee}
+              onChange={(e) => handleFilterChange('status_employee', e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Status</option>
+              {filterOptions?.statuses.map(status => (
+                <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
+            <select
+              value={filters.is_active}
+              onChange={(e) => handleFilterChange('is_active', e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Active Status</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+            <select
+              value={filters.job_position}
+              onChange={(e) => handleFilterChange('job_position', e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Positions</option>
+              {filterOptions?.positions.map(position => (
+                <option key={position} value={position}>{position}</option>
+              ))}
+            </select>
+            {(filters.branch_name || filters.is_active || filters.status_employee || filters.job_position) && (
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
         </form>
       </div>
 

@@ -5,6 +5,7 @@ import { sendSuccess, sendError } from '../../utils/response.util'
 import { logInfo, logError } from '../../config/logger'
 import { PaginatedRequest } from '../../middleware/pagination.middleware'
 import { SortRequest } from '../../middleware/sort.middleware'
+import { FilterRequest } from '../../middleware/filter.middleware'
 
 export class EmployeesController {
   async list(req: PaginatedRequest & SortRequest, res: Response) {
@@ -41,10 +42,10 @@ export class EmployeesController {
     }
   }
 
-  async search(req: PaginatedRequest & SortRequest, res: Response) {
+  async search(req: PaginatedRequest & SortRequest & FilterRequest, res: Response) {
     try {
       const { q } = req.query
-      const result = await employeesService.search(q as string, req.pagination, req.sort)
+      const result = await employeesService.search(q as string, req.pagination, req.sort, req.filter)
       res.json({
         success: true,
         data: result.data,
@@ -55,6 +56,19 @@ export class EmployeesController {
         error: (error as Error).message,
         query: req.query.q,
         user: (req as AuthRequest).user?.id
+      })
+      sendError(res, (error as Error).message, 400)
+    }
+  }
+
+  async getFilterOptions(req: AuthRequest, res: Response) {
+    try {
+      const options = await employeesService.getFilterOptions()
+      sendSuccess(res, options)
+    } catch (error) {
+      logError('Failed to get filter options', {
+        error: (error as Error).message,
+        user: req.user?.id
       })
       sendError(res, (error as Error).message, 400)
     }
