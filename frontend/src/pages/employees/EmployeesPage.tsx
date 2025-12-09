@@ -268,6 +268,7 @@ export default function EmployeesPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('marital_status')}>Marital Status <SortIcon field="marital_status" /></th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Address</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('join_date')}>Join Date <SortIcon field="join_date" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('years_of_service')}>Years of Service <SortIcon field="years_of_service" /></th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('resign_date')}>Resign Date <SortIcon field="resign_date" /></th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('sign_date')}>Sign Date <SortIcon field="sign_date" /></th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('end_date')}>End Date <SortIcon field="end_date" /></th>
@@ -323,6 +324,9 @@ export default function EmployeesPage() {
                   <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.marital_status || '-'}</td>
                   <td className="px-4 py-3 text-sm max-w-xs truncate" title={employee.citizen_id_address || '-'}>{employee.citizen_id_address || '-'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm">{new Date(employee.join_date).toLocaleDateString('id-ID')}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">
+                    {employee.years_of_service ? `${employee.years_of_service.years}y ${employee.years_of_service.months}m ${employee.years_of_service.days}d` : '-'}
+                  </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.resign_date ? new Date(employee.resign_date).toLocaleDateString('id-ID') : '-'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.sign_date ? new Date(employee.sign_date).toLocaleDateString('id-ID') : '-'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.end_date ? new Date(employee.end_date).toLocaleDateString('id-ID') : '-'}</td>

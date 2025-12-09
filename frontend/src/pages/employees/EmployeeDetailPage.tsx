@@ -171,6 +171,12 @@ export default function EmployeeDetailPage() {
                 <p className="font-medium">{new Date(employee.join_date).toLocaleDateString('id-ID')}</p>
               </div>
               <div>
+                <p className="text-sm text-gray-500">Years of Service</p>
+                <p className="font-medium">
+                  {employee.years_of_service ? `${employee.years_of_service.years} years ${employee.years_of_service.months} months ${employee.years_of_service.days} days` : '-'}
+                </p>
+              </div>
+              <div>
                 <p className="text-sm text-gray-500">Resign Date</p>
                 <p className="font-medium">{employee.resign_date ? new Date(employee.resign_date).toLocaleDateString('id-ID') : '-'}</p>
               </div>

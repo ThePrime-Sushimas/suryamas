@@ -16,7 +16,8 @@ export interface Employee {
   sign_date: string | null
   email: string | null
   birth_date: string | null
-  age: string | null
+  age?: number | null  // computed, tidak disimpan di DB
+  years_of_service?: { years: number; months: number; days: number } | null  // computed, tidak disimpan di DB
   birth_place: string | null
   citizen_id_address: string | null
   ptkp_status: PTKPStatus

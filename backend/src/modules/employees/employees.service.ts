@@ -3,11 +3,13 @@ import { Employee } from '../../types/employee.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
 import { ExportService } from '../../services/export.service'
 import { ImportService } from '../../services/import.service'
+import { calculateAge, calculateYearsOfService } from '../../utils/age.util'
 
 export class EmployeesService {
   async list(pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<PaginatedResponse<Employee>> {
     const { data, total } = await employeesRepository.findAll(pagination, sort)
-    return createPaginatedResponse(data, total, pagination.page, pagination.limit)
+    const dataWithAge = data.map(emp => ({ ...emp, age: calculateAge(emp.birth_date), years_of_service: calculateYearsOfService(emp.join_date, emp.resign_date) }))
+    return createPaginatedResponse(dataWithAge, total, pagination.page, pagination.limit)
   }
 
   async create(data: Partial<Employee>, file?: Express.Multer.File): Promise<Employee> {
@@ -35,7 +37,8 @@ export class EmployeesService {
 
   async search(searchTerm: string, pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: any): Promise<PaginatedResponse<Employee>> {
     const { data, total } = await employeesRepository.searchByName(searchTerm, pagination, sort, filter)
-    return createPaginatedResponse(data, total, pagination.page, pagination.limit)
+    const dataWithAge = data.map(emp => ({ ...emp, age: calculateAge(emp.birth_date), years_of_service: calculateYearsOfService(emp.join_date, emp.resign_date) }))
+    return createPaginatedResponse(dataWithAge, total, pagination.page, pagination.limit)
   }
 
   async getFilterOptions() {
@@ -53,7 +56,7 @@ export class EmployeesService {
       throw new Error('Employee profile not found')
     }
 
-    return employee
+    return { ...employee, age: calculateAge(employee.birth_date), years_of_service: calculateYearsOfService(employee.join_date, employee.resign_date) }
   }
 
   async updateProfile(userId: string, updates: Partial<Employee>): Promise<Employee> {
@@ -102,7 +105,7 @@ export class EmployeesService {
       throw new Error('Employee not found')
     }
 
-    return employee
+    return { ...employee, age: calculateAge(employee.birth_date), years_of_service: calculateYearsOfService(employee.join_date, employee.resign_date) }
   }
 
   async delete(id: string): Promise<void> {
@@ -119,6 +122,14 @@ export class EmployeesService {
 
   async exportToExcel(filter?: any): Promise<Buffer> {
     const data = await employeesRepository.exportData(filter)
+    const dataWithAge = data.map(emp => {
+      const yos = calculateYearsOfService(emp.join_date, emp.resign_date)
+      return {
+        ...emp,
+        age: calculateAge(emp.birth_date),
+        years_of_service: yos ? `${yos.years}y ${yos.months}m ${yos.days}d` : null
+      }
+    })
     const columns = [
       { header: 'Employee ID', key: 'employee_id', width: 15 },
       { header: 'Full Name', key: 'full_name', width: 25 },
@@ -136,6 +147,7 @@ export class EmployeesService {
       { header: 'Marital Status', key: 'marital_status', width: 15 },
       { header: 'Address', key: 'citizen_id_address', width: 40 },
       { header: 'Join Date', key: 'join_date', width: 15 },
+      { header: 'Years of Service', key: 'years_of_service', width: 15 },
       { header: 'Resign Date', key: 'resign_date', width: 15 },
       { header: 'Sign Date', key: 'sign_date', width: 15 },
       { header: 'End Date', key: 'end_date', width: 15 },
@@ -148,7 +160,7 @@ export class EmployeesService {
       { header: 'Profile Picture', key: 'profile_picture', width: 50 },
       { header: 'Created At', key: 'created_at', width: 20 },
     ]
-    return await ExportService.generateExcel(data, columns)
+    return await ExportService.generateExcel(dataWithAge, columns)
   }
 
   async previewImport(buffer: Buffer): Promise<any[]> {
@@ -174,7 +186,6 @@ export class EmployeesService {
           nik: row.nik,
           birth_date: row.birth_date,
           birth_place: row.birth_place,
-          age: row.age,
           gender: row.gender,
           religion: row.religion,
           marital_status: row.marital_status,

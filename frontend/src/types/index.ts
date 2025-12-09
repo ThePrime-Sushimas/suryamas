@@ -10,7 +10,8 @@ export interface Employee {
   sign_date: string | null
   email: string | null
   birth_date: string | null
-  age: string | null
+  age: number | null
+  years_of_service?: { years: number; months: number; days: number } | null
   birth_place: string | null
   citizen_id_address: string | null
   ptkp_status: 'TK/0' | 'TK/1' | 'TK/2' | 'TK/3' | 'K/0' | 'K/1' | 'K/2' | 'K/3'

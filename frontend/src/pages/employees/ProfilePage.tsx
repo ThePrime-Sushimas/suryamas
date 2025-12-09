@@ -396,6 +396,12 @@ export default function ProfilePage() {
                   <p className="font-medium">{new Date(profile.join_date).toLocaleDateString('id-ID')}</p>
                 </div>
                 <div>
+                  <p className="text-sm text-gray-500">Years of Service</p>
+                  <p className="font-medium">
+                    {profile.years_of_service ? `${profile.years_of_service.years} years ${profile.years_of_service.months} months ${profile.years_of_service.days} days` : '-'}
+                  </p>
+                </div>
+                <div>
                   <p className="text-sm text-gray-500">Resign Date</p>
                   <p className="font-medium">{profile.resign_date ? new Date(profile.resign_date).toLocaleDateString('id-ID') : '-'}</p>
                 </div>
