@@ -6,11 +6,11 @@ interface Employee {
   full_name: string
   job_position: string
   branch_name: string
-  email?: string
-  mobile_phone?: string
+  email: string | null
+  mobile_phone: string | null
   status_employee: string
   is_active: boolean
-  profile_picture?: string
+  profile_picture: string | null
 }
 
 interface EmployeeCardProps {
