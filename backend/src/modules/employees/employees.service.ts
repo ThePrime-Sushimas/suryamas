@@ -1,7 +1,13 @@
 import { employeesRepository } from './employees.repository'
 import { Employee } from '../../types/employee.types'
+import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
 
 export class EmployeesService {
+  async list(pagination: { page: number; limit: number; offset: number }): Promise<PaginatedResponse<Employee>> {
+    const { data, total } = await employeesRepository.findAll(pagination)
+    return createPaginatedResponse(data, total, pagination.page, pagination.limit)
+  }
+
   async create(data: Partial<Employee>): Promise<Employee> {
     const employee = await employeesRepository.create(data)
     
@@ -12,8 +18,9 @@ export class EmployeesService {
     return employee
   }
 
-  async search(searchTerm: string): Promise<Employee[]> {
-    return await employeesRepository.searchByName(searchTerm)
+  async search(searchTerm: string, pagination: { page: number; limit: number; offset: number }): Promise<PaginatedResponse<Employee>> {
+    const { data, total } = await employeesRepository.searchByName(searchTerm, pagination)
+    return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
   async autocomplete(query: string): Promise<{id: string, full_name: string}[]> {
@@ -41,6 +48,16 @@ export class EmployeesService {
     
     if (!employee) {
       throw new Error('Failed to update employee profile')
+    }
+
+    return employee
+  }
+
+  async getById(id: string): Promise<Employee> {
+    const employee = await employeesRepository.findById(id)
+    
+    if (!employee) {
+      throw new Error('Employee not found')
     }
 
     return employee

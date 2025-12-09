@@ -73,6 +73,15 @@ export default function EmployeesPage() {
                   Branch
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Email
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Phone
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Join Date
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -87,13 +96,27 @@ export default function EmployeesPage() {
                     {employee.employee_id}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {employee.full_name}
+                    <button
+                      onClick={() => navigate(`/employees/${employee.id}`)}
+                      className="text-blue-600 hover:text-blue-900 hover:underline"
+                    >
+                      {employee.full_name}
+                    </button>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {employee.job_position}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {employee.branch_name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {employee.email || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {employee.mobile_phone || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {new Date(employee.join_date).toLocaleDateString('id-ID')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <span

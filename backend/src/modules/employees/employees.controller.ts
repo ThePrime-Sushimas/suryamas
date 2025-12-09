@@ -3,8 +3,25 @@ import { AuthRequest } from '../../types/common.types'
 import { employeesService } from './employees.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logInfo, logError } from '../../config/logger'
+import { PaginatedRequest } from '../../middleware/pagination.middleware'
 
 export class EmployeesController {
+  async list(req: PaginatedRequest, res: Response) {
+    try {
+      const result = await employeesService.list(req.pagination)
+      res.json({
+        success: true,
+        data: result.data,
+        pagination: result.pagination
+      })
+    } catch (error) {
+      logError('Failed to list employees', {
+        error: (error as Error).message,
+        user: (req as AuthRequest).user?.id
+      })
+      sendError(res, (error as Error).message, 400)
+    }
+  }
   async create(req: AuthRequest, res: Response) {
     try {
       const employee = await employeesService.create(req.body)
@@ -23,16 +40,20 @@ export class EmployeesController {
     }
   }
 
-  async search(req: AuthRequest, res: Response) {
+  async search(req: PaginatedRequest, res: Response) {
     try {
       const { q } = req.query
-      const employees = await employeesService.search(q as string)
-      sendSuccess(res, employees)
+      const result = await employeesService.search(q as string, req.pagination)
+      res.json({
+        success: true,
+        data: result.data,
+        pagination: result.pagination
+      })
     } catch (error) {
       logError('Failed to search employees', {
         error: (error as Error).message,
         query: req.query.q,
-        user: req.user?.id
+        user: (req as AuthRequest).user?.id
       })
       sendError(res, (error as Error).message, 400)
     }
@@ -78,6 +99,20 @@ export class EmployeesController {
         user: req.user?.id
       })
       sendError(res, (error as Error).message, 400)
+    }
+  }
+
+  async getById(req: AuthRequest, res: Response) {
+    try {
+      const employee = await employeesService.getById(req.params.id)
+      sendSuccess(res, employee)
+    } catch (error) {
+      logError('Failed to get employee', {
+        error: (error as Error).message,
+        id: req.params.id,
+        user: req.user?.id
+      })
+      sendError(res, (error as Error).message, 404)
     }
   }
 

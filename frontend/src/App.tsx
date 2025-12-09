@@ -10,6 +10,7 @@ import ResetPasswordPage from './pages/auth/ResetPasswordPage'
 import ProfilePage from './pages/employees/ProfilePage'
 import EmployeesPage from './pages/employees/EmployeesPage'
 import CreateEmployeePage from './pages/employees/CreateEmployeePage'
+import EmployeeDetailPage from './pages/employees/EmployeeDetailPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isInitialized } = useAuthStore()
@@ -62,6 +63,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <CreateEmployeePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="employees/:id"
+            element={
+              <ProtectedRoute>
+                <EmployeeDetailPage />
               </ProtectedRoute>
             }
           />
