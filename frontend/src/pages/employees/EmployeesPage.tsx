@@ -196,33 +196,33 @@ export default function EmployeesPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Photo</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('employee_id')}>Employee ID <SortIcon field="employee_id" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('full_name')}>Name <SortIcon field="full_name" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('job_position')}>Position <SortIcon field="job_position" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('branch_name')}>Branch <SortIcon field="branch_name" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('parent_branch_name')}>Parent Branch <SortIcon field="parent_branch_name" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('email')}>Email <SortIcon field="email" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('mobile_phone')}>Phone <SortIcon field="mobile_phone" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nik')}>NIK <SortIcon field="nik" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('birth_date')}>Birth Date <SortIcon field="birth_date" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('birth_place')}>Birth Place <SortIcon field="birth_place" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('age')}>Age <SortIcon field="age" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('gender')}>Gender <SortIcon field="gender" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('religion')}>Religion <SortIcon field="religion" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('marital_status')}>Marital Status <SortIcon field="marital_status" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Address</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('join_date')}>Join Date <SortIcon field="join_date" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('resign_date')}>Resign Date <SortIcon field="resign_date" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('sign_date')}>Sign Date <SortIcon field="sign_date" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('end_date')}>End Date <SortIcon field="end_date" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('status_employee')}>Status <SortIcon field="status_employee" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('is_active')}>Active <SortIcon field="is_active" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('ptkp_status')}>PTKP <SortIcon field="ptkp_status" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('bank_name')}>Bank Name <SortIcon field="bank_name" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('bank_account')}>Bank Account <SortIcon field="bank_account" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('bank_account_holder')}>Bank Holder <SortIcon field="bank_account_holder" /></th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Photo</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('employee_id')}>Employee ID <SortIcon field="employee_id" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('full_name')}>Name <SortIcon field="full_name" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('job_position')}>Position <SortIcon field="job_position" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('branch_name')}>Branch <SortIcon field="branch_name" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('parent_branch_name')}>Parent Branch <SortIcon field="parent_branch_name" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('email')}>Email <SortIcon field="email" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('mobile_phone')}>Phone <SortIcon field="mobile_phone" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nik')}>NIK <SortIcon field="nik" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('birth_date')}>Birth Date <SortIcon field="birth_date" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('birth_place')}>Birth Place <SortIcon field="birth_place" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('age')}>Age <SortIcon field="age" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('gender')}>Gender <SortIcon field="gender" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('religion')}>Religion <SortIcon field="religion" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('marital_status')}>Marital Status <SortIcon field="marital_status" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Address</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('join_date')}>Join Date <SortIcon field="join_date" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('resign_date')}>Resign Date <SortIcon field="resign_date" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('sign_date')}>Sign Date <SortIcon field="sign_date" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('end_date')}>End Date <SortIcon field="end_date" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('status_employee')}>Status <SortIcon field="status_employee" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('is_active')}>Active <SortIcon field="is_active" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('ptkp_status')}>PTKP <SortIcon field="ptkp_status" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('bank_name')}>Bank Name <SortIcon field="bank_name" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('bank_account')}>Bank Account <SortIcon field="bank_account" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('bank_account_holder')}>Bank Holder <SortIcon field="bank_account_holder" /></th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
