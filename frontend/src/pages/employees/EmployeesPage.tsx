@@ -92,46 +92,43 @@ export default function EmployeesPage() {
       )}
 
       {employees.length > 0 ? (
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="bg-white shadow rounded-lg overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Photo
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Employee ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Position
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Branch
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Email
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Phone
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Join Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                  Actions
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Photo</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee ID</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Parent Branch</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">NIK</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Birth Date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Birth Place</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Age</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gender</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Religion</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marital Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Address</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Join Date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Resign Date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sign Date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">End Date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Active</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PTKP</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bank Name</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bank Account</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bank Holder</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {employees.map((employee) => (
-                <tr key={employee.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                <tr key={employee.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     {employee.profile_picture ? (
                       <img 
                         src={employee.profile_picture} 
@@ -145,10 +142,8 @@ export default function EmployeesPage() {
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {employee.employee_id}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.employee_id}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
                     <button
                       onClick={() => navigate(`/employees/${employee.id}`)}
                       className="text-blue-600 hover:text-blue-900 hover:underline"
@@ -156,45 +151,40 @@ export default function EmployeesPage() {
                       {employee.full_name}
                     </button>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {employee.job_position}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {employee.branch_name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {employee.email || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {employee.mobile_phone || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {new Date(employee.join_date).toLocaleDateString('id-ID')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs ${
-                        employee.status_employee === 'Permanent'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}
-                    >
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.job_position}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.branch_name}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.parent_branch_name || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.email || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.mobile_phone || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.nik || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.birth_date ? new Date(employee.birth_date).toLocaleDateString('id-ID') : '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.birth_place || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.age || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.gender || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.religion || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.marital_status || '-'}</td>
+                  <td className="px-4 py-3 text-sm max-w-xs truncate" title={employee.citizen_id_address || '-'}>{employee.citizen_id_address || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{new Date(employee.join_date).toLocaleDateString('id-ID')}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.resign_date ? new Date(employee.resign_date).toLocaleDateString('id-ID') : '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.sign_date ? new Date(employee.sign_date).toLocaleDateString('id-ID') : '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.end_date ? new Date(employee.end_date).toLocaleDateString('id-ID') : '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">
+                    <span className={`px-2 py-1 rounded-full text-xs ${employee.status_employee === 'Permanent' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
                       {employee.status_employee}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                    <button
-                      onClick={() => navigate(`/employees/${employee.id}`)}
-                      className="text-blue-600 hover:text-blue-900 mr-3"
-                    >
-                      View
-                    </button>
-                    <button
-                      onClick={() => handleDelete(employee.id, employee.full_name)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">
+                    <span className={`px-2 py-1 rounded-full text-xs ${employee.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {employee.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.ptkp_status}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.bank_name || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.bank_account || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.bank_account_holder || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
+                    <button onClick={() => navigate(`/employees/${employee.id}`)} className="text-blue-600 hover:text-blue-900 mr-3">View</button>
+                    <button onClick={() => handleDelete(employee.id, employee.full_name)} className="text-red-600 hover:text-red-900">Delete</button>
                   </td>
                 </tr>
               ))}
