@@ -9,7 +9,7 @@ interface ImportResult {
 export class ImportService {
   static async parseExcel(buffer: Buffer): Promise<any[]> {
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(Buffer.from(buffer));
+    await workbook.xlsx.load(buffer as any);
     const worksheet = workbook.getWorksheet(1);
     
     if (!worksheet) throw new Error('No worksheet found');
