@@ -49,6 +49,7 @@ export class ExportService {
       worksheet.addRows(chunk);
     }
 
-    return await workbook.xlsx.writeBuffer() as Buffer;
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 }

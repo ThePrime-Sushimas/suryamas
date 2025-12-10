@@ -18,16 +18,6 @@ process.on('uncaughtException', (error: Error) => {
 app.listen(PORT, () => {
   logInfo('Server started', { port: PORT, env: process.env.NODE_ENV })
   console.log(`
-╔═══════════════════════════════════════════╗
-║   🚀 Server running on port ${PORT}         ║
-║   📍 http://localhost:${PORT}                ║
-║   📍 Health: /health                      ║
-║   📍 Auth: /api/auth                      ║
-║     - POST /register                      ║
-║     - POST /login                         ║
-║     - POST /logout                        ║
-║     - GET  /profile                       ║
-║     - PUT  /profile                       ║
-╚═══════════════════════════════════════════╝
+
   `)
 })
