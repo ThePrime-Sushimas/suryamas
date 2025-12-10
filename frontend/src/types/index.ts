@@ -29,7 +29,7 @@ export interface Employee {
   created_at: string
   updated_at: string
   user_id: string | null
-  is_active?: boolean
+  is_active: boolean // ✅ Ubah dari optional (?) jadi required
 }
 
 export interface User {
@@ -38,6 +38,8 @@ export interface User {
   full_name: string
   job_position: string
   created_at: string
+  is_active?: boolean // ✅ Tambahkan ini juga jika perlu
+
 }
 
 export interface ApiResponse<T> {
