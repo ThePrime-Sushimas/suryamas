@@ -19,9 +19,9 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() })
 })
 
-// Module Routes
-app.use('/api/auth', authRoutes)
-app.use('/api/employees', employeesRoutes)
+// API v1 Routes
+app.use('/api/v1/auth', authRoutes)
+app.use('/api/v1/employees', employeesRoutes)
 
 // Error handler
 app.use(errorHandler)
