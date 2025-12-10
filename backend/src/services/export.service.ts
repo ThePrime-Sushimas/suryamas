@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 interface ExportSession {
   token: string;
@@ -11,7 +11,7 @@ const activeSessions = new Map<string, ExportSession>();
 
 export class ExportService {
   static generateToken(userId: string): string {
-    const token = uuidv4();
+    const token = randomUUID();
     activeSessions.set(token, { token, userId, timestamp: Date.now() });
     setTimeout(() => activeSessions.delete(token), 300000); // 5 min expiry
     return token;
