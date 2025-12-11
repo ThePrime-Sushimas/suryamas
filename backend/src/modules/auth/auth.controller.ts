@@ -38,6 +38,22 @@ export class AuthController {
       .update({ user_id: authData.user!.id })
       .eq('employee_id', employee_id)
 
+    // Assign default role (staff) to new user
+    const { data: staffRole } = await supabase
+      .from('perm_roles')
+      .select('id')
+      .eq('name', 'staff')
+      .single()
+
+    if (staffRole) {
+      await supabase
+        .from('perm_user_profiles')
+        .insert({
+          user_id: authData.user!.id,
+          role_id: staffRole.id
+        })
+    }
+
     logInfo('User registered successfully', { 
       user_id: authData.user!.id,
       employee_id,

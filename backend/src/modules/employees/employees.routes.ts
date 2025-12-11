@@ -1,40 +1,45 @@
 import { Router } from 'express'
 import { employeesController } from './employees.controller'
 import { authenticate } from '../../middleware/auth.middleware'
+import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
 import { filterMiddleware } from '../../middleware/filter.middleware'
 import { upload } from '../../middleware/upload.middleware'
 import { exportLimiter } from '../../middleware/rateLimiter.middleware'
+import { PermissionService } from '../../services/permission.service'
+
+// Auto-register employees module
+PermissionService.registerModule('employees', 'Employee Management System')
 
 const router = Router()
 
 // List with pagination & sort
-router.get('/', authenticate, paginationMiddleware, sortMiddleware, (req, res) => employeesController.list(req as any, res))
+router.get('/', authenticate, canView('employees'), paginationMiddleware, sortMiddleware, (req, res) => employeesController.list(req as any, res))
 
 // Search with pagination & sort & filter
-router.get('/search', authenticate, paginationMiddleware, sortMiddleware, filterMiddleware, (req, res) => employeesController.search(req as any, res))
-router.get('/autocomplete', authenticate, (req, res) => employeesController.autocomplete(req, res))
-router.get('/filter-options', authenticate, (req, res) => employeesController.getFilterOptions(req, res))
+router.get('/search', authenticate, canView('employees'), paginationMiddleware, sortMiddleware, filterMiddleware, (req, res) => employeesController.search(req as any, res))
+router.get('/autocomplete', authenticate, canView('employees'), (req, res) => employeesController.autocomplete(req, res))
+router.get('/filter-options', authenticate, canView('employees'), (req, res) => employeesController.getFilterOptions(req, res))
 
 // Profile (harus di atas /:id)
-router.get('/profile', authenticate, (req, res) => employeesController.getProfile(req, res))
-router.put('/profile', authenticate, (req, res) => employeesController.updateProfile(req, res))
-router.post('/profile/picture', authenticate, upload.single('picture'), (req, res) => employeesController.uploadProfilePicture(req, res))
+router.get('/profile', authenticate, canView('employees'), (req, res) => employeesController.getProfile(req, res))
+router.put('/profile', authenticate, canUpdate('employees'), (req, res) => employeesController.updateProfile(req, res))
+router.post('/profile/picture', authenticate, canUpdate('employees'), upload.single('picture'), (req, res) => employeesController.uploadProfilePicture(req, res))
 
 // Export & Import
-router.get('/export/token', authenticate, exportLimiter, (req, res) => employeesController.generateExportToken(req, res))
-router.get('/export', authenticate, filterMiddleware, (req, res) => employeesController.exportData(req as any, res))
-router.post('/import/preview', authenticate, upload.single('file'), (req, res) => employeesController.previewImport(req, res))
-router.post('/import', authenticate, upload.single('file'), (req, res) => employeesController.importData(req, res))
+router.get('/export/token', authenticate, canView('employees'), exportLimiter, (req, res) => employeesController.generateExportToken(req, res))
+router.get('/export', authenticate, canView('employees'), filterMiddleware, (req, res) => employeesController.exportData(req as any, res))
+router.post('/import/preview', authenticate, canInsert('employees'), upload.single('file'), (req, res) => employeesController.previewImport(req, res))
+router.post('/import', authenticate, canInsert('employees'), upload.single('file'), (req, res) => employeesController.importData(req, res))
 
 // Bulk Actions
-router.post('/bulk/update-active', authenticate, (req, res) => employeesController.bulkUpdateActive(req, res))
-router.post('/bulk/delete', authenticate, (req, res) => employeesController.bulkDelete(req, res))
+router.post('/bulk/update-active', authenticate, canUpdate('employees'), (req, res) => employeesController.bulkUpdateActive(req, res))
+router.post('/bulk/delete', authenticate, canDelete('employees'), (req, res) => employeesController.bulkDelete(req, res))
 
 // Employee CRUD
-router.post('/', authenticate, upload.single('profile_picture'), (req, res) => employeesController.create(req, res))
-router.get('/:id', authenticate, (req, res) => employeesController.getById(req, res))
-router.delete('/:id', authenticate, (req, res) => employeesController.delete(req, res))
+router.post('/', authenticate, canInsert('employees'), upload.single('profile_picture'), (req, res) => employeesController.create(req, res))
+router.get('/:id', authenticate, canView('employees'), (req, res) => employeesController.getById(req, res))
+router.delete('/:id', authenticate, canDelete('employees'), (req, res) => employeesController.delete(req, res))
 
 export default router
