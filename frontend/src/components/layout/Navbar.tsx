@@ -40,6 +40,9 @@ export default function Navbar() {
                   <Link to="/permissions" className="text-gray-700 hover:text-gray-900">
                     Permissions
                   </Link>
+                  <Link to="/users" className="text-gray-700 hover:text-gray-900">
+                    Users
+                  </Link>
                 </div>
               )}
             </div>

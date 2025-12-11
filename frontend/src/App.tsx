@@ -12,6 +12,9 @@ import EmployeesPage from './pages/employees/EmployeesPage'
 import CreateEmployeePage from './pages/employees/CreateEmployeePage'
 import EmployeeDetailPage from './pages/employees/EmployeeDetailPage'
 import PermissionsPage from './pages/permissions/PermissionsPage'
+import UsersPage from './pages/users/UsersPage'
+import UserDetailPage from './pages/users/UserDetailPage'
+import UserEditPage from './pages/users/UserEditPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isInitialized } = useAuthStore()
@@ -80,6 +83,30 @@ function App() {
             element={
               <ProtectedRoute>
                 <PermissionsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="users"
+            element={
+              <ProtectedRoute>
+                <UsersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="users/:id"
+            element={
+              <ProtectedRoute>
+                <UserDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="users/edit/:id"
+            element={
+              <ProtectedRoute>
+                <UserEditPage />
               </ProtectedRoute>
             }
           />
