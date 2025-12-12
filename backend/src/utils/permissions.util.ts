@@ -48,7 +48,7 @@ export function getAllPermissionActions(): PermissionAction[] {
 }
 
 // Helper: Create default permission object (all false for new roles)
-export function createDefaultPermissions() {
+export function createDefaultPermissions(name: string) {
   return {
     can_view: false,
     can_insert: false,

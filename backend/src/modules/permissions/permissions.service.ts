@@ -1,5 +1,5 @@
 // =====================================================
-// PERMISSIONS SERVICE (Business Logic)
+// PERMISSIONS SERVICE (FIXED VERSION)
 // =====================================================
 
 import { PermissionsRepository } from './permissions.repository'
@@ -148,9 +148,6 @@ export class PermissionsService {
     try {
       const updated = await this.repository.updatePermission(roleId, moduleId, permissions)
 
-      // Invalidate cache
-      await CorePermissionService['invalidateRoleCache'](roleId)
-
       logInfo('Role permission updated', { roleId, moduleId, changedBy })
 
       return updated
@@ -173,9 +170,6 @@ export class PermissionsService {
       }))
 
       await this.repository.bulkUpdatePermissions(updateData)
-
-      // Invalidate cache
-      await CorePermissionService['invalidateRoleCache'](roleId)
 
       logInfo('Bulk role permissions updated', { roleId, count: updates.length, changedBy })
 
