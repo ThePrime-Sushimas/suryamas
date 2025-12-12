@@ -66,7 +66,7 @@ export class PermissionService {
         const permissions = roles.map((role: Role) => ({
           role_id: role.id,
           module_id: module.id,
-          ...(defaultPermissions?.[role.name] || createDefaultPermissions()),
+          ...(defaultPermissions?.[role.name] || createDefaultPermissions(role.name)),
         }))
 
         const { error: permError } = await supabase

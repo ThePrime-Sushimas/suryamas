@@ -129,7 +129,7 @@ export async function seedDefaultPermissions(): Promise<SeedResult> {
           permissions.push({
             role_id: role.id,
             module_id: module.id,
-            ...createDefaultPermissions(),
+            ...createDefaultPermissions(role.name),
           })
         }
       }
