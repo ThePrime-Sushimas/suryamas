@@ -130,6 +130,18 @@ export class EmployeesRepository {
     return data
   }
 
+  async updateById(id: string, updates: Partial<Employee>): Promise<Employee | null> {
+    const { data, error } = await supabase
+      .from('employees')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .maybeSingle()
+
+    if (error) throw new Error(error.message)
+    return data
+  }
+
   async delete(id: string): Promise<void> {
     const { error } = await supabase
       .from('employees')

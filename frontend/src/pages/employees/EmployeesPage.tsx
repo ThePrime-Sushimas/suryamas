@@ -364,7 +364,8 @@ export default function EmployeesPage() {
                   <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.bank_account || '-'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.bank_account_holder || '-'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
-                    <button onClick={() => navigate(`/employees/${employee.id}`)} className="text-blue-600 hover:text-blue-900 mr-3">View</button>
+                    <button onClick={() => navigate(`/employees/${employee.id}`)} className="text-blue-600 hover:text-blue-900 mr-2">View</button>
+                    <button onClick={() => navigate(`/employees/edit/${employee.id}`)} className="text-green-600 hover:text-green-900 mr-2">Edit</button>
                     <button onClick={() => handleDelete(employee.id, employee.full_name)} className="text-red-600 hover:text-red-900">Delete</button>
                   </td>
                 </tr>

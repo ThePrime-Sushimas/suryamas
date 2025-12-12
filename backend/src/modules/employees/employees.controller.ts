@@ -133,6 +133,24 @@ export class EmployeesController {
     }
   }
 
+  async update(req: AuthRequest, res: Response) {
+    try {
+      const employee = await employeesService.update(req.params.id, req.body, req.file)
+      logInfo('Employee updated', { 
+        id: req.params.id,
+        user: req.user?.id 
+      })
+      sendSuccess(res, employee, 'Employee updated')
+    } catch (error) {
+      logError('Failed to update employee', {
+        error: (error as Error).message,
+        id: req.params.id,
+        user: req.user?.id
+      })
+      sendError(res, (error as Error).message, 400)
+    }
+  }
+
   async delete(req: AuthRequest, res: Response) {
     try {
       await employeesService.delete(req.params.id)

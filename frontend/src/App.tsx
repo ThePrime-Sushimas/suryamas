@@ -11,6 +11,7 @@ import ProfilePage from './pages/employees/ProfilePage'
 import EmployeesPage from './pages/employees/EmployeesPage'
 import CreateEmployeePage from './pages/employees/CreateEmployeePage'
 import EmployeeDetailPage from './pages/employees/EmployeeDetailPage'
+import EditEmployeePage from './pages/employees/EditEmployeePage'
 import PermissionsPage from './pages/permissions/PermissionsPage'
 import UsersPage from './pages/users/UsersPage'
 import UserDetailPage from './pages/users/UserDetailPage'
@@ -75,6 +76,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <EmployeeDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="employees/edit/:id"
+            element={
+              <ProtectedRoute>
+                <EditEmployeePage />
               </ProtectedRoute>
             }
           />

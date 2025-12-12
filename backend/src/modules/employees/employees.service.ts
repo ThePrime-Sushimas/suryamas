@@ -123,6 +123,36 @@ export class EmployeesService {
     return { ...employee, age: calculateAge(employee.birth_date), years_of_service: calculateYearsOfService(employee.join_date, employee.resign_date) }
   }
 
+  async update(id: string, data: Partial<Employee>, file?: Express.Multer.File): Promise<Employee> {
+    const { id: _, user_id, created_at, employee_id, ...allowedUpdates } = data
+    
+    let profilePictureUrl: string | null = null
+    if (file) {
+      const fileName = `${id}-${Date.now()}.${file.mimetype.split('/')[1]}`
+      const { error } = await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
+      if (!error) {
+        profilePictureUrl = employeesRepository.getPublicUrl(fileName)
+        allowedUpdates.profile_picture = profilePictureUrl
+      }
+    }
+    
+    const cleanedUpdates = Object.fromEntries(
+      Object.entries(allowedUpdates).filter(([_, value]) => value !== '')
+    )
+
+    if (Object.keys(cleanedUpdates).length === 0 && !file) {
+      throw new Error('No valid fields to update')
+    }
+
+    const employee = await employeesRepository.updateById(id, cleanedUpdates)
+    
+    if (!employee) {
+      throw new Error('Failed to update employee')
+    }
+
+    return employee
+  }
+
   async delete(id: string): Promise<void> {
     await employeesRepository.delete(id)
   }

@@ -40,6 +40,7 @@ router.post('/bulk/delete', authenticate, canDelete('employees'), (req, res) => 
 // Employee CRUD
 router.post('/', authenticate, canInsert('employees'), upload.single('profile_picture'), (req, res) => employeesController.create(req, res))
 router.get('/:id', authenticate, canView('employees'), (req, res) => employeesController.getById(req, res))
+router.put('/:id', authenticate, canUpdate('employees'), upload.single('profile_picture'), (req, res) => employeesController.update(req, res))
 router.delete('/:id', authenticate, canDelete('employees'), (req, res) => employeesController.delete(req, res))
 
 export default router
