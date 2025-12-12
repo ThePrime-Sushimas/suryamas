@@ -50,7 +50,9 @@ export class PermissionsService {
         ...createDefaultPermissions(role.name),
       }))
 
-      await this.repository.bulkCreatePermissions(permissions)
+      for (const perm of permissions) {
+        await this.repository.createPermission(perm)
+      }
 
       logInfo('Module created with default permissions', {
         moduleId: module.id,
@@ -104,7 +106,9 @@ export class PermissionsService {
         ...createDefaultPermissions(dto.name),
       }))
 
-      await this.repository.bulkCreatePermissions(permissions)
+      for (const perm of permissions) {
+        await this.repository.createPermission(perm)
+      }
 
       logInfo('Role created with default permissions', {
         roleId: role.id,
