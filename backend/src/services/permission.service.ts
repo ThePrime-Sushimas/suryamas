@@ -429,7 +429,7 @@ export class PermissionService {
   /**
    * Invalidate cache for all users with specific role
    */
-  private static async invalidateRoleCache(roleId: string): Promise<void> {
+  static async invalidateRoleCache(roleId: string): Promise<void> {
     try {
       const { data: users } = await supabase
         .from('perm_user_profiles')

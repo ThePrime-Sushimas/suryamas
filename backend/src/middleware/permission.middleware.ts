@@ -232,9 +232,9 @@ export const adminOnly = async (
       return
     }
 
-    const roleName = role.name
+    const roleName = role.name.toLowerCase()
 
-    if (roleName !== 'admin') {
+    if (roleName !== 'admin' && roleName !== 'super admin') {
       logWarn('Admin access denied', {
         userId: req.user.id,
         role: roleName,

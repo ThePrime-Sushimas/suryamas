@@ -18,7 +18,7 @@ export const PERMISSIONS = {
 export const PUBLIC_MODULES = ['auth'] as const
 
 // Permission cache TTL (5 minutes)
-export const PERMISSION_CACHE_TTL = 5 * 60 * 1000
+export const PERMISSION_CACHE_TTL = 1 * 1000
 
 // Helper: Check if module is public
 export function isPublicModule(moduleName: string): boolean {
@@ -47,8 +47,8 @@ export function getAllPermissionActions(): PermissionAction[] {
   return Object.values(PERMISSIONS)
 }
 
-// Helper: Create default permission object (all false for new roles)
-export function createDefaultPermissions(name: string) {
+// Helper: Create default permission object (all false)
+export function createDefaultPermissions(roleName: string) {
   return {
     can_view: false,
     can_insert: false,

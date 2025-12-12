@@ -22,10 +22,10 @@ router.get('/search', authenticate, canView('employees'), paginationMiddleware, 
 router.get('/autocomplete', authenticate, canView('employees'), (req, res) => employeesController.autocomplete(req, res))
 router.get('/filter-options', authenticate, canView('employees'), (req, res) => employeesController.getFilterOptions(req, res))
 
-// Profile (harus di atas /:id)
-router.get('/profile', authenticate, canView('employees'), (req, res) => employeesController.getProfile(req, res))
-router.put('/profile', authenticate, canUpdate('employees'), (req, res) => employeesController.updateProfile(req, res))
-router.post('/profile/picture', authenticate, canUpdate('employees'), upload.single('picture'), (req, res) => employeesController.uploadProfilePicture(req, res))
+// Profile (no permission check - user can view own profile)
+router.get('/profile', authenticate, (req, res) => employeesController.getProfile(req, res))
+router.put('/profile', authenticate, (req, res) => employeesController.updateProfile(req, res))
+router.post('/profile/picture', authenticate, upload.single('picture'), (req, res) => employeesController.uploadProfilePicture(req, res))
 
 // Export & Import
 router.get('/export/token', authenticate, canView('employees'), exportLimiter, (req, res) => employeesController.generateExportToken(req, res))

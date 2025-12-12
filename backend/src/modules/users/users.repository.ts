@@ -36,14 +36,33 @@ export class UsersRepository {
   }
 
   async assignRole(userId: string, roleId: string) {
-    const { data, error } = await supabase
+    // Check if profile exists
+    const { data: existing } = await supabase
       .from('perm_user_profiles')
-      .upsert({ user_id: userId, role_id: roleId })
-      .select()
+      .select('user_id')
+      .eq('user_id', userId)
       .single()
 
-    if (error) throw error
-    return data
+    if (existing) {
+      // Update existing
+      const { data, error } = await supabase
+        .from('perm_user_profiles')
+        .update({ role_id: roleId })
+        .eq('user_id', userId)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    } else {
+      // Insert new
+      const { data, error } = await supabase
+        .from('perm_user_profiles')
+        .insert({ user_id: userId, role_id: roleId })
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    }
   }
 
   async removeRole(userId: string) {

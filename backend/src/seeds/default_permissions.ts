@@ -81,6 +81,11 @@ export async function seedDefaultPermissions(): Promise<SeedResult> {
         description: 'Permission Management System',
         is_active: true,
       },
+      {
+        name: 'users',
+        description: 'User Management System',
+        is_active: true,
+      },
     ]
 
     const createdModules: any[] = []
