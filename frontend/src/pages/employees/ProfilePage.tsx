@@ -372,8 +372,8 @@ export default function ProfilePage() {
                   <p className="font-medium text-sm md:text-base">{profile.branch_name}</p>
                 </div>
                 <div>
-                  <p className="text-xs md:text-sm text-gray-500">Parent Branch</p>
-                  <p className="font-medium text-sm md:text-base">{profile.parent_branch_name || '-'}</p>
+                  <p className="text-xs md:text-sm text-gray-500">Brand Name</p>
+                  <p className="font-medium text-sm md:text-base">{profile.brand_name || '-'}</p>
                 </div>
                 <div>
                   <p className="text-xs md:text-sm text-gray-500">Status</p>

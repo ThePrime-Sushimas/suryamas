@@ -14,7 +14,7 @@ export default function EditEmployeePage() {
     full_name: '',
     job_position: '',
     branch_name: '',
-    parent_branch_name: '',
+    brand_name: '',
     ptkp_status: 'TK/0' as const,
     status_employee: 'Permanent' as 'Permanent' | 'Contract',
     join_date: '',
