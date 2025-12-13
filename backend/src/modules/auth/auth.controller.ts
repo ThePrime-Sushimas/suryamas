@@ -23,6 +23,12 @@ export class AuthController {
       return sendError(res, 'Employee already has an account', 400)
     }
 
+    const isResigned = employee.resign_date && new Date(employee.resign_date) < new Date()
+    if (isResigned) {
+      logWarn('Registration failed: Employee has resigned', { employee_id })
+      return sendError(res, 'Cannot register resigned employee', 403)
+    }
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password
@@ -77,6 +83,18 @@ export class AuthController {
     if (error) {
       logWarn('Login failed', { email, error: error.message })
       return sendError(res, 'Invalid credentials', 401)
+    }
+
+    const { data: employee } = await supabase
+      .from('employees')
+      .select('resign_date')
+      .eq('user_id', data.user.id)
+      .maybeSingle()
+
+    const isResigned = employee?.resign_date && new Date(employee.resign_date) < new Date()
+    if (isResigned) {
+      logWarn('Login failed: Employee has resigned', { user_id: data.user.id, email })
+      return sendError(res, 'Account has been deactivated', 403)
     }
 
     logInfo('User logged in', { user_id: data.user.id, email })

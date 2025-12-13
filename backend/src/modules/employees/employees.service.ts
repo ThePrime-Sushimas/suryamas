@@ -102,7 +102,7 @@ export class EmployeesService {
       throw new Error('Failed to update employee profile')
     }
 
-    return employee
+    return { ...employee, age: calculateAge(employee.birth_date), years_of_service: calculateYearsOfService(employee.join_date, employee.resign_date) }
   }
 
   async uploadProfilePicture(userId: string, file: Express.Multer.File): Promise<string> {
@@ -147,7 +147,12 @@ export class EmployeesService {
     }
     
     const cleanedUpdates = Object.fromEntries(
-      Object.entries(allowedUpdates).filter(([_, value]) => value !== '')
+      Object.entries(allowedUpdates).map(([key, value]) => {
+        if (value === '' && (key === 'resign_date' || key === 'end_date' || key === 'sign_date')) {
+          return [key, null]
+        }
+        return [key, value]
+      }).filter(([_, value]) => value !== '')
     )
 
     if (Object.keys(cleanedUpdates).length === 0 && !file) {
