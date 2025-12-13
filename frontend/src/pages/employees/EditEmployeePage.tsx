@@ -18,6 +18,7 @@ export default function EditEmployeePage() {
     ptkp_status: 'TK/0' as const,
     status_employee: 'Permanent' as 'Permanent' | 'Contract',
     join_date: '',
+    resign_date: '',
     sign_date: '',
     end_date: '',
     email: '',
@@ -32,6 +33,7 @@ export default function EditEmployeePage() {
     bank_name: '',
     bank_account: '',
     bank_account_holder: '',
+    is_active: true,
   })
   const [profilePicture, setProfilePicture] = useState<File | null>(null)
 
@@ -48,6 +50,7 @@ export default function EditEmployeePage() {
           ptkp_status: emp.ptkp_status as any,
           status_employee: emp.status_employee as any,
           join_date: emp.join_date ? emp.join_date.split('T')[0] : '',
+          resign_date: emp.resign_date ? emp.resign_date.split('T')[0] : '',
           sign_date: emp.sign_date ? emp.sign_date.split('T')[0] : '',
           end_date: emp.end_date ? emp.end_date.split('T')[0] : '',
           email: emp.email || '',
@@ -62,6 +65,7 @@ export default function EditEmployeePage() {
           bank_name: emp.bank_name || '',
           bank_account: emp.bank_account || '',
           bank_account_holder: emp.bank_account_holder || '',
+          is_active: emp.is_active ?? true,
         })
       } catch (err: any) {
         setError(err.response?.data?.error || 'Failed to load employee')
@@ -204,6 +208,16 @@ export default function EditEmployeePage() {
                   name="join_date"
                   required
                   value={formData.join_date}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Resign Date</label>
+                <input
+                  type="date"
+                  name="resign_date"
+                  value={formData.resign_date}
                   onChange={handleChange}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
                 />
@@ -384,6 +398,23 @@ export default function EditEmployeePage() {
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Status Section */}
+          <div className="border-b border-gray-200 pb-4 md:pb-6">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Status</h3>
+            <div>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  name="is_active"
+                  checked={formData.is_active}
+                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                  className="w-4 h-4 border border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm font-medium text-gray-700">Active</span>
+              </label>
             </div>
           </div>
 
