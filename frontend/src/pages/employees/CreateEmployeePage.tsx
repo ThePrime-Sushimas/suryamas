@@ -11,7 +11,7 @@ export default function CreateEmployeePage() {
     full_name: '',
     job_position: '',
     branch_name: '',
-    parent_branch_name: '',
+    brand_name: '',
     ptkp_status: 'TK/0' as const,
     status_employee: 'Permanent' as 'Permanent' | 'Contract',
     join_date: '',
@@ -138,11 +138,11 @@ export default function CreateEmployeePage() {
               </select>
             </div>
               <div>
-                <label className="block text-xs md:text-sm font-medium text-gray-700">Parent Branch</label>
+                <label className="block text-xs md:text-sm font-medium text-gray-700">Brand Name</label>
                 <input
                   type="text"
-                  name="parent_branch_name"
-                  value={formData.parent_branch_name}
+                  name="brand_name"
+                  value={formData.brand_name}
                   onChange={handleChange}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
                 />

@@ -275,7 +275,7 @@ export default function EmployeesPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('full_name')}>Name <SortIcon field="full_name" /></th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('job_position')}>Position <SortIcon field="job_position" /></th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('branch_name')}>Branch <SortIcon field="branch_name" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('parent_branch_name')}>Parent Branch <SortIcon field="parent_branch_name" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('brand_name')}>Brand Name <SortIcon field="brand_name" /></th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('email')}>Email <SortIcon field="email" /></th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('mobile_phone')}>Phone <SortIcon field="mobile_phone" /></th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nik')}>NIK <SortIcon field="nik" /></th>
@@ -331,7 +331,7 @@ export default function EmployeesPage() {
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.job_position}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.branch_name}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.parent_branch_name || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.brand_name || '-'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.email || '-'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.mobile_phone || '-'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.nik || '-'}</td>

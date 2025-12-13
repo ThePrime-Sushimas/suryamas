@@ -155,8 +155,8 @@ export default function EmployeeDetailPage() {
                 <p className="font-medium">{employee.branch_name}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Parent Branch</p>
-                <p className="font-medium">{employee.parent_branch_name || '-'}</p>
+                <p className="text-sm text-gray-500">Brand Name</p>
+                <p className="font-medium">{employee.brand_name || '-'}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Status</p>

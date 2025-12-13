@@ -27,7 +27,7 @@ export interface Employee {
   nik: string | null
   mobile_phone: string | null
   branch_name: string
-  parent_branch_name: string | null
+  brand_name: string | null
   religion: Religion | null
   gender: Gender | null
   marital_status: MaritalStatus | null
