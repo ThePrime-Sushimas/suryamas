@@ -28,7 +28,7 @@ export class EmployeesController {
   }
   async create(req: AuthRequest, res: Response) {
     try {
-      const employee = await employeesService.create(req.body, req.file)
+      const employee = await employeesService.create(req.body, req.file, req.user?.id)
       logInfo('Employee created', { 
         employee_id: employee.employee_id,
         user: req.user?.id 
@@ -135,7 +135,7 @@ export class EmployeesController {
 
   async update(req: AuthRequest, res: Response) {
     try {
-      const employee = await employeesService.update(req.params.id, req.body, req.file)
+      const employee = await employeesService.update(req.params.id, req.body, req.file, req.user?.id)
       logInfo('Employee updated', { 
         id: req.params.id,
         user: req.user?.id 
@@ -153,7 +153,7 @@ export class EmployeesController {
 
   async delete(req: AuthRequest, res: Response) {
     try {
-      await employeesService.delete(req.params.id)
+      await employeesService.delete(req.params.id, req.user?.id)
       logInfo('Employee deleted', { 
         id: req.params.id,
         user: req.user?.id 

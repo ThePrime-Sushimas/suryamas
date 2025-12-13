@@ -3,6 +3,7 @@ import { Employee } from '../../types/employee.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
 import { ExportService } from '../../services/export.service'
 import { ImportService } from '../../services/import.service'
+import { AuditService } from '../../services/audit.service'
 import { calculateAge, calculateYearsOfService } from '../../utils/age.util'
 import { generateEmployeeId, getNextSequenceNumber } from '../../utils/employeeId.util'
 
@@ -13,7 +14,7 @@ export class EmployeesService {
     return createPaginatedResponse(dataWithAge, total, pagination.page, pagination.limit)
   }
 
-  async create(data: Partial<Employee>, file?: Express.Multer.File): Promise<Employee> {
+  async create(data: Partial<Employee>, file?: Express.Multer.File, userId?: string): Promise<Employee> {
     let profilePictureUrl: string | null = null
     
     if (file) {
@@ -46,6 +47,15 @@ export class EmployeesService {
     if (!employee) {
       throw new Error('Failed to create employee')
     }
+
+    await AuditService.log(
+      'CREATE',
+      'employee',
+      employee.id,
+      userId || null,
+      null,
+      employee
+    )
 
     return employee
   }
@@ -123,7 +133,7 @@ export class EmployeesService {
     return { ...employee, age: calculateAge(employee.birth_date), years_of_service: calculateYearsOfService(employee.join_date, employee.resign_date) }
   }
 
-  async update(id: string, data: Partial<Employee>, file?: Express.Multer.File): Promise<Employee> {
+  async update(id: string, data: Partial<Employee>, file?: Express.Multer.File, userId?: string): Promise<Employee> {
     const { id: _, user_id, created_at, employee_id, ...allowedUpdates } = data
     
     let profilePictureUrl: string | null = null
@@ -144,17 +154,39 @@ export class EmployeesService {
       throw new Error('No valid fields to update')
     }
 
+    const oldEmployee = await employeesRepository.findById(id)
     const employee = await employeesRepository.updateById(id, cleanedUpdates)
     
     if (!employee) {
       throw new Error('Failed to update employee')
     }
 
+    await AuditService.log(
+      'UPDATE',
+      'employee',
+      id,
+      userId || null,
+      oldEmployee,
+      employee
+    )
+
     return employee
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, userId?: string): Promise<void> {
+    const employee = await employeesRepository.findById(id)
     await employeesRepository.delete(id)
+
+    if (employee) {
+      await AuditService.log(
+        'DELETE',
+        'employee',
+        id,
+        userId || null,
+        employee,
+        null
+      )
+    }
   }
 
   async bulkUpdateActive(ids: string[], isActive: boolean): Promise<void> {

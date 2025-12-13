@@ -4,6 +4,7 @@
 
 import { PermissionsRepository } from './permissions.repository'
 import { PermissionService as CorePermissionService } from '../../services/permission.service'
+import { AuditService } from '../../services/audit.service'
 import { logInfo, logError } from '../../config/logger'
 import type {
   CreateModuleDto,
@@ -110,6 +111,15 @@ export class PermissionsService {
         await this.repository.createPermission(perm)
       }
 
+      await AuditService.log(
+        'CREATE',
+        'role',
+        role.id,
+        createdBy || null,
+        null,
+        role
+      )
+
       logInfo('Role created with default permissions', {
         roleId: role.id,
         name: dto.name,
@@ -127,8 +137,22 @@ export class PermissionsService {
     return await this.repository.updateRole(id, updates)
   }
 
-  async deleteRole(id: string) {
-    return await this.repository.deleteRole(id)
+  async deleteRole(id: string, deletedBy?: string) {
+    const role = await this.repository.getRoleById(id)
+    const result = await this.repository.deleteRole(id)
+
+    if (result && role) {
+      await AuditService.log(
+        'DELETE',
+        'role',
+        id,
+        deletedBy || null,
+        role,
+        null
+      )
+    }
+
+    return result
   }
 
   // =====================================================
@@ -146,7 +170,17 @@ export class PermissionsService {
     changedBy?: string
   ) {
     try {
+      const oldPermission = await this.repository.getPermission(roleId, moduleId)
       const updated = await this.repository.updatePermission(roleId, moduleId, permissions)
+
+      await AuditService.log(
+        'UPDATE',
+        'role_permission',
+        `${roleId}_${moduleId}`,
+        changedBy || null,
+        oldPermission,
+        updated
+      )
 
       logInfo('Role permission updated', { roleId, moduleId, changedBy })
 
@@ -170,6 +204,17 @@ export class PermissionsService {
       }))
 
       await this.repository.bulkUpdatePermissions(updateData)
+
+      for (const update of updates) {
+        await AuditService.log(
+          'UPDATE',
+          'role_permission',
+          `${roleId}_${update.moduleId}`,
+          changedBy || null,
+          null,
+          update.permissions
+        )
+      }
 
       logInfo('Bulk role permissions updated', { roleId, count: updates.length, changedBy })
 

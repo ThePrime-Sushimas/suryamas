@@ -139,7 +139,7 @@ export class PermissionsController {
   deleteRole = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { id } = req.params
-      const success = await this.service.deleteRole(id)
+      const success = await this.service.deleteRole(id, req.user?.id)
 
       if (!success) {
         sendError(res, 'Failed to delete role', 400)
