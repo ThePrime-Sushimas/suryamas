@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Company, CreateCompanyDto, UpdateCompanyDto, CompanyType, CompanyStatus } from '@/types/company'
+import type { Company, CompanyType, CompanyStatus } from '@/types/company'
 
 interface CompanyFormProps {
   initialData?: Company
