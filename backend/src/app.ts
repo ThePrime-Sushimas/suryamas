@@ -3,6 +3,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import authRoutes from './modules/auth/auth.routes'
 import employeesRoutes from './modules/employees/employees.routes'
+import companiesRoutes from './modules/companies/companies.routes'
 import permissionsRoutes from './modules/permissions/permissions.routes'
 import usersRoutes from './modules/users/users.routes'
 import { errorHandler } from './middleware/error.middleware'
@@ -24,6 +25,7 @@ app.get('/health', (req, res) => {
 // API v1 Routes
 app.use('/api/v1/auth', authRoutes)
 app.use('/api/v1/employees', employeesRoutes)
+app.use('/api/v1/companies', companiesRoutes)
 app.use('/api/v1/permissions', permissionsRoutes)
 app.use('/api/v1/users', usersRoutes)
 
