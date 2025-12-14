@@ -34,33 +34,15 @@ export class PermissionsService {
 
   async createModule(dto: CreateModuleDto, createdBy?: string) {
     try {
-      // Check if exists
-      const existing = await this.repository.getModuleByName(dto.name)
-      if (existing) {
-        throw new Error('Module already exists')
+      // Delegate to CorePermissionService for consistency
+
+      const module = await CorePermissionService.registerModule(
+        dto.name ?? "",
+        dto.description ?? ""
+      );
+      if (!module) {
+        throw new Error('Failed to create module')
       }
-
-      // Create module
-      const module = await this.repository.createModule(dto)
-
-      // Create default permissions for all roles
-      const roles = await this.repository.getAllRoles()
-      const permissions = roles.map((role) => ({
-        role_id: role.id,
-        module_id: module.id,
-        ...createDefaultPermissions(role.name),
-      }))
-
-      for (const perm of permissions) {
-        await this.repository.createPermission(perm)
-      }
-
-      logInfo('Module created with default permissions', {
-        moduleId: module.id,
-        name: dto.name,
-        roleCount: roles.length,
-      })
-
       return module
     } catch (error: any) {
       logError('Failed to create module', { error: error.message })
@@ -111,14 +93,16 @@ export class PermissionsService {
         await this.repository.createPermission(perm)
       }
 
-      await AuditService.log(
-        'CREATE',
-        'role',
-        role.id,
-        createdBy || null,
-        null,
-        role
-      )
+      if (createdBy) {
+        await AuditService.log(
+          'CREATE',
+          'role',
+          role.id,
+          createdBy,
+          null,
+          role
+        )
+      }
 
       logInfo('Role created with default permissions', {
         roleId: role.id,
@@ -141,12 +125,12 @@ export class PermissionsService {
     const role = await this.repository.getRoleById(id)
     const result = await this.repository.deleteRole(id)
 
-    if (result && role) {
+    if (result && role && deletedBy) {
       await AuditService.log(
         'DELETE',
         'role',
         id,
-        deletedBy || null,
+        deletedBy,
         role,
         null
       )
@@ -170,60 +154,21 @@ export class PermissionsService {
     changedBy?: string
   ) {
     try {
-      const oldPermission = await this.repository.getPermission(roleId, moduleId)
-      const updated = await this.repository.updatePermission(roleId, moduleId, permissions)
-
-      await AuditService.log(
-        'UPDATE',
-        'role_permission',
-        `${roleId}_${moduleId}`,
-        changedBy || null,
-        oldPermission,
-        updated
+      // Delegate to CorePermissionService for consistency
+      const result = await CorePermissionService.updateRolePermissions(
+        roleId,
+        moduleId,
+        permissions,
+        changedBy
       )
-
-      logInfo('Role permission updated', { roleId, moduleId, changedBy })
-
-      return updated
+      return result
     } catch (error: any) {
       logError('Failed to update role permission', { error: error.message })
       throw error
     }
   }
 
-  async bulkUpdateRolePermissions(
-    roleId: string,
-    updates: Array<{ moduleId: string; permissions: UpdateRolePermissionsDto }>,
-    changedBy?: string
-  ) {
-    try {
-      const updateData = updates.map((u) => ({
-        roleId,
-        moduleId: u.moduleId,
-        permissions: u.permissions,
-      }))
 
-      await this.repository.bulkUpdatePermissions(updateData)
-
-      for (const update of updates) {
-        await AuditService.log(
-          'UPDATE',
-          'role_permission',
-          `${roleId}_${update.moduleId}`,
-          changedBy || null,
-          null,
-          update.permissions
-        )
-      }
-
-      logInfo('Bulk role permissions updated', { roleId, count: updates.length, changedBy })
-
-      return true
-    } catch (error: any) {
-      logError('Failed to bulk update permissions', { error: error.message })
-      throw error
-    }
-  }
 
   // =====================================================
   // SEED DEFAULT DATA

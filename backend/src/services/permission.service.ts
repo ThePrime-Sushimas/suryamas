@@ -310,7 +310,7 @@ export class PermissionService {
     moduleId: string,
     permissions: UpdateRolePermissionsDto,
     changedBy?: string
-  ): Promise<boolean> {
+  ): Promise<RolePermission | null> {
     try {
       // Get old value for audit
       const { data: oldPerm } = await supabase
@@ -321,11 +321,13 @@ export class PermissionService {
         .single()
 
       // Update permissions
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from('perm_role_permissions')
         .update(permissions)
         .eq('role_id', roleId)
         .eq('module_id', moduleId)
+        .select()
+        .single()
 
       if (error) throw error
 
@@ -345,19 +347,20 @@ export class PermissionService {
       await this.invalidateRoleCache(roleId)
 
       logInfo('Role permissions updated', { roleId, moduleId })
-      return true
+      return updated as RolePermission
     } catch (error: any) {
       logError('Failed to update role permissions', {
         roleId,
         moduleId,
         error: error.message,
       })
-      return false
+      return null
     }
   }
 
   /**
    * Bulk update permissions for a role
+   * Invalidates cache once at the end for efficiency
    */
   static async bulkUpdateRolePermissions(
     roleId: string,
@@ -366,13 +369,35 @@ export class PermissionService {
   ): Promise<boolean> {
     try {
       for (const update of updates) {
-        await this.updateRolePermissions(
-          roleId,
-          update.moduleId,
-          update.permissions,
-          changedBy
-        )
+        const { data: oldPerm } = await supabase
+          .from('perm_role_permissions')
+          .select('*')
+          .eq('role_id', roleId)
+          .eq('module_id', update.moduleId)
+          .single()
+
+        const { error } = await supabase
+          .from('perm_role_permissions')
+          .update(update.permissions)
+          .eq('role_id', roleId)
+          .eq('module_id', update.moduleId)
+
+        if (error) throw error
+
+        if (changedBy) {
+          await this.logAudit({
+            action: 'UPDATE',
+            entity_type: 'permission',
+            entity_id: roleId,
+            changed_by: changedBy,
+            old_value: oldPerm,
+            new_value: update.permissions,
+          })
+        }
       }
+
+      await this.invalidateRoleCache(roleId)
+      logInfo('Bulk role permissions updated', { roleId, count: updates.length, changedBy })
       return true
     } catch (error: any) {
       logError('Bulk update failed', { roleId, error: error.message })
@@ -428,6 +453,7 @@ export class PermissionService {
 
   /**
    * Invalidate cache for all users with specific role
+   * Public method for external use
    */
   static async invalidateRoleCache(roleId: string): Promise<void> {
     try {
@@ -449,7 +475,7 @@ export class PermissionService {
   /**
    * Invalidate all permission cache
    */
-  private static async invalidateAllCache(): Promise<void> {
+  static async invalidateAllCache(): Promise<void> {
     try {
       await supabase.from('perm_cache').delete().neq('user_id', '00000000-0000-0000-0000-000000000000')
       logInfo('All permission cache invalidated')

@@ -5,6 +5,7 @@
 import { Response } from 'express'
 import { AuthRequest } from '../../types/common.types'
 import { PermissionsService } from './permissions.service'
+import { PermissionService as CorePermissionService } from '../../services/permission.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logError } from '../../config/logger'
 
@@ -189,7 +190,7 @@ export class PermissionsController {
       const { roleId } = req.params
       const { updates } = req.body // Array of { moduleId, permissions }
 
-      await this.service.bulkUpdateRolePermissions(roleId, updates, req.user?.id)
+      await CorePermissionService.bulkUpdateRolePermissions(roleId, updates, req.user?.id)
       sendSuccess(res, null, 'Role permissions updated successfully')
     } catch (error: any) {
       logError('Bulk update role permissions failed', { error: error.message })
