@@ -6,14 +6,17 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
   
   res.on('finish', () => {
     const duration = Date.now() - start
-    logInfo('HTTP Request', {
-      method: req.method,
-      path: req.path,
-      status: res.statusCode,
-      duration: `${duration}ms`,
-      ip: req.ip,
-      userAgent: req.headers['user-agent']
-    })
+    // Only log slow requests (>500ms) or errors
+    if (duration > 500 || res.statusCode >= 400) {
+      logInfo('HTTP Request', {
+        method: req.method,
+        path: req.path,
+        status: res.statusCode,
+        duration: `${duration}ms`,
+        ip: req.ip,
+        userAgent: req.headers['user-agent']
+      })
+    }
   })
   
   next()

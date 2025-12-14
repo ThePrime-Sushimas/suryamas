@@ -2,6 +2,10 @@ import { supabase } from '../../config/supabase'
 import { Employee } from '../../types/employee.types'
 
 export class EmployeesRepository {
+  private static filterOptionsCache: any = null
+  private static filterOptionsCacheExpiry = 0
+  private static readonly CACHE_TTL = 30 * 60 * 1000 // 30 minutes
+
   async findAll(pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<{ data: Employee[]; total: number }> {
     let query = supabase.from('employees').select('*')
     
@@ -28,6 +32,7 @@ export class EmployeesRepository {
       .single()
 
     if (error) throw new Error(error.message)
+    EmployeesRepository.filterOptionsCache = null
     return employee
   }
 
@@ -127,6 +132,7 @@ export class EmployeesRepository {
       .maybeSingle()
 
     if (error) throw new Error(error.message)
+    EmployeesRepository.filterOptionsCache = null
     return data
   }
 
@@ -139,6 +145,7 @@ export class EmployeesRepository {
       .maybeSingle()
 
     if (error) throw new Error(error.message)
+    EmployeesRepository.filterOptionsCache = null
     return data
   }
 
@@ -165,16 +172,26 @@ export class EmployeesRepository {
   }
 
   async getFilterOptions(): Promise<{ branches: string[]; positions: string[]; statuses: string[] }> {
-    const [branchesRes, positionsRes] = await Promise.all([
-      supabase.from('employees').select('branch_name').order('branch_name'),
-      supabase.from('employees').select('job_position').order('job_position')
-    ])
+    if (EmployeesRepository.filterOptionsCache && EmployeesRepository.filterOptionsCacheExpiry > Date.now()) {
+      return EmployeesRepository.filterOptionsCache
+    }
 
-    const branches = [...new Set(branchesRes.data?.map(e => e.branch_name).filter(Boolean))] as string[]
-    const positions = [...new Set(positionsRes.data?.map(e => e.job_position).filter(Boolean))] as string[]
+    const { data, error } = await supabase
+      .from('employees')
+      .select('branch_name, job_position')
+      .eq('is_active', true)
+
+    if (error) throw new Error(error.message)
+
+    const branches = [...new Set(data?.map(e => e.branch_name).filter(Boolean))] as string[]
+    const positions = [...new Set(data?.map(e => e.job_position).filter(Boolean))] as string[]
     const statuses = ['Permanent', 'Contract']
 
-    return { branches, positions, statuses }
+    const result = { branches, positions, statuses }
+    EmployeesRepository.filterOptionsCache = result
+    EmployeesRepository.filterOptionsCacheExpiry = Date.now() + EmployeesRepository.CACHE_TTL
+
+    return result
   }
 
   async exportData(filter?: any): Promise<Employee[]> {
@@ -200,11 +217,13 @@ export class EmployeesRepository {
   async bulkUpdateActive(ids: string[], isActive: boolean): Promise<void> {
     const { error } = await supabase.from('employees').update({ is_active: isActive }).in('id', ids)
     if (error) throw new Error(error.message)
+    EmployeesRepository.filterOptionsCache = null
   }
 
   async bulkDelete(ids: string[]): Promise<void> {
     const { error } = await supabase.from('employees').delete().in('id', ids)
     if (error) throw new Error(error.message)
+    EmployeesRepository.filterOptionsCache = null
   }
 
   async getLastEmployeeId(): Promise<string | null> {

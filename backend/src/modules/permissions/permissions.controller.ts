@@ -11,6 +11,11 @@ import { logError } from '../../config/logger'
 
 export class PermissionsController {
   private service: PermissionsService
+  private static modulesCache: any[] | null = null
+  private static rolesCacheMap = new Map<string, any>()
+  private static readonly CACHE_TTL = 10 * 60 * 1000 // 10 minutes
+  private static modulesCacheExpiry = 0
+  private static rolesCacheExpiry = 0
 
   constructor() {
     this.service = new PermissionsService()
@@ -22,7 +27,13 @@ export class PermissionsController {
 
   getAllModules = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
+      if (PermissionsController.modulesCache && PermissionsController.modulesCacheExpiry > Date.now()) {
+        sendSuccess(res, PermissionsController.modulesCache, 'Modules retrieved successfully')
+        return
+      }
       const modules = await this.service.getAllModules()
+      PermissionsController.modulesCache = modules
+      PermissionsController.modulesCacheExpiry = Date.now() + PermissionsController.CACHE_TTL
       sendSuccess(res, modules, 'Modules retrieved successfully')
     } catch (error: any) {
       logError('Get modules failed', { error: error.message })
@@ -78,6 +89,7 @@ export class PermissionsController {
         return
       }
 
+      PermissionsController.modulesCache = null
       sendSuccess(res, null, 'Module deleted successfully')
     } catch (error: any) {
       logError('Delete module failed', { error: error.message })
@@ -91,7 +103,15 @@ export class PermissionsController {
 
   getAllRoles = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
+      const cacheKey = 'all_roles'
+      const cached = PermissionsController.rolesCacheMap.get(cacheKey)
+      if (cached && PermissionsController.rolesCacheExpiry > Date.now()) {
+        sendSuccess(res, cached, 'Roles retrieved successfully')
+        return
+      }
       const roles = await this.service.getAllRoles()
+      PermissionsController.rolesCacheMap.set(cacheKey, roles)
+      PermissionsController.rolesCacheExpiry = Date.now() + PermissionsController.CACHE_TTL
       sendSuccess(res, roles, 'Roles retrieved successfully')
     } catch (error: any) {
       logError('Get roles failed', { error: error.message })
@@ -102,6 +122,11 @@ export class PermissionsController {
   getRoleById = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { id } = req.params
+      const cached = PermissionsController.rolesCacheMap.get(id)
+      if (cached && PermissionsController.rolesCacheExpiry > Date.now()) {
+        sendSuccess(res, cached, 'Role retrieved successfully')
+        return
+      }
       const role = await this.service.getRoleById(id)
 
       if (!role) {
@@ -109,6 +134,8 @@ export class PermissionsController {
         return
       }
 
+      PermissionsController.rolesCacheMap.set(id, role)
+      PermissionsController.rolesCacheExpiry = Date.now() + PermissionsController.CACHE_TTL
       sendSuccess(res, role, 'Role retrieved successfully')
     } catch (error: any) {
       logError('Get role failed', { error: error.message })
@@ -147,6 +174,8 @@ export class PermissionsController {
         return
       }
 
+      PermissionsController.rolesCacheMap.delete(id)
+      PermissionsController.rolesCacheMap.delete('all_roles')
       sendSuccess(res, null, 'Role deleted successfully')
     } catch (error: any) {
       logError('Delete role failed', { error: error.message })

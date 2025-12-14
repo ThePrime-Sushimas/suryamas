@@ -1,4 +1,5 @@
 import { Request } from 'express'
+import type { PermissionMatrix } from './permission.types'
 
 export interface AuthRequest extends Request {
   user?: {
@@ -6,6 +7,7 @@ export interface AuthRequest extends Request {
     email: string
     [key: string]: any
   }
+  permissions?: PermissionMatrix
 }
 
 export interface ApiResponse<T = any> {

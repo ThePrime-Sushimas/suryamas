@@ -81,6 +81,10 @@ export class CompaniesRepository {
     return company
   }
 
+  invalidateCache(): void {
+    // Placeholder for future cache invalidation if needed
+  }
+
   async findById(id: string): Promise<Company | null> {
     const { data, error } = await supabase
       .from('companies')
@@ -123,6 +127,7 @@ export class CompaniesRepository {
       .maybeSingle()
 
     if (error) throw new Error(error.message)
+    this.invalidateCache()
     return data
   }
 
@@ -133,6 +138,7 @@ export class CompaniesRepository {
       .eq('id', id)
 
     if (error) throw new Error(error.message)
+    this.invalidateCache()
   }
 
   async bulkUpdateStatus(ids: string[], status: string): Promise<void> {
@@ -142,6 +148,7 @@ export class CompaniesRepository {
       .in('id', ids)
 
     if (error) throw new Error(error.message)
+    this.invalidateCache()
   }
 
   async bulkDelete(ids: string[]): Promise<void> {
@@ -151,6 +158,7 @@ export class CompaniesRepository {
       .in('id', ids)
 
     if (error) throw new Error(error.message)
+    this.invalidateCache()
   }
 
   async exportData(filter?: any): Promise<Company[]> {

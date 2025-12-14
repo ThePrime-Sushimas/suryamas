@@ -22,6 +22,11 @@ import {
 } from '../utils/permissions.util'
 
 export class PermissionService {
+  private static memoryCache = new Map<string, { permissions: PermissionMatrix; expiresAt: number }>()
+  private static userPermissionsCache = new Map<string, { permissions: PermissionMatrix; expiresAt: number }>()
+  private static readonly MEMORY_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+  private static readonly USER_PERMISSIONS_CACHE_TTL = 10 * 60 * 1000 // 10 minutes
+
   // =====================================================
   // MODULE REGISTRATION
   // =====================================================
@@ -44,7 +49,6 @@ export class PermissionService {
         .single()
 
       if (existing) {
-        logInfo('Module already registered', { module: name })
         return existing as Module
       }
 
@@ -131,7 +135,7 @@ export class PermissionService {
 
   /**
    * Check if user has specific permission
-   * Uses cache if available, otherwise queries database
+   * Uses memory cache first, then database cache, then queries database
    */
   static async hasPermission(
     userId: string,
@@ -145,11 +149,24 @@ export class PermissionService {
         return { allowed: true, reason: 'Public module' }
       }
 
-      // Try cache first
+      // Try memory cache first
+      const memCached = this.memoryCache.get(userId)
+      if (memCached && memCached.expiresAt > Date.now()) {
+        const allowed = memCached.permissions[moduleName]?.[action] || false
+        logInfo('Permission from memory cache', { userId, moduleName, action, allowed })
+        return { allowed, cached: true }
+      }
+
+      // Try database cache
       const cached = await this.getFromCache(userId)
       if (cached && Object.keys(cached).length > 0) {
         const allowed = cached[moduleName]?.[action] || false
-        logInfo('Permission from cache', { userId, moduleName, action, allowed })
+        // Update memory cache
+        this.memoryCache.set(userId, {
+          permissions: cached,
+          expiresAt: Date.now() + this.MEMORY_CACHE_TTL,
+        })
+        logInfo('Permission from database cache', { userId, moduleName, action, allowed })
         return { allowed, cached: true }
       }
       
@@ -171,7 +188,7 @@ export class PermissionService {
       logInfo('Permission check result', { userId, moduleName, action, data, dataType: typeof data })
       const allowed = data === true
 
-      // Update cache
+      // Update both caches
       await this.updateCache(userId)
 
       return { allowed, cached: false }
@@ -206,9 +223,16 @@ export class PermissionService {
 
   /**
    * Get all permissions for a user (flattened)
+   * Uses cache to avoid repeated database queries
    */
   static async getUserPermissions(userId: string): Promise<PermissionMatrix> {
     try {
+      // Check cache first
+      const cached = this.userPermissionsCache.get(userId)
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.permissions
+      }
+
       // Get user's role
       const { data: profile, error: profileError } = await supabase
         .from('perm_user_profiles')
@@ -247,6 +271,12 @@ export class PermissionService {
           release: perm.can_release,
         }
       }
+
+      // Cache result
+      this.userPermissionsCache.set(userId, {
+        permissions: matrix,
+        expiresAt: Date.now() + this.USER_PERMISSIONS_CACHE_TTL,
+      })
 
       return matrix
     } catch (error: any) {
@@ -465,6 +495,11 @@ export class PermissionService {
       if (users && users.length > 0) {
         const userIds = users.map((u) => u.user_id)
         await supabase.from('perm_cache').delete().in('user_id', userIds)
+        // Also clear memory caches
+        userIds.forEach((id) => {
+          this.memoryCache.delete(id)
+          this.userPermissionsCache.delete(id)
+        })
         logInfo('Role cache invalidated', { roleId, userCount: users.length })
       }
     } catch (error: any) {
@@ -478,6 +513,9 @@ export class PermissionService {
   static async invalidateAllCache(): Promise<void> {
     try {
       await supabase.from('perm_cache').delete().neq('user_id', '00000000-0000-0000-0000-000000000000')
+      // Also clear memory caches
+      this.memoryCache.clear()
+      this.userPermissionsCache.clear()
       logInfo('All permission cache invalidated')
     } catch (error: any) {
       logWarn('Cache invalidation failed', { error: error.message })

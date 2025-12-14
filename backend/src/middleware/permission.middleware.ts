@@ -32,16 +32,15 @@ function checkPermission(moduleName: string, action: PermissionAction) {
         return
       }
 
-      // Check permission
-      const result = await PermissionService.hasPermission(req.user.id, moduleName, action)
+      // Check from preloaded permissions (no RPC)
+      const allowed = req.permissions?.[moduleName]?.[action] || false
 
-      if (!result.allowed) {
+      if (!allowed) {
         logWarn('Permission denied', {
           userId: req.user.id,
           module: moduleName,
           action,
           path: req.path,
-          reason: result.reason,
         })
         sendError(
           res,
@@ -112,19 +111,14 @@ export function requirePermissions(
         return
       }
 
-      // Check all permissions
-      const checks = actions.map((action) => ({ module: moduleName, action }))
-      const results = await PermissionService.hasPermissions(req.user.id, checks)
-
-      // All must be true
-      const allAllowed = Object.values(results).every((allowed) => allowed)
+      // Check all permissions from preloaded matrix
+      const allAllowed = actions.every((action) => req.permissions?.[moduleName]?.[action])
 
       if (!allAllowed) {
         logWarn('Multiple permissions denied', {
           userId: req.user.id,
           module: moduleName,
           actions,
-          results,
         })
         sendError(res, `Insufficient permissions for ${moduleName}`, 403)
         return
@@ -160,12 +154,8 @@ export function requireAnyPermission(
         return
       }
 
-      // Check all permissions
-      const checks = actions.map((action) => ({ module: moduleName, action }))
-      const results = await PermissionService.hasPermissions(req.user.id, checks)
-
-      // At least one must be true
-      const anyAllowed = Object.values(results).some((allowed) => allowed)
+      // Check any permission from preloaded matrix
+      const anyAllowed = actions.some((action) => req.permissions?.[moduleName]?.[action])
 
       if (!anyAllowed) {
         logWarn('No permissions matched', {

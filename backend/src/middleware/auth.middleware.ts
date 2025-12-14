@@ -3,6 +3,10 @@ import { supabase } from '../config/supabase'
 import { AuthRequest } from '../types/common.types'
 import { sendError } from '../utils/response.util'
 import { logWarn } from '../config/logger'
+import { PermissionService } from '../services/permission.service'
+
+const resignedCache = new Map<string, { isResigned: boolean; expiresAt: number }>()
+const RESIGNED_CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 
 export const authenticate = async (
   req: AuthRequest,
@@ -32,13 +36,26 @@ export const authenticate = async (
     return
   }
 
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('resign_date')
-    .eq('user_id', user.id)
-    .maybeSingle()
+  // Check resigned status from cache first
+  let isResigned = false
+  const cached = resignedCache.get(user.id)
+  if (cached && cached.expiresAt > Date.now()) {
+    isResigned = cached.isResigned
+  } else {
+    // Only query if not cached
+    const { data: employee } = await supabase
+      .from('employees')
+      .select('resign_date')
+      .eq('user_id', user.id)
+      .maybeSingle()
 
-  const isResigned = employee?.resign_date && new Date(employee.resign_date) < new Date()
+    isResigned = employee?.resign_date && new Date(employee.resign_date) < new Date()
+    resignedCache.set(user.id, {
+      isResigned,
+      expiresAt: Date.now() + RESIGNED_CACHE_TTL,
+    })
+  }
+
   if (isResigned) {
     logWarn('Authentication failed: Employee has resigned', {
       path: req.path,
@@ -50,5 +67,9 @@ export const authenticate = async (
   }
 
   req.user = user as any
+  
+  // Preload permissions for this request
+  req.permissions = await PermissionService.getUserPermissions(user.id)
+  
   next()
 }
