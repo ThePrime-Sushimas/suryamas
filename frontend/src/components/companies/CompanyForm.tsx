@@ -4,7 +4,7 @@ import type { Company, CreateCompanyDto, UpdateCompanyDto, CompanyType, CompanyS
 interface CompanyFormProps {
   initialData?: Company
   isEdit?: boolean
-  onSubmit: (data: CreateCompanyDto | UpdateCompanyDto) => Promise<void>
+  onSubmit: (data: any) => Promise<void>
   isLoading?: boolean
 }
 
