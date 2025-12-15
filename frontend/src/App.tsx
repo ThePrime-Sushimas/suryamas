@@ -20,6 +20,10 @@ import CompaniesPage from './pages/companies/CompaniesPage'
 import CreateCompanyPage from './pages/companies/CreateCompanyPage'
 import CompanyDetailPage from './pages/companies/CompanyDetailPage'
 import EditCompanyPage from './pages/companies/EditCompanyPage'
+import BranchesPage from './pages/branches/BranchesPage'
+import CreateBranchPage from './pages/branches/CreateBranchPage'
+import BranchDetailPage from './pages/branches/BranchDetailPage'
+import EditBranchPage from './pages/branches/EditBranchPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isInitialized } = useAuthStore()
@@ -120,6 +124,38 @@ function App() {
             element={
               <ProtectedRoute>
                 <EditCompanyPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="branches"
+            element={
+              <ProtectedRoute>
+                <BranchesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="branches/new"
+            element={
+              <ProtectedRoute>
+                <CreateBranchPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="branches/:id"
+            element={
+              <ProtectedRoute>
+                <BranchDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="branches/:id/edit"
+            element={
+              <ProtectedRoute>
+                <EditBranchPage />
               </ProtectedRoute>
             }
           />

@@ -375,6 +375,8 @@ export class PermissionService {
 
       // Invalidate cache for all users with this role
       await this.invalidateRoleCache(roleId)
+      // Also invalidate all cache to ensure immediate update
+      await this.invalidateAllCache()
 
       logInfo('Role permissions updated', { roleId, moduleId })
       return updated as RolePermission
@@ -427,6 +429,8 @@ export class PermissionService {
       }
 
       await this.invalidateRoleCache(roleId)
+      // Also invalidate all cache to ensure immediate update
+      await this.invalidateAllCache()
       logInfo('Bulk role permissions updated', { roleId, count: updates.length, changedBy })
       return true
     } catch (error: any) {
