@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Branch, BranchStatus, CreateBranchDto, UpdateBranchDto } from '@/types/branch'
+import type { Branch, BranchStatus } from '@/types/branch'
 import type { Company } from '@/types/company'
 import type { Employee } from '@/types'
 import { companyService } from '@/services/companyService'
