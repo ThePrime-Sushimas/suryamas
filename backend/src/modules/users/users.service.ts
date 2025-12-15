@@ -4,6 +4,7 @@
 
 import { UsersRepository } from './users.repository'
 import { supabase } from '../../config/supabase'
+import { PermissionService as CorePermissionService } from '../../services/permission.service'
 import { logInfo, logError } from '../../config/logger'
 
 export class UsersService {
@@ -49,6 +50,7 @@ export class UsersService {
       
       // Invalidate cache
       await supabase.from('perm_cache').delete().eq('user_id', userId)
+      await CorePermissionService.invalidateAllCache()
       
       logInfo('User role assigned', { userId, roleId, changedBy })
       return result
@@ -64,6 +66,7 @@ export class UsersService {
       
       // Invalidate cache
       await supabase.from('perm_cache').delete().eq('user_id', userId)
+      await CorePermissionService.invalidateAllCache()
       
       logInfo('User role removed', { userId, changedBy })
       return true

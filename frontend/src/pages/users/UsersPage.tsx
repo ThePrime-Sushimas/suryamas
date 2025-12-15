@@ -77,8 +77,9 @@ export default function UsersPage() {
     
     try {
       await userService.removeRole(employeeId)
-      await loadData()
       alert('Role removed successfully!')
+      // Reload data to ensure fresh state
+      await loadData()
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to remove role')
     }

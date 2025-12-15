@@ -41,6 +41,8 @@ export default function UserEditPage() {
     try {
       await userService.assignRole(id, selectedRole)
       alert('Role updated successfully!')
+      // Reload data to ensure fresh state
+      await loadData()
       navigate('/users')
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to update role')

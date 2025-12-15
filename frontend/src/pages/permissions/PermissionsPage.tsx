@@ -15,6 +15,7 @@ export default function PermissionsPage() {
   const [editModal, setEditModal] = useState(false)
   const [newRole, setNewRole] = useState({ name: '', description: '' })
   const [editRole, setEditRole] = useState({ id: '', name: '', description: '' })
+  const [saveStatus, setSaveStatus] = useState<Record<string, 'pending' | 'success' | 'error'>>({})
 
   useEffect(() => {
     loadData()
@@ -28,7 +29,9 @@ export default function PermissionsPage() {
       ])
       setRoles(rolesData)
       setModules(modulesData)
-      if (rolesData.length > 0) {
+      if (rolesData.length > 0 && selectedRole) {
+        loadRolePermissions(selectedRole.id)
+      } else if (rolesData.length > 0) {
         loadRolePermissions(rolesData[0].id)
       }
     } catch (error) {
@@ -68,15 +71,34 @@ export default function PermissionsPage() {
     if (!selectedRole || !hasChanges) return
 
     setSaving(true)
+    const newStatus: Record<string, 'pending' | 'success' | 'error'> = {}
+    
     try {
       for (const [moduleId, permissions] of Object.entries(pendingChanges)) {
-        await permissionService.updatePermission(selectedRole.id, moduleId, permissions)
+        newStatus[moduleId] = 'pending'
+        setSaveStatus(prev => ({ ...prev, [moduleId]: 'pending' }))
+        
+        try {
+          await permissionService.updatePermission(selectedRole.id, moduleId, permissions)
+          newStatus[moduleId] = 'success'
+          setSaveStatus(prev => ({ ...prev, [moduleId]: 'success' }))
+        } catch (error) {
+          newStatus[moduleId] = 'error'
+          setSaveStatus(prev => ({ ...prev, [moduleId]: 'error' }))
+          throw error
+        }
       }
       
+      // Reload data from server
+      const roleData = await permissionService.getRoleById(selectedRole.id)
+      setSelectedRole(roleData)
+      
+      // Clear pending changes and hasChanges flag
       setPendingChanges({})
       setHasChanges(false)
-      await loadRolePermissions(selectedRole.id)
-      alert('Permissions saved successfully!')
+      
+      // Clear success indicators after 2 seconds
+      setTimeout(() => setSaveStatus({}), 2000)
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to save')
     } finally {
@@ -239,21 +261,33 @@ export default function PermissionsPage() {
                     {modules.map((module) => {
                       const perm = getPermissionForModule(module.id)
                       return (
-                        <tr key={module.id} className="hover:bg-gray-50">
+                        <tr key={module.id} className={`hover:bg-gray-50 ${
+                          saveStatus[module.id] === 'success' ? 'bg-green-50' : 
+                          saveStatus[module.id] === 'error' ? 'bg-red-50' : ''
+                        }`}>
                           <td className="px-6 py-4">
                             <div className="font-medium">{module.name}</div>
                             <div className="text-sm text-gray-500">{module.description}</div>
+                            {saveStatus[module.id] === 'success' && <div className="text-xs text-green-600 mt-1">✓ Saved</div>}
+                            {saveStatus[module.id] === 'error' && <div className="text-xs text-red-600 mt-1">✗ Failed</div>}
                           </td>
                           {['can_view', 'can_insert', 'can_update', 'can_delete', 'can_approve', 'can_release'].map(
                             (permission) => (
                               <td key={permission} className="px-6 py-4 text-center">
-                                <input
-                                  type="checkbox"
-                                  checked={perm?.[permission as keyof typeof perm] as boolean || false}
-                                  onChange={(e) => handlePermissionChange(module.id, permission, e.target.checked)}
-                                  disabled={saving}
-                                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                                />
+                                <div className="relative inline-block">
+                                  <input
+                                    type="checkbox"
+                                    checked={perm?.[permission as keyof typeof perm] as boolean || false}
+                                    onChange={(e) => handlePermissionChange(module.id, permission, e.target.checked)}
+                                    disabled={saving}
+                                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                  />
+                                  {saveStatus[module.id] === 'pending' && (
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                    </div>
+                                  )}
+                                </div>
                               </td>
                             )
                           )}

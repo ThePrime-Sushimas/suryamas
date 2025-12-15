@@ -61,6 +61,10 @@ export class PermissionsController {
   createModule = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const module = await this.service.createModule(req.body, req.user?.id)
+      // Clear controller cache
+      PermissionsController.modulesCache = null
+      // Clear core permission cache
+      await CorePermissionService.invalidateAllCache()
       sendSuccess(res, module, 'Module created successfully', 201)
     } catch (error: any) {
       logError('Create module failed', { error: error.message })
@@ -72,6 +76,10 @@ export class PermissionsController {
     try {
       const { id } = req.params
       const module = await this.service.updateModule(id, req.body)
+      // Clear controller cache
+      PermissionsController.modulesCache = null
+      // Clear core permission cache
+      await CorePermissionService.invalidateAllCache()
       sendSuccess(res, module, 'Module updated successfully')
     } catch (error: any) {
       logError('Update module failed', { error: error.message })
@@ -146,6 +154,10 @@ export class PermissionsController {
   createRole = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const role = await this.service.createRole(req.body, req.user?.id)
+      // Clear controller cache
+      PermissionsController.rolesCacheMap.delete('all_roles')
+      // Clear core permission cache
+      await CorePermissionService.invalidateAllCache()
       sendSuccess(res, role, 'Role created successfully', 201)
     } catch (error: any) {
       logError('Create role failed', { error: error.message })
@@ -157,6 +169,11 @@ export class PermissionsController {
     try {
       const { id } = req.params
       const role = await this.service.updateRole(id, req.body)
+      // Clear controller cache
+      PermissionsController.rolesCacheMap.delete(id)
+      PermissionsController.rolesCacheMap.delete('all_roles')
+      // Clear core permission cache
+      await CorePermissionService.invalidateAllCache()
       sendSuccess(res, role, 'Role updated successfully')
     } catch (error: any) {
       logError('Update role failed', { error: error.message })
@@ -207,6 +224,9 @@ export class PermissionsController {
         req.body,
         req.user?.id
       )
+      // Clear controller cache
+      PermissionsController.rolesCacheMap.delete(roleId)
+      PermissionsController.rolesCacheMap.delete('all_roles')
       sendSuccess(res, permission, 'Role permission updated successfully')
     } catch (error: any) {
       logError('Update role permission failed', { error: error.message })
@@ -220,6 +240,9 @@ export class PermissionsController {
       const { updates } = req.body // Array of { moduleId, permissions }
 
       await CorePermissionService.bulkUpdateRolePermissions(roleId, updates, req.user?.id)
+      // Clear controller cache
+      PermissionsController.rolesCacheMap.delete(roleId)
+      PermissionsController.rolesCacheMap.delete('all_roles')
       sendSuccess(res, null, 'Role permissions updated successfully')
     } catch (error: any) {
       logError('Bulk update role permissions failed', { error: error.message })
