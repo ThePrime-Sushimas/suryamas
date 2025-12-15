@@ -20,7 +20,7 @@ const defaultIcon = L.icon({
 
 function MapClickHandler({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number) => void }) {
   useMapEvents({
-    click(e) {
+    click(e: any) {
       onLocationSelect(e.latlng.lat, e.latlng.lng)
     },
   })
@@ -60,7 +60,7 @@ export function MapPicker({ latitude, longitude, onLocationSelect }: MapPickerPr
           <MapContainer center={center} zoom={13} style={{ height: '400px', width: '100%' }}>
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; OpenStreetMap contributors'
+              attribution="&copy; OpenStreetMap contributors"
             />
             {latitude && longitude && <Marker position={[latitude, longitude]} icon={defaultIcon} />}
             <MapClickHandler onLocationSelect={onLocationSelect} />
