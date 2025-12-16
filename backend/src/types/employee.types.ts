@@ -4,6 +4,12 @@ export type StatusEmployee = 'Permanent' | 'Contract'
 export type Gender = 'Male' | 'Female'
 export type MaritalStatus = 'Single' | 'Married' | 'Divorced' | 'Widow'
 
+export type EmployeeWithBranch = Employee & {
+  branch_name?: string | null
+  branch_code?: string | null
+  branch_city?: string | null
+}
+
 export interface Employee {
   id: string
   employee_id: string
@@ -26,7 +32,7 @@ export interface Employee {
   bank_account_holder: string | null
   nik: string | null
   mobile_phone: string | null
-  branch_name: string
+  branch_name?: string | null
   brand_name: string | null
   religion: Religion | null
   gender: Gender | null
