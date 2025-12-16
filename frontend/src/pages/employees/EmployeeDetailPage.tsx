@@ -59,6 +59,12 @@ export default function EmployeeDetailPage() {
           </div>
           <div className="flex gap-2">
             <button
+              onClick={() => navigate(`/employees/edit/${id}`)}
+              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+            >
+              Edit
+            </button>
+            <button
               onClick={() => navigate('/employees')}
               className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
             >
