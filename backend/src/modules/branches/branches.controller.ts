@@ -118,6 +118,16 @@ export class BranchesController {
       sendError(res, 'Failed to retrieve filter options', 500)
     }
   }
+
+  minimalActive = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const branches = await branchesService.minimalActive()
+      sendSuccess(res, branches, 'Branches retrieved successfully')
+    } catch (error: any) {
+      logError('Get minimal branches failed', { error: error.message })
+      sendError(res, 'Failed to retrieve branches', 500)
+    }
+  }
 }
 
 export const branchesController = new BranchesController()

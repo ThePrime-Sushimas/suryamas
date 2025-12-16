@@ -193,6 +193,10 @@ export class BranchesService {
   async getFilterOptions() {
     return branchesRepository.getFilterOptions()
   }
+
+  async minimalActive(): Promise<{ id: string; branch_name: string }[]> {
+    return branchesRepository.minimalActive()
+  }
 }
 
 export const branchesService = new BranchesService()

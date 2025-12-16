@@ -193,6 +193,18 @@ export class BranchesRepository {
     const { error } = await supabase.from('branches').insert(branches)
     if (error) throw new Error(error.message)
   }
+
+  async minimalActive(): Promise<{ id: string; branch_name: string }[]> {
+    const { data, error } = await supabase
+      .from('branches')
+      .select('id, branch_name')
+      .eq('status', 'active')
+      .order('branch_name')
+      .limit(1000)
+
+    if (error) throw new Error(error.message)
+    return data || []
+  }
 }
 
 export const branchesRepository = new BranchesRepository()

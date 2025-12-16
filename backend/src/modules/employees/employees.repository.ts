@@ -7,7 +7,14 @@ export class EmployeesRepository {
   private static readonly CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 
   async findAll(pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<{ data: Employee[]; total: number }> {
-    let query = supabase.from('employees').select('*')
+    let query = supabase.from('employees').select(`
+      id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
+      end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
+      ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
+      brand_name, religion, gender, marital_status, profile_picture,
+      created_at, updated_at, user_id, is_active, branch_id,
+      branches:branch_id(id, branch_name, branch_code, city)
+    `)
     
     if (sort) {
       query = query.order(sort.field, { ascending: sort.order === 'asc' })
@@ -21,7 +28,14 @@ export class EmployeesRepository {
     if (error) throw new Error(error.message)
     if (countError) throw new Error(countError.message)
     
-    return { data: data || [], total: count || 0 }
+    const rows = (data || []).map((e: any) => ({
+      ...e,
+      branch_name: e.branches?.branch_name ?? null,
+      branch_code: e.branches?.branch_code ?? null,
+      branch_city: e.branches?.city ?? null,
+    }))
+    
+    return { data: rows as Employee[], total: count || 0 }
   }
 
   async create(data: Partial<Employee>): Promise<Employee | null> {
@@ -39,12 +53,27 @@ export class EmployeesRepository {
   async findById(id: string): Promise<Employee | null> {
     const { data, error } = await supabase
       .from('employees')
-      .select('*')
+      .select(`
+        id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
+        end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
+        ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
+        brand_name, religion, gender, marital_status, profile_picture,
+        created_at, updated_at, user_id, is_active, branch_id,
+        branches:branch_id(id, branch_name, branch_code, city)
+      `)
       .eq('id', id)
       .maybeSingle()
 
     if (error) throw new Error(error.message)
-    return data
+    if (!data) return null
+    
+    const e: any = data
+    return {
+      ...e,
+      branch_name: e.branches?.branch_name ?? null,
+      branch_code: e.branches?.branch_code ?? null,
+      branch_city: e.branches?.city ?? null,
+    }
   }
 
   async findByUserId(userId: string): Promise<Employee | null> {
@@ -59,7 +88,11 @@ export class EmployeesRepository {
   }
 
   async searchByName(searchTerm: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: any): Promise<{ data: Employee[]; total: number }> {
-    let query = supabase.from('employees').select('*')
+    let query = supabase.from('employees').select(`
+      id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
+      email, mobile_phone, is_active, created_at, updated_at, branch_id,
+      branches:branch_id(id, branch_name, branch_code, city)
+    `)
     let countQuery = supabase.from('employees').select('*', { count: 'exact', head: true })
     
     if (searchTerm && searchTerm.trim()) {
@@ -68,9 +101,9 @@ export class EmployeesRepository {
     }
     
     if (filter) {
-      if (filter.branch_name) {
-        query = query.eq('branch_name', filter.branch_name)
-        countQuery = countQuery.eq('branch_name', filter.branch_name)
+      if (filter.branch_id) {
+        query = query.eq('branch_id', filter.branch_id)
+        countQuery = countQuery.eq('branch_id', filter.branch_id)
       }
       if (filter.is_active !== undefined) {
         query = query.eq('is_active', filter.is_active)
@@ -98,7 +131,13 @@ export class EmployeesRepository {
     if (error) throw new Error(error.message)
     if (countError) throw new Error(countError.message)
     
-    return { data: data || [], total: count || 0 }
+    const rows = (data || []).map((e: any) => ({
+      ...e,
+      branch_name: e.branches?.branch_name ?? null,
+      branch_code: e.branches?.branch_code ?? null,
+      branch_city: e.branches?.city ?? null,
+    }))
+    return { data: rows as Employee[], total: count || 0 }
   }
 
   async autocompleteName(query: string): Promise<{id: string, full_name: string}[]> {
@@ -171,20 +210,18 @@ export class EmployeesRepository {
     return data.publicUrl
   }
 
-  async getFilterOptions(): Promise<{ branches: string[]; positions: string[]; statuses: string[] }> {
+  async getFilterOptions(): Promise<{ branches: any[]; positions: string[]; statuses: string[] }> {
     if (EmployeesRepository.filterOptionsCache && EmployeesRepository.filterOptionsCacheExpiry > Date.now()) {
       return EmployeesRepository.filterOptionsCache
     }
 
-    const { data, error } = await supabase
-      .from('employees')
-      .select('branch_name, job_position')
-      .eq('is_active', true)
+    const [{ data: employeeData }, { data: branchData }] = await Promise.all([
+      supabase.from('employees').select('job_position').eq('is_active', true),
+      supabase.from('branches').select('id, branch_name').eq('status', 'active').order('branch_name')
+    ])
 
-    if (error) throw new Error(error.message)
-
-    const branches = [...new Set(data?.map(e => e.branch_name).filter(Boolean))] as string[]
-    const positions = [...new Set(data?.map(e => e.job_position).filter(Boolean))] as string[]
+    const branches = branchData?.map((b: any) => ({ id: b.id, branch_name: b.branch_name })) || []
+    const positions = [...new Set(employeeData?.map((e: any) => e.job_position).filter(Boolean))] as string[]
     const statuses = ['Permanent', 'Contract']
 
     const result = { branches, positions, statuses }
@@ -195,10 +232,17 @@ export class EmployeesRepository {
   }
 
   async exportData(filter?: any): Promise<Employee[]> {
-    let query = supabase.from('employees').select('*')
+    let query = supabase.from('employees').select(`
+      id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
+      end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
+      ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
+      brand_name, religion, gender, marital_status, profile_picture,
+      created_at, updated_at, user_id, is_active, branch_id,
+      branches:branch_id(id, branch_name, branch_code, city)
+    `)
     
     if (filter) {
-      if (filter.branch_name) query = query.eq('branch_name', filter.branch_name)
+      if (filter.branch_id) query = query.eq('branch_id', filter.branch_id)
       if (filter.is_active !== undefined) query = query.eq('is_active', filter.is_active)
       if (filter.status_employee) query = query.eq('status_employee', filter.status_employee)
       if (filter.job_position) query = query.eq('job_position', filter.job_position)
@@ -206,7 +250,14 @@ export class EmployeesRepository {
     
     const { data, error } = await query
     if (error) throw new Error(error.message)
-    return data || []
+    
+    const rows = (data || []).map((e: any) => ({
+      ...e,
+      branch_name: e.branches?.branch_name ?? null,
+      branch_code: e.branches?.branch_code ?? null,
+      branch_city: e.branches?.city ?? null,
+    }))
+    return rows as Employee[]
   }
 
   async bulkCreate(employees: Partial<Employee>[]): Promise<void> {

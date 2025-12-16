@@ -8,7 +8,7 @@ export interface SortRequest extends Request {
 }
 
 const ALLOWED_SORT_FIELDS = [
-  'employee_id', 'full_name', 'job_position', 'branch_name', 'parent_branch_name',
+  'employee_id', 'full_name', 'job_position', 'branch_id',
   'email', 'mobile_phone', 'nik', 'birth_date', 'birth_place', 'age',
   'gender', 'religion', 'marital_status', 'join_date', 'resign_date',
   'sign_date', 'end_date', 'status_employee', 'ptkp_status',

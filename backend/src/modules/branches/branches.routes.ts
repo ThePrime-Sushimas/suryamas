@@ -35,6 +35,13 @@ router.get(
   branchesController.search
 )
 
+// Get minimal active branches (for dropdown)
+router.get(
+  '/minimal/active',
+  authenticate,
+  branchesController.minimalActive
+)
+
 // Get filter options
 router.get(
   '/filter-options',

@@ -85,7 +85,7 @@ export class EmployeesService {
   }
 
   async updateProfile(userId: string, updates: Partial<Employee>): Promise<Employee> {
-    const { id, employee_id, user_id, created_at, ...allowedUpdates } = updates
+    const { id, employee_id, user_id, created_at, branch_name, ...allowedUpdates } = updates
 
     // Remove empty strings to avoid date validation errors
     const cleanedUpdates = Object.fromEntries(
@@ -134,7 +134,7 @@ export class EmployeesService {
   }
 
   async update(id: string, data: Partial<Employee>, file?: Express.Multer.File, userId?: string): Promise<Employee> {
-    const { id: _, user_id, created_at, employee_id, ...allowedUpdates } = data
+    const { id: _, user_id, created_at, employee_id, branch_name, ...allowedUpdates } = data
     
     let profilePictureUrl: string | null = null
     if (file) {

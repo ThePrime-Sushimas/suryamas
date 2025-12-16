@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useEmployeeStore } from '../../stores/employeeStore'
+import api from '../../lib/axios'
 
 export default function CreateEmployeePage() {
   const { createEmployee, isLoading } = useEmployeeStore()
@@ -10,7 +11,7 @@ export default function CreateEmployeePage() {
     employee_id: '',
     full_name: '',
     job_position: '',
-    branch_name: '',
+    branch_id: '',
     brand_name: '',
     ptkp_status: 'TK/0' as const,
     status_employee: 'Permanent' as 'Permanent' | 'Contract',
@@ -31,6 +32,11 @@ export default function CreateEmployeePage() {
     bank_account_holder: '',
   })
   const [profilePicture, setProfilePicture] = useState<File | null>(null)
+  const [branches, setBranches] = useState<any[]>([])
+
+  useEffect(() => {
+    api.get('/branches/minimal/active').then(r => setBranches(r.data.data)).catch(() => {})
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -96,14 +102,18 @@ export default function CreateEmployeePage() {
             </div>
             <div>
               <label className="block text-xs md:text-sm font-medium text-gray-700">Branch *</label>
-              <input
-                type="text"
-                name="branch_name"
+              <select
+                name="branch_id"
                 required
-                value={formData.branch_name}
+                value={formData.branch_id}
                 onChange={handleChange}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
-              />
+              >
+                <option value="">Select Branch</option>
+                {branches?.map((b: any) => (
+                  <option key={b.id} value={b.id}>{b.branch_name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs md:text-sm font-medium text-gray-700">PTKP Status *</label>

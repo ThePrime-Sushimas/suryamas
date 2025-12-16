@@ -13,7 +13,7 @@ export default function EditEmployeePage() {
   const [formData, setFormData] = useState({
     full_name: '',
     job_position: '',
-    branch_name: '',
+    branch_id: '',
     brand_name: '',
     ptkp_status: 'TK/0' as const,
     status_employee: 'Permanent' as 'Permanent' | 'Contract',
@@ -36,6 +36,11 @@ export default function EditEmployeePage() {
     is_active: true,
   })
   const [profilePicture, setProfilePicture] = useState<File | null>(null)
+  const [branches, setBranches] = useState<any[]>([])
+
+  useEffect(() => {
+    api.get('/branches/minimal/active').then(r => setBranches(r.data.data)).catch(() => {})
+  }, [])
 
   useEffect(() => {
     const fetchEmployee = async () => {
@@ -45,7 +50,7 @@ export default function EditEmployeePage() {
         setFormData({
           full_name: emp.full_name,
           job_position: emp.job_position,
-          branch_name: emp.branch_name,
+          branch_id: emp.branch_id || '',
           brand_name: emp.brand_name || '',
           ptkp_status: emp.ptkp_status as any,
           status_employee: emp.status_employee as any,
@@ -143,14 +148,18 @@ export default function EditEmployeePage() {
             </div>
             <div>
               <label className="block text-xs md:text-sm font-medium text-gray-700">Branch *</label>
-              <input
-                type="text"
-                name="branch_name"
+              <select
+                name="branch_id"
                 required
-                value={formData.branch_name}
+                value={formData.branch_id || ''}
                 onChange={handleChange}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
-              />
+              >
+                <option value="">Select Branch</option>
+                {branches?.map((b: any) => (
+                  <option key={b.id} value={b.id}>{b.branch_name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs md:text-sm font-medium text-gray-700">PTKP Status *</label>

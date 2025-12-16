@@ -15,22 +15,18 @@ export class UsersService {
   }
 
   async getAllUsers() {
-    const { data: employees } = await supabase.from('employees').select('employee_id, full_name, job_position, email, user_id, branch_name')
+    const { data: employees } = await supabase.from('employees').select('employee_id, full_name, job_position, email, user_id, branch_id, branches:branch_id(branch_name)')
     const { data: profiles } = await supabase.from('perm_user_profiles').select('user_id, role_id, perm_roles(id, name, description)')
     
-    const normalizeBranch = (branch: string | null) => {
-      if (!branch) return 'No Branch'
-      return branch.charAt(0).toUpperCase() + branch.slice(1).toLowerCase()
-    }
-    
-    return (employees || []).map(employee => {
+    return (employees || []).map((employee: any) => {
       const profile = profiles?.find(p => p.user_id === employee.user_id)
+      const branchName = employee.branches?.branch_name || 'No Branch'
       return {
         employee_id: employee.employee_id,
         full_name: employee.full_name,
         job_position: employee.job_position,
         email: employee.email,
-        branch: normalizeBranch(employee.branch_name),
+        branch: branchName,
         user_id: employee.user_id,
         has_account: !!employee.user_id,
         role_id: profile?.role_id || null,
