@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { branchService } from '@/services/branchService'
+import { companyService } from '@/services/companyService'
+import api from '@/lib/axios'
 import type { Branch } from '@/types/branch'
 
 function BranchDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [branch, setBranch] = useState<Branch | null>(null)
+  const [companyName, setCompanyName] = useState<string>('')
+  const [managerName, setManagerName] = useState<string>('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -14,6 +18,23 @@ function BranchDetailPage() {
       try {
         const res = await branchService.getById(id!)
         setBranch(res.data.data)
+        
+        const promises = []
+        if (res.data.data.company_id) {
+          promises.push(
+            companyService.getById(res.data.data.company_id)
+              .then(r => setCompanyName(r.data.data.company_name))
+              .catch(() => setCompanyName('Not found'))
+          )
+        }
+        if (res.data.data.manager_id) {
+          promises.push(
+            api.get<{ success: boolean; data: { full_name: string } }>(`/employees/${res.data.data.manager_id}`)
+              .then(r => setManagerName(r.data.data.full_name))
+              .catch(() => setManagerName('Not found'))
+          )
+        }
+        await Promise.all(promises)
       } catch (error) {
         console.error('Failed to fetch branch')
       } finally {
@@ -66,12 +87,12 @@ function BranchDetailPage() {
             <p className="font-semibold">{branch.status}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-600">Company ID</p>
-            <p className="font-semibold">{branch.company_id}</p>
+            <p className="text-sm text-gray-600">Company</p>
+            <p className="font-semibold">{companyName || '-'}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-600">Manager ID</p>
-            <p className="font-semibold">{branch.manager_id || '-'}</p>
+            <p className="text-sm text-gray-600">Manager</p>
+            <p className="font-semibold">{managerName || '-'}</p>
           </div>
           <div className="col-span-2">
             <p className="text-sm text-gray-600">Address</p>
