@@ -27,11 +27,11 @@ export class EmployeesService {
     
     // Auto-generate employee_id if not provided
     let employeeId = data.employee_id
-    if (!employeeId && data.branch_name && data.join_date && data.job_position) {
+    if (!employeeId && data.brand_name && data.join_date && data.job_position) {
       const lastEmployeeId = await employeesRepository.getLastEmployeeId()
       const nextSequence = getNextSequenceNumber(lastEmployeeId)
       employeeId = generateEmployeeId(
-        data.branch_name,
+        data.brand_name,
         data.join_date,
         data.job_position,
         nextSequence
@@ -85,7 +85,7 @@ export class EmployeesService {
   }
 
   async updateProfile(userId: string, updates: Partial<Employee>): Promise<Employee> {
-    const { id, employee_id, user_id, created_at, branch_name, ...allowedUpdates } = updates
+    const { id, employee_id, user_id, created_at, branch_name, branch_id, ...allowedUpdates } = updates
 
     // Remove empty strings to avoid date validation errors
     const cleanedUpdates = Object.fromEntries(
@@ -134,7 +134,7 @@ export class EmployeesService {
   }
 
   async update(id: string, data: Partial<Employee>, file?: Express.Multer.File, userId?: string): Promise<Employee> {
-    const { id: _, user_id, created_at, employee_id, branch_name, ...allowedUpdates } = data
+    const { id: _, user_id, created_at, employee_id, branch_name, branch_id, ...allowedUpdates } = data
     
     let profilePictureUrl: string | null = null
     if (file) {
@@ -261,7 +261,6 @@ export class EmployeesService {
           employee_id: row.employee_id,
           full_name: row.full_name,
           job_position: row.job_position,
-          branch_name: row.branch_name,
           brand_name: row.brand_name,
           email: row.email,
           mobile_phone: row.mobile_phone,
