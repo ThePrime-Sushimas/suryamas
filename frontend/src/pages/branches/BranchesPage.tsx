@@ -178,8 +178,8 @@ function BranchesPage() {
                 className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200"
               >
                 <option value="">All Status</option>
-                <option value="active" className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                <option value="active">
+                  
                   Active
                 </option>
                 <option value="inactive">Inactive</option>

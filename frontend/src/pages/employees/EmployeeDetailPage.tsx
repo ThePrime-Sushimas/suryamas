@@ -19,6 +19,10 @@ export default function EmployeeDetailPage() {
   ]
 
   useEffect(() => {
+    if (id === "create") {
+      navigate("/employees/create", { replace: true })
+      return
+    }
     const fetchEmployee = async () => {
       try {
         console.log('Fetching employee with ID:', id)
@@ -33,7 +37,7 @@ export default function EmployeeDetailPage() {
       }
     }
     fetchEmployee()
-  }, [id])
+  }, [id, navigate])
 
   if (isLoading) {
     return <div className="text-center py-8">Loading...</div>
