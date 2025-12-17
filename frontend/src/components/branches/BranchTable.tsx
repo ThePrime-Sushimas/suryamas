@@ -45,7 +45,7 @@ export const BranchTable = ({
           {branches.map(branch => (
             <tr key={branch.id} className="hover:bg-gray-50">
               <td className="border px-4 py-2">{branch.branch_code}</td>
-              <td className="border px-4 py-2">{branch.branch_name}</td>
+              <td onClick={() => onView(branch.id)} className="border font-semibold text-gray-900 hover:text-blue-600 cursor-pointer px-4 py-2">{branch.branch_name}</td>
               <td className="border px-4 py-2">{branch.city}</td>
               <td className="border px-4 py-2">
                 <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[branch.status]}`}>
@@ -54,9 +54,9 @@ export const BranchTable = ({
               </td>
               <td className="border px-4 py-2 text-sm">{branch.jam_buka} - {branch.jam_tutup}</td>
               <td className="border px-4 py-2 space-x-2">
-                <button onClick={() => onView(branch.id)} className="text-blue-600 hover:underline text-sm">
+                {/* <button onClick={() => onView(branch.id)} className="text-blue-600 hover:underline text-sm">
                   View
-                </button>
+                </button> */}
                 {canEdit && (
                   <button onClick={() => onEdit(branch.id)} className="text-green-600 hover:underline text-sm">
                     Edit
