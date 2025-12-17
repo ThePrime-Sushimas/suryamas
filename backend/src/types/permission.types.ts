@@ -83,7 +83,6 @@ export interface CreateRoleDto {
 }
 
 export interface UpdateRolePermissionsDto {
-  module_id: string
   can_view?: boolean
   can_insert?: boolean
   can_update?: boolean

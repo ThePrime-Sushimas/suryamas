@@ -334,6 +334,7 @@ export class PermissionService {
 
   /**
    * Update role permissions for a specific module
+   * Auto-creates permission if it doesn't exist
    */
   static async updateRolePermissions(
     roleId: string,
@@ -342,29 +343,47 @@ export class PermissionService {
     changedBy?: string
   ): Promise<RolePermission | null> {
     try {
-      // Get old value for audit
-      const { data: oldPerm } = await supabase
+      // Check if permission exists
+      const { data: existing } = await supabase
         .from('perm_role_permissions')
         .select('*')
         .eq('role_id', roleId)
         .eq('module_id', moduleId)
-        .single()
 
-      // Update permissions
-      const { data: updated, error } = await supabase
-        .from('perm_role_permissions')
-        .update(permissions)
-        .eq('role_id', roleId)
-        .eq('module_id', moduleId)
-        .select()
-        .single()
+      let oldPerm = existing?.[0]
+      let updated
+      let error
+
+      if (!existing || existing.length === 0) {
+        // Auto-create permission if not found
+        logInfo('Permission not found, auto-creating', { roleId, moduleId })
+        const { data: created, error: createError } = await supabase
+          .from('perm_role_permissions')
+          .insert({ role_id: roleId, module_id: moduleId, ...permissions })
+          .select()
+
+        if (createError) throw createError
+        updated = created
+      } else {
+        // Update existing permission
+        const { data: updateData, error: updateError } = await supabase
+          .from('perm_role_permissions')
+          .update(permissions)
+          .eq('role_id', roleId)
+          .eq('module_id', moduleId)
+          .select()
+
+        error = updateError
+        updated = updateData
+      }
 
       if (error) throw error
+      if (!updated || updated.length === 0) throw new Error('Update failed')
 
       // Log audit trail
       if (changedBy) {
         await this.logAudit({
-          action: 'UPDATE',
+          action: oldPerm ? 'UPDATE' : 'CREATE',
           entity_type: 'permission',
           entity_id: roleId,
           changed_by: changedBy,
@@ -373,20 +392,19 @@ export class PermissionService {
         })
       }
 
-      // Invalidate cache for all users with this role
+      // Invalidate cache
       await this.invalidateRoleCache(roleId)
-      // Also invalidate all cache to ensure immediate update
       await this.invalidateAllCache()
 
-      logInfo('Role permissions updated', { roleId, moduleId })
-      return updated as RolePermission
+      logInfo('Role permissions updated', { roleId, moduleId, isNew: !oldPerm })
+      return updated[0] as RolePermission
     } catch (error: any) {
       logError('Failed to update role permissions', {
         roleId,
         moduleId,
         error: error.message,
       })
-      return null
+      throw error
     }
   }
 

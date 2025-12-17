@@ -203,10 +203,10 @@ export class PermissionsRepository {
       .eq('role_id', roleId)
       .eq('module_id', moduleId)
       .select()
-      .single()
 
     if (error) throw error
-    return data as RolePermission
+    if (!data || data.length === 0) throw new Error('Permission not found')
+    return data[0] as RolePermission
   }
 
   async deletePermission(roleId: string, moduleId: string): Promise<boolean> {
