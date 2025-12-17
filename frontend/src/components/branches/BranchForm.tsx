@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Branch, BranchStatus } from '@/types/branch'
+import type { Branch, BranchStatus, HariOperasional } from '@/types/branch'
 import type { Company } from '@/types/company'
 import type { Employee } from '@/types'
 import { companyService } from '@/services/companyService'
@@ -32,7 +32,9 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
     phone: initialData?.phone || '',
     whatsapp: initialData?.whatsapp || '',
     email: initialData?.email || '',
-    is_24_jam: initialData?.is_24_jam || false,
+    jam_buka: initialData?.jam_buka || '10:00:00',
+    jam_tutup: initialData?.jam_tutup || '22:00:00',
+    hari_operasional: (initialData?.hari_operasional || 'Senin-Minggu') as HariOperasional,
     latitude: initialData?.latitude || '',
     longitude: initialData?.longitude || '',
     status: (initialData?.status || 'active') as BranchStatus,
@@ -72,9 +74,8 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
   }, [searchEmployees])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target
-    const val = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
-    setFormData(prev => ({ ...prev, [name]: val }))
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }))
     }
@@ -94,7 +95,9 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
             phone: formData.phone || null,
             whatsapp: formData.whatsapp || null,
             email: formData.email || null,
-            is_24_jam: formData.is_24_jam === true,
+            jam_buka: formData.jam_buka,
+            jam_tutup: formData.jam_tutup,
+            hari_operasional: formData.hari_operasional,
             latitude: formData.latitude ? parseFloat(formData.latitude as any) : null,
             longitude: formData.longitude ? parseFloat(formData.longitude as any) : null,
             status: formData.status,
@@ -113,7 +116,9 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
             phone: formData.phone || null,
             whatsapp: formData.whatsapp || null,
             email: formData.email || null,
-            is_24_jam: formData.is_24_jam === true,
+            jam_buka: formData.jam_buka,
+            jam_tutup: formData.jam_tutup,
+            hari_operasional: formData.hari_operasional,
             latitude: formData.latitude ? parseFloat(formData.latitude as any) : null,
             longitude: formData.longitude ? parseFloat(formData.longitude as any) : null,
             status: formData.status,
@@ -308,6 +313,46 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
 
       <div className="grid grid-cols-2 gap-4">
         <div>
+          <label className="block text-sm font-medium">Jam Buka</label>
+          <input
+            type="time"
+            name="jam_buka"
+            value={formData.jam_buka}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border rounded-md"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Jam Tutup</label>
+          <input
+            type="time"
+            name="jam_tutup"
+            value={formData.jam_tutup}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border rounded-md"
+            required
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium">Hari Operasional</label>
+          <select
+            name="hari_operasional"
+            value={formData.hari_operasional}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border rounded-md"
+            required
+          >
+            <option value="Senin-Jumat">Senin-Jumat</option>
+            <option value="Senin-Sabtu">Senin-Sabtu</option>
+            <option value="Setiap Hari">Setiap Hari</option>
+            <option value="Senin-Minggu">Senin-Minggu</option>
+          </select>
+        </div>
+        <div>
           <label className="block text-sm font-medium">Status</label>
           <select name="status" value={formData.status} onChange={handleChange} className="w-full px-3 py-2 border rounded-md">
             <option value="active">Active</option>
@@ -316,36 +361,24 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
             <option value="closed">Closed</option>
           </select>
         </div>
-        <div>
-          <label className="block text-sm font-medium">Manager</label>
-          <select
-            name="manager_id"
-            value={formData.manager_id}
-            onChange={handleChange}
-            disabled={employeesLoading}
-            className="w-full px-3 py-2 border rounded-md disabled:bg-gray-100"
-          >
-            <option value="">Select Manager (Optional)</option>
-            {employees.map(e => (
-              <option key={e.id} value={e.id}>
-                {e.full_name} ({e.job_position})
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
       <div>
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            name="is_24_jam"
-            checked={formData.is_24_jam as any}
-            onChange={handleChange}
-            className="mr-2"
-          />
-          <span className="text-sm font-medium">24 Hour Operation</span>
-        </label>
+        <label className="block text-sm font-medium">Manager</label>
+        <select
+          name="manager_id"
+          value={formData.manager_id}
+          onChange={handleChange}
+          disabled={employeesLoading}
+          className="w-full px-3 py-2 border rounded-md disabled:bg-gray-100"
+        >
+          <option value="">Select Manager (Optional)</option>
+          {employees.map(e => (
+            <option key={e.id} value={e.id}>
+              {e.full_name} ({e.job_position})
+            </option>
+          ))}
+        </select>
       </div>
 
       <div>

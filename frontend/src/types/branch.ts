@@ -1,4 +1,5 @@
 export type BranchStatus = 'active' | 'inactive' | 'maintenance' | 'closed'
+export type HariOperasional = 'Senin-Jumat' | 'Senin-Sabtu' | 'Setiap Hari' | 'Senin-Minggu'
 
 export interface Branch {
   id: string
@@ -15,12 +16,16 @@ export interface Branch {
   phone: string | null
   whatsapp: string | null
   email: string | null
-  is_24_jam: boolean
+  jam_buka: string
+  jam_tutup: string
+  hari_operasional: HariOperasional
   latitude: number | null
   longitude: number | null
   notes: string | null
   created_at: string
   updated_at: string
+  created_by: string | null
+  updated_by: string | null
 }
 
 export interface CreateBranchDto {
@@ -35,7 +40,9 @@ export interface CreateBranchDto {
   phone?: string
   whatsapp?: string
   email?: string
-  is_24_jam?: boolean
+  jam_buka?: string
+  jam_tutup?: string
+  hari_operasional?: HariOperasional
   latitude?: number
   longitude?: number
   status?: BranchStatus

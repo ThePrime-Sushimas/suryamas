@@ -23,9 +23,9 @@ export class BranchesRepository {
         query = query.eq('city', filter.city)
         countQuery = countQuery.eq('city', filter.city)
       }
-      if (filter.is_24_jam !== undefined) {
-        query = query.eq('is_24_jam', filter.is_24_jam)
-        countQuery = countQuery.eq('is_24_jam', filter.is_24_jam)
+      if (filter.hari_operasional) {
+        query = query.eq('hari_operasional', filter.hari_operasional)
+        countQuery = countQuery.eq('hari_operasional', filter.hari_operasional)
       }
     }
 
@@ -74,9 +74,9 @@ export class BranchesRepository {
         query = query.eq('city', filter.city)
         countQuery = countQuery.eq('city', filter.city)
       }
-      if (filter.is_24_jam !== undefined) {
-        query = query.eq('is_24_jam', filter.is_24_jam)
-        countQuery = countQuery.eq('is_24_jam', filter.is_24_jam)
+      if (filter.hari_operasional) {
+        query = query.eq('hari_operasional', filter.hari_operasional)
+        countQuery = countQuery.eq('hari_operasional', filter.hari_operasional)
       }
     }
 
@@ -167,7 +167,7 @@ export class BranchesRepository {
       if (filter.status) query = query.eq('status', filter.status)
       if (filter.company_id) query = query.eq('company_id', filter.company_id)
       if (filter.city) query = query.eq('city', filter.city)
-      if (filter.is_24_jam !== undefined) query = query.eq('is_24_jam', filter.is_24_jam)
+      if (filter.hari_operasional) query = query.eq('hari_operasional', filter.hari_operasional)
     }
 
     const { data, error } = await query
@@ -175,18 +175,18 @@ export class BranchesRepository {
     return data || []
   }
 
-  async getFilterOptions(): Promise<{ cities: string[]; statuses: string[]; is24jam: boolean[] }> {
+  async getFilterOptions(): Promise<{ cities: string[]; statuses: string[]; hariOperasional: string[] }> {
     const { data, error } = await supabase
       .from('branches')
-      .select('city, status, is_24_jam')
+      .select('city, status, hari_operasional')
 
     if (error) throw new Error(error.message)
 
     const cities = [...new Set((data || []).map((b: any) => b.city).filter(Boolean))] as string[]
     const statuses = ['active', 'inactive', 'maintenance', 'closed']
-    const is24jam = [true, false]
+    const hariOperasional = ['Senin-Jumat', 'Senin-Sabtu', 'Setiap Hari', 'Senin-Minggu']
 
-    return { cities, statuses, is24jam }
+    return { cities, statuses, hariOperasional }
   }
 
   async bulkCreate(branches: CreateBranchDto[]): Promise<void> {

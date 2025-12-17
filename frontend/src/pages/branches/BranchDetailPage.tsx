@@ -163,8 +163,16 @@ function BranchDetailPage() {
               <p className="font-semibold">{branch.email || '-'}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">24 Hour</p>
-              <p className="font-semibold">{branch.is_24_jam ? 'Yes' : 'No'}</p>
+              <p className="text-sm text-gray-600">Jam Buka</p>
+              <p className="font-semibold">{branch.jam_buka}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Jam Tutup</p>
+              <p className="font-semibold">{branch.jam_tutup}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Hari Operasional</p>
+              <p className="font-semibold">{branch.hari_operasional}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Latitude</p>

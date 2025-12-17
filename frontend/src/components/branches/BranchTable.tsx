@@ -37,7 +37,7 @@ export const BranchTable = ({
             <th className="border px-4 py-2 text-left">Name</th>
             <th className="border px-4 py-2 text-left">City</th>
             <th className="border px-4 py-2 text-left">Status</th>
-            <th className="border px-4 py-2 text-left">24H</th>
+            <th className="border px-4 py-2 text-left">Jam Operasional</th>
             <th className="border px-4 py-2 text-left">Actions</th>
           </tr>
         </thead>
@@ -52,7 +52,7 @@ export const BranchTable = ({
                   {branch.status}
                 </span>
               </td>
-              <td className="border px-4 py-2">{branch.is_24_jam ? '✓' : ''}</td>
+              <td className="border px-4 py-2 text-sm">{branch.jam_buka} - {branch.jam_tutup}</td>
               <td className="border px-4 py-2 space-x-2">
                 <button onClick={() => onView(branch.id)} className="text-blue-600 hover:underline text-sm">
                   View

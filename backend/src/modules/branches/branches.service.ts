@@ -95,12 +95,16 @@ export class BranchesService {
     }
 
     // Set defaults
-    const data: CreateBranchDto = {
+    const data: any = {
       ...dto,
       province: dto.province || 'DKI Jakarta',
       country: dto.country || 'Indonesia',
       status: dto.status || 'active',
-      is_24_jam: dto.is_24_jam || false,
+      jam_buka: dto.jam_buka || '10:00:00',
+      jam_tutup: dto.jam_tutup || '22:00:00',
+      hari_operasional: dto.hari_operasional || 'Senin-Minggu',
+      created_by: userId,
+      updated_by: userId,
     }
 
     const branch = await branchesRepository.create(data)
@@ -143,7 +147,8 @@ export class BranchesService {
       throw new Error('Invalid coordinates')
     }
 
-    const branch = await branchesRepository.updateById(id, dto)
+    const data: any = { ...dto, updated_by: userId }
+    const branch = await branchesRepository.updateById(id, data)
 
     if (branch && userId) {
       await AuditService.log('UPDATE', 'branch', id, userId, undefined, dto)
