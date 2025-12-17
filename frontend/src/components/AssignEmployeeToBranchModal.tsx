@@ -51,6 +51,15 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
     emp.employee_id.toLowerCase().includes(search.toLowerCase())
   )
 
+  const groupedByPosition = filteredEmployees.reduce((acc, emp) => {
+    const position = emp.job_position || 'Unassigned'
+    if (!acc[position]) acc[position] = []
+    acc[position].push(emp)
+    return acc
+  }, {} as Record<string, Employee[]>)
+
+  const sortedPositions = Object.keys(groupedByPosition).sort()
+
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       setSelectedIds(new Set(filteredEmployees.map(e => e.id)))
@@ -135,9 +144,9 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
               {employees.length === 0 ? 'No unassigned employees found' : 'No results match your search'}
             </div>
           ) : (
-            <div className="divide-y divide-gray-200">
+            <div>
               {/* Select All */}
-              <div className="p-4 bg-gray-50 flex items-center gap-3">
+              <div className="p-4 bg-gray-50 flex items-center gap-3 border-b border-gray-200 sticky top-0">
                 <input
                   type="checkbox"
                   checked={selectedIds.size === filteredEmployees.length && filteredEmployees.length > 0}
@@ -149,20 +158,27 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
                 </span>
               </div>
 
-              {/* Employee List */}
-              {filteredEmployees.map((emp) => (
-                <div key={emp.id} className="p-4 flex items-center gap-3 hover:bg-gray-50">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(emp.id)}
-                    onChange={(e) => handleSelectOne(emp.id, e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 cursor-pointer"
-                  />
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{emp.full_name}</p>
-                    <p className="text-sm text-gray-600">{emp.employee_id} • {emp.job_position}</p>
-                    {emp.email && <p className="text-xs text-gray-500">{emp.email}</p>}
+              {/* Employee List Grouped by Position */}
+              {sortedPositions.map((position) => (
+                <div key={position}>
+                  <div className="px-4 py-3 bg-blue-50 border-b border-gray-200 sticky top-12">
+                    <p className="text-sm font-semibold text-blue-900">{position} ({groupedByPosition[position].length})</p>
                   </div>
+                  {groupedByPosition[position].map((emp) => (
+                    <div key={emp.id} className="p-4 flex items-center gap-3 hover:bg-gray-50 border-b border-gray-100">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(emp.id)}
+                        onChange={(e) => handleSelectOne(emp.id, e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{emp.full_name}</p>
+                        <p className="text-sm text-gray-600">{emp.employee_id}</p>
+                        {emp.email && <p className="text-xs text-gray-500">{emp.email}</p>}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>

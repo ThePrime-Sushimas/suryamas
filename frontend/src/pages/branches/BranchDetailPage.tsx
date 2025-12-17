@@ -256,6 +256,7 @@ function BranchDetailPage() {
                     Employees
                     <span className="bg-gray-200 text-gray-800 text-xs px-2 py-1 rounded-full">
                       {employees.length}
+                      
                     </span>
                   </div>
                 </button>
@@ -392,27 +393,6 @@ function BranchDetailPage() {
                       </div>
                     </div>
 
-                    {/* Operating Hours Card */}
-                    <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <Clock className="h-5 w-5 text-blue-600" />
-                        Operating Hours
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="space-y-2">
-                          <p className="text-sm text-gray-600">Open Time</p>
-                          <p className="text-lg font-semibold text-gray-900">{branch.jam_buka}</p>
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-sm text-gray-600">Close Time</p>
-                          <p className="text-lg font-semibold text-gray-900">{branch.jam_tutup}</p>
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-sm text-gray-600">Operating Days</p>
-                          <p className="text-lg font-semibold text-gray-900">{branch.hari_operasional}</p>
-                        </div>
-                      </div>
-                    </div>
 
                     {/* Additional Notes */}
                     {branch.notes && (
@@ -439,47 +419,66 @@ function BranchDetailPage() {
                     </div>
                     
                     {employees.length > 0 ? (
-                      <div className="space-y-4">
-                        {employees.map((emp) => (
-                          <div
-                            key={emp.id}
-                            className="bg-white border border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-sm transition-all duration-200"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-4">
-                                <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-semibold">
-                                  {emp.full_name.charAt(0)}
-                                </div>
-                                <div>
-                                  <h4 className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer"
-                                      onClick={() => navigate(`/employees/${emp.id}`)}>
-                                    {emp.full_name}
-                                  </h4>
-                                  <p className="text-sm text-gray-600">{emp.job_position}</p>
-                                  <p className="text-sm text-gray-500">{emp.employee_id}</p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-4">
-                                {emp.email && (
-                                  <a
-                                    href={`mailto:${emp.email}`}
-                                    className="text-gray-600 hover:text-blue-600 transition-colors duration-200"
-                                    title="Send Email"
+                      <div className="space-y-6">
+                        {(() => {
+                          const groupedEmployees = employees.reduce((acc, emp) => {
+                            const position = emp.job_position || 'Unassigned'
+                            if (!acc[position]) acc[position] = []
+                            acc[position].push(emp)
+                            return acc
+                          }, {} as Record<string, Employee[]>)
+                          
+                          const sortedPositions = Object.keys(groupedEmployees).sort()
+                          
+                          return sortedPositions.map((position) => (
+                            <div key={position}>
+                              <h4 className="text-sm font-semibold text-blue-900 bg-blue-50 px-4 py-2 rounded-lg mb-3">
+                                {position} ({groupedEmployees[position].length})
+                              </h4>
+                              <div className="space-y-3">
+                                {groupedEmployees[position].map((emp) => (
+                                  <div
+                                    key={emp.id}
+                                    className="bg-white border border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-sm transition-all duration-200"
                                   >
-                                    <Mail className="h-5 w-5" />
-                                  </a>
-                                )}
-                                <button
-                                  onClick={() => navigate(`/employees/${emp.id}`)}
-                                  className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
-                                >
-                                  View Details
-                                  <ChevronRight className="h-4 w-4" />
-                                </button>
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-4">
+                                        <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-semibold">
+                                          {emp.full_name.charAt(0)}
+                                        </div>
+                                        <div>
+                                          <h4 className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer"
+                                              onClick={() => navigate(`/employees/${emp.id}`)}>
+                                            {emp.full_name}
+                                          </h4>
+                                          <p className="text-sm text-gray-500">{emp.employee_id}</p>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-4">
+                                        {emp.email && (
+                                          <a
+                                            href={`mailto:${emp.email}`}
+                                            className="text-gray-600 hover:text-blue-600 transition-colors duration-200"
+                                            title="Send Email"
+                                          >
+                                            <Mail className="h-5 w-5" />
+                                          </a>
+                                        )}
+                                        <button
+                                          onClick={() => navigate(`/employees/${emp.id}`)}
+                                          className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
+                                        >
+                                          View Details
+                                          <ChevronRight className="h-4 w-4" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          ))
+                        })()}
                       </div>
                     ) : (
                       <div className="text-center py-12">
