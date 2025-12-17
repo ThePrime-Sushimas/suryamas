@@ -73,9 +73,11 @@ function BranchDetailPage() {
           )
         }
         promises.push(
-          api.get<{ success: boolean; data: { data: Employee[] } }>(`/employees/search?branch_id=${id}&limit=100`)
+          api.get<{ success: boolean; data: Employee[] }>(`/employees?limit=1000`)
             .then(r => {
-              setEmployees(r.data.data?.data || [])
+              const allEmps = r.data.data || []
+              const filtered = allEmps.filter((emp: any) => emp.branch_id === id)
+              setEmployees(filtered)
             })
             .catch(() => {
               setEmployees([])
@@ -620,8 +622,12 @@ function BranchDetailPage() {
         onSuccess={() => {
           setShowAssignModal(false)
           if (id) {
-            api.get<{ success: boolean; data: { data: Employee[] } }>(`/employees/search?branch_id=${id}&limit=100`)
-              .then(r => setEmployees(r.data.data?.data || []))
+            api.get<{ success: boolean; data: Employee[] }>(`/employees?limit=1000`)
+              .then(r => {
+                const allEmps = r.data.data || []
+                const filtered = allEmps.filter((emp: any) => emp.branch_id === id)
+                setEmployees(filtered)
+              })
               .catch(() => setEmployees([]))
           }
         }}
