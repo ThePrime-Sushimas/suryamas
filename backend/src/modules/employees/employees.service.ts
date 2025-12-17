@@ -19,9 +19,11 @@ export class EmployeesService {
     
     if (file) {
       const fileName = `${Date.now()}-${file.originalname}`
-      const { error } = await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
-      if (!error) {
+      try {
+        await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
         profilePictureUrl = employeesRepository.getPublicUrl(fileName)
+      } catch (err) {
+        // Continue without profile picture if upload fails
       }
     }
     
@@ -85,7 +87,7 @@ export class EmployeesService {
   }
 
   async updateProfile(userId: string, updates: Partial<Employee>): Promise<Employee> {
-    const { id, employee_id, user_id, created_at, branch_name, branch_id, ...allowedUpdates } = updates
+    const { id, employee_id, user_id, created_at, ...allowedUpdates } = updates as any
 
     // Remove empty strings to avoid date validation errors
     const cleanedUpdates = Object.fromEntries(
@@ -107,11 +109,7 @@ export class EmployeesService {
 
   async uploadProfilePicture(userId: string, file: Express.Multer.File): Promise<string> {
     const fileName = `${userId}-${Date.now()}.${file.mimetype.split('/')[1]}`
-    const { data, error } = await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
-    
-    if (error) {
-      throw new Error(`Failed to upload image: ${error.message}`)
-    }
+    await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
     
     const publicUrl = employeesRepository.getPublicUrl(fileName)
     const updated = await employeesRepository.update(userId, { profile_picture: publicUrl })
@@ -134,15 +132,17 @@ export class EmployeesService {
   }
 
   async update(id: string, data: Partial<Employee>, file?: Express.Multer.File, userId?: string): Promise<Employee> {
-    const { id: _, user_id, created_at, employee_id, branch_name, branch_id, ...allowedUpdates } = data
+    const { id: _, user_id, created_at, employee_id, ...allowedUpdates } = data as any
     
     let profilePictureUrl: string | null = null
     if (file) {
       const fileName = `${id}-${Date.now()}.${file.mimetype.split('/')[1]}`
-      const { error } = await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
-      if (!error) {
+      try {
+        await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
         profilePictureUrl = employeesRepository.getPublicUrl(fileName)
         allowedUpdates.profile_picture = profilePictureUrl
+      } catch (err) {
+        // Continue without profile picture if upload fails
       }
     }
     
