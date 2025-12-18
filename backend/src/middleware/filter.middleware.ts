@@ -6,6 +6,7 @@ export interface FilterRequest extends Request {
     is_active?: boolean
     status_employee?: string
     job_position?: string
+    include_deleted?: boolean
   }
 }
 
@@ -26,6 +27,10 @@ export const filterMiddleware = (req: Request, res: Response, next: NextFunction
 
   if (req.query.job_position) {
     filter.job_position = req.query.job_position as string
+  }
+
+  if (req.query.include_deleted !== undefined) {
+    filter.include_deleted = req.query.include_deleted === 'true'
   }
 
   (req as FilterRequest).filterParams = filter

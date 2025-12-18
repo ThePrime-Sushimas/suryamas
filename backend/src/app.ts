@@ -5,6 +5,8 @@ import authRoutes from './modules/auth/auth.routes'
 import employeesRoutes from './modules/employees/employees.routes'
 import companiesRoutes from './modules/companies/companies.routes'
 import branchesRoutes from './modules/branches/branches.routes'
+import categoriesRoutes from './modules/categories/categories.routes'
+import subCategoriesRoutes from './modules/sub-categories/sub-categories.routes'
 import permissionsRoutes from './modules/permissions/permissions.routes'
 import usersRoutes from './modules/users/users.routes'
 import { errorHandler } from './middleware/error.middleware'
@@ -28,6 +30,8 @@ app.use('/api/v1/auth', authRoutes)
 app.use('/api/v1/employees', employeesRoutes)
 app.use('/api/v1/companies', companiesRoutes)
 app.use('/api/v1/branches', branchesRoutes)
+app.use('/api/v1/categories', categoriesRoutes)
+app.use('/api/v1/sub-categories', subCategoriesRoutes)
 app.use('/api/v1/permissions', permissionsRoutes)
 app.use('/api/v1/users', usersRoutes)
 

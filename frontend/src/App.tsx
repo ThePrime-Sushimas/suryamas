@@ -24,6 +24,14 @@ import BranchesPage from './pages/branches/BranchesPage'
 import CreateBranchPage from './pages/branches/CreateBranchPage'
 import BranchDetailPage from './pages/branches/BranchDetailPage'
 import EditBranchPage from './pages/branches/EditBranchPage'
+import CategoriesPage from './pages/categories/CategoriesPage'
+import CreateCategoryPage from './pages/categories/CreateCategoryPage'
+import EditCategoryPage from './pages/categories/EditCategoryPage'
+import SubCategoriesPage from './pages/sub-categories/SubCategoriesPage'
+import CreateSubCategoryPage from './pages/sub-categories/CreateSubCategoryPage'
+import EditSubCategoryPage from './pages/sub-categories/EditSubCategoryPage'
+import CategoryDetailPage from './pages/categories/CategoryDetailPage'
+import SubCategoryDetailPage from './pages/sub-categories/SubCategoryDetailPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isInitialized } = useAuthStore()
@@ -188,6 +196,70 @@ function App() {
             element={
               <ProtectedRoute>
                 <UserEditPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="categories"
+            element={
+              <ProtectedRoute>
+                <CategoriesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="categories/new"
+            element={
+              <ProtectedRoute>
+                <CreateCategoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="categories/:id"
+            element={
+              <ProtectedRoute>
+                <CategoryDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="categories/:id/edit"
+            element={
+              <ProtectedRoute>
+                <EditCategoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="sub-categories"
+            element={
+              <ProtectedRoute>
+                <SubCategoriesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="sub-categories/new"
+            element={
+              <ProtectedRoute>
+                <CreateSubCategoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="sub-categories/:id"
+            element={
+              <ProtectedRoute>
+                <SubCategoryDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="sub-categories/:id/edit"
+            element={
+              <ProtectedRoute>
+                <EditSubCategoryPage />
               </ProtectedRoute>
             }
           />
