@@ -2,12 +2,12 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { subCategoryService } from '@/services/categoryService'
 import { SubCategoryTable } from '@/components/sub-categories/SubCategoryTable'
-import type { SubCategory } from '@/types/category'
+import type { SubCategoryWithCategory } from '@/types/category'
 import { Search, Plus, ChevronLeft, ChevronRight, Loader2, AlertCircle, Layers, Trash2 } from 'lucide-react'
 
 export default function SubCategoriesPage() {
   const navigate = useNavigate()
-  const [subCategories, setSubCategories] = useState<SubCategory[]>([])
+  const [subCategories, setSubCategories] = useState<SubCategoryWithCategory[]>([])
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
   const [limit] = useState(10)
@@ -29,6 +29,7 @@ export default function SubCategoriesPage() {
         : search
           ? await subCategoryService.search(search, page, limit)
           : await subCategoryService.list(page, limit)
+      console.log('Sub-categories response:', res.data.data)
       setSubCategories(res.data.data)
       setTotal(res.data.pagination.total)
     } catch (error) {

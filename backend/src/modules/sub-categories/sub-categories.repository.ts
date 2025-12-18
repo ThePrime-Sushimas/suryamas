@@ -8,8 +8,8 @@ export class SubCategoriesRepository {
     pagination: { limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
     categoryId?: string
-  ): Promise<{ data: SubCategory[]; total: number }> {
-    let query = supabase.from('sub_categories').select('*').eq('is_deleted', false)
+  ): Promise<{ data: SubCategoryWithCategory[]; total: number }> {
+    let query = supabase.from('sub_categories').select('*, category:category_id (id, category_code, category_name)').eq('is_deleted', false)
     let countQuery = supabase.from('sub_categories').select('*', { count: 'exact', head: true }).eq('is_deleted', false)
 
     if (categoryId) {
@@ -37,8 +37,8 @@ export class SubCategoriesRepository {
   async findTrash(
     pagination: { limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' }
-  ): Promise<{ data: SubCategory[]; total: number }> {
-    let query = supabase.from('sub_categories').select('*').eq('is_deleted', true)
+  ): Promise<{ data: SubCategoryWithCategory[]; total: number }> {
+    let query = supabase.from('sub_categories').select('*, category:category_id (id, category_code, category_name)').eq('is_deleted', true)
     let countQuery = supabase.from('sub_categories').select('*', { count: 'exact', head: true }).eq('is_deleted', true)
 
     if (sort && ALLOWED_SORT_FIELDS.includes(sort.field)) {
@@ -60,8 +60,8 @@ export class SubCategoriesRepository {
     searchTerm: string,
     pagination: { limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' }
-  ): Promise<{ data: SubCategory[]; total: number }> {
-    let query = supabase.from('sub_categories').select('*').eq('is_deleted', false)
+  ): Promise<{ data: SubCategoryWithCategory[]; total: number }> {
+    let query = supabase.from('sub_categories').select('*, category:category_id (id, category_code, category_name)').eq('is_deleted', false)
     let countQuery = supabase.from('sub_categories').select('*', { count: 'exact', head: true }).eq('is_deleted', false)
 
     if (searchTerm && searchTerm.trim()) {
@@ -88,7 +88,7 @@ export class SubCategoriesRepository {
   async findById(id: string): Promise<SubCategoryWithCategory | null> {
     const { data, error } = await supabase
       .from('sub_categories')
-      .select('*, categories:category_id (id, category_code, category_name)')
+      .select('*, category:category_id (id, category_code, category_name)')
       .eq('id', id)
       .maybeSingle()
 

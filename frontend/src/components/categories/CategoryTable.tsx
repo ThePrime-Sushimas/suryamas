@@ -14,7 +14,7 @@ export function CategoryTable({ categories, onView, onEdit, onDelete }: Props) {
       <thead className="bg-gray-50 border-b border-gray-200">
         <tr>
           <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Code</th>
-          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Name</th>
+          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Category Name</th>
           <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Description</th>
           <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Sort Order</th>
           <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">Actions</th>

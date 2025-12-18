@@ -1,8 +1,8 @@
 import { Edit2, Trash2, Eye } from 'lucide-react'
-import type { SubCategory } from '@/types/category'
+import type { SubCategoryWithCategory } from '@/types/category'
 
 interface Props {
-  subCategories: SubCategory[]
+  subCategories: SubCategoryWithCategory[]
   onView: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
@@ -13,8 +13,9 @@ export function SubCategoryTable({ subCategories, onView, onEdit, onDelete }: Pr
     <table className="w-full">
       <thead className="bg-gray-50 border-b border-gray-200">
         <tr>
+          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Category Name</th>
           <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Code</th>
-          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Name</th>
+          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Sub Category Name</th>
           <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Description</th>
           <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Sort Order</th>
           <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">Actions</th>
@@ -23,6 +24,11 @@ export function SubCategoryTable({ subCategories, onView, onEdit, onDelete }: Pr
       <tbody className="divide-y divide-gray-200">
         {subCategories.map(sub => (
           <tr key={sub.id} className="hover:bg-gray-50 transition-colors">
+            <td className="px-6 py-4 text-sm text-gray-700">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                {sub.category?.category_name || '-'}
+              </span>
+            </td>
             <td className="px-6 py-4 text-sm font-medium text-gray-900">{sub.sub_category_code}</td>
             <td className="px-6 py-4 text-sm text-gray-700">{sub.sub_category_name}</td>
             <td className="px-6 py-4 text-sm text-gray-600">{sub.description || '-'}</td>

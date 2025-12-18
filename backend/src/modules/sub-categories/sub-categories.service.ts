@@ -5,7 +5,7 @@ import { AuditService } from '../../services/audit.service'
 import { logError, logInfo } from '../../config/logger'
 
 export class SubCategoriesService {
-  async list(pagination: { page: number; limit: number }, sort?: { field: string; order: 'asc' | 'desc' }, categoryId?: string) {
+  async list(pagination: { page: number; limit: number }, sort?: { field: string; order: 'asc' | 'desc' }, categoryId?: string): Promise<any> {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await subCategoriesRepository.findAll({ limit: pagination.limit, offset }, sort, categoryId)
 
@@ -23,7 +23,7 @@ export class SubCategoriesService {
     }
   }
 
-  async trash(pagination: { page: number; limit: number }, sort?: { field: string; order: 'asc' | 'desc' }) {
+  async trash(pagination: { page: number; limit: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<any> {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await subCategoriesRepository.findTrash({ limit: pagination.limit, offset }, sort)
 
@@ -41,7 +41,7 @@ export class SubCategoriesService {
     }
   }
 
-  async search(q: string, pagination: { page: number; limit: number }, sort?: { field: string; order: 'asc' | 'desc' }) {
+  async search(q: string, pagination: { page: number; limit: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<any> {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await subCategoriesRepository.search(q, { limit: pagination.limit, offset }, sort)
 
