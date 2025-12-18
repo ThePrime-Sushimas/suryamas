@@ -1,4 +1,4 @@
-import { Edit2, Trash2, Eye } from 'lucide-react'
+import { Edit2, Trash2, Eye, RotateCcw } from 'lucide-react'
 import type { Category } from '@/types/category'
 
 interface Props {
@@ -6,9 +6,11 @@ interface Props {
   onView: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onRestore?: (id: string) => void
+  isTrashView?: boolean
 }
 
-export function CategoryTable({ categories, onView, onEdit, onDelete }: Props) {
+export function CategoryTable({ categories, onView, onEdit, onDelete, onRestore, isTrashView }: Props) {
   return (
     <table className="w-full">
       <thead className="bg-gray-50 border-b border-gray-200">
@@ -29,15 +31,25 @@ export function CategoryTable({ categories, onView, onEdit, onDelete }: Props) {
             <td className="px-6 py-4 text-sm text-gray-600">{cat.sort_order}</td>
             <td className="px-6 py-4 text-right">
               <div className="flex justify-end gap-2">
-                <button onClick={() => onView(cat.id)} className="p-2 text-blue-600 hover:bg-blue-50 rounded">
-                  <Eye className="h-4 w-4" />
-                </button>
-                <button onClick={() => onEdit(cat.id)} className="p-2 text-green-600 hover:bg-green-50 rounded">
-                  <Edit2 className="h-4 w-4" />
-                </button>
-                <button onClick={() => onDelete(cat.id)} className="p-2 text-red-600 hover:bg-red-50 rounded">
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                {isTrashView ? (
+                  <>
+                    <button onClick={() => onRestore?.(cat.id)} className="p-2 text-green-600 hover:bg-green-50 rounded" title="Restore">
+                      <RotateCcw className="h-4 w-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => onView(cat.id)} className="p-2 text-blue-600 hover:bg-blue-50 rounded" title="View">
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    <button onClick={() => onEdit(cat.id)} className="p-2 text-green-600 hover:bg-green-50 rounded" title="Edit">
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                    <button onClick={() => onDelete(cat.id)} className="p-2 text-red-600 hover:bg-red-50 rounded" title="Delete">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </>
+                )}
               </div>
             </td>
           </tr>
