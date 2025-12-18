@@ -58,6 +58,17 @@ export default function SubCategoriesPage() {
     }
   }
 
+  const handleRestore = async (id: string) => {
+    if (confirm('Restore this sub-category?')) {
+      try {
+        await subCategoryService.restore(id)
+        fetchSubCategories()
+      } catch (error) {
+        setError('Failed to restore sub-category')
+      }
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
@@ -126,6 +137,8 @@ export default function SubCategoriesPage() {
                   onView={id => navigate(`/sub-categories/${id}`)}
                   onEdit={id => navigate(`/sub-categories/${id}/edit`)}
                   onDelete={handleDelete}
+                  onRestore={handleRestore}
+                  isTrashView={showTrash}
                 />
               </div>
 
