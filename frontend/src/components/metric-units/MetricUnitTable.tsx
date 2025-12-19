@@ -6,7 +6,7 @@ import { formatDate } from '@/utils/dateUtils'
 interface MetricUnitTableProps {
   data: MetricUnit[]
   isLoading?: boolean
-  selectedIds?: string[]
+  selectedIds: string[]; 
   onSelect?: (id: string) => void
   onSelectAll?: (selected: boolean) => void
   onEdit?: (id: string) => void

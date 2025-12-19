@@ -5,8 +5,6 @@ import { BranchTable } from '@/components/branches/BranchTable'
 import type { Branch } from '@/types/branch'
 import { 
   Search, 
-  Filter, 
-  MapPin, 
   Building, 
   Plus, 
   ChevronLeft, 
@@ -99,56 +97,6 @@ function BranchesPage() {
               <Plus className="h-5 w-5 group-hover:rotate-90 transition-transform duration-200" />
               Add New Branch
             </button>
-          </div>
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">Total Branches</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">{total}</p>
-                </div>
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <Building className="h-6 w-6 text-blue-600" />
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">Active Branches</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">
-                    {branches.filter(b => b.status === 'active').length}
-                  </p>
-                </div>
-                <div className="p-3 bg-green-50 rounded-lg">
-                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">This Page</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">{branches.length} items</p>
-                </div>
-                <div className="p-3 bg-purple-50 rounded-lg">
-                  <Filter className="h-6 w-6 text-purple-600" />
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">Current Page</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">{page}/{totalPages}</p>
-                </div>
-                <div className="p-3 bg-orange-50 rounded-lg">
-                  <MapPin className="h-6 w-6 text-orange-600" />
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
