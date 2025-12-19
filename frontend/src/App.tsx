@@ -32,6 +32,9 @@ import CreateSubCategoryPage from './pages/sub-categories/CreateSubCategoryPage'
 import EditSubCategoryPage from './pages/sub-categories/EditSubCategoryPage'
 import CategoryDetailPage from './pages/categories/CategoryDetailPage'
 import SubCategoryDetailPage from './pages/sub-categories/SubCategoryDetailPage'
+import MetricUnitsPage from './pages/metric-units/MetricUnitsPage'
+import NewMetricUnitPage from './pages/metric-units/NewMetricUnitPage'
+import EditMetricUnitPage from './pages/metric-units/EditMetricUnitPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isInitialized } = useAuthStore()
@@ -91,6 +94,9 @@ function App() {
           <Route path="sub-categories/new" element={<ProtectedRoute><CreateSubCategoryPage /></ProtectedRoute>} />
           <Route path="sub-categories/:id" element={<ProtectedRoute><SubCategoryDetailPage /></ProtectedRoute>} />
           <Route path="sub-categories/:id/edit" element={<ProtectedRoute><EditSubCategoryPage /></ProtectedRoute>} />
+          <Route path="metric-units" element={<ProtectedRoute><MetricUnitsPage /></ProtectedRoute>} />
+          <Route path="metric-units/new" element={<ProtectedRoute><NewMetricUnitPage /></ProtectedRoute>} />
+          <Route path="metric-units/:id/edit" element={<ProtectedRoute><EditMetricUnitPage /></ProtectedRoute>} />
         </Route>
       </Routes>
     </BrowserRouter>
