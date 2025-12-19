@@ -57,212 +57,40 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Auth Routes - No Layout */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+        {/* Protected Routes - With Layout */}
         <Route path="/" element={<Layout />}>
           <Route index element={<HomePage />} />
-          <Route path="login" element={<LoginPage />} />
-          <Route path="register" element={<RegisterPage />} />
-          <Route path="forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="reset-password" element={<ResetPasswordPage />} />
-          <Route
-            path="profile"
-            element={
-              <ProtectedRoute>
-                <ProfilePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="employees"
-            element={
-              <ProtectedRoute>
-                <EmployeesPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="employees/create"
-            element={
-              <ProtectedRoute>
-                <CreateEmployeePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="employees/:id"
-            element={
-              <ProtectedRoute>
-                <EmployeeDetailPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="employees/edit/:id"
-            element={
-              <ProtectedRoute>
-                <EditEmployeePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="companies"
-            element={
-              <ProtectedRoute>
-                <CompaniesPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="companies/new"
-            element={
-              <ProtectedRoute>
-                <CreateCompanyPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="companies/:id"
-            element={
-              <ProtectedRoute>
-                <CompanyDetailPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="companies/:id/edit"
-            element={
-              <ProtectedRoute>
-                <EditCompanyPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="branches"
-            element={
-              <ProtectedRoute>
-                <BranchesPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="branches/new"
-            element={
-              <ProtectedRoute>
-                <CreateBranchPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="branches/:id"
-            element={
-              <ProtectedRoute>
-                <BranchDetailPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="branches/:id/edit"
-            element={
-              <ProtectedRoute>
-                <EditBranchPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="permissions"
-            element={
-              <ProtectedRoute>
-                <PermissionsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="users"
-            element={
-              <ProtectedRoute>
-                <UsersPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="users/:id"
-            element={
-              <ProtectedRoute>
-                <UserDetailPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="users/edit/:id"
-            element={
-              <ProtectedRoute>
-                <UserEditPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="categories"
-            element={
-              <ProtectedRoute>
-                <CategoriesPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="categories/new"
-            element={
-              <ProtectedRoute>
-                <CreateCategoryPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="categories/:id"
-            element={
-              <ProtectedRoute>
-                <CategoryDetailPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="categories/:id/edit"
-            element={
-              <ProtectedRoute>
-                <EditCategoryPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="sub-categories"
-            element={
-              <ProtectedRoute>
-                <SubCategoriesPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="sub-categories/new"
-            element={
-              <ProtectedRoute>
-                <CreateSubCategoryPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="sub-categories/:id"
-            element={
-              <ProtectedRoute>
-                <SubCategoryDetailPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="sub-categories/:id/edit"
-            element={
-              <ProtectedRoute>
-                <EditSubCategoryPage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+          <Route path="employees" element={<ProtectedRoute><EmployeesPage /></ProtectedRoute>} />
+          <Route path="employees/create" element={<ProtectedRoute><CreateEmployeePage /></ProtectedRoute>} />
+          <Route path="employees/:id" element={<ProtectedRoute><EmployeeDetailPage /></ProtectedRoute>} />
+          <Route path="employees/edit/:id" element={<ProtectedRoute><EditEmployeePage /></ProtectedRoute>} />
+          <Route path="companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
+          <Route path="companies/new" element={<ProtectedRoute><CreateCompanyPage /></ProtectedRoute>} />
+          <Route path="companies/:id" element={<ProtectedRoute><CompanyDetailPage /></ProtectedRoute>} />
+          <Route path="companies/:id/edit" element={<ProtectedRoute><EditCompanyPage /></ProtectedRoute>} />
+          <Route path="branches" element={<ProtectedRoute><BranchesPage /></ProtectedRoute>} />
+          <Route path="branches/new" element={<ProtectedRoute><CreateBranchPage /></ProtectedRoute>} />
+          <Route path="branches/:id" element={<ProtectedRoute><BranchDetailPage /></ProtectedRoute>} />
+          <Route path="branches/:id/edit" element={<ProtectedRoute><EditBranchPage /></ProtectedRoute>} />
+          <Route path="permissions" element={<ProtectedRoute><PermissionsPage /></ProtectedRoute>} />
+          <Route path="users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
+          <Route path="users/:id" element={<ProtectedRoute><UserDetailPage /></ProtectedRoute>} />
+          <Route path="users/edit/:id" element={<ProtectedRoute><UserEditPage /></ProtectedRoute>} />
+          <Route path="categories" element={<ProtectedRoute><CategoriesPage /></ProtectedRoute>} />
+          <Route path="categories/new" element={<ProtectedRoute><CreateCategoryPage /></ProtectedRoute>} />
+          <Route path="categories/:id" element={<ProtectedRoute><CategoryDetailPage /></ProtectedRoute>} />
+          <Route path="categories/:id/edit" element={<ProtectedRoute><EditCategoryPage /></ProtectedRoute>} />
+          <Route path="sub-categories" element={<ProtectedRoute><SubCategoriesPage /></ProtectedRoute>} />
+          <Route path="sub-categories/new" element={<ProtectedRoute><CreateSubCategoryPage /></ProtectedRoute>} />
+          <Route path="sub-categories/:id" element={<ProtectedRoute><SubCategoryDetailPage /></ProtectedRoute>} />
+          <Route path="sub-categories/:id/edit" element={<ProtectedRoute><EditSubCategoryPage /></ProtectedRoute>} />
         </Route>
       </Routes>
     </BrowserRouter>

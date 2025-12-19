@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
-import { useLocation, Link, Outlet } from 'react-router-dom'
-import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useLocation, Link, Outlet, useNavigate } from 'react-router-dom'
+import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User } from 'lucide-react'
+import { useAuthStore } from '@/stores/authStore'
 
 interface MenuItem {
   id: string
@@ -8,14 +9,21 @@ interface MenuItem {
   href?: string
   icon: React.ReactNode
   submenu?: MenuItem[]
+  disabled?: boolean
+  badge?: number
 }
 
 export default function Layout() {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { user, logout } = useAuthStore()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
   const sidebarRef = useRef<HTMLDivElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const profileRef = useRef<HTMLDivElement>(null)
 
   const menuItems: MenuItem[] = useMemo(() => [
     {
@@ -42,19 +50,28 @@ export default function Layout() {
       icon: <Users size={18} />
     },
     {
-      id: 'users',
-      name: 'Users',
-      href: '/users',
-      icon: <Users size={18} />
-    },
-    {
-      id: 'permissions',
-      name: 'Permissions',
-      href: '/permissions',
-      icon: <Settings size={18} />
+      id: 'settings',
+      name: 'Settings',
+      icon: <Settings size={18} />,
+      submenu: [
+        { id: 'users', name: 'Users', href: '/users', icon: <Users size={16} /> },
+        { id: 'permissions', name: 'Permissions', href: '/permissions', icon: <Settings size={16} /> },
+      ]
     },
   ], [])
 
+  // Auto buka submenu berdasarkan current route
+  useEffect(() => {
+    menuItems.forEach(item => {
+      if (item.submenu) {
+        if (item.submenu.some(subItem => isActiveMenu(subItem.href))) {
+          setActiveSubmenu(item.id)
+        }
+      }
+    })
+  }, [location.pathname])
+
+  // Handle click outside sidebar
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (sidebarRef.current && !sidebarRef.current.contains(event.target as Node) && window.innerWidth < 1024) {
@@ -71,17 +88,53 @@ export default function Layout() {
     }
   }, [isSidebarOpen])
 
-  const toggleSubmenu = (menuId: string) => {
-    setActiveSubmenu(activeSubmenu === menuId ? null : menuId)
-  }
+  // Handle resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsSidebarOpen(false)
+      }
+    }
 
-  const isActiveMenu = (href?: string) => {
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // Close profile dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setIsProfileOpen(false)
+      }
+    }
+
+    if (isProfileOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isProfileOpen])
+
+  const toggleSubmenu = useCallback((menuId: string) => {
+    setActiveSubmenu(prev => prev === menuId ? null : menuId)
+  }, [])
+
+  const isActiveMenu = useCallback((href?: string) => {
     return href === location.pathname
+  }, [location.pathname])
+
+  const isSubmenuActive = useCallback((submenu?: MenuItem[]) => {
+    return submenu?.some(item => isActiveMenu(item.href))
+  }, [isActiveMenu])
+
+  const handleLogout = async () => {
+    await logout()
+    navigate('/login')
   }
 
-  const isSubmenuActive = (submenu?: MenuItem[]) => {
-    return submenu?.some(item => isActiveMenu(item.href))
-  }
+  const userInitial = user?.full_name?.charAt(0).toUpperCase() || 'U'
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -93,12 +146,14 @@ export default function Layout() {
               <button
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                 className="mr-2 p-2 rounded-md text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 lg:hidden"
+                aria-label={isSidebarOpen ? "Close menu" : "Open menu"}
               >
                 {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
               </button>
               <button
                 onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                 className="hidden lg:block mr-2 p-2 rounded-md text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               >
                 <Menu size={20} />
               </button>
@@ -108,21 +163,75 @@ export default function Layout() {
                 </div>
                 <div className="hidden sm:block">
                   <div className="text-xl font-bold text-gray-800 dark:text-white">Sushimas</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 -mt-1">System</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 -mt-1">Internal System V.2</div>
                 </div>
               </Link>
             </div>
 
             <div className="flex items-center gap-4">
-              <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400">
+              <button 
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                aria-label="Search"
+              >
                 <Search size={20} />
               </button>
-              <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 relative">
+              <button 
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 relative"
+                aria-label="Notifications"
+              >
                 <Bell size={20} />
+                <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
               </button>
-              <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400">
-                <LogOut size={20} />
-              </button>
+              
+              {/* Profile Dropdown */}
+              <div className="relative" ref={profileRef}>
+                <button
+                  onClick={() => setIsProfileOpen(!isProfileOpen)}
+                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  aria-label="Profile menu"
+                  aria-expanded={isProfileOpen}
+                >
+                  <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
+                    {userInitial}
+                  </div>
+                  <ChevronDown size={16} className={`transition-transform ${isProfileOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isProfileOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                    <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.full_name || 'User'}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email || 'user@example.com'}</p>
+                    </div>
+                    <Link
+                      to="/profile"
+                      onClick={() => setIsProfileOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <User size={16} />
+                      Profile
+                    </Link>
+                    <Link
+                      to="/reset-password"
+                      onClick={() => setIsProfileOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <Settings size={16} />
+                      Reset Password
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setIsProfileOpen(false)
+                        handleLogout()
+                      }}
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 border-t border-gray-200 dark:border-gray-700"
+                    >
+                      <LogOut size={16} />
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -133,7 +242,7 @@ export default function Layout() {
         <div 
           ref={sidebarRef}
           className={`
-            fixed inset-y-0 left-0 z-30 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-all duration-300 ease-in-out lg:static lg:translate-x-0 lg:shadow-none
+            fixed inset-y-0 left-0 z-30 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-all duration-200 ease-in-out lg:static lg:translate-x-0 lg:shadow-none
             ${isSidebarOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full'}
             ${isSidebarCollapsed ? 'lg:w-16' : 'lg:w-64'}
             w-64
@@ -147,11 +256,19 @@ export default function Layout() {
                     <div className="relative group">
                       <button
                         onClick={() => toggleSubmenu(item.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            toggleSubmenu(item.id)
+                          }
+                        }}
                         className={`group flex items-center w-full px-3 py-2 text-sm font-medium rounded-md transition-colors
                           ${activeSubmenu === item.id || isSubmenuActive(item.submenu)
                             ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
                             : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                           }`}
+                        aria-expanded={activeSubmenu === item.id}
+                        aria-label={item.name}
                       >
                         <span className={`${isSidebarCollapsed ? 'mx-auto' : 'mr-3'} flex-shrink-0`}>
                           {item.icon}
@@ -219,8 +336,10 @@ export default function Layout() {
         {/* Overlay for mobile */}
         {isSidebarOpen && (
           <div 
-            className="fixed inset-0 bg-gray-900 bg-opacity-50 z-20 lg:hidden"
+            ref={overlayRef}
+            className="fixed inset-0 bg-gray-900 bg-opacity-50 z-20 lg:hidden transition-opacity duration-200"
             onClick={() => setIsSidebarOpen(false)}
+            aria-hidden="true"
           />
         )}
 
