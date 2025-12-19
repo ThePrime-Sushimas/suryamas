@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useLocation, Link, Outlet, useNavigate } from 'react-router-dom'
-import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User } from 'lucide-react'
+import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard,Key, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 
 interface MenuItem {
@@ -216,7 +216,7 @@ export default function Layout() {
                       onClick={() => setIsProfileOpen(false)}
                       className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
-                      <Settings size={16} />
+                      <Key size={16} />
                       Reset Password
                     </Link>
                     <button
