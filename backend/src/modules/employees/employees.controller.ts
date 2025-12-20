@@ -26,6 +26,23 @@ export class EmployeesController {
       sendError(res, (error as Error).message, 400)
     }
   }
+
+  async getUnassigned(req: PaginatedRequest & SortRequest, res: Response) {
+    try {
+      const result = await employeesService.getUnassigned(req.pagination, req.sort)
+      res.json({
+        success: true,
+        data: result.data,
+        pagination: result.pagination
+      })
+    } catch (error) {
+      logError('Failed to get unassigned employees', {
+        error: (error as Error).message,
+        user: (req as AuthRequest).user?.id
+      })
+      sendError(res, (error as Error).message, 400)
+    }
+  }
   async create(req: AuthRequest, res: Response) {
     try {
       const employee = await employeesService.create(req.body, req.file, req.user?.id)

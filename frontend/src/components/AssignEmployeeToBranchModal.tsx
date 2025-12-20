@@ -34,10 +34,8 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
   const fetchUnassignedEmployees = async () => {
     setLoading(true)
     try {
-      const { data } = await api.get('/employees?limit=1000')
-      const allEmployees = data.data || []
-      const unassigned = allEmployees.filter((emp: any) => !emp.branch_id)
-      setEmployees(unassigned)
+      const { data } = await api.get(`/employees/unassigned?page=1&limit=1000`)
+      setEmployees(data.data || [])
     } catch (error) {
       console.error('Failed to fetch employees:', error)
       setEmployees([])

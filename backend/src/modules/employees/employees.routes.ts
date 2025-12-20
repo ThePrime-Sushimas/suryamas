@@ -17,6 +17,9 @@ const router = Router()
 // List with pagination & sort
 router.get('/', authenticate, canView('employees'), paginationMiddleware, sortMiddleware, (req, res) => employeesController.list(req as any, res))
 
+// Get unassigned employees
+router.get('/unassigned', authenticate, canView('employees'), paginationMiddleware, sortMiddleware, (req, res) => employeesController.getUnassigned(req as any, res))
+
 // Search with pagination & sort & filter
 router.get('/search', authenticate, canView('employees'), paginationMiddleware, sortMiddleware, filterMiddleware, (req, res) => employeesController.search(req as any, res))
 router.get('/autocomplete', authenticate, canView('employees'), (req, res) => employeesController.autocomplete(req, res))

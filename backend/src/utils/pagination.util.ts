@@ -15,12 +15,12 @@ export interface PaginatedResponse<T> {
   }
 }
 
-export function getPaginationParams(query: any): { page: number; limit: number; offset: number } {
+export function getPaginationParams(query: any, maxLimit?: number): { page: number; limit: number; offset: number } {
   const page = Math.max(1, parseInt(query.page) || 1)
-  const limit = Math.min(100, Math.max(1, parseInt(query.limit) || 10))
+  const limit = query.limit ? Math.min(maxLimit || Infinity, Math.max(1, parseInt(query.limit))) : (maxLimit || Infinity)
   const offset = (page - 1) * limit
 
-  return { page, limit, offset }
+  return { page, limit: limit === Infinity ? Number.MAX_SAFE_INTEGER : limit, offset }
 }
 
 export function createPaginatedResponse<T>(

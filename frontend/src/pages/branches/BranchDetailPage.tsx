@@ -86,7 +86,7 @@ function BranchDetailPage() {
           )
         }
         promises.push(
-          api.get<{ success: boolean; data: Employee[] }>(`/employees?limit=1000`)
+          api.get<{ success: boolean; data: Employee[] }>(`/employees?page=1&limit=1000`)
             .then(r => {
               const allEmps = r.data.data || []
               const filtered = allEmps.filter((emp: any) => emp.branch_id === id)
@@ -1041,7 +1041,7 @@ function BranchDetailPage() {
         onSuccess={() => {
           setShowAssignModal(false)
           if (id) {
-            api.get<{ success: boolean; data: Employee[] }>(`/employees?limit=1000`)
+            api.get<{ success: boolean; data: Employee[] }>(`/employees?page=1&limit=100`)
               .then(r => {
                 const allEmps = r.data.data || []
                 const filtered = allEmps.filter((emp: any) => emp.branch_id === id)

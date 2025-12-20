@@ -44,6 +44,44 @@ export class EmployeesRepository {
     return { data: rows as EmployeeWithBranch[], total: count || 0 }
   }
 
+  async findUnassigned(pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<{ data: EmployeeWithBranch[]; total: number }> {
+    let query = supabase.from('employees').select(`
+      id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
+      end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
+      ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
+      brand_name, religion, gender, marital_status, profile_picture,
+      created_at, updated_at, user_id, is_active, branch_id,
+      branches:branch_id(id, branch_name, branch_code, city)
+    `).is('branch_id', null)
+    
+    if (sort?.field) {
+      query = query.order(sort.field, { ascending: sort.order === 'asc' })
+    } else {
+      query = query.order('full_name', { ascending: true })
+    }
+    
+    const [{ data, error }, { count, error: countError }] = await Promise.all([
+      query.range(pagination.offset, pagination.offset + pagination.limit - 1),
+      supabase.from('employees').select('id', { count: 'exact', head: true }).is('branch_id', null)
+    ])
+
+    if (error) throw new Error(error.message)
+    if (countError) throw new Error(countError.message)
+    
+    const rows = (data || []).map((e: any) => {
+      const out: any = {
+        ...e,
+        branch_name: e.branches?.branch_name ?? null,
+        branch_code: e.branches?.branch_code ?? null,
+        branch_city: e.branches?.city ?? null,
+      }
+      delete out.branches
+      return out
+    })
+    
+    return { data: rows as EmployeeWithBranch[], total: count || 0 }
+  }
+
   async create(data: Partial<Employee>): Promise<Employee | null> {
     const { data: employee, error } = await supabase
       .from('employees')

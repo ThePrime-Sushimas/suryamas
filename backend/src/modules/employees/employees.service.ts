@@ -14,6 +14,12 @@ export class EmployeesService {
     return createPaginatedResponse(dataWithAge, total, pagination.page, pagination.limit)
   }
 
+  async getUnassigned(pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<PaginatedResponse<Employee>> {
+    const { data, total } = await employeesRepository.findUnassigned(pagination, sort)
+    const dataWithAge = data.map(emp => ({ ...emp, age: calculateAge(emp.birth_date), years_of_service: calculateYearsOfService(emp.join_date, emp.resign_date) }))
+    return createPaginatedResponse(dataWithAge, total, pagination.page, pagination.limit)
+  }
+
   async create(data: Partial<Employee>, file?: Express.Multer.File, userId?: string): Promise<Employee> {
     let profilePictureUrl: string | null = null
     
