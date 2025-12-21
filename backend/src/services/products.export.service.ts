@@ -84,7 +84,8 @@ export class ProductsExportService {
       column.width = 15
     })
 
-    return await workbook.xlsx.writeBuffer() as Buffer
+    const buffer = await workbook.xlsx.writeBuffer()
+    return Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as Uint8Array)
   }
 }
 
