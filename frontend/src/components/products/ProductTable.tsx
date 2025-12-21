@@ -1,5 +1,5 @@
 import type { Product } from '../../types/product'
-import { Edit2, Trash2, Eye } from 'lucide-react'
+import { Edit2, Trash2, Eye, RotateCcw } from 'lucide-react'
 
 interface ProductTableProps {
   products: Product[]
@@ -7,6 +7,7 @@ interface ProductTableProps {
   subCategories?: any[]
   onEdit: (product: Product) => void
   onDelete: (id: string) => void
+  onRestore: (id: string) => void
   onView: (product: Product) => void
   selectedIds: string[]
   onSelectChange: (id: string, checked: boolean) => void
@@ -18,6 +19,7 @@ export const ProductTable = ({
   subCategories = [],
   onEdit,
   onDelete,
+  onRestore,
   onView,
   selectedIds,
   onSelectChange,
@@ -89,20 +91,32 @@ export const ProductTable = ({
                 >
                   <Eye size={18} className="text-blue-600" />
                 </button>
-                <button
-                  onClick={() => onEdit(product)}
-                  className="p-1 hover:bg-yellow-100 rounded"
-                  title="Edit"
-                >
-                  <Edit2 size={18} className="text-yellow-600" />
-                </button>
-                <button
-                  onClick={() => onDelete(product.id)}
-                  className="p-1 hover:bg-red-100 rounded"
-                  title="Delete"
-                >
-                  <Trash2 size={18} className="text-red-600" />
-                </button>
+                {!product.is_deleted && (
+                  <button
+                    onClick={() => onEdit(product)}
+                    className="p-1 hover:bg-yellow-100 rounded"
+                    title="Edit"
+                  >
+                    <Edit2 size={18} className="text-yellow-600" />
+                  </button>
+                )}
+                {!product.is_deleted ? (
+                  <button
+                    onClick={() => onDelete(product.id)}
+                    className="p-1 hover:bg-red-100 rounded"
+                    title="Delete"
+                  >
+                    <Trash2 size={18} className="text-red-600" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => onRestore(product.id)}
+                    className="p-1 hover:bg-green-100 rounded"
+                    title="Restore"
+                  >
+                    <RotateCcw size={18} className="text-green-600" />
+                  </button>
+                )}
               </td>
             </tr>
           ))}

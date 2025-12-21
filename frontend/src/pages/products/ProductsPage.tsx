@@ -75,6 +75,16 @@ export const ProductsPage = () => {
     }
   }
 
+  const handleRestore = async (id: string) => {
+    if (!confirm('Restore this product?')) return
+    try {
+      await productService.restoreProduct(id)
+      loadData()
+    } catch (error) {
+      console.error('Restore failed:', error)
+    }
+  }
+
   const handleSelectChange = (id: string, checked: boolean) => {
     setSelectedIds(prev =>
       checked ? [...prev, id] : prev.filter(pid => pid !== id)
@@ -195,6 +205,7 @@ export const ProductsPage = () => {
             subCategories={subCategories}
             onEdit={(product) => navigate(`/products/${product.id}/edit`)}
             onDelete={handleDelete}
+            onRestore={handleRestore}
             onView={(product) => navigate(`/products/${product.id}`)}
             selectedIds={selectedIds}
             onSelectChange={handleSelectChange}
