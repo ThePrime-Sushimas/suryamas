@@ -5,20 +5,7 @@ export default function ProfilePage() {
   const { profile, fetchProfile, updateProfile, uploadProfilePicture, isLoading } = useEmployeeStore()
   const [isEditing, setIsEditing] = useState(false)
   const [activeTab, setActiveTab] = useState('personal')
-  const [formData, setFormData] = useState<{
-    email: string
-    mobile_phone: string
-    citizen_id_address: string
-    bank_name: string
-    bank_account: string
-    bank_account_holder: string
-    birth_place: string
-    birth_date: string
-    nik: string
-    gender: 'Male' | 'Female' | ''
-    religion: 'Islam' | 'Christian' | 'Catholic' | 'Hindu' | 'Buddha' | 'Other' | ''
-    marital_status: 'Single' | 'Married' | 'Divorced' | 'Widow' | ''
-  }>({
+  const [formData, setFormData] = useState({
     email: '',
     mobile_phone: '',
     citizen_id_address: '',
@@ -162,8 +149,8 @@ export default function ProfilePage() {
                 <div>
                   <label className="block text-xs md:text-sm font-medium text-gray-700">Gender</label>
                   <select
-                    value={formData.gender}
-                    onChange={(e) => setFormData({ ...formData, gender: e.target.value as '' | 'Male' | 'Female' })}
+                    value={formData.gender as any}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
                   >
                     <option value="">Select</option>
@@ -174,8 +161,8 @@ export default function ProfilePage() {
                 <div>
                   <label className="block text-xs md:text-sm font-medium text-gray-700">Religion</label>
                   <select
-                    value={formData.religion}
-                    onChange={(e) => setFormData({ ...formData, religion: e.target.value as '' | 'Islam' | 'Christian' | 'Catholic' | 'Hindu' | 'Buddha' | 'Other' })}
+                    value={formData.religion as any}
+                    onChange={(e) => setFormData({ ...formData, religion: e.target.value })}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
                   >
                     <option value="">Select</option>
@@ -190,8 +177,8 @@ export default function ProfilePage() {
                 <div>
                   <label className="block text-xs md:text-sm font-medium text-gray-700">Marital Status</label>
                   <select
-                    value={formData.marital_status}
-                    onChange={(e) => setFormData({ ...formData, marital_status: e.target.value as '' | 'Single' | 'Married' | 'Divorced' | 'Widow' })}
+                    value={formData.marital_status as any}
+                    onChange={(e) => setFormData({ ...formData, marital_status: e.target.value })}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
                   >
                     <option value="">Select</option>
