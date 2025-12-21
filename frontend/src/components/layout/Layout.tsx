@@ -37,6 +37,7 @@ export default function Layout() {
       name: 'Master Data',
       icon: <Package size={18} />,
       submenu: [
+        { id: 'products', name: 'Products', href: '/products', icon: <Package size={16} /> },
         { id: 'categories', name: 'Categories', href: '/categories', icon: <Package size={16} /> },
         { id: 'sub-categories', name: 'Sub Categories', href: '/sub-categories', icon: <Package size={16} /> },
         { id: 'metric-units', name: 'Metric Units', href: '/metric-units', icon: <Package size={16} /> },

@@ -1,3 +1,6 @@
+// Re-export product types
+export type { Product, ProductUom, ProductStatus, UomStatus, CreateProductDto, UpdateProductDto, CreateProductUomDto, UpdateProductUomDto } from './product'
+
 export interface Employee {
   id: string
   employee_id: string
@@ -30,7 +33,7 @@ export interface Employee {
   created_at: string
   updated_at: string
   user_id: string | null
-  is_active: boolean // ✅ Ubah dari optional (?) jadi required
+  is_active: boolean
 }
 
 export interface User {
@@ -39,8 +42,7 @@ export interface User {
   full_name: string
   job_position: string
   created_at: string
-  is_active?: boolean // ✅ Tambahkan ini juga jika perlu
-
+  is_active?: boolean
 }
 
 export interface ApiResponse<T> {

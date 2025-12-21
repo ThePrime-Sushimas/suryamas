@@ -10,6 +10,8 @@ import subCategoriesRoutes from './modules/sub-categories/sub-categories.routes'
 import permissionsRoutes from './modules/permissions/permissions.routes'
 import usersRoutes from './modules/users/users.routes'
 import metricUnitsRoutes from './modules/metric-units/metricUnits.routes'
+import productsRoutes from './modules/products/products.routes'
+import productUomsRoutes from './modules/product-uoms/product-uoms.routes'
 import { errorHandler } from './middleware/error.middleware'
 import { requestLogger } from './middleware/request-logger.middleware'
 
@@ -36,6 +38,8 @@ app.use('/api/v1/sub-categories', subCategoriesRoutes)
 app.use('/api/v1/permissions', permissionsRoutes)
 app.use('/api/v1/users', usersRoutes)
 app.use('/api/v1/metric-units', metricUnitsRoutes)
+app.use('/api/v1/products', productsRoutes)
+app.use('/api/v1/product-uoms', productUomsRoutes)
 
 // Error handler
 app.use(errorHandler)
