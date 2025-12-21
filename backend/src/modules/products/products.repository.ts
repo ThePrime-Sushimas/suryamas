@@ -153,6 +153,12 @@ export class ProductsRepository {
     if (error) throw new Error(error.message)
   }
 
+  async bulkDelete(ids: string[]): Promise<void> {
+    const { error } = await supabase.from('products').update({ is_deleted: true }).in('id', ids)
+
+    if (error) throw new Error(error.message)
+  }
+
   async bulkUpdateStatus(ids: string[], status: string): Promise<void> {
     const { error } = await supabase.from('products').update({ status }).in('id', ids)
 

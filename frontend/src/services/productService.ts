@@ -23,6 +23,9 @@ export const productService = {
   delete: (id: string) =>
     axios.delete(`${API_URL}/${id}`),
 
+  bulkDelete: (ids: string[]) =>
+    axios.post(`${API_URL}/bulk/delete`, { ids }),
+
   restoreProduct: (id: string) =>
     axios.post(`${API_URL}/${id}/restore`),
 

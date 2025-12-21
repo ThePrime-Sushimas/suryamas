@@ -131,6 +131,21 @@ export class ProductsService {
     }
   }
 
+  async bulkDelete(ids: string[], userId?: string): Promise<void> {
+    try {
+      await productsRepository.bulkDelete(ids)
+
+      if (userId) {
+        await AuditService.log('DELETE', 'product', ids.join(','), userId)
+      }
+
+      logInfo('Bulk delete products', { count: ids.length })
+    } catch (error: any) {
+      logError('Bulk delete products failed', { ids, error: error.message })
+      throw error
+    }
+  }
+
   async bulkUpdateStatus(ids: string[], status: ProductStatus, userId?: string): Promise<void> {
     if (!VALID_STATUSES.includes(status)) {
       throw new Error(`Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`)

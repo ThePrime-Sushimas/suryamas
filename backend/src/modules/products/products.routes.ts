@@ -97,6 +97,12 @@ router.delete(
 )
 
 router.post(
+  '/bulk/delete',
+  canDelete('products'),
+  productsController.bulkDelete
+)
+
+router.post(
   '/bulk/update-status',
   canUpdate('products'),
   productsController.bulkUpdateStatus

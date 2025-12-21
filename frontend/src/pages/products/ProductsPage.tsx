@@ -4,7 +4,7 @@ import { productService } from '../../services/productService'
 import { categoryService, subCategoryService } from '../../services/categoryService'
 import { ProductTable } from '../../components/products/ProductTable'
 import type { Product } from '../../types/product'
-import { Plus, Search, Download, Upload, X } from 'lucide-react'
+import { Plus, Search, Download, Upload, X, Filter, ChevronLeft, ChevronRight, Trash2, RefreshCw } from 'lucide-react'
 
 export const ProductsPage = () => {
   const navigate = useNavigate()
@@ -22,6 +22,8 @@ export const ProductsPage = () => {
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importPreview, setImportPreview] = useState<any>(null)
   const [importing, setImporting] = useState(false)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -48,6 +50,7 @@ export const ProductsPage = () => {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
+    setShowMobileFilters(false)
     if (!searchQuery.trim()) {
       loadData()
       return
@@ -142,161 +145,379 @@ export const ProductsPage = () => {
     setImportPreview(null)
   }
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0 || !confirm(`Delete ${selectedIds.length} selected products?`)) return
+    try {
+      setDeleting(true)
+      await productService.bulkDelete(selectedIds)
+      setSelectedIds([])
+      loadData()
+    } catch (error) {
+      console.error('Bulk delete failed:', error)
+      alert('Failed to delete products')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const totalPages = Math.ceil(total / limit)
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Products</h1>
-        <div className="flex gap-2">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Products</h1>
+          <p className="text-sm md:text-base text-gray-600 mt-1">
+            Manage your product inventory
+          </p>
+        </div>
+        
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={handleExport}
-            className="bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-green-700"
+            className="flex items-center gap-2 px-3 py-2 md:px-4 md:py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm md:text-base"
           >
-            <Download size={20} /> Export
+            <Download size={18} className="hidden sm:inline" />
+            <span className="whitespace-nowrap">Export</span>
           </button>
+          
           <button
             onClick={() => setShowImportModal(true)}
-            className="bg-purple-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-purple-700"
+            className="flex items-center gap-2 px-3 py-2 md:px-4 md:py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm md:text-base"
           >
-            <Upload size={20} /> Import
+            <Upload size={18} className="hidden sm:inline" />
+            <span className="whitespace-nowrap">Import</span>
           </button>
+          
           <button
             onClick={() => navigate('/products/create')}
-            className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700"
+            className="flex items-center gap-2 px-3 py-2 md:px-4 md:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm md:text-base"
           >
-            <Plus size={20} /> New Product
+            <Plus size={18} />
+            <span className="whitespace-nowrap">New Product</span>
           </button>
         </div>
       </div>
 
-      <form onSubmit={handleSearch} className="flex gap-2">
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search by name or code..."
-          className="flex-1 px-4 py-2 border rounded"
-        />
-        <button
-          type="submit"
-          className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700"
-        >
-          <Search size={20} /> Search
-        </button>
-        <label className="flex items-center gap-2 px-4 py-2 border rounded">
-          <input
-            type="checkbox"
-            checked={showDeleted}
-            onChange={(e) => setShowDeleted(e.target.checked)}
-            className="rounded"
-          />
-          <span className="text-sm">Show Deleted</span>
-        </label>
-      </form>
+      {/* Bulk Actions */}
+      {selectedIds.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-blue-700 font-medium">
+              {selectedIds.length} product{selectedIds.length !== 1 ? 's' : ''} selected
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleBulkDelete}
+              disabled={deleting}
+              className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm disabled:opacity-50"
+            >
+              <Trash2 size={16} />
+              {deleting ? 'Deleting...' : 'Delete Selected'}
+            </button>
+            <button
+              onClick={() => setSelectedIds([])}
+              className="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
 
-      {loading ? (
-        <div className="text-center py-8">Loading...</div>
-      ) : (
-        <>
-          <ProductTable
-            products={products}
-            categories={categories}
-            subCategories={subCategories}
-            onEdit={(product) => navigate(`/products/${product.id}/edit`)}
-            onDelete={handleDelete}
-            onRestore={handleRestore}
-            onView={(product) => navigate(`/products/${product.id}`)}
-            selectedIds={selectedIds}
-            onSelectChange={handleSelectChange}
-          />
-
-          <div className="flex justify-between items-center">
-            <div className="text-sm text-gray-600">
-              Showing {products.length} of {total} products
+      {/* Search and Filter Section */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
+        <div className="flex flex-col md:flex-row gap-4">
+          <form onSubmit={handleSearch} className="flex-1 flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search products by name or code..."
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              />
             </div>
-            <div className="flex gap-2">
+            <button
+              type="submit"
+              className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
+            >
+              Search
+            </button>
+          </form>
+
+          {/* Mobile Filter Toggle */}
+          <button
+            onClick={() => setShowMobileFilters(!showMobileFilters)}
+            className="md:hidden flex items-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            <Filter size={18} />
+            <span>Filter</span>
+          </button>
+
+          {/* Desktop Filter */}
+          <div className="hidden md:flex items-center gap-4">
+            <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showDeleted}
+                onChange={(e) => setShowDeleted(e.target.checked)}
+                className="rounded text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Show Deleted</span>
+            </label>
+            
+            <button
+              onClick={loadData}
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw size={20} />
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Filter Panel */}
+        {showMobileFilters && (
+          <div className="mt-4 p-4 border-t border-gray-200 md:hidden">
+            <div className="space-y-4">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={showDeleted}
+                  onChange={(e) => setShowDeleted(e.target.checked)}
+                  className="rounded text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Show Deleted Products</span>
+              </label>
               <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="px-4 py-2 border rounded disabled:opacity-50"
+                onClick={() => {
+                  loadData()
+                  setShowMobileFilters(false)
+                }}
+                className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
               >
-                Previous
-              </button>
-              <span className="px-4 py-2">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="px-4 py-2 border rounded disabled:opacity-50"
-              >
-                Next
+                <RefreshCw size={16} />
+                Refresh Data
               </button>
             </div>
           </div>
-        </>
-      )}
+        )}
+      </div>
 
-      {showImportModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold">Import Products</h2>
-              <button onClick={handleCloseImportModal} className="p-1 hover:bg-gray-100 rounded">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="border-2 border-dashed rounded-lg p-6 text-center">
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleImportFileChange}
-                className="hidden"
-                id="import-file"
+      {/* Products Table */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+            <p className="text-gray-600">Loading products...</p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <ProductTable
+                products={products}
+                categories={categories}
+                subCategories={subCategories}
+                onEdit={(product) => navigate(`/products/${product.id}/edit`)}
+                onDelete={handleDelete}
+                onRestore={handleRestore}
+                onView={(product) => navigate(`/products/${product.id}`)}
+                selectedIds={selectedIds}
+                onSelectChange={handleSelectChange}
               />
-              <label htmlFor="import-file" className="cursor-pointer">
-                <Upload size={32} className="mx-auto mb-2 text-gray-400" />
-                <p className="text-sm text-gray-600">Click to select Excel file</p>
-              </label>
             </div>
 
-            {importFile && (
-              <div className="bg-gray-50 p-4 rounded space-y-2">
-                <p className="text-sm font-medium">File: {importFile.name}</p>
-                {importPreview && (
-                  <>
-                    <p className="text-sm">Total rows: {importPreview.totalRows}</p>
-                    <p className="text-sm">New products: {importPreview.newProducts}</p>
-                    <p className="text-sm">Existing products: {importPreview.existingProducts}</p>
-                    {importPreview.errors.length > 0 && (
-                      <div className="text-sm text-red-600">
-                        <p>Errors: {importPreview.errors.length}</p>
-                        {importPreview.errors.slice(0, 3).map((err: any, i: number) => (
-                          <p key={i} className="text-xs">{err.message}</p>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
+            {/* Pagination */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 md:p-6 border-t border-gray-200">
+              <div className="text-sm text-gray-600">
+                Showing <span className="font-medium">{products.length}</span> of{' '}
+                <span className="font-medium">{total}</span> products
               </div>
-            )}
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="flex items-center gap-1 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                >
+                  <ChevronLeft size={16} />
+                  <span className="hidden sm:inline">Previous</span>
+                </button>
+                
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum
+                    if (totalPages <= 5) {
+                      pageNum = i + 1
+                    } else if (page <= 3) {
+                      pageNum = i + 1
+                    } else if (page >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i
+                    } else {
+                      pageNum = page - 2 + i
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setPage(pageNum)}
+                        className={`w-8 h-8 rounded-lg transition-colors ${
+                          page === pageNum
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    )
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="flex items-center gap-1 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                >
+                  <span className="hidden sm:inline">Next</span>
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+              
+              <div className="text-sm text-gray-600 hidden sm:block">
+                Page <span className="font-medium">{page}</span> of{' '}
+                <span className="font-medium">{totalPages}</span>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
 
-            <div className="flex gap-2">
-              <button
-                onClick={handleCloseImportModal}
-                className="flex-1 px-4 py-2 border rounded hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleImport}
-                disabled={!importFile || importing}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-              >
-                {importing ? 'Importing...' : 'Import'}
-              </button>
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Import Products</h2>
+                  <p className="text-sm text-gray-600 mt-1">Upload Excel file to import products</p>
+                </div>
+                <button
+                  onClick={handleCloseImportModal}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* File Upload Area */}
+              <div className="mb-6">
+                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-500 transition-colors">
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleImportFileChange}
+                    className="hidden"
+                    id="import-file"
+                  />
+                  <label htmlFor="import-file" className="cursor-pointer block">
+                    <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Upload size={24} className="text-blue-600" />
+                    </div>
+                    <p className="text-gray-900 font-medium mb-1">Choose Excel file</p>
+                    <p className="text-sm text-gray-500">or drag and drop here</p>
+                    <p className="text-xs text-gray-400 mt-2">Supported formats: .xlsx, .xls</p>
+                  </label>
+                </div>
+              </div>
+
+              {/* Preview Information */}
+              {importFile && importPreview && (
+                <div className="bg-gray-50 rounded-xl p-5 mb-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">{importFile.name}</p>
+                      <p className="text-sm text-gray-600">
+                        {(importFile.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setImportFile(null)
+                        setImportPreview(null)
+                      }}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-gray-900">{importPreview.totalRows}</p>
+                      <p className="text-xs text-gray-600">Total Rows</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-green-600">{importPreview.newProducts}</p>
+                      <p className="text-xs text-gray-600">New Products</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-blue-600">{importPreview.existingProducts}</p>
+                      <p className="text-xs text-gray-600">Existing</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-red-600">{importPreview.errors.length}</p>
+                      <p className="text-xs text-gray-600">Errors</p>
+                    </div>
+                  </div>
+
+                  {importPreview.errors.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <p className="font-medium text-red-700 mb-2">Import Issues</p>
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {importPreview.errors.slice(0, 5).map((err: any, i: number) => (
+                          <p key={i} className="text-sm text-red-600">
+                            • {err.message}
+                          </p>
+                        ))}
+                        {importPreview.errors.length > 5 && (
+                          <p className="text-sm text-red-600">
+                            + {importPreview.errors.length - 5} more issues
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCloseImportModal}
+                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleImport}
+                  disabled={!importFile || importing}
+                  className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {importing ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Importing...
+                    </span>
+                  ) : (
+                    'Start Import'
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

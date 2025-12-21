@@ -110,6 +110,21 @@ export class ProductsController {
     }
   }
 
+  bulkDelete = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { ids } = req.body
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        sendError(res, 'Invalid ids provided', 400)
+        return
+      }
+      await productsService.bulkDelete(ids, req.user?.id)
+      sendSuccess(res, null, 'Products deleted successfully')
+    } catch (error: any) {
+      logError('Bulk delete products failed', { error: error.message })
+      sendError(res, error.message || 'Failed to delete products', 400)
+    }
+  }
+
   bulkUpdateStatus = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { ids, status } = req.body
