@@ -13,11 +13,11 @@ PermissionService.registerModule('metric-units', 'Metric Units Management').catc
 
 const router = Router()
 
-router.get('/', authenticate, canView('metric-units'), paginationMiddleware, sortMiddleware, filterMiddleware, (req, res) => metricUnitsController.list(req as any, res))
-
 router.get('/active', authenticate, canView('metric-units'), paginationMiddleware, sortMiddleware, (req, res) => metricUnitsController.listActive(req as any, res))
 
 router.get('/filter-options', authenticate, canView('metric-units'), (req, res) => metricUnitsController.getFilterOptions(req, res))
+
+router.get('/', authenticate, canView('metric-units'), paginationMiddleware, sortMiddleware, filterMiddleware, (req, res) => metricUnitsController.list(req as any, res))
 
 router.post('/bulk/status', authenticate, canUpdate('metric-units'), (req, res) => metricUnitsController.bulkUpdateStatus(req, res))
 

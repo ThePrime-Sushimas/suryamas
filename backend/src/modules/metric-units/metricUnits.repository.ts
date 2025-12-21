@@ -44,7 +44,7 @@ export class MetricUnitsRepository {
     pagination: { page: number; limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' }
   ): Promise<{ data: MetricUnit[]; total: number }> {
-    let query = supabase.from('active_metric_units').select('*')
+    let query = supabase.from('metric_units').select('*').eq('is_active', true)
 
     if (sort?.field && ['metric_type', 'unit_name', 'id', 'created_at', 'updated_at'].includes(sort.field)) {
       query = query.order(sort.field, { ascending: sort.order === 'asc' })
