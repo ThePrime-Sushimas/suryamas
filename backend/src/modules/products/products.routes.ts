@@ -7,14 +7,39 @@ import { filterMiddleware } from '../../middleware/filter.middleware'
 import { productsController } from './products.controller'
 import productUomsRoutes from '../product-uoms/product-uoms.routes'
 import { PermissionService } from '../../services/permission.service'
+import multer from 'multer'
 
 const router = Router()
+const upload = multer({ storage: multer.memoryStorage() })
 
 // Register module
 PermissionService.registerModule('products', 'Product Management').catch(() => {})
 
 // All routes require authentication
 router.use(authenticate)
+
+// Export
+router.get(
+  '/export',
+  canView('products'),
+  productsController.export
+)
+
+// Import preview
+router.post(
+  '/import/preview',
+  canInsert('products'),
+  upload.single('file'),
+  productsController.importPreview
+)
+
+// Import
+router.post(
+  '/import',
+  canInsert('products'),
+  upload.single('file'),
+  productsController.import
+)
 
 // Products routes
 router.get(

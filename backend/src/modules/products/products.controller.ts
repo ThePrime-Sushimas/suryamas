@@ -1,6 +1,8 @@
 import { Response } from 'express'
 import { AuthRequest } from '../../types/common.types'
 import { productsService } from './products.service'
+import { productsExportService } from '../../services/products.export.service'
+import { productsImportService } from '../../services/products.import.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logError } from '../../config/logger'
 
@@ -148,6 +150,46 @@ export class ProductsController {
     } catch (error: any) {
       logError('Restore product failed', { error: error.message })
       sendError(res, error.message || 'Failed to restore product', 400)
+    }
+  }
+
+  export = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const buffer = await productsExportService.export()
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      res.setHeader('Content-Disposition', 'attachment; filename=products.xlsx')
+      res.send(buffer)
+    } catch (error: any) {
+      logError('Export products failed', { error: error.message })
+      sendError(res, 'Failed to export products', 500)
+    }
+  }
+
+  importPreview = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      if (!req.file) {
+        sendError(res, 'No file uploaded', 400)
+        return
+      }
+      const preview = await productsImportService.preview(req.file.buffer)
+      sendSuccess(res, preview, 'Import preview generated')
+    } catch (error: any) {
+      logError('Import preview failed', { error: error.message })
+      sendError(res, error.message || 'Failed to generate preview', 400)
+    }
+  }
+
+  import = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      if (!req.file) {
+        sendError(res, 'No file uploaded', 400)
+        return
+      }
+      const result = await productsImportService.import(req.file.buffer, req.user?.id)
+      sendSuccess(res, result, 'Import completed')
+    } catch (error: any) {
+      logError('Import products failed', { error: error.message })
+      sendError(res, error.message || 'Failed to import products', 400)
     }
   }
 }

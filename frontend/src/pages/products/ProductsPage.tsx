@@ -4,7 +4,7 @@ import { productService } from '../../services/productService'
 import { categoryService, subCategoryService } from '../../services/categoryService'
 import { ProductTable } from '../../components/products/ProductTable'
 import type { Product } from '../../types/product'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Download, Upload, X } from 'lucide-react'
 
 export const ProductsPage = () => {
   const navigate = useNavigate()
@@ -18,6 +18,10 @@ export const ProductsPage = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [showDeleted, setShowDeleted] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importPreview, setImportPreview] = useState<any>(null)
+  const [importing, setImporting] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -77,18 +81,83 @@ export const ProductsPage = () => {
     )
   }
 
+  const handleExport = async () => {
+    try {
+      const response = await productService.export()
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', 'products.xlsx')
+      document.body.appendChild(link)
+      link.click()
+      link.parentElement?.removeChild(link)
+    } catch (error) {
+      console.error('Export failed:', error)
+      alert('Failed to export products')
+    }
+  }
+
+  const handleImportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImportFile(file)
+    try {
+      const response = await productService.importPreview(file)
+      setImportPreview(response.data.data)
+    } catch (error) {
+      console.error('Preview failed:', error)
+      alert('Failed to preview import')
+    }
+  }
+
+  const handleImport = async () => {
+    if (!importFile) return
+    try {
+      setImporting(true)
+      const response = await productService.import(importFile)
+      alert(`Import completed: ${response.data.data.success} success, ${response.data.data.failed} failed`)
+      handleCloseImportModal()
+      loadData()
+    } catch (error) {
+      console.error('Import failed:', error)
+      alert('Failed to import products')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleCloseImportModal = () => {
+    setShowImportModal(false)
+    setImportFile(null)
+    setImportPreview(null)
+  }
+
   const totalPages = Math.ceil(total / limit)
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Products</h1>
-        <button
-          onClick={() => navigate('/products/create')}
-          className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700"
-        >
-          <Plus size={20} /> New Product
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExport}
+            className="bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-green-700"
+          >
+            <Download size={20} /> Export
+          </button>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="bg-purple-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-purple-700"
+          >
+            <Upload size={20} /> Import
+          </button>
+          <button
+            onClick={() => navigate('/products/create')}
+            className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700"
+          >
+            <Plus size={20} /> New Product
+          </button>
+        </div>
       </div>
 
       <form onSubmit={handleSearch} className="flex gap-2">
@@ -156,6 +225,70 @@ export const ProductsPage = () => {
             </div>
           </div>
         </>
+      )}
+
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold">Import Products</h2>
+              <button onClick={handleCloseImportModal} className="p-1 hover:bg-gray-100 rounded">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="border-2 border-dashed rounded-lg p-6 text-center">
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleImportFileChange}
+                className="hidden"
+                id="import-file"
+              />
+              <label htmlFor="import-file" className="cursor-pointer">
+                <Upload size={32} className="mx-auto mb-2 text-gray-400" />
+                <p className="text-sm text-gray-600">Click to select Excel file</p>
+              </label>
+            </div>
+
+            {importFile && (
+              <div className="bg-gray-50 p-4 rounded space-y-2">
+                <p className="text-sm font-medium">File: {importFile.name}</p>
+                {importPreview && (
+                  <>
+                    <p className="text-sm">Total rows: {importPreview.totalRows}</p>
+                    <p className="text-sm">New products: {importPreview.newProducts}</p>
+                    <p className="text-sm">Existing products: {importPreview.existingProducts}</p>
+                    {importPreview.errors.length > 0 && (
+                      <div className="text-sm text-red-600">
+                        <p>Errors: {importPreview.errors.length}</p>
+                        {importPreview.errors.slice(0, 3).map((err: any, i: number) => (
+                          <p key={i} className="text-xs">{err.message}</p>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleCloseImportModal}
+                className="flex-1 px-4 py-2 border rounded hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleImport}
+                disabled={!importFile || importing}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                {importing ? 'Importing...' : 'Import'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

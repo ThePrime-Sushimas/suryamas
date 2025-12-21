@@ -50,4 +50,23 @@ export const productService = {
 
   restoreUom: (productId: string, uomId: string) =>
     axios.post(`${API_URL}/${productId}/uoms/${uomId}/restore`),
+
+  export: () =>
+    axios.get(`${API_URL}/export`, { responseType: 'blob' }),
+
+  importPreview: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return axios.post(`${API_URL}/import/preview`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  import: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return axios.post(`${API_URL}/import`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
 }
