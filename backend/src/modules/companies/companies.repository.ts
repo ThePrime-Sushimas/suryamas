@@ -18,7 +18,10 @@ export class CompaniesRepository {
     }
     
     if (sort) {
-      query = query.order(sort.field, { ascending: sort.order === 'asc' })
+      const validFields = ['company_name', 'company_code', 'status', 'company_type', 'created_at']
+      if (validFields.includes(sort.field)) {
+        query = query.order(sort.field, { ascending: sort.order === 'asc' })
+      }
     } else {
       query = query.order('company_name', { ascending: true })
     }

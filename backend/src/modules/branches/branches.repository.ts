@@ -30,7 +30,10 @@ export class BranchesRepository {
     }
 
     if (sort) {
-      query = query.order(sort.field, { ascending: sort.order === 'asc' })
+      const validFields = ['branch_name', 'branch_code', 'status', 'city', 'hari_operasional', 'created_at']
+      if (validFields.includes(sort.field)) {
+        query = query.order(sort.field, { ascending: sort.order === 'asc' })
+      }
     } else {
       query = query.order('branch_name', { ascending: true })
     }
