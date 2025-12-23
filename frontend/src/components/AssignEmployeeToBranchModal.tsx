@@ -26,18 +26,28 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    if (isOpen) {
-      fetchUnassignedEmployees()
-    }
-  }, [isOpen])
+    if (!isOpen || !branchId) return
+    fetchUnassignedEmployees()
+  }, [isOpen, branchId])
 
   const fetchUnassignedEmployees = async () => {
     setLoading(true)
     try {
-      const { data } = await api.get(`/employees/unassigned?page=1&limit=1000`)
-      setEmployees(data.data || [])
-    } catch (error) {
-      console.error('Failed to fetch employees:', error)
+      const params = Object.fromEntries(
+        Object.entries({
+          page: 1,
+          limit: 10000,
+          branch_id: branchId
+        }).filter(([, v]) => v !== undefined)
+      )
+      const { data } = await api.get('/employees/unassigned', { params })
+      const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
+      setEmployees(list)
+    } catch (error: any) {
+      console.error('Failed to fetch employees:', {
+        status: error?.response?.status,
+        data: error?.response?.data
+      })
       setEmployees([])
     } finally {
       setLoading(false)
@@ -82,8 +92,12 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
     setAssigning(true)
     try {
       await Promise.all(
-        Array.from(selectedIds).map(id =>
-          api.put(`/employees/${id}`, { branch_id: branchId })
+        Array.from(selectedIds).map(employeeId =>
+          api.post(`/employee-branches`, {
+            employee_id: employeeId,
+            branch_id: branchId,
+            is_primary: false
+          })
         )
       )
       onSuccess()

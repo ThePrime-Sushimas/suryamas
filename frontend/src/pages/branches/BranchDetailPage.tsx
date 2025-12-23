@@ -86,11 +86,20 @@ function BranchDetailPage() {
           )
         }
         promises.push(
-          api.get<{ success: boolean; data: Employee[] }>(`/employees?page=1&limit=1000`)
+          api.get<{ success: boolean; data: any[] }>(`/employee-branches/branch/${id}`)
             .then(r => {
-              const allEmps = r.data.data || []
-              const filtered = allEmps.filter((emp: any) => emp.branch_id === id)
-              setEmployees(filtered)
+              const assignments = r.data.data || []
+              const emps = assignments
+                .map((assignment: any) => ({
+                  id: assignment.employees?.id,
+                  employee_id: assignment.employees?.employee_id,
+                  full_name: assignment.employees?.full_name,
+                  job_position: assignment.employees?.job_position,
+                  email: assignment.employees?.email,
+                  mobile_phone: assignment.employees?.mobile_phone
+                }))
+                .filter((emp: any) => emp.full_name) // Filter out invalid entries
+              setEmployees(emps)
             })
             .catch(() => {
               setEmployees([])
@@ -542,7 +551,7 @@ function BranchDetailPage() {
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-4">
                                         <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-semibold">
-                                          {emp.full_name.charAt(0)}
+                                          {emp.full_name?.[0] || '?'}
                                         </div>
                                         <div>
                                           <h4 className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer"
@@ -825,7 +834,7 @@ function BranchDetailPage() {
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                       <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold text-sm">
-                                        {emp.full_name.charAt(0)}
+                                        {emp.full_name?.[0] || '?'}
                                       </div>
                                       <div className="min-w-0 flex-1">
                                         <h4 
@@ -1041,11 +1050,20 @@ function BranchDetailPage() {
         onSuccess={() => {
           setShowAssignModal(false)
           if (id) {
-            api.get<{ success: boolean; data: Employee[] }>(`/employees?page=1&limit=100`)
+            api.get<{ success: boolean; data: any[] }>(`/employee-branches/branch/${id}`)
               .then(r => {
-                const allEmps = r.data.data || []
-                const filtered = allEmps.filter((emp: any) => emp.branch_id === id)
-                setEmployees(filtered)
+                const assignments = r.data.data || []
+                const emps = assignments
+                  .map((assignment: any) => ({
+                    id: assignment.employees?.id,
+                    employee_id: assignment.employees?.employee_id,
+                    full_name: assignment.employees?.full_name,
+                    job_position: assignment.employees?.job_position,
+                    email: assignment.employees?.email,
+                    mobile_phone: assignment.employees?.mobile_phone
+                  }))
+                  .filter((emp: any) => emp.full_name) // Filter out invalid entries
+                setEmployees(emps)
               })
               .catch(() => setEmployees([]))
           }

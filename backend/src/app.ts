@@ -12,6 +12,7 @@ import usersRoutes from './modules/users/users.routes'
 import metricUnitsRoutes from './modules/metric-units/metricUnits.routes'
 import productsRoutes from './modules/products/products.routes'
 import productUomsRoutes from './modules/product-uoms/product-uoms.routes'
+import employeeBranchesRoutes from './modules/employee_branches/employee_branches.routes'
 import { errorHandler } from './middleware/error.middleware'
 import { requestLogger } from './middleware/request-logger.middleware'
 
@@ -40,6 +41,7 @@ app.use('/api/v1/users', usersRoutes)
 app.use('/api/v1/metric-units', metricUnitsRoutes)
 app.use('/api/v1/products', productsRoutes)
 app.use('/api/v1/product-uoms', productUomsRoutes)
+app.use('/api/v1/employee-branches', employeeBranchesRoutes)
 
 // Error handler
 app.use(errorHandler)

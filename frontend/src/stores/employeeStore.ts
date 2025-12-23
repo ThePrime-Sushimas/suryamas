@@ -37,6 +37,9 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     try {
       const { data } = await api.get<ApiResponse<Employee>>('/employees/profile')
       set({ profile: data.data })
+    } catch (error) {
+      console.error('Failed to fetch profile:', error)
+      throw error
     } finally {
       set({ isLoading: false })
     }
@@ -47,6 +50,9 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     try {
       const { data } = await api.put<ApiResponse<Employee>>('/employees/profile', updates)
       set({ profile: data.data })
+    } catch (error) {
+      console.error('Failed to update profile:', error)
+      throw error
     } finally {
       set({ isLoading: false })
     }
@@ -63,6 +69,9 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
       set((state) => ({
         profile: state.profile ? { ...state.profile, profile_picture: data.data.profile_picture } : null
       }))
+    } catch (error) {
+      console.error('Failed to upload profile picture:', error)
+      throw error
     } finally {
       set({ isLoading: false })
     }
@@ -84,6 +93,9 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
         employees: data.data,
         pagination: (data as any).pagination
       })
+    } catch (error) {
+      console.error('Failed to search employees:', error)
+      set({ employees: [], pagination: null })
     } finally {
       set({ isLoading: false })
     }
@@ -113,6 +125,9 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
       await api.post('/employees', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
+    } catch (error) {
+      console.error('Failed to create employee:', error)
+      throw error
     } finally {
       set({ isLoading: false })
     }
@@ -125,6 +140,9 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
       set((state) => ({
         employees: state.employees.filter((e) => e.id !== id),
       }))
+    } catch (error) {
+      console.error('Failed to delete employee:', error)
+      throw error
     } finally {
       set({ isLoading: false })
     }
@@ -139,6 +157,9 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
           ids.includes(e.id) ? { ...e, is_active: isActive } : e
         ),
       }))
+    } catch (error) {
+      console.error('Failed to update active status:', error)
+      throw error
     } finally {
       set({ isLoading: false })
     }
@@ -151,6 +172,9 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
       set((state) => ({
         employees: state.employees.filter((e) => !ids.includes(e.id)),
       }))
+    } catch (error) {
+      console.error('Failed to bulk delete employees:', error)
+      throw error
     } finally {
       set({ isLoading: false })
     }

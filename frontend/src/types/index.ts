@@ -23,8 +23,9 @@ export interface Employee {
   bank_account_holder: string | null
   nik: string | null
   mobile_phone: string | null
-  branch_id: string
-  branch_name: string
+  branch_name?: string | null
+  branch_code?: string | null
+  branch_city?: string | null
   brand_name: string | null
   religion: 'Islam' | 'Christian' | 'Catholic' | 'Hindu' | 'Buddha' | 'Other' | null
   gender: 'Male' | 'Female' | null

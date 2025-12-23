@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useEmployeeStore } from '../../stores/employeeStore'
 import api from '../../lib/axios'
 import type { Employee, ApiResponse } from '../../types'
@@ -10,10 +10,10 @@ export default function EditEmployeePage() {
   const { isLoading } = useEmployeeStore()
   const [error, setError] = useState('')
   const [isLoadingEmployee, setIsLoadingEmployee] = useState(true)
+  const [branchInfo, setBranchInfo] = useState<{ branch_name?: string; branch_code?: string } | null>(null)
   const [formData, setFormData] = useState({
     full_name: '',
     job_position: '',
-    branch_id: '',
     brand_name: '',
     ptkp_status: 'TK/0' as const,
     status_employee: 'Permanent' as 'Permanent' | 'Contract',
@@ -36,11 +36,6 @@ export default function EditEmployeePage() {
     is_active: true,
   })
   const [profilePicture, setProfilePicture] = useState<File | null>(null)
-  const [branches, setBranches] = useState<any[]>([])
-
-  useEffect(() => {
-    api.get('/branches/minimal/active').then(r => setBranches(r.data.data)).catch(() => {})
-  }, [])
 
   useEffect(() => {
     const fetchEmployee = async () => {
@@ -50,7 +45,6 @@ export default function EditEmployeePage() {
         setFormData({
           full_name: emp.full_name,
           job_position: emp.job_position,
-          branch_id: emp.branch_id || '',
           brand_name: emp.brand_name || '',
           ptkp_status: emp.ptkp_status as any,
           status_employee: emp.status_employee as any,
@@ -71,6 +65,10 @@ export default function EditEmployeePage() {
           bank_account: emp.bank_account || '',
           bank_account_holder: emp.bank_account_holder || '',
           is_active: emp.is_active ?? true,
+        })
+        setBranchInfo({
+          branch_name: emp.branch_name ?? undefined,
+          branch_code: emp.branch_code ?? undefined,
         })
       } catch (err: any) {
         setError(err.response?.data?.error || 'Failed to load employee')
@@ -120,6 +118,29 @@ export default function EditEmployeePage() {
             <div className="bg-red-50 text-red-600 p-3 rounded text-sm md:text-base">{error}</div>
           )}
           
+          {/* Branch Information Section */}
+          <div className="border-b border-gray-200 pb-4 md:pb-6 bg-blue-50 p-4 rounded">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Branch Assignment</h3>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                {branchInfo?.branch_name ? (
+                  <div>
+                    <p className="text-sm text-gray-600">Current Branch:</p>
+                    <p className="text-base font-medium text-gray-900">{branchInfo.branch_name} ({branchInfo.branch_code})</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-600">No branch assigned</p>
+                )}
+              </div>
+              <Link
+                to="/employee-branches"
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm md:text-base min-h-[44px] flex items-center justify-center"
+              >
+                Manage Branches
+              </Link>
+            </div>
+          </div>
+
           {/* Basic Info Section */}
           <div className="border-b border-gray-200 pb-4 md:pb-6">
             <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Basic Information</h3>
@@ -145,21 +166,6 @@ export default function EditEmployeePage() {
                 onChange={handleChange}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
               />
-            </div>
-            <div>
-              <label className="block text-xs md:text-sm font-medium text-gray-700">Branch *</label>
-              <select
-                name="branch_id"
-                required
-                value={formData.branch_id || ''}
-                onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
-              >
-                <option value="">Select Branch</option>
-                {branches?.map((b: any) => (
-                  <option key={b.id} value={b.id}>{b.branch_name}</option>
-                ))}
-              </select>
             </div>
             <div>
               <label className="block text-xs md:text-sm font-medium text-gray-700">PTKP Status *</label>

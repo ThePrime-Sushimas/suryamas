@@ -12,9 +12,9 @@ export class EmployeesRepository {
       end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
       ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
       brand_name, religion, gender, marital_status, profile_picture,
-      created_at, updated_at, user_id, is_active, branch_id,
-      branches:branch_id(id, branch_name, branch_code, city)
-    `)
+      created_at, updated_at, user_id, is_active,
+      employee_branches!inner(branch_id, is_primary, branches(id, branch_name, branch_code, city))
+    `).eq('employee_branches.is_primary', true)
     
     if (sort?.field) {
       query = query.order(sort.field, { ascending: sort.order === 'asc' })
@@ -31,13 +31,14 @@ export class EmployeesRepository {
     if (countError) throw new Error(countError.message)
     
     const rows = (data || []).map((e: any) => {
+      const primaryBranch = e.employee_branches?.[0]?.branches
       const out: any = {
         ...e,
-        branch_name: e.branches?.branch_name ?? null,
-        branch_code: e.branches?.branch_code ?? null,
-        branch_city: e.branches?.city ?? null,
+        branch_name: primaryBranch?.branch_name ?? null,
+        branch_code: primaryBranch?.branch_code ?? null,
+        branch_city: primaryBranch?.city ?? null,
       }
-      delete out.branches
+      delete out.employee_branches
       return out
     })
     
@@ -45,14 +46,15 @@ export class EmployeesRepository {
   }
 
   async findUnassigned(pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<{ data: EmployeeWithBranch[]; total: number }> {
+    // Get all employees
     let query = supabase.from('employees').select(`
       id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
       end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
       ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
       brand_name, religion, gender, marital_status, profile_picture,
-      created_at, updated_at, user_id, is_active, branch_id,
-      branches:branch_id(id, branch_name, branch_code, city)
-    `).is('branch_id', null)
+      created_at, updated_at, user_id, is_active,
+      employee_branches(id)
+    `)
     
     if (sort?.field) {
       query = query.order(sort.field, { ascending: sort.order === 'asc' })
@@ -60,26 +62,27 @@ export class EmployeesRepository {
       query = query.order('full_name', { ascending: true })
     }
     
-    const [{ data, error }, { count, error: countError }] = await Promise.all([
-      query.range(pagination.offset, pagination.offset + pagination.limit - 1),
-      supabase.from('employees').select('id', { count: 'exact', head: true }).is('branch_id', null)
-    ])
-
+    const { data: allEmployees, error } = await query
     if (error) throw new Error(error.message)
-    if (countError) throw new Error(countError.message)
     
-    const rows = (data || []).map((e: any) => {
-      const out: any = {
-        ...e,
-        branch_name: e.branches?.branch_name ?? null,
-        branch_code: e.branches?.branch_code ?? null,
-        branch_city: e.branches?.city ?? null,
+    // Filter employees without any branch assignments
+    const unassigned = (allEmployees || []).filter((e: any) => !e.employee_branches || e.employee_branches.length === 0)
+    
+    // Apply pagination
+    const total = unassigned.length
+    const paginatedData = unassigned.slice(pagination.offset, pagination.offset + pagination.limit)
+    
+    const rows = paginatedData.map((e: any) => {
+      const { employee_branches, ...rest } = e
+      return {
+        ...rest,
+        branch_name: null,
+        branch_code: null,
+        branch_city: null,
       }
-      delete out.branches
-      return out
     })
     
-    return { data: rows as EmployeeWithBranch[], total: count || 0 }
+    return { data: rows as EmployeeWithBranch[], total }
   }
 
   async create(data: Partial<Employee>): Promise<Employee | null> {
@@ -102,8 +105,8 @@ export class EmployeesRepository {
         end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
         ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
         brand_name, religion, gender, marital_status, profile_picture,
-        created_at, updated_at, user_id, is_active, branch_id,
-        branches:branch_id(id, branch_name, branch_code, city)
+        created_at, updated_at, user_id, is_active,
+        employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))
       `)
       .eq('id', id)
       .maybeSingle()
@@ -111,14 +114,14 @@ export class EmployeesRepository {
     if (error) throw new Error(error.message)
     if (!data) return null
     
-    const e: any = data
+    const primaryBranch = (data as any).employee_branches?.find((eb: any) => eb.is_primary)?.branches
     const out: any = {
-      ...e,
-      branch_name: e.branches?.branch_name ?? null,
-      branch_code: e.branches?.branch_code ?? null,
-      branch_city: e.branches?.city ?? null,
+      ...data,
+      branch_name: primaryBranch?.branch_name ?? null,
+      branch_code: primaryBranch?.branch_code ?? null,
+      branch_city: primaryBranch?.city ?? null,
     }
-    delete out.branches
+    delete out.employee_branches
     return out
   }
 
@@ -130,8 +133,8 @@ export class EmployeesRepository {
         end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
         ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
         brand_name, religion, gender, marital_status, profile_picture,
-        created_at, updated_at, user_id, is_active, branch_id,
-        branches:branch_id(id, branch_name, branch_code, city)
+        created_at, updated_at, user_id, is_active,
+        employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))
       `)
       .eq('user_id', userId)
       .maybeSingle()
@@ -139,25 +142,27 @@ export class EmployeesRepository {
     if (error) throw new Error(error.message)
     if (!data) return null
     
-    const e: any = data
+    const primaryBranch = (data as any).employee_branches?.find((eb: any) => eb.is_primary)?.branches
     const out: any = {
-      ...e,
-      branch_name: e.branches?.branch_name ?? null,
-      branch_code: e.branches?.branch_code ?? null,
-      branch_city: e.branches?.city ?? null,
+      ...data,
+      branch_name: primaryBranch?.branch_name ?? null,
+      branch_code: primaryBranch?.branch_code ?? null,
+      branch_city: primaryBranch?.city ?? null,
     }
-    delete out.branches
+    delete out.employee_branches
     return out
   }
 
   async searchByName(searchTerm: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: any): Promise<{ data: EmployeeWithBranch[]; total: number }> {
+    const hasBranchFilter = filter?.branch_id
+    
     let query = supabase.from('employees').select(`
       id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
       end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
       ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
       brand_name, religion, gender, marital_status, profile_picture,
-      created_at, updated_at, user_id, is_active, branch_id,
-      branches:branch_id(id, branch_name, branch_code, city)
+      created_at, updated_at, user_id, is_active,
+      employee_branches${hasBranchFilter ? '!inner' : ''}(branch_id, is_primary, branches(id, branch_name, branch_code, city))
     `)
     let countQuery = supabase.from('employees').select('id', { count: 'exact', head: true })
     
@@ -168,8 +173,8 @@ export class EmployeesRepository {
     
     if (filter) {
       if (filter.branch_id) {
-        query = query.eq('branch_id', filter.branch_id)
-        countQuery = countQuery.eq('branch_id', filter.branch_id)
+        query = query.eq('employee_branches.branch_id', filter.branch_id)
+        countQuery = countQuery.eq('employee_branches.branch_id', filter.branch_id)
       }
       if (filter.is_active !== undefined) {
         query = query.eq('is_active', filter.is_active)
@@ -200,13 +205,14 @@ export class EmployeesRepository {
     if (countError) throw new Error(countError.message)
     
     const rows = (data || []).map((e: any) => {
+      const primaryBranch = e.employee_branches?.find((eb: any) => eb.is_primary)?.branches
       const out: any = {
         ...e,
-        branch_name: e.branches?.branch_name ?? null,
-        branch_code: e.branches?.branch_code ?? null,
-        branch_city: e.branches?.city ?? null,
+        branch_name: primaryBranch?.branch_name ?? null,
+        branch_code: primaryBranch?.branch_code ?? null,
+        branch_city: primaryBranch?.city ?? null,
       }
-      delete out.branches
+      delete out.employee_branches
       return out
     })
     return { data: rows as EmployeeWithBranch[], total: count || 0 }
@@ -217,7 +223,7 @@ export class EmployeesRepository {
       .from('employees')
       .select('id, full_name')
       .ilike('full_name', `%${query}%`)
-      .limit(10)
+      .order('full_name', { ascending: true })
   
     if (error) throw new Error(error.message)
     return data || []
@@ -307,17 +313,19 @@ export class EmployeesRepository {
   }
 
   async exportData(filter?: any): Promise<EmployeeWithBranch[]> {
+    const hasBranchFilter = filter?.branch_id
+    
     let query = supabase.from('employees').select(`
       id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
       end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
       ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
       brand_name, religion, gender, marital_status, profile_picture,
-      created_at, updated_at, user_id, is_active, branch_id,
-      branches:branch_id(id, branch_name, branch_code, city)
+      created_at, updated_at, user_id, is_active,
+      employee_branches${hasBranchFilter ? '!inner' : ''}(branch_id, is_primary, branches(id, branch_name, branch_code, city))
     `)
     
     if (filter) {
-      if (filter.branch_id) query = query.eq('branch_id', filter.branch_id)
+      if (filter.branch_id) query = query.eq('employee_branches.branch_id', filter.branch_id)
       if (filter.is_active !== undefined) query = query.eq('is_active', filter.is_active)
       if (filter.status_employee) query = query.eq('status_employee', filter.status_employee)
       if (filter.job_position) query = query.eq('job_position', filter.job_position)
@@ -327,13 +335,14 @@ export class EmployeesRepository {
     if (error) throw new Error(error.message)
     
     const rows = (data || []).map((e: any) => {
+      const primaryBranch = e.employee_branches?.find((eb: any) => eb.is_primary)?.branches
       const out: any = {
         ...e,
-        branch_name: e.branches?.branch_name ?? null,
-        branch_code: e.branches?.branch_code ?? null,
-        branch_city: e.branches?.city ?? null,
+        branch_name: primaryBranch?.branch_name ?? null,
+        branch_code: primaryBranch?.branch_code ?? null,
+        branch_city: primaryBranch?.city ?? null,
       }
-      delete out.branches
+      delete out.employee_branches
       return out
     })
     return rows as EmployeeWithBranch[]

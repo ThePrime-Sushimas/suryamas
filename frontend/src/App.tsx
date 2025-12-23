@@ -39,6 +39,8 @@ import { ProductsPage } from './pages/products/ProductsPage'
 import { CreateProductPage } from './pages/products/CreateProductPage'
 import { ProductDetailPage } from './pages/products/ProductDetailPage'
 import { EditProductPage } from './pages/products/EditProductPage'
+import { EmployeeBranchesPage } from './pages/employee-branches/EmployeeBranchesPage'
+import { EditEmployeeBranchPage } from './pages/employee-branches/EditEmployeeBranchPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isInitialized } = useAuthStore()
@@ -105,6 +107,8 @@ function App() {
           <Route path="products/create" element={<ProtectedRoute><CreateProductPage /></ProtectedRoute>} />
           <Route path="products/:id" element={<ProtectedRoute><ProductDetailPage /></ProtectedRoute>} />
           <Route path="products/:id/edit" element={<ProtectedRoute><EditProductPage /></ProtectedRoute>} />
+          <Route path="employee-branches" element={<ProtectedRoute><EmployeeBranchesPage /></ProtectedRoute>} />
+          <Route path="employee-branches/:id/edit" element={<ProtectedRoute><EditEmployeeBranchPage /></ProtectedRoute>} />
         </Route>
       </Routes>
     </BrowserRouter>
