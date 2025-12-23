@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 
 export interface FilterRequest extends Request {
   filterParams: {
-    branch_id?: string
+    branch_name?: string
     is_active?: boolean
     status_employee?: string
     job_position?: string
@@ -13,8 +13,8 @@ export interface FilterRequest extends Request {
 export const filterMiddleware = (req: Request, res: Response, next: NextFunction) => {
   const filter: any = {}
 
-  if (req.query.branch_id) {
-    filter.branch_id = req.query.branch_id as string
+  if (req.query.branch_name) {
+    filter.branch_name = req.query.branch_name as string
   }
 
   if (req.query.is_active !== undefined) {

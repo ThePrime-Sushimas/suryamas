@@ -12,7 +12,7 @@ export function EditEmployeeBranchPage() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const [data, setData] = useState<EmployeeBranch | null>(null)
+  const [, setData] = useState<EmployeeBranch | null>(null)
   const [employees, setEmployees] = useState<Array<{ id: string; full_name: string }>>([])
   const [branches, setBranches] = useState<Array<{ id: string; branch_name: string; branch_code: string }>>([])
   const [formData, setFormData] = useState({
@@ -66,14 +66,6 @@ export function EditEmployeeBranchPage() {
     }
   }
 
-  const filteredEmployees = employees.filter(emp =>
-    emp.full_name.toLowerCase().includes(employeeSearch.toLowerCase())
-  )
-
-  const filteredBranches = branches.filter(branch =>
-    branch.branch_name.toLowerCase().includes(branchSearch.toLowerCase()) ||
-    branch.branch_code.toLowerCase().includes(branchSearch.toLowerCase())
-  )
 
   const selectedEmployee = employees.find(e => e.id === formData.employee_id)
   const selectedBranch = branches.find(b => b.id === formData.branch_id)

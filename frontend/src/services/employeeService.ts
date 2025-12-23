@@ -12,7 +12,6 @@ export interface Employee {
   full_name: string
   email: string
   job_position: string
-  branch_id?: string
   branch_name?: string
   is_active: boolean
   created_at: string

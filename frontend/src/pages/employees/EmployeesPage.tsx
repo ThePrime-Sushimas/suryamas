@@ -18,10 +18,10 @@ export default function EmployeesPage() {
   const { state, setState } = useUrlState({
     page: '1',
     limit: '10',
-    sort: 'created_at',
-    order: 'desc',
+    sort: 'full_name',
+    order: 'asc',
     search: '',
-    branch_id: '',
+    branch_name: '',
     is_active: '',
     status_employee: '',
     job_position: '',
@@ -32,11 +32,11 @@ export default function EmployeesPage() {
   useEffect(() => {
     fetchFilterOptions()
     handleFetch()
-  }, [state.page, state.limit, state.sort, state.order, state.search, state.branch_id, state.is_active, state.status_employee, state.job_position])
+  }, [state.page, state.limit, state.sort, state.order, state.search, state.branch_name, state.is_active, state.status_employee, state.job_position])
 
   const handleFetch = () => {
     const filters: any = {}
-    if (state.branch_id) filters.branch_id = state.branch_id
+    if (state.branch_name) filters.branch_name = state.branch_name
     if (state.is_active) filters.is_active = state.is_active
     if (state.status_employee) filters.status_employee = state.status_employee
     if (state.job_position) filters.job_position = state.job_position
@@ -46,7 +46,7 @@ export default function EmployeesPage() {
 
   const getActiveFilters = () => {
     const filters: any = {}
-    if (state.branch_id) filters.branch_id = state.branch_id
+    if (state.branch_name) filters.branch_name = state.branch_name
     if (state.is_active) filters.is_active = state.is_active
     if (state.status_employee) filters.status_employee = state.status_employee
     if (state.job_position) filters.job_position = state.job_position
@@ -72,7 +72,7 @@ export default function EmployeesPage() {
   }
 
   const handleClearFilters = () => {
-    setState({ branch_id: '', is_active: '', status_employee: '', job_position: '', page: '1' })
+    setState({ branch_name: '', is_active: '', status_employee: '', job_position: '', page: '1' })
   }
 
   const SortIcon = ({ field }: { field: string }) => {
@@ -175,13 +175,13 @@ export default function EmployeesPage() {
           <div className="flex flex-col md:flex-row gap-2 md:gap-3 md:items-center">
             <span className="text-xs md:text-sm font-medium text-gray-700">Filters:</span>
             <select
-              value={state.branch_id}
-              onChange={(e) => handleFilterChange('branch_id', e.target.value)}
+              value={state.branch_name}
+              onChange={(e) => handleFilterChange('branch_name', e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-md text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px]"
             >
               <option value="">All Branches</option>
               {filterOptions?.branches.map((branch: any) => (
-                <option key={branch.id} value={branch.id}>{branch.branch_name}</option>
+                <option key={branch.branch_name} value={branch.branch_name}>{branch.branch_name}</option>
               ))}
             </select>
             <select
@@ -213,7 +213,7 @@ export default function EmployeesPage() {
                 <option key={position} value={position}>{position}</option>
               ))}
             </select>
-            {(state.branch_id || state.is_active || state.status_employee || state.job_position) && (
+            {(state.branch_name || state.is_active || state.status_employee || state.job_position) && (
               <button
                 type="button"
                 onClick={handleClearFilters}
@@ -255,7 +255,10 @@ export default function EmployeesPage() {
             {employees.map((employee) => (
               <EmployeeCard
                 key={employee.id}
-                employee={employee}
+                employee={{
+                  ...employee,
+                  branch_name: employee.branch_name ?? '-',
+                }}
                 onDelete={handleDelete}
                 isSelected={isSelected(employee.id)}
                 onSelect={selectOne}
@@ -274,7 +277,7 @@ export default function EmployeesPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('employee_id')}>Employee ID <SortIcon field="employee_id" /></th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('full_name')}>Name <SortIcon field="full_name" /></th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('job_position')}>Position <SortIcon field="job_position" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('branch_id')}>Branch <SortIcon field="branch_id" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('branch_name')}>Branch <SortIcon field="branch_name" /></th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('brand_name')}>Brand Name <SortIcon field="brand_name" /></th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('email')}>Email <SortIcon field="email" /></th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap cursor-pointer hover:bg-gray-100" onClick={() => handleSort('mobile_phone')}>Phone <SortIcon field="mobile_phone" /></th>

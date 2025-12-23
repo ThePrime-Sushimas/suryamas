@@ -77,24 +77,36 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     }
   },
 
-  searchEmployees: async (query, sort = 'created_at', order = 'desc', filter = {}, page = 1, limit = 10) => {
+  searchEmployees: async (query, sort = 'full_name', order = 'desc', filter = {}, page = 1, limit = 10) => {
     set({ isLoading: true })
     try {
-      const params = new URLSearchParams({
-        q: query,
+      const params: Record<string, string> = {
         sort,
         order,
         page: String(page),
         limit: String(limit),
-        ...filter
+      }
+      
+      if (query?.trim()) {
+        params.q = query.trim()
+      }
+      
+      Object.entries(filter).forEach(([key, value]) => {
+        if (value !== '' && value !== null && value !== undefined) {
+          params[key] = String(value)
+        }
       })
-      const { data } = await api.get<ApiResponse<Employee[]>>(`/employees/search?${params}`)
+      
+      const queryString = new URLSearchParams(params).toString()
+      const { data } = await api.get<ApiResponse<Employee[]>>(`/employees/search?${queryString}`)
+      const filteredEmployees = data.data.filter((e: Employee) => e.branch_name)
       set({ 
-        employees: data.data,
+        employees: filteredEmployees,
         pagination: (data as any).pagination
       })
-    } catch (error) {
-      console.error('Failed to search employees:', error)
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Unknown error'
+      console.error('Failed to search employees:', errorMsg, error?.response?.status, error?.response?.data)
       set({ employees: [], pagination: null })
     } finally {
       set({ isLoading: false })

@@ -154,7 +154,7 @@ export class EmployeesRepository {
   }
 
   async searchByName(searchTerm: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: any): Promise<{ data: EmployeeWithBranch[]; total: number }> {
-    const hasBranchFilter = filter?.branch_id
+    const hasBranchFilter = filter?.branch_name
     
     let query = supabase.from('employees').select(`
       id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
@@ -162,8 +162,8 @@ export class EmployeesRepository {
       ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
       brand_name, religion, gender, marital_status, profile_picture,
       created_at, updated_at, user_id, is_active,
-      employee_branches${hasBranchFilter ? '!inner' : ''}(branch_id, is_primary, branches(id, branch_name, branch_code, city))
-    `)
+      employee_branches${hasBranchFilter ? '!inner' : '!inner'}(branch_id, is_primary, branches(id, branch_name, branch_code, city))
+    `).eq('employee_branches.is_primary', true)
     let countQuery = supabase.from('employees').select('id', { count: 'exact', head: true })
     
     if (searchTerm && searchTerm.trim()) {
@@ -172,9 +172,8 @@ export class EmployeesRepository {
     }
     
     if (filter) {
-      if (filter.branch_id) {
-        query = query.eq('employee_branches.branch_id', filter.branch_id)
-        countQuery = countQuery.eq('employee_branches.branch_id', filter.branch_id)
+      if (filter.branch_name) {
+        query = query.eq('employee_branches.branches.branch_name', filter.branch_name)
       }
       if (filter.is_active !== undefined) {
         query = query.eq('is_active', filter.is_active)
@@ -185,12 +184,15 @@ export class EmployeesRepository {
         countQuery = countQuery.eq('status_employee', filter.status_employee)
       }
       if (filter.job_position) {
-        query = query.eq('job_position', filter.job_position)
-        countQuery = countQuery.eq('job_position', filter.job_position)
+        query = query.ilike('job_position', filter.job_position)
+        countQuery = countQuery.ilike('job_position', filter.job_position)
       }
     }
     
-    if (sort?.field) {
+    if (sort?.field === 'branch_name') {
+      // Skip database sort for branch_name, will sort in application
+      query = query.order('full_name', { ascending: true })
+    } else if (sort?.field) {
       query = query.order(sort.field, { ascending: sort.order === 'asc' })
     } else {
       query = query.order('full_name', { ascending: true })
@@ -205,7 +207,7 @@ export class EmployeesRepository {
     if (countError) throw new Error(countError.message)
     
     const rows = (data || []).map((e: any) => {
-      const primaryBranch = e.employee_branches?.find((eb: any) => eb.is_primary)?.branches
+      const primaryBranch = e.employee_branches?.[0]?.branches
       const out: any = {
         ...e,
         branch_name: primaryBranch?.branch_name ?? null,
@@ -215,6 +217,15 @@ export class EmployeesRepository {
       delete out.employee_branches
       return out
     })
+    
+    if (sort?.field === 'branch_name') {
+      rows.sort((a, b) => {
+        const aVal = a.branch_name || ''
+        const bVal = b.branch_name || ''
+        return sort.order === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+      })
+    }
+    return { data: rows as EmployeeWithBranch[], total: count || 0 }
     return { data: rows as EmployeeWithBranch[], total: count || 0 }
   }
 
@@ -302,7 +313,8 @@ export class EmployeesRepository {
     ])
 
     const branches = branchData?.map((b: any) => ({ id: b.id, branch_name: b.branch_name })) || []
-    const positions = [...new Set(employeeData?.map((e: any) => e.job_position).filter(Boolean))] as string[]
+    const positions = [...new Set(employeeData?.map((e: any) => e.job_position?.toLowerCase()).filter(Boolean))] as string[]
+    positions.sort()
     const statuses = ['Permanent', 'Contract']
 
     const result = { branches, positions, statuses }
@@ -313,7 +325,7 @@ export class EmployeesRepository {
   }
 
   async exportData(filter?: any): Promise<EmployeeWithBranch[]> {
-    const hasBranchFilter = filter?.branch_id
+    const hasBranchFilter = filter?.branch_name
     
     let query = supabase.from('employees').select(`
       id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
@@ -325,11 +337,13 @@ export class EmployeesRepository {
     `)
     
     if (filter) {
-      if (filter.branch_id) query = query.eq('employee_branches.branch_id', filter.branch_id)
+      if (filter.branch_name) query = query.eq('employee_branches.branches.branch_name', filter.branch_name)
       if (filter.is_active !== undefined) query = query.eq('is_active', filter.is_active)
       if (filter.status_employee) query = query.eq('status_employee', filter.status_employee)
       if (filter.job_position) query = query.eq('job_position', filter.job_position)
     }
+    
+    query = query.eq('employee_branches.is_primary', true)
     
     const { data, error } = await query
     if (error) throw new Error(error.message)
