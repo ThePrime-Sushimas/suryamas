@@ -226,7 +226,6 @@ export class EmployeesRepository {
       })
     }
     return { data: rows as EmployeeWithBranch[], total: count || 0 }
-    return { data: rows as EmployeeWithBranch[], total: count || 0 }
   }
 
   async autocompleteName(query: string): Promise<{id: string, full_name: string}[]> {
