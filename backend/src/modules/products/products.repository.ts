@@ -8,7 +8,11 @@ export class ProductsRepository {
     filter?: any,
     includeDeleted = false
   ): Promise<{ data: Product[]; total: number }> {
-    let query = supabase.from('products').select('*')
+    let query = supabase.from('products').select(`
+      id, product_code, product_name, category_id, sub_category_id, status, is_deleted, created_at,
+      categories(category_name),
+      sub_categories(sub_category_name)
+    `)
     let countQuery = supabase.from('products').select('*', { count: 'exact', head: true })
 
     if (!includeDeleted) {
@@ -32,7 +36,10 @@ export class ProductsRepository {
     }
 
     if (sort) {
-      query = query.order(sort.field, { ascending: sort.order === 'asc' })
+      const validFields = ['product_name', 'product_code', 'status', 'category_id', 'sub_category_id', 'created_at']
+      if (validFields.includes(sort.field)) {
+        query = query.order(sort.field, { ascending: sort.order === 'asc' })
+      }
     } else {
       query = query.order('product_name', { ascending: true })
     }
@@ -45,7 +52,15 @@ export class ProductsRepository {
     if (error) throw new Error(error.message)
     if (countError) throw new Error(countError.message)
 
-    return { data: data || [], total: count || 0 }
+    const rows = (data || []).map((item: any) => ({
+      ...item,
+      category_name: item.categories?.category_name,
+      sub_category_name: item.sub_categories?.sub_category_name,
+      categories: undefined,
+      sub_categories: undefined
+    }))
+
+    return { data: rows || [], total: count || 0 }
   }
 
   async search(
@@ -154,6 +169,9 @@ export class ProductsRepository {
   }
 
   async bulkDelete(ids: string[]): Promise<void> {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new Error('Invalid ids array')
+    }
     const { error } = await supabase.from('products').update({ is_deleted: true }).in('id', ids)
 
     if (error) throw new Error(error.message)
