@@ -4,7 +4,6 @@ import { authenticate } from '../../middleware/auth.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
-import { filterMiddleware } from '../../middleware/filter.middleware'
 import { exportLimiter } from '../../middleware/rateLimiter.middleware'
 import { PermissionService } from '../../services/permission.service'
 
@@ -14,14 +13,14 @@ PermissionService.registerModule('companies', 'Company Management').catch((error
 
 const router = Router()
 
-router.get('/', authenticate, canView('companies'), paginationMiddleware, sortMiddleware, filterMiddleware, (req, res) => companiesController.list(req as any, res))
+router.get('/', authenticate, canView('companies'), paginationMiddleware, sortMiddleware, (req, res) => companiesController.list(req as any, res))
 
-router.get('/search', authenticate, canView('companies'), paginationMiddleware, sortMiddleware, filterMiddleware, (req, res) => companiesController.search(req as any, res))
+router.get('/search', authenticate, canView('companies'), paginationMiddleware, sortMiddleware, (req, res) => companiesController.search(req as any, res))
 
 router.get('/filter-options', authenticate, canView('companies'), (req, res) => companiesController.getFilterOptions(req, res))
 
 router.get('/export/token', authenticate, canView('companies'), exportLimiter, (req, res) => companiesController.generateExportToken(req, res))
-router.get('/export', authenticate, canView('companies'), filterMiddleware, (req, res) => companiesController.exportData(req as any, res))
+router.get('/export', authenticate, canView('companies'), (req, res) => companiesController.exportData(req as any, res))
 router.post('/import/preview', authenticate, canInsert('companies'), (req, res) => companiesController.previewImport(req, res))
 router.post('/import', authenticate, canInsert('companies'), (req, res) => companiesController.importData(req, res))
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { companyService } from '@/services/companyService'
 import { CompanyTable } from '@/components/companies/CompanyTable'
@@ -8,24 +8,16 @@ function CompaniesPage() {
   const navigate = useNavigate()
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(false)
-  const [page, setPage] = useState(1)
-  const [limit] = useState(10)
-  const [total, setTotal] = useState(0)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Record<string, any>>({})
-
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit])
-  const hasPrev = page > 1
-  const hasNext = page < totalPages
 
   const fetchCompanies = async () => {
     setLoading(true)
     try {
       const res = search
-        ? await companyService.search(search, page, limit, filter)
-        : await companyService.list(page, limit, undefined, filter)
+        ? await companyService.search(search, 1, 1000, filter)
+        : await companyService.list(1, 1000, undefined, filter)
       setCompanies(res.data.data)
-      setTotal(res.data.pagination.total)
     } catch (error) {
       console.error('Failed to fetch companies')
     } finally {
@@ -35,7 +27,7 @@ function CompaniesPage() {
 
   useEffect(() => {
     fetchCompanies()
-  }, [page, search, JSON.stringify(filter)])
+  }, [search, JSON.stringify(filter)])
 
   const handleDelete = async (id: string) => {
     if (confirm('Delete this company?')) {
@@ -55,7 +47,6 @@ function CompaniesPage() {
       else next[key] = value
       return next
     })
-    setPage(1)
   }
 
   return (
@@ -78,7 +69,6 @@ function CompaniesPage() {
             value={search}
             onChange={e => {
               setSearch(e.target.value)
-              setPage(1)
             }}
             className="border rounded-md px-3 py-2"
           />
@@ -122,28 +112,6 @@ function CompaniesPage() {
             canEdit={true}
             canDelete={true}
           />
-
-          <div className="flex justify-between items-center mt-6">
-            <div className="text-sm text-gray-600">
-              Page {page} of {totalPages} ({total} total)
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage(Math.max(1, page - 1))}
-                disabled={!hasPrev}
-                className="px-3 py-2 border rounded-md disabled:opacity-50"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => setPage(page + 1)}
-                disabled={!hasNext}
-                className="px-3 py-2 border rounded-md disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
-          </div>
         </>
       )}
     </div>

@@ -1,36 +1,28 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { categoryService } from '@/services/categoryService'
 import { CategoryTable } from '@/components/categories/CategoryTable'
 import type { Category } from '@/types/category'
-import { Search, Plus, ChevronLeft, ChevronRight, Loader2, AlertCircle, Tag, Trash2 } from 'lucide-react'
+import { Search, Plus, Loader2, AlertCircle, Tag, Trash2 } from 'lucide-react'
 
 export default function CategoriesPage() {
   const navigate = useNavigate()
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(false)
-  const [page, setPage] = useState(1)
-  const [limit] = useState(10)
-  const [total, setTotal] = useState(0)
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [showTrash, setShowTrash] = useState(false)
-
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit])
-  const hasPrev = page > 1
-  const hasNext = page < totalPages
 
   const fetchCategories = async () => {
     setLoading(true)
     setError(null)
     try {
       const res = showTrash
-        ? await categoryService.trash(page, limit)
+        ? await categoryService.trash(1, 1000)
         : search
-          ? await categoryService.search(search, page, limit)
-          : await categoryService.list(page, limit)
+          ? await categoryService.search(search, 1, 1000)
+          : await categoryService.list(1, 1000)
       setCategories(res.data.data)
-      setTotal(res.data.pagination.total)
     } catch (error) {
       setError('Failed to load categories')
     } finally {
@@ -39,12 +31,8 @@ export default function CategoriesPage() {
   }
 
   useEffect(() => {
-    setPage(1)
-  }, [showTrash, search])
-
-  useEffect(() => {
     fetchCategories()
-  }, [page, search, showTrash])
+  }, [search, showTrash])
 
   const handleDelete = async (id: string) => {
     if (confirm('Delete this category?')) {
@@ -100,7 +88,6 @@ export default function CategoriesPage() {
                   value={search}
                   onChange={e => {
                     setSearch(e.target.value)
-                    setPage(1)
                   }}
                   className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
@@ -143,25 +130,8 @@ export default function CategoriesPage() {
 
               <div className="flex justify-between items-center">
                 <p className="text-gray-600">
-                  Showing {(page - 1) * limit + 1}-{Math.min(page * limit, total)} of {total}
+                  Total: {categories.length} categories
                 </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setPage(Math.max(1, page - 1))}
-                    disabled={!hasPrev}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                  <span className="px-4 py-2">{page}/{totalPages}</span>
-                  <button
-                    onClick={() => setPage(page + 1)}
-                    disabled={!hasNext}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </button>
-                </div>
               </div>
             </>
           )}

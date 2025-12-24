@@ -1,35 +1,28 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { subCategoryService } from '@/services/categoryService'
 import { SubCategoryTable } from '@/components/sub-categories/SubCategoryTable'
 import type { SubCategoryWithCategory } from '@/types/category'
-import { Search, Plus, ChevronLeft, ChevronRight, Loader2, AlertCircle, Layers, Trash2 } from 'lucide-react'
+import { Search, Plus, Loader2, AlertCircle, Layers, Trash2 } from 'lucide-react'
 
 export default function SubCategoriesPage() {
   const navigate = useNavigate()
   const [subCategories, setSubCategories] = useState<SubCategoryWithCategory[]>([])
   const [loading, setLoading] = useState(false)
-  const [page, setPage] = useState(1)
-  const [limit] = useState(10)
   const [total, setTotal] = useState(0)
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [showTrash, setShowTrash] = useState(false)
-
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit])
-  const hasPrev = page > 1
-  const hasNext = page < totalPages
 
   const fetchSubCategories = async () => {
     setLoading(true)
     setError(null)
     try {
       const res = showTrash
-        ? await subCategoryService.trash(page, limit)
+        ? await subCategoryService.trash(1, 1000)
         : search
-          ? await subCategoryService.search(search, page, limit)
-          : await subCategoryService.list(page, limit)
-      console.log('Sub-categories response:', res.data.data)
+          ? await subCategoryService.search(search, 1, 1000)
+          : await subCategoryService.list(1, 1000)
       setSubCategories(res.data.data)
       setTotal(res.data.pagination.total)
     } catch (error) {
@@ -40,12 +33,8 @@ export default function SubCategoriesPage() {
   }
 
   useEffect(() => {
-    setPage(1)
-  }, [showTrash, search])
-
-  useEffect(() => {
     fetchSubCategories()
-  }, [page, search, showTrash])
+  }, [search, showTrash])
 
   const handleDelete = async (id: string) => {
     if (confirm('Delete this sub-category?')) {
@@ -101,7 +90,6 @@ export default function SubCategoriesPage() {
                   value={search}
                   onChange={e => {
                     setSearch(e.target.value)
-                    setPage(1)
                   }}
                   className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
@@ -144,25 +132,8 @@ export default function SubCategoriesPage() {
 
               <div className="flex justify-between items-center">
                 <p className="text-gray-600">
-                  Showing {(page - 1) * limit + 1}-{Math.min(page * limit, total)} of {total}
+                  Showing {subCategories.length} of {total}
                 </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setPage(Math.max(1, page - 1))}
-                    disabled={!hasPrev}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                  <span className="px-4 py-2">{page}/{totalPages}</span>
-                  <button
-                    onClick={() => setPage(page + 1)}
-                    disabled={!hasNext}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </button>
-                </div>
               </div>
             </>
           )}

@@ -4,7 +4,6 @@ import { authenticate } from '../../middleware/auth.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
-import { filterMiddleware } from '../../middleware/filter.middleware'
 import { PermissionService } from '../../services/permission.service'
 
 PermissionService.registerModule('metric-units', 'Metric Units Management').catch(err => {
@@ -17,7 +16,7 @@ router.get('/active', authenticate, canView('metric-units'), paginationMiddlewar
 
 router.get('/filter-options', authenticate, canView('metric-units'), (req, res) => metricUnitsController.getFilterOptions(req, res))
 
-router.get('/', authenticate, canView('metric-units'), paginationMiddleware, sortMiddleware, filterMiddleware, (req, res) => metricUnitsController.list(req as any, res))
+router.get('/', authenticate, canView('metric-units'), paginationMiddleware, sortMiddleware, (req, res) => metricUnitsController.list(req as any, res))
 
 router.post('/bulk/status', authenticate, canUpdate('metric-units'), (req, res) => metricUnitsController.bulkUpdateStatus(req, res))
 

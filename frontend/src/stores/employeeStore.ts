@@ -12,7 +12,6 @@ interface EmployeeState {
   employees: Employee[]
   profile: Employee | null
   filterOptions: FilterOptions | null
-  pagination: { page: number; limit: number; total: number; totalPages: number } | null
   isLoading: boolean
   fetchProfile: () => Promise<void>
   updateProfile: (data: Partial<Employee>) => Promise<void>
@@ -29,7 +28,6 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
   employees: [],
   profile: null,
   filterOptions: null,
-  pagination: null,
   isLoading: false,
 
   fetchProfile: async () => {
@@ -101,13 +99,8 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
       const { data } = await api.get<ApiResponse<Employee[]>>(`/employees/search?${queryString}`)
       // Tampilkan semua employees tanpa filter branch_name
       set({ 
-        employees: data.data,
-        pagination: (data as any).pagination
+        employees: data.data
       })
-    } catch (error: any) {
-      const errorMsg = error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Unknown error'
-      console.error('Failed to search employees:', errorMsg, error?.response?.status, error?.response?.data)
-      set({ employees: [], pagination: null })
     } finally {
       set({ isLoading: false })
     }

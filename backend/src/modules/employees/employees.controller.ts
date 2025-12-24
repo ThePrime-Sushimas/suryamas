@@ -4,15 +4,13 @@ import { employeesService } from './employees.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logInfo, logError } from '../../config/logger'
 import { PaginatedRequest } from '../../middleware/pagination.middleware'
-import { SortRequest } from '../../middleware/sort.middleware'
-import { FilterRequest } from '../../middleware/filter.middleware'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
 import { handleBulkUpdate, handleBulkDelete } from '../../utils/bulk.util'
 
 export class EmployeesController {
-  async list(req: PaginatedRequest & SortRequest, res: Response) {
+  async list(req: PaginatedRequest, res: Response) {
     try {
-      const result = await employeesService.list(req.pagination, req.sort)
+      const result = await employeesService.list(req.pagination)
       res.json({
         success: true,
         data: result.data,
@@ -27,9 +25,9 @@ export class EmployeesController {
     }
   }
 
-  async getUnassigned(req: PaginatedRequest & SortRequest, res: Response) {
+  async getUnassigned(req: PaginatedRequest, res: Response) {
     try {
-      const result = await employeesService.getUnassigned(req.pagination, req.sort)
+      const result = await employeesService.getUnassigned(req.pagination)
       res.json({
         success: true,
         data: result.data,
@@ -61,10 +59,10 @@ export class EmployeesController {
     }
   }
 
-  async search(req: PaginatedRequest & SortRequest & FilterRequest, res: Response) {
+  async search(req: PaginatedRequest, res: Response) {
     try {
       const { q } = req.query
-      const result = await employeesService.search(q as string, req.pagination, req.sort, req.filterParams)
+      const result = await employeesService.search(q as string, req.pagination)
       res.json({
         success: true,
         data: result.data,
@@ -222,7 +220,7 @@ export class EmployeesController {
     return handleExportToken(req, res)
   }
 
-  async exportData(req: AuthRequest & FilterRequest, res: Response) {
+  async exportData(req: AuthRequest, res: Response) {
     return handleExport(req, res, (filter) => employeesService.exportToExcel(filter), 'employees')
   }
 

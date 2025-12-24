@@ -1,16 +1,16 @@
 import { Request, Response, NextFunction } from 'express'
-import { getPaginationParams } from '../utils/pagination.util'
 
 export interface PaginatedRequest extends Request {
   pagination: {
     page: number
     limit: number
-    offset: number
   }
 }
 
 export const paginationMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  const pagination = getPaginationParams(req.query)
-  ;(req as PaginatedRequest).pagination = pagination
+  const page = Math.max(1, parseInt(req.query.page as string) || 1)
+  const limit = Math.max(1, Math.min(1000, parseInt(req.query.limit as string) || 10))
+  
+  ;(req as PaginatedRequest).pagination = { page, limit }
   next()
 }

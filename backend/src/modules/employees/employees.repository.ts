@@ -6,7 +6,7 @@ export class EmployeesRepository {
   private static filterOptionsCacheExpiry = 0
   private static readonly CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 
-  async findAll(pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<{ data: EmployeeWithBranch[]; total: number }> {
+  async findAll(pagination: { page: number; limit: number }): Promise<{ data: EmployeeWithBranch[]; total: number }> {
     let query = supabase.from('employees').select(`
       id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
       end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
@@ -14,24 +14,13 @@ export class EmployeesRepository {
       brand_name, religion, gender, marital_status, profile_picture,
       created_at, updated_at, user_id, is_active,
       employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))
-    `)
+    `, { count: 'exact' })
+    .order('full_name', { ascending: true })
     
-    if (sort?.field) {
-      query = query.order(sort.field, { ascending: sort.order === 'asc' })
-    } else {
-      query = query.order('full_name', { ascending: true })
-    }
-    
-    // Count query untuk semua employees
-    let countQuery = supabase.from('employees').select('id', { count: 'exact', head: true })
-    
-    const [{ data, error }, { count, error: countError }] = await Promise.all([
-      query.range(pagination.offset, pagination.offset + pagination.limit - 1),
-      countQuery
-    ])
+    const offset = (pagination.page - 1) * pagination.limit
+    const { data, error, count } = await query.range(offset, offset + pagination.limit - 1)
 
     if (error) throw new Error(error.message)
-    if (countError) throw new Error(countError.message)
     
     const rows = (data || []).map((e: any) => {
       // Find primary branch assignment (is_primary = true)
@@ -49,8 +38,7 @@ export class EmployeesRepository {
     return { data: rows as EmployeeWithBranch[], total: count || 0 }
   }
 
-  async findUnassigned(pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<{ data: EmployeeWithBranch[]; total: number }> {
-    // Get all employees
+  async findUnassigned(pagination: { page: number; limit: number }): Promise<{ data: EmployeeWithBranch[]; total: number }> {
     let query = supabase.from('employees').select(`
       id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
       end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
@@ -59,12 +47,7 @@ export class EmployeesRepository {
       created_at, updated_at, user_id, is_active,
       employee_branches(id)
     `)
-    
-    if (sort?.field) {
-      query = query.order(sort.field, { ascending: sort.order === 'asc' })
-    } else {
-      query = query.order('full_name', { ascending: true })
-    }
+    .order('full_name', { ascending: true })
     
     const { data: allEmployees, error } = await query
     if (error) throw new Error(error.message)
@@ -72,9 +55,10 @@ export class EmployeesRepository {
     // Filter employees without any branch assignments
     const unassigned = (allEmployees || []).filter((e: any) => !e.employee_branches || e.employee_branches.length === 0)
     
-    // Apply pagination
+    // Apply pagination after filtering
+    const offset = (pagination.page - 1) * pagination.limit
     const total = unassigned.length
-    const paginatedData = unassigned.slice(pagination.offset, pagination.offset + pagination.limit)
+    const paginatedData = unassigned.slice(offset, offset + pagination.limit)
     
     const rows = paginatedData.map((e: any) => {
       const { employee_branches, ...rest } = e
@@ -157,7 +141,7 @@ export class EmployeesRepository {
     return out
   }
 
-  async searchByName(searchTerm: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: any): Promise<{ data: EmployeeWithBranch[]; total: number }> {
+  async searchByName(searchTerm: string, pagination: { page: number; limit: number }, filter?: any): Promise<{ data: EmployeeWithBranch[]; total: number }> {
     const hasBranchFilter = filter?.branch_name
     
     let query = supabase.from('employees').select(`
@@ -167,50 +151,13 @@ export class EmployeesRepository {
       brand_name, religion, gender, marital_status, profile_picture,
       created_at, updated_at, user_id, is_active,
       employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))
-    `)
+    `, { count: 'exact' })
+    .order('full_name', { ascending: true })
     
-    // Count query untuk semua employees
-    let countQuery = supabase.from('employees').select('id', { count: 'exact', head: true })
-    
-    if (searchTerm && searchTerm.trim()) {
-      query = query.ilike('full_name', `%${searchTerm}%`)
-      countQuery = countQuery.ilike('full_name', `%${searchTerm}%`)
-    }
-    
-    if (filter) {
-      if (filter.branch_name) {
-        query = query.eq('employee_branches.branches.branch_name', filter.branch_name)
-      }
-      if (filter.is_active !== undefined) {
-        query = query.eq('is_active', filter.is_active)
-        countQuery = countQuery.eq('is_active', filter.is_active)
-      }
-      if (filter.status_employee) {
-        query = query.eq('status_employee', filter.status_employee)
-        countQuery = countQuery.eq('status_employee', filter.status_employee)
-      }
-      if (filter.job_position) {
-        query = query.ilike('job_position', filter.job_position)
-        countQuery = countQuery.ilike('job_position', filter.job_position)
-      }
-    }
-    
-    if (sort?.field === 'branch_name') {
-      // Skip database sort for branch_name, will sort in application
-      query = query.order('full_name', { ascending: true })
-    } else if (sort?.field) {
-      query = query.order(sort.field, { ascending: sort.order === 'asc' })
-    } else {
-      query = query.order('full_name', { ascending: true })
-    }
-    
-    const [{ data, error }, { count, error: countError }] = await Promise.all([
-      query.range(pagination.offset, pagination.offset + pagination.limit - 1),
-      countQuery
-    ])
+    const offset = (pagination.page - 1) * pagination.limit
+    const { data, error, count } = await query.range(offset, offset + pagination.limit - 1)
   
     if (error) throw new Error(error.message)
-    if (countError) throw new Error(countError.message)
     
     const rows = (data || []).map((e: any) => {
       // Find primary branch assignment (is_primary = true)
@@ -224,14 +171,7 @@ export class EmployeesRepository {
       delete out.employee_branches
       return out
     })
-    
-    if (sort?.field === 'branch_name') {
-      rows.sort((a, b) => {
-        const aVal = a.branch_name || ''
-        const bVal = b.branch_name || ''
-        return sort.order === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
-      })
-    }
+
     return { data: rows as EmployeeWithBranch[], total: count || 0 }
   }
 

@@ -8,14 +8,14 @@ import { calculateAge, calculateYearsOfService } from '../../utils/age.util'
 import { generateEmployeeId, getNextSequenceNumber } from '../../utils/employeeId.util'
 
 export class EmployeesService {
-  async list(pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<PaginatedResponse<Employee>> {
-    const { data, total } = await employeesRepository.findAll(pagination, sort)
+  async list(pagination: { page: number; limit: number }): Promise<PaginatedResponse<Employee>> {
+    const { data, total } = await employeesRepository.findAll(pagination)
     const dataWithAge = data.map(emp => ({ ...emp, age: calculateAge(emp.birth_date), years_of_service: calculateYearsOfService(emp.join_date, emp.resign_date) }))
     return createPaginatedResponse(dataWithAge, total, pagination.page, pagination.limit)
   }
 
-  async getUnassigned(pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<PaginatedResponse<Employee>> {
-    const { data, total } = await employeesRepository.findUnassigned(pagination, sort)
+  async getUnassigned(pagination: { page: number; limit: number }): Promise<PaginatedResponse<Employee>> {
+    const { data, total } = await employeesRepository.findUnassigned(pagination)
     const dataWithAge = data.map(emp => ({ ...emp, age: calculateAge(emp.birth_date), years_of_service: calculateYearsOfService(emp.join_date, emp.resign_date) }))
     return createPaginatedResponse(dataWithAge, total, pagination.page, pagination.limit)
   }
@@ -68,8 +68,8 @@ export class EmployeesService {
     return employee
   }
 
-  async search(searchTerm: string, pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: any): Promise<PaginatedResponse<Employee>> {
-    const { data, total } = await employeesRepository.searchByName(searchTerm, pagination, sort, filter)
+  async search(searchTerm: string, pagination: { page: number; limit: number }, filter?: any): Promise<PaginatedResponse<Employee>> {
+    const { data, total } = await employeesRepository.searchByName(searchTerm, pagination)
     const dataWithAge = data.map(emp => ({ ...emp, age: calculateAge(emp.birth_date), years_of_service: calculateYearsOfService(emp.join_date, emp.resign_date) }))
     return createPaginatedResponse(dataWithAge, total, pagination.page, pagination.limit)
   }

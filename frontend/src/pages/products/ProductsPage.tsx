@@ -4,7 +4,7 @@ import { productService } from '../../services/productService'
 import { categoryService, subCategoryService } from '../../services/categoryService'
 import { ProductTable } from '../../components/products/ProductTable'
 import type { Product } from '../../types/product'
-import { Plus, Search, Download, Upload, X, Filter, ChevronLeft, ChevronRight, Trash2, RefreshCw } from 'lucide-react'
+import { Plus, Search, Download, Upload, X, Filter, RefreshCw, Trash2 } from 'lucide-react'
 
 export const ProductsPage = () => {
   const navigate = useNavigate()
@@ -12,8 +12,6 @@ export const ProductsPage = () => {
   const [categories, setCategories] = useState([])
   const [subCategories, setSubCategories] = useState([])
   const [loading, setLoading] = useState(false)
-  const [page, setPage] = useState(1)
-  const [limit] = useState(10)
   const [total, setTotal] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -27,13 +25,13 @@ export const ProductsPage = () => {
 
   useEffect(() => {
     loadData()
-  }, [page, limit, showDeleted])
+  }, [showDeleted])
 
   const loadData = async () => {
     try {
       setLoading(true)
       const [prodRes, catRes, subCatRes] = await Promise.all([
-        productService.list(page, limit, undefined, undefined, showDeleted),
+        productService.list(1, 1000, undefined, undefined, showDeleted),
         categoryService.list(1, 1000),
         subCategoryService.list(1, 1000),
       ])
@@ -57,10 +55,9 @@ export const ProductsPage = () => {
     }
     try {
       setLoading(true)
-      const response = await productService.search(searchQuery, 1, limit, showDeleted)
+      const response = await productService.search(searchQuery, 1, 1000, showDeleted)
       setProducts(response.data.data)
       setTotal(response.data.pagination.total)
-      setPage(1)
     } catch (error) {
       console.error('Search failed:', error)
     } finally {
@@ -159,8 +156,6 @@ export const ProductsPage = () => {
       setDeleting(false)
     }
   }
-
-  const totalPages = Math.ceil(total / limit)
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
@@ -336,60 +331,6 @@ export const ProductsPage = () => {
               <div className="text-sm text-gray-600">
                 Showing <span className="font-medium">{products.length}</span> of{' '}
                 <span className="font-medium">{total}</span> products
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="flex items-center gap-1 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                >
-                  <ChevronLeft size={16} />
-                  <span className="hidden sm:inline">Previous</span>
-                </button>
-                
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum
-                    if (totalPages <= 5) {
-                      pageNum = i + 1
-                    } else if (page <= 3) {
-                      pageNum = i + 1
-                    } else if (page >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i
-                    } else {
-                      pageNum = page - 2 + i
-                    }
-                    
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setPage(pageNum)}
-                        className={`w-8 h-8 rounded-lg transition-colors ${
-                          page === pageNum
-                            ? 'bg-blue-600 text-white'
-                            : 'text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    )
-                  })}
-                </div>
-                
-                <button
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="flex items-center gap-1 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                >
-                  <span className="hidden sm:inline">Next</span>
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-              
-              <div className="text-sm text-gray-600 hidden sm:block">
-                Page <span className="font-medium">{page}</span> of{' '}
-                <span className="font-medium">{totalPages}</span>
               </div>
             </div>
           </>

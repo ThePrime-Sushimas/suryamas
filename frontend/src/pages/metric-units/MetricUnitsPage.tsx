@@ -1,37 +1,29 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { metricUnitService } from '@/services/metricUnitService'
 import MetricUnitTable from '@/components/metric-units/MetricUnitTable'
 import type { MetricUnit } from '@/types/metricUnit'
-import { Search, Gauge, Plus, ChevronLeft, ChevronRight, Loader2, AlertCircle } from 'lucide-react'
+import { Search, Gauge, Plus, Loader2, AlertCircle } from 'lucide-react'
 
 export default function MetricUnitsPage() {
   const navigate = useNavigate()
   const [data, setData] = useState<MetricUnit[]>([])
   const [loading, setLoading] = useState(false)
-  const [page, setPage] = useState(1)
-  const [limit] = useState(10)
-  const [total, setTotal] = useState(0)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Record<string, any>>({})
   const [error, setError] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit])
-  const hasPrev = page > 1
-  const hasNext = page < totalPages
-
   const loadData = async () => {
     setLoading(true)
     setError(null)
     try {
-      const result = await metricUnitService.list(page, limit, { field: 'metric_type', order: 'asc' }, {
+      const result = await metricUnitService.list(1, 1000, { field: 'metric_type', order: 'asc' }, {
         metric_type: filter.metric_type || undefined,
         is_active: filter.is_active !== undefined ? filter.is_active : undefined,
         q: search || undefined
       })
       setData(result.data)
-      setTotal(result.pagination.total)
     } catch (err) {
       setError('Failed to load metric units. Please try again.')
     } finally {
@@ -41,7 +33,7 @@ export default function MetricUnitsPage() {
 
   useEffect(() => {
     loadData()
-  }, [page, search, JSON.stringify(filter)])
+  }, [search, JSON.stringify(filter)])
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this metric unit?')) {
@@ -61,13 +53,11 @@ export default function MetricUnitsPage() {
       else next[key] = value
       return next
     })
-    setPage(1)
   }
 
   const handleClearFilters = () => {
     setSearch('')
     setFilter({})
-    setPage(1)
   }
 
   const toggleSelect = (id: string) => {
@@ -130,7 +120,6 @@ export default function MetricUnitsPage() {
                   value={search}
                   onChange={e => {
                     setSearch(e.target.value)
-                    setPage(1)
                   }}
                   className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200"
                 />
@@ -213,7 +202,7 @@ export default function MetricUnitsPage() {
               <div className="p-6 border-b border-gray-200">
                 <h2 className="text-xl font-semibold text-gray-900">Metric Units List</h2>
                 <p className="text-gray-600 text-sm mt-1">
-                  Showing {(page - 1) * limit + 1} to {Math.min(page * limit, total)} of {total} units
+                  Total: {data.length} units
                 </p>
               </div>
 
@@ -230,73 +219,7 @@ export default function MetricUnitsPage() {
               </div>
             </div>
 
-            {/* Pagination */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="text-gray-600">
-                Showing <span className="font-semibold text-gray-900">{(page - 1) * limit + 1}-{Math.min(page * limit, total)}</span> of{' '}
-                <span className="font-semibold text-gray-900">{total}</span> units
-              </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage(Math.max(1, page - 1))}
-                  disabled={!hasPrev}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                  Previous
-                </button>
-
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum
-                    if (totalPages <= 5) {
-                      pageNum = i + 1
-                    } else if (page <= 3) {
-                      pageNum = i + 1
-                    } else if (page >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i
-                    } else {
-                      pageNum = page - 2 + i
-                    }
-
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setPage(pageNum)}
-                        className={`w-10 h-10 rounded-lg font-medium transition-all duration-200 ${
-                          page === pageNum ? 'bg-blue-600 text-white shadow-md' : 'text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    )
-                  })}
-                  {totalPages > 5 && (
-                    <>
-                      <span className="px-2 text-gray-400">...</span>
-                      <button
-                        onClick={() => setPage(totalPages)}
-                        className={`w-10 h-10 rounded-lg font-medium transition-all duration-200 ${
-                          page === totalPages ? 'bg-blue-600 text-white shadow-md' : 'text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        {totalPages}
-                      </button>
-                    </>
-                  )}
-                </div>
-
-                <button
-                  onClick={() => setPage(page + 1)}
-                  disabled={!hasNext}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium"
-                >
-                  Next
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
           </>
         )}
       </div>

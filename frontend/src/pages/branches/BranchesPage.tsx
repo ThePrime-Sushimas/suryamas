@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { branchService } from '@/services/branchService'
 import { BranchTable } from '@/components/branches/BranchTable'
@@ -6,9 +6,7 @@ import type { Branch } from '@/types/branch'
 import { 
   Search, 
   Building, 
-  Plus, 
-  ChevronLeft, 
-  ChevronRight,
+  Plus,
   Loader2,
   AlertCircle
 } from 'lucide-react'
@@ -17,26 +15,18 @@ function BranchesPage() {
   const navigate = useNavigate()
   const [branches, setBranches] = useState<Branch[]>([])
   const [loading, setLoading] = useState(false)
-  const [page, setPage] = useState(1)
-  const [limit] = useState(10)
-  const [total, setTotal] = useState(0)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Record<string, any>>({})
   const [error, setError] = useState<string | null>(null)
-
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit])
-  const hasPrev = page > 1
-  const hasNext = page < totalPages
 
   const fetchBranches = async () => {
     setLoading(true)
     setError(null)
     try {
       const res = search
-        ? await branchService.search(search, page, limit, filter)
-        : await branchService.list(page, limit, undefined, filter)
+        ? await branchService.search(search, 1, 1000, filter)
+        : await branchService.list(1, 1000, undefined, filter)
       setBranches(res.data.data)
-      setTotal(res.data.pagination.total)
     } catch (error) {
       console.error('Failed to fetch branches')
       setError('Failed to load branches. Please try again.')
@@ -47,7 +37,7 @@ function BranchesPage() {
 
   useEffect(() => {
     fetchBranches()
-  }, [page, search, JSON.stringify(filter)])
+  }, [search, JSON.stringify(filter)])
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this branch?')) {
@@ -68,13 +58,11 @@ function BranchesPage() {
       else next[key] = value
       return next
     })
-    setPage(1)
   }
 
   const handleClearFilters = () => {
     setSearch('')
     setFilter({})
-    setPage(1)
   }
 
   return (
@@ -112,7 +100,6 @@ function BranchesPage() {
                   value={search}
                   onChange={e => {
                     setSearch(e.target.value)
-                    setPage(1)
                   }}
                   className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200"
                 />
@@ -209,7 +196,7 @@ function BranchesPage() {
               <div className="p-6 border-b border-gray-200">
                 <h2 className="text-xl font-semibold text-gray-900">Branch List</h2>
                 <p className="text-gray-600 text-sm mt-1">
-                  Showing {(page - 1) * limit + 1} to {Math.min(page * limit, total)} of {total} branches
+                  Total: {branches.length} branches
                 </p>
               </div>
               
@@ -225,77 +212,7 @@ function BranchesPage() {
               </div>
             </div>
 
-            {/* Pagination */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="text-gray-600">
-                Showing <span className="font-semibold text-gray-900">{(page - 1) * limit + 1}-{Math.min(page * limit, total)}</span> of{' '}
-                <span className="font-semibold text-gray-900">{total}</span> branches
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage(Math.max(1, page - 1))}
-                  disabled={!hasPrev}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                  Previous
-                </button>
-                
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum
-                    if (totalPages <= 5) {
-                      pageNum = i + 1
-                    } else if (page <= 3) {
-                      pageNum = i + 1
-                    } else if (page >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i
-                    } else {
-                      pageNum = page - 2 + i
-                    }
 
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setPage(pageNum)}
-                        className={`w-10 h-10 rounded-lg font-medium transition-all duration-200 ${
-                          page === pageNum
-                            ? 'bg-blue-600 text-white shadow-md'
-                            : 'text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    )
-                  })}
-                  {totalPages > 5 && (
-                    <>
-                      <span className="px-2 text-gray-400">...</span>
-                      <button
-                        onClick={() => setPage(totalPages)}
-                        className={`w-10 h-10 rounded-lg font-medium transition-all duration-200 ${
-                          page === totalPages
-                            ? 'bg-blue-600 text-white shadow-md'
-                            : 'text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        {totalPages}
-                      </button>
-                    </>
-                  )}
-                </div>
-                
-                <button
-                  onClick={() => setPage(page + 1)}
-                  disabled={!hasNext}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium"
-                >
-                  Next
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
           </>
         )}
       </div>

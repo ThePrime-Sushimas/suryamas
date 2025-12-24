@@ -17,9 +17,8 @@ const ALLOWED_SORT_FIELDS = [
 
 export const sortMiddleware = (req: Request, res: Response, next: NextFunction) => {
   const sortField = (req.query.sort as string) || 'full_name'
-  const sortOrder = (req.query.order as string) || 'desc'
+  const sortOrder = (req.query.order as string) || 'asc'
 
-  // Validate sort field
   if (!ALLOWED_SORT_FIELDS.includes(sortField)) {
     return res.status(400).json({
       success: false,
@@ -27,7 +26,6 @@ export const sortMiddleware = (req: Request, res: Response, next: NextFunction) 
     })
   }
 
-  // Validate sort order
   if (!['asc', 'desc'].includes(sortOrder.toLowerCase())) {
     return res.status(400).json({
       success: false,
