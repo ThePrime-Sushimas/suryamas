@@ -5,12 +5,11 @@ import { sendSuccess, sendError } from '../../utils/response.util'
 import { logInfo, logError } from '../../config/logger'
 import { PaginatedRequest } from '../../middleware/pagination.middleware'
 import { SortRequest } from '../../middleware/sort.middleware'
-import { FilterRequest } from '../../middleware/filter.middleware'
 
 export class MetricUnitsController {
-  async list(req: PaginatedRequest & SortRequest & FilterRequest, res: Response) {
+  async list(req: PaginatedRequest & SortRequest, res: Response) {
     try {
-      const result = await metricUnitsService.list(req.pagination, req.sort, req.filterParams)
+      const result = await metricUnitsService.list(req.pagination, req.sort)
       res.json({ success: true, data: result.data, pagination: result.pagination })
     } catch (error) {
       logError('Failed to list metric units', { error: (error as Error).message })

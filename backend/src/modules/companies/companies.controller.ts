@@ -5,14 +5,13 @@ import { sendSuccess, sendError } from '../../utils/response.util'
 import { logInfo, logError } from '../../config/logger'
 import { PaginatedRequest } from '../../middleware/pagination.middleware'
 import { SortRequest } from '../../middleware/sort.middleware'
-import { FilterRequest } from '../../middleware/filter.middleware'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
 import { handleBulkUpdate, handleBulkDelete } from '../../utils/bulk.util'
 
 export class CompaniesController {
-  async list(req: PaginatedRequest & SortRequest & FilterRequest, res: Response) {
+  async list(req: PaginatedRequest & SortRequest, res: Response) {
     try {
-      const result = await companiesService.list(req.pagination, req.sort, req.filterParams)
+      const result = await companiesService.list(req.pagination, req.sort)
       res.json({
         success: true,
         data: result.data,
@@ -27,10 +26,10 @@ export class CompaniesController {
     }
   }
 
-  async search(req: PaginatedRequest & SortRequest & FilterRequest, res: Response) {
+  async search(req: PaginatedRequest & SortRequest, res: Response) {
     try {
       const { q } = req.query
-      const result = await companiesService.search(q as string, req.pagination, req.sort, req.filterParams)
+      const result = await companiesService.search(q as string, req.pagination, req.sort)
       res.json({
         success: true,
         data: result.data,
@@ -131,7 +130,7 @@ export class CompaniesController {
     return handleExportToken(req, res)
   }
 
-  async exportData(req: AuthRequest & FilterRequest, res: Response) {
+  async exportData(req: AuthRequest, res: Response) {
     return handleExport(req, res, (filter) => companiesService.exportToExcel(filter), 'companies')
   }
 
