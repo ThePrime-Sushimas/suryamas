@@ -5,11 +5,13 @@ import { sendSuccess, sendError } from '../../utils/response.util'
 import { logInfo, logError } from '../../config/logger'
 import { PaginatedRequest } from '../../middleware/pagination.middleware'
 import { SortRequest } from '../../middleware/sort.middleware'
+import { getPaginationParams } from '../../utils/pagination.util'
 
 export class MetricUnitsController {
   async list(req: PaginatedRequest & SortRequest, res: Response) {
     try {
-      const result = await metricUnitsService.list(req.pagination, req.sort)
+      const { offset } = getPaginationParams(req.query)
+      const result = await metricUnitsService.list({ ...req.pagination, offset }, req.sort)
       res.json({ success: true, data: result.data, pagination: result.pagination })
     } catch (error) {
       logError('Failed to list metric units', { error: (error as Error).message })
@@ -19,7 +21,8 @@ export class MetricUnitsController {
 
   async listActive(req: PaginatedRequest & SortRequest, res: Response) {
     try {
-      const result = await metricUnitsService.listActive(req.pagination, req.sort)
+      const { offset } = getPaginationParams(req.query)
+      const result = await metricUnitsService.listActive({ ...req.pagination, offset }, req.sort)
       res.json({ success: true, data: result.data, pagination: result.pagination })
     } catch (error) {
       logError('Failed to list active metric units', { error: (error as Error).message })

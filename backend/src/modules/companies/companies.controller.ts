@@ -5,13 +5,15 @@ import { sendSuccess, sendError } from '../../utils/response.util'
 import { logInfo, logError } from '../../config/logger'
 import { PaginatedRequest } from '../../middleware/pagination.middleware'
 import { SortRequest } from '../../middleware/sort.middleware'
+import { getPaginationParams } from '../../utils/pagination.util'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
 import { handleBulkUpdate, handleBulkDelete } from '../../utils/bulk.util'
 
 export class CompaniesController {
   async list(req: PaginatedRequest & SortRequest, res: Response) {
     try {
-      const result = await companiesService.list(req.pagination, req.sort)
+      const { offset } = getPaginationParams(req.query)
+      const result = await companiesService.list({ ...req.pagination, offset }, req.sort)
       res.json({
         success: true,
         data: result.data,
@@ -29,7 +31,8 @@ export class CompaniesController {
   async search(req: PaginatedRequest & SortRequest, res: Response) {
     try {
       const { q } = req.query
-      const result = await companiesService.search(q as string, req.pagination, req.sort)
+      const { offset } = getPaginationParams(req.query)
+      const result = await companiesService.search(q as string, { ...req.pagination, offset }, req.sort)
       res.json({
         success: true,
         data: result.data,
