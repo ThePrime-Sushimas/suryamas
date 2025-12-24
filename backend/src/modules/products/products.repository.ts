@@ -9,7 +9,7 @@ export class ProductsRepository {
     includeDeleted = false
   ): Promise<{ data: Product[]; total: number }> {
     let query = supabase.from('products').select(`
-      id, product_code, product_name, category_id, sub_category_id, status, is_deleted, created_at,
+      id, product_code, product_name, category_id, sub_category_id, status, is_deleted, is_requestable, is_purchasable, created_at,
       categories(category_name),
       sub_categories(sub_category_name)
     `)
@@ -54,6 +54,8 @@ export class ProductsRepository {
 
     const rows = (data || []).map((item: any) => ({
       ...item,
+      is_requestable: item.is_requestable === true || item.is_requestable === 'true',
+      is_purchasable: item.is_purchasable === true || item.is_purchasable === 'true',
       category_name: item.categories?.category_name,
       sub_category_name: item.sub_categories?.sub_category_name,
       categories: undefined,
@@ -111,7 +113,11 @@ export class ProductsRepository {
     if (error) throw new Error(error.message)
     if (countError) throw new Error(countError.message)
 
-    return { data: data || [], total: count || 0 }
+    return { data: (data || []).map((item: any) => ({
+      ...item,
+      is_requestable: item.is_requestable === true || item.is_requestable === 'true',
+      is_purchasable: item.is_purchasable === true || item.is_purchasable === 'true',
+    })), total: count || 0 }
   }
 
   async getById(id: string, includeDeleted = false): Promise<Product | null> {
@@ -124,7 +130,11 @@ export class ProductsRepository {
     if (error) throw new Error(error.message)
     if (!data) return null
     if (data.is_deleted && !includeDeleted) return null
-    return data
+    return {
+      ...data,
+      is_requestable: data.is_requestable === true || data.is_requestable === 'true',
+      is_purchasable: data.is_purchasable === true || data.is_purchasable === 'true',
+    }
   }
 
   async findByProductCode(code: string): Promise<Product | null> {
@@ -136,7 +146,12 @@ export class ProductsRepository {
       .maybeSingle()
 
     if (error) throw new Error(error.message)
-    return data
+    if (!data) return null
+    return {
+      ...data,
+      is_requestable: data.is_requestable === true || data.is_requestable === 'true',
+      is_purchasable: data.is_purchasable === true || data.is_purchasable === 'true',
+    }
   }
 
   async create(data: CreateProductDto & { created_by?: string; updated_by?: string }): Promise<Product> {
