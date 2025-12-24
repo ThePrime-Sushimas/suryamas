@@ -73,6 +73,11 @@ export class ProductsService {
       }
     }
 
+    const existingName = await productsRepository.findByProductName(dto.product_name)
+    if (existingName) {
+      throw new Error('Product name already exists')
+    }
+
     const data: any = {
       ...dto,
       status: dto.status || 'ACTIVE',
@@ -99,6 +104,13 @@ export class ProductsService {
 
     if (dto.status && !VALID_STATUSES.includes(dto.status)) {
       throw new Error(`Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`)
+    }
+
+    if (dto.product_name) {
+      const existingName = await productsRepository.findByProductName(dto.product_name, id)
+      if (existingName) {
+        throw new Error('Product name already exists')
+      }
     }
 
     const data: any = { ...dto, updated_by: userId }
@@ -166,6 +178,11 @@ export class ProductsService {
 
   async minimalActive(): Promise<{ id: string; product_name: string }[]> {
     return productsRepository.minimalActive()
+  }
+
+  async checkProductNameExists(productName: string, excludeId?: string): Promise<boolean> {
+    const existing = await productsRepository.findByProductName(productName, excludeId)
+    return !!existing
   }
 
   async restore(id: string, userId?: string): Promise<void> {

@@ -156,6 +156,21 @@ export class ProductsController {
     }
   }
 
+  checkProductName = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { product_name, excludeId } = req.query
+      if (!product_name) {
+        sendError(res, 'Product name is required', 400)
+        return
+      }
+      const exists = await productsService.checkProductNameExists(product_name as string, excludeId as string)
+      sendSuccess(res, { exists }, 'Check completed')
+    } catch (error: any) {
+      logError('Check product name failed', { error: error.message })
+      sendError(res, 'Failed to check product name', 500)
+    }
+  }
+
   restore = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { id } = req.params

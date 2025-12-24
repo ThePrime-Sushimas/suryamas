@@ -154,6 +154,28 @@ export class ProductsRepository {
     }
   }
 
+  async findByProductName(name: string, excludeId?: string): Promise<Product | null> {
+    let query = supabase
+      .from('products')
+      .select('*')
+      .eq('product_name', name)
+      .eq('is_deleted', false)
+
+    if (excludeId) {
+      query = query.neq('id', excludeId)
+    }
+
+    const { data, error } = await query.maybeSingle()
+
+    if (error) throw new Error(error.message)
+    if (!data) return null
+    return {
+      ...data,
+      is_requestable: data.is_requestable === true || data.is_requestable === 'true',
+      is_purchasable: data.is_purchasable === true || data.is_purchasable === 'true',
+    }
+  }
+
   async create(data: CreateProductDto & { created_by?: string; updated_by?: string }): Promise<Product> {
     const { data: product, error } = await supabase
       .from('products')

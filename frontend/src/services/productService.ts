@@ -72,4 +72,7 @@ export const productService = {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
   },
+
+  checkProductName: (name: string, excludeId?: string) =>
+    axios.get(`${API_URL}/check/name`, { params: { product_name: name, excludeId } }),
 }

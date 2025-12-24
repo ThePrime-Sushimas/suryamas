@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Product, CreateProductDto, UpdateProductDto } from '../../types/product'
+import { productService } from '../../services/productService'
 
 interface ProductFormProps {
   product?: Product
@@ -25,6 +26,8 @@ export const ProductForm = ({
     is_requestable: true,
     is_purchasable: true,
   })
+  const [nameError, setNameError] = useState<string>('')
+  const [checkingName, setCheckingName] = useState(false)
 
   useEffect(() => {
     if (!product && !formData.product_code) {
@@ -53,10 +56,34 @@ export const ProductForm = ({
       ...prev,
       [name]: type === 'checkbox' ? target.checked : value,
     }))
+
+    if (name === 'product_name') {
+      setNameError('')
+      if (value.trim()) {
+        checkProductName(value.trim())
+      }
+    }
+  }
+
+  const checkProductName = async (name: string) => {
+    setCheckingName(true)
+    try {
+      const response = await productService.checkProductName(name, product?.id)
+      if (response.data.data.exists) {
+        setNameError('Product name already exists')
+      }
+    } catch (error) {
+      console.error('Error checking product name:', error)
+    } finally {
+      setCheckingName(false)
+    }
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (nameError) {
+      return
+    }
     if (product) {
       const { product_code, ...updateData } = formData
       onSubmit(updateData)
@@ -86,9 +113,13 @@ export const ProductForm = ({
             value={formData.product_name}
             onChange={handleChange}
             required
-            className="w-full px-3 py-2 border rounded"
+            className={`w-full px-3 py-2 border rounded ${
+              nameError ? 'border-red-500 bg-red-50' : ''
+            }`}
             placeholder="Product Name"
           />
+          {checkingName && <p className="text-sm text-gray-500 mt-1">Checking...</p>}
+          {nameError && <p className="text-sm text-red-600 mt-1">{nameError}</p>}
         </div>
       </div>
 
@@ -179,7 +210,7 @@ export const ProductForm = ({
       <div className="flex gap-4 justify-end">
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || nameError !== '' || checkingName}
           className="px-6 py-2 bg-teal-600 text-white rounded hover:bg-teal-700 disabled:bg-gray-400"
         >
           {isLoading ? 'Saving...' : 'Save'}

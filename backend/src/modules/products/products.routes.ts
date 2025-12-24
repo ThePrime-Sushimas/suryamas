@@ -73,6 +73,12 @@ router.get(
 )
 
 router.get(
+  '/check/name',
+  canView('products'),
+  productsController.checkProductName
+)
+
+router.get(
   '/:id',
   canView('products'),
   productsController.getById
