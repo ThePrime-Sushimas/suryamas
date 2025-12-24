@@ -13,8 +13,8 @@ export class EmployeesRepository {
       ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
       brand_name, religion, gender, marital_status, profile_picture,
       created_at, updated_at, user_id, is_active,
-      employee_branches!inner(branch_id, is_primary, branches(id, branch_name, branch_code, city))
-    `).eq('employee_branches.is_primary', true)
+      employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))
+    `)
     
     if (sort?.field) {
       query = query.order(sort.field, { ascending: sort.order === 'asc' })
@@ -22,16 +22,20 @@ export class EmployeesRepository {
       query = query.order('full_name', { ascending: true })
     }
     
+    // Count query untuk semua employees
+    let countQuery = supabase.from('employees').select('id', { count: 'exact', head: true })
+    
     const [{ data, error }, { count, error: countError }] = await Promise.all([
       query.range(pagination.offset, pagination.offset + pagination.limit - 1),
-      supabase.from('employees').select('id', { count: 'exact', head: true })
+      countQuery
     ])
 
     if (error) throw new Error(error.message)
     if (countError) throw new Error(countError.message)
     
     const rows = (data || []).map((e: any) => {
-      const primaryBranch = e.employee_branches?.[0]?.branches
+      // Find primary branch assignment (is_primary = true)
+      const primaryBranch = e.employee_branches?.find((eb: any) => eb.is_primary)?.branches
       const out: any = {
         ...e,
         branch_name: primaryBranch?.branch_name ?? null,
@@ -162,8 +166,10 @@ export class EmployeesRepository {
       ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
       brand_name, religion, gender, marital_status, profile_picture,
       created_at, updated_at, user_id, is_active,
-      employee_branches${hasBranchFilter ? '!inner' : '!inner'}(branch_id, is_primary, branches(id, branch_name, branch_code, city))
-    `).eq('employee_branches.is_primary', true)
+      employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))
+    `)
+    
+    // Count query untuk semua employees
     let countQuery = supabase.from('employees').select('id', { count: 'exact', head: true })
     
     if (searchTerm && searchTerm.trim()) {
@@ -207,7 +213,8 @@ export class EmployeesRepository {
     if (countError) throw new Error(countError.message)
     
     const rows = (data || []).map((e: any) => {
-      const primaryBranch = e.employee_branches?.[0]?.branches
+      // Find primary branch assignment (is_primary = true)
+      const primaryBranch = e.employee_branches?.find((eb: any) => eb.is_primary)?.branches
       const out: any = {
         ...e,
         branch_name: primaryBranch?.branch_name ?? null,
