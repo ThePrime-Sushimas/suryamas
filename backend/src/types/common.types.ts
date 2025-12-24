@@ -1,5 +1,5 @@
 import { Request } from 'express'
-import type { PermissionMatrix } from './permission.types'
+import type { PermissionMatrix } from '../modules/permissions/permissions.types'
 
 export interface AuthRequest extends Request {
   user?: {

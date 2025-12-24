@@ -10,7 +10,7 @@ import type {
   CreateModuleDto,
   CreateRoleDto,
   UpdateRolePermissionsDto,
-} from '../../types/permission.types'
+} from './permissions.types'
 import { createDefaultPermissions } from '../../utils/permissions.util'
 
 export class PermissionsService {

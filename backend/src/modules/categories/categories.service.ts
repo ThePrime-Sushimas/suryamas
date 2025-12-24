@@ -1,5 +1,5 @@
 import { categoriesRepository } from './categories.repository'
-import { Category, CreateCategoryDto, UpdateCategoryDto } from '../../types/category.types'
+import { Category, CreateCategoryDto, UpdateCategoryDto } from './categories.types'
 import { AuditService } from '../../services/audit.service'
 import { logError, logInfo } from '../../config/logger'
 

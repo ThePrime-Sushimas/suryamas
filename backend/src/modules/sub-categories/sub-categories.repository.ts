@@ -1,5 +1,5 @@
 import { supabase } from '../../config/supabase'
-import { SubCategory, SubCategoryWithCategory, CreateSubCategoryDto, UpdateSubCategoryDto } from '../../types/category.types'
+import { SubCategory, SubCategoryWithCategory, CreateSubCategoryDto, UpdateSubCategoryDto } from '../categories/categories.types'
 
 const ALLOWED_SORT_FIELDS = ['id', 'category_id', 'sub_category_code', 'sub_category_name', 'sort_order', 'created_at', 'updated_at']
 

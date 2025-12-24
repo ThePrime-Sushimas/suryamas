@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx'
-import { Product, ProductUom, CreateProductDto, CreateProductUomDto } from '../types/product.types'
+import { Product, ProductUom, CreateProductDto, CreateProductUomDto } from '../modules/products/products.types'
 import { productsRepository } from '../modules/products/products.repository'
 import { productUomsRepository } from '../modules/product-uoms/product-uoms.repository'
 

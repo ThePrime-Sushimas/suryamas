@@ -2,7 +2,7 @@
 // PERMISSION CONSTANTS & HELPERS
 // =====================================================
 
-import type { PermissionAction } from '../types/permission.types'
+import type { PermissionAction } from '../modules/permissions/permissions.types'
 
 // Permission action constants
 export const PERMISSIONS = {

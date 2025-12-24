@@ -1,5 +1,5 @@
 import { productUomsRepository } from './product-uoms.repository'
-import { ProductUom, CreateProductUomDto, UpdateProductUomDto, UomStatus } from '../../types/product.types'
+import { ProductUom, CreateProductUomDto, UpdateProductUomDto, UomStatus } from '../products/products.types'
 import { AuditService } from '../../services/audit.service'
 import { logError, logInfo } from '../../config/logger'
 

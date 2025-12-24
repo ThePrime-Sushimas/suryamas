@@ -10,7 +10,7 @@ import type {
   CreateModuleDto,
   CreateRoleDto,
   UpdateRolePermissionsDto,
-} from '../../types/permission.types'
+} from './permissions.types'
 
 export class PermissionsRepository {
   // =====================================================

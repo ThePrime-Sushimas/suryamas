@@ -1,5 +1,5 @@
 import { supabase } from '../../config/supabase'
-import { Product, ProductUom, CreateProductDto, UpdateProductDto, CreateProductUomDto, UpdateProductUomDto } from '../../types/product.types'
+import { Product, ProductUom, CreateProductDto, UpdateProductDto, CreateProductUomDto, UpdateProductUomDto } from './products.types'
 
 export class ProductsRepository {
   async findAll(

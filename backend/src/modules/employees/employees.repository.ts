@@ -1,5 +1,5 @@
 import { supabase } from '../../config/supabase'
-import { Employee, EmployeeWithBranch } from '../../types/employee.types'
+import { Employee, EmployeeWithBranch } from './employees.types'
 
 export class EmployeesRepository {
   private static filterOptionsCache: any = null

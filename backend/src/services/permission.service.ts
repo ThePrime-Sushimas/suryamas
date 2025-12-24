@@ -13,7 +13,7 @@ import type {
   PermissionCheckResult,
   CreateModuleDto,
   UpdateRolePermissionsDto,
-} from '../types/permission.types'
+} from '../modules/permissions/permissions.types'
 import {
   isPublicModule,
   createDefaultPermissions,

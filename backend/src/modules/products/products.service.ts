@@ -1,5 +1,5 @@
 import { productsRepository } from './products.repository'
-import { Product, ProductUom, CreateProductDto, UpdateProductDto, CreateProductUomDto, UpdateProductUomDto, ProductStatus, UomStatus } from '../../types/product.types'
+import { Product, ProductUom, CreateProductDto, UpdateProductDto, CreateProductUomDto, UpdateProductUomDto, ProductStatus, UomStatus } from './products.types'
 import { AuditService } from '../../services/audit.service'
 import { logError, logInfo } from '../../config/logger'
 

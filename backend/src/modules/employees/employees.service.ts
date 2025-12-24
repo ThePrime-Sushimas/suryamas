@@ -1,5 +1,5 @@
 import { employeesRepository } from './employees.repository'
-import { Employee } from '../../types/employee.types'
+import { Employee } from './employees.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
 import { ExportService } from '../../services/export.service'
 import { ImportService } from '../../services/import.service'

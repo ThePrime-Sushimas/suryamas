@@ -1,5 +1,5 @@
 import { supabase } from '../../config/supabase'
-import { ProductUom, CreateProductUomDto, UpdateProductUomDto } from '../../types/product.types'
+import { ProductUom, CreateProductUomDto, UpdateProductUomDto } from '../products/products.types'
 
 export class ProductUomsRepository {
   async findByProductId(productId: string, includeDeleted = false): Promise<ProductUom[]> {
