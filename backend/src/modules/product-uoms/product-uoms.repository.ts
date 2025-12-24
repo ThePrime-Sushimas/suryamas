@@ -96,6 +96,16 @@ export class ProductUomsRepository {
     if (error) throw new Error(error.message)
     return data
   }
+
+  async clearDefaultBaseUnit(productId: string): Promise<void> {
+    const { error } = await supabase
+      .from('product_uoms')
+      .update({ is_default_base_unit: false })
+      .eq('product_id', productId)
+      .eq('is_deleted', false)
+
+    if (error) throw new Error(error.message)
+  }
 }
 
 export const productUomsRepository = new ProductUomsRepository()

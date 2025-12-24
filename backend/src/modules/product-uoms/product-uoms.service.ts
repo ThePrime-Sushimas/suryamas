@@ -39,6 +39,10 @@ export class ProductUomsService {
       }
     }
 
+    if (dto.is_default_base_unit) {
+      await productUomsRepository.clearDefaultBaseUnit(productId)
+    }
+
     const data: any = {
       ...dto,
       product_id: productId,
@@ -81,6 +85,10 @@ export class ProductUomsService {
       if (baseUom) {
         throw new Error('Product already has a base unit')
       }
+    }
+
+    if (dto.is_default_base_unit) {
+      await productUomsRepository.clearDefaultBaseUnit(current.product_id)
     }
 
     const data: any = { ...dto, updated_by: userId }
