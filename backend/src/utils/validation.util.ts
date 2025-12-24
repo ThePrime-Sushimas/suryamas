@@ -12,7 +12,25 @@ export function validateUrl(url: string): boolean {
   }
 }
 
+export function normalizePhone(phone: string): string {
+  // Remove all non-digit characters except +
+  let normalized = phone.replace(/[^\d+]/g, '')
+  
+  // If starts with 0, replace with +62
+  if (normalized.startsWith('0')) {
+    normalized = '+62' + normalized.slice(1)
+  }
+  
+  // If doesn't start with +, add +62
+  if (!normalized.startsWith('+')) {
+    normalized = '+62' + normalized
+  }
+  
+  return normalized
+}
+
 export function validatePhone(phone: string): boolean {
   const phoneRegex = /^[\d\-\+\(\)\s]+$/
-  return phoneRegex.test(phone) && phone.replace(/\D/g, '').length >= 10
+  const digits = phone.replace(/\D/g, '')
+  return phoneRegex.test(phone) && digits.length >= 10
 }
