@@ -1,78 +1,47 @@
-import { useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useEmployeeStore } from '../../stores/employeeStore'
 import ExportButton from '../../components/ExportButton'
 import ImportModal from '../../components/ImportModal'
 import BulkActionBar from '../../components/BulkActionBar'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
-import { useUrlState } from '../../hooks/useUrlState'
 import { useIsMobile } from '../../hooks/useMediaQuery'
 import EmployeeCard from '../../components/mobile/EmployeeCard'
 import FloatingActionButton from '../../components/mobile/FloatingActionButton'
 
 export default function EmployeesPage() {
-  const { employees, searchEmployees, deleteEmployee, bulkUpdateActive, bulkDelete, filterOptions, fetchFilterOptions, pagination, isLoading } = useEmployeeStore()
+  const { employees, searchEmployees, deleteEmployee, bulkUpdateActive, bulkDelete, fetchFilterOptions, isLoading } = useEmployeeStore()
   const { selectedIds, selectAll, selectOne, clearSelection, isSelected, isAllSelected, selectedCount } = useBulkSelection(employees)
   const navigate = useNavigate()
   
-  const { state, setState } = useUrlState({
-    page: '1',
-    limit: '10',
+  const [state, setState] = useState({
     sort: 'full_name',
-    order: 'asc',
+    order: 'asc' as 'asc' | 'desc',
     search: '',
-    branch_name: '',
-    is_active: '',
-    status_employee: '',
-    job_position: '',
-    showImport: '',
+    showImport: false,
     selectedImage: '',
   })
 
   useEffect(() => {
     fetchFilterOptions()
     handleFetch()
-  }, [state.page, state.limit, state.sort, state.order, state.search, state.branch_name, state.is_active, state.status_employee, state.job_position])
+  }, [state.sort, state.order, state.search])
 
   const handleFetch = () => {
-    const filters: any = {}
-    if (state.branch_name) filters.branch_name = state.branch_name
-    if (state.is_active) filters.is_active = state.is_active
-    if (state.status_employee) filters.status_employee = state.status_employee
-    if (state.job_position) filters.job_position = state.job_position
-    
-    searchEmployees(state.search, state.sort, state.order as 'asc' | 'desc', filters, Number(state.page), Number(state.limit))
-  }
-
-  const getActiveFilters = () => {
-    const filters: any = {}
-    if (state.branch_name) filters.branch_name = state.branch_name
-    if (state.is_active) filters.is_active = state.is_active
-    if (state.status_employee) filters.status_employee = state.status_employee
-    if (state.job_position) filters.job_position = state.job_position
-    return filters
+    searchEmployees(state.search, state.sort, state.order, {}, 1, 1000)
   }
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    setState({ page: '1' })
   }
 
   const handleClearSearch = () => {
-    setState({ search: '', page: '1' })
+    setState(prev => ({ ...prev, search: '', page: 1 }))
   }
 
   const handleSort = (field: string) => {
     const newOrder = state.sort === field && state.order === 'asc' ? 'desc' : 'asc'
-    setState({ sort: field, order: newOrder, page: '1' })
-  }
-
-  const handleFilterChange = (key: string, value: string) => {
-    setState({ [key]: value, page: '1' })
-  }
-
-  const handleClearFilters = () => {
-    setState({ branch_name: '', is_active: '', status_employee: '', job_position: '', page: '1' })
+    setState(prev => ({ ...prev, sort: field, order: newOrder, page: 1 }))
   }
 
   const SortIcon = ({ field }: { field: string }) => {
@@ -119,9 +88,9 @@ export default function EmployeesPage() {
               { label: 'Delete', onClick: handleBulkDelete, className: 'px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700' },
             ]}
           />
-          <ExportButton endpoint="/employees" filename="employees" filter={getActiveFilters()} />
+          <ExportButton endpoint="/employees" filename="employees" filter={{}} />
           <button
-            onClick={() => setState({ showImport: 'true' })}
+            onClick={() => setState(prev => ({ ...prev, showImport: !prev.showImport }))}
             className="bg-blue-600 text-white px-3 md:px-4 py-2 rounded hover:bg-blue-700 text-sm md:text-base min-h-[44px]"
           >
             {isMobile ? 'Import' : 'Import Excel'}
@@ -136,9 +105,9 @@ export default function EmployeesPage() {
       </div>
 
       <ImportModal 
-        isOpen={state.showImport === 'true'} 
-        onClose={() => setState({ showImport: '' })}
-        onSuccess={() => { setState({ showImport: '' }); handleFetch() }}
+        isOpen={state.showImport} 
+        onClose={() => setState(prev => ({ ...prev, showImport: false }))}
+        onSuccess={() => { setState(prev => ({ ...prev, showImport: false })); handleFetch() }}
         endpoint="/employees"
         title="Employees"
       />
@@ -150,7 +119,7 @@ export default function EmployeesPage() {
               type="text"
               placeholder="Search employees..."
               value={state.search}
-              onChange={(e) => setState({ search: e.target.value })}
+              onChange={(e) => setState(prev => ({ ...prev, search: e.target.value }))}
               className="flex-1 px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base min-h-[44px]"
             />
             <button
@@ -171,65 +140,13 @@ export default function EmployeesPage() {
               </button>
             )}
           </div>
-
-          <div className="flex flex-col md:flex-row gap-2 md:gap-3 md:items-center">
-            <span className="text-xs md:text-sm font-medium text-gray-700">Filters:</span>
-            <select
-              value={state.branch_name}
-              onChange={(e) => handleFilterChange('branch_name', e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px]"
-            >
-              <option value="">All Branches</option>
-              {filterOptions?.branches.map((branch: any) => (
-                <option key={branch.branch_name} value={branch.branch_name}>{branch.branch_name}</option>
-              ))}
-            </select>
-            <select
-              value={state.status_employee}
-              onChange={(e) => handleFilterChange('status_employee', e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px]"
-            >
-              <option value="">All Status</option>
-              {filterOptions?.statuses.map(status => (
-                <option key={status} value={status}>{status}</option>
-              ))}
-            </select>
-            <select
-              value={state.is_active}
-              onChange={(e) => handleFilterChange('is_active', e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px]"
-            >
-              <option value="">All Active Status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-            </select>
-            <select
-              value={state.job_position}
-              onChange={(e) => handleFilterChange('job_position', e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px]"
-            >
-              <option value="">All Positions</option>
-              {filterOptions?.positions.map(position => (
-                <option key={position} value={position}>{position}</option>
-              ))}
-            </select>
-            {(state.branch_name || state.is_active || state.status_employee || state.job_position) && (
-              <button
-                type="button"
-                onClick={handleClearFilters}
-                className="text-xs md:text-sm text-blue-600 hover:text-blue-800 underline min-h-[44px] px-2"
-              >
-                Clear Filters
-              </button>
-            )}
-          </div>
         </form>
       </div>
 
       {state.selectedImage && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
-          onClick={() => setState({ selectedImage: '' })}
+          onClick={() => setState(prev => ({ ...prev, selectedImage: '' }))}
         >
           <div className="relative w-1/2 p-4">
             <img 
@@ -239,7 +156,7 @@ export default function EmployeesPage() {
               onClick={(e) => e.stopPropagation()}
             />
             <button
-              onClick={() => setState({ selectedImage: '' })}
+              onClick={() => setState(prev => ({ ...prev, selectedImage: '' }))}
               className="absolute top-6 right-6 text-white bg-black bg-opacity-50 rounded-full w-10 h-10 flex items-center justify-center hover:bg-opacity-75"
             >
               ✕
@@ -315,7 +232,7 @@ export default function EmployeesPage() {
                         src={employee.profile_picture} 
                         alt={employee.full_name} 
                         className="w-10 h-10 rounded-full object-cover cursor-pointer hover:opacity-80" 
-                        onClick={() => setState({ selectedImage: employee.profile_picture || '' })}
+                        onClick={() => setState(prev => ({ ...prev, selectedImage: employee.profile_picture || '' }))}
                       />
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold">
@@ -376,64 +293,6 @@ export default function EmployeesPage() {
             </tbody>
           </table>
         </div>
-        )}
-        
-        {pagination && (
-          <div className="bg-white shadow rounded-lg p-3 md:p-4 mt-3 md:mt-4">
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 md:gap-0">
-              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
-                <span className="text-xs md:text-sm text-gray-600">
-                  Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} entries
-                </span>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs md:text-sm text-gray-600">Rows:</label>
-                  <select
-                    value={state.limit}
-                    onChange={(e) => setState({ limit: e.target.value, page: '1' })}
-                    className="px-2 py-1 border rounded text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px]"
-                  >
-                    <option value="10">10</option>
-                    <option value="20">20</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex items-center justify-center gap-1 md:gap-2">
-                <button
-                  onClick={() => setState({ page: '1' })}
-                  disabled={pagination.page === 1}
-                  className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm min-h-[44px]"
-                >
-                  {isMobile ? '«' : 'First'}
-                </button>
-                <button
-                  onClick={() => setState({ page: String(pagination.page - 1) })}
-                  disabled={pagination.page === 1}
-                  className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm min-h-[44px]"
-                >
-                  {isMobile ? '‹' : 'Previous'}
-                </button>
-                <span className="text-xs md:text-sm text-gray-600 px-2">
-                  {pagination.page}/{pagination.totalPages}
-                </span>
-                <button
-                  onClick={() => setState({ page: String(pagination.page + 1) })}
-                  disabled={pagination.page === pagination.totalPages}
-                  className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm min-h-[44px]"
-                >
-                  {isMobile ? '›' : 'Next'}
-                </button>
-                <button
-                  onClick={() => setState({ page: String(pagination.totalPages) })}
-                  disabled={pagination.page === pagination.totalPages}
-                  className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm min-h-[44px]"
-                >
-                  {isMobile ? '»' : 'Last'}
-                </button>
-              </div>
-            </div>
-          </div>
         )}
         </>
       ) : (
