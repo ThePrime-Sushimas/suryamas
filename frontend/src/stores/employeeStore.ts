@@ -99,9 +99,9 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
       
       const queryString = new URLSearchParams(params).toString()
       const { data } = await api.get<ApiResponse<Employee[]>>(`/employees/search?${queryString}`)
-      const filteredEmployees = data.data.filter((e: Employee) => e.branch_name)
+      // Tampilkan semua employees tanpa filter branch_name
       set({ 
-        employees: filteredEmployees,
+        employees: data.data,
         pagination: (data as any).pagination
       })
     } catch (error: any) {
