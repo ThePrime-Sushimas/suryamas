@@ -24,8 +24,8 @@ export class BranchesRepository {
         countQuery = countQuery.eq('city', filter.city)
       }
       if (filter.hari_operasional) {
-        query = query.eq('hari_operasional', filter.hari_operasional)
-        countQuery = countQuery.eq('hari_operasional', filter.hari_operasional)
+        query = query.contains('hari_operasional', [filter.hari_operasional])
+        countQuery = countQuery.contains('hari_operasional', [filter.hari_operasional])
       }
     }
 
@@ -78,13 +78,16 @@ export class BranchesRepository {
         countQuery = countQuery.eq('city', filter.city)
       }
       if (filter.hari_operasional) {
-        query = query.eq('hari_operasional', filter.hari_operasional)
-        countQuery = countQuery.eq('hari_operasional', filter.hari_operasional)
+        query = query.contains('hari_operasional', [filter.hari_operasional])
+        countQuery = countQuery.contains('hari_operasional', [filter.hari_operasional])
       }
     }
 
     if (sort) {
-      query = query.order(sort.field, { ascending: sort.order === 'asc' })
+      const validFields = ['branch_name', 'branch_code', 'status', 'city', 'hari_operasional', 'created_at']
+      if (validFields.includes(sort.field)) {
+        query = query.order(sort.field, { ascending: sort.order === 'asc' })
+      }
     } else {
       query = query.order('branch_name', { ascending: true })
     }
@@ -172,7 +175,7 @@ export class BranchesRepository {
       if (filter.status) query = query.eq('status', filter.status)
       if (filter.company_id) query = query.eq('company_id', filter.company_id)
       if (filter.city) query = query.eq('city', filter.city)
-      if (filter.hari_operasional) query = query.eq('hari_operasional', filter.hari_operasional)
+      if (filter.hari_operasional) query = query.contains('hari_operasional', [filter.hari_operasional])
     }
 
     const { data, error } = await query
@@ -190,15 +193,14 @@ export class BranchesRepository {
     // Get unique cities from database
     const cities = [...new Set((data || []).map((b: any) => b.city).filter(Boolean))] as string[]
     
-    // Get unique statuses from database and add defaults
+    // Get unique statuses from database
     const dbStatuses = [...new Set((data || []).map((b: any) => b.status).filter(Boolean))] as string[]
-    const defaultStatuses = ['active', 'inactive', 'maintenance', 'closed']
-    const statuses = [...new Set([...defaultStatuses, ...dbStatuses])]
+    const statuses = [...new Set([...dbStatuses])]
     
-    // Get unique hari operasional from database and add defaults
-    const dbHariOperasional = [...new Set((data || []).map((b: any) => b.hari_operasional).filter(Boolean))] as string[]
-    const defaultHariOperasional = ['Senin-Jumat', 'Senin-Sabtu', 'Setiap Hari', 'Senin-Minggu']
-    const hariOperasional = [...new Set([...defaultHariOperasional, ...dbHariOperasional])]
+    // Get unique hari operasional from database (flatten arrays)
+    const hariOperasionalFlat = (data || [])
+      .flatMap((b: any) => Array.isArray(b.hari_operasional) ? b.hari_operasional : [])
+    const hariOperasional = [...new Set(hariOperasionalFlat)] as string[]
 
     // Sort alphabetically
     cities.sort()
