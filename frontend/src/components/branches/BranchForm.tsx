@@ -1,27 +1,25 @@
 import { useState, useEffect } from 'react'
-import type { Branch, BranchStatus, HariOperasional } from '@/types/branch'
+import type { Branch, CreateBranchDto, UpdateBranchDto } from '@/types/branch'
 import type { Company } from '@/types/company'
-import type { Employee } from '@/types'
 import { companyService } from '@/services/companyService'
 import { useEmployeeStore } from '@/stores/employeeStore'
-import { MapPicker } from './MapPicker'
 
 interface BranchFormProps {
   initialData?: Branch
   isEdit?: boolean
-  onSubmit: (data: any) => Promise<void>
+  onSubmit: (data: CreateBranchDto | UpdateBranchDto) => Promise<void>
   isLoading?: boolean
 }
 
+const HARI_LIST = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+
 export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchFormProps) => {
   const [companies, setCompanies] = useState<Company[]>([])
-  const [employees, setEmployees] = useState<Employee[]>([])
   const [companiesLoading, setCompaniesLoading] = useState(true)
-  const [employeesLoading, setEmployeesLoading] = useState(true)
-  const { searchEmployees } = useEmployeeStore()
+  const { searchEmployees, employees, isLoading: employeesLoading } = useEmployeeStore()
   
   const [formData, setFormData] = useState({
-    company_id: initialData?.company_id || '',
+    company_id: initialData?.company_id ?? '',
     branch_code: initialData?.branch_code || '',
     branch_name: initialData?.branch_name || '',
     address: initialData?.address || '',
@@ -34,11 +32,9 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
     email: initialData?.email || '',
     jam_buka: initialData?.jam_buka || '10:00:00',
     jam_tutup: initialData?.jam_tutup || '22:00:00',
-    hari_operasional: (initialData?.hari_operasional || 'Senin-Minggu') as HariOperasional,
-    latitude: initialData?.latitude || '',
-    longitude: initialData?.longitude || '',
-    status: (initialData?.status || 'active') as BranchStatus,
-    manager_id: initialData?.manager_id || '',
+    hari_operasional: Array.isArray(initialData?.hari_operasional) ? initialData.hari_operasional : [],
+    status: initialData?.status || 'active',
+    manager_id: initialData?.manager_id ?? '',
     notes: initialData?.notes || '',
   })
 
@@ -59,18 +55,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
   }, [])
 
   useEffect(() => {
-    const fetchEmployees = async () => {
-      try {
-        await searchEmployees('', 'full_name', 'asc', {}, 1, 1000)
-        const state = useEmployeeStore.getState()
-        setEmployees(state.employees)
-      } catch (error) {
-        console.error('Failed to fetch employees')
-      } finally {
-        setEmployeesLoading(false)
-      }
-    }
-    fetchEmployees()
+    searchEmployees('', 'full_name', 'asc', {}, 1, 1000)
   }, [searchEmployees])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -81,54 +66,67 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
     }
   }
 
+  const handleHariChange = (hari: string) => {
+    setFormData(prev => {
+      const updated = prev.hari_operasional.includes(hari)
+        ? prev.hari_operasional.filter(h => h !== hari)
+        : [...prev.hari_operasional, hari]
+      console.log('Updated hari_operasional:', updated)
+      return { ...prev, hari_operasional: updated }
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const submitData = isEdit
-        ? {
-            branch_name: formData.branch_name,
-            address: formData.address,
-            city: formData.city,
-            province: formData.province,
-            postal_code: formData.postal_code || null,
-            country: formData.country,
-            phone: formData.phone || null,
-            whatsapp: formData.whatsapp || null,
-            email: formData.email || null,
-            jam_buka: formData.jam_buka,
-            jam_tutup: formData.jam_tutup,
-            hari_operasional: formData.hari_operasional,
-            latitude: formData.latitude ? parseFloat(formData.latitude as any) : null,
-            longitude: formData.longitude ? parseFloat(formData.longitude as any) : null,
-            status: formData.status,
-            manager_id: formData.manager_id || null,
-            notes: formData.notes || null,
-          }
-        : {
-            company_id: formData.company_id,
-            branch_code: formData.branch_code,
-            branch_name: formData.branch_name,
-            address: formData.address,
-            city: formData.city,
-            province: formData.province,
-            postal_code: formData.postal_code || null,
-            country: formData.country,
-            phone: formData.phone || null,
-            whatsapp: formData.whatsapp || null,
-            email: formData.email || null,
-            jam_buka: formData.jam_buka,
-            jam_tutup: formData.jam_tutup,
-            hari_operasional: formData.hari_operasional,
-            latitude: formData.latitude ? parseFloat(formData.latitude as any) : null,
-            longitude: formData.longitude ? parseFloat(formData.longitude as any) : null,
-            status: formData.status,
-            manager_id: formData.manager_id || null,
-            notes: formData.notes || null,
-          }
-
-      await onSubmit(submitData)
+      if (isEdit) {
+        const submitData: UpdateBranchDto = {
+          branch_name: formData.branch_name,
+          address: formData.address,
+          city: formData.city,
+          province: formData.province,
+          postal_code: formData.postal_code || undefined,
+          country: formData.country,
+          phone: formData.phone || undefined,
+          whatsapp: formData.whatsapp || undefined,
+          email: formData.email || undefined,
+          jam_buka: formData.jam_buka,
+          jam_tutup: formData.jam_tutup,
+          hari_operasional: formData.hari_operasional,
+          status: formData.status,
+          manager_id: formData.manager_id || undefined,
+          notes: formData.notes || undefined,
+        }
+        await onSubmit(submitData)
+      } else {
+        const submitData: CreateBranchDto = {
+          company_id: formData.company_id,
+          branch_code: formData.branch_code,
+          branch_name: formData.branch_name,
+          address: formData.address,
+          city: formData.city,
+          province: formData.province,
+          postal_code: formData.postal_code || undefined,
+          country: formData.country,
+          phone: formData.phone || undefined,
+          whatsapp: formData.whatsapp || undefined,
+          email: formData.email || undefined,
+          jam_buka: formData.jam_buka,
+          jam_tutup: formData.jam_tutup,
+          hari_operasional: formData.hari_operasional,
+          status: formData.status,
+          manager_id: formData.manager_id || undefined,
+          notes: formData.notes || undefined,
+        }
+        await onSubmit(submitData)
+      }
     } catch (error: any) {
-      setErrors({ submit: error.response?.data?.error || 'Error' })
+      const fieldErrors = error.response?.data?.errors
+      if (fieldErrors && typeof fieldErrors === 'object') {
+        setErrors(fieldErrors)
+      } else {
+        setErrors({ submit: error.response?.data?.error || 'Error' })
+      }
     }
   }
 
@@ -153,6 +151,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
             </option>
           ))}
         </select>
+        {errors.company_id && <p className="text-red-500 text-xs mt-1">{errors.company_id}</p>}
       </div>
 
       <div>
@@ -166,6 +165,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
           className="w-full px-3 py-2 border rounded-md disabled:bg-gray-100"
           required
         />
+        {errors.branch_code && <p className="text-red-500 text-xs mt-1">{errors.branch_code}</p>}
       </div>
 
       <div>
@@ -178,6 +178,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
           className="w-full px-3 py-2 border rounded-md"
           required
         />
+        {errors.branch_name && <p className="text-red-500 text-xs mt-1">{errors.branch_name}</p>}
       </div>
 
       <div>
@@ -190,6 +191,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
           rows={3}
           required
         />
+        {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -203,6 +205,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
             className="w-full px-3 py-2 border rounded-md"
             required
           />
+          {errors.city && <p className="text-red-500 text-xs mt-1">{errors.city}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium">Province</label>
@@ -213,6 +216,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded-md"
           />
+          {errors.province && <p className="text-red-500 text-xs mt-1">{errors.province}</p>}
         </div>
       </div>
 
@@ -226,6 +230,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded-md"
           />
+          {errors.postal_code && <p className="text-red-500 text-xs mt-1">{errors.postal_code}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium">Country</label>
@@ -236,6 +241,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded-md"
           />
+          {errors.country && <p className="text-red-500 text-xs mt-1">{errors.country}</p>}
         </div>
       </div>
 
@@ -249,6 +255,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded-md"
           />
+          {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium">WhatsApp</label>
@@ -259,6 +266,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded-md"
           />
+          {errors.whatsapp && <p className="text-red-500 text-xs mt-1">{errors.whatsapp}</p>}
         </div>
       </div>
 
@@ -271,44 +279,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
           onChange={handleChange}
           className="w-full px-3 py-2 border rounded-md"
         />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Location</label>
-        <MapPicker
-          latitude={formData.latitude ? parseFloat(formData.latitude as any) : null}
-          longitude={formData.longitude ? parseFloat(formData.longitude as any) : null}
-          onLocationSelect={(lat, lng) => {
-            setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }))
-          }}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium">Latitude</label>
-          <input
-            type="number"
-            name="latitude"
-            value={formData.latitude}
-            onChange={handleChange}
-            step="0.0001"
-            className="w-full px-3 py-2 border rounded-md"
-            placeholder="-6.2088"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium">Longitude</label>
-          <input
-            type="number"
-            name="longitude"
-            value={formData.longitude}
-            onChange={handleChange}
-            step="0.0001"
-            className="w-full px-3 py-2 border rounded-md"
-            placeholder="106.8456"
-          />
-        </div>
+        {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -317,50 +288,52 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
           <input
             type="time"
             name="jam_buka"
-            value={formData.jam_buka}
-            onChange={handleChange}
+            value={formData.jam_buka.slice(0, 5)}
+            onChange={(e) => setFormData(prev => ({ ...prev, jam_buka: e.target.value + ':00' }))}
             className="w-full px-3 py-2 border rounded-md"
             required
           />
+          {errors.jam_buka && <p className="text-red-500 text-xs mt-1">{errors.jam_buka}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium">Jam Tutup</label>
           <input
             type="time"
             name="jam_tutup"
-            value={formData.jam_tutup}
-            onChange={handleChange}
+            value={formData.jam_tutup.slice(0, 5)}
+            onChange={(e) => setFormData(prev => ({ ...prev, jam_tutup: e.target.value + ':00' }))}
             className="w-full px-3 py-2 border rounded-md"
             required
           />
+          {errors.jam_tutup && <p className="text-red-500 text-xs mt-1">{errors.jam_tutup}</p>}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium">Hari Operasional</label>
-          <select
-            name="hari_operasional"
-            value={formData.hari_operasional}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border rounded-md"
-            required
-          >
-            <option value="Senin-Jumat">Senin-Jumat</option>
-            <option value="Senin-Sabtu">Senin-Sabtu</option>
-            <option value="Setiap Hari">Setiap Hari</option>
-            <option value="Senin-Minggu">Senin-Minggu</option>
-          </select>
+      <div>
+        <label className="block text-sm font-medium">Hari Operasional</label>
+        <div className="grid grid-cols-4 gap-2 mt-2">
+          {HARI_LIST.map(hari => (
+            <label key={hari} className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.hari_operasional.includes(hari)}
+                onChange={() => handleHariChange(hari)}
+                className="mr-2 cursor-pointer"
+              />
+              <span className="text-sm">{hari}</span>
+            </label>
+          ))}
         </div>
-        <div>
-          <label className="block text-sm font-medium">Status</label>
-          <select name="status" value={formData.status} onChange={handleChange} className="w-full px-3 py-2 border rounded-md">
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="maintenance">Maintenance</option>
-            <option value="closed">Closed</option>
-          </select>
-        </div>
+        {errors.hari_operasional && <p className="text-red-500 text-xs mt-1">{errors.hari_operasional}</p>}
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium">Status</label>
+        <select name="status" value={formData.status} onChange={handleChange} className="w-full px-3 py-2 border rounded-md">
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        {errors.status && <p className="text-red-500 text-xs mt-1">{errors.status}</p>}
       </div>
 
       <div>
@@ -379,6 +352,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
             </option>
           ))}
         </select>
+        {errors.manager_id && <p className="text-red-500 text-xs mt-1">{errors.manager_id}</p>}
       </div>
 
       <div>
@@ -390,6 +364,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
           className="w-full px-3 py-2 border rounded-md"
           rows={3}
         />
+        {errors.notes && <p className="text-red-500 text-xs mt-1">{errors.notes}</p>}
       </div>
 
       <button

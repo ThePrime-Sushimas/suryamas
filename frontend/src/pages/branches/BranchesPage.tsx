@@ -18,6 +18,11 @@ function BranchesPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Record<string, any>>({})
   const [error, setError] = useState<string | null>(null)
+  const [filterOptions, setFilterOptions] = useState<{
+    cities: string[]
+    statuses: string[]
+    hariOperasional: string[]
+  }>({ cities: [], statuses: [], hariOperasional: [] })
 
   const fetchBranches = async () => {
     setLoading(true)
@@ -35,8 +40,24 @@ function BranchesPage() {
     }
   }
 
+  const fetchFilterOptions = async () => {
+    try {
+      const res = await branchService.getFilterOptions()
+      setFilterOptions(res.data.data)
+    } catch (error) {
+      console.error('Failed to fetch filter options')
+      // Set fallback options
+      setFilterOptions({
+        cities: ['Jakarta', 'Surabaya', 'Bandung', 'Medan', 'Semarang'],
+        statuses: ['active', 'inactive', 'maintenance', 'closed'],
+        hariOperasional: ['Senin-Jumat', 'Senin-Sabtu', 'Setiap Hari', 'Senin-Minggu']
+      })
+    }
+  }
+
   useEffect(() => {
     fetchBranches()
+    fetchFilterOptions()
   }, [search, JSON.stringify(filter)])
 
   const handleDelete = async (id: string) => {
@@ -113,13 +134,11 @@ function BranchesPage() {
                 className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200"
               >
                 <option value="">All Status</option>
-                <option value="active">
-                  
-                  Active
-                </option>
-                <option value="inactive">Inactive</option>
-                <option value="maintenance">Maintenance</option>
-                <option value="closed">Closed</option>
+                {filterOptions.statuses.map(status => (
+                  <option key={status} value={status}>
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </option>
+                ))}
               </select>
 
               <select
@@ -128,11 +147,11 @@ function BranchesPage() {
                 className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200"
               >
                 <option value="">All Cities</option>
-                <option value="Jakarta">Jakarta</option>
-                <option value="Surabaya">Surabaya</option>
-                <option value="Bandung">Bandung</option>
-                <option value="Medan">Medan</option>
-                <option value="Semarang">Semarang</option>
+                {filterOptions.cities.map(city => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
               </select>
 
               {(search || Object.keys(filter).length > 0) && (

@@ -1,5 +1,5 @@
-export type BranchStatus = 'active' | 'inactive' | 'maintenance' | 'closed'
-export type HariOperasional = 'Senin-Jumat' | 'Senin-Sabtu' | 'Setiap Hari' | 'Senin-Minggu'
+export type BranchStatus = 'active' | 'inactive'
+export type HariOperasional = string[]
 
 export interface Branch {
   id: string

@@ -31,8 +31,8 @@ function EditBranchPage() {
     try {
       await branchService.update(id!, data)
       navigate(`/branches/${id}`)
-    } catch (error) {
-      console.error('Update failed')
+    } catch (error: any) {
+      console.error('Update failed:', error.response?.data || error.message)
       throw error
     } finally {
       setIsSubmitting(false)

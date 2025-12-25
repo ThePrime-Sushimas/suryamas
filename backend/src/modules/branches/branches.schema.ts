@@ -27,7 +27,7 @@ export const CreateBranchSchema = z.object({
   jam_buka: z.string().regex(timeRegex, 'Invalid time format').default('10:00:00'),
   jam_tutup: z.string().regex(timeRegex, 'Invalid time format').default('22:00:00'),
 
-  hari_operasional: z.string().min(1).max(50),
+  hari_operasional: z.array(z.string()).default([]),
 })
 export const UpdateBranchSchema =
   CreateBranchSchema.partial().omit({ branch_code: true })

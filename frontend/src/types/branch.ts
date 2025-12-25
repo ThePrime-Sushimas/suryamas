@@ -1,5 +1,4 @@
-export type BranchStatus = 'active' | 'inactive' | 'maintenance' | 'closed'
-export type HariOperasional = 'Senin-Jumat' | 'Senin-Sabtu' | 'Setiap Hari' | 'Senin-Minggu'
+export type BranchStatus = 'active' | 'inactive'
 
 export interface Branch {
   id: string
@@ -18,9 +17,7 @@ export interface Branch {
   email: string | null
   jam_buka: string
   jam_tutup: string
-  hari_operasional: HariOperasional
-  latitude: number | null
-  longitude: number | null
+  hari_operasional: string[]
   notes: string | null
   created_at: string
   updated_at: string
@@ -42,9 +39,7 @@ export interface CreateBranchDto {
   email?: string
   jam_buka?: string
   jam_tutup?: string
-  hari_operasional?: HariOperasional
-  latitude?: number
-  longitude?: number
+  hari_operasional?: string[]
   status?: BranchStatus
   manager_id?: string | null
   notes?: string

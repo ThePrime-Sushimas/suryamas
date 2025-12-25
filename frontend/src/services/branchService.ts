@@ -1,5 +1,5 @@
 import api from '@/lib/axios'
-import type { Branch, CreateBranchDto, UpdateBranchDto, BranchStatus } from '@/types/branch'
+import type { Branch, CreateBranchDto, UpdateBranchDto } from '@/types/branch'
 
 type Paginated<T> = {
   success: boolean
@@ -73,7 +73,7 @@ export const branchService = {
   bulkDelete: (ids: string[]) => api.post('/branches/bulk/delete', { ids }),
 
   getFilterOptions: () =>
-    api.get<{ success: boolean; data: { cities: string[]; statuses: BranchStatus[] } }>('/branches/filter-options'),
+    api.get<{ success: boolean; data: { cities: string[]; statuses: string[]; hariOperasional: string[] } }>('/branches/filter-options'),
 
   getExportToken: () => api.get<{ success: boolean; data: string }>('/branches/export/token'),
 

@@ -14,7 +14,7 @@ export class BranchesService {
     )
 
     return {
-      data,
+      data: data.map(b => this.normalizeBranch(b)),
       pagination: {
         page: pagination.page,
         limit: pagination.limit,
@@ -35,7 +35,7 @@ export class BranchesService {
     )
 
     return {
-      data,
+      data: data.map(b => this.normalizeBranch(b)),
       pagination: {
         page: pagination.page,
         limit: pagination.limit,
@@ -48,11 +48,9 @@ export class BranchesService {
   }
 
   async create(dto: CreateBranchInput, userId?: string): Promise<Branch> {
-    // Check unique branch_code
     const existing = await branchesRepository.findByBranchCode(dto.branch_code)
     if (existing) throw BranchErrors.CODE_EXISTS()
 
-    // Set defaults
     const data: CreateBranchDto = {
       company_id: dto.company_id,
       branch_code: dto.branch_code,
@@ -64,15 +62,13 @@ export class BranchesService {
       status: dto.status || 'active',
       jam_buka: dto.jam_buka || '10:00:00',
       jam_tutup: dto.jam_tutup || '22:00:00',
-      hari_operasional: dto.hari_operasional || 'Senin-Minggu',
-      postal_code: dto.postal_code,
-      phone: dto.phone,
-      whatsapp: dto.whatsapp,
-      email: dto.email,
-      latitude: dto.latitude,
-      longitude: dto.longitude,
-      manager_id: dto.manager_id,
-      notes: dto.notes,
+      hari_operasional: dto.hari_operasional || [],
+      postal_code: dto.postal_code || undefined,
+      phone: dto.phone || undefined,
+      whatsapp: dto.whatsapp || undefined,
+      email: dto.email || undefined,
+      manager_id: dto.manager_id || undefined,
+      notes: dto.notes || undefined,
     }
 
     const branch = await branchesRepository.create({ ...data, created_by: userId, updated_by: userId } as any)
@@ -89,8 +85,18 @@ export class BranchesService {
     const branch = await branchesRepository.findById(id)
     if (!branch) throw BranchErrors.NOT_FOUND()
 
-    const data = { ...dto, updated_by: userId }
-    const updated = await branchesRepository.updateById(id, data)
+    const data: UpdateBranchInput = {
+      ...dto,
+      address: dto.address ?? undefined,
+      city: dto.city ?? undefined,
+      postal_code: dto.postal_code ?? undefined,
+      phone: dto.phone ?? undefined,
+      whatsapp: dto.whatsapp ?? undefined,
+      email: dto.email ?? undefined,
+      manager_id: dto.manager_id ?? undefined,
+      notes: dto.notes ?? undefined,
+    }
+    const updated = await branchesRepository.updateById(id, { ...data, updated_by: userId } as any)
 
     if (userId) {
       await AuditService.log('UPDATE', 'branch', id, userId, branch, dto)
@@ -103,7 +109,27 @@ export class BranchesService {
   async getById(id: string): Promise<Branch> {
     const branch = await branchesRepository.findById(id)
     if (!branch) throw BranchErrors.NOT_FOUND()
-    return branch
+    return this.normalizeBranch(branch)
+  }
+
+  private normalizeBranch(branch: Branch): Branch {
+    return {
+      ...branch,
+      hari_operasional: this.normalizeHariOperasional(branch.hari_operasional)
+    }
+  }
+
+  private normalizeHariOperasional(value: any): string[] {
+    if (Array.isArray(value)) return value
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value)
+        return Array.isArray(parsed) ? parsed : []
+      } catch {
+        return []
+      }
+    }
+    return []
   }
 
   async delete(id: string, userId?: string): Promise<void> {
