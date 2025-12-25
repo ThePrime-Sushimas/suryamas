@@ -187,9 +187,23 @@ export class BranchesRepository {
 
     if (error) throw new Error(error.message)
 
+    // Get unique cities from database
     const cities = [...new Set((data || []).map((b: any) => b.city).filter(Boolean))] as string[]
-    const statuses = ['active', 'inactive', 'maintenance', 'closed']
-    const hariOperasional = ['Senin-Jumat', 'Senin-Sabtu', 'Setiap Hari', 'Senin-Minggu']
+    
+    // Get unique statuses from database and add defaults
+    const dbStatuses = [...new Set((data || []).map((b: any) => b.status).filter(Boolean))] as string[]
+    const defaultStatuses = ['active', 'inactive', 'maintenance', 'closed']
+    const statuses = [...new Set([...defaultStatuses, ...dbStatuses])]
+    
+    // Get unique hari operasional from database and add defaults
+    const dbHariOperasional = [...new Set((data || []).map((b: any) => b.hari_operasional).filter(Boolean))] as string[]
+    const defaultHariOperasional = ['Senin-Jumat', 'Senin-Sabtu', 'Setiap Hari', 'Senin-Minggu']
+    const hariOperasional = [...new Set([...defaultHariOperasional, ...dbHariOperasional])]
+
+    // Sort alphabetically
+    cities.sort()
+    statuses.sort()
+    hariOperasional.sort()
 
     return { cities, statuses, hariOperasional }
   }

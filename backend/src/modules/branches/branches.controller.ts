@@ -1,7 +1,7 @@
 import { Response } from 'express'
 import { AuthRequest } from '../../types/common.types'
 import { branchesService } from './branches.service'
-import { CreateBranchSchema, UpdateBranchSchema } from './branches.schema'
+import { CreateBranchSchema, UpdateBranchSchema, BulkUpdateStatusSchema } from './branches.schema'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { getPaginationParams } from '../../utils/pagination.util'
@@ -86,7 +86,7 @@ export class BranchesController {
 
   bulkUpdateStatus = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { ids, status } = req.body
+      const { ids, status } = BulkUpdateStatusSchema.parse(req.body)
       await branchesService.bulkUpdateStatus(ids, status, req.user?.id)
       sendSuccess(res, null, 'Status updated')
     } catch (error: any) {

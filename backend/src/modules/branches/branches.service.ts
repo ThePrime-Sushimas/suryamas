@@ -1,5 +1,5 @@
 import { branchesRepository } from './branches.repository'
-import { Branch } from './branches.types'
+import { Branch, CreateBranchDto } from './branches.types'
 import { BranchErrors } from './branches.errors'
 import { CreateBranchInput, UpdateBranchInput } from './branches.schema'
 import { AuditService } from '../../services/audit.service'
@@ -53,19 +53,29 @@ export class BranchesService {
     if (existing) throw BranchErrors.CODE_EXISTS()
 
     // Set defaults
-    const data = {
-      ...dto,
+    const data: CreateBranchDto = {
+      company_id: dto.company_id,
+      branch_code: dto.branch_code,
+      branch_name: dto.branch_name,
+      address: dto.address || '',
+      city: dto.city || '',
       province: dto.province || 'DKI Jakarta',
       country: dto.country || 'Indonesia',
       status: dto.status || 'active',
       jam_buka: dto.jam_buka || '10:00:00',
       jam_tutup: dto.jam_tutup || '22:00:00',
       hari_operasional: dto.hari_operasional || 'Senin-Minggu',
-      created_by: userId,
-      updated_by: userId,
+      postal_code: dto.postal_code,
+      phone: dto.phone,
+      whatsapp: dto.whatsapp,
+      email: dto.email,
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      manager_id: dto.manager_id,
+      notes: dto.notes,
     }
 
-    const branch = await branchesRepository.create(data)
+    const branch = await branchesRepository.create({ ...data, created_by: userId, updated_by: userId } as any)
 
     if (userId) {
       await AuditService.log('CREATE', 'branch', branch.id, userId, undefined, branch)

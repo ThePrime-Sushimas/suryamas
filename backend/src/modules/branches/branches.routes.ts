@@ -38,7 +38,7 @@ router.get(
 // Get minimal active branches (for dropdown)
 router.get(
   '/minimal/active',
-  authenticate,
+  canView('branches'),
   branchesController.minimalActive
 )
 
