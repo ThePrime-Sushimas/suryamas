@@ -15,12 +15,18 @@ export interface PaginatedResponse<T> {
   }
 }
 
-export function getPaginationParams(query: any, maxLimit?: number): { page: number; limit: number; offset: number } {
+export function getPaginationParams(
+  query: any,
+  maxLimit: number = 1000,
+  defaultLimit: number = 25
+): { page: number; limit: number; offset: number } {
   const page = Math.max(1, parseInt(query.page) || 1)
-  const limit = query.limit ? Math.min(maxLimit || Infinity, Math.max(1, parseInt(query.limit))) : (maxLimit || Infinity)
+  const limit = query.limit
+    ? Math.min(maxLimit, Math.max(1, parseInt(query.limit)))
+    : defaultLimit
   const offset = (page - 1) * limit
 
-  return { page, limit: limit === Infinity ? Number.MAX_SAFE_INTEGER : limit, offset }
+  return { page, limit, offset }
 }
 
 export function createPaginatedResponse<T>(
@@ -29,7 +35,7 @@ export function createPaginatedResponse<T>(
   page: number,
   limit: number
 ): PaginatedResponse<T> {
-  const totalPages = Math.ceil(total / limit)
+  const totalPages = Math.max(1, Math.ceil(total / limit))
 
   return {
     data,

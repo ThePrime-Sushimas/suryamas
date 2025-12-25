@@ -11,47 +11,29 @@ export const branchService = {
   list: (
     page: number,
     limit: number,
-    sort?: { field: string; order: string },
-    filter?: Record<string, any>
+    sort?: { field: string; order: string } | null
   ) => {
     const params = new URLSearchParams()
     params.append('page', String(page))
     params.append('limit', String(limit))
 
     if (sort?.field && sort?.order) {
-      params.append('sort.field', sort.field)
-      params.append('sort.order', sort.order)
-    }
-
-    if (filter) {
-      Object.entries(filter).forEach(([key, value]) => {
-        if (value === undefined || value === null || value === '') return
-        if (Array.isArray(value)) {
-          value.forEach(v => params.append(`filter[${key}]`, String(v)))
-        } else {
-          params.append(`filter[${key}]`, String(value))
-        }
-      })
+      params.append('sort', sort.field)
+      params.append('order', sort.order)
     }
 
     return api.get<Paginated<Branch>>(`/branches?${params.toString()}`)
   },
 
-  search: (q: string, page: number, limit: number, filter?: Record<string, any>) => {
+  search: (q: string, page: number, limit: number, sort?: { field: string; order: string } | null) => {
     const params = new URLSearchParams()
     params.append('q', q)
     params.append('page', String(page))
     params.append('limit', String(limit))
 
-    if (filter) {
-      Object.entries(filter).forEach(([key, value]) => {
-        if (value === undefined || value === null || value === '') return
-        if (Array.isArray(value)) {
-          value.forEach(v => params.append(`filter[${key}]`, String(v)))
-        } else {
-          params.append(`filter[${key}]`, String(value))
-        }
-      })
+    if (sort?.field && sort?.order) {
+      params.append('sort', sort.field)
+      params.append('order', sort.order)
     }
 
     return api.get<Paginated<Branch>>(`/branches/search?${params.toString()}`)
@@ -77,21 +59,9 @@ export const branchService = {
 
   getExportToken: () => api.get<{ success: boolean; data: string }>('/branches/export/token'),
 
-  export: (token: string, filter?: Record<string, any>) => {
+  export: (token: string) => {
     const params = new URLSearchParams()
     params.append('token', token)
-
-    if (filter) {
-      Object.entries(filter).forEach(([key, value]) => {
-        if (value === undefined || value === null || value === '') return
-        if (Array.isArray(value)) {
-          value.forEach(v => params.append(`filter[${key}]`, String(v)))
-        } else {
-          params.append(`filter[${key}]`, String(value))
-        }
-      })
-    }
-
     return api.get(`/branches/export?${params.toString()}`, { responseType: 'blob' })
   },
 

@@ -1,10 +1,9 @@
+import { ArrowUpDown } from 'lucide-react'
 import type { Branch, BranchStatus } from '@/types/branch'
 
 const statusColors: Record<BranchStatus, string> = {
   active: 'bg-green-100 text-green-800',
   inactive: 'bg-gray-100 text-gray-800',
-  maintenance: 'bg-yellow-100 text-yellow-800',
-  closed: 'bg-red-100 text-red-800',
 }
 
 interface BranchTableProps {
@@ -14,6 +13,30 @@ interface BranchTableProps {
   onDelete: (id: string) => void
   canEdit: boolean
   canDelete: boolean
+  onSort?: (field: string, order: 'asc' | 'desc') => void
+  sortField?: string
+  sortOrder?: 'asc' | 'desc'
+}
+
+const SortHeader = ({ label, field, sortField, sortOrder, onSort }: any) => {
+  const isActive = sortField === field
+  const nextOrder = isActive && sortOrder === 'asc' ? 'desc' : 'asc'
+
+  return (
+    <th
+      onClick={() => onSort?.(field, nextOrder)}
+      className="border px-4 py-2 text-left cursor-pointer hover:bg-gray-200 select-none"
+    >
+      <div className="flex items-center gap-2">
+        {label}
+        <ArrowUpDown
+          className={`h-4 w-4 ${
+            isActive ? 'text-blue-600' : 'text-gray-400'
+          }`}
+        />
+      </div>
+    </th>
+  )
 }
 
 export const BranchTable = ({
@@ -23,6 +46,9 @@ export const BranchTable = ({
   onDelete,
   canEdit,
   canDelete,
+  onSort,
+  sortField,
+  sortOrder,
 }: BranchTableProps) => {
   if (branches.length === 0) {
     return <div className="text-center py-8 text-gray-500">No branches found</div>
@@ -33,10 +59,10 @@ export const BranchTable = ({
       <table className="w-full border-collapse">
         <thead>
           <tr className="bg-gray-100">
-            <th className="border px-4 py-2 text-left">Code</th>
-            <th className="border px-4 py-2 text-left">Name</th>
-            <th className="border px-4 py-2 text-left">City</th>
-            <th className="border px-4 py-2 text-left">Status</th>
+            <SortHeader label="Code" field="branch_code" sortField={sortField} sortOrder={sortOrder} onSort={onSort} />
+            <SortHeader label="Name" field="branch_name" sortField={sortField} sortOrder={sortOrder} onSort={onSort} />
+            <SortHeader label="City" field="city" sortField={sortField} sortOrder={sortOrder} onSort={onSort} />
+            <SortHeader label="Status" field="status" sortField={sortField} sortOrder={sortOrder} onSort={onSort} />
             <th className="border px-4 py-2 text-left">Jam Operasional</th>
             <th className="border px-4 py-2 text-left">Actions</th>
           </tr>
@@ -54,9 +80,6 @@ export const BranchTable = ({
               </td>
               <td className="border px-4 py-2 text-sm">{branch.jam_buka} - {branch.jam_tutup}</td>
               <td className="border px-4 py-2 space-x-2">
-                {/* <button onClick={() => onView(branch.id)} className="text-blue-600 hover:underline text-sm">
-                  View
-                </button> */}
                 {canEdit && (
                   <button onClick={() => onEdit(branch.id)} className="text-green-600 hover:underline text-sm">
                     Edit

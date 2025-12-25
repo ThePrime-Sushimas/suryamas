@@ -12,7 +12,8 @@ const ALLOWED_SORT_FIELDS = [
   'email', 'mobile_phone', 'nik', 'birth_date', 'birth_place', 'age',
   'gender', 'religion', 'marital_status', 'join_date', 'resign_date',
   'sign_date', 'end_date', 'status_employee', 'ptkp_status',
-  'bank_name', 'bank_account', 'bank_account_holder', 'is_active'
+  'bank_name', 'bank_account', 'bank_account_holder', 'is_active',
+  'branch_code', 'city', 'status', 'hari_operasional', 'created_at'
 ]
 
 export const sortMiddleware = (req: Request, res: Response, next: NextFunction) => {

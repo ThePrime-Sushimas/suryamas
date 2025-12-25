@@ -10,24 +10,6 @@ export class BranchesRepository {
     let query = supabase.from('branches').select('*')
     let countQuery = supabase.from('branches').select('*', { count: 'exact', head: true })
 
-    if (filter) {
-      if (filter.status) {
-        query = query.eq('status', filter.status)
-        countQuery = countQuery.eq('status', filter.status)
-      }
-      if (filter.company_id) {
-        query = query.eq('company_id', filter.company_id)
-        countQuery = countQuery.eq('company_id', filter.company_id)
-      }
-      if (filter.city) {
-        query = query.eq('city', filter.city)
-        countQuery = countQuery.eq('city', filter.city)
-      }
-      if (filter.hari_operasional) {
-        query = query.contains('hari_operasional', [filter.hari_operasional])
-        countQuery = countQuery.contains('hari_operasional', [filter.hari_operasional])
-      }
-    }
 
     if (sort) {
       const validFields = ['branch_name', 'branch_code', 'status', 'city', 'hari_operasional', 'created_at']

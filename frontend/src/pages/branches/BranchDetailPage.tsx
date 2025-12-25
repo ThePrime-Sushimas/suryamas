@@ -753,18 +753,6 @@ function BranchDetailPage() {
                             <p className="text-sm font-semibold text-gray-900">{branch.postal_code || 'N/A'}</p>
                           </div>
                         </div>
-                        {(branch.latitude && branch.longitude) && (
-                          <div className="grid grid-cols-1 gap-4">
-                            <div className="space-y-1">
-                              <p className="text-xs text-gray-600">Latitude</p>
-                              <p className="font-mono text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">{branch.latitude}</p>
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-xs text-gray-600">Longitude</p>
-                              <p className="font-mono text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">{branch.longitude}</p>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
