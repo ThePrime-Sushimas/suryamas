@@ -8,6 +8,11 @@ export interface AuthRequest extends Request {
     [key: string]: any
   }
   permissions?: PermissionMatrix
+  sort?: {
+    field: string
+    order: 'asc' | 'desc'
+  }
+  filterParams?: Record<string, any>
 }
 
 export interface ApiResponse<T = any> {

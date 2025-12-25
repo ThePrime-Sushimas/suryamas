@@ -3,6 +3,7 @@ import { authenticate } from '../../middleware/auth.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
+import { filterMiddleware } from '../../middleware/filter.middleware'
 import { branchesController } from './branches.controller'
 import { PermissionService } from '../../services/permission.service'
 
@@ -20,6 +21,7 @@ router.get(
   canView('branches'),
   paginationMiddleware,
   sortMiddleware,
+  filterMiddleware,
   branchesController.list
 )
 
@@ -29,6 +31,7 @@ router.get(
   canView('branches'),
   paginationMiddleware,
   sortMiddleware,
+  filterMiddleware,
   branchesController.search
 )
 

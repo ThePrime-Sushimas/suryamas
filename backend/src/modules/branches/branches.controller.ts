@@ -2,18 +2,17 @@ import { Response } from 'express'
 import { AuthRequest } from '../../types/common.types'
 import { branchesService } from './branches.service'
 import { CreateBranchSchema, UpdateBranchSchema } from './branches.schema'
-import { sendSuccess, sendError } from '../../utils/response.util'
-import { logError } from '../../config/logger'
+import { sendSuccess } from '../../utils/response.util'
+import { handleError } from '../../utils/error-handler.util'
 import { getPaginationParams } from '../../utils/pagination.util'
-import { BranchError } from './branches.errors'
 
 export class BranchesController {
   list = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { page, limit, offset } = getPaginationParams(req.query)
-      const result = await branchesService.list({ page, limit, offset })
+      const result = await branchesService.list({ page, limit, offset }, req.sort, req.filter)
       sendSuccess(res, result.data, 'Branches retrieved', 200, result.pagination)
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.handleError(res, error)
     }
   }
@@ -60,7 +59,7 @@ export class BranchesController {
     try {
       const { page, limit, offset } = getPaginationParams(req.query)
       const q = String(req.query.q || '')
-      const result = await branchesService.search(q, { page, limit, offset })
+      const result = await branchesService.search(q, { page, limit, offset }, req.sort, req.filterParams)
       sendSuccess(res, result.data, 'Search completed', 200, result.pagination)
     } catch (error) {
       this.handleError(res, error)
@@ -95,16 +94,8 @@ export class BranchesController {
     }
   }
 
-  private handleError(res: Response, error: any): void {
-    if (error instanceof BranchError) {
-      logError(error.code, { message: error.message })
-      sendError(res, error.message, error.statusCode)
-    } else if (error.name === 'ZodError') {
-      sendError(res, error.errors[0].message, 400)
-    } else {
-      logError('Unexpected error', { error: error.message })
-      sendError(res, 'Internal server error', 500)
-    }
+  private handleError = (res: Response, error: unknown): void => {
+    handleError(res, error)
   }
 }
 

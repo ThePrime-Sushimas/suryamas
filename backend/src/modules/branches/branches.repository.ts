@@ -85,6 +85,8 @@ export class BranchesRepository {
 
     if (sort) {
       query = query.order(sort.field, { ascending: sort.order === 'asc' })
+    } else {
+      query = query.order('branch_name', { ascending: true })
     }
 
     const [{ data, error }, { count, error: countError }] = await Promise.all([

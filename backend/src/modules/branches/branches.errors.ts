@@ -17,4 +17,3 @@ export class BranchError extends Error {
     INVALID_PHONE: () => new BranchError('INVALID_PHONE', 'Invalid phone format', 400),
     INVALID_COORDINATES: () => new BranchError('INVALID_COORDINATES', 'Invalid coordinates', 400),
   }
-  
