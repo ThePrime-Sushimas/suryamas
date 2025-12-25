@@ -15,14 +15,18 @@ PermissionService.registerModule('branches', 'Branch Management').catch(() => {}
 // All routes require authentication
 router.use(authenticate)
 
-// List branches
+// Get filter options (must be before /:id route)
 router.get(
-  '/',
+  '/filter-options',
   canView('branches'),
-  paginationMiddleware,
-  sortMiddleware,
-  filterMiddleware,
-  branchesController.list
+  branchesController.getFilterOptions
+)
+
+// Get minimal active branches (for dropdown)
+router.get(
+  '/minimal/active',
+  canView('branches'),
+  branchesController.minimalActive
 )
 
 // Search branches
@@ -35,18 +39,14 @@ router.get(
   branchesController.search
 )
 
-// Get minimal active branches (for dropdown)
+// List branches
 router.get(
-  '/minimal/active',
+  '/',
   canView('branches'),
-  branchesController.minimalActive
-)
-
-// Get filter options
-router.get(
-  '/filter-options',
-  canView('branches'),
-  branchesController.getFilterOptions
+  paginationMiddleware,
+  sortMiddleware,
+  filterMiddleware,
+  branchesController.list
 )
 
 // Get branch by ID

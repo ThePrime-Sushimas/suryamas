@@ -22,9 +22,6 @@ export const CreateBranchSchema = z.object({
   whatsapp: z.string().max(20).optional(),
   email: z.string().email().optional(),
 
-  latitude: z.coerce.number().min(-90).max(90).optional(),
-  longitude: z.coerce.number().min(-180).max(180).optional(),
-
   notes: z.string().optional(),
 
   jam_buka: z.string().regex(timeRegex, 'Invalid time format').default('10:00:00'),

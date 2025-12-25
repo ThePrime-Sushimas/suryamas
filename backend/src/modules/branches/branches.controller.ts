@@ -10,7 +10,7 @@ export class BranchesController {
   list = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { page, limit, offset } = getPaginationParams(req.query)
-      const result = await branchesService.list({ page, limit, offset }, req.sort, req.filter)
+      const result = await branchesService.list({ page, limit, offset }, req.sort, req.filterParams)
       sendSuccess(res, result.data, 'Branches retrieved', 200, result.pagination)
     } catch (error: unknown) {
       this.handleError(res, error)

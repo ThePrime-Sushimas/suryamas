@@ -19,8 +19,6 @@ export interface Branch {
   jam_buka: string
   jam_tutup: string
   hari_operasional: HariOperasional
-  latitude: number | null
-  longitude: number | null
   notes: string | null
   created_at: string
   updated_at: string
@@ -43,8 +41,6 @@ export interface CreateBranchDto {
   jam_buka?: string
   jam_tutup?: string
   hari_operasional?: HariOperasional
-  latitude?: number
-  longitude?: number
   notes?: string
   status?: BranchStatus
   manager_id?: string
@@ -65,7 +61,5 @@ export interface UpdateBranchDto {
   jam_buka?: string
   jam_tutup?: string
   hari_operasional?: HariOperasional
-  latitude?: number
-  longitude?: number
   notes?: string
 }
