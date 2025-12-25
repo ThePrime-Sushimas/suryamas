@@ -25,6 +25,7 @@
   },
   "homepage": "https://github.com/ThePrime-Sushimas/suryamas#readme",
   "dependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "zod": "^4.2.1"
   }
 }

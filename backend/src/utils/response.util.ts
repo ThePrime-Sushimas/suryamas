@@ -1,20 +1,20 @@
 import { Response } from 'express'
 import { ApiResponse } from '../types/common.types'
 
-export const sendSuccess = <T>(
+export const sendSuccess = (
   res: Response,
-  data: T,
-  message?: string,
-  statusCode = 200
-): void => {
-  const response: ApiResponse<T> = {
+  data: any,
+  message = 'Success',
+  statusCode = 200,
+  pagination?: any
+) => {
+  res.status(statusCode).json({
     success: true,
+    message,
     data,
-    message
-  }
-  res.status(statusCode).json(response)
+    ...(pagination && { pagination }),
+  })
 }
-
 export const sendError = (
   res: Response,
   error: string,

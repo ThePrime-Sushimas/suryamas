@@ -1,24 +1,14 @@
 import { branchesRepository } from './branches.repository'
-import { Branch, CreateBranchDto, UpdateBranchDto, BranchStatus } from './branches.types'
+import { Branch } from './branches.types'
+import { BranchErrors } from './branches.errors'
+import { CreateBranchInput, UpdateBranchInput } from './branches.schema'
 import { AuditService } from '../../services/audit.service'
-import { logError, logInfo } from '../../config/logger'
-
-const VALID_STATUSES: BranchStatus[] = ['active', 'inactive', 'maintenance', 'closed']
-
-const validateEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-const validatePhone = (phone: string): boolean => /^[0-9+\-\s()]{6,20}$/.test(phone)
-const validateCoordinates = (lat: number, lon: number): boolean =>
-  lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180
+import { logInfo } from '../../config/logger'
 
 export class BranchesService {
-  async list(
-    pagination: { page: number; limit: number },
-    sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: any
-  ) {
-    const offset = (pagination.page - 1) * pagination.limit
+  async list(pagination: { page: number; limit: number; offset: number }, sort?: any, filter?: any) {
     const { data, total } = await branchesRepository.findAll(
-      { limit: pagination.limit, offset },
+      { limit: pagination.limit, offset: pagination.offset },
       sort,
       filter
     )
@@ -36,14 +26,13 @@ export class BranchesService {
     }
   }
 
-  async search(
-    q: string,
-    pagination: { page: number; limit: number },
-    sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: any
-  ) {
-    const offset = (pagination.page - 1) * pagination.limit
-    const { data, total } = await branchesRepository.search(q, { limit: pagination.limit, offset }, sort, filter)
+  async search(q: string, pagination: { page: number; limit: number; offset: number }, sort?: any, filter?: any) {
+    const { data, total } = await branchesRepository.search(
+      q,
+      { limit: pagination.limit, offset: pagination.offset },
+      sort,
+      filter
+    )
 
     return {
       data,
@@ -58,44 +47,13 @@ export class BranchesService {
     }
   }
 
-  async create(dto: CreateBranchDto, userId?: string): Promise<Branch> {
-    // Validate required fields
-    if (!dto.company_id || !dto.branch_code || !dto.branch_name || !dto.address || !dto.city) {
-      throw new Error('Missing required fields: company_id, branch_code, branch_name, address, city')
-    }
-
-    // Validate status
-    if (dto.status && !VALID_STATUSES.includes(dto.status)) {
-      throw new Error(`Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`)
-    }
-
-    // Validate email
-    if (dto.email && !validateEmail(dto.email)) {
-      throw new Error('Invalid email format')
-    }
-
-    // Validate phone
-    if (dto.phone && !validatePhone(dto.phone)) {
-      throw new Error('Invalid phone format')
-    }
-
-    if (dto.whatsapp && !validatePhone(dto.whatsapp)) {
-      throw new Error('Invalid WhatsApp format')
-    }
-
-    // Validate coordinates
-    if ((dto.latitude || dto.longitude) && !validateCoordinates(dto.latitude || 0, dto.longitude || 0)) {
-      throw new Error('Invalid coordinates. Latitude must be -90 to 90, Longitude must be -180 to 180')
-    }
-
+  async create(dto: CreateBranchInput, userId?: string): Promise<Branch> {
     // Check unique branch_code
     const existing = await branchesRepository.findByBranchCode(dto.branch_code)
-    if (existing) {
-      throw new Error('Branch code already exists')
-    }
+    if (existing) throw BranchErrors.CODE_EXISTS()
 
     // Set defaults
-    const data: any = {
+    const data = {
       ...dto,
       province: dto.province || 'DKI Jakarta',
       country: dto.country || 'Indonesia',
@@ -117,70 +75,43 @@ export class BranchesService {
     return branch
   }
 
-  async update(id: string, dto: UpdateBranchDto, userId?: string): Promise<Branch | null> {
-    // Prevent branch_code update
-    if ('branch_code' in dto) {
-      throw new Error('Branch code cannot be updated')
-    }
+  async update(id: string, dto: UpdateBranchInput, userId?: string): Promise<Branch> {
+    const branch = await branchesRepository.findById(id)
+    if (!branch) throw BranchErrors.NOT_FOUND()
 
-    // Validate status if provided
-    if (dto.status && !VALID_STATUSES.includes(dto.status)) {
-      throw new Error(`Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`)
-    }
+    const data = { ...dto, updated_by: userId }
+    const updated = await branchesRepository.updateById(id, data)
 
-    // Validate email if provided
-    if (dto.email && !validateEmail(dto.email)) {
-      throw new Error('Invalid email format')
-    }
-
-    // Validate phone if provided
-    if (dto.phone && !validatePhone(dto.phone)) {
-      throw new Error('Invalid phone format')
-    }
-
-    if (dto.whatsapp && !validatePhone(dto.whatsapp)) {
-      throw new Error('Invalid WhatsApp format')
-    }
-
-    // Validate coordinates if provided
-    if ((dto.latitude || dto.longitude) && !validateCoordinates(dto.latitude || 0, dto.longitude || 0)) {
-      throw new Error('Invalid coordinates')
-    }
-
-    const data: any = { ...dto, updated_by: userId }
-    const branch = await branchesRepository.updateById(id, data)
-
-    if (branch && userId) {
-      await AuditService.log('UPDATE', 'branch', id, userId, undefined, dto)
+    if (userId) {
+      await AuditService.log('UPDATE', 'branch', id, userId, branch, dto)
     }
 
     logInfo('Branch updated', { id })
+    return updated!
+  }
+
+  async getById(id: string): Promise<Branch> {
+    const branch = await branchesRepository.findById(id)
+    if (!branch) throw BranchErrors.NOT_FOUND()
     return branch
   }
 
-  async getById(id: string): Promise<Branch | null> {
-    return branchesRepository.findById(id)
-  }
-
   async delete(id: string, userId?: string): Promise<void> {
-    try {
-      await branchesRepository.delete(id)
+    const branch = await branchesRepository.findById(id)
+    if (!branch) throw BranchErrors.NOT_FOUND()
 
-      if (userId) {
-        await AuditService.log('DELETE', 'branch', id, userId)
-      }
+    await branchesRepository.delete(id)
 
-      logInfo('Branch deleted', { id })
-    } catch (error: any) {
-      logError('Delete branch failed', { id, error: error.message })
-      throw error
+    if (userId) {
+      await AuditService.log('DELETE', 'branch', id, userId)
     }
+
+    logInfo('Branch deleted', { id })
   }
 
-  async bulkUpdateStatus(ids: string[], status: BranchStatus, userId?: string): Promise<void> {
-    if (!VALID_STATUSES.includes(status)) {
-      throw new Error(`Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`)
-    }
+  async bulkUpdateStatus(ids: string[], status: string, userId?: string): Promise<void> {
+    const validStatuses = ['active', 'inactive', 'maintenance', 'closed']
+    if (!validStatuses.includes(status)) throw BranchErrors.INVALID_STATUS(status)
 
     await branchesRepository.bulkUpdateStatus(ids, status)
 
@@ -189,10 +120,6 @@ export class BranchesService {
     }
 
     logInfo('Bulk status update', { count: ids.length, status })
-  }
-
-  async exportToExcel(filter?: any): Promise<Branch[]> {
-    return branchesRepository.exportData(filter)
   }
 
   async getFilterOptions() {
