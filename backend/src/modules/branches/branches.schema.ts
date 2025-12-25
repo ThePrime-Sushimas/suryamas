@@ -12,8 +12,8 @@ export const CreateBranchSchema = z.object({
 
   manager_id: z.string().uuid().nullable().optional(),
 
-  address: z.string().nullable().optional(),
-  city: z.string().nullable().optional(),
+  address: z.string().min(1),
+  city: z.string().min(1),
   province: z.string().nullable().optional(),
   postal_code: z.string().nullable().optional(),
   country: z.string().default('Indonesia'),
@@ -26,8 +26,8 @@ export const CreateBranchSchema = z.object({
 
   jam_buka: z.string().regex(timeRegex, 'Invalid time format').default('10:00:00'),
   jam_tutup: z.string().regex(timeRegex, 'Invalid time format').default('22:00:00'),
-
-  hari_operasional: z.array(z.string()).default([]),
+  
+  hari_operasional: z.array(z.string()).min(1, 'At least one operating day required'),
 })
 export const UpdateBranchSchema =
   CreateBranchSchema.partial().omit({ branch_code: true })

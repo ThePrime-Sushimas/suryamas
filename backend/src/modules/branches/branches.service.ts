@@ -55,20 +55,20 @@ export class BranchesService {
       company_id: dto.company_id,
       branch_code: dto.branch_code,
       branch_name: dto.branch_name,
-      address: dto.address || '',
-      city: dto.city || '',
-      province: dto.province || 'DKI Jakarta',
-      country: dto.country || 'Indonesia',
-      status: dto.status || 'active',
-      jam_buka: dto.jam_buka || '10:00:00',
-      jam_tutup: dto.jam_tutup || '22:00:00',
-      hari_operasional: dto.hari_operasional || [],
-      postal_code: dto.postal_code || undefined,
-      phone: dto.phone || undefined,
-      whatsapp: dto.whatsapp || undefined,
-      email: dto.email || undefined,
-      manager_id: dto.manager_id || undefined,
-      notes: dto.notes || undefined,
+      address: dto.address,
+      city: dto.city,
+      province: dto.province ?? 'DKI Jakarta',
+      country: dto.country ?? 'Indonesia',
+      status: dto.status ?? 'active',
+      jam_buka: dto.jam_buka ?? '10:00:00',
+      jam_tutup: dto.jam_tutup ?? '22:00:00',
+      hari_operasional: dto.hari_operasional,
+      postal_code: dto.postal_code ?? undefined,
+      phone: dto.phone ?? undefined,
+      whatsapp: dto.whatsapp ?? undefined,
+      email: dto.email ?? undefined,
+      manager_id: dto.manager_id ?? undefined,
+      notes: dto.notes ?? undefined,
     }
 
     const branch = await branchesRepository.create({ ...data, created_by: userId, updated_by: userId } as any)
@@ -85,17 +85,9 @@ export class BranchesService {
     const branch = await branchesRepository.findById(id)
     if (!branch) throw BranchErrors.NOT_FOUND()
 
-    const data: UpdateBranchInput = {
-      ...dto,
-      address: dto.address ?? undefined,
-      city: dto.city ?? undefined,
-      postal_code: dto.postal_code ?? undefined,
-      phone: dto.phone ?? undefined,
-      whatsapp: dto.whatsapp ?? undefined,
-      email: dto.email ?? undefined,
-      manager_id: dto.manager_id ?? undefined,
-      notes: dto.notes ?? undefined,
-    }
+    const data: UpdateBranchInput = Object.fromEntries(
+      Object.entries(dto).map(([k, v]) => [k, v ?? undefined])
+    ) as UpdateBranchInput
     const updated = await branchesRepository.updateById(id, { ...data, updated_by: userId } as any)
 
     if (userId) {
@@ -146,7 +138,7 @@ export class BranchesService {
   }
 
   async bulkUpdateStatus(ids: string[], status: string, userId?: string): Promise<void> {
-    const validStatuses = ['active', 'inactive', 'maintenance', 'closed']
+    const validStatuses = ['active', 'inactive']
     if (!validStatuses.includes(status)) throw BranchErrors.INVALID_STATUS(status)
 
     await branchesRepository.bulkUpdateStatus(ids, status)
