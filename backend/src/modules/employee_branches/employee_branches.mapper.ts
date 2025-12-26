@@ -25,11 +25,15 @@ export function mapEmployeeBranch(row: any): EmployeeBranchWithRelations {
     throw new Error('Invalid employee_branch row: created_at missing')
   }
 
-  if (!Array.isArray(row.employees) || !row.employees[0]) {
+  // Handle both array and object format from Supabase
+  const employee = Array.isArray(row.employees) ? row.employees[0] : row.employees
+  const branch = Array.isArray(row.branches) ? row.branches[0] : row.branches
+
+  if (!employee || !employee.full_name) {
     throw new Error('Employee relation missing')
   }
 
-  if (!Array.isArray(row.branches) || !row.branches[0]) {
+  if (!branch || !branch.branch_name) {
     throw new Error('Branch relation missing')
   }
 
@@ -40,11 +44,11 @@ export function mapEmployeeBranch(row: any): EmployeeBranchWithRelations {
     is_primary: row.is_primary,
     created_at: row.created_at,
     employee: {
-      full_name: row.employees[0].full_name,
+      full_name: employee.full_name,
     },
     branch: {
-      branch_name: row.branches[0].branch_name,
-      branch_code: row.branches[0].branch_code,
+      branch_name: branch.branch_name,
+      branch_code: branch.branch_code,
     },
   }
 }

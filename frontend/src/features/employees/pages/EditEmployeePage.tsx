@@ -52,7 +52,7 @@ export default function EditEmployeePage() {
           job_position: emp.job_position,
           brand_name: emp.brand_name || '',
           ptkp_status: emp.ptkp_status,
-          status_employee: emp.status_employee,
+          status_employee: emp.status_employee || 'Contract',
           join_date: emp.join_date ? emp.join_date.split('T')[0] : '',
           resign_date: emp.resign_date ? emp.resign_date.split('T')[0] : '',
           sign_date: emp.sign_date ? emp.sign_date.split('T')[0] : '',
