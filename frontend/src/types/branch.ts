@@ -1,5 +1,23 @@
 export type BranchStatus = 'active' | 'inactive'
 
+export type BranchSortField = 
+  | 'branch_name'
+  | 'branch_code'
+  | 'city'
+  | 'status'
+  | 'created_at'
+
+export interface BranchSort {
+  field: BranchSortField
+  order: 'asc' | 'desc'
+}
+
+export interface BranchFilter {
+  status?: BranchStatus
+  city?: string
+  search?: string
+}
+
 export interface Branch {
   id: string
   company_id: string

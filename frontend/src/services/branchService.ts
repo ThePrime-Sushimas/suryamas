@@ -1,17 +1,13 @@
 import api from '@/lib/axios'
-import type { Branch, CreateBranchDto, UpdateBranchDto } from '@/types/branch'
-
-type Paginated<T> = {
-  success: boolean
-  data: T[]
-  pagination: { total: number; page: number; limit: number }
-}
+import type { Branch, CreateBranchDto, UpdateBranchDto, BranchSort, BranchFilter } from '@/types/branch'
+import type { Paginated } from '@/types/pagination'
 
 export const branchService = {
   list: (
     page: number,
     limit: number,
-    sort?: { field: string; order: string } | null
+    sort?: BranchSort | null,
+    filter?: BranchFilter | null
   ) => {
     const params = new URLSearchParams()
     params.append('page', String(page))
@@ -22,10 +18,20 @@ export const branchService = {
       params.append('order', sort.order)
     }
 
+    if (filter?.search) {
+      params.append('q', filter.search)
+    }
+    if (filter?.status) {
+      params.append('status', filter.status)
+    }
+    if (filter?.city) {
+      params.append('city', filter.city)
+    }
+
     return api.get<Paginated<Branch>>(`/branches?${params.toString()}`)
   },
 
-  search: (q: string, page: number, limit: number, sort?: { field: string; order: string } | null) => {
+  search: (q: string, page: number, limit: number, sort?: BranchSort | null) => {
     const params = new URLSearchParams()
     params.append('q', q)
     params.append('page', String(page))

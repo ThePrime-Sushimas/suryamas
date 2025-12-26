@@ -4,6 +4,10 @@ import { branchService } from '@/services/branchService'
 import { companyService } from '@/services/companyService'
 import api from '@/lib/axios'
 import AssignEmployeeToBranchModal from '@/components/AssignEmployeeToBranchModal'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { CardSkeleton } from '@/components/ui/Skeleton'
+import { useToast } from '@/contexts/ToastContext'
+import { BRANCH_STATUS } from '@/constants/branches.constants'
 import type { Branch } from '@/types/branch'
 import {
   ArrowLeft,
@@ -17,7 +21,6 @@ import {
   Edit2,
   Trash2,
   Briefcase,
-  Loader2,
   AlertCircle,
   ChevronRight,
   PhoneCall,
@@ -52,6 +55,7 @@ function BranchDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [showAssignModal, setShowAssignModal] = useState(false)
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     basic: true,
@@ -61,6 +65,7 @@ function BranchDetailPage() {
     notes: false
   })
   const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const { success, error: showError } = useToast()
 
   useEffect(() => {
     const fetchBranch = async () => {
@@ -98,7 +103,7 @@ function BranchDetailPage() {
                   email: assignment.employees?.email,
                   mobile_phone: assignment.employees?.mobile_phone
                 }))
-                .filter((emp: any) => emp.full_name) // Filter out invalid entries
+                .filter((emp: any) => emp.full_name)
               setEmployees(emps)
             })
             .catch(() => {
@@ -106,44 +111,39 @@ function BranchDetailPage() {
             })
         )
         await Promise.all(promises)
-      } catch (error) {
-        console.error('Failed to fetch branch:', error)
-        setError('Failed to load branch details. Please try again.')
+      } catch (err: any) {
+        console.error('Failed to fetch branch:', err)
+        const message = err.response?.data?.error || 'Failed to load branch details'
+        setError(message)
+        showError(message)
       } finally {
         setLoading(false)
       }
     }
 
     if (id) fetchBranch()
-  }, [id])
+  }, [id, showError])
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this branch? This action cannot be undone.')) {
-      return
-    }
-
     setDeleting(true)
     try {
       await branchService.delete(id!)
-      navigate('/branches', { 
-        state: { message: 'Branch deleted successfully' } 
-      })
-    } catch (error) {
-      console.error('Delete failed:', error)
-      alert('Failed to delete branch. Please try again.')
+      success('Branch deleted successfully')
+      navigate('/branches')
+    } catch (err: any) {
+      console.error('Delete failed:', err)
+      const message = err.response?.data?.error || 'Failed to delete branch'
+      showError(message)
     } finally {
       setDeleting(false)
+      setShowDeleteModal(false)
     }
   }
 
   const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'active': return 'bg-green-100 text-green-800'
-      case 'inactive': return 'bg-gray-100 text-gray-800'
-      case 'maintenance': return 'bg-yellow-100 text-yellow-800'
-      case 'closed': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
-    }
+    return status === BRANCH_STATUS.ACTIVE
+      ? 'bg-green-100 text-green-800'
+      : 'bg-gray-100 text-gray-800'
   }
 
   const toggleSection = (section: string) => {
@@ -155,10 +155,11 @@ function BranchDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center p-4">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 text-blue-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 text-lg">Loading branch details...</p>
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
         </div>
       </div>
     )
@@ -227,15 +228,11 @@ function BranchDetailPage() {
           <div className="absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-lg z-50">
             <div className="px-4 py-3 space-y-2">
               <button
-                onClick={handleDelete}
-                disabled={deleting}
+                onClick={() => setShowDeleteModal(true)}
                 className="w-full flex items-center gap-3 px-4 py-3 text-left text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                aria-label="Delete branch"
               >
-                {deleting ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <Trash2 className="h-5 w-5" />
-                )}
+                <Trash2 className="h-5 w-5" />
                 Delete Branch
               </button>
             </div>
@@ -278,15 +275,11 @@ function BranchDetailPage() {
                 Edit Branch
               </button>
               <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="inline-flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2.5 rounded-xl hover:from-red-700 hover:to-red-800 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50"
+                onClick={() => setShowDeleteModal(true)}
+                className="inline-flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2.5 rounded-xl hover:from-red-700 hover:to-red-800 transition-all duration-200 shadow-sm hover:shadow-md"
+                aria-label="Delete branch"
               >
-                {deleting ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <Trash2 className="h-5 w-5" />
-                )}
+                <Trash2 className="h-5 w-5" />
                 Delete
               </button>
             </div>
@@ -1050,12 +1043,23 @@ function BranchDetailPage() {
                     email: assignment.employees?.email,
                     mobile_phone: assignment.employees?.mobile_phone
                   }))
-                  .filter((emp: any) => emp.full_name) // Filter out invalid entries
+                  .filter((emp: any) => emp.full_name)
                 setEmployees(emps)
               })
               .catch(() => setEmployees([]))
           }
         }}
+      />
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDelete}
+        title="Delete Branch"
+        message={`Are you sure you want to delete "${branch?.branch_name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        variant="danger"
+        isLoading={deleting}
       />
     </div>
   )

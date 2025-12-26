@@ -1,34 +1,56 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { branchService } from '@/services/branchService'
-import type { Branch, CreateBranchDto, UpdateBranchDto } from '@/types/branch'
+import type { Branch, CreateBranchDto, UpdateBranchDto, BranchSort, BranchFilter } from '@/types/branch'
+import type { PaginationMeta } from '@/types/pagination'
 
-type Paginated<T> = {
-  success: boolean
-  data: T[]
-  pagination: { total: number; page: number; limit: number }
-}
-
-export const useBranchesList = (page: number, limit: number, sort?: any, filter?: any) => {
+export const useBranchesList = (
+  page: number,
+  limit: number,
+  sort?: BranchSort | null,
+  filter?: BranchFilter | null
+) => {
   const [data, setData] = useState<Branch[]>([])
-  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 10 })
+  const [pagination, setPagination] = useState<PaginationMeta>({ total: 0, page: 1, limit: 10 })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const fetch = useCallback(async () => {
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    abortControllerRef.current = new AbortController()
     setLoading(true)
     setError(null)
+
     try {
       const res = await branchService.list(page, limit, sort, filter)
       setData(res.data.data)
       setPagination(res.data.pagination)
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch branches')
+      if (err.name !== 'AbortError' && err.name !== 'CanceledError') {
+        setError(err.response?.data?.error || 'Failed to fetch branches')
+      }
     } finally {
       setLoading(false)
     }
   }, [page, limit, sort, filter])
 
-  return { data, pagination, loading, error, fetch }
+  // Auto-fetch on dependency change
+  useEffect(() => {
+    fetch()
+
+    // Cleanup: abort on unmount or dependency change
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [fetch])
+
+  return { data, pagination, loading, error, refetch: fetch }
 }
 
 export const useBranchById = (id: string) => {

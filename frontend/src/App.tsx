@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './stores/authStore'
+import { ToastProvider } from './contexts/ToastContext'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import Layout from './components/layout/Layout'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/auth/LoginPage'
@@ -64,7 +66,9 @@ function App() {
   }
   
   return (
-    <BrowserRouter>
+    <ErrorBoundary>
+      <ToastProvider>
+        <BrowserRouter>
       <Routes>
         {/* Auth Routes - No Layout */}
         <Route path="/login" element={<LoginPage />} />
@@ -110,8 +114,10 @@ function App() {
           <Route path="employee-branches" element={<ProtectedRoute><EmployeeBranchesPage /></ProtectedRoute>} />
           <Route path="employee-branches/:id/edit" element={<ProtectedRoute><EditEmployeeBranchPage /></ProtectedRoute>} />
         </Route>
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+      </ToastProvider>
+    </ErrorBoundary>
   )
 }
 
