@@ -5,7 +5,7 @@ import { ExportService } from '../../services/export.service'
 import { ImportService } from '../../services/import.service'
 import { AuditService } from '../../services/audit.service'
 import { calculateAge, calculateYearsOfService } from '../../utils/age.util'
-import { generateEmployeeId, getNextSequenceNumber } from '../../utils/employeeId.util'
+import { supabase } from '../../config/supabase'
 
 export class EmployeesService {
   async list(pagination: { page: number; limit: number }): Promise<PaginatedResponse<Employee>> {
@@ -21,30 +21,8 @@ export class EmployeesService {
   }
 
   async create(data: Partial<Employee>, file?: Express.Multer.File, userId?: string): Promise<Employee> {
-    let profilePictureUrl: string | null = null
-    
-    if (file) {
-      const fileName = `${Date.now()}-${file.originalname}`
-      try {
-        await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
-        profilePictureUrl = employeesRepository.getPublicUrl(fileName)
-      } catch (err) {
-        // Continue without profile picture if upload fails
-      }
-    }
-    
-    // Auto-generate employee_id if not provided
-    let employeeId = data.employee_id
-    if (!employeeId && data.brand_name && data.join_date && data.job_position) {
-      const lastEmployeeId = await employeesRepository.getLastEmployeeId()
-      const nextSequence = getNextSequenceNumber(lastEmployeeId)
-      employeeId = generateEmployeeId(
-        data.brand_name,
-        data.join_date,
-        data.job_position,
-        nextSequence
-      )
-    }
+    const profilePictureUrl = await this.handleProfilePicture(file)
+    const employeeId = await this.generateEmployeeIdIfNeeded(data)
     
     const employee = await employeesRepository.create({
       ...data,
@@ -66,6 +44,39 @@ export class EmployeesService {
     )
 
     return employee
+  }
+
+  private async handleProfilePicture(file?: Express.Multer.File): Promise<string | null> {
+    if (!file) return null
+    
+    const fileName = `${Date.now()}-${file.originalname}`
+    try {
+      await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
+      return employeesRepository.getPublicUrl(fileName)
+    } catch (err) {
+      return null
+    }
+  }
+
+  private async generateEmployeeIdIfNeeded(data: Partial<Employee>): Promise<string | undefined> {
+    if (data.employee_id) return data.employee_id
+    
+    if (!data.brand_name || !data.join_date || !data.job_position) {
+      throw new Error('Missing required fields to generate employee ID')
+    }
+    
+    const { data: generatedId, error } = await supabase.rpc(
+      'generate_employee_id',
+      {
+        p_branch_name: data.brand_name,
+        p_join_date: data.join_date,
+        p_job_position: data.job_position,
+      }
+    )
+    
+    if (error) throw new Error(`Failed to generate employee ID: ${error.message}`)
+    
+    return generatedId
   }
 
   async search(searchTerm: string, pagination: { page: number; limit: number }, filter?: any): Promise<PaginatedResponse<Employee>> {

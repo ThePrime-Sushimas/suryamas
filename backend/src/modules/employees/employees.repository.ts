@@ -80,7 +80,13 @@ export class EmployeesRepository {
       .select()
       .single()
 
-    if (error) throw new Error(error.message)
+    if (error) {
+      // Handle unique constraint violation
+      if (error.code === '23505') {
+        throw new Error('Employee ID already exists')
+      }
+      throw new Error(error.message)
+    }
     EmployeesRepository.filterOptionsCache = null
     return employee
   }
@@ -323,17 +329,6 @@ export class EmployeesRepository {
     const { error } = await supabase.from('employees').delete().in('id', ids)
     if (error) throw new Error(error.message)
     EmployeesRepository.filterOptionsCache = null
-  }
-  async getLastEmployeeId(): Promise<string | null> {
-    const { data, error } = await supabase
-      .from('employees')
-      .select('employee_id')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (error) throw new Error(error.message)
-    return data?.employee_id || null
   }
 }
 
