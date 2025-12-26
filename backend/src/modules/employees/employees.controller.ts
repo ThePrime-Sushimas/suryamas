@@ -16,7 +16,9 @@ import {
 export class EmployeesController {
   async list(req: AuthenticatedPaginatedRequest, res: Response) {
     try {
-      const result = await employeesService.list(req.pagination)
+      const sort = req.query.sort as string
+      const order = req.query.order as 'asc' | 'desc'
+      const result = await employeesService.list({ ...req.pagination, sort, order })
       res.json({
         success: true,
         data: result.data,
@@ -70,7 +72,9 @@ export class EmployeesController {
   async search(req: AuthenticatedPaginatedRequest, res: Response) {
     try {
       const { q } = EmployeeSearchSchema.parse(req.query)
-      const result = await employeesService.search(q, req.pagination)
+      const sort = req.query.sort as string
+      const order = req.query.order as 'asc' | 'desc'
+      const result = await employeesService.search(q, { ...req.pagination, sort, order })
       res.json({
         success: true,
         data: result.data,

@@ -8,7 +8,7 @@ import { calculateAge, calculateYearsOfService } from '../../utils/age.util'
 import { supabase } from '../../config/supabase'
 
 export class EmployeesService {
-  async list(pagination: { page: number; limit: number }): Promise<PaginatedResponse<Employee>> {
+  async list(pagination: { page: number; limit: number; sort?: string; order?: 'asc' | 'desc' }): Promise<PaginatedResponse<Employee>> {
     const { data, total } = await employeesRepository.findAll(pagination)
     const dataWithAge = data.map(emp => ({ ...emp, age: calculateAge(emp.birth_date), years_of_service: calculateYearsOfService(emp.join_date, emp.resign_date) }))
     return createPaginatedResponse(dataWithAge, total, pagination.page, pagination.limit)
@@ -79,7 +79,7 @@ export class EmployeesService {
     return generatedId
   }
 
-  async search(searchTerm: string, pagination: { page: number; limit: number }, filter?: any): Promise<PaginatedResponse<Employee>> {
+  async search(searchTerm: string, pagination: { page: number; limit: number; sort?: string; order?: 'asc' | 'desc' }, filter?: any): Promise<PaginatedResponse<Employee>> {
     const { data, total } = await employeesRepository.searchByName(searchTerm, pagination)
     const dataWithAge = data.map(emp => ({ ...emp, age: calculateAge(emp.birth_date), years_of_service: calculateYearsOfService(emp.join_date, emp.resign_date) }))
     return createPaginatedResponse(dataWithAge, total, pagination.page, pagination.limit)
@@ -268,14 +268,29 @@ export class EmployeesService {
 
   async importFromExcel(buffer: Buffer, skipDuplicates: boolean): Promise<any> {
     const rows = await ImportService.parseExcel(buffer)
-    const requiredFields = ['employee_id', 'full_name']
+    const requiredFields = ['full_name', 'brand_name', 'join_date', 'job_position'] // Required for auto-generate ID
     
     return await ImportService.processImport(
       rows,
       requiredFields,
       async (row) => {
+        // Generate employee_id if not provided
+        let employeeId = row.employee_id
+        if (!employeeId && row.brand_name && row.join_date && row.job_position) {
+          const { data: generatedId, error } = await supabase.rpc(
+            'generate_employee_id',
+            {
+              p_branch_name: row.brand_name,
+              p_join_date: row.join_date,
+              p_job_position: row.job_position,
+            }
+          )
+          if (error) throw new Error(`Failed to generate employee ID: ${error.message}`)
+          employeeId = generatedId
+        }
+        
         await employeesRepository.create({
-          employee_id: row.employee_id,
+          employee_id: employeeId,
           full_name: row.full_name,
           job_position: row.job_position,
           brand_name: row.brand_name,

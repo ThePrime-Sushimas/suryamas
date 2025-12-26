@@ -1,11 +1,44 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useEmployeeStore } from '../../stores/employeeStore'
+import { useToast } from '../../contexts/ToastContext'
+import { User, Mail, CreditCard, Briefcase, Settings } from 'lucide-react'
+
+type FormData = {
+  email: string
+  mobile_phone: string
+  citizen_id_address: string
+  bank_name: string
+  bank_account: string
+  bank_account_holder: string
+  birth_place: string
+  birth_date: string
+  nik: string
+  gender: string
+  religion: string
+  marital_status: string
+}
+
+type TabId = 'personal' | 'contact' | 'employment' | 'banking' | 'system'
+
+const TABS = [
+  { id: 'personal' as TabId, label: 'Personal Info', icon: User },
+  { id: 'contact' as TabId, label: 'Contact', icon: Mail },
+  { id: 'employment' as TabId, label: 'Employment', icon: Briefcase },
+  { id: 'banking' as TabId, label: 'Banking', icon: CreditCard },
+  { id: 'system' as TabId, label: 'System', icon: Settings },
+]
+
+const GENDER_OPTIONS = ['Male', 'Female']
+const RELIGION_OPTIONS = ['Islam', 'Christian', 'Catholic', 'Hindu', 'Buddha', 'Other']
+const MARITAL_STATUS_OPTIONS = ['Single', 'Married', 'Divorced', 'Widow']
 
 export default function ProfilePage() {
   const { profile, fetchProfile, updateProfile, uploadProfilePicture, isLoading } = useEmployeeStore()
+  const { success, error: toastError } = useToast()
+  
   const [isEditing, setIsEditing] = useState(false)
-  const [activeTab, setActiveTab] = useState('personal')
-  const [formData, setFormData] = useState({
+  const [activeTab, setActiveTab] = useState<TabId>('personal')
+  const [formData, setFormData] = useState<FormData>({
     email: '',
     mobile_phone: '',
     citizen_id_address: '',
@@ -20,18 +53,12 @@ export default function ProfilePage() {
     marital_status: '',
   })
 
-  const tabs = [
-    { id: 'personal', label: 'Personal Info' },
-    { id: 'contact', label: 'Contact' },
-    { id: 'employment', label: 'Employment' },
-    { id: 'banking', label: 'Banking' },
-    { id: 'system', label: 'System' },
-  ]
-
+  // Init profile
   useEffect(() => {
     fetchProfile()
-  }, [])
+  }, [fetchProfile])
 
+  // Sync form data with profile
   useEffect(() => {
     if (profile) {
       setFormData({
@@ -51,382 +78,373 @@ export default function ProfilePage() {
     }
   }, [profile])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
-    const updates: any = { ...formData }
-    if (updates.gender === '') delete updates.gender
-    if (updates.religion === '') delete updates.religion
-    if (updates.marital_status === '') delete updates.marital_status
-    await updateProfile(updates)
+    try {
+      const updates: any = { ...formData }
+      if (!updates.gender) delete updates.gender
+      if (!updates.religion) delete updates.religion
+      if (!updates.marital_status) delete updates.marital_status
+      
+      await updateProfile(updates)
+      success('Profile updated successfully')
+      setIsEditing(false)
+    } catch (err: any) {
+      toastError(err.message || 'Failed to update profile')
+    }
+  }, [formData, updateProfile, success, toastError])
+
+  const handlePhotoUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      await uploadProfilePicture(file)
+      await fetchProfile()
+      success('Profile picture updated successfully')
+    } catch (err: any) {
+      toastError(err.response?.data?.error || err.message || 'Failed to upload photo')
+    }
+  }, [uploadProfilePicture, fetchProfile, success, toastError])
+
+  const handleCancel = useCallback(() => {
     setIsEditing(false)
-  }
+    if (profile) {
+      setFormData({
+        email: profile.email || '',
+        mobile_phone: profile.mobile_phone || '',
+        citizen_id_address: profile.citizen_id_address || '',
+        bank_name: profile.bank_name || '',
+        bank_account: profile.bank_account || '',
+        bank_account_holder: profile.bank_account_holder || '',
+        birth_place: profile.birth_place || '',
+        birth_date: profile.birth_date || '',
+        nik: profile.nik || '',
+        gender: profile.gender || '',
+        religion: profile.religion || '',
+        marital_status: profile.marital_status || '',
+      })
+    }
+  }, [profile])
+
+  const profileInitial = useMemo(() => 
+    profile?.full_name?.charAt(0).toUpperCase() || '?'
+  , [profile])
 
   if (isLoading && !profile) {
-    return <div className="text-center py-8">Loading...</div>
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading profile...</p>
+        </div>
+      </div>
+    )
   }
 
   if (!profile) {
-    return <div className="text-center py-8">Profile not found</div>
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-gray-600">Profile not found</p>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="bg-white shadow rounded-lg p-6">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-4">
-            {profile.profile_picture ? (
-              <img src={profile.profile_picture} alt="Profile" className="w-16 h-16 rounded-full object-cover" />
-            ) : (
-              <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xl font-bold">
-                {profile.full_name.charAt(0)}
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4 md:p-6 lg:p-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 md:p-8">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                {profile.profile_picture ? (
+                  <img 
+                    src={profile.profile_picture} 
+                    alt="Profile" 
+                    className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg" 
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center text-blue-600 text-2xl font-bold shadow-lg">
+                    {profileInitial}
+                  </div>
+                )}
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold text-white">{profile.full_name}</h1>
+                  <p className="text-blue-100 mt-1">{profile.job_position}</p>
+                  <label className="inline-block mt-2 text-sm text-white hover:text-blue-100 cursor-pointer transition-colors">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handlePhotoUpload}
+                      disabled={isLoading}
+                    />
+                    📷 Change photo
+                  </label>
+                </div>
               </div>
-            )}
-            <div>
-              <h1 className="text-2xl font-bold">{profile.full_name}</h1>
-              <label className="text-sm text-blue-600 hover:underline cursor-pointer">
-                Change photo
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    if (e.target.files?.[0]) {
-                      try {
-                        await uploadProfilePicture(e.target.files[0])
-                        await fetchProfile()
-                        alert('Profile picture updated successfully!')
-                      } catch (error: any) {
-                        alert(`Failed to upload: ${error.response?.data?.error || error.message}`)
-                      }
-                    }
-                  }}
-                />
-              </label>
+              {!isEditing && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="bg-white text-blue-600 px-6 py-2 rounded-lg hover:bg-blue-50 transition-colors font-medium"
+                >
+                  Edit Profile
+                </button>
+              )}
             </div>
           </div>
-          {!isEditing && (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              Edit Profile
-            </button>
-          )}
-        </div>
 
-        {isEditing ? (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="border-b border-gray-200 pb-4">
-              <h3 className="text-lg font-medium mb-4">Personal Info</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">NIK</label>
-                  <input
-                    type="text"
-                    value={formData.nik}
-                    onChange={(e) => setFormData({ ...formData, nik: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs md:text-sm font-medium text-gray-700">Birth Date</label>
-                  <input
-                    type="date"
-                    value={formData.birth_date}
-                    onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs md:text-sm font-medium text-gray-700">Birth Place</label>
-                  <input
-                    type="text"
-                    value={formData.birth_place}
-                    onChange={(e) => setFormData({ ...formData, birth_place: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs md:text-sm font-medium text-gray-700">Gender</label>
-                  <select
-                    value={formData.gender as any}
-                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
-                  >
-                    <option value="">Select</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs md:text-sm font-medium text-gray-700">Religion</label>
-                  <select
-                    value={formData.religion as any}
-                    onChange={(e) => setFormData({ ...formData, religion: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
-                  >
-                    <option value="">Select</option>
-                    <option value="Islam">Islam</option>
-                    <option value="Christian">Christian</option>
-                    <option value="Catholic">Catholic</option>
-                    <option value="Hindu">Hindu</option>
-                    <option value="Buddha">Buddha</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs md:text-sm font-medium text-gray-700">Marital Status</label>
-                  <select
-                    value={formData.marital_status as any}
-                    onChange={(e) => setFormData({ ...formData, marital_status: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
-                  >
-                    <option value="">Select</option>
-                    <option value="Single">Single</option>
-                    <option value="Married">Married</option>
-                    <option value="Divorced">Divorced</option>
-                    <option value="Widow">Widow</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-b border-gray-200 pb-4">
-              <h3 className="text-lg font-medium mb-4">Contact</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs md:text-sm font-medium text-gray-700">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs md:text-sm font-medium text-gray-700">Mobile Phone</label>
-                  <input
-                    type="text"
-                    value={formData.mobile_phone}
-                    onChange={(e) => setFormData({ ...formData, mobile_phone: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs md:text-sm font-medium text-gray-700">Address (KTP)</label>
-                  <textarea
-                    value={formData.citizen_id_address}
-                    onChange={(e) => setFormData({ ...formData, citizen_id_address: e.target.value })}
-                    rows={3}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="border-b border-gray-200 pb-4">
-              <h3 className="text-lg font-medium mb-4">Banking</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs md:text-sm font-medium text-gray-700">Bank Name</label>
-                  <input
-                    type="text"
-                    value={formData.bank_name}
-                    onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs md:text-sm font-medium text-gray-700">Bank Account</label>
-                  <input
-                    type="text"
-                    value={formData.bank_account}
-                    onChange={(e) => setFormData({ ...formData, bank_account: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs md:text-sm font-medium text-gray-700">Bank Account Holder</label>
-                  <input
-                    type="text"
-                    value={formData.bank_account_holder}
-                    onChange={(e) => setFormData({ ...formData, bank_account_holder: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex space-x-3">
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-              >
-                {isLoading ? 'Saving...' : 'Save Changes'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsEditing(false)}
-                className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        ) : (
-          <div className="space-y-4">
-            <div className="border-b border-gray-200 mb-6">
-              <nav className="flex space-x-8">
-                {tabs.map((tab) => (
+          {/* Tabs */}
+          <div className="border-b border-gray-200 bg-white">
+            <nav className="flex overflow-x-auto">
+              {TABS.map((tab) => {
+                const Icon = tab.icon
+                return (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    className={`flex items-center gap-2 px-6 py-4 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
                       activeTab === tab.id
                         ? 'border-blue-500 text-blue-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                   >
+                    <Icon className="h-4 w-4" />
                     {tab.label}
                   </button>
-                ))}
-              </nav>
-            </div>
+                )
+              })}
+            </nav>
+          </div>
 
-            {activeTab === 'personal' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500">Employee ID</p>
-                  <p className="font-medium">{profile.employee_id}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">NIK</p>
-                  <p className="font-medium text-sm md:text-base">{profile.nik || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Birth Date</p>
-                  <p className="font-medium text-sm md:text-base">{profile.birth_date ? new Date(profile.birth_date).toLocaleDateString('id-ID') : '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Birth Place</p>
-                  <p className="font-medium text-sm md:text-base">{profile.birth_place || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Age</p>
-                  <p className="font-medium text-sm md:text-base">{profile.age || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Gender</p>
-                  <p className="font-medium text-sm md:text-base">{profile.gender || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Religion</p>
-                  <p className="font-medium text-sm md:text-base">{profile.religion || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Marital Status</p>
-                  <p className="font-medium text-sm md:text-base">{profile.marital_status || '-'}</p>
-                </div>
-              </div>
-            )}
+          {/* Content */}
+          <div className="p-6 md:p-8">
+            {isEditing ? (
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {activeTab === 'personal' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">NIK</label>
+                      <input
+                        type="text"
+                        value={formData.nik}
+                        onChange={(e) => setFormData(prev => ({ ...prev, nik: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Birth Date</label>
+                      <input
+                        type="date"
+                        value={formData.birth_date}
+                        onChange={(e) => setFormData(prev => ({ ...prev, birth_date: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Birth Place</label>
+                      <input
+                        type="text"
+                        value={formData.birth_place}
+                        onChange={(e) => setFormData(prev => ({ ...prev, birth_place: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                      <select
+                        value={formData.gender}
+                        onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      >
+                        <option value="">Select</option>
+                        {GENDER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Religion</label>
+                      <select
+                        value={formData.religion}
+                        onChange={(e) => setFormData(prev => ({ ...prev, religion: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      >
+                        <option value="">Select</option>
+                        {RELIGION_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Marital Status</label>
+                      <select
+                        value={formData.marital_status}
+                        onChange={(e) => setFormData(prev => ({ ...prev, marital_status: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      >
+                        <option value="">Select</option>
+                        {MARITAL_STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                )}
 
-            {activeTab === 'contact' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500">Email</p>
-                  <p className="font-medium">{profile.email || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Mobile Phone</p>
-                  <p className="font-medium text-sm md:text-base">{profile.mobile_phone || '-'}</p>
-                </div>
-                <div className="md:col-span-2">
-                  <p className="text-xs md:text-sm text-gray-500">Address (KTP)</p>
-                  <p className="font-medium text-sm md:text-base">{profile.citizen_id_address || '-'}</p>
-                </div>
-              </div>
-            )}
+                {activeTab === 'contact' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                      <input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Phone</label>
+                      <input
+                        type="text"
+                        value={formData.mobile_phone}
+                        onChange={(e) => setFormData(prev => ({ ...prev, mobile_phone: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Address (KTP)</label>
+                      <textarea
+                        value={formData.citizen_id_address}
+                        onChange={(e) => setFormData(prev => ({ ...prev, citizen_id_address: e.target.value }))}
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
 
-            {activeTab === 'employment' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500">Job Position</p>
-                  <p className="font-medium">{profile.job_position}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Branch</p>
-                  <p className="font-medium text-sm md:text-base">{profile.branch_name}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Brand Name</p>
-                  <p className="font-medium text-sm md:text-base">{profile.brand_name || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Status</p>
-                  <p className="font-medium text-sm md:text-base">{profile.status_employee}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">PTKP Status</p>
-                  <p className="font-medium text-sm md:text-base">{profile.ptkp_status}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Join Date</p>
-                  <p className="font-medium text-sm md:text-base">{new Date(profile.join_date).toLocaleDateString('id-ID')}</p>
-                </div>
-                <div className="md:col-span-2">
-                  <p className="text-xs md:text-sm text-gray-500">Years of Service</p>
-                  <p className="font-medium text-sm md:text-base">
-                    {profile.years_of_service ? `${profile.years_of_service.years} years ${profile.years_of_service.months} months ${profile.years_of_service.days} days` : '-'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Resign Date</p>
-                  <p className="font-medium text-sm md:text-base">{profile.resign_date ? new Date(profile.resign_date).toLocaleDateString('id-ID') : '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Contract Sign Date</p>
-                  <p className="font-medium text-sm md:text-base">{profile.sign_date ? new Date(profile.sign_date).toLocaleDateString('id-ID') : '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Contract End Date</p>
-                  <p className="font-medium text-sm md:text-base">{profile.end_date ? new Date(profile.end_date).toLocaleDateString('id-ID') : '-'}</p>
-                </div>
-              </div>
-            )}
+                {activeTab === 'banking' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+                      <input
+                        type="text"
+                        value={formData.bank_name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, bank_name: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account</label>
+                      <input
+                        type="text"
+                        value={formData.bank_account}
+                        onChange={(e) => setFormData(prev => ({ ...prev, bank_account: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account Holder</label>
+                      <input
+                        type="text"
+                        value={formData.bank_account_holder}
+                        onChange={(e) => setFormData(prev => ({ ...prev, bank_account_holder: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
 
-            {activeTab === 'banking' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500">Bank Name</p>
-                  <p className="font-medium">{profile.bank_name || '-'}</p>
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors font-medium"
+                  >
+                    {isLoading ? 'Saving...' : 'Save Changes'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
                 </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Bank Account</p>
-                  <p className="font-medium text-sm md:text-base">{profile.bank_account || '-'}</p>
-                </div>
-                <div className="md:col-span-2">
-                  <p className="text-xs md:text-sm text-gray-500">Bank Account Holder</p>
-                  <p className="font-medium text-sm md:text-base">{profile.bank_account_holder || '-'}</p>
-                </div>
-              </div>
-            )}
+              </form>
+            ) : (
+              <div className="space-y-4">
+                {activeTab === 'personal' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <InfoItem label="Employee ID" value={profile.employee_id} />
+                    <InfoItem label="NIK" value={profile.nik} />
+                    <InfoItem label="Birth Date" value={profile.birth_date ? new Date(profile.birth_date).toLocaleDateString('id-ID') : null} />
+                    <InfoItem label="Birth Place" value={profile.birth_place} />
+                    <InfoItem label="Age" value={profile.age} />
+                    <InfoItem label="Gender" value={profile.gender} />
+                    <InfoItem label="Religion" value={profile.religion} />
+                    <InfoItem label="Marital Status" value={profile.marital_status} />
+                  </div>
+                )}
 
-            {activeTab === 'system' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500">Created At</p>
-                  <p className="font-medium">{new Date(profile.created_at).toLocaleString('id-ID')}</p>
-                </div>
-                <div>
-                  <p className="text-xs md:text-sm text-gray-500">Updated At</p>
-                  <p className="font-medium text-sm md:text-base">{new Date(profile.updated_at).toLocaleString('id-ID')}</p>
-                </div>
+                {activeTab === 'contact' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <InfoItem label="Email" value={profile.email} />
+                    <InfoItem label="Mobile Phone" value={profile.mobile_phone} />
+                    <div className="md:col-span-2">
+                      <InfoItem label="Address (KTP)" value={profile.citizen_id_address} />
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'employment' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <InfoItem label="Job Position" value={profile.job_position} />
+                    <InfoItem label="Branch" value={profile.branch_name} />
+                    <InfoItem label="Brand Name" value={profile.brand_name} />
+                    <InfoItem label="Status" value={profile.status_employee} />
+                    <InfoItem label="PTKP Status" value={profile.ptkp_status} />
+                    <InfoItem label="Join Date" value={new Date(profile.join_date).toLocaleDateString('id-ID')} />
+                    <div className="md:col-span-2">
+                      <InfoItem 
+                        label="Years of Service" 
+                        value={profile.years_of_service ? `${profile.years_of_service.years}y ${profile.years_of_service.months}m ${profile.years_of_service.days}d` : null} 
+                      />
+                    </div>
+                    <InfoItem label="Resign Date" value={profile.resign_date ? new Date(profile.resign_date).toLocaleDateString('id-ID') : null} />
+                    <InfoItem label="Contract Sign Date" value={profile.sign_date ? new Date(profile.sign_date).toLocaleDateString('id-ID') : null} />
+                    <InfoItem label="Contract End Date" value={profile.end_date ? new Date(profile.end_date).toLocaleDateString('id-ID') : null} />
+                  </div>
+                )}
+
+                {activeTab === 'banking' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <InfoItem label="Bank Name" value={profile.bank_name} />
+                    <InfoItem label="Bank Account" value={profile.bank_account} />
+                    <div className="md:col-span-2">
+                      <InfoItem label="Bank Account Holder" value={profile.bank_account_holder} />
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'system' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <InfoItem label="Created At" value={new Date(profile.created_at).toLocaleString('id-ID')} />
+                    <InfoItem label="Updated At" value={new Date(profile.updated_at).toLocaleString('id-ID')} />
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
+        </div>
       </div>
+    </div>
+  )
+}
+
+function InfoItem({ label, value }: { label: string; value: string | number | null | undefined }) {
+  return (
+    <div>
+      <p className="text-sm text-gray-500 mb-1">{label}</p>
+      <p className="font-medium text-gray-900">{value || '-'}</p>
     </div>
   )
 }

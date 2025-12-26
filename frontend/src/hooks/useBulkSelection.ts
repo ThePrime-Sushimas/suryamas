@@ -1,14 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export function useBulkSelection<T extends { id: string }>(items: T[]) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  useEffect(() => {
+    setSelectedIds(prev =>
+      prev.filter(id => items.some(item => item.id === id))
+    )
+  }, [items])
 
   const selectAll = (checked: boolean) => {
     setSelectedIds(checked ? items.map(item => item.id) : [])
   }
 
   const selectOne = (id: string, checked: boolean) => {
-    setSelectedIds(checked ? [...selectedIds, id] : selectedIds.filter(i => i !== id))
+    setSelectedIds(prev =>
+      checked ? [...new Set([...prev, id])] : prev.filter(i => i !== id)
+    )
   }
 
   const clearSelection = () => {
@@ -16,7 +24,7 @@ export function useBulkSelection<T extends { id: string }>(items: T[]) {
   }
 
   const isSelected = (id: string) => selectedIds.includes(id)
-  const isAllSelected = selectedIds.length === items.length && items.length > 0
+  const isAllSelected = items.length > 0 && selectedIds.length === items.length
 
   return {
     selectedIds,

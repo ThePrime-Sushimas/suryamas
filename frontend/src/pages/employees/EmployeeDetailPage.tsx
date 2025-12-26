@@ -1,235 +1,255 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { User, Mail, CreditCard, Briefcase, Settings, ArrowLeft, Edit } from 'lucide-react'
 import api from '../../lib/axios'
 import type { Employee, ApiResponse } from '../../types'
+
+type Tab = 'personal' | 'contact' | 'employment' | 'banking' | 'system'
+
+const TABS = [
+  { id: 'personal' as const, label: 'Personal Info', icon: User },
+  { id: 'contact' as const, label: 'Contact', icon: Mail },
+  { id: 'employment' as const, label: 'Employment', icon: Briefcase },
+  { id: 'banking' as const, label: 'Banking', icon: CreditCard },
+  { id: 'system' as const, label: 'System', icon: Settings },
+]
+
+const formatDate = (date: string | null | undefined) => 
+  date ? new Date(date).toLocaleDateString('id-ID') : null
+
+const formatDateTime = (date: string) => 
+  new Date(date).toLocaleString('id-ID')
+
+function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-sm text-gray-500 mb-1">{label}</p>
+      <p className="font-medium text-gray-900">{value || '-'}</p>
+    </div>
+  )
+}
 
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('personal')
-
-  const tabs = [
-    { id: 'personal', label: 'Personal Info' },
-    { id: 'contact', label: 'Contact' },
-    { id: 'employment', label: 'Employment' },
-    { id: 'banking', label: 'Banking' },
-    { id: 'system', label: 'System' },
-  ]
+  const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<Tab>('personal')
 
   useEffect(() => {
-    if (id === "create") {
-      navigate("/employees/create", { replace: true })
+    if (!id || id === 'create') {
+      setIsLoading(false)
+      setError('Invalid employee ID')
       return
     }
+
+    let isCancelled = false
+
     const fetchEmployee = async () => {
       try {
-        console.log('Fetching employee with ID:', id)
         const { data } = await api.get<ApiResponse<Employee>>(`/employees/${id}`)
-        console.log('Employee data:', data)
-        setEmployee(data.data)
-      } catch (error: any) {
-        console.error('Failed to fetch employee:', error)
-        console.error('Error response:', error.response?.data)
+        if (!isCancelled) {
+          setEmployee(data.data)
+          setError(null)
+        }
+      } catch (err: any) {
+        if (!isCancelled) {
+          setError(err.response?.data?.error || 'Failed to load employee')
+        }
       } finally {
-        setIsLoading(false)
+        if (!isCancelled) {
+          setIsLoading(false)
+        }
       }
     }
+
     fetchEmployee()
-  }, [id, navigate])
+    return () => { isCancelled = true }
+  }, [id])
+
+  const yearsOfService = useMemo(() => {
+    if (!employee?.years_of_service) return null
+    const { years, months, days } = employee.years_of_service
+    return `${years}y ${months}m ${days}d`
+  }, [employee?.years_of_service])
+
+  const profileInitial = useMemo(() => 
+    employee?.full_name?.charAt(0).toUpperCase() || '?'
+  , [employee])
+
+  const handleBack = useCallback(() => navigate('/employees'), [navigate])
+  const handleEdit = useCallback(() => navigate(`/employees/edit/${id}`), [navigate, id])
 
   if (isLoading) {
-    return <div className="text-center py-8">Loading...</div>
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading employee...</p>
+        </div>
+      </div>
+    )
   }
 
-  if (!employee) {
-    return <div className="text-center py-8">Employee not found</div>
+  if (error || !employee) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4 md:p-6 lg:p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 mb-4">
+            {error || 'Employee not found'}
+          </div>
+          <button
+            onClick={handleBack}
+            className="inline-flex items-center gap-2 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to List
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="bg-white shadow rounded-lg p-6">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-4">
-            {employee.profile_picture ? (
-              <img src={employee.profile_picture} alt={employee.full_name} className="w-16 h-16 rounded-full object-cover" />
-            ) : (
-              <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xl font-bold">
-                {employee.full_name.charAt(0)}
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4 md:p-6 lg:p-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 md:p-8">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                {employee.profile_picture ? (
+                  <img 
+                    src={employee.profile_picture} 
+                    alt={employee.full_name} 
+                    className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg" 
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center text-blue-600 text-2xl font-bold shadow-lg">
+                    {profileInitial}
+                  </div>
+                )}
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold text-white">{employee.full_name}</h1>
+                  <p className="text-blue-100 mt-1">{employee.job_position}</p>
+                  <p className="text-blue-200 text-sm mt-1">{employee.employee_id}</p>
+                </div>
               </div>
-            )}
-            <h1 className="text-2xl font-bold">{employee.full_name}</h1>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => navigate(`/employees/edit/${id}`)}
-              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => navigate('/employees')}
-              className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
-            >
-              Back
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <div className="border-b border-gray-200 mb-6">
-            <nav className="flex space-x-8">
-              {tabs.map((tab) => (
+              <div className="flex gap-2">
                 <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                  onClick={handleEdit}
+                  className="inline-flex items-center gap-2 bg-white text-blue-600 px-6 py-2 rounded-lg hover:bg-blue-50 transition-colors font-medium"
                 >
-                  {tab.label}
+                  <Edit className="h-4 w-4" />
+                  Edit
                 </button>
-              ))}
+                <button
+                  onClick={handleBack}
+                  className="inline-flex items-center gap-2 bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors font-medium"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="border-b border-gray-200 bg-white">
+            <nav className="flex overflow-x-auto">
+              {TABS.map((tab) => {
+                const Icon = tab.icon
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-6 py-4 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
+                      activeTab === tab.id
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {tab.label}
+                  </button>
+                )
+              })}
             </nav>
           </div>
 
-          {activeTab === 'personal' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Employee ID</p>
-                <p className="font-medium">{employee.employee_id}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Full Name</p>
-                <p className="font-medium">{employee.full_name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">NIK</p>
-                <p className="font-medium">{employee.nik || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Birth Date</p>
-                <p className="font-medium">{employee.birth_date ? new Date(employee.birth_date).toLocaleDateString('id-ID') : '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Birth Place</p>
-                <p className="font-medium">{employee.birth_place || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Age</p>
-                <p className="font-medium">{employee.age || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Gender</p>
-                <p className="font-medium">{employee.gender || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Religion</p>
-                <p className="font-medium">{employee.religion || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Marital Status</p>
-                <p className="font-medium">{employee.marital_status || '-'}</p>
-              </div>
-            </div>
-          )}
+          {/* Content */}
+          <div className="p-6 md:p-8">
+            <div className="space-y-4">
+              {activeTab === 'personal' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <InfoItem label="Employee ID" value={employee.employee_id} />
+                  <InfoItem label="Full Name" value={employee.full_name} />
+                  <InfoItem label="NIK" value={employee.nik} />
+                  <InfoItem label="Birth Date" value={formatDate(employee.birth_date)} />
+                  <InfoItem label="Birth Place" value={employee.birth_place} />
+                  <InfoItem label="Age" value={employee.age} />
+                  <InfoItem label="Gender" value={employee.gender} />
+                  <InfoItem label="Religion" value={employee.religion} />
+                  <InfoItem label="Marital Status" value={employee.marital_status} />
+                </div>
+              )}
 
-          {activeTab === 'contact' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Email</p>
-                <p className="font-medium">{employee.email || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Mobile Phone</p>
-                <p className="font-medium">{employee.mobile_phone || '-'}</p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-sm text-gray-500">Address (KTP)</p>
-                <p className="font-medium">{employee.citizen_id_address || '-'}</p>
-              </div>
-            </div>
-          )}
+              {activeTab === 'contact' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <InfoItem label="Email" value={employee.email} />
+                  <InfoItem label="Mobile Phone" value={employee.mobile_phone} />
+                  <div className="md:col-span-2">
+                    <InfoItem label="Address (KTP)" value={employee.citizen_id_address} />
+                  </div>
+                </div>
+              )}
 
-          {activeTab === 'employment' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Job Position</p>
-                <p className="font-medium">{employee.job_position}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Branch</p>
-                <p className="font-medium">{employee.branch_name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Brand Name</p>
-                <p className="font-medium">{employee.brand_name || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Status</p>
-                <p className="font-medium">{employee.status_employee}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">PTKP Status</p>
-                <p className="font-medium">{employee.ptkp_status}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Join Date</p>
-                <p className="font-medium">{new Date(employee.join_date).toLocaleDateString('id-ID')}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Years of Service</p>
-                <p className="font-medium">
-                  {employee.years_of_service ? `${employee.years_of_service.years} years ${employee.years_of_service.months} months ${employee.years_of_service.days} days` : '-'}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Resign Date</p>
-                <p className="font-medium">{employee.resign_date ? new Date(employee.resign_date).toLocaleDateString('id-ID') : '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Contract Sign Date</p>
-                <p className="font-medium">{employee.sign_date ? new Date(employee.sign_date).toLocaleDateString('id-ID') : '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Contract End Date</p>
-                <p className="font-medium">{employee.end_date ? new Date(employee.end_date).toLocaleDateString('id-ID') : '-'}</p>
-              </div>
-            </div>
-          )}
+              {activeTab === 'employment' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <InfoItem label="Job Position" value={employee.job_position} />
+                  <InfoItem label="Branch" value={employee.branch_name} />
+                  <InfoItem label="Brand Name" value={employee.brand_name} />
+                  <InfoItem label="Status" value={employee.status_employee} />
+                  <InfoItem label="PTKP Status" value={employee.ptkp_status} />
+                  <InfoItem label="Join Date" value={formatDate(employee.join_date)} />
+                  <InfoItem label="Years of Service" value={yearsOfService} />
+                  <InfoItem label="Resign Date" value={formatDate(employee.resign_date)} />
+                  <InfoItem label="Contract Sign Date" value={formatDate(employee.sign_date)} />
+                  <InfoItem label="Contract End Date" value={formatDate(employee.end_date)} />
+                </div>
+              )}
 
-          {activeTab === 'banking' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Bank Name</p>
-                <p className="font-medium">{employee.bank_name || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Bank Account</p>
-                <p className="font-medium">{employee.bank_account || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Bank Account Holder</p>
-                <p className="font-medium">{employee.bank_account_holder || '-'}</p>
-              </div>
-            </div>
-          )}
+              {activeTab === 'banking' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <InfoItem label="Bank Name" value={employee.bank_name} />
+                  <InfoItem label="Bank Account" value={employee.bank_account} />
+                  <div className="md:col-span-2">
+                    <InfoItem label="Bank Account Holder" value={employee.bank_account_holder} />
+                  </div>
+                </div>
+              )}
 
-          {activeTab === 'system' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Created At</p>
-                <p className="font-medium">{new Date(employee.created_at).toLocaleString('id-ID')}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Updated At</p>
-                <p className="font-medium">{new Date(employee.updated_at).toLocaleString('id-ID')}</p>
-              </div>
+              {activeTab === 'system' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <InfoItem 
+                    label="Active Status" 
+                    value={
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        employee.is_active 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {employee.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    } 
+                  />
+                  <InfoItem label="Created At" value={formatDateTime(employee.created_at)} />
+                  <InfoItem label="Updated At" value={formatDateTime(employee.updated_at)} />
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

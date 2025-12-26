@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { employeeBranchService } from '@/services/employeeBranchService'
-import { employeeService } from '@/services/employeeService'
 import { branchService } from '@/services/branchService'
+import { useEmployeeStore } from '@/stores/employeeStore'
 import type { EmployeeBranch } from '@/types/employeeBranch'
 
 export function EditEmployeeBranchPage() {
@@ -50,8 +50,9 @@ export function EditEmployeeBranchPage() {
 
   const loadEmployees = async () => {
     try {
-      const response = await employeeService.autocomplete('')
-      setEmployees(Array.isArray(response.data) ? response.data : [])
+      await useEmployeeStore.getState().fetchEmployees()
+      const allEmployees = useEmployeeStore.getState().employees
+      setEmployees(allEmployees.map(e => ({ id: e.id, full_name: e.full_name })))
     } catch (error) {
       console.error('Failed to load employees:', error)
     }

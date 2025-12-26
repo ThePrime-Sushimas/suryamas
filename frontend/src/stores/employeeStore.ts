@@ -16,6 +16,7 @@ interface EmployeeState {
   fetchProfile: () => Promise<void>
   updateProfile: (data: Partial<Employee>) => Promise<void>
   uploadProfilePicture: (file: File) => Promise<void>
+  fetchEmployees: (sort?: string, order?: 'asc' | 'desc', page?: number, limit?: number) => Promise<void>
   searchEmployees: (query: string, sort?: string, order?: 'asc' | 'desc', filter?: any, page?: number, limit?: number) => Promise<void>
   fetchFilterOptions: () => Promise<void>
   createEmployee: (data: Partial<Employee>, profilePicture?: File) => Promise<void>
@@ -70,6 +71,18 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     } catch (error) {
       console.error('Failed to upload profile picture:', error)
       throw error
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  fetchEmployees: async (sort = 'full_name', order = 'asc', page = 1, limit = 1000) => {
+    set({ isLoading: true })
+    try {
+      const { data } = await api.get<ApiResponse<Employee[]>>('/employees', {
+        params: { sort, order, page, limit }
+      })
+      set({ employees: data.data })
     } finally {
       set({ isLoading: false })
     }

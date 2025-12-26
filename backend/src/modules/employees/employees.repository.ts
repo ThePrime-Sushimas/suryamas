@@ -6,7 +6,10 @@ export class EmployeesRepository {
   private static filterOptionsCacheExpiry = 0
   private static readonly CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 
-  async findAll(pagination: { page: number; limit: number }): Promise<{ data: EmployeeWithBranch[]; total: number }> {
+  async findAll(pagination: { page: number; limit: number; sort?: string; order?: 'asc' | 'desc' }): Promise<{ data: EmployeeWithBranch[]; total: number }> {
+    const sortField = pagination.sort || 'full_name'
+    const sortOrder = pagination.order === 'desc' ? false : true
+    
     let query = supabase.from('employees').select(`
       id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
       end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
@@ -15,7 +18,7 @@ export class EmployeesRepository {
       created_at, updated_at, user_id, is_active,
       employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))
     `, { count: 'exact' })
-    .order('full_name', { ascending: true })
+    .order(sortField, { ascending: sortOrder })
     
     const offset = (pagination.page - 1) * pagination.limit
     const { data, error, count } = await query.range(offset, offset + pagination.limit - 1)
@@ -147,8 +150,9 @@ export class EmployeesRepository {
     return out
   }
 
-  async searchByName(searchTerm: string, pagination: { page: number; limit: number }, filter?: any): Promise<{ data: EmployeeWithBranch[]; total: number }> {
-    const hasBranchFilter = filter?.branch_name
+  async searchByName(searchTerm: string, pagination: { page: number; limit: number; sort?: string; order?: 'asc' | 'desc' }, filter?: any): Promise<{ data: EmployeeWithBranch[]; total: number }> {
+    const sortField = pagination.sort || 'full_name'
+    const sortOrder = pagination.order === 'desc' ? false : true
     
     let query = supabase.from('employees').select(`
       id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
@@ -158,7 +162,13 @@ export class EmployeesRepository {
       created_at, updated_at, user_id, is_active,
       employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))
     `, { count: 'exact' })
-    .order('full_name', { ascending: true })
+    
+    // Search by employee_id, full_name, email, or mobile_phone
+    if (searchTerm) {
+      query = query.or(`employee_id.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,mobile_phone.ilike.%${searchTerm}%`)
+    }
+    
+    query = query.order(sortField, { ascending: sortOrder })
     
     const offset = (pagination.page - 1) * pagination.limit
     const { data, error, count } = await query.range(offset, offset + pagination.limit - 1)
@@ -289,6 +299,11 @@ export class EmployeesRepository {
     `)
     
     if (filter) {
+      // Search filter
+      if (filter.search) {
+        query = query.or(`employee_id.ilike.%${filter.search}%,full_name.ilike.%${filter.search}%,email.ilike.%${filter.search}%,mobile_phone.ilike.%${filter.search}%`)
+      }
+      // Other filters
       if (filter.branch_name) query = query.eq('employee_branches.branches.branch_name', filter.branch_name)
       if (filter.is_active !== undefined) query = query.eq('is_active', filter.is_active)
       if (filter.status_employee) query = query.eq('status_employee', filter.status_employee)
