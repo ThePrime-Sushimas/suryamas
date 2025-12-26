@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/features/auth'
 import { ToastProvider } from './contexts/ToastContext'
@@ -9,16 +9,44 @@ import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
 import ResetPasswordPage from './pages/auth/ResetPasswordPage'
-import { EmployeesPage, CreateEmployeePage, EmployeeDetailPage, EditEmployeePage, ProfilePage } from './features/employees'
-import { UsersPage, UserDetailPage, UserEditPage } from './features/users'
-import { CompaniesPage, CreateCompanyPage, EditCompanyPage } from './features/companies'
-import { BranchesPage, CreateBranchPage, EditBranchPage } from './features/branches'
-import { CategoriesPage, CreateCategoryPage, EditCategoryPage } from './features/categories'
-import { MetricUnitsPage, CreateMetricUnitPage, EditMetricUnitPage } from './features/metric_units'
-import { SubCategoriesPage, CreateSubCategoryPage, EditSubCategoryPage } from './features/categories'
-import { PermissionsPage } from './features/permissions'
-import { ProductsPage, CreateProductPage, EditProductPage } from './features/products'
-import { EmployeeBranchesPage, EmployeeBranchCreatePage, EmployeeBranchEditPage } from './features/employee_branches'
+
+// Lazy load features
+const EmployeesPage = lazy(() => import('./features/employees').then(m => ({ default: m.EmployeesPage })))
+const CreateEmployeePage = lazy(() => import('./features/employees').then(m => ({ default: m.CreateEmployeePage })))
+const EmployeeDetailPage = lazy(() => import('./features/employees').then(m => ({ default: m.EmployeeDetailPage })))
+const EditEmployeePage = lazy(() => import('./features/employees').then(m => ({ default: m.EditEmployeePage })))
+const ProfilePage = lazy(() => import('./features/employees').then(m => ({ default: m.ProfilePage })))
+const UsersPage = lazy(() => import('./features/users').then(m => ({ default: m.UsersPage })))
+const UserDetailPage = lazy(() => import('./features/users').then(m => ({ default: m.UserDetailPage })))
+const UserEditPage = lazy(() => import('./features/users').then(m => ({ default: m.UserEditPage })))
+const CompaniesPage = lazy(() => import('./features/companies').then(m => ({ default: m.CompaniesPage })))
+const CreateCompanyPage = lazy(() => import('./features/companies').then(m => ({ default: m.CreateCompanyPage })))
+const EditCompanyPage = lazy(() => import('./features/companies').then(m => ({ default: m.EditCompanyPage })))
+const BranchesPage = lazy(() => import('./features/branches').then(m => ({ default: m.BranchesPage })))
+const CreateBranchPage = lazy(() => import('./features/branches').then(m => ({ default: m.CreateBranchPage })))
+const EditBranchPage = lazy(() => import('./features/branches').then(m => ({ default: m.EditBranchPage })))
+const CategoriesPage = lazy(() => import('./features/categories').then(m => ({ default: m.CategoriesPage })))
+const CreateCategoryPage = lazy(() => import('./features/categories').then(m => ({ default: m.CreateCategoryPage })))
+const EditCategoryPage = lazy(() => import('./features/categories').then(m => ({ default: m.EditCategoryPage })))
+const SubCategoriesPage = lazy(() => import('./features/categories').then(m => ({ default: m.SubCategoriesPage })))
+const CreateSubCategoryPage = lazy(() => import('./features/categories').then(m => ({ default: m.CreateSubCategoryPage })))
+const EditSubCategoryPage = lazy(() => import('./features/categories').then(m => ({ default: m.EditSubCategoryPage })))
+const MetricUnitsPage = lazy(() => import('./features/metric_units').then(m => ({ default: m.MetricUnitsPage })))
+const CreateMetricUnitPage = lazy(() => import('./features/metric_units').then(m => ({ default: m.CreateMetricUnitPage })))
+const EditMetricUnitPage = lazy(() => import('./features/metric_units').then(m => ({ default: m.EditMetricUnitPage })))
+const PermissionsPage = lazy(() => import('./features/permissions').then(m => ({ default: m.PermissionsPage })))
+const ProductsPage = lazy(() => import('./features/products').then(m => ({ default: m.ProductsPage })))
+const CreateProductPage = lazy(() => import('./features/products').then(m => ({ default: m.CreateProductPage })))
+const EditProductPage = lazy(() => import('./features/products').then(m => ({ default: m.EditProductPage })))
+const EmployeeBranchesPage = lazy(() => import('./features/employee_branches').then(m => ({ default: m.EmployeeBranchesPage })))
+const EmployeeBranchCreatePage = lazy(() => import('./features/employee_branches').then(m => ({ default: m.EmployeeBranchCreatePage })))
+const EmployeeBranchEditPage = lazy(() => import('./features/employee_branches').then(m => ({ default: m.EmployeeBranchEditPage })))
+
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+  </div>
+)
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isInitialized } = useAuthStore()
@@ -55,41 +83,41 @@ function App() {
         {/* Protected Routes - With Layout */}
         <Route path="/" element={<Layout />}>
           <Route index element={<HomePage />} />
-          <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-          <Route path="employees" element={<ProtectedRoute><EmployeesPage /></ProtectedRoute>} />
-          <Route path="employees/create" element={<ProtectedRoute><CreateEmployeePage /></ProtectedRoute>} />
-          <Route path="employees/:id" element={<ProtectedRoute><EmployeeDetailPage /></ProtectedRoute>} />
-          <Route path="employees/edit/:id" element={<ProtectedRoute><EditEmployeePage /></ProtectedRoute>} />
-          <Route path="companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
-          <Route path="companies/new" element={<ProtectedRoute><CreateCompanyPage /></ProtectedRoute>} />
+          <Route path="profile" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><ProfilePage /></Suspense></ProtectedRoute>} />
+          <Route path="employees" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeesPage /></Suspense></ProtectedRoute>} />
+          <Route path="employees/create" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateEmployeePage /></Suspense></ProtectedRoute>} />
+          <Route path="employees/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeeDetailPage /></Suspense></ProtectedRoute>} />
+          <Route path="employees/edit/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditEmployeePage /></Suspense></ProtectedRoute>} />
+          <Route path="companies" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CompaniesPage /></Suspense></ProtectedRoute>} />
+          <Route path="companies/new" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateCompanyPage /></Suspense></ProtectedRoute>} />
           <Route path="companies/:id" element={<ProtectedRoute><div>Detail</div></ProtectedRoute>} />
-          <Route path="companies/:id/edit" element={<ProtectedRoute><EditCompanyPage /></ProtectedRoute>} />
-          <Route path="branches" element={<ProtectedRoute><BranchesPage /></ProtectedRoute>} />
-          <Route path="branches/new" element={<ProtectedRoute><CreateBranchPage /></ProtectedRoute>} />
+          <Route path="companies/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditCompanyPage /></Suspense></ProtectedRoute>} />
+          <Route path="branches" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><BranchesPage /></Suspense></ProtectedRoute>} />
+          <Route path="branches/new" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateBranchPage /></Suspense></ProtectedRoute>} />
           <Route path="branches/:id" element={<ProtectedRoute><div>Detail</div></ProtectedRoute>} />
-          <Route path="branches/:id/edit" element={<ProtectedRoute><EditBranchPage /></ProtectedRoute>} />
-          <Route path="permissions" element={<ProtectedRoute><PermissionsPage /></ProtectedRoute>} />
-          <Route path="users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
-          <Route path="users/:id" element={<ProtectedRoute><UserDetailPage /></ProtectedRoute>} />
-          <Route path="users/edit/:id" element={<ProtectedRoute><UserEditPage /></ProtectedRoute>} />
-          <Route path="categories" element={<ProtectedRoute><CategoriesPage /></ProtectedRoute>} />
-          <Route path="categories/new" element={<ProtectedRoute><CreateCategoryPage /></ProtectedRoute>} />
+          <Route path="branches/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditBranchPage /></Suspense></ProtectedRoute>} />
+          <Route path="permissions" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><PermissionsPage /></Suspense></ProtectedRoute>} />
+          <Route path="users" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><UsersPage /></Suspense></ProtectedRoute>} />
+          <Route path="users/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><UserDetailPage /></Suspense></ProtectedRoute>} />
+          <Route path="users/edit/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><UserEditPage /></Suspense></ProtectedRoute>} />
+          <Route path="categories" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CategoriesPage /></Suspense></ProtectedRoute>} />
+          <Route path="categories/new" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateCategoryPage /></Suspense></ProtectedRoute>} />
           <Route path="categories/:id" element={<ProtectedRoute><div>Detail</div></ProtectedRoute>} />
-          <Route path="categories/:id/edit" element={<ProtectedRoute><EditCategoryPage /></ProtectedRoute>} />
-          <Route path="sub-categories" element={<ProtectedRoute><SubCategoriesPage /></ProtectedRoute>} />
-          <Route path="sub-categories/new" element={<ProtectedRoute><CreateSubCategoryPage /></ProtectedRoute>} />
+          <Route path="categories/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditCategoryPage /></Suspense></ProtectedRoute>} />
+          <Route path="sub-categories" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><SubCategoriesPage /></Suspense></ProtectedRoute>} />
+          <Route path="sub-categories/new" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateSubCategoryPage /></Suspense></ProtectedRoute>} />
           <Route path="sub-categories/:id" element={<ProtectedRoute><div>Detail</div></ProtectedRoute>} />
-          <Route path="sub-categories/:id/edit" element={<ProtectedRoute><EditSubCategoryPage /></ProtectedRoute>} />
-          <Route path="metric-units" element={<ProtectedRoute><MetricUnitsPage /></ProtectedRoute>} />
-          <Route path="metric-units/new" element={<ProtectedRoute><CreateMetricUnitPage /></ProtectedRoute>} />
-          <Route path="metric-units/:id/edit" element={<ProtectedRoute><EditMetricUnitPage /></ProtectedRoute>} />
-          <Route path="products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
-          <Route path="products/create" element={<ProtectedRoute><CreateProductPage /></ProtectedRoute>} />
+          <Route path="sub-categories/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditSubCategoryPage /></Suspense></ProtectedRoute>} />
+          <Route path="metric-units" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><MetricUnitsPage /></Suspense></ProtectedRoute>} />
+          <Route path="metric-units/new" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateMetricUnitPage /></Suspense></ProtectedRoute>} />
+          <Route path="metric-units/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditMetricUnitPage /></Suspense></ProtectedRoute>} />
+          <Route path="products" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><ProductsPage /></Suspense></ProtectedRoute>} />
+          <Route path="products/create" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateProductPage /></Suspense></ProtectedRoute>} />
           <Route path="products/:id" element={<ProtectedRoute><div>Detail</div></ProtectedRoute>} />
-          <Route path="products/:id/edit" element={<ProtectedRoute><EditProductPage /></ProtectedRoute>} />
-          <Route path="employee-branches" element={<ProtectedRoute><EmployeeBranchesPage /></ProtectedRoute>} />
-          <Route path="employee-branches/create" element={<ProtectedRoute><EmployeeBranchCreatePage /></ProtectedRoute>} />
-          <Route path="employee-branches/:id/edit" element={<ProtectedRoute><EmployeeBranchEditPage /></ProtectedRoute>} />
+          <Route path="products/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditProductPage /></Suspense></ProtectedRoute>} />
+          <Route path="employee-branches" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeeBranchesPage /></Suspense></ProtectedRoute>} />
+          <Route path="employee-branches/create" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeeBranchCreatePage /></Suspense></ProtectedRoute>} />
+          <Route path="employee-branches/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeeBranchEditPage /></Suspense></ProtectedRoute>} />
         </Route>
         </Routes>
       </BrowserRouter>
