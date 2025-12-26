@@ -5,7 +5,7 @@ import { useToast } from '../../contexts/ToastContext'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import { useIsMobile } from '../../hooks/useMediaQuery'
 
-import EmployeeTable from '../../components/employees/EmployeeTable'
+import { EmployeeTable } from '@/features/employees'
 import EmployeeCard from '../../components/mobile/EmployeeCard'
 import BulkActionBar from '../../components/BulkActionBar'
 import ImportModal from '../../components/ImportModal'

@@ -1,7 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { branchService } from '@/services/branchService'
-import type { Branch, CreateBranchDto, UpdateBranchDto, BranchSort, BranchFilter } from '@/types/branch'
-import type { PaginationMeta } from '@/types/pagination'
+import { useState, useEffect } from 'react'
+import { branchesApi } from '@/features/branches'
+import type { Branch, BranchSort, BranchFilter } from '@/features/branches'
 
 export const useBranchesList = (
   page: number,
@@ -10,150 +9,26 @@ export const useBranchesList = (
   filter?: BranchFilter | null
 ) => {
   const [data, setData] = useState<Branch[]>([])
-  const [pagination, setPagination] = useState<PaginationMeta>({ total: 0, page: 1, limit: 10 })
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const abortControllerRef = useRef<AbortController | null>(null)
 
-  const fetch = useCallback(async () => {
-    // Cancel previous request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
-
-    abortControllerRef.current = new AbortController()
+  const refetch = async () => {
     setLoading(true)
-    setError(null)
-
     try {
-      const res = await branchService.list(page, limit, sort, filter)
-      setData(res.data.data)
-      setPagination(res.data.pagination)
+      const res = await branchesApi.list(page, limit, sort, filter)
+      setData(res.data)
+      setPagination(res.pagination)
     } catch (err: any) {
-      if (err.name !== 'AbortError' && err.name !== 'CanceledError') {
-        setError(err.response?.data?.error || 'Failed to fetch branches')
-      }
+      setError(err.message)
     } finally {
       setLoading(false)
     }
-  }, [page, limit, sort, filter])
+  }
 
-  // Auto-fetch on dependency change
   useEffect(() => {
-    fetch()
+    refetch()
+  }, [page, limit, JSON.stringify(sort), JSON.stringify(filter)])
 
-    // Cleanup: abort on unmount or dependency change
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-      }
-    }
-  }, [fetch])
-
-  return { data, pagination, loading, error, refetch: fetch }
-}
-
-export const useBranchById = (id: string) => {
-  const [data, setData] = useState<Branch | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetch = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await branchService.getById(id)
-      setData(res.data.data)
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch branch')
-    } finally {
-      setLoading(false)
-    }
-  }, [id])
-
-  return { data, loading, error, fetch }
-}
-
-export const useCreateBranch = () => {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<Record<string, string> | null>(null)
-
-  const create = useCallback(async (data: CreateBranchDto) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await branchService.create(data)
-      return res.data.data
-    } catch (err: any) {
-      const fieldErrors = err.response?.data?.errors
-      setError(fieldErrors || { submit: err.response?.data?.error || 'Failed to create branch' })
-      throw err
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  return { create, loading, error }
-}
-
-export const useUpdateBranch = () => {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<Record<string, string> | null>(null)
-
-  const update = useCallback(async (id: string, data: UpdateBranchDto) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await branchService.update(id, data)
-      return res.data.data
-    } catch (err: any) {
-      const fieldErrors = err.response?.data?.errors
-      setError(fieldErrors || { submit: err.response?.data?.error || 'Failed to update branch' })
-      throw err
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  return { update, loading, error }
-}
-
-export const useDeleteBranch = () => {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const delete_ = useCallback(async (id: string) => {
-    setLoading(true)
-    setError(null)
-    try {
-      await branchService.delete(id)
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to delete branch')
-      throw err
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  return { delete: delete_, loading, error }
-}
-
-export const useBulkUpdateStatus = () => {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const updateStatus = useCallback(async (ids: string[], status: string) => {
-    setLoading(true)
-    setError(null)
-    try {
-      await branchService.bulkUpdateStatus(ids, status)
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to update status')
-      throw err
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  return { updateStatus, loading, error }
+  return { data, pagination, loading, error, refetch }
 }

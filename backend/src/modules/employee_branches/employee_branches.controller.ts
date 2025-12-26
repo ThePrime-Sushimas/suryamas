@@ -1,147 +1,170 @@
-import { Request, Response } from 'express'
+import { Request, Response, NextFunction } from 'express'
 import { employeeBranchesService } from './employee_branches.service'
-import { logError } from '../../config/logger'
+import {
+  CreateEmployeeBranchSchema,
+  UpdateEmployeeBranchSchema,
+  BulkDeleteSchema,
+  PaginationQuerySchema,
+} from './employee_branches.schema'
 
 export class EmployeeBranchesController {
-  async list(req: Request, res: Response) {
+  async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const page = parseInt(req.query.page as string) || 1
-      const limit = parseInt(req.query.limit as string) || 10
+      const query = PaginationQuerySchema.parse(req.query)
+      const result = await employeeBranchesService.list(query)
 
-      const result = await employeeBranchesService.list({ page, limit })
-      res.json({ success: true, data: result.data, pagination: result.pagination })
-    } catch (error: any) {
-      logError('List employee branches failed', { error: error.message })
-      res.status(500).json({ success: false, error: error.message })
+      res.json({
+        success: true,
+        data: result.data,
+        pagination: result.pagination,
+      })
+    } catch (error) {
+      next(error)
     }
   }
 
-  async getByEmployeeId(req: Request, res: Response) {
+  async getByEmployeeId(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { employeeId } = req.params
       const data = await employeeBranchesService.getByEmployeeId(employeeId)
-      res.json({ success: true, data })
-    } catch (error: any) {
-      logError('Get employee branches failed', { error: error.message })
-      res.status(500).json({ success: false, error: error.message })
+
+      res.json({
+        success: true,
+        data,
+      })
+    } catch (error) {
+      next(error)
     }
   }
 
-  async getById(req: Request, res: Response) {
+  async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params
       const data = await employeeBranchesService.getById(id)
-      res.json({ success: true, data })
-    } catch (error: any) {
-      logError('Get employee branch failed', { error: error.message })
-      res.status(404).json({ success: false, error: error.message })
+
+      res.json({
+        success: true,
+        data,
+      })
+    } catch (error) {
+      next(error)
     }
   }
 
-  async getByBranchId(req: Request, res: Response) {
+  async getByBranchId(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { branchId } = req.params
-      const page = parseInt(req.query.page as string) || 1
-      const limit = parseInt(req.query.limit as string) || 10
+      const query = PaginationQuerySchema.parse(req.query)
+      const result = await employeeBranchesService.getByBranchId(branchId, query)
 
-      const result = await employeeBranchesService.getByBranchId(branchId, { page, limit })
-      res.json({ success: true, data: result.data, pagination: result.pagination })
-    } catch (error: any) {
-      logError('Get branch employees failed', { error: error.message })
-      res.status(500).json({ success: false, error: error.message })
+      res.json({
+        success: true,
+        data: result.data,
+        pagination: result.pagination,
+      })
+    } catch (error) {
+      next(error)
     }
   }
 
-  async getPrimaryBranch(req: Request, res: Response) {
+  async getPrimaryBranch(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { employeeId } = req.params
       const data = await employeeBranchesService.getPrimaryBranch(employeeId)
-      res.json({ success: true, data })
-    } catch (error: any) {
-      logError('Get primary branch failed', { error: error.message })
-      res.status(500).json({ success: false, error: error.message })
-    }
-  }
 
-  async create(req: Request, res: Response) {
-    try {
-      const { employee_id, branch_id, is_primary } = req.body
-
-      const result = await employeeBranchesService.create({
-        employee_id,
-        branch_id,
-        is_primary,
+      res.json({
+        success: true,
+        data,
       })
-
-      res.status(201).json({ success: true, data: result, message: 'Employee branch created' })
-    } catch (error: any) {
-      logError('Create employee branch failed', { error: error.message })
-      res.status(400).json({ success: false, error: error.message })
+    } catch (error) {
+      next(error)
     }
   }
 
-  async update(req: Request, res: Response) {
+  async create(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const validated = CreateEmployeeBranchSchema.parse(req.body)
+      const result = await employeeBranchesService.create(validated)
+
+      res.status(201).json({
+        success: true,
+        data: result,
+        message: 'Employee branch assignment created',
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params
-      const { is_primary } = req.body
+      const validated = UpdateEmployeeBranchSchema.parse(req.body)
+      const result = await employeeBranchesService.update(id, validated)
 
-      const result = await employeeBranchesService.update(id, { is_primary })
-      res.json({ success: true, data: result, message: 'Employee branch updated' })
-    } catch (error: any) {
-      logError('Update employee branch failed', { error: error.message })
-      res.status(400).json({ success: false, error: error.message })
+      res.json({
+        success: true,
+        data: result,
+        message: 'Employee branch assignment updated',
+      })
+    } catch (error) {
+      next(error)
     }
   }
 
-  async setPrimaryBranch(req: Request, res: Response) {
+  async setPrimaryBranch(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { employeeId, branchId } = req.params
-
       await employeeBranchesService.setPrimaryBranch(employeeId, branchId)
-      res.json({ success: true, message: 'Primary branch set' })
-    } catch (error: any) {
-      logError('Set primary branch failed', { error: error.message })
-      res.status(400).json({ success: false, error: error.message })
+
+      res.json({
+        success: true,
+        message: 'Primary branch set successfully',
+      })
+    } catch (error) {
+      next(error)
     }
   }
 
-  async delete(req: Request, res: Response) {
+  async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params
-
       await employeeBranchesService.delete(id)
-      res.json({ success: true, message: 'Employee branch deleted' })
-    } catch (error: any) {
-      logError('Delete employee branch failed', { error: error.message })
-      res.status(500).json({ success: false, error: error.message })
+
+      res.json({
+        success: true,
+        message: 'Employee branch assignment deleted',
+      })
+    } catch (error) {
+      next(error)
     }
   }
 
-  async deleteByEmployeeAndBranch(req: Request, res: Response) {
+  async deleteByEmployeeAndBranch(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { employeeId, branchId } = req.params
-
       await employeeBranchesService.deleteByEmployeeAndBranch(employeeId, branchId)
-      res.json({ success: true, message: 'Employee branch deleted' })
-    } catch (error: any) {
-      logError('Delete employee branch failed', { error: error.message })
-      res.status(500).json({ success: false, error: error.message })
+
+      res.json({
+        success: true,
+        message: 'Employee branch assignment deleted',
+      })
+    } catch (error) {
+      next(error)
     }
   }
 
-  async bulkDelete(req: Request, res: Response) {
+  async bulkDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { ids } = req.body
+      const validated = BulkDeleteSchema.parse(req.body)
+      await employeeBranchesService.bulkDelete(validated.ids)
 
-      if (!Array.isArray(ids) || ids.length === 0) {
-        return res.status(400).json({ success: false, error: 'ids array is required' })
-      }
-
-      await employeeBranchesService.bulkDelete(ids)
-      res.json({ success: true, message: 'Employee branches deleted' })
-    } catch (error: any) {
-      logError('Bulk delete employee branches failed', { error: error.message })
-      res.status(500).json({ success: false, error: error.message })
+      res.json({
+        success: true,
+        message: `${validated.ids.length} employee branch assignments deleted`,
+      })
+    } catch (error) {
+      next(error)
     }
   }
 }

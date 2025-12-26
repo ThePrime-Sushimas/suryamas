@@ -1,6 +1,3 @@
-// Re-export product types
-export type { Product, ProductUom, ProductStatus, UomStatus, CreateProductDto, UpdateProductDto, CreateProductUomDto, UpdateProductUomDto } from './product'
-
 export interface Employee {
   id: string
   employee_id: string

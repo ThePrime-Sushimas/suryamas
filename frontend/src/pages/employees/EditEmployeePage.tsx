@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import api from '../../lib/axios'
 import type { Employee, ApiResponse } from '../../types'
-import EmployeeForm from '../../components/employees/EmployeeForm'
+import { EmployeeForm } from '@/features/employees'
 
 export default function EditEmployeePage() {
   const { id } = useParams<{ id: string }>()
