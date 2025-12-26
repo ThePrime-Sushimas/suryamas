@@ -142,6 +142,15 @@ export class EmployeeBranchesRepository {
     if (error) throw error
   }
 
+  async unsetPrimaryForEmployee(employeeId: string): Promise<void> {
+    const { error } = await supabase
+      .from('employee_branches')
+      .update({ is_primary: false })
+      .eq('employee_id', employeeId)
+
+    if (error) throw error
+  }
+
   async delete(id: string): Promise<void> {
     const { error } = await supabase
       .from('employee_branches')

@@ -86,9 +86,19 @@ export class EmployeeBranchesService {
     const existing = await employeeBranchesRepository.findByEmployeeAndBranch(data.employee_id, data.branch_id)
     if (existing) throw EmployeeBranchErrors.ALREADY_EXISTS()
 
-    // If this is first branch or marked as primary, ensure it's primary
+    // Check if employee already has branches
     const currentBranches = await employeeBranchesRepository.findByEmployeeId(data.employee_id)
-    const isPrimary = data.is_primary || currentBranches.length === 0
+    
+    // Determine if this should be primary
+    let isPrimary = false
+    if (currentBranches.length === 0) {
+      // First branch is always primary
+      isPrimary = true
+    } else if (data.is_primary === true) {
+      // User explicitly wants this as primary, unset others first
+      await employeeBranchesRepository.unsetPrimaryForEmployee(data.employee_id)
+      isPrimary = true
+    }
 
     const created = await employeeBranchesRepository.create({
       employee_id: data.employee_id,
