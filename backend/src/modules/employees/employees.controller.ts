@@ -5,6 +5,13 @@ import { logInfo, logError } from '../../config/logger'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
 import { handleBulkUpdate, handleBulkDelete } from '../../utils/bulk.util'
 import type { AuthenticatedPaginatedRequest, AuthenticatedRequest } from '../../types/request.types'
+import { 
+  CreateEmployeeSchema, 
+  UpdateEmployeeSchema, 
+  UpdateProfileSchema,
+  EmployeeSearchSchema,
+  BulkUpdateActiveSchema 
+} from './employees.schema'
 
 export class EmployeesController {
   async list(req: AuthenticatedPaginatedRequest, res: Response) {
@@ -43,7 +50,8 @@ export class EmployeesController {
   
   async create(req: AuthenticatedRequest, res: Response) {
     try {
-      const employee = await employeesService.create(req.body, req.file, req.user.id)
+      const payload = CreateEmployeeSchema.parse(req.body)
+      const employee = await employeesService.create(payload, req.file, req.user.id)
       logInfo('Employee created', { 
         employee_id: employee.employee_id,
         user: req.user.id 
@@ -61,8 +69,8 @@ export class EmployeesController {
 
   async search(req: AuthenticatedPaginatedRequest, res: Response) {
     try {
-      const { q } = req.query
-      const result = await employeesService.search(q as string, req.pagination)
+      const { q } = EmployeeSearchSchema.parse(req.query)
+      const result = await employeesService.search(q, req.pagination)
       res.json({
         success: true,
         data: result.data,
@@ -121,7 +129,8 @@ export class EmployeesController {
 
   async updateProfile(req: AuthenticatedRequest, res: Response) {
     try {
-      const employee = await employeesService.updateProfile(req.user.id, req.body)
+      const payload = UpdateProfileSchema.parse(req.body)
+      const employee = await employeesService.updateProfile(req.user.id, payload)
       logInfo('Profile updated', { user: req.user.id })
       sendSuccess(res, employee, 'Profile updated')
     } catch (error) {
@@ -150,7 +159,8 @@ export class EmployeesController {
 
   async update(req: AuthenticatedRequest, res: Response) {
     try {
-      const employee = await employeesService.update(req.params.id, req.body, req.file, req.user.id)
+      const payload = UpdateEmployeeSchema.parse(req.body)
+      const employee = await employeesService.update(req.params.id, payload, req.file, req.user.id)
       logInfo('Employee updated', { 
         id: req.params.id,
         user: req.user.id 
@@ -233,7 +243,18 @@ export class EmployeesController {
   }
 
   async bulkUpdateActive(req: AuthenticatedRequest, res: Response) {
-    return handleBulkUpdate(req, res, (ids, data) => employeesService.bulkUpdateActive(ids, data.is_active), 'update active')
+    try {
+      const payload = BulkUpdateActiveSchema.parse(req.body)
+      await employeesService.bulkUpdateActive(payload.ids, payload.is_active)
+      logInfo('Bulk update active', { count: payload.ids.length, user: req.user.id })
+      sendSuccess(res, null, 'Employees updated')
+    } catch (error) {
+      logError('Failed to bulk update active', {
+        error: (error as Error).message,
+        user: req.user.id
+      })
+      sendError(res, (error as Error).message, 400)
+    }
   }
 
   async bulkDelete(req: AuthenticatedRequest, res: Response) {
