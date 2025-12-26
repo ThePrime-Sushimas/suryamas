@@ -1,5 +1,5 @@
 import api from '../lib/axios'
-import type { Role, Module, RoleWithPermissions } from '../types/permission'
+import type { Role, Module, RoleWithPermissions } from '@/features/permissions'
 
 export const permissionService = {
   async getRoles() {

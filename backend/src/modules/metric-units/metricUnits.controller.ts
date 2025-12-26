@@ -2,7 +2,7 @@ import { Response } from 'express'
 import { metricUnitsService } from './metricUnits.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logInfo, logError } from '../../config/logger'
-import { AuthenticatedPaginatedRequest } from '../../middleware/pagination.middleware'
+import { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 import { getPaginationParams } from '../../utils/pagination.util'
 
 export class MetricUnitsController {

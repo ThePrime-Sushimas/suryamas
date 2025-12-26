@@ -1,6 +1,19 @@
 import { create } from 'zustand'
-import api from '../lib/axios'
-import type { User, ApiResponse } from '../types'
+import api from '@/lib/axios'
+
+interface User {
+  id: string
+  email: string
+  full_name: string
+  job_position: string
+  created_at: string
+  is_active?: boolean
+}
+
+interface ApiResponse<T> {
+  success: boolean
+  data: T
+}
 
 interface AuthState {
   user: User | null

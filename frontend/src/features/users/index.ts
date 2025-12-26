@@ -1,4 +1,6 @@
 export * from './api/users.api'
 export * from './store/users.store'
 export { default as UsersPage } from './pages/UsersPage'
+export { default as UserDetailPage } from './pages/UserDetailPage'
+export { default as UserEditPage } from './pages/UserEditPage'
 export * from './types'

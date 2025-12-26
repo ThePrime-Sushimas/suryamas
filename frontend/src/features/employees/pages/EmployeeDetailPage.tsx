@@ -1,8 +1,45 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { User, Mail, CreditCard, Briefcase, Settings, ArrowLeft, Edit } from 'lucide-react'
-import api from '../../lib/axios'
-import type { Employee, ApiResponse } from '../../types'
+import api from '@/lib/axios'
+
+interface Employee {
+  id: string
+  employee_id: string
+  full_name: string
+  job_position: string
+  join_date: string
+  resign_date: string | null
+  status_employee: string
+  end_date: string | null
+  sign_date: string | null
+  email: string | null
+  birth_date: string | null
+  age: number | null
+  years_of_service?: { years: number; months: number; days: number } | null
+  birth_place: string | null
+  citizen_id_address: string | null
+  ptkp_status: string
+  bank_name: string | null
+  bank_account: string | null
+  bank_account_holder: string | null
+  nik: string | null
+  mobile_phone: string | null
+  branch_name?: string | null
+  brand_name: string | null
+  religion: string | null
+  gender: string | null
+  marital_status: string | null
+  profile_picture: string | null
+  created_at: string
+  updated_at: string
+  is_active: boolean
+}
+
+interface ApiResponse<T> {
+  success: boolean
+  data: T
+}
 
 type Tab = 'personal' | 'contact' | 'employment' | 'banking' | 'system'
 

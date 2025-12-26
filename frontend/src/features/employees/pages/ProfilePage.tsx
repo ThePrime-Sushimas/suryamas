@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useEmployeeStore } from '../../stores/employeeStore'
-import { useToast } from '../../contexts/ToastContext'
+import { useEmployeeStore } from '@/features/employees'
+import { useToast } from '@/contexts/ToastContext'
 import { User, Mail, CreditCard, Briefcase, Settings } from 'lucide-react'
 
 type FormData = {

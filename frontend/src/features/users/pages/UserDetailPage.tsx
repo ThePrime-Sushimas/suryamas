@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { userService } from '../../services/userService'
-import type { User } from '../../services/userService'
+import { usersApi } from '@/features/users'
+import type { User } from '@/features/users'
 
 export default function UserDetailPage() {
   const { id } = useParams()
@@ -15,7 +15,7 @@ export default function UserDetailPage() {
 
   const loadData = async () => {
     try {
-      const usersData = await userService.getAll()
+      const usersData = await usersApi.getAll()
       const userData = usersData.find(u => u.employee_id === id)
       setUser(userData || null)
     } catch (error) {

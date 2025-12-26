@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuthStore } from '../../stores/authStore'
+import { useAuthStore } from '@/features/auth'
 import MobileDrawer from '../mobile/MobileDrawer'
 
 export default function Navbar() {

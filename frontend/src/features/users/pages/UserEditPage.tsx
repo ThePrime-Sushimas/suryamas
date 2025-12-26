@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { userService } from '../../services/userService'
-import type { User } from '../../services/userService'
-import { permissionService } from '../../services/permissionService'
-import type { Role } from '../../types/permission'
+import { usersApi } from '@/features/users'
+import type { User } from '@/features/users'
+import { permissionsApi } from '@/features/permissions'
+import type { Role } from '@/features/permissions'
 
 export default function UserEditPage() {
   const { id } = useParams()
@@ -20,8 +20,8 @@ export default function UserEditPage() {
   const loadData = async () => {
     try {
       const [usersData, rolesData] = await Promise.all([
-        userService.getAll(),
-        permissionService.getRoles(),
+        usersApi.getAll(),
+        permissionsApi.getRoles(),
       ])
       const userData = usersData.find(u => u.employee_id === id)
       setUser(userData || null)
@@ -39,7 +39,7 @@ export default function UserEditPage() {
     if (!id) return
 
     try {
-      await userService.assignRole(id, selectedRole)
+      await usersApi.assignRole(id, selectedRole)
       alert('Role updated successfully!')
       // Reload data to ensure fresh state
       await loadData()

@@ -3,6 +3,7 @@ export interface User {
   full_name: string
   email: string
   branch: string
+  job_position: string
   has_account: boolean
   role_id: string | null
   role_name: string | null

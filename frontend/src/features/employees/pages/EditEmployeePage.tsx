@@ -1,8 +1,38 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import api from '../../lib/axios'
-import type { Employee, ApiResponse } from '../../types'
+import api from '@/lib/axios'
 import { EmployeeForm } from '@/features/employees'
+
+interface Employee {
+  full_name: string
+  job_position: string
+  brand_name: string | null
+  ptkp_status: string
+  status_employee: string
+  join_date: string
+  resign_date: string | null
+  sign_date: string | null
+  end_date: string | null
+  email: string | null
+  mobile_phone: string | null
+  nik: string | null
+  birth_date: string | null
+  birth_place: string | null
+  citizen_id_address: string | null
+  religion: string | null
+  gender: string | null
+  marital_status: string | null
+  bank_name: string | null
+  bank_account: string | null
+  bank_account_holder: string | null
+  branch_name?: string | null
+  branch_code?: string | null
+}
+
+interface ApiResponse<T> {
+  success: boolean
+  data: T
+}
 
 export default function EditEmployeePage() {
   const { id } = useParams<{ id: string }>()

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useLocation, Link, Outlet, useNavigate } from 'react-router-dom'
 import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard,Key, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User } from 'lucide-react'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore } from '@/features/auth'
 
 interface MenuItem {
   id: string

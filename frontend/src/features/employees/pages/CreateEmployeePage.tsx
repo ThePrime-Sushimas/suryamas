@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useEmployeeStore } from '../../stores/employeeStore'
-import { useToast } from '../../contexts/ToastContext'
+import { useEmployeeStore } from '@/features/employees'
+import { useToast } from '@/contexts/ToastContext'
 import { EmployeeForm } from '@/features/employees'
 
 export default function CreateEmployeePage() {

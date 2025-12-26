@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import api from '../lib/axios'
-import type { ApiResponse } from '../types'
+
+interface ApiResponse<T> {
+  success: boolean
+  data: T
+}
 
 interface ExportButtonProps {
   endpoint: string
