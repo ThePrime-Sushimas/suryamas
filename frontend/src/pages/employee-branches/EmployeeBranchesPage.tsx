@@ -19,14 +19,14 @@ export function EmployeeBranchesPage() {
   const { success, error: showError } = useToast()
   
   const [page, setPage] = useState<number>(PAGINATION.DEFAULT_PAGE)
-  const [limit, setLimit] = useState<number>(PAGINATION.DEFAULT_LIMIT)
+  const [limit] = useState<number>(PAGINATION.DEFAULT_LIMIT)
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   
   const filter: EmployeeBranchFilter | null = search ? { search } : null
   const { data, pagination, loading, error, refetch } = useEmployeeBranchesList(page, limit, filter)
   
-  const { selectedIds, selectOne, selectAll, clearSelection } = useBulkSelection(data)
+  const { selectedIds, selectOne, clearSelection } = useBulkSelection(data)
   const [bulkLoading, setBulkLoading] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
   
