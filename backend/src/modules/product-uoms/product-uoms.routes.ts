@@ -3,47 +3,27 @@ import { authenticate } from '../../middleware/auth.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { productUomsController } from './product-uoms.controller'
 import { PermissionService } from '../../services/permission.service'
+import type { AuthenticatedRequest } from '../../types/request.types'
 
 PermissionService.registerModule('product-uoms', 'Product UOM Management').catch(() => {})
 
 const router = Router({ mergeParams: true })
 
-// All routes require authentication
 router.use(authenticate)
 
-// Get UOMs for product
-router.get(
-  '/',
-  canView('product-uoms'),
-  productUomsController.list
-)
+router.get('/', canView('product-uoms'), (req, res) => 
+  productUomsController.list(req as AuthenticatedRequest, res))
 
-// Create UOM
-router.post(
-  '/',
-  canInsert('product-uoms'),
-  productUomsController.create
-)
+router.post('/', canInsert('product-uoms'), (req, res) => 
+  productUomsController.create(req as AuthenticatedRequest, res))
 
-// Update UOM
-router.put(
-  '/:uomId',
-  canUpdate('product-uoms'),
-  productUomsController.update
-)
+router.put('/:uomId', canUpdate('product-uoms'), (req, res) => 
+  productUomsController.update(req as AuthenticatedRequest, res))
 
-// Delete UOM
-router.delete(
-  '/:uomId',
-  canDelete('product-uoms'),
-  productUomsController.delete
-)
+router.delete('/:uomId', canDelete('product-uoms'), (req, res) => 
+  productUomsController.delete(req as AuthenticatedRequest, res))
 
-// Restore UOM
-router.post(
-  '/:uomId/restore',
-  canUpdate('product-uoms'),
-  productUomsController.restore
-)
+router.post('/:uomId/restore', canUpdate('product-uoms'), (req, res) => 
+  productUomsController.restore(req as AuthenticatedRequest, res))
 
 export default router

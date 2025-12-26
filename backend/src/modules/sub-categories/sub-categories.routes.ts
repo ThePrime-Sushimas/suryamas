@@ -5,6 +5,7 @@ import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
 import { subCategoriesController } from './sub-categories.controller'
 import { PermissionService } from '../../services/permission.service'
+import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 
 const router = Router()
 
@@ -12,24 +13,34 @@ PermissionService.registerModule('sub_categories', 'SubCategory Management').cat
 
 router.use(authenticate)
 
-router.get('/search', canView('sub_categories'), paginationMiddleware, sortMiddleware, subCategoriesController.search)
+router.get('/search', canView('sub_categories'), paginationMiddleware, sortMiddleware, (req, res) => 
+  subCategoriesController.search(req as AuthenticatedQueryRequest, res))
 
-router.get('/trash', canView('sub_categories'), paginationMiddleware, sortMiddleware, subCategoriesController.trash)
+router.get('/trash', canView('sub_categories'), paginationMiddleware, sortMiddleware, (req, res) => 
+  subCategoriesController.trash(req as AuthenticatedQueryRequest, res))
 
-router.get('/category/:categoryId', canView('sub_categories'), subCategoriesController.getByCategory)
+router.get('/category/:categoryId', canView('sub_categories'), (req, res) => 
+  subCategoriesController.getByCategory(req as AuthenticatedRequest, res))
 
-router.get('/', canView('sub_categories'), paginationMiddleware, sortMiddleware, subCategoriesController.list)
+router.get('/', canView('sub_categories'), paginationMiddleware, sortMiddleware, (req, res) => 
+  subCategoriesController.list(req as AuthenticatedQueryRequest, res))
 
-router.get('/:id', canView('sub_categories'), subCategoriesController.getById)
+router.get('/:id', canView('sub_categories'), (req, res) => 
+  subCategoriesController.getById(req as AuthenticatedRequest, res))
 
-router.post('/', canInsert('sub_categories'), subCategoriesController.create)
+router.post('/', canInsert('sub_categories'), (req, res) => 
+  subCategoriesController.create(req as AuthenticatedRequest, res))
 
-router.put('/:id', canUpdate('sub_categories'), subCategoriesController.update)
+router.put('/:id', canUpdate('sub_categories'), (req, res) => 
+  subCategoriesController.update(req as AuthenticatedRequest, res))
 
-router.delete('/:id', canDelete('sub_categories'), subCategoriesController.delete)
+router.delete('/:id', canDelete('sub_categories'), (req, res) => 
+  subCategoriesController.delete(req as AuthenticatedRequest, res))
 
-router.patch('/:id/restore', canUpdate('sub_categories'), subCategoriesController.restore)
+router.patch('/:id/restore', canUpdate('sub_categories'), (req, res) => 
+  subCategoriesController.restore(req as AuthenticatedRequest, res))
 
-router.post('/bulk/delete', canDelete('sub_categories'), subCategoriesController.bulkDelete)
+router.post('/bulk/delete', canDelete('sub_categories'), (req, res) => 
+  subCategoriesController.bulkDelete(req as AuthenticatedRequest, res))
 
 export default router

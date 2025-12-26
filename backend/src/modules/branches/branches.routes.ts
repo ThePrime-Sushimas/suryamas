@@ -6,6 +6,7 @@ import { sortMiddleware } from '../../middleware/sort.middleware'
 import { filterMiddleware } from '../../middleware/filter.middleware'
 import { branchesController } from './branches.controller'
 import { PermissionService } from '../../services/permission.service'
+import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 
 const router = Router()
 
@@ -19,14 +20,14 @@ router.use(authenticate)
 router.get(
   '/filter-options',
   canView('branches'),
-  branchesController.getFilterOptions
+  (req, res) => branchesController.getFilterOptions(req as AuthenticatedRequest, res)
 )
 
 // Get minimal active branches (for dropdown)
 router.get(
   '/minimal/active',
   canView('branches'),
-  branchesController.minimalActive
+  (req, res) => branchesController.minimalActive(req as AuthenticatedRequest, res)
 )
 
 // Search branches
@@ -36,7 +37,7 @@ router.get(
   paginationMiddleware,
   sortMiddleware,
   filterMiddleware,
-  branchesController.search
+  (req, res) => branchesController.search(req as AuthenticatedQueryRequest, res)
 )
 
 // List branches
@@ -46,42 +47,42 @@ router.get(
   paginationMiddleware,
   sortMiddleware,
   filterMiddleware,
-  branchesController.list
+  (req, res) => branchesController.list(req as AuthenticatedQueryRequest, res)
 )
 
 // Get branch by ID
 router.get(
   '/:id',
   canView('branches'),
-  branchesController.getById
+  (req, res) => branchesController.getById(req as AuthenticatedRequest, res)
 )
 
 // Create branch
 router.post(
   '/',
   canInsert('branches'),
-  branchesController.create
+  (req, res) => branchesController.create(req as AuthenticatedRequest, res)
 )
 
 // Update branch
 router.put(
   '/:id',
   canUpdate('branches'),
-  branchesController.update
+  (req, res) => branchesController.update(req as AuthenticatedRequest, res)
 )
 
 // Delete branch
 router.delete(
   '/:id',
   canDelete('branches'),
-  branchesController.delete
+  (req, res) => branchesController.delete(req as AuthenticatedRequest, res)
 )
 
 // Bulk update status
 router.post(
   '/bulk/update-status',
   canUpdate('branches'),
-  branchesController.bulkUpdateStatus
+  (req, res) => branchesController.bulkUpdateStatus(req as AuthenticatedRequest, res)
 )
 
 export default router

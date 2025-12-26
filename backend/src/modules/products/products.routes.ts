@@ -6,118 +6,61 @@ import { sortMiddleware } from '../../middleware/sort.middleware'
 import { productsController } from './products.controller'
 import productUomsRoutes from '../product-uoms/product-uoms.routes'
 import { PermissionService } from '../../services/permission.service'
+import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 import multer from 'multer'
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage() })
 
-// Register module
 PermissionService.registerModule('products', 'Product Management').catch(() => {})
 
-// All routes require authentication
 router.use(authenticate)
 
-// Export
-router.get(
-  '/export',
-  canView('products'),
-  productsController.export
-)
+router.get('/export', canView('products'), (req, res) => 
+  productsController.export(req as AuthenticatedRequest, res))
 
-// Import preview
-router.post(
-  '/import/preview',
-  canInsert('products'),
-  upload.single('file'),
-  productsController.importPreview
-)
+router.post('/import/preview', canInsert('products'), upload.single('file'), (req, res) => 
+  productsController.importPreview(req as AuthenticatedRequest, res))
 
-// Import
-router.post(
-  '/import',
-  canInsert('products'),
-  upload.single('file'),
-  productsController.import
-)
+router.post('/import', canInsert('products'), upload.single('file'), (req, res) => 
+  productsController.import(req as AuthenticatedRequest, res))
 
-// Products routes
-router.get(
-  '/',
-  canView('products'),
-  paginationMiddleware,
-  sortMiddleware,
-  productsController.list
-)
+router.get('/', canView('products'), paginationMiddleware, sortMiddleware, (req, res) => 
+  productsController.list(req as AuthenticatedQueryRequest, res))
 
-router.get(
-  '/search',
-  canView('products'),
-  paginationMiddleware,
-  sortMiddleware,
-  productsController.search
-)
+router.get('/search', canView('products'), paginationMiddleware, sortMiddleware, (req, res) => 
+  productsController.search(req as AuthenticatedQueryRequest, res))
 
-router.get(
-  '/filter-options',
-  canView('products'),
-  productsController.getFilterOptions
-)
+router.get('/filter-options', canView('products'), (req, res) => 
+  productsController.getFilterOptions(req as AuthenticatedRequest, res))
 
-router.get(
-  '/minimal/active',
-  authenticate,
-  productsController.minimalActive
-)
+router.get('/minimal/active', authenticate, (req, res) => 
+  productsController.minimalActive(req as AuthenticatedRequest, res))
 
-router.get(
-  '/check/name',
-  canView('products'),
-  productsController.checkProductName
-)
+router.get('/check/name', canView('products'), (req, res) => 
+  productsController.checkProductName(req as AuthenticatedRequest, res))
 
-router.get(
-  '/:id',
-  canView('products'),
-  productsController.getById
-)
+router.get('/:id', canView('products'), (req, res) => 
+  productsController.getById(req as AuthenticatedRequest, res))
 
-router.post(
-  '/',
-  canInsert('products'),
-  productsController.create
-)
+router.post('/', canInsert('products'), (req, res) => 
+  productsController.create(req as AuthenticatedRequest, res))
 
-router.put(
-  '/:id',
-  canUpdate('products'),
-  productsController.update
-)
+router.put('/:id', canUpdate('products'), (req, res) => 
+  productsController.update(req as AuthenticatedRequest, res))
 
-router.delete(
-  '/:id',
-  canDelete('products'),
-  productsController.delete
-)
+router.delete('/:id', canDelete('products'), (req, res) => 
+  productsController.delete(req as AuthenticatedRequest, res))
 
-router.post(
-  '/bulk/delete',
-  canDelete('products'),
-  productsController.bulkDelete
-)
+router.post('/bulk/delete', canDelete('products'), (req, res) => 
+  productsController.bulkDelete(req as AuthenticatedRequest, res))
 
-router.post(
-  '/bulk/update-status',
-  canUpdate('products'),
-  productsController.bulkUpdateStatus
-)
+router.post('/bulk/update-status', canUpdate('products'), (req, res) => 
+  productsController.bulkUpdateStatus(req as AuthenticatedRequest, res))
 
-router.post(
-  '/:id/restore',
-  canUpdate('products'),
-  productsController.restore
-)
+router.post('/:id/restore', canUpdate('products'), (req, res) => 
+  productsController.restore(req as AuthenticatedRequest, res))
 
-// Product UOMs routes
 router.use('/:productId/uoms', productUomsRoutes)
 
 export default router

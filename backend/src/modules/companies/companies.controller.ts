@@ -1,16 +1,14 @@
 import { Response } from 'express'
-import { AuthRequest } from '../../types/common.types'
 import { companiesService } from './companies.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logInfo, logError } from '../../config/logger'
-import { PaginatedRequest } from '../../middleware/pagination.middleware'
-import { SortRequest } from '../../middleware/sort.middleware'
 import { getPaginationParams } from '../../utils/pagination.util'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
 import { handleBulkUpdate, handleBulkDelete } from '../../utils/bulk.util'
+import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 
 export class CompaniesController {
-  async list(req: PaginatedRequest & SortRequest, res: Response) {
+  async list(req: AuthenticatedQueryRequest, res: Response) {
     try {
       const { offset } = getPaginationParams(req.query)
       const result = await companiesService.list({ ...req.pagination, offset }, req.sort)
@@ -22,13 +20,13 @@ export class CompaniesController {
     } catch (error) {
       logError('Failed to list companies', {
         error: (error as Error).message,
-        user: (req as AuthRequest).user?.id
+        user: req.user?.id
       })
       sendError(res, (error as Error).message, 400)
     }
   }
 
-  async search(req: PaginatedRequest & SortRequest, res: Response) {
+  async search(req: AuthenticatedQueryRequest, res: Response) {
     try {
       const { q } = req.query
       const { offset } = getPaginationParams(req.query)
@@ -42,13 +40,13 @@ export class CompaniesController {
       logError('Failed to search companies', {
         error: (error as Error).message,
         query: req.query.q,
-        user: (req as AuthRequest).user?.id
+        user: req.user?.id
       })
       sendError(res, (error as Error).message, 400)
     }
   }
 
-  async create(req: AuthRequest, res: Response) {
+  async create(req: AuthenticatedRequest, res: Response) {
     try {
       const company = await companiesService.create(req.body, req.user?.id)
       logInfo('Company created', {
@@ -66,7 +64,7 @@ export class CompaniesController {
     }
   }
 
-  async getById(req: AuthRequest, res: Response) {
+  async getById(req: AuthenticatedRequest, res: Response) {
     try {
       const company = await companiesService.getById(req.params.id)
       sendSuccess(res, company)
@@ -80,7 +78,7 @@ export class CompaniesController {
     }
   }
 
-  async update(req: AuthRequest, res: Response) {
+  async update(req: AuthenticatedRequest, res: Response) {
     try {
       const company = await companiesService.update(req.params.id, req.body, req.user?.id)
       logInfo('Company updated', {
@@ -98,7 +96,7 @@ export class CompaniesController {
     }
   }
 
-  async delete(req: AuthRequest, res: Response) {
+  async delete(req: AuthenticatedRequest, res: Response) {
     try {
       await companiesService.delete(req.params.id, req.user?.id)
       logInfo('Company deleted', {
@@ -116,7 +114,7 @@ export class CompaniesController {
     }
   }
 
-  async getFilterOptions(req: AuthRequest, res: Response) {
+  async getFilterOptions(req: AuthenticatedRequest, res: Response) {
     try {
       const options = await companiesService.getFilterOptions()
       sendSuccess(res, options)
@@ -129,27 +127,27 @@ export class CompaniesController {
     }
   }
 
-  async generateExportToken(req: AuthRequest, res: Response) {
+  async generateExportToken(req: AuthenticatedRequest, res: Response) {
     return handleExportToken(req, res)
   }
 
-  async exportData(req: AuthRequest, res: Response) {
+  async exportData(req: AuthenticatedRequest, res: Response) {
     return handleExport(req, res, (filter) => companiesService.exportToExcel(filter), 'companies')
   }
 
-  async previewImport(req: AuthRequest, res: Response) {
+  async previewImport(req: AuthenticatedRequest, res: Response) {
     return handleImportPreview(req, res, (buffer) => companiesService.previewImport(buffer))
   }
 
-  async importData(req: AuthRequest, res: Response) {
+  async importData(req: AuthenticatedRequest, res: Response) {
     return handleImport(req, res, (buffer, skip) => companiesService.importFromExcel(buffer, skip))
   }
 
-  async bulkUpdateStatus(req: AuthRequest, res: Response) {
+  async bulkUpdateStatus(req: AuthenticatedRequest, res: Response) {
     return handleBulkUpdate(req, res, (ids, data) => companiesService.bulkUpdateStatus(ids, data.status, req.user?.id), 'update status')
   }
 
-  async bulkDelete(req: AuthRequest, res: Response) {
+  async bulkDelete(req: AuthenticatedRequest, res: Response) {
     return handleBulkDelete(req, res, (ids) => companiesService.bulkDelete(ids, req.user?.id))
   }
 }
