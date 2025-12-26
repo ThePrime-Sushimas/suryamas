@@ -10,7 +10,6 @@ export interface AuthUser {
 export interface PaginationParams {
   page: number
   limit: number
-  offset: number
 }
 
 export interface SortParams {
@@ -42,7 +41,7 @@ export interface AuthenticatedFilteredRequest extends AuthenticatedRequest {
   queryFilter?: QueryFilter
 }
 
-// Authenticated request with pagination, sort, and filter
+// Authenticated request with pagination + sort + filter
 export interface AuthenticatedQueryRequest extends AuthenticatedRequest {
   pagination: PaginationParams
   sort?: SortParams

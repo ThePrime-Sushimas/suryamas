@@ -1,14 +1,12 @@
 import { Response } from 'express'
-import { AuthRequest } from '../../types/common.types'
 import { metricUnitsService } from './metricUnits.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logInfo, logError } from '../../config/logger'
-import { PaginatedRequest } from '../../middleware/pagination.middleware'
-import { SortRequest } from '../../middleware/sort.middleware'
+import { AuthenticatedPaginatedRequest } from '../../middleware/pagination.middleware'
 import { getPaginationParams } from '../../utils/pagination.util'
 
 export class MetricUnitsController {
-  async list(req: PaginatedRequest & SortRequest, res: Response) {
+  async list(req: AuthenticatedQueryRequest, res: Response) {
     try {
       const { offset } = getPaginationParams(req.query)
       const result = await metricUnitsService.list({ ...req.pagination, offset }, req.sort)
@@ -19,7 +17,7 @@ export class MetricUnitsController {
     }
   }
 
-  async listActive(req: PaginatedRequest & SortRequest, res: Response) {
+  async listActive(req: AuthenticatedQueryRequest, res: Response) {
     try {
       const { offset } = getPaginationParams(req.query)
       const result = await metricUnitsService.listActive({ ...req.pagination, offset }, req.sort)
@@ -30,7 +28,7 @@ export class MetricUnitsController {
     }
   }
 
-  async getById(req: AuthRequest, res: Response) {
+  async getById(req: AuthenticatedRequest, res: Response) {
     try {
       const id = req.params.id
       if (!id) return sendError(res, 'Invalid ID', 400)
@@ -43,7 +41,7 @@ export class MetricUnitsController {
     }
   }
 
-  async create(req: AuthRequest, res: Response) {
+  async create(req: AuthenticatedRequest, res: Response) {
     try {
       const metricUnit = await metricUnitsService.create(req.body, req.user?.id)
       logInfo('Metric unit created', { id: metricUnit.id })
@@ -57,7 +55,7 @@ export class MetricUnitsController {
     }
   }
 
-  async update(req: AuthRequest, res: Response) {
+  async update(req: AuthenticatedRequest, res: Response) {
     try {
       const id = req.params.id
       if (!id) return sendError(res, 'Invalid ID', 400)
@@ -74,7 +72,7 @@ export class MetricUnitsController {
     }
   }
 
-  async delete(req: AuthRequest, res: Response) {
+  async delete(req: AuthenticatedRequest, res: Response) {
     try {
       const id = req.params.id
       if (!id) return sendError(res, 'Invalid ID', 400)
@@ -88,7 +86,7 @@ export class MetricUnitsController {
     }
   }
 
-  async bulkUpdateStatus(req: AuthRequest, res: Response) {
+  async bulkUpdateStatus(req: AuthenticatedRequest, res: Response) {
     try {
       const { ids, is_active } = req.body
       if (!Array.isArray(ids) || ids.length === 0) {
@@ -106,7 +104,7 @@ export class MetricUnitsController {
     }
   }
 
-  async getFilterOptions(req: AuthRequest, res: Response) {
+  async getFilterOptions(req: AuthenticatedRequest, res: Response) {
     try {
       const options = await metricUnitsService.filterOptions()
       sendSuccess(res, options)

@@ -1,11 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
-
-export interface SortRequest extends Request {
-  sort: {
-    field: string
-    order: 'asc' | 'desc'
-  }
-}
+import type { SortParams } from '../types/request.types'
 
 const ALLOWED_SORT_FIELDS = [
   'employee_id', 'full_name', 'job_position', 'branch_name',
@@ -16,7 +10,11 @@ const ALLOWED_SORT_FIELDS = [
   'branch_code', 'city', 'status', 'hari_operasional', 'created_at'
 ]
 
-export const sortMiddleware = (req: Request, res: Response, next: NextFunction) => {
+export const sortMiddleware = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   const sortField = (req.query.sort as string) || 'full_name'
   const sortOrder = (req.query.order as string) || 'asc'
 
@@ -34,7 +32,7 @@ export const sortMiddleware = (req: Request, res: Response, next: NextFunction) 
     })
   }
 
-  (req as SortRequest).sort = {
+  ;(req as Request & { sort: SortParams }).sort = {
     field: sortField,
     order: sortOrder.toLowerCase() as 'asc' | 'desc'
   }
