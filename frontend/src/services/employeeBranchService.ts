@@ -1,17 +1,23 @@
 import api from '@/lib/axios'
-import type { EmployeeBranch, CreateEmployeeBranchDto, UpdateEmployeeBranchDto } from '@/types/employeeBranch'
-
-type Paginated<T> = {
-  success: boolean
-  data: T[]
-  pagination: { total: number; page: number; limit: number }
-}
+import type { EmployeeBranch, CreateEmployeeBranchDto, UpdateEmployeeBranchDto, EmployeeBranchFilter } from '@/types/employeeBranch'
+import type { Paginated } from '@/types/pagination'
 
 export const employeeBranchService = {
-  list: (page: number, limit: number) => {
+  list: (page: number, limit: number, filter?: EmployeeBranchFilter | null) => {
     const params = new URLSearchParams()
     params.append('page', String(page))
     params.append('limit', String(limit))
+    
+    if (filter?.search) {
+      params.append('q', filter.search)
+    }
+    if (filter?.employee_id) {
+      params.append('employee_id', filter.employee_id)
+    }
+    if (filter?.branch_id) {
+      params.append('branch_id', filter.branch_id)
+    }
+    
     return api.get<Paginated<EmployeeBranch>>(`/employee-branches?${params.toString()}`)
   },
 

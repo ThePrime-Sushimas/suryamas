@@ -1,207 +1,247 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Plus, Trash2, Search } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { employeeBranchService } from '@/services/employeeBranchService'
-import { employeeService } from '@/services/employeeService'
-import { branchService } from '@/services/branchService'
 import { EmployeeBranchTable } from '@/components/employee-branches/EmployeeBranchTable'
 import { EmployeeBranchForm } from '@/components/employee-branches/EmployeeBranchForm'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { TableSkeleton } from '@/components/ui/Skeleton'
+import { useToast } from '@/contexts/ToastContext'
+import { useEmployeeBranchesList } from '@/hooks/useEmployeeBranches'
+import { useBulkSelection } from '@/hooks/useBulkSelection'
 import { useIsMobile } from '@/hooks/useMediaQuery'
-import type { EmployeeBranch, CreateEmployeeBranchDto } from '@/types/employeeBranch'
+import type { EmployeeBranchFilter } from '@/types/employeeBranch'
+import { PAGINATION } from '@/constants/branches.constants'
 
 export function EmployeeBranchesPage() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
-  const [data, setData] = useState<EmployeeBranch[]>([])
-  const [employees, setEmployees] = useState<Array<{ id: string; full_name: string }>>([])
-  const [branches, setBranches] = useState<Array<{ id: string; branch_name: string; branch_code: string }>>([])
-  const [loading, setLoading] = useState(false)
-  const [loadingData, setLoadingData] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [selected, setSelected] = useState<string[]>([])
+  const { success, error: showError } = useToast()
+  
+  const [page, setPage] = useState<number>(PAGINATION.DEFAULT_PAGE)
+  const [limit, setLimit] = useState<number>(PAGINATION.DEFAULT_LIMIT)
   const [search, setSearch] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  
+  const filter: EmployeeBranchFilter | null = search ? { search } : null
+  const { data, pagination, loading, error, refetch } = useEmployeeBranchesList(page, limit, filter)
+  
+  const { selectedIds, selectOne, selectAll, clearSelection } = useBulkSelection(data)
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean
+    title: string
+    message: string
+    onConfirm: () => void
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  })
 
-  useEffect(() => {
-    loadData()
-    loadEmployees()
-    loadBranches()
-  }, [search])
-
-  const loadData = async () => {
-    try {
-      setLoading(true)
-      const response = await employeeBranchService.list(1, 1000)
-      let filteredData = response.data.data
-      
-      if (search) {
-        filteredData = filteredData.filter((item: any) => 
-          item.employee_name?.toLowerCase().includes(search.toLowerCase()) ||
-          item.branch_name?.toLowerCase().includes(search.toLowerCase())
-        )
-      }
-      
-      setData(filteredData)
-    } catch (error) {
-      console.error('Failed to load employee branches:', error)
-    } finally {
-      setLoading(false)
-    }
+  const handleDelete = (id: string) => {
+    const item = data.find(d => d.id === id)
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Assignment',
+      message: `Remove ${item?.employee_name} from ${item?.branch_name}?`,
+      onConfirm: async () => {
+        setDeleteLoading(true)
+        try {
+          await employeeBranchService.delete(id)
+          success('Assignment deleted successfully')
+          setConfirmModal(prev => ({ ...prev, isOpen: false }))
+          refetch()
+        } catch (err: any) {
+          showError(err.response?.data?.error || 'Failed to delete assignment')
+        } finally {
+          setDeleteLoading(false)
+        }
+      },
+    })
   }
 
-  const loadEmployees = async () => {
-    try {
-      const response = await employeeService.autocomplete('')
-      setEmployees(response.data.data || [])
-    } catch (error) {
-      console.error('Failed to load employees:', error)
-    }
-  }
-
-  const loadBranches = async () => {
-    try {
-      const response = await branchService.list(1, 10000)
-      setBranches(response.data.data.map(b => ({ id: b.id, branch_name: b.branch_name, branch_code: b.branch_code })))
-    } catch (error) {
-      console.error('Failed to load branches:', error)
-    } finally {
-      setLoadingData(false)
-    }
-  }
-
-  const handleCreate = async (formData: CreateEmployeeBranchDto[]) => {
-    try {
-      setLoading(true)
-      for (const assignment of formData) {
-        await employeeBranchService.create(assignment)
-      }
-      setShowForm(false)
-      loadData()
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to create assignment')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure?')) return
-    try {
-      await employeeBranchService.delete(id)
-      loadData()
-    } catch (error) {
-      alert('Failed to delete')
-    }
+  const handleBulkDelete = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Multiple Assignments',
+      message: `Delete ${selectedIds.length} assignment(s)?`,
+      onConfirm: async () => {
+        setBulkLoading(true)
+        try {
+          await employeeBranchService.bulkDelete(selectedIds)
+          success(`${selectedIds.length} assignment(s) deleted`)
+          setConfirmModal(prev => ({ ...prev, isOpen: false }))
+          clearSelection()
+          refetch()
+        } catch (err: any) {
+          showError(err.response?.data?.error || 'Failed to delete assignments')
+        } finally {
+          setBulkLoading(false)
+        }
+      },
+    })
   }
 
   const handleSetPrimary = async (employeeId: string, branchId: string) => {
     try {
       await employeeBranchService.setPrimaryBranch(employeeId, branchId)
-      loadData()
-    } catch (error) {
-      alert('Failed to set primary branch')
+      success('Primary branch updated')
+      refetch()
+    } catch (err: any) {
+      showError(err.response?.data?.error || 'Failed to set primary branch')
     }
-  }
-
-  const handleBulkDelete = async () => {
-    if (!confirm(`Delete ${selected.length} items?`)) return
-    try {
-      await employeeBranchService.bulkDelete(selected)
-      setSelected([])
-      loadData()
-    } catch (error) {
-      alert('Failed to delete')
-    }
-  }
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-  }
-
-  const handleClearSearch = () => {
-    setSearch('')
   }
 
   return (
-    <div className="relative">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 md:mb-6 gap-3">
-        <h1 className="text-xl md:text-2xl font-bold">Employee Branches</h1>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors min-h-[44px] text-sm md:text-base"
-        >
-          <Plus size={20} /> {isMobile ? 'Add' : 'New Assignment'}
-        </button>
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4 md:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Employee Branches</h1>
+              <p className="text-gray-600 mt-2">Manage employee branch assignments</p>
+            </div>
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-all font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Add new assignment"
+            >
+              <Plus className="h-5 w-5" aria-hidden="true" />
+              {isMobile ? 'Add' : 'New Assignment'}
+            </button>
+          </div>
+        </div>
 
-      {/* Search & Filter */}
-      <div className="bg-white shadow rounded-lg p-4 md:p-6 mb-4 md:mb-6">
-        <form onSubmit={handleSearch} className="space-y-3 md:space-y-4">
-          <div className="flex flex-col md:flex-row gap-2 md:gap-3">
+        {/* Search */}
+        <div className="bg-white rounded-lg p-4 mb-6">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" aria-hidden="true" />
             <input
               type="text"
               placeholder="Search by employee or branch..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base min-h-[44px]"
+              onChange={e => {
+                setSearch(e.target.value)
+                setPage(1)
+              }}
+              className="w-full pl-12 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              aria-label="Search assignments"
             />
+          </div>
+        </div>
+
+        {/* Bulk Actions */}
+        {selectedIds.length > 0 && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+            <span className="font-medium text-blue-900">{selectedIds.length} selected</span>
             <button
-              type="submit"
-              disabled={loading}
-              className="bg-blue-600 text-white px-4 md:px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 text-sm md:text-base min-h-[44px] whitespace-nowrap flex items-center justify-center gap-2"
+              onClick={handleBulkDelete}
+              disabled={bulkLoading}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
             >
-              <Search size={18} /> {isMobile ? 'Search' : 'Search'}
+              <Trash2 className="h-5 w-5" />
+              Delete Selected
             </button>
-            {search && (
-              <button
-                type="button"
-                onClick={handleClearSearch}
-                disabled={loading}
-                className="bg-gray-300 text-gray-700 px-4 md:px-6 py-2 rounded hover:bg-gray-400 disabled:opacity-50 text-sm md:text-base min-h-[44px] whitespace-nowrap"
-              >
-                Clear
-              </button>
+          </div>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3" role="alert">
+            <p className="text-red-700">{error}</p>
+          </div>
+        )}
+
+        {/* Table */}
+        <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden mb-6">
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-xl font-semibold text-gray-900">Assignments</h2>
+            <p className="text-gray-600 text-sm mt-1">
+              {loading ? 'Loading...' : `Total: ${pagination.total} assignments`}
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            {loading ? (
+              <TableSkeleton rows={limit} columns={5} />
+            ) : (
+              <EmployeeBranchTable
+                data={data}
+                loading={loading}
+                onDelete={handleDelete}
+                onSetPrimary={handleSetPrimary}
+                onSelectionChange={(ids) => ids.forEach(id => selectOne(id, true))}
+                onEdit={(id) => navigate(`/employee-branches/${id}/edit`)}
+              />
             )}
           </div>
-        </form>
-      </div>
-
-      {/* Bulk Actions */}
-      {selected.length > 0 && (
-        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex flex-col md:flex-row md:justify-between md:items-center gap-3">
-          <span className="text-sm md:text-base font-medium text-blue-900">{selected.length} selected</span>
-          <button
-            onClick={handleBulkDelete}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors min-h-[44px] text-sm md:text-base"
-          >
-            <Trash2 size={18} /> Delete Selected
-          </button>
         </div>
-      )}
 
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <EmployeeBranchTable
-          data={data}
-          loading={loading}
-          onDelete={handleDelete}
-          onSetPrimary={handleSetPrimary}
-          onSelectionChange={setSelected}
-          onEdit={(id) => navigate(`/employee-branches/${id}/edit`)}
-        />
+        {/* Pagination */}
+        {!loading && pagination.total > 0 && (
+          <div className="flex items-center justify-between py-4 px-4 bg-white border-t border-gray-200 rounded-lg">
+            <div className="text-sm text-gray-600">
+              Showing {(page - 1) * limit + 1} to {Math.min(page * limit, pagination.total)} of {pagination.total}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1 border rounded disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setPage(p => p + 1)}
+                disabled={page * limit >= pagination.total}
+                className="px-3 py-1 border rounded disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-
+      {/* Form Modal */}
       {showForm && (
         <EmployeeBranchForm
-          employees={employees}
-          branches={branches}
-          onSubmit={handleCreate}
+          onSubmit={async (assignments) => {
+            try {
+              for (const assignment of assignments) {
+                await employeeBranchService.create(assignment)
+              }
+              success('Assignments created successfully')
+              setShowForm(false)
+              refetch()
+            } catch (err: any) {
+              showError(err.response?.data?.error || 'Failed to create assignments')
+            }
+          }}
           onCancel={() => setShowForm(false)}
-          loading={loading}
-          loadingData={loadingData}
+          loading={false}
+          loadingData={false}
+          employees={[]}
+          branches={[]}
         />
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText="Delete"
+        variant="danger"
+        isLoading={deleteLoading || bulkLoading}
+      />
     </div>
   )
 }

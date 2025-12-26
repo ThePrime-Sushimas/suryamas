@@ -18,3 +18,9 @@ export interface CreateEmployeeBranchDto {
 export interface UpdateEmployeeBranchDto {
   is_primary?: boolean
 }
+
+export interface EmployeeBranchFilter {
+  search?: string
+  employee_id?: string
+  branch_id?: string
+}
