@@ -6,7 +6,7 @@ export type EmployeeBranchRow = {
   is_primary: boolean
   branches: {
     branch_name: string
-  }[] | null
+  } | null
 }
 
 export type EmployeeRow = {

@@ -5,9 +5,14 @@
 import { EmployeeRow, EmployeeBranchRow, UserDTO } from './users.types'
 
 function extractPrimaryBranch(branches: EmployeeBranchRow[] | null): string {
-  if (!branches) return '-'
+  if (!branches || branches.length === 0) return '-'
+  
   const primary = branches.find(b => b.is_primary)
-  return primary?.branches?.[0]?.branch_name ?? '-'
+  if (primary) {
+    return primary?.branches?.branch_name ?? '-'
+  }
+  
+  return branches[0]?.branches?.branch_name ?? '-'
 }
 
 export function mapToUserDTO(employee: EmployeeRow, profile?: any): UserDTO {
