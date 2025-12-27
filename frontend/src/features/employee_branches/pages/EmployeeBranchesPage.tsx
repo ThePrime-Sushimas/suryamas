@@ -9,7 +9,7 @@ import type { EmployeeBranch } from '../api/types'
 export default function EmployeeBranchesPage() {
   const navigate = useNavigate()
   const { success, error: showError } = useToast()
-  const { items, limit, loading, list, remove, setPrimary } = useEmployeeBranchesStore()
+  const { items, loading, list, remove, setPrimary } = useEmployeeBranchesStore()
   
   const [modalState, setModalState] = useState<{
     show: boolean
@@ -53,11 +53,9 @@ export default function EmployeeBranchesPage() {
     list({ page: 1, limit: 100 })
   }, [list])
 
-  const onPageChange = useCallback((newPage: number) => {
-    list({ page: newPage, limit })
-  }, [list, limit])
-
-  const onEdit = useCallback((row: { id: string }) => navigate(`./${row.id}/edit`), [navigate])
+  // const onPageChange = useCallback((newPage: number) => {
+  //   list({ page: newPage, limit })
+  // }, [list, limit])
 
   const onDelete = useCallback(async (row: EmployeeBranch) => {
     if (row.is_primary) {
