@@ -12,6 +12,7 @@ export { BranchTable } from './components/BranchTable'
 export { default as BranchesPage } from './pages/BranchesPage'
 export { default as CreateBranchPage } from './pages/CreateBranchPage'
 export { default as EditBranchPage } from './pages/EditBranchPage'
+export { default as BranchDetailPage } from './pages/BranchDetailPage'
 
 // Types
 export * from './types'

@@ -25,6 +25,7 @@ const EditCompanyPage = lazy(() => import('./features/companies').then(m => ({ d
 const BranchesPage = lazy(() => import('./features/branches').then(m => ({ default: m.BranchesPage })))
 const CreateBranchPage = lazy(() => import('./features/branches').then(m => ({ default: m.CreateBranchPage })))
 const EditBranchPage = lazy(() => import('./features/branches').then(m => ({ default: m.EditBranchPage })))
+const BranchDetailPage = lazy(() => import('./features/branches').then(m => ({ default: m.BranchDetailPage })))
 const CategoriesPage = lazy(() => import('./features/categories').then(m => ({ default: m.CategoriesPage })))
 const CreateCategoryPage = lazy(() => import('./features/categories').then(m => ({ default: m.CreateCategoryPage })))
 const EditCategoryPage = lazy(() => import('./features/categories').then(m => ({ default: m.EditCategoryPage })))
@@ -94,7 +95,7 @@ function App() {
           <Route path="companies/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditCompanyPage /></Suspense></ProtectedRoute>} />
           <Route path="branches" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><BranchesPage /></Suspense></ProtectedRoute>} />
           <Route path="branches/new" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateBranchPage /></Suspense></ProtectedRoute>} />
-          <Route path="branches/:id" element={<ProtectedRoute><div>Detail</div></ProtectedRoute>} />
+          <Route path="branches/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><BranchDetailPage /></Suspense></ProtectedRoute>} />
           <Route path="branches/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditBranchPage /></Suspense></ProtectedRoute>} />
           <Route path="permissions" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><PermissionsPage /></Suspense></ProtectedRoute>} />
           <Route path="users" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><UsersPage /></Suspense></ProtectedRoute>} />
