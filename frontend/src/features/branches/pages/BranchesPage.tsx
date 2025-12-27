@@ -1,27 +1,44 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBranchesStore } from '../store/branches.store'
 import { BranchTable } from '../components/BranchTable'
+
+function debounce<T extends (...args: any[]) => any>(fn: T, delay: number) {
+  let timeoutId: ReturnType<typeof setTimeout>
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => fn(...args), delay)
+  }
+}
 
 export default function BranchesPage() {
   const navigate = useNavigate()
   const { branches, loading, fetchBranches, searchBranches, deleteBranch } = useBranchesStore()
   const [search, setSearch] = useState('')
 
+  const debouncedSearch = useMemo(
+    () => debounce((value: string) => {
+      if (value) {
+        searchBranches(value, 1, 1000)
+      } else {
+        fetchBranches(1, 1000)
+      }
+    }, 300),
+    [searchBranches, fetchBranches]
+  )
+
   useEffect(() => {
-    if (search) {
-      searchBranches(search, 1, 1000)
-    } else {
-      fetchBranches(1, 1000)
-    }
-  }, [search])
+    fetchBranches(1, 1000)
+  }, [])
 
   const handleDelete = async (id: string) => {
     if (confirm('Delete this branch?')) {
       try {
         await deleteBranch(id)
+        alert('Branch deleted successfully')
       } catch (error) {
-        console.error('Delete failed')
+        alert('Failed to delete branch')
+        console.error('Delete failed:', error)
       }
     }
   }
@@ -43,7 +60,10 @@ export default function BranchesPage() {
           type="text"
           placeholder="Search branches..."
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => {
+            setSearch(e.target.value)
+            debouncedSearch(e.target.value)
+          }}
           className="w-full px-3 py-2 border rounded-md"
         />
       </div>

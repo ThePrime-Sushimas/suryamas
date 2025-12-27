@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import api from '@/lib/axios'
-import { X, Loader2, Search } from 'lucide-react'
+import { useToast } from '@/contexts/ToastContext'
+import { X, Loader2, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface Employee {
   id: string
@@ -19,58 +20,89 @@ interface Props {
 }
 
 export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchName, onClose, onSuccess }: Props) {
+  const toast = useToast()
   const [employees, setEmployees] = useState<Employee[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [assigning, setAssigning] = useState(false)
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const limit = 50
 
   useEffect(() => {
     if (!isOpen || !branchId) return
-    fetchUnassignedEmployees()
+    setPage(1)
+    setSearch('')
+    fetchUnassignedEmployees(1, '')
   }, [isOpen, branchId])
 
-  const fetchUnassignedEmployees = async () => {
+  const fetchUnassignedEmployees = async (currentPage: number, searchQuery: string) => {
     setLoading(true)
     try {
-      const params = Object.fromEntries(
-        Object.entries({
-          page: 1,
-          limit: 10000,
-          branch_id: branchId
-        }).filter(([, v]) => v !== undefined)
-      )
-      const { data } = await api.get('/employees/unassigned', { params })
+      const params: any = {
+        page: currentPage,
+        limit
+      }
+      if (searchQuery) params.q = searchQuery
+      
+      // Try to fetch all employees first, then filter out assigned ones
+      const { data } = await api.get('/employees', { params })
+      console.log('Employees response:', data)
+      
       const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
-      setEmployees(list)
+      
+      // If we have branch_id, filter out employees already assigned to this branch
+      if (branchId && list.length > 0) {
+        try {
+          const assignedRes = await api.get(`/employee-branches/branch/${branchId}`)
+          const assignedIds = new Set(
+            (assignedRes.data?.data || []).map((a: any) => a.employee_id)
+          )
+          const unassigned = list.filter((emp: any) => !assignedIds.has(emp.id))
+          setEmployees(unassigned)
+          setTotal(unassigned.length)
+        } catch {
+          // If can't fetch assigned, show all
+          setEmployees(list)
+          setTotal(data?.pagination?.total || list.length)
+        }
+      } else {
+        setEmployees(list)
+        setTotal(data?.pagination?.total || list.length)
+      }
     } catch (error: any) {
-      console.error('Failed to fetch employees:', {
-        status: error?.response?.status,
-        data: error?.response?.data
-      })
+      console.error('Failed to fetch employees:', error)
+      console.error('Error details:', error.response?.data)
+      toast.error('Failed to load employees')
       setEmployees([])
     } finally {
       setLoading(false)
     }
   }
 
-  const filteredEmployees = employees.filter(emp =>
-    emp.full_name.toLowerCase().includes(search.toLowerCase()) ||
-    emp.employee_id.toLowerCase().includes(search.toLowerCase())
+  const handleSearch = (value: string) => {
+    setSearch(value)
+    setPage(1)
+    fetchUnassignedEmployees(1, value)
+  }
+
+  const groupedByPosition = useMemo(
+    () => employees.reduce((acc, emp) => {
+      const position = emp.job_position || 'Unassigned'
+      if (!acc[position]) acc[position] = []
+      acc[position].push(emp)
+      return acc
+    }, {} as Record<string, Employee[]>),
+    [employees]
   )
 
-  const groupedByPosition = filteredEmployees.reduce((acc, emp) => {
-    const position = emp.job_position || 'Unassigned'
-    if (!acc[position]) acc[position] = []
-    acc[position].push(emp)
-    return acc
-  }, {} as Record<string, Employee[]>)
-
   const sortedPositions = Object.keys(groupedByPosition).sort()
+  const totalPages = Math.ceil(total / limit)
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(new Set(filteredEmployees.map(e => e.id)))
+      setSelectedIds(new Set(employees.map(e => e.id)))
     } else {
       setSelectedIds(new Set())
     }
@@ -91,7 +123,7 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
 
     setAssigning(true)
     try {
-      await Promise.all(
+      const results = await Promise.allSettled(
         Array.from(selectedIds).map(employeeId =>
           api.post(`/employee-branches`, {
             employee_id: employeeId,
@@ -100,13 +132,25 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
           })
         )
       )
-      onSuccess()
-      onClose()
-      setSelectedIds(new Set())
-      setSearch('')
+      
+      const succeeded = results.filter(r => r.status === 'fulfilled').length
+      const failed = results.filter(r => r.status === 'rejected').length
+      
+      if (failed > 0) {
+        toast.error(`Assigned ${succeeded} employees. ${failed} failed.`)
+      } else {
+        toast.success(`Successfully assigned ${succeeded} employee${succeeded > 1 ? 's' : ''}`)
+      }
+      
+      if (succeeded > 0) {
+        onSuccess()
+        onClose()
+        setSelectedIds(new Set())
+        setSearch('')
+      }
     } catch (error) {
       console.error('Failed to assign employees:', error)
-      alert('Failed to assign employees')
+      toast.error('Failed to assign employees')
     } finally {
       setAssigning(false)
     }
@@ -139,7 +183,7 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
               type="text"
               placeholder="Search by name or employee ID..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -151,9 +195,9 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
             </div>
-          ) : filteredEmployees.length === 0 ? (
+          ) : employees.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
-              {employees.length === 0 ? 'No unassigned employees found' : 'No results match your search'}
+              No unassigned employees found
             </div>
           ) : (
             <div>
@@ -161,12 +205,12 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
               <div className="p-4 bg-gray-50 flex items-center gap-3 border-b border-gray-200 sticky top-0">
                 <input
                   type="checkbox"
-                  checked={selectedIds.size === filteredEmployees.length && filteredEmployees.length > 0}
+                  checked={selectedIds.size === employees.length && employees.length > 0}
                   onChange={(e) => handleSelectAll(e.target.checked)}
                   className="w-4 h-4 rounded border-gray-300 cursor-pointer"
                 />
                 <span className="text-sm font-medium text-gray-700">
-                  Select all ({filteredEmployees.length})
+                  Select all on this page ({employees.length})
                 </span>
               </div>
 
@@ -196,6 +240,39 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
             </div>
           )}
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
+            <span className="text-sm text-gray-600">
+              Page {page} of {totalPages} ({total} total)
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const newPage = page - 1
+                  setPage(newPage)
+                  fetchUnassignedEmployees(newPage, search)
+                }}
+                disabled={page === 1}
+                className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => {
+                  const newPage = page + 1
+                  setPage(newPage)
+                  fetchUnassignedEmployees(newPage, search)
+                }}
+                disabled={page === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">

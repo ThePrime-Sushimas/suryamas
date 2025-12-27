@@ -45,7 +45,10 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
     set({ loading: true, error: null })
     try {
       const branch = await branchesApi.create(data)
-      set({ loading: false })
+      set(state => ({
+        branches: [...state.branches, branch],
+        loading: false
+      }))
       return branch
     } catch (error: any) {
       set({ error: error.response?.data?.error || 'Failed to create branch', loading: false })
@@ -69,23 +72,27 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
   },
 
   deleteBranch: async (id) => {
+    set({ loading: true })
     const prev = get().branches
     set(state => ({ branches: state.branches.filter(b => b.id !== id) }))
     try {
       await branchesApi.delete(id)
+      set({ loading: false })
     } catch (error: any) {
-      set({ branches: prev, error: error.response?.data?.error || 'Failed to delete branch' })
+      set({ branches: prev, error: error.response?.data?.error || 'Failed to delete branch', loading: false })
       throw error
     }
   },
 
   bulkDelete: async (ids) => {
+    set({ loading: true })
     const prev = get().branches
     set(state => ({ branches: state.branches.filter(b => !ids.includes(b.id)) }))
     try {
       await branchesApi.bulkDelete(ids)
+      set({ loading: false })
     } catch (error: any) {
-      set({ branches: prev, error: error.response?.data?.error || 'Failed to delete branches' })
+      set({ branches: prev, error: error.response?.data?.error || 'Failed to delete branches', loading: false })
       throw error
     }
   },

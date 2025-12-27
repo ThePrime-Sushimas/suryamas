@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useCompaniesStore } from '../../companies/store/companies.store'
 import type { Branch, CreateBranchDto, UpdateBranchDto } from '../types'
 
 interface BranchFormProps {
@@ -9,6 +10,12 @@ interface BranchFormProps {
 }
 
 export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchFormProps) => {
+  const { companies, fetchCompanies } = useCompaniesStore()
+
+  useEffect(() => {
+    fetchCompanies(1, 1000)
+  }, [])
+
   const [formData, setFormData] = useState({
     company_id: initialData?.company_id || '',
     branch_code: initialData?.branch_code || '',
@@ -83,8 +90,15 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
       {!isEdit && (
         <>
           <div>
-            <label className="block text-sm font-medium">Company ID *</label>
-            <input name="company_id" value={formData.company_id} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" required />
+            <label className="block text-sm font-medium">Company *</label>
+            <select name="company_id" value={formData.company_id} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" required>
+              <option value="">Select Company</option>
+              {companies.map(company => (
+                <option key={company.id} value={company.id}>
+                  {company.company_name} ({company.company_code})
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium">Branch Code *</label>
