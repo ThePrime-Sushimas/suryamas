@@ -21,6 +21,7 @@ type State = {
     create: boolean
     update: boolean
     remove: boolean
+    setPrimary: boolean
   }
   error: {
     list: DomainError | null
@@ -48,7 +49,7 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
     page: 1,
     limit: 10,
     selected: null,
-    loading: { list: false, detail: false, create: false, update: false, remove: false },
+    loading: { list: false, detail: false, create: false, update: false, remove: false, setPrimary: false },
     error: { list: null, detail: null, create: null, update: null, remove: null },
 
     async list(query) {
@@ -119,12 +120,25 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
     },
 
     async setPrimary(employeeId, branchId) {
+      set(s => ({ loading: { ...s.loading, setPrimary: true } }))
+      const snapshot = get().items
+      
+      // Optimistic update: unset all primary for this employee, then set new one
+      const optimisticItems = snapshot.map(item => ({
+        ...item,
+        is_primary: item.employee_id === employeeId && item.branch_id === branchId
+      }))
+      set({ items: optimisticItems })
+      
       try {
         await employeeBranchesApi.setPrimary(employeeId, branchId)
         await get().list({ page: get().page, limit: get().limit })
         return true
       } catch (err) {
+        set({ items: snapshot })
         return false
+      } finally {
+        set(s => ({ loading: { ...s.loading, setPrimary: false } }))
       }
     },
 

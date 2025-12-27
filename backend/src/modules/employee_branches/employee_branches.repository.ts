@@ -134,10 +134,15 @@ export class EmployeeBranchesRepository {
   }
 
   async setPrimaryBranch(employeeId: string, branchId: string): Promise<void> {
-    const { error } = await supabase.rpc('set_primary_employee_branch', {
-      p_employee_id: employeeId,
-      p_branch_id: branchId
-    })
+    // First unset all primary for this employee
+    await this.unsetPrimaryForEmployee(employeeId)
+    
+    // Then set the target branch as primary
+    const { error } = await supabase
+      .from('employee_branches')
+      .update({ is_primary: true })
+      .eq('employee_id', employeeId)
+      .eq('branch_id', branchId)
 
     if (error) throw error
   }
