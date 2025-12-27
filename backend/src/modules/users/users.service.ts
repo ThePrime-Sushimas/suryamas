@@ -6,30 +6,8 @@ import { UsersRepository } from './users.repository'
 import { supabase } from '../../config/supabase'
 import { PermissionService as CorePermissionService } from '../../services/permission.service'
 import { logInfo, logError } from '../../config/logger'
-
-type EmployeeBranchRow = {
-  is_primary: boolean
-  branches: {
-    branch_name: string
-  }[] | null
-}
-
-type EmployeeRow = {
-  employee_id: string
-  full_name: string
-  job_position: string | null
-  email: string | null
-  user_id: string | null
-  employee_branches: EmployeeBranchRow[] | null
-}
-
-function getPrimaryBranchName(employee: EmployeeRow): string {
-  const primary = employee.employee_branches?.find(eb => eb.is_primary)
-  if (!primary) {
-    logError('Employee has no primary branch', { employee_id: employee.employee_id })
-  }
-  return primary?.branches?.[0]?.branch_name ?? '-'
-}
+import { EmployeeRow, UserDTO } from './users.types'
+import { mapToUserDTO } from './users.mapper'
 
 export class UsersService {
   private repository: UsersRepository
@@ -38,28 +16,24 @@ export class UsersService {
     this.repository = new UsersRepository()
   }
 
-  async getAllUsers() {
-    const { data: employees } = await supabase.from('employees').select('employee_id, full_name, job_position, email, user_id, employee_branches(is_primary, branches(branch_name))')
-    const { data: profiles } = await supabase.from('perm_user_profiles').select('user_id, role_id, perm_roles(id, name, description)')
-    
-    return (employees || []).map((employee: any) => {
-      const profile = profiles?.find(p => p.user_id === employee.user_id)
-      return {
-        employee_id: employee.employee_id,
-        full_name: employee.full_name,
-        job_position: employee.job_position,
-        email: employee.email,
-        branch: getPrimaryBranchName(employee),
-        user_id: employee.user_id,
-        has_account: !!employee.user_id,
-        role_id: profile?.role_id || null,
-        role_name: (profile as any)?.perm_roles?.name || null,
-        role_description: (profile as any)?.perm_roles?.description || null
-      }
-    })
+  async getAllUsers(): Promise<UserDTO[]> {
+    const { data: employees } = await supabase
+      .from('employees')
+      .select('employee_id, full_name, job_position, email, user_id, employee_branches(is_primary, branches(branch_name))')
+
+    const { data: profiles } = await supabase
+      .from('perm_user_profiles')
+      .select('user_id, role_id, perm_roles(id, name, description)')
+
+    return ((employees as EmployeeRow[] | null) || []).map(emp =>
+      mapToUserDTO(
+        emp,
+        profiles?.find(p => p.user_id === emp.user_id)
+      )
+    )
   }
 
-  async getUserById(employeeId: string) {
+  async getUserById(employeeId: string): Promise<UserDTO | null> {
     const { data: employee } = await supabase
       .from('employees')
       .select('employee_id, full_name, job_position, email, user_id, employee_branches(is_primary, branches(branch_name))')
@@ -74,18 +48,7 @@ export class UsersService {
       .eq('user_id', employee.user_id)
       .single()
 
-    return {
-      employee_id: employee.employee_id,
-      full_name: employee.full_name,
-      job_position: employee.job_position,
-      email: employee.email,
-      branch: getPrimaryBranchName(employee),
-      user_id: employee.user_id,
-      has_account: !!employee.user_id,
-      role_id: profile?.role_id || null,
-      role_name: (profile as any)?.perm_roles?.name || null,
-      role_description: (profile as any)?.perm_roles?.description || null
-    }
+    return mapToUserDTO(employee as EmployeeRow, profile)
   }
 
   async getUserRole(userId: string) {
@@ -96,7 +59,6 @@ export class UsersService {
     try {
       const result = await this.repository.assignRole(userId, roleId)
       
-      // Invalidate cache
       await supabase.from('perm_cache').delete().eq('user_id', userId)
       await CorePermissionService.invalidateAllCache()
       
@@ -112,7 +74,6 @@ export class UsersService {
     try {
       await this.repository.removeRole(userId)
       
-      // Invalidate cache
       await supabase.from('perm_cache').delete().eq('user_id', userId)
       await CorePermissionService.invalidateAllCache()
       
