@@ -15,6 +15,9 @@ router.use(authenticate)
 router.get('/', canView('users'), (req, res) => 
   controller.getAllUsers(req as AuthenticatedRequest, res))
 
+router.get('/:userId', canView('users'), (req, res) => 
+  controller.getUserById(req as AuthenticatedRequest, res))
+
 router.get('/:userId/role', canView('users'), (req, res) => 
   controller.getUserRole(req as AuthenticatedRequest, res))
 

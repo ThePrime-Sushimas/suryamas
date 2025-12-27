@@ -23,31 +23,45 @@ export const useUsersStore = create<UsersState>((set) => ({
     try {
       const users = await usersApi.getAll()
       set({ users, loading: false })
-    } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Failed to fetch users', loading: false })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch users'
+      set({ error: message, loading: false })
     }
   },
 
   assignRole: async (userId, roleId) => {
+    set({ loading: true, error: null })
     try {
-      await usersApi.assignRole(userId, roleId)
-      set(state => ({
-        users: state.users.map(u => u.employee_id === userId ? { ...u, role_id: roleId } : u)
-      }))
-    } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Failed to assign role' })
+      const roleData = await usersApi.assignRole(userId, roleId)
+      set(state => {
+        const updatedUser = { 
+          role_id: roleId, 
+          role_name: roleData.role_name, 
+          role_description: roleData.role_description 
+        }
+        return {
+          users: state.users.map(u => u.employee_id === userId ? { ...u, ...updatedUser } : u),
+          loading: false
+        }
+      })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to assign role'
+      set({ error: message, loading: false })
       throw error
     }
   },
 
   removeRole: async (userId) => {
+    set({ loading: true, error: null })
     try {
       await usersApi.removeRole(userId)
       set(state => ({
-        users: state.users.map(u => u.employee_id === userId ? { ...u, role_id: null, role_name: null } : u)
+        users: state.users.map(u => u.employee_id === userId ? { ...u, role_id: null, role_name: null, role_description: null } : u),
+        loading: false
       }))
-    } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Failed to remove role' })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to remove role'
+      set({ error: message, loading: false })
       throw error
     }
   },

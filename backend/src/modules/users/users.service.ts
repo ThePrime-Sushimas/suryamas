@@ -37,6 +37,38 @@ export class UsersService {
     })
   }
 
+  async getUserById(employeeId: string) {
+    const { data: employee } = await supabase
+      .from('employees')
+      .select('employee_id, full_name, job_position, email, user_id, employee_branches(is_primary, branches(branch_name))')
+      .eq('employee_id', employeeId)
+      .single()
+
+    if (!employee) return null
+
+    const { data: profile } = await supabase
+      .from('perm_user_profiles')
+      .select('user_id, role_id, perm_roles(id, name, description)')
+      .eq('user_id', employee.user_id)
+      .single()
+
+    const primaryBranch = (employee.employee_branches || []).find((eb: any) => eb.is_primary)
+    const branchName = primaryBranch?.branches?.branch_name 
+
+    return {
+      employee_id: employee.employee_id,
+      full_name: employee.full_name,
+      job_position: employee.job_position,
+      email: employee.email,
+      branch: branchName,
+      user_id: employee.user_id,
+      has_account: !!employee.user_id,
+      role_id: profile?.role_id || null,
+      role_name: (profile as any)?.perm_roles?.name || null,
+      role_description: (profile as any)?.perm_roles?.description || null
+    }
+  }
+
   async getUserRole(userId: string) {
     return await this.repository.getUserRole(userId)
   }

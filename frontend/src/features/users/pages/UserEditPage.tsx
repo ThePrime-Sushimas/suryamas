@@ -12,23 +12,27 @@ export default function UserEditPage() {
   const [roles, setRoles] = useState<Role[]>([])
   const [selectedRole, setSelectedRole] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
   }, [id])
 
   const loadData = async () => {
+    if (!id) return
     try {
-      const [usersData, rolesData] = await Promise.all([
-        usersApi.getAll(),
+      const [userData, rolesData] = await Promise.all([
+        usersApi.getById(id),
         permissionsApi.getRoles(),
       ])
-      const userData = usersData.find(u => u.employee_id === id)
-      setUser(userData || null)
-      setSelectedRole(userData?.role_id || '')
+      setUser(userData)
+      setSelectedRole(userData.role_id || '')
       setRoles(rolesData)
-    } catch (error) {
-      console.error('Failed to load data:', error)
+      setError(null)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to load data'
+      setError(message)
+      setUser(null)
     } finally {
       setLoading(false)
     }
@@ -36,16 +40,18 @@ export default function UserEditPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!id) return
+    if (!id || !selectedRole) return
 
+    setLoading(true)
+    setError(null)
     try {
       await usersApi.assignRole(id, selectedRole)
-      alert('Role updated successfully!')
-      // Reload data to ensure fresh state
-      await loadData()
       navigate('/users')
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to update role')
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to update role'
+      setError(message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -54,7 +60,21 @@ export default function UserEditPage() {
   }
 
   if (!user) {
-    return <div className="p-6">User not found</div>
+    return <div className="p-6">{error || 'User not found'}</div>
+  }
+
+  if (!user.has_account) {
+    return (
+      <div className="p-6">
+        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded">
+          <p className="font-medium">Cannot assign role</p>
+          <p className="text-sm mt-1">Employee {user.full_name} has not registered yet. Please register first.</p>
+          <button onClick={() => navigate('/users')} className="mt-3 text-blue-600 hover:underline">
+            ← Back to Users
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -89,6 +109,12 @@ export default function UserEditPage() {
           </div>
         </div>
 
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded">
+            {error}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -115,14 +141,16 @@ export default function UserEditPage() {
           <div className="flex gap-3">
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              disabled={loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Save Changes
+              {loading ? 'Saving...' : 'Save Changes'}
             </button>
             <button
               type="button"
               onClick={() => navigate('/users')}
-              className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+              disabled={loading}
+              className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 disabled:opacity-50"
             >
               Cancel
             </button>

@@ -9,3 +9,9 @@ export interface User {
   role_name: string | null
   role_description: string | null
 }
+
+export interface UserRole {
+  role_id: string
+  role_name: string
+  role_description: string | null
+}

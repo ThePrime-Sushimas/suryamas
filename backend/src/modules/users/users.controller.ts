@@ -25,6 +25,23 @@ export class UsersController {
     }
   }
 
+  getUserById = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { userId } = req.params
+      const user = await this.service.getUserById(userId)
+
+      if (!user) {
+        sendError(res, 'User not found', 404)
+        return
+      }
+
+      sendSuccess(res, user, 'User retrieved successfully')
+    } catch (error: any) {
+      logError('Get user failed', { error: error.message })
+      sendError(res, 'Failed to retrieve user', 500)
+    }
+  }
+
   getUserRole = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { userId } = req.params

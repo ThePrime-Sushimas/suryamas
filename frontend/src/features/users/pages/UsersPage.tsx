@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usersApi } from '@/features/users'
 import type { User } from '@/features/users'
+import UserTable from '../components/UserTable'
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -77,24 +78,36 @@ export default function UsersPage() {
     
     try {
       await usersApi.removeRole(employeeId)
-      alert('Role removed successfully!')
-      // Reload data to ensure fresh state
       await loadData()
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to remove role')
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to remove role'
+      console.error(message)
     }
   }
 
-  const branches = ['all', ...Array.from(new Set(users.map(u => u.branch)))]
-  const groupedUsers = filteredUsers.reduce((acc, user) => {
-    if (!acc[user.branch]) acc[user.branch] = []
-    acc[user.branch].push(user)
-    return acc
-  }, {} as Record<string, User[]>)
+  const branches = useMemo(() => 
+    ['all', ...Array.from(new Set(users.map(u => u.branch)))],
+    [users]
+  )
 
-  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedUsers = filteredUsers.slice(startIndex, startIndex + itemsPerPage)
+  const groupedUsers = useMemo(() => {
+    if (selectedBranch !== 'all') return {}
+    return filteredUsers.reduce((acc, user) => {
+      if (!acc[user.branch]) acc[user.branch] = []
+      acc[user.branch].push(user)
+      return acc
+    }, {} as Record<string, User[]>)
+  }, [filteredUsers, selectedBranch])
+
+  const { totalPages, paginatedUsers } = useMemo(() => {
+    if (selectedBranch === 'all') return { totalPages: 0, paginatedUsers: [] }
+    const total = Math.ceil(filteredUsers.length / itemsPerPage)
+    const start = (currentPage - 1) * itemsPerPage
+    return {
+      totalPages: total,
+      paginatedUsers: filteredUsers.slice(start, start + itemsPerPage)
+    }
+  }, [filteredUsers, currentPage, selectedBranch])
 
   if (loading) {
     return <div className="flex items-center justify-center h-64">Loading...</div>
@@ -135,154 +148,22 @@ export default function UsersPage() {
               <span>{collapsedBranches.has(branch) ? '▼' : '▲'}</span>
             </h2>
             {!collapsedBranches.has(branch) && (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {branchUsers.map((user) => (
-                    <tr key={user.employee_id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm">{user.employee_id}</td>
-                      <td className="px-6 py-4">
-                        <div className="font-medium">{user.full_name}</div>
-                        <div className="text-xs text-gray-500">{user.job_position}</div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{user.email}</td>
-                      <td className="px-6 py-4">
-                        {user.has_account ? (
-                          <span className="px-2 py-1 text-xs rounded bg-green-100 text-green-800">
-                            Has Account
-                          </span>
-                        ) : (
-                          <span className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-600">
-                            No Account
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800">
-                          {user.role_name || 'No Role'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="flex gap-2 justify-center">
-                          <button
-                            onClick={() => navigate(`/users/${user.employee_id}`)}
-                            className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded"
-                          >
-                            View
-                          </button>
-                          {user.has_account && (
-                            <>
-                              <button
-                                onClick={() => navigate(`/users/edit/${user.employee_id}`)}
-                                className="px-3 py-1 text-sm text-green-600 hover:bg-green-50 rounded"
-                              >
-                                Edit
-                              </button>
-                              {user.role_id && (
-                                <button
-                                  onClick={() => handleDelete(user.employee_id)}
-                                  className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded"
-                                >
-                                  Delete
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+              <UserTable
+                users={branchUsers}
+                onView={(id) => navigate(`/users/${id}`)}
+                onEdit={(id) => navigate(`/users/edit/${id}`)}
+                onDelete={handleDelete}
+              />
             )}
           </div>
         ))
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {paginatedUsers.map((user) => (
-                <tr key={user.employee_id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm">{user.employee_id}</td>
-                  <td className="px-6 py-4">
-                    <div className="font-medium">{user.full_name}</div>
-                    <div className="text-xs text-gray-500">{user.job_position}</div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{user.email}</td>
-                  <td className="px-6 py-4">
-                    {user.has_account ? (
-                      <span className="px-2 py-1 text-xs rounded bg-green-100 text-green-800">
-                        Has Account
-                      </span>
-                    ) : (
-                      <span className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-600">
-                        No Account
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800">
-                      {user.role_name || 'No Role'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <div className="flex gap-2 justify-center">
-                      <button
-                        onClick={() => navigate(`/users/${user.employee_id}`)}
-                        className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded"
-                      >
-                        View
-                      </button>
-                      {user.has_account && (
-                        <>
-                          <button
-                            onClick={() => navigate(`/users/edit/${user.employee_id}`)}
-                            className="px-3 py-1 text-sm text-green-600 hover:bg-green-50 rounded"
-                          >
-                            Edit
-                          </button>
-                          {user.role_id && (
-                            <button
-                              onClick={() => handleDelete(user.employee_id)}
-                              className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded"
-                            >
-                              Delete
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {filteredUsers.length === 0 && (
-            <div className="p-8 text-center text-gray-500">No employees found</div>
-          )}
-        </div>
+        <UserTable
+          users={paginatedUsers}
+          onView={(id) => navigate(`/users/${id}`)}
+          onEdit={(id) => navigate(`/users/edit/${id}`)}
+          onDelete={handleDelete}
+        />
       )}
 
       {selectedBranch !== 'all' && totalPages > 1 && (

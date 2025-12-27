@@ -10,20 +10,22 @@ export default function UserDetailPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!id) return
+    
+    const loadData = async () => {
+      try {
+        const userData = await usersApi.getById(id)
+        setUser(userData)
+      } catch (error) {
+        console.error('Failed to load data:', error)
+        setUser(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
     loadData()
   }, [id])
-
-  const loadData = async () => {
-    try {
-      const usersData = await usersApi.getAll()
-      const userData = usersData.find(u => u.employee_id === id)
-      setUser(userData || null)
-    } catch (error) {
-      console.error('Failed to load data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   if (loading) {
     return <div className="flex items-center justify-center h-64">Loading...</div>
