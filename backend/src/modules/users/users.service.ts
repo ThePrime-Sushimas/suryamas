@@ -14,8 +14,20 @@ type EmployeeBranchRow = {
   }[] | null
 }
 
-function getPrimaryBranchName(employee: any): string {
-  const primary = (employee.employee_branches as EmployeeBranchRow[])?.find(eb => eb.is_primary)
+type EmployeeRow = {
+  employee_id: string
+  full_name: string
+  job_position: string | null
+  email: string | null
+  user_id: string | null
+  employee_branches: EmployeeBranchRow[] | null
+}
+
+function getPrimaryBranchName(employee: EmployeeRow): string {
+  const primary = employee.employee_branches?.find(eb => eb.is_primary)
+  if (!primary) {
+    logError('Employee has no primary branch', { employee_id: employee.employee_id })
+  }
   return primary?.branches?.[0]?.branch_name ?? '-'
 }
 
