@@ -7,6 +7,18 @@ import { supabase } from '../../config/supabase'
 import { PermissionService as CorePermissionService } from '../../services/permission.service'
 import { logInfo, logError } from '../../config/logger'
 
+type EmployeeBranchRow = {
+  is_primary: boolean
+  branches: {
+    branch_name: string
+  }[] | null
+}
+
+function getPrimaryBranchName(employee: any): string {
+  const primary = (employee.employee_branches as EmployeeBranchRow[])?.find(eb => eb.is_primary)
+  return primary?.branches?.[0]?.branch_name ?? '-'
+}
+
 export class UsersService {
   private repository: UsersRepository
 
@@ -20,14 +32,12 @@ export class UsersService {
     
     return (employees || []).map((employee: any) => {
       const profile = profiles?.find(p => p.user_id === employee.user_id)
-      const primaryBranch = (employee.employee_branches || []).find((eb: any) => eb.is_primary)
-      const branchName = primaryBranch?.branches?.branch_name || 'No Branch'
       return {
         employee_id: employee.employee_id,
         full_name: employee.full_name,
         job_position: employee.job_position,
         email: employee.email,
-        branch: branchName,
+        branch: getPrimaryBranchName(employee),
         user_id: employee.user_id,
         has_account: !!employee.user_id,
         role_id: profile?.role_id || null,
@@ -52,15 +62,12 @@ export class UsersService {
       .eq('user_id', employee.user_id)
       .single()
 
-    const primaryBranch = (employee.employee_branches || []).find((eb: any) => eb.is_primary)
-    const branchName = primaryBranch?.branches?.branch_name 
-
     return {
       employee_id: employee.employee_id,
       full_name: employee.full_name,
       job_position: employee.job_position,
       email: employee.email,
-      branch: branchName,
+      branch: getPrimaryBranchName(employee),
       user_id: employee.user_id,
       has_account: !!employee.user_id,
       role_id: profile?.role_id || null,
