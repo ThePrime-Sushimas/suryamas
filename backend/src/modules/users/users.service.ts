@@ -19,24 +19,39 @@ export class UsersService {
   async getAllUsers(): Promise<UserDTO[]> {
     const { data: employees } = await supabase
       .from('employees')
-      .select('employee_id, full_name, job_position, email, user_id, employee_branches(is_primary, branches(branch_name))')
+      .select('employee_id, full_name, job_position, email, user_id, employee_branches(branch_id, is_primary, branches(id, branch_name))')
 
     const { data: profiles } = await supabase
       .from('perm_user_profiles')
       .select('user_id, role_id, perm_roles(id, name, description)')
 
-    return ((employees as EmployeeRow[] | null) || []).map(emp =>
-      mapToUserDTO(
-        emp,
+
+
+    return ((employees as any[] | null) || []).map((emp: any) => {
+      // Transform the data to match our types - match pattern from employees.repository.ts
+      const transformedEmp: EmployeeRow = {
+        employee_id: emp.employee_id,
+        full_name: emp.full_name,
+        job_position: emp.job_position,
+        email: emp.email,
+        user_id: emp.user_id,
+        employee_branches: emp.employee_branches?.map((eb: any) => ({
+          is_primary: eb.is_primary,
+          branches: eb.branches
+        })) || null
+      }
+      
+      return mapToUserDTO(
+        transformedEmp,
         profiles?.find(p => p.user_id === emp.user_id)
       )
-    )
+    })
   }
 
   async getUserById(employeeId: string): Promise<UserDTO | null> {
     const { data: employee } = await supabase
       .from('employees')
-      .select('employee_id, full_name, job_position, email, user_id, employee_branches(is_primary, branches(branch_name))')
+      .select('employee_id, full_name, job_position, email, user_id, employee_branches(branch_id, is_primary, branches(id, branch_name))')
       .eq('employee_id', employeeId)
       .single()
 
@@ -48,7 +63,19 @@ export class UsersService {
       .eq('user_id', employee.user_id)
       .single()
 
-    return mapToUserDTO(employee as EmployeeRow, profile)
+    const transformedEmployee: EmployeeRow = {
+      employee_id: employee.employee_id,
+      full_name: employee.full_name,
+      job_position: employee.job_position,
+      email: employee.email,
+      user_id: employee.user_id,
+      employee_branches: employee.employee_branches?.map((eb: any) => ({
+        is_primary: eb.is_primary,
+        branches: eb.branches
+      })) || null
+    }
+
+    return mapToUserDTO(transformedEmployee, profile)
   }
 
   async getUserRole(userId: string) {

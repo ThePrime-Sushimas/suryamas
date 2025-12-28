@@ -8,11 +8,16 @@ function extractPrimaryBranch(branches: EmployeeBranchRow[] | null): string {
   if (!branches || branches.length === 0) return '-'
   
   const primary = branches.find(b => b.is_primary)
-  if (primary) {
-    return primary?.branches?.branch_name ?? '-'
+  if (primary && primary.branches) {
+    return primary.branches.branch_name
   }
   
-  return branches[0]?.branches?.branch_name ?? '-'
+  // If no primary branch found, return the first available branch
+  if (branches[0]?.branches) {
+    return branches[0].branches.branch_name
+  }
+  
+  return '-'
 }
 
 export function mapToUserDTO(employee: EmployeeRow, profile?: any): UserDTO {
