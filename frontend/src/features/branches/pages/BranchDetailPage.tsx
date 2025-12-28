@@ -52,6 +52,8 @@ function BranchDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [showAssignModal, setShowAssignModal] = useState(false)
+  const [positionPages, setPositionPages] = useState<Record<string, number>>({})
+  const [expandedPositions, setExpandedPositions] = useState<Record<string, boolean>>({})
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     basic: true,
     contact: true,
@@ -60,6 +62,8 @@ function BranchDetailPage() {
     notes: false
   })
   const [showMobileMenu, setShowMobileMenu] = useState(false)
+
+  const ITEMS_PER_PAGE = 10
 
   useEffect(() => {
     const fetchBranch = async () => {
@@ -535,55 +539,101 @@ function BranchDetailPage() {
                           
                           const sortedPositions = Object.keys(groupedEmployees).sort()
                           
-                          return sortedPositions.map((position) => (
-                            <div key={position}>
-                              <h4 className="text-sm font-semibold text-blue-900 bg-blue-50 px-4 py-2 rounded-lg mb-3">
-                                {position} ({groupedEmployees[position].length})
-                              </h4>
-                              <div className="space-y-3">
-                                {groupedEmployees[position].map((emp) => (
-                                  <div
-                                    key={emp.id}
-                                    className="bg-white border border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-sm transition-all duration-200"
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-4">
-                                        <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-semibold">
-                                          {emp.full_name?.[0] || '?'}
-                                        </div>
-                                        <div>
-                                          <h4 className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer"
-                                              onClick={() => navigate(`/employees/${emp.id}`)}>
-                                            {emp.full_name}
-                                          </h4>
-                                          <p className="text-sm text-gray-500">{emp.job_position || 'Unassigned' }</p>  
-                                          <p className="text-sm text-gray-500">{emp.mobile_phone}</p>
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-4">
-                                        {emp.email && (
-                                          <a
-                                            href={`mailto:${emp.email}`}
-                                            className="text-gray-600 hover:text-blue-600 transition-colors duration-200"
-                                            title="Send Email"
-                                          >
-                                            <Mail className="h-5 w-5" />
-                                          </a>
-                                        )}
-                                        <button
-                                          onClick={() => navigate(`/employees/${emp.id}`)}
-                                          className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
+                          return sortedPositions.map((position) => {
+                            const positionEmployees = groupedEmployees[position]
+                            const currentPage = positionPages[position] || 1
+                            const totalPages = Math.ceil(positionEmployees.length / ITEMS_PER_PAGE)
+                            const startIdx = (currentPage - 1) * ITEMS_PER_PAGE
+                            const paginatedEmployees = positionEmployees.slice(startIdx, startIdx + ITEMS_PER_PAGE)
+                            const isExpanded = expandedPositions[position] ?? false
+                            
+                            return (
+                              <div key={position} className="border border-gray-200 rounded-xl overflow-hidden">
+                                <button
+                                  onClick={() => setExpandedPositions(prev => ({ ...prev, [position]: !isExpanded }))}
+                                  className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 hover:bg-blue-100 transition-colors"
+                                >
+                                  <h4 className="text-sm font-semibold text-blue-900">
+                                    {position} ({positionEmployees.length})
+                                  </h4>
+                                  <div className="flex items-center gap-3">
+                                    {isExpanded && totalPages > 1 && (
+                                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                        <div
+                                          onClick={() => setPositionPages(prev => ({ ...prev, [position]: Math.max(1, currentPage - 1) }))}
+                                          className={`px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-white cursor-pointer select-none ${
+                                            currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
+                                          }`}
                                         >
-                                          View Details
-                                          <ChevronRight className="h-4 w-4" />
-                                        </button>
+                                          Previous
+                                        </div>
+                                        <span className="text-sm text-gray-600">
+                                          {currentPage} / {totalPages}
+                                        </span>
+                                        <div
+                                          onClick={() => setPositionPages(prev => ({ ...prev, [position]: Math.min(totalPages, currentPage + 1) }))}
+                                          className={`px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-white cursor-pointer select-none ${
+                                            currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
+                                          }`}
+                                        >
+                                          Next
+                                        </div>
                                       </div>
-                                    </div>
+                                    )}
+                                    {isExpanded ? (
+                                      <ChevronUp className="h-5 w-5 text-blue-900" />
+                                    ) : (
+                                      <ChevronDown className="h-5 w-5 text-blue-900" />
+                                    )}
                                   </div>
-                                ))}
+                                </button>
+                                {isExpanded && (
+                                  <div className="p-4 space-y-3 bg-white">
+                                    {paginatedEmployees.map((emp) => (
+                                      <div
+                                        key={emp.id}
+                                        className="border border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-sm transition-all duration-200"
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-4">
+                                            <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-semibold">
+                                              {emp.full_name?.[0] || '?'}
+                                            </div>
+                                            <div>
+                                              <h4 className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer"
+                                                  onClick={() => navigate(`/employees/${emp.id}`)}>
+                                                {emp.full_name}
+                                              </h4>
+                                              <p className="text-sm text-gray-500">{emp.job_position || 'Unassigned' }</p>  
+                                              <p className="text-sm text-gray-500">{emp.mobile_phone}</p>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-4">
+                                            {emp.email && (
+                                              <a
+                                                href={`mailto:${emp.email}`}
+                                                className="text-gray-600 hover:text-blue-600 transition-colors duration-200"
+                                                title="Send Email"
+                                              >
+                                                <Mail className="h-5 w-5" />
+                                              </a>
+                                            )}
+                                            <button
+                                              onClick={() => navigate(`/employees/${emp.id}`)}
+                                              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
+                                            >
+                                              View Details
+                                              <ChevronRight className="h-4 w-4" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                            </div>
-                          ))
+                            )
+                          })
                         })()}
                       </div>
                     ) : (
@@ -806,57 +856,103 @@ function BranchDetailPage() {
                         
                         const sortedPositions = Object.keys(groupedEmployees).sort()
                         
-                        return sortedPositions.map((position) => (
-                          <div key={position}>
-                            <h4 className="text-xs font-semibold text-blue-900 bg-blue-50 px-3 py-1.5 rounded-lg mb-2">
-                              {position} ({groupedEmployees[position].length})
-                            </h4>
-                            <div className="space-y-2">
-                              {groupedEmployees[position].map((emp) => (
-                                <div
-                                  key={emp.id}
-                                  className="bg-white border border-gray-200 rounded-lg p-3 hover:border-blue-300 hover:shadow-sm transition-all duration-200"
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                      <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold text-sm">
-                                        {emp.full_name?.[0] || '?'}
-                                      </div>
-                                      <div className="min-w-0 flex-1">
-                                        <h4 
-                                          className="text-sm font-semibold text-gray-900 hover:text-blue-600 cursor-pointer truncate"
-                                          onClick={() => navigate(`/employees/${emp.id}`)}
-                                        >
-                                          {emp.full_name}
-                                        </h4>
-                                        <p className="text-xs text-gray-500 truncate">{emp.job_position || 'Unassigned'}</p>
-                                        <p className="text-xs text-gray-500 truncate">{emp.employee_id}</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      {emp.email && (
-                                        <a
-                                          href={`mailto:${emp.email}`}
-                                          className="text-gray-600 hover:text-blue-600 transition-colors duration-200 p-1"
-                                          title="Send Email"
-                                        >
-                                          <Mail className="h-4 w-4" />
-                                        </a>
-                                      )}
-                                      <button
-                                        onClick={() => navigate(`/employees/${emp.id}`)}
-                                        className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs font-medium p-1"
+                        return sortedPositions.map((position) => {
+                          const positionEmployees = groupedEmployees[position]
+                          const currentPage = positionPages[position] || 1
+                          const totalPages = Math.ceil(positionEmployees.length / ITEMS_PER_PAGE)
+                          const startIdx = (currentPage - 1) * ITEMS_PER_PAGE
+                          const paginatedEmployees = positionEmployees.slice(startIdx, startIdx + ITEMS_PER_PAGE)
+                          const isExpanded = expandedPositions[position] ?? true
+                          
+                          return (
+                            <div key={position} className="border border-gray-200 rounded-lg overflow-hidden">
+                              <button
+                                onClick={() => setExpandedPositions(prev => ({ ...prev, [position]: !isExpanded }))}
+                                className="w-full flex items-center justify-between px-3 py-2 bg-blue-50 hover:bg-blue-100 transition-colors"
+                              >
+                                <h4 className="text-xs font-semibold text-blue-900">
+                                  {position} ({positionEmployees.length})
+                                </h4>
+                                <div className="flex items-center gap-2">
+                                  {isExpanded && totalPages > 1 && (
+                                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                      <div
+                                        onClick={() => setPositionPages(prev => ({ ...prev, [position]: Math.max(1, currentPage - 1) }))}
+                                        className={`px-2 py-1 text-xs border border-gray-300 rounded hover:bg-white cursor-pointer select-none ${
+                                          currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
+                                        }`}
                                       >
-                                        View
-                                        <ChevronRight className="h-3 w-3" />
-                                      </button>
+                                        Prev
+                                      </div>
+                                      <span className="text-xs text-gray-600">
+                                        {currentPage}/{totalPages}
+                                      </span>
+                                      <div
+                                        onClick={() => setPositionPages(prev => ({ ...prev, [position]: Math.min(totalPages, currentPage + 1) }))}
+                                        className={`px-2 py-1 text-xs border border-gray-300 rounded hover:bg-white cursor-pointer select-none ${
+                                          currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
+                                        }`}
+                                      >
+                                        Next
+                                      </div>
                                     </div>
-                                  </div>
+                                  )}
+                                  {isExpanded ? (
+                                    <ChevronUp className="h-4 w-4 text-blue-900" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4 text-blue-900" />
+                                  )}
                                 </div>
-                              ))}
+                              </button>
+                              {isExpanded && (
+                                <div className="p-3 space-y-2 bg-white">
+                                  {paginatedEmployees.map((emp) => (
+                                    <div
+                                      key={emp.id}
+                                      className="border border-gray-200 rounded-lg p-3 hover:border-blue-300 hover:shadow-sm transition-all duration-200"
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                          <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold text-sm">
+                                            {emp.full_name?.[0] || '?'}
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <h4 
+                                              className="text-sm font-semibold text-gray-900 hover:text-blue-600 cursor-pointer truncate"
+                                              onClick={() => navigate(`/employees/${emp.id}`)}
+                                            >
+                                              {emp.full_name}
+                                            </h4>
+                                            <p className="text-xs text-gray-500 truncate">{emp.job_position || 'Unassigned'}</p>
+                                            <p className="text-xs text-gray-500 truncate">{emp.employee_id}</p>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {emp.email && (
+                                            <a
+                                              href={`mailto:${emp.email}`}
+                                              className="text-gray-600 hover:text-blue-600 transition-colors duration-200 p-1"
+                                              title="Send Email"
+                                            >
+                                              <Mail className="h-4 w-4" />
+                                            </a>
+                                          )}
+                                          <button
+                                            onClick={() => navigate(`/employees/${emp.id}`)}
+                                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs font-medium p-1"
+                                          >
+                                            View
+                                            <ChevronRight className="h-3 w-3" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))
+                          )
+                        })
                       })()}
                     </div>
                   ) : (

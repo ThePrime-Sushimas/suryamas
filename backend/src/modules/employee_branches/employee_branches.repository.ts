@@ -5,7 +5,7 @@ import { mapEmployeeBranch } from './employee_branches.mapper'
 export class EmployeeBranchesRepository {
   private baseSelect = `
     id, employee_id, branch_id, is_primary, created_at,
-    employees!inner(full_name),
+    employees!inner(full_name, job_position, email, mobile_phone),
     branches!inner(branch_name, branch_code)
   `
 

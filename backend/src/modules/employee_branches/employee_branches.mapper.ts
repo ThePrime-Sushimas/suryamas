@@ -45,6 +45,9 @@ export function mapEmployeeBranch(row: any): EmployeeBranchWithRelations {
     created_at: row.created_at,
     employee: {
       full_name: employee.full_name,
+      job_position: employee.job_position || null,
+      email: employee.email || null,
+      mobile_phone: employee.mobile_phone || null,
     },
     branch: {
       branch_name: branch.branch_name,

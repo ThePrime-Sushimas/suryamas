@@ -13,7 +13,12 @@ export interface EmployeeBranchEntity {
 // REPOSITORY OUTPUT
 // =========================
 export interface EmployeeBranchWithRelations extends EmployeeBranchEntity {
-  employee: { full_name: string }
+  employee: { 
+    full_name: string
+    job_position: string | null
+    email: string | null
+    mobile_phone: string | null
+  }
   branch: { branch_name: string; branch_code: string }
 }
 
@@ -26,6 +31,9 @@ export interface EmployeeBranchDto {
   branch_id: string
   is_primary: boolean
   employee_name: string
+  job_position: string | null
+  email: string | null
+  mobile_phone: string | null
   branch_name: string
   branch_code: string
   created_at: string
