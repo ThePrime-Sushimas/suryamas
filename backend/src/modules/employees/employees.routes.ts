@@ -3,6 +3,7 @@ import { employeesController } from './employees.controller'
 import { authenticate } from '../../middleware/auth.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
+import { filterMiddleware } from '../../middleware/filter.middleware'
 import { upload } from '../../middleware/upload.middleware'
 import { exportLimiter } from '../../middleware/rateLimiter.middleware'
 import { PermissionService } from '../../services/permission.service'
@@ -45,7 +46,7 @@ router.post('/profile/picture', authenticate, upload.single('picture'), (req, re
 router.get('/export/token', authenticate, canView('employees'), exportLimiter, (req, res) => 
   employeesController.generateExportToken(req as AuthenticatedRequest, res))
 
-router.get('/export', authenticate, canView('employees'), (req, res) => 
+router.get('/export', authenticate, canView('employees'), filterMiddleware, (req, res) => 
   employeesController.exportData(req as AuthenticatedPaginatedRequest, res))
 
 router.post('/import/preview', authenticate, canInsert('employees'), upload.single('file'), (req, res) => 

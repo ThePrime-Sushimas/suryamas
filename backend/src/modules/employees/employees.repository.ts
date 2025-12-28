@@ -199,7 +199,7 @@ export class EmployeesRepository {
       if (filter.branch_name) query = query.eq('employee_branches.branches.branch_name', filter.branch_name).eq('employee_branches.is_primary', true)
       if (filter.is_active !== undefined) query = query.eq('is_active', filter.is_active)
       if (filter.status_employee) query = query.eq('status_employee', filter.status_employee)
-      if (filter.job_position) query = query.eq('job_position', filter.job_position)
+      if (filter.job_position) query = query.ilike('job_position', filter.job_position)
     }
     
     const { data, error } = await query

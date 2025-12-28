@@ -258,7 +258,7 @@ export default function EmployeesPage() {
   // Memoized export filter
   const exportFilter = useMemo(() => {
     const filters: Record<string, string> = {}
-    if (query.search) filters.q = query.search
+    if (query.search) filters.search = query.search
     if (query.branch) filters.branch_name = query.branch
     if (query.position) filters.job_position = query.position
     if (query.status) filters.status_employee = query.status
