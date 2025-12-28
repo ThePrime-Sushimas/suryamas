@@ -71,4 +71,12 @@ export const employeeBranchesApi = {
       throw normalizeError(err)
     }
   },
+
+  async removeByEmployeeAndBranch(employeeId: string, branchId: string): Promise<void> {
+    try {
+      await api.delete(`${BASE}/employee/${employeeId}/branch/${branchId}`)
+    } catch (err) {
+      throw normalizeError(err)
+    }
+  },
 }

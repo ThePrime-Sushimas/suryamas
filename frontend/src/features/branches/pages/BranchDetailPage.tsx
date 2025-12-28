@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { branchesApi } from '../api/branches.api'
+import { employeeBranchesApi } from '@/features/employee_branches/api/employeeBranches.api'
 import type { Branch } from '../types'
 import api from '@/lib/axios'
 import AssignEmployeeToBranchModal from '@/components/AssignEmployeeToBranchModal'
+import { useToast } from '@/contexts/ToastContext'
 import {
   ArrowLeft,
   Building,
@@ -62,6 +64,8 @@ function BranchDetailPage() {
     notes: false
   })
   const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const [deletingEmployee, setDeletingEmployee] = useState<string | null>(null)
+  const { success, error: showError } = useToast()
 
   const ITEMS_PER_PAGE = 10
 
@@ -153,6 +157,22 @@ function BranchDetailPage() {
       ...prev,
       [section]: !prev[section]
     }))
+  }
+
+  const handleRemoveEmployee = async (employeeId: string, employeeName: string) => {
+    if (!confirm(`Hapus ${employeeName} dari cabang ini?`)) return
+
+    setDeletingEmployee(employeeId)
+    try {
+      await employeeBranchesApi.removeByEmployeeAndBranch(employeeId, id!)
+      setEmployees(prev => prev.filter(emp => emp.employee_id !== employeeId))
+      success('Employee berhasil dihapus dari cabang')
+    } catch (err) {
+      console.error('Failed to remove employee:', err)
+      showError('Gagal menghapus employee dari cabang')
+    } finally {
+      setDeletingEmployee(null)
+    }
   }
 
   if (loading) {
@@ -619,6 +639,18 @@ function BranchDetailPage() {
                                               </a>
                                             )}
                                             <button
+                                              onClick={() => handleRemoveEmployee(emp.employee_id, emp.full_name)}
+                                              disabled={deletingEmployee === emp.employee_id}
+                                              className="text-red-600 hover:text-red-700 transition-colors duration-200 disabled:opacity-50"
+                                              title="Remove from branch"
+                                            >
+                                              {deletingEmployee === emp.employee_id ? (
+                                                <Loader2 className="h-5 w-5 animate-spin" />
+                                              ) : (
+                                                <Trash2 className="h-5 w-5" />
+                                              )}
+                                            </button>
+                                            <button
                                               onClick={() => navigate(`/employees/${emp.id}`)}
                                               className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
                                             >
@@ -937,6 +969,18 @@ function BranchDetailPage() {
                                               <Mail className="h-4 w-4" />
                                             </a>
                                           )}
+                                          <button
+                                            onClick={() => handleRemoveEmployee(emp.employee_id, emp.full_name)}
+                                            disabled={deletingEmployee === emp.employee_id}
+                                            className="text-red-600 hover:text-red-700 transition-colors duration-200 p-1 disabled:opacity-50"
+                                            title="Remove from branch"
+                                          >
+                                            {deletingEmployee === emp.employee_id ? (
+                                              <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                              <Trash2 className="h-4 w-4" />
+                                            )}
+                                          </button>
                                           <button
                                             onClick={() => navigate(`/employees/${emp.id}`)}
                                             className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs font-medium p-1"
