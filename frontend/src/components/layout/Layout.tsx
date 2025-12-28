@@ -42,7 +42,7 @@ export default function Layout() {
         { id: 'sub-categories', name: 'Sub Categories', href: '/sub-categories', icon: <Package size={16} /> },
         { id: 'metric-units', name: 'Metric Units', href: '/metric-units', icon: <Package size={16} /> },
         { id: 'companies', name: 'Companies', href: '/companies', icon: <Factory size={16} /> },
-        { id: 'branches', name: 'Branches', href: '/branches', icon: <Warehouse size={16} /> },
+        { id: 'branches', name: 'v.Branches', href: '/branches', icon: <Warehouse size={16} /> },
       ]
     },
     {
@@ -50,9 +50,9 @@ export default function Layout() {
       name: 'Employees & Users',
       icon: <Package size={18} />,
       submenu: [
-        { id: 'employees', name: 'Employees', href: '/employees', icon: <Users size={16} /> },
-        { id: 'users', name: 'Users', href: '/users', icon: <Users size={16} /> },
-        { id: 'employee_branches', name: 'Employee Branches', href: '/employee-branches', icon: <Users size={16} /> },
+        { id: 'employees', name: 'v.Employees', href: '/employees', icon: <Users size={16} /> },
+        { id: 'users', name: 'v.Users', href: '/users', icon: <Users size={16} /> },
+        { id: 'employee_branches', name: 'v.Employee Branches', href: '/employee-branches', icon: <Users size={16} /> },
       ]
     },
     {
@@ -60,7 +60,7 @@ export default function Layout() {
       name: 'Settings',
       icon: <Settings size={18} />,
       submenu: [
-        { id: 'permissions', name: 'Permissions', href: '/permissions', icon: <Settings size={16} /> },
+        { id: 'permissions', name: 'v.Permissions', href: '/permissions', icon: <Settings size={16} /> },
       ]
     },
   ], [])
