@@ -1,5 +1,5 @@
 import { employeesRepository } from './employees.repository'
-import { Employee } from './employees.types'
+import { EmployeeResponse, EmployeeCreatePayload, EmployeeUpdatePayload, EmployeeProfileUpdatePayload, EmployeeFilter, PaginationParams } from './employees.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
 import { ExportService } from '../../services/export.service'
 import { ImportService } from '../../services/import.service'
@@ -8,227 +8,122 @@ import { calculateAge, calculateYearsOfService } from '../../utils/age.util'
 import { supabase } from '../../config/supabase'
 
 export class EmployeesService {
-  async list(pagination: { page: number; limit: number; sort?: string; order?: 'asc' | 'desc' }): Promise<PaginatedResponse<Employee>> {
-    const { data, total } = await employeesRepository.findAll(pagination)
-    const dataWithAge = data.map(emp => ({ ...emp, age: calculateAge(emp.birth_date), years_of_service: calculateYearsOfService(emp.join_date, emp.resign_date) }))
-    return createPaginatedResponse(dataWithAge, total, pagination.page, pagination.limit)
+  async list(params: PaginationParams): Promise<PaginatedResponse<EmployeeResponse>> {
+    const { data, total } = await employeesRepository.findAll(params)
+    return createPaginatedResponse(this.enrichWithComputed(data), total, params.page, params.limit)
   }
 
-  async getUnassigned(pagination: { page: number; limit: number }): Promise<PaginatedResponse<Employee>> {
-    const { data, total } = await employeesRepository.findUnassigned(pagination)
-    const dataWithAge = data.map(emp => ({ ...emp, age: calculateAge(emp.birth_date), years_of_service: calculateYearsOfService(emp.join_date, emp.resign_date) }))
-    return createPaginatedResponse(dataWithAge, total, pagination.page, pagination.limit)
+  async getUnassigned(params: { page: number; limit: number }): Promise<PaginatedResponse<EmployeeResponse>> {
+    const { data, total } = await employeesRepository.findUnassigned(params)
+    return createPaginatedResponse(this.enrichWithComputed(data), total, params.page, params.limit)
   }
 
-  async create(data: Partial<Employee>, file?: Express.Multer.File, userId?: string): Promise<Employee> {
-    const profilePictureUrl = await this.handleProfilePicture(file)
-    const employeeId = await this.generateEmployeeIdIfNeeded(data)
+  async create(payload: EmployeeCreatePayload, file?: Express.Multer.File, userId?: string): Promise<EmployeeResponse> {
+    const profilePictureUrl = file ? await this.uploadFile(file) : null
+    const employeeId = payload.employee_id || await this.generateEmployeeId(payload)
     
     const employee = await employeesRepository.create({
-      ...data,
+      ...payload,
       employee_id: employeeId,
       profile_picture: profilePictureUrl
     })
+
+    await AuditService.log('CREATE', 'employee', employee.id, userId || null, null, employee)
+
+    const fullEmployee = await employeesRepository.findById(employee.id)
+    if (!fullEmployee) throw new Error('Failed to retrieve created employee')
     
-    if (!employee) {
-      throw new Error('Failed to create employee')
-    }
-
-    await AuditService.log(
-      'CREATE',
-      'employee',
-      employee.id,
-      userId || null,
-      null,
-      employee
-    )
-
-    return employee
+    return this.enrichWithComputed([fullEmployee])[0]
   }
 
-  private async handleProfilePicture(file?: Express.Multer.File): Promise<string | null> {
-    if (!file) return null
-    
-    const fileName = `${Date.now()}-${file.originalname}`
-    try {
-      await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
-      return employeesRepository.getPublicUrl(fileName)
-    } catch (err) {
-      return null
-    }
-  }
-
-  private async generateEmployeeIdIfNeeded(data: Partial<Employee>): Promise<string | undefined> {
-    if (data.employee_id) return data.employee_id
-    
-    if (!data.brand_name || !data.join_date || !data.job_position) {
-      throw new Error('Missing required fields to generate employee ID')
-    }
-    
-    const { data: generatedId, error } = await supabase.rpc(
-      'generate_employee_id',
-      {
-        p_branch_name: data.brand_name,
-        p_join_date: data.join_date,
-        p_job_position: data.job_position,
-      }
-    )
-    
-    if (error) throw new Error(`Failed to generate employee ID: ${error.message}`)
-    
-    return generatedId
-  }
-
-  async search(searchTerm: string, pagination: { page: number; limit: number; sort?: string; order?: 'asc' | 'desc' }, filter?: any): Promise<PaginatedResponse<Employee>> {
-    const { data, total } = await employeesRepository.searchByName(searchTerm, pagination)
-    const dataWithAge = data.map(emp => ({ ...emp, age: calculateAge(emp.birth_date), years_of_service: calculateYearsOfService(emp.join_date, emp.resign_date) }))
-    return createPaginatedResponse(dataWithAge, total, pagination.page, pagination.limit)
+  async search(searchTerm: string, params: PaginationParams, filter?: EmployeeFilter): Promise<PaginatedResponse<EmployeeResponse>> {
+    const { data, total } = await employeesRepository.search(searchTerm, params, filter)
+    return createPaginatedResponse(this.enrichWithComputed(data), total, params.page, params.limit)
   }
 
   async getFilterOptions() {
     return await employeesRepository.getFilterOptions()
   }
 
-  async autocomplete(query: string): Promise<{id: string, full_name: string}[]> {
-    return await employeesRepository.autocompleteName(query)
+  async autocomplete(query: string): Promise<{ id: string; full_name: string }[]> {
+    return await employeesRepository.autocomplete(query)
   }
 
-  async getProfile(userId: string): Promise<Employee> {
+  async getProfile(userId: string): Promise<EmployeeResponse> {
     const employee = await employeesRepository.findByUserId(userId)
-    
-    if (!employee) {
-      throw new Error('Employee profile not found')
-    }
-
-    return { ...employee, age: calculateAge(employee.birth_date), years_of_service: calculateYearsOfService(employee.join_date, employee.resign_date) }
+    if (!employee) throw new Error('Employee profile not found')
+    return this.enrichWithComputed([employee])[0]
   }
 
-  async updateProfile(userId: string, updates: Partial<Employee>): Promise<Employee> {
-    const { id, employee_id, user_id, created_at, ...allowedUpdates } = updates as any
-
-    // Remove empty strings to avoid date validation errors
-    const cleanedUpdates = Object.fromEntries(
-      Object.entries(allowedUpdates).filter(([_, value]) => value !== '')
-    )
-
-    if (Object.keys(cleanedUpdates).length === 0) {
-      throw new Error('No valid fields to update')
-    }
+  async updateProfile(userId: string, payload: EmployeeProfileUpdatePayload): Promise<EmployeeResponse> {
+    const cleanedUpdates = this.cleanEmptyStrings(payload)
+    if (Object.keys(cleanedUpdates).length === 0) throw new Error('No valid fields to update')
 
     const employee = await employeesRepository.update(userId, cleanedUpdates)
+    const fullEmployee = await employeesRepository.findByUserId(userId)
+    if (!fullEmployee) throw new Error('Failed to retrieve updated profile')
     
-    if (!employee) {
-      throw new Error('Failed to update employee profile')
-    }
-
-    return { ...employee, age: calculateAge(employee.birth_date), years_of_service: calculateYearsOfService(employee.join_date, employee.resign_date) }
+    return this.enrichWithComputed([fullEmployee])[0]
   }
 
   async uploadProfilePicture(userId: string, file: Express.Multer.File): Promise<string> {
-    const fileName = `${userId}-${Date.now()}.${file.mimetype.split('/')[1]}`
-    await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
-    
-    const publicUrl = employeesRepository.getPublicUrl(fileName)
-    const updated = await employeesRepository.update(userId, { profile_picture: publicUrl })
-    
-    if (!updated) {
-      throw new Error('Failed to update profile picture in database')
-    }
-    
+    const publicUrl = await this.uploadFile(file, userId)
+    await employeesRepository.update(userId, { profile_picture: publicUrl })
     return publicUrl
   }
 
-  async getById(id: string): Promise<Employee> {
+  async getById(id: string): Promise<EmployeeResponse> {
     const employee = await employeesRepository.findById(id)
-    
-    if (!employee) {
-      throw new Error('Employee not found')
-    }
-
-    return { ...employee, age: calculateAge(employee.birth_date), years_of_service: calculateYearsOfService(employee.join_date, employee.resign_date) }
+    if (!employee) throw new Error('Employee not found')
+    return this.enrichWithComputed([employee])[0]
   }
 
-  async update(id: string, data: Partial<Employee>, file?: Express.Multer.File, userId?: string): Promise<Employee> {
-    const { id: _, user_id, created_at, employee_id, ...allowedUpdates } = data as any
+  async update(id: string, payload: EmployeeUpdatePayload, file?: Express.Multer.File, userId?: string): Promise<EmployeeResponse> {
+    const cleanedUpdates = this.cleanEmptyStrings(payload)
     
-    let profilePictureUrl: string | null = null
     if (file) {
-      const fileName = `${id}-${Date.now()}.${file.mimetype.split('/')[1]}`
-      try {
-        await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
-        profilePictureUrl = employeesRepository.getPublicUrl(fileName)
-        allowedUpdates.profile_picture = profilePictureUrl
-      } catch (err) {
-        // Continue without profile picture if upload fails
-      }
+      const profilePictureUrl = await this.uploadFile(file, id)
+      cleanedUpdates.profile_picture = profilePictureUrl
     }
     
-    const cleanedUpdates = Object.fromEntries(
-      Object.entries(allowedUpdates).map(([key, value]) => {
-        if (value === '' && (key === 'resign_date' || key === 'end_date' || key === 'sign_date')) {
-          return [key, null]
-        }
-        return [key, value]
-      }).filter(([_, value]) => value !== '')
-    )
-
-    if (Object.keys(cleanedUpdates).length === 0 && !file) {
-      throw new Error('No valid fields to update')
-    }
+    if (Object.keys(cleanedUpdates).length === 0) throw new Error('No valid fields to update')
 
     const oldEmployee = await employeesRepository.findById(id)
     const employee = await employeesRepository.updateById(id, cleanedUpdates)
+
+    await AuditService.log('UPDATE', 'employee', id, userId || null, oldEmployee, employee)
+
+    const fullEmployee = await employeesRepository.findById(id)
+    if (!fullEmployee) throw new Error('Failed to retrieve updated employee')
     
-    if (!employee) {
-      throw new Error('Failed to update employee')
-    }
-
-    await AuditService.log(
-      'UPDATE',
-      'employee',
-      id,
-      userId || null,
-      oldEmployee,
-      employee
-    )
-
-    return employee
+    return this.enrichWithComputed([fullEmployee])[0]
   }
 
   async delete(id: string, userId?: string): Promise<void> {
     const employee = await employeesRepository.findById(id)
     await employeesRepository.delete(id)
-
     if (employee) {
-      await AuditService.log(
-        'DELETE',
-        'employee',
-        id,
-        userId || null,
-        employee,
-        null
-      )
+      await AuditService.log('DELETE', 'employee', id, userId || null, employee, null)
     }
   }
 
   async bulkUpdateActive(ids: string[], isActive: boolean): Promise<void> {
+    if (ids.length === 0) throw new Error('No IDs provided')
     await employeesRepository.bulkUpdateActive(ids, isActive)
   }
 
   async bulkDelete(ids: string[]): Promise<void> {
+    if (ids.length === 0) throw new Error('No IDs provided')
     await employeesRepository.bulkDelete(ids)
   }
 
-  async exportToExcel(filter?: any): Promise<Buffer> {
+  async exportToExcel(filter?: EmployeeFilter): Promise<Buffer> {
     const data = await employeesRepository.exportData(filter)
-    const dataWithAge = data.map(emp => {
-      const yos = calculateYearsOfService(emp.join_date, emp.resign_date)
-      return {
-        ...emp,
-        age: calculateAge(emp.birth_date),
-        years_of_service: yos ? `${yos.years}y ${yos.months}m ${yos.days}d` : null
-      }
-    })
+    const enriched = this.enrichWithComputed(data).map(emp => ({
+      ...emp,
+      years_of_service: emp.years_of_service ? `${emp.years_of_service.years}y ${emp.years_of_service.months}m ${emp.years_of_service.days}d` : null
+    }))
+    
     const columns = [
       { header: 'Employee ID', key: 'employee_id', width: 15 },
       { header: 'Full Name', key: 'full_name', width: 25 },
@@ -259,7 +154,7 @@ export class EmployeesService {
       { header: 'Profile Picture', key: 'profile_picture', width: 50 },
       { header: 'Created At', key: 'created_at', width: 20 },
     ]
-    return await ExportService.generateExcel(dataWithAge, columns)
+    return await ExportService.generateExcel(enriched, columns)
   }
 
   async previewImport(buffer: Buffer): Promise<any[]> {
@@ -268,25 +163,19 @@ export class EmployeesService {
 
   async importFromExcel(buffer: Buffer, skipDuplicates: boolean): Promise<any> {
     const rows = await ImportService.parseExcel(buffer)
-    const requiredFields = ['full_name', 'brand_name', 'join_date', 'job_position'] // Required for auto-generate ID
+    const requiredFields = ['full_name', 'brand_name', 'join_date', 'job_position']
     
     return await ImportService.processImport(
       rows,
       requiredFields,
       async (row) => {
-        // Generate employee_id if not provided
         let employeeId = row.employee_id
         if (!employeeId && row.brand_name && row.join_date && row.job_position) {
-          const { data: generatedId, error } = await supabase.rpc(
-            'generate_employee_id',
-            {
-              p_branch_name: row.brand_name,
-              p_join_date: row.join_date,
-              p_job_position: row.job_position,
-            }
-          )
-          if (error) throw new Error(`Failed to generate employee ID: ${error.message}`)
-          employeeId = generatedId
+          employeeId = await this.generateEmployeeId({
+            brand_name: row.brand_name,
+            join_date: row.join_date,
+            job_position: row.job_position,
+          } as any)
         }
         
         await employeesRepository.create({
@@ -316,6 +205,44 @@ export class EmployeesService {
         })
       },
       skipDuplicates
+    )
+  }
+
+  private async generateEmployeeId(payload: Pick<EmployeeCreatePayload, 'brand_name' | 'join_date' | 'job_position'>): Promise<string> {
+    const { data: generatedId, error } = await supabase.rpc('generate_employee_id', {
+      p_branch_name: payload.brand_name,
+      p_join_date: payload.join_date,
+      p_job_position: payload.job_position,
+    })
+    
+    if (error) throw new Error(`Failed to generate employee ID: ${error.message}`)
+    return generatedId
+  }
+
+  private async uploadFile(file: Express.Multer.File, prefix?: string): Promise<string> {
+    const fileName = `${prefix || Date.now()}-${Date.now()}.${file.mimetype.split('/')[1]}`
+    await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
+    return employeesRepository.getPublicUrl(fileName)
+  }
+
+  private enrichWithComputed(data: any[]): EmployeeResponse[] {
+    return data.map(emp => ({
+      ...emp,
+      age: calculateAge(emp.birth_date),
+      years_of_service: calculateYearsOfService(emp.join_date, emp.resign_date)
+    }))
+  }
+
+  private cleanEmptyStrings(obj: any): any {
+    return Object.fromEntries(
+      Object.entries(obj)
+        .map(([key, value]) => {
+          if (value === '' && ['resign_date', 'end_date', 'sign_date', 'birth_date'].includes(key)) {
+            return [key, null]
+          }
+          return [key, value]
+        })
+        .filter(([_, value]) => value !== '')
     )
   }
 }

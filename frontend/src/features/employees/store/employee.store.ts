@@ -40,6 +40,14 @@ interface Employee {
 interface ApiResponse<T> {
   success: boolean
   data: T
+  pagination?: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+    hasNext: boolean
+    hasPrev: boolean
+  }
 }
 
 interface FilterOptions {
@@ -52,6 +60,14 @@ interface EmployeeState {
   employees: Employee[]
   profile: Employee | null
   filterOptions: FilterOptions | null
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+    hasNext: boolean
+    hasPrev: boolean
+  } | null
   isLoading: boolean
   fetchProfile: () => Promise<void>
   updateProfile: (data: Partial<Employee>) => Promise<void>
@@ -69,6 +85,7 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
   employees: [],
   profile: null,
   filterOptions: null,
+  pagination: null,
   isLoading: false,
 
   fetchProfile: async () => {
@@ -116,19 +133,19 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     }
   },
 
-  fetchEmployees: async (sort = 'full_name', order = 'asc', page = 1, limit = 1000) => {
+  fetchEmployees: async (sort = 'full_name', order = 'asc', page = 1, limit = 50) => {
     set({ isLoading: true })
     try {
       const { data } = await api.get<ApiResponse<Employee[]>>('/employees', {
         params: { sort, order, page, limit }
       })
-      set({ employees: data.data })
+      set({ employees: data.data, pagination: data.pagination || null })
     } finally {
       set({ isLoading: false })
     }
   },
 
-  searchEmployees: async (query, sort = 'full_name', order = 'desc', filter = {}, page = 1, limit = 10) => {
+  searchEmployees: async (query, sort = 'full_name', order = 'desc', filter = {}, page = 1, limit = 50) => {
     set({ isLoading: true })
     try {
       const params: Record<string, string> = {
@@ -150,10 +167,7 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
       
       const queryString = new URLSearchParams(params).toString()
       const { data } = await api.get<ApiResponse<Employee[]>>(`/employees/search?${queryString}`)
-      // Tampilkan semua employees tanpa filter branch_name
-      set({ 
-        employees: data.data
-      })
+      set({ employees: data.data, pagination: data.pagination || null })
     } finally {
       set({ isLoading: false })
     }

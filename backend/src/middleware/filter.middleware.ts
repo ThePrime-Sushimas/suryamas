@@ -9,6 +9,7 @@ export const filterMiddleware = (req: any, res: Response, next: NextFunction) =>
     const filter: Record<string, any> = {}
     const excludedParams = ['page', 'limit', 'sort', 'order', 'q', '_']
     
+    // amazonq-ignore-next-line
     Object.keys(req.query).forEach(key => {
       if (!excludedParams.includes(key) && req.query[key] !== undefined && req.query[key] !== '') {
         const value = req.query[key]

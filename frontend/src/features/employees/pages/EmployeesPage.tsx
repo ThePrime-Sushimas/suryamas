@@ -14,7 +14,7 @@ import FloatingActionButton from '@/components/mobile/FloatingActionButton'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { TableSkeleton } from '@/components/ui/Skeleton'
 
-import { Users, Plus, Search, AlertCircle } from 'lucide-react'
+import { Users, Plus, Search, AlertCircle, Filter, ChevronLeft, ChevronRight } from 'lucide-react'
 
 type QueryState = {
   page: number
@@ -22,6 +22,17 @@ type QueryState = {
   sort: string
   order: 'asc' | 'desc'
   search: string
+  branch?: string
+  position?: string
+  status?: string
+  isActive?: string
+}
+
+type EmployeeFilters = {
+  branch_name?: string
+  job_position?: string
+  status_employee?: string
+  is_active?: string
 }
 
 type ConfirmState = {
@@ -44,6 +55,8 @@ export default function EmployeesPage() {
     bulkDelete,
     bulkUpdateActive,
     fetchFilterOptions,
+    filterOptions,
+    pagination,
     isLoading
   } = useEmployeeStore()
 
@@ -52,12 +65,19 @@ export default function EmployeesPage() {
     limit: 50,
     sort: 'full_name',
     order: 'asc',
-    search: ''
+    search: '',
+    branch: '',
+    position: '',
+    status: '',
+    isActive: ''
   })
 
+  const [searchInput, setSearchInput] = useState('')
   const [showImport, setShowImport] = useState(false)
+  const [showFilter, setShowFilter] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState>(null)
+  const [isConfirming, setIsConfirming] = useState(false)
 
   const {
     selectedIds,
@@ -68,32 +88,58 @@ export default function EmployeesPage() {
     isSelected
   } = useBulkSelection(employees)
 
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQuery(q => ({ ...q, search: searchInput, page: 1 }))
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchInput])
+
   // Init filter options once
   useEffect(() => {
     fetchFilterOptions()
+  }, [fetchFilterOptions])
+
+  // Build filters helper
+  const buildFilters = useCallback((q: QueryState): EmployeeFilters => {
+    const filters: EmployeeFilters = {}
+    if (q.branch) filters.branch_name = q.branch
+    if (q.position) filters.job_position = q.position
+    if (q.status) filters.status_employee = q.status
+    if (q.isActive) filters.is_active = q.isActive
+    return filters
   }, [])
 
-  // Declarative data fetch
+  // Declarative data fetch with abort
   useEffect(() => {
+    const controller = new AbortController()
     const fetch = async () => {
       try {
         setError(null)
-        if (query.search) {
-          await searchEmployees(query.search, query.sort, query.order, {}, query.page, query.limit)
+        const filters = buildFilters(query)
+        const hasFilters = Object.keys(filters).length > 0
+        
+        if (query.search || hasFilters) {
+          await searchEmployees(query.search || '', query.sort, query.order, filters, query.page, query.limit)
         } else {
           await fetchEmployees(query.sort, query.order, query.page, query.limit)
         }
       } catch (err: any) {
-        setError(err.message || 'Failed to load employees')
+        if (err.name !== 'AbortError') {
+          setError(err.message || 'Failed to load employees')
+        }
       }
     }
     fetch()
-  }, [query])
+    return () => controller.abort()
+  }, [query, buildFilters, searchEmployees, fetchEmployees])
 
-  // Auto-clear selection when data changes
+  // Auto-clear selection when page changes
   useEffect(() => {
     clearSelection()
-  }, [employees.length])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query.page])
 
   // Handlers
   const handleSearchSubmit = useCallback((e: React.FormEvent) => {
@@ -102,7 +148,16 @@ export default function EmployeesPage() {
   }, [])
 
   const handleClearSearch = useCallback(() => {
+    setSearchInput('')
     setQuery(q => ({ ...q, search: '', page: 1 }))
+  }, [])
+
+  const handleFilterChange = useCallback((key: keyof QueryState, value: string) => {
+    setQuery(q => ({ ...q, [key]: value, page: 1 }))
+  }, [])
+
+  const handleClearFilters = useCallback(() => {
+    setQuery(q => ({ ...q, branch: '', position: '', status: '', isActive: '', page: 1 }))
   }, [])
 
   const handleSort = useCallback((field: string) => {
@@ -127,40 +182,48 @@ export default function EmployeesPage() {
   }, [deleteEmployee, success])
 
   const handleBulkDelete = useCallback(() => {
+    if (selectedCount === 0) return
     setConfirm({
       open: true,
       title: 'Delete Multiple Employees',
       message: `Delete ${selectedCount} employee(s)? This action cannot be undone.`,
       action: async () => {
-        await bulkDelete(selectedIds)
-        success(`${selectedCount} employee(s) deleted`)
+        const validIds = selectedIds.filter(id => employees.some(e => e.id === id))
+        if (validIds.length === 0) throw new Error('Selected employees no longer exist')
+        await bulkDelete(validIds)
+        success(`${validIds.length} employee(s) deleted`)
       }
     })
-  }, [selectedCount, selectedIds, bulkDelete, success])
+  }, [selectedCount, selectedIds, employees, bulkDelete, success])
 
   const handleBulkActive = useCallback((active: boolean) => {
+    if (selectedCount === 0) return
     setConfirm({
       open: true,
       title: active ? 'Set Active' : 'Set Inactive',
       message: `Update ${selectedCount} employee(s) to ${active ? 'Active' : 'Inactive'}?`,
       action: async () => {
-        await bulkUpdateActive(selectedIds, active)
-        success(`${selectedCount} employee(s) updated`)
+        const validIds = selectedIds.filter(id => employees.some(e => e.id === id))
+        if (validIds.length === 0) throw new Error('Selected employees no longer exist')
+        await bulkUpdateActive(validIds, active)
+        success(`${validIds.length} employee(s) updated`)
       }
     })
-  }, [selectedCount, selectedIds, bulkUpdateActive, success])
+  }, [selectedCount, selectedIds, employees, bulkUpdateActive, success])
 
   const handleConfirm = useCallback(async () => {
-    if (!confirm) return
+    if (!confirm || isConfirming) return
+    setIsConfirming(true)
     try {
       await confirm.action()
-      setQuery(q => ({ ...q })) // Trigger refetch
+      setQuery(q => ({ ...q }))
     } catch (e: any) {
       toastError(e.message || 'Action failed')
     } finally {
+      setIsConfirming(false)
       setConfirm(null)
     }
-  }, [confirm, toastError])
+  }, [confirm, isConfirming, toastError])
 
   const handleImportSuccess = useCallback(() => {
     setShowImport(false)
@@ -168,9 +231,24 @@ export default function EmployeesPage() {
   }, [])
 
   // Memoized export filter
-  const exportFilter = useMemo(() => 
-    query.search ? { search: query.search } : {}
-  , [query.search])
+  const exportFilter = useMemo(() => {
+    const filters: Record<string, string> = {}
+    if (query.search) filters.q = query.search
+    if (query.branch) filters.branch_name = query.branch
+    if (query.position) filters.job_position = query.position
+    if (query.status) filters.status_employee = query.status
+    if (query.isActive) filters.is_active = query.isActive
+    return filters
+  }, [query.search, query.branch, query.position, query.status, query.isActive])
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (query.branch) count++
+    if (query.position) count++
+    if (query.status) count++
+    if (query.isActive) count++
+    return count
+  }, [query.branch, query.position, query.status, query.isActive])
 
   // Memoized bulk actions
   const bulkActions = useMemo(() => [
@@ -217,31 +295,86 @@ export default function EmployeesPage() {
           </div>
         </div>
 
-        {/* Search */}
+        {/* Search & Filter */}
         <div className="bg-white rounded-lg p-4 mb-6">
-          <form onSubmit={handleSearchSubmit}>
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" aria-hidden="true" />
-              <input
-                type="text"
-                value={query.search}
-                onChange={e => setQuery(q => ({ ...q, search: e.target.value }))}
-                placeholder="Search by ID, name, email, or phone..."
-                className="w-full pl-12 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                aria-label="Search employees"
-              />
-              {query.search && (
+          <div className="flex gap-2 mb-4">
+            <form onSubmit={handleSearchSubmit} className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" aria-hidden="true" />
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={e => setSearchInput(e.target.value)}
+                  placeholder="Search by ID, name, email, or phone..."
+                  className="w-full pl-12 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  aria-label="Search employees"
+                />
+                {searchInput && (
+                  <button
+                    type="button"
+                    onClick={handleClearSearch}
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </form>
+            <button
+              onClick={() => setShowFilter(!showFilter)}
+              className={`px-4 py-2 border rounded-lg flex items-center gap-2 ${showFilter ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-gray-300 hover:bg-gray-50'}`}
+            >
+              <Filter className="h-5 w-5" />
+              {activeFilterCount > 0 && <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-0.5">{activeFilterCount}</span>}
+            </button>
+          </div>
+
+          {showFilter && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-3 border-t">
+              <select
+                value={query.branch}
+                onChange={e => handleFilterChange('branch', e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="">All Branches</option>
+                {filterOptions?.branches.map(b => <option key={b.id} value={b.branch_name}>{b.branch_name}</option>)}
+              </select>
+              <select
+                value={query.position}
+                onChange={e => handleFilterChange('position', e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="">All Positions</option>
+                {filterOptions?.positions.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <select
+                value={query.status}
+                onChange={e => handleFilterChange('status', e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="">All Status</option>
+                {filterOptions?.statuses.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <select
+                value={query.isActive}
+                onChange={e => handleFilterChange('isActive', e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="">All Active Status</option>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+              {activeFilterCount > 0 && (
                 <button
-                  type="button"
-                  onClick={handleClearSearch}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  aria-label="Clear search"
+                  onClick={handleClearFilters}
+                  className="px-3 py-2 text-sm text-blue-600 hover:text-blue-700 underline"
                 >
-                  ✕
+                  Clear Filters
                 </button>
               )}
             </div>
-          </form>
+          )}
         </div>
 
         {/* Bulk Actions */}
@@ -283,7 +416,7 @@ export default function EmployeesPage() {
           <div className="p-6 border-b border-gray-200">
             <h2 className="text-xl font-semibold text-gray-900">Employee List</h2>
             <p className="text-gray-600 text-sm mt-1">
-              {isLoading ? 'Loading...' : `Total: ${employees.length} employees`}
+              {isLoading ? 'Loading...' : `Total: ${pagination?.total || 0} employees`}
             </p>
           </div>
 
@@ -322,6 +455,47 @@ export default function EmployeesPage() {
             )}
           </div>
         </div>
+
+        {/* Pagination */}
+        {pagination && pagination.total > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-lg p-4 border border-gray-200">
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-600">Show</span>
+              <select
+                value={query.limit}
+                onChange={e => setQuery(q => ({ ...q, limit: Number(e.target.value), page: 1 }))}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              >
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="150">150</option>
+              </select>
+              <span className="text-sm text-gray-600">
+                Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setQuery(q => ({ ...q, page: q.page - 1 }))}
+                disabled={!pagination.hasPrev}
+                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <span className="text-sm text-gray-700">
+                Page {pagination.page} of {pagination.totalPages}
+              </span>
+              <button
+                onClick={() => setQuery(q => ({ ...q, page: q.page + 1 }))}
+                disabled={!pagination.hasNext}
+                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Confirm Modal */}
@@ -331,8 +505,8 @@ export default function EmployeesPage() {
           title={confirm.title}
           message={confirm.message}
           onConfirm={handleConfirm}
-          onClose={() => setConfirm(null)}
-          confirmText="Confirm"
+          onClose={() => !isConfirming && setConfirm(null)}
+          confirmText={isConfirming ? 'Processing...' : 'Confirm'}
           variant="danger"
         />
       )}

@@ -1,82 +1,45 @@
 import { supabase } from '../../config/supabase'
-import { Employee, EmployeeWithBranch } from './employees.types'
+import { EmployeeDB, EmployeeWithBranch, EmployeeFilter, PaginationParams } from './employees.types'
 
 export class EmployeesRepository {
   private static filterOptionsCache: any = null
   private static filterOptionsCacheExpiry = 0
-  private static readonly CACHE_TTL = 30 * 60 * 1000 // 30 minutes
+  private static readonly CACHE_TTL = 30 * 60 * 1000
 
-  async findAll(pagination: { page: number; limit: number; sort?: string; order?: 'asc' | 'desc' }): Promise<{ data: EmployeeWithBranch[]; total: number }> {
-    const sortField = pagination.sort || 'full_name'
-    const sortOrder = pagination.order === 'desc' ? false : true
+  async findAll(params: PaginationParams): Promise<{ data: EmployeeWithBranch[]; total: number }> {
+    const { page, limit, sort = 'full_name', order = 'asc' } = params
     
     let query = supabase.from('employees').select(`
-      id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
-      end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
-      ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
-      brand_name, religion, gender, marital_status, profile_picture,
-      created_at, updated_at, user_id, is_active,
-      employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))
+      *, employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))
     `, { count: 'exact' })
-    .order(sortField, { ascending: sortOrder })
-    
-    const offset = (pagination.page - 1) * pagination.limit
-    const { data, error, count } = await query.range(offset, offset + pagination.limit - 1)
+    .order(sort, { ascending: order === 'asc' })
+    .range((page - 1) * limit, page * limit - 1)
 
+    const { data, error, count } = await query
     if (error) throw new Error(error.message)
     
-    const rows = (data || []).map((e: any) => {
-      // Find primary branch assignment (is_primary = true)
-      const primaryBranch = e.employee_branches?.find((eb: any) => eb.is_primary)?.branches
-      const out: any = {
-        ...e,
-        branch_name: primaryBranch?.branch_name ?? null,
-        branch_code: primaryBranch?.branch_code ?? null,
-        branch_city: primaryBranch?.city ?? null,
-      }
-      delete out.employee_branches
-      return out
-    })
-    
-    return { data: rows as EmployeeWithBranch[], total: count || 0 }
+    return { data: this.mapWithBranch(data || []), total: count || 0 }
   }
 
-  async findUnassigned(pagination: { page: number; limit: number }): Promise<{ data: EmployeeWithBranch[]; total: number }> {
-    let query = supabase.from('employees').select(`
-      id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
-      end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
-      ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
-      brand_name, religion, gender, marital_status, profile_picture,
-      created_at, updated_at, user_id, is_active,
-      employee_branches(id)
-    `)
-    .order('full_name', { ascending: true })
+  async findUnassigned(params: { page: number; limit: number }): Promise<{ data: EmployeeWithBranch[]; total: number }> {
+    const { data, error } = await supabase.from('employees').select(`
+      *, employee_branches(id)
+    `).order('full_name')
     
-    const { data: allEmployees, error } = await query
     if (error) throw new Error(error.message)
     
-    // Filter employees without any branch assignments
-    const unassigned = (allEmployees || []).filter((e: any) => !e.employee_branches || e.employee_branches.length === 0)
-    
-    // Apply pagination after filtering
-    const offset = (pagination.page - 1) * pagination.limit
+    const unassigned = (data || []).filter((e: any) => !e.employee_branches?.length)
+    const offset = (params.page - 1) * params.limit
     const total = unassigned.length
-    const paginatedData = unassigned.slice(offset, offset + pagination.limit)
+    const paginatedData = unassigned.slice(offset, offset + params.limit)
     
-    const rows = paginatedData.map((e: any) => {
-      const { employee_branches, ...rest } = e
-      return {
-        ...rest,
-        branch_name: null,
-        branch_code: null,
-        branch_city: null,
-      }
-    })
-    
-    return { data: rows as EmployeeWithBranch[], total }
+    return { 
+      data: paginatedData.map(e => ({ ...e, branch_name: null, branch_code: null, branch_city: null })), 
+      total 
+    }
   }
 
-  async create(data: Partial<Employee>): Promise<Employee | null> {
+  async create(data: Partial<EmployeeDB>): Promise<EmployeeDB> {
     const { data: employee, error } = await supabase
       .from('employees')
       .insert(data)
@@ -84,12 +47,10 @@ export class EmployeesRepository {
       .single()
 
     if (error) {
-      // Handle unique constraint violation
-      if (error.code === '23505') {
-        throw new Error('Employee ID already exists')
-      }
+      if (error.code === '23505') throw new Error('Employee ID already exists')
       throw new Error(error.message)
     }
+    
     EmployeesRepository.filterOptionsCache = null
     return employee
   }
@@ -97,142 +58,88 @@ export class EmployeesRepository {
   async findById(id: string): Promise<EmployeeWithBranch | null> {
     const { data, error } = await supabase
       .from('employees')
-      .select(`
-        id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
-        end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
-        ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
-        brand_name, religion, gender, marital_status, profile_picture,
-        created_at, updated_at, user_id, is_active,
-        employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))
-      `)
+      .select(`*, employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))`)
       .eq('id', id)
       .maybeSingle()
 
     if (error) throw new Error(error.message)
     if (!data) return null
     
-    const primaryBranch = (data as any).employee_branches?.find((eb: any) => eb.is_primary)?.branches
-    const out: any = {
-      ...data,
-      branch_name: primaryBranch?.branch_name ?? null,
-      branch_code: primaryBranch?.branch_code ?? null,
-      branch_city: primaryBranch?.city ?? null,
-    }
-    delete out.employee_branches
-    return out
+    return this.mapWithBranch([data])[0]
   }
 
   async findByUserId(userId: string): Promise<EmployeeWithBranch | null> {
     const { data, error } = await supabase
       .from('employees')
-      .select(`
-        id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
-        end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
-        ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
-        brand_name, religion, gender, marital_status, profile_picture,
-        created_at, updated_at, user_id, is_active,
-        employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))
-      `)
+      .select(`*, employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))`)
       .eq('user_id', userId)
       .maybeSingle()
 
     if (error) throw new Error(error.message)
     if (!data) return null
     
-    const primaryBranch = (data as any).employee_branches?.find((eb: any) => eb.is_primary)?.branches
-    const out: any = {
-      ...data,
-      branch_name: primaryBranch?.branch_name ?? null,
-      branch_code: primaryBranch?.branch_code ?? null,
-      branch_city: primaryBranch?.city ?? null,
-    }
-    delete out.employee_branches
-    return out
+    return this.mapWithBranch([data])[0]
   }
 
-  async searchByName(searchTerm: string, pagination: { page: number; limit: number; sort?: string; order?: 'asc' | 'desc' }, filter?: any): Promise<{ data: EmployeeWithBranch[]; total: number }> {
-    const sortField = pagination.sort || 'full_name'
-    const sortOrder = pagination.order === 'desc' ? false : true
+  async search(searchTerm: string, params: PaginationParams, filter?: EmployeeFilter): Promise<{ data: EmployeeWithBranch[]; total: number }> {
+    const { page, limit, sort = 'full_name', order = 'asc' } = params
+    const hasBranchFilter = !!filter?.branch_name
     
     let query = supabase.from('employees').select(`
-      id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
-      end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
-      ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
-      brand_name, religion, gender, marital_status, profile_picture,
-      created_at, updated_at, user_id, is_active,
-      employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))
+      *, employee_branches${hasBranchFilter ? '!inner' : ''}(branch_id, is_primary, branches(id, branch_name, branch_code, city))
     `, { count: 'exact' })
     
-    // Search by employee_id, full_name, email, or mobile_phone
     if (searchTerm) {
       query = query.or(`employee_id.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,mobile_phone.ilike.%${searchTerm}%`)
     }
     
-    query = query.order(sortField, { ascending: sortOrder })
+    if (filter) {
+      if (filter.branch_name) query = query.eq('employee_branches.branches.branch_name', filter.branch_name).eq('employee_branches.is_primary', true)
+      if (filter.job_position) query = query.ilike('job_position', filter.job_position)
+      if (filter.status_employee) query = query.eq('status_employee', filter.status_employee)
+      if (filter.is_active !== undefined) query = query.eq('is_active', filter.is_active)
+    }
     
-    const offset = (pagination.page - 1) * pagination.limit
-    const { data, error, count } = await query.range(offset, offset + pagination.limit - 1)
-  
+    query = query.order(sort, { ascending: order === 'asc' }).range((page - 1) * limit, page * limit - 1)
+    
+    const { data, error, count } = await query
     if (error) throw new Error(error.message)
     
-    const rows = (data || []).map((e: any) => {
-      // Find primary branch assignment (is_primary = true)
-      const primaryBranch = e.employee_branches?.find((eb: any) => eb.is_primary)?.branches
-      const out: any = {
-        ...e,
-        branch_name: primaryBranch?.branch_name ?? null,
-        branch_code: primaryBranch?.branch_code ?? null,
-        branch_city: primaryBranch?.city ?? null,
-      }
-      delete out.employee_branches
-      return out
-    })
-
-    return { data: rows as EmployeeWithBranch[], total: count || 0 }
+    return { data: this.mapWithBranch(data || []), total: count || 0 }
   }
 
-  async autocompleteName(query: string): Promise<{id: string, full_name: string}[]> {
+  async autocomplete(query: string): Promise<{ id: string; full_name: string }[]> {
     const { data, error } = await supabase
       .from('employees')
       .select('id, full_name')
       .ilike('full_name', `%${query}%`)
-      .order('full_name', { ascending: true })
+      .order('full_name')
+      .limit(10)
   
     if (error) throw new Error(error.message)
     return data || []
   }
 
-  async findByEmail(email: string): Promise<Employee | null> {
-    const { data, error } = await supabase
-      .from('employees')
-      .select('*')
-      .eq('email', email)
-      .maybeSingle()
-
-    if (error) throw new Error(error.message)
-    return data
-  }
-
-  async update(userId: string, updates: Partial<Employee>): Promise<Employee | null> {
+  async update(userId: string, updates: Partial<EmployeeDB>): Promise<EmployeeDB> {
     const { data, error } = await supabase
       .from('employees')
       .update(updates)
       .eq('user_id', userId)
       .select()
-      .maybeSingle()
+      .single()
 
     if (error) throw new Error(error.message)
     EmployeesRepository.filterOptionsCache = null
     return data
   }
 
-  async updateById(id: string, updates: Partial<Employee>): Promise<Employee | null> {
+  async updateById(id: string, updates: Partial<EmployeeDB>): Promise<EmployeeDB> {
     const { data, error } = await supabase
       .from('employees')
       .update(updates)
       .eq('id', id)
       .select()
-      .maybeSingle()
+      .single()
 
     if (error) throw new Error(error.message)
     EmployeesRepository.filterOptionsCache = null
@@ -240,11 +147,7 @@ export class EmployeesRepository {
   }
 
   async delete(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('employees')
-      .delete()
-      .eq('id', id)
-
+    const { error } = await supabase.from('employees').delete().eq('id', id)
     if (error) throw new Error(error.message)
     EmployeesRepository.filterOptionsCache = null
   }
@@ -258,9 +161,7 @@ export class EmployeesRepository {
   }
 
   getPublicUrl(fileName: string): string {
-    const { data } = supabase.storage
-      .from('profile-pictures')
-      .getPublicUrl(fileName)
+    const { data } = supabase.storage.from('profile-pictures').getPublicUrl(fileName)
     return data.publicUrl
   }
 
@@ -286,54 +187,33 @@ export class EmployeesRepository {
     return result
   }
 
-  async exportData(filter?: any): Promise<EmployeeWithBranch[]> {
-    const hasBranchFilter = filter?.branch_name
+  async exportData(filter?: EmployeeFilter): Promise<EmployeeWithBranch[]> {
+    const hasBranchFilter = !!filter?.branch_name
     
     let query = supabase.from('employees').select(`
-      id, employee_id, full_name, job_position, join_date, resign_date, status_employee,
-      end_date, sign_date, email, birth_date, birth_place, citizen_id_address,
-      ptkp_status, bank_name, bank_account, bank_account_holder, nik, mobile_phone,
-      brand_name, religion, gender, marital_status, profile_picture,
-      created_at, updated_at, user_id, is_active,
-      employee_branches${hasBranchFilter ? '!inner' : ''}(branch_id, is_primary, branches(id, branch_name, branch_code, city))
+      *, employee_branches${hasBranchFilter ? '!inner' : ''}(branch_id, is_primary, branches(id, branch_name, branch_code, city))
     `)
     
     if (filter) {
-      // Search filter
-      if (filter.search) {
-        query = query.or(`employee_id.ilike.%${filter.search}%,full_name.ilike.%${filter.search}%,email.ilike.%${filter.search}%,mobile_phone.ilike.%${filter.search}%`)
-      }
-      // Other filters
-      if (filter.branch_name) query = query.eq('employee_branches.branches.branch_name', filter.branch_name)
+      if (filter.search) query = query.or(`employee_id.ilike.%${filter.search}%,full_name.ilike.%${filter.search}%,email.ilike.%${filter.search}%,mobile_phone.ilike.%${filter.search}%`)
+      if (filter.branch_name) query = query.eq('employee_branches.branches.branch_name', filter.branch_name).eq('employee_branches.is_primary', true)
       if (filter.is_active !== undefined) query = query.eq('is_active', filter.is_active)
       if (filter.status_employee) query = query.eq('status_employee', filter.status_employee)
       if (filter.job_position) query = query.eq('job_position', filter.job_position)
     }
     
-    query = query.eq('employee_branches.is_primary', true)
-    
     const { data, error } = await query
     if (error) throw new Error(error.message)
     
-    const rows = (data || []).map((e: any) => {
-      const primaryBranch = e.employee_branches?.find((eb: any) => eb.is_primary)?.branches
-      const out: any = {
-        ...e,
-        branch_name: primaryBranch?.branch_name ?? null,
-        branch_code: primaryBranch?.branch_code ?? null,
-        branch_city: primaryBranch?.city ?? null,
-      }
-      delete out.employee_branches
-      return out
-    })
-    return rows as EmployeeWithBranch[]
+    return this.mapWithBranch(data || [])
   }
 
-  async bulkCreate(employees: Partial<Employee>[]): Promise<void> {
+  async bulkCreate(employees: Partial<EmployeeDB>[]): Promise<void> {
     const { error } = await supabase.from('employees').insert(employees)
     if (error) throw new Error(error.message)
     EmployeesRepository.filterOptionsCache = null
   }
+
   async bulkUpdateActive(ids: string[], isActive: boolean): Promise<void> {
     const { error } = await supabase.from('employees').update({ is_active: isActive }).in('id', ids)
     if (error) throw new Error(error.message)
@@ -344,6 +224,19 @@ export class EmployeesRepository {
     const { error } = await supabase.from('employees').delete().in('id', ids)
     if (error) throw new Error(error.message)
     EmployeesRepository.filterOptionsCache = null
+  }
+
+  private mapWithBranch(data: any[]): EmployeeWithBranch[] {
+    return data.map((e: any) => {
+      const primaryBranch = e.employee_branches?.find((eb: any) => eb.is_primary)?.branches
+      const { employee_branches, ...rest } = e
+      return {
+        ...rest,
+        branch_name: primaryBranch?.branch_name ?? null,
+        branch_code: primaryBranch?.branch_code ?? null,
+        branch_city: primaryBranch?.city ?? null,
+      }
+    })
   }
 }
 
