@@ -1,14 +1,15 @@
-import { companiesRepository } from './companies.repository'
+import { companiesRepository, CompaniesRepository } from './companies.repository'
 import { Company, CreateCompanyDTO, UpdateCompanyDTO } from './companies.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
 import { ExportService } from '../../services/export.service'
 import { ImportService } from '../../services/import.service'
 import { AuditService } from '../../services/audit.service'
-import { validateEmail, validateUrl, validatePhone } from '../../utils/validation.util'
+import { CompanyErrors } from './companies.errors'
+import { CompanyConfig } from './companies.config'
+import { logInfo, logError } from '../../config/logger'
 
 export class CompaniesService {
-  private readonly VALID_TYPES = ['PT', 'CV', 'Firma', 'Koperasi', 'Yayasan']
-  private readonly VALID_STATUSES = ['active', 'inactive', 'suspended', 'closed']
+  constructor(private repository: CompaniesRepository = companiesRepository) {}
 
   async list(pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: any): Promise<PaginatedResponse<Company>> {
     const { data, total } = await companiesRepository.findAll(pagination, sort, filter)
@@ -20,95 +21,116 @@ export class CompaniesService {
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
-  async create(data: CreateCompanyDTO, userId?: string): Promise<Company> {
-    this.validateCreateInput(data)
+  async create(data: CreateCompanyDTO, userId: string): Promise<Company> {
+    logInfo('Creating company', { company_code: data.company_code, user: userId })
     
-    const existingCode = await companiesRepository.findByCode(data.company_code)
-    if (existingCode) {
-      throw new Error('Company code already exists')
-    }
+    try {
+      const company = await this.repository.create({
+        ...data,
+        company_type: data.company_type || 'PT',
+        status: data.status || 'active'
+      })
 
-    if (data.npwp) {
-      const existingNpwp = await companiesRepository.findByNpwp(data.npwp)
-      if (existingNpwp) {
-        throw new Error('NPWP already exists')
+      if (!company) {
+        throw CompanyErrors.CREATE_FAILED()
       }
+
+      await AuditService.log('CREATE', 'company', company.id, userId, null, company)
+      logInfo('Company created successfully', { company_id: company.id })
+      return company
+    } catch (error: any) {
+      if (error.code === '23505') {
+        if (error.message?.includes('company_code') || error.constraint?.includes('company_code')) {
+          logError('Duplicate company code', { company_code: data.company_code })
+          throw CompanyErrors.CODE_EXISTS()
+        }
+        if (error.message?.includes('npwp') || error.constraint?.includes('npwp')) {
+          logError('Duplicate NPWP', { npwp: data.npwp })
+          throw CompanyErrors.NPWP_EXISTS()
+        }
+      }
+      logError('Failed to create company', { error: error.message, user: userId })
+      throw error
     }
-
-    const company = await companiesRepository.create({
-      ...data,
-      company_type: data.company_type || 'PT',
-      status: data.status || 'active'
-    })
-
-    if (!company) {
-      throw new Error('Failed to create company')
-    }
-
-    await AuditService.log('CREATE', 'company', company.id, userId || null, null, company)
-    return company
   }
 
   async getById(id: string): Promise<Company> {
-    const company = await companiesRepository.findById(id)
+    const company = await this.repository.findById(id)
     if (!company) {
-      throw new Error('Company not found')
+      throw CompanyErrors.NOT_FOUND()
     }
     return company
   }
 
-  async update(id: string, data: UpdateCompanyDTO, userId?: string): Promise<Company> {
-    const existing = await companiesRepository.findById(id)
+  async update(id: string, data: UpdateCompanyDTO, userId: string): Promise<Company> {
+    logInfo('Updating company', { company_id: id, user: userId })
+    
+    const existing = await this.repository.findById(id)
     if (!existing) {
-      throw new Error('Company not found')
+      throw CompanyErrors.NOT_FOUND()
     }
 
-    this.validateUpdateInput(data)
-
-    if (data.npwp && data.npwp !== existing.npwp) {
-      const existingNpwp = await companiesRepository.findByNpwp(data.npwp)
-      if (existingNpwp) {
-        throw new Error('NPWP already exists')
+    try {
+      const company = await this.repository.update(id, data)
+      if (!company) {
+        throw CompanyErrors.UPDATE_FAILED()
       }
-    }
 
-    const company = await companiesRepository.update(id, data)
+      await AuditService.log('UPDATE', 'company', id, userId, existing, company)
+      logInfo('Company updated successfully', { company_id: id })
+      return company
+    } catch (error: any) {
+      if (error.code === '23505') {
+        if (error.message?.includes('npwp') || error.constraint?.includes('npwp')) {
+          logError('Duplicate NPWP on update', { npwp: data.npwp })
+          throw CompanyErrors.NPWP_EXISTS()
+        }
+      }
+      logError('Failed to update company', { error: error.message, company_id: id })
+      throw error
+    }
+  }
+
+  async delete(id: string, userId: string): Promise<void> {
+    logInfo('Deleting company', { company_id: id, user: userId })
+    
+    const company = await this.repository.findById(id)
     if (!company) {
-      throw new Error('Failed to update company')
+      throw CompanyErrors.NOT_FOUND()
     }
 
-    await AuditService.log('UPDATE', 'company', id, userId || null, existing, company)
-    return company
+    await this.repository.delete(id)
+    await AuditService.log('DELETE', 'company', id, userId, company, null)
+    logInfo('Company deleted successfully', { company_id: id })
   }
 
-  async delete(id: string, userId?: string): Promise<void> {
-    const company = await companiesRepository.findById(id)
-    if (!company) {
-      throw new Error('Company not found')
+  async bulkUpdateStatus(ids: string[], status: string, userId: string): Promise<void> {
+    logInfo('Bulk updating company status', { count: ids.length, status, user: userId })
+    
+    if (!CompanyConfig.STATUSES.includes(status as any)) {
+      throw CompanyErrors.INVALID_STATUS([...CompanyConfig.STATUSES])
     }
 
-    await companiesRepository.delete(id)
-    await AuditService.log('DELETE', 'company', id, userId || null, company, null)
+    await this.repository.bulkUpdateStatus(ids, status)
+    await AuditService.log('BULK_UPDATE_STATUS', 'company', ids.join(','), userId, null, { status })
+    logInfo('Bulk status update completed', { count: ids.length })
   }
 
-  async bulkUpdateStatus(ids: string[], status: string, userId?: string): Promise<void> {
-    if (!this.VALID_STATUSES.includes(status)) {
-      throw new Error(`Invalid status. Must be one of: ${this.VALID_STATUSES.join(', ')}`)
-    }
-
-    await companiesRepository.bulkUpdateStatus(ids, status)
-  }
-
-  async bulkDelete(ids: string[], userId?: string): Promise<void> {
-    await companiesRepository.bulkDelete(ids)
+  async bulkDelete(ids: string[], userId: string): Promise<void> {
+    logInfo('Bulk deleting companies', { count: ids.length, user: userId })
+    
+    await this.repository.bulkDelete(ids)
+    await AuditService.log('BULK_DELETE', 'company', ids.join(','), userId, null, null)
+    logInfo('Bulk delete completed', { count: ids.length })
   }
 
   async getFilterOptions() {
-    return await companiesRepository.getFilterOptions()
+    return await this.repository.getFilterOptions()
   }
 
   async exportToExcel(filter?: any): Promise<Buffer> {
-    const data = await companiesRepository.exportData(filter)
+    logInfo('Exporting companies to Excel', { filter })
+    const data = await this.repository.exportData(filter, CompanyConfig.EXPORT.MAX_ROWS)
     const columns = [
       { header: 'Company Code', key: 'company_code', width: 15 },
       { header: 'Company Name', key: 'company_name', width: 30 },
@@ -129,6 +151,7 @@ export class CompaniesService {
   }
 
   async importFromExcel(buffer: Buffer, skipDuplicates: boolean): Promise<any> {
+    logInfo('Importing companies from Excel', { skipDuplicates })
     const rows = await ImportService.parseExcel(buffer)
     const requiredFields = ['company_code', 'company_name']
     
@@ -137,20 +160,20 @@ export class CompaniesService {
       requiredFields,
       async (row) => {
         if (skipDuplicates) {
-          const existingCode = await companiesRepository.findByCode(row.company_code)
+          const existingCode = await this.repository.findByCode(row.company_code)
           if (existingCode) {
             throw new Error(`Duplicate company_code: ${row.company_code}`)
           }
 
           if (row.npwp) {
-            const existingNpwp = await companiesRepository.findByNpwp(row.npwp)
+            const existingNpwp = await this.repository.findByNpwp(row.npwp)
             if (existingNpwp) {
               throw new Error(`Duplicate npwp: ${row.npwp}`)
             }
           }
         }
 
-        await companiesRepository.create({
+        await this.repository.create({
           company_code: row.company_code,
           company_name: row.company_name,
           company_type: row.company_type || 'PT',
@@ -165,57 +188,6 @@ export class CompaniesService {
     )
   }
 
-  private validateCreateInput(data: CreateCompanyDTO): void {
-    if (!data.company_code || !data.company_code.trim()) {
-      throw new Error('company_code is required')
-    }
-
-    if (!data.company_name || !data.company_name.trim()) {
-      throw new Error('company_name is required')
-    }
-
-    if (data.company_type && !this.VALID_TYPES.includes(data.company_type)) {
-      throw new Error(`Invalid company_type. Must be one of: ${this.VALID_TYPES.join(', ')}`)
-    }
-
-    if (data.status && !this.VALID_STATUSES.includes(data.status)) {
-      throw new Error(`Invalid status. Must be one of: ${this.VALID_STATUSES.join(', ')}`)
-    }
-
-    if (data.email && !validateEmail(data.email)) {
-      throw new Error('Invalid email format')
-    }
-
-    if (data.website && !validateUrl(data.website)) {
-      throw new Error('Invalid website URL format')
-    }
-
-    if (data.phone && !validatePhone(data.phone)) {
-      throw new Error('Invalid phone format')
-    }
-  }
-
-  private validateUpdateInput(data: UpdateCompanyDTO): void {
-    if (data.company_type && !this.VALID_TYPES.includes(data.company_type)) {
-      throw new Error(`Invalid company_type. Must be one of: ${this.VALID_TYPES.join(', ')}`)
-    }
-
-    if (data.status && !this.VALID_STATUSES.includes(data.status)) {
-      throw new Error(`Invalid status. Must be one of: ${this.VALID_STATUSES.join(', ')}`)
-    }
-
-    if (data.email && !validateEmail(data.email)) {
-      throw new Error('Invalid email format')
-    }
-
-    if (data.website && !validateUrl(data.website)) {
-      throw new Error('Invalid website URL format')
-    }
-
-    if (data.phone && !validatePhone(data.phone)) {
-      throw new Error('Invalid phone format')
-    }
-  }
 }
 
 export const companiesService = new CompaniesService()

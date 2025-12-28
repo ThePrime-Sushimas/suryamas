@@ -26,7 +26,7 @@ router.get('/filter-options', authenticate, canView('companies'), (req, res) =>
 router.get('/export/token', authenticate, canView('companies'), exportLimiter, (req, res) => 
   companiesController.generateExportToken(req as AuthenticatedRequest, res))
 
-router.get('/export', authenticate, canView('companies'), (req, res) => 
+router.get('/export', authenticate, canView('companies'), exportLimiter, (req, res) => 
   companiesController.exportData(req as AuthenticatedQueryRequest, res))
 
 router.post('/import/preview', authenticate, canInsert('companies'), (req, res) => 

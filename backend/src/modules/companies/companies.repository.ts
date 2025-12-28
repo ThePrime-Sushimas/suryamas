@@ -1,5 +1,6 @@
 import { supabase } from '../../config/supabase'
 import { Company, CreateCompanyDTO, UpdateCompanyDTO } from './companies.types'
+import { logError } from '../../config/logger'
 
 export class CompaniesRepository {
   async findAll(pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: any): Promise<{ data: Company[]; total: number }> {
@@ -59,7 +60,10 @@ export class CompaniesRepository {
     }
     
     if (sort) {
-      query = query.order(sort.field, { ascending: sort.order === 'asc' })
+      const validFields = ['company_name', 'company_code', 'status', 'company_type', 'created_at']
+      if (validFields.includes(sort.field)) {
+        query = query.order(sort.field, { ascending: sort.order === 'asc' })
+      }
     }
     
     const [{ data, error }, { count, error: countError }] = await Promise.all([
@@ -67,8 +71,14 @@ export class CompaniesRepository {
       countQuery
     ])
   
-    if (error) throw new Error(error.message)
-    if (countError) throw new Error(countError.message)
+    if (error) {
+      logError('Repository search error', { error: error.message })
+      throw new Error(error.message)
+    }
+    if (countError) {
+      logError('Repository count error', { error: countError.message })
+      throw new Error(countError.message)
+    }
     
     return { data: data || [], total: count || 0 }
   }
@@ -80,12 +90,15 @@ export class CompaniesRepository {
       .select()
       .single()
 
-    if (error) throw new Error(error.message)
+    if (error) {
+      logError('Repository create error', { error: error.message, code: error.code })
+      throw error
+    }
     return company
   }
 
   invalidateCache(): void {
-    // Placeholder for future cache invalidation if needed
+    // Cache invalidation logic can be implemented here if needed
   }
 
   async findById(id: string): Promise<Company | null> {
@@ -129,7 +142,10 @@ export class CompaniesRepository {
       .select()
       .maybeSingle()
 
-    if (error) throw new Error(error.message)
+    if (error) {
+      logError('Repository update error', { error: error.message, code: error.code })
+      throw error
+    }
     this.invalidateCache()
     return data
   }
@@ -164,8 +180,8 @@ export class CompaniesRepository {
     this.invalidateCache()
   }
 
-  async exportData(filter?: any): Promise<Company[]> {
-    let query = supabase.from('companies').select('*')
+  async exportData(filter?: any, limit: number = 10000): Promise<Company[]> {
+    let query = supabase.from('companies').select('*').limit(limit)
     
     if (filter) {
       if (filter.status) query = query.eq('status', filter.status)
@@ -173,7 +189,10 @@ export class CompaniesRepository {
     }
     
     const { data, error } = await query
-    if (error) throw new Error(error.message)
+    if (error) {
+      logError('Repository export error', { error: error.message })
+      throw new Error(error.message)
+    }
     return data || []
   }
 

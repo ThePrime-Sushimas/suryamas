@@ -4,6 +4,7 @@ import { logError } from '../config/logger'
 import { ZodError } from 'zod'
 import { EmployeeBranchError } from '../modules/employee_branches/employee_branches.errors'
 import { BranchError } from '../modules/branches/branches.errors'
+import { CompanyError } from '../modules/companies/companies.errors'
 
 export const errorHandler = (
   err: Error,
@@ -19,7 +20,7 @@ export const errorHandler = (
   }
 
   // Custom module errors
-  if (err instanceof EmployeeBranchError || err instanceof BranchError) {
+  if (err instanceof EmployeeBranchError || err instanceof BranchError || err instanceof CompanyError) {
     logError(`${err.name}`, { code: err.code, message: err.message, method: req.method, path: req.path })
     return sendError(res, err.message, err.statusCode)
   }

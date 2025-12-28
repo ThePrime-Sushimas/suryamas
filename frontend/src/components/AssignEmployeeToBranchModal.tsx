@@ -28,7 +28,7 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const limit = 50
+  const limit = 100
 
   useEffect(() => {
     if (!isOpen || !branchId) return
