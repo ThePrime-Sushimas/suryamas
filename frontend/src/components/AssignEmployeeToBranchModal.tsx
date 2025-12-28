@@ -28,7 +28,7 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const limit = 100
+  const limit = 300
 
   useEffect(() => {
     if (!isOpen || !branchId) return
@@ -46,23 +46,22 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
       }
       if (searchQuery) params.q = searchQuery
       
-      // Try to fetch all employees first, then filter out assigned ones
+      // Fetch all employees
       const { data } = await api.get('/employees', { params })
-      console.log('Employees response:', data)
-      
       const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
       
-      // If we have branch_id, filter out employees already assigned to this branch
+      // Filter out employees already assigned to this branch
       if (branchId && list.length > 0) {
         try {
-          const assignedRes = await api.get(`/employee-branches/branch/${branchId}`)
+          const assignedRes = await api.get(`/employee-branches/branch/${branchId}?limit=1000`)
           const assignedIds = new Set(
             (assignedRes.data?.data || []).map((a: any) => a.employee_id)
           )
           const unassigned = list.filter((emp: any) => !assignedIds.has(emp.id))
           setEmployees(unassigned)
           setTotal(unassigned.length)
-        } catch {
+        } catch (err) {
+          console.error('Failed to fetch assigned employees:', err)
           // If can't fetch assigned, show all
           setEmployees(list)
           setTotal(data?.pagination?.total || list.length)
@@ -73,8 +72,7 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
       }
     } catch (error: any) {
       console.error('Failed to fetch employees:', error)
-      console.error('Error details:', error.response?.data)
-      toast.error('Failed to load employees')
+      toast.error('Failed to load employees. Please try again.')
       setEmployees([])
     } finally {
       setLoading(false)
@@ -119,9 +117,14 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
   }
 
   const handleAssign = async () => {
-    if (selectedIds.size === 0) return
+    if (selectedIds.size === 0) {
+      toast.error('Please select at least one employee')
+      return
+    }
 
     setAssigning(true)
+    toast.info(`Assigning ${selectedIds.size} employee${selectedIds.size > 1 ? 's' : ''}...`)
+    
     try {
       const results = await Promise.allSettled(
         Array.from(selectedIds).map(employeeId =>
@@ -137,9 +140,9 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
       const failed = results.filter(r => r.status === 'rejected').length
       
       if (failed > 0) {
-        toast.error(`Assigned ${succeeded} employees. ${failed} failed.`)
+        toast.warning(`Assigned ${succeeded} employee${succeeded > 1 ? 's' : ''}. ${failed} failed.`)
       } else {
-        toast.success(`Successfully assigned ${succeeded} employee${succeeded > 1 ? 's' : ''}`)
+        toast.success(`Successfully assigned ${succeeded} employee${succeeded > 1 ? 's' : ''} to ${branchName}`)
       }
       
       if (succeeded > 0) {
@@ -150,7 +153,7 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
       }
     } catch (error) {
       console.error('Failed to assign employees:', error)
-      toast.error('Failed to assign employees')
+      toast.error('Failed to assign employees. Please try again.')
     } finally {
       setAssigning(false)
     }

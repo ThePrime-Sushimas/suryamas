@@ -1,6 +1,6 @@
-import { CheckCircle, XCircle, Info, X } from 'lucide-react'
+import { CheckCircle, XCircle, Info, AlertTriangle, X } from 'lucide-react'
 
-type ToastType = 'success' | 'error' | 'info'
+type ToastType = 'success' | 'error' | 'info' | 'warning'
 
 interface Toast {
   id: string
@@ -17,18 +17,21 @@ const icons = {
   success: CheckCircle,
   error: XCircle,
   info: Info,
+  warning: AlertTriangle,
 }
 
 const colors = {
   success: 'bg-green-50 border-green-200 text-green-800',
   error: 'bg-red-50 border-red-200 text-red-800',
   info: 'bg-blue-50 border-blue-200 text-blue-800',
+  warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
 }
 
 const iconColors = {
   success: 'text-green-600',
   error: 'text-red-600',
   info: 'text-blue-600',
+  warning: 'text-yellow-600',
 }
 
 export const ToastContainer = ({ toasts, onRemove }: ToastContainerProps) => {

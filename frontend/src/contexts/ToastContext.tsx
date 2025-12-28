@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import { ToastContainer } from '@/components/ui/ToastContainer'
 
-type ToastType = 'success' | 'error' | 'info'
+type ToastType = 'success' | 'error' | 'info' | 'warning'
 
 interface Toast {
   id: string
@@ -14,6 +14,7 @@ interface ToastContextType {
   success: (message: string) => void
   error: (message: string) => void
   info: (message: string) => void
+  warning: (message: string) => void
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined)
@@ -37,9 +38,10 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
   const success = useCallback((message: string) => show(message, 'success'), [show])
   const error = useCallback((message: string) => show(message, 'error', 4000), [show])
   const info = useCallback((message: string) => show(message, 'info'), [show])
+  const warning = useCallback((message: string) => show(message, 'warning', 3500), [show])
 
   return (
-    <ToastContext.Provider value={{ success, error, info }}>
+    <ToastContext.Provider value={{ success, error, info, warning }}>
       <ToastContainer toasts={toasts} onRemove={remove} />
       {children}
     </ToastContext.Provider>

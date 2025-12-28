@@ -85,7 +85,7 @@ function BranchDetailPage() {
           )
         }
         promises.push(
-          api.get<{ success: boolean; data: any[] }>(`/employee-branches/branch/${id}`)
+          api.get<{ success: boolean; data: any[] }>(`/employee-branches/branch/${id}?limit=1000`)
             .then((r: any) => {
               const assignments = r.data.data || []
               const emps = assignments
@@ -1036,7 +1036,7 @@ function BranchDetailPage() {
         onSuccess={() => {
           setShowAssignModal(false)
           if (id) {
-            api.get<{ success: boolean; data: any[] }>(`/employee-branches/branch/${id}`)
+            api.get<{ success: boolean; data: any[] }>(`/employee-branches/branch/${id}?limit=1000`)
               .then(r => {
                 const assignments = r.data.data || []
                 const emps = assignments

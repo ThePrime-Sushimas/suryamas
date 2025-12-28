@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, Plus, ChevronDown, ChevronRight, Building2, Star, Trash2, Search, UserCheck } from 'lucide-react'
+import { Users, Plus, ChevronDown, ChevronRight, Building2, Star, Trash2, Search, UserCheck, ChevronLeft } from 'lucide-react'
 import { useEmployeeBranchesStore } from '../store/employeeBranches.store'
 import { PrimaryBranchModal } from '../components/PrimaryBranchModal'
 import { useToast } from '@/contexts/ToastContext'
@@ -9,7 +9,7 @@ import type { EmployeeBranch } from '../api/types'
 export default function EmployeeBranchesPage() {
   const navigate = useNavigate()
   const { success, error: showError } = useToast()
-  const { items, loading, list, remove, setPrimary } = useEmployeeBranchesStore()
+  const { items, total, loading, list, remove, setPrimary } = useEmployeeBranchesStore()
   
   const [modalState, setModalState] = useState<{
     show: boolean
@@ -21,6 +21,8 @@ export default function EmployeeBranchesPage() {
   
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [search, setSearch] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 5
   
   const filteredItems = useMemo(() => {
     if (!search) return items
@@ -32,15 +34,22 @@ export default function EmployeeBranchesPage() {
     )
   }, [items, search])
   
+  // Pagination AFTER filtering
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage
+    const end = start + itemsPerPage
+    return filteredItems.slice(start, end)
+  }, [filteredItems, currentPage, itemsPerPage])
+  
   const grouped = useMemo(() => {
-    return filteredItems.reduce((acc, item) => {
+    return paginatedItems.reduce((acc, item) => {
       if (!acc[item.employee_id]) {
         acc[item.employee_id] = { employee_name: item.employee_name, branches: [] }
       }
       acc[item.employee_id].branches.push(item)
       return acc
     }, {} as Record<string, { employee_name: string; branches: EmployeeBranch[] }>)
-  }, [filteredItems])
+  }, [paginatedItems])
   
   const stats = useMemo(() => ({
     total: items.length,
@@ -50,12 +59,12 @@ export default function EmployeeBranchesPage() {
   }), [items, grouped])
 
   useEffect(() => {
-    list({ page: 1, limit: 100 })
+    list({ page: 1, limit: 1000 })
   }, [list])
 
-  // const onPageChange = useCallback((newPage: number) => {
-  //   list({ page: newPage, limit })
-  // }, [list, limit])
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search])
 
   const onDelete = useCallback(async (row: EmployeeBranch) => {
     if (row.is_primary) {
@@ -64,9 +73,13 @@ export default function EmployeeBranchesPage() {
     }
     if (!confirm(`Hapus ${row.employee_name} dari ${row.branch_name}?`)) return
     const ok = await remove(row.id)
-    if (ok) success('Data berhasil dihapus')
-    else showError('Gagal menghapus data')
-  }, [remove, success, showError])
+    if (ok) {
+      success('Data berhasil dihapus')
+      list({ page: 1, limit: 1000 })
+    } else {
+      showError('Gagal menghapus data')
+    }
+  }, [remove, success, showError, list])
   
   const toggleExpand = useCallback((employeeId: string) => {
     setExpanded(prev => ({ ...prev, [employeeId]: !prev[employeeId] }))
@@ -271,6 +284,63 @@ export default function EmployeeBranchesPage() {
             </div>
           )}
         </div>
+
+        {/* Pagination */}
+        {!loading.list && filteredItems.length > 0 && (
+          <div className="mt-6 flex items-center justify-between bg-white rounded-lg border border-gray-200 px-6 py-4">
+            <div className="text-sm text-gray-600">
+              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredItems.length)} of {filteredItems.length} entries
+              {search && ` (filtered from ${total} total)`}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="inline-flex items-center gap-1 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous
+              </button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.ceil(filteredItems.length / itemsPerPage) }, (_, i) => i + 1)
+                  .filter(p => {
+                    const totalPages = Math.ceil(filteredItems.length / itemsPerPage)
+                    if (totalPages <= 7) return true
+                    if (p === 1 || p === totalPages) return true
+                    if (p >= currentPage - 1 && p <= currentPage + 1) return true
+                    return false
+                  })
+                  .map((p, i, arr) => {
+                    const prev = arr[i - 1]
+                    const showEllipsis = prev && p - prev > 1
+                    return (
+                      <div key={p} className="flex items-center">
+                        {showEllipsis && <span className="px-2 text-gray-400">...</span>}
+                        <button
+                          onClick={() => setCurrentPage(p)}
+                          className={`px-3 py-2 rounded-lg transition-colors ${
+                            currentPage === p
+                              ? 'bg-blue-600 text-white'
+                              : 'border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      </div>
+                    )
+                  })}
+              </div>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredItems.length / itemsPerPage), p + 1))}
+                disabled={currentPage >= Math.ceil(filteredItems.length / itemsPerPage)}
+                className="inline-flex items-center gap-1 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       
       <PrimaryBranchModal
