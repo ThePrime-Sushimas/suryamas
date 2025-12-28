@@ -108,6 +108,7 @@ export default function ProfilePage() {
   }, [uploadProfilePicture, fetchProfile, success, toastError])
 
   const handleCancel = useCallback(() => {
+    if (isLoading) return // Prevent cancel during loading
     setIsEditing(false)
     if (profile) {
       setFormData({
@@ -125,7 +126,7 @@ export default function ProfilePage() {
         marital_status: profile.marital_status || '',
       })
     }
-  }, [profile])
+  }, [profile, isLoading])
 
   const profileInitial = useMemo(() => 
     profile?.full_name?.charAt(0).toUpperCase() || '?'
@@ -364,7 +365,8 @@ export default function ProfilePage() {
                   <button
                     type="button"
                     onClick={handleCancel}
-                    className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                    disabled={isLoading}
+                    className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                   >
                     Cancel
                   </button>

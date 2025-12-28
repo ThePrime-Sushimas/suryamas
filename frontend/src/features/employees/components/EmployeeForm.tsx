@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { employeeFormSchema } from '../schemas/employee.schema'
 import type { EmployeeFormData } from '../types'
 import { ZodError } from 'zod'
@@ -42,10 +42,23 @@ export default function EmployeeForm({
   isLoading = false,
   submitLabel = 'Submit'
 }: EmployeeFormProps) {
-  const [formData, setFormData] = useState<EmployeeFormData>({ ...defaultFormData, ...initialData })
+  const [formData, setFormData] = useState<EmployeeFormData>(() => {
+    const initial = { ...defaultFormData }
+    if (initialData) {
+      Object.assign(initial, initialData)
+    }
+    return initial
+  })
   const [profilePicture, setProfilePicture] = useState<File | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Sync form data when initialData changes (for edit mode)
+  useEffect(() => {  
+    if (initialData) {
+      setFormData(prev => Object.assign({}, prev, initialData) as any)
+    }
+  }, [initialData])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -55,7 +68,7 @@ export default function EmployeeForm({
     setIsSubmitting(true)
 
     try {
-      const validated = employeeFormSchema.parse(formData)
+      const validated = employeeFormSchema.parse(formData) as EmployeeFormData
       await onSubmit(validated, profilePicture || undefined)
       setFormData(defaultFormData)
       setProfilePicture(null)
