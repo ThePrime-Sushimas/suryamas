@@ -20,3 +20,28 @@ export interface CreateMetricUnitDto {
 }
 
 export type UpdateMetricUnitDto = Partial<CreateMetricUnitDto>
+
+export interface PaginationParams {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
+}
+
+export interface SortParams {
+  field: string
+  order: 'asc' | 'desc'
+}
+
+export interface FilterParams {
+  metric_type?: MetricType
+  is_active?: boolean
+  q?: string
+}
+
+export interface FilterOptions {
+  metric_types: MetricType[]
+  statuses: Array<{ label: string; value: boolean }>
+}
