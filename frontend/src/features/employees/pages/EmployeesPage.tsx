@@ -62,7 +62,7 @@ export default function EmployeesPage() {
 
   const [query, setQuery] = useState<QueryState>({
     page: 1,
-    limit: 50,
+    limit: 10,
     sort: 'full_name',
     order: 'asc',
     search: '',
