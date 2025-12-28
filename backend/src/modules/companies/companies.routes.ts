@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/auth.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
+import { filterMiddleware } from '../../middleware/filter.middleware'
 import { exportLimiter } from '../../middleware/rateLimiter.middleware'
 import { PermissionService } from '../../services/permission.service'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
@@ -14,10 +15,10 @@ PermissionService.registerModule('companies', 'Company Management').catch((error
 
 const router = Router()
 
-router.get('/', authenticate, canView('companies'), paginationMiddleware, sortMiddleware, (req, res) => 
+router.get('/', authenticate, canView('companies'), paginationMiddleware, sortMiddleware, filterMiddleware, (req, res) => 
   companiesController.list(req as AuthenticatedQueryRequest, res))
 
-router.get('/search', authenticate, canView('companies'), paginationMiddleware, sortMiddleware, (req, res) => 
+router.get('/search', authenticate, canView('companies'), paginationMiddleware, sortMiddleware, filterMiddleware, (req, res) => 
   companiesController.search(req as AuthenticatedQueryRequest, res))
 
 router.get('/filter-options', authenticate, canView('companies'), (req, res) => 

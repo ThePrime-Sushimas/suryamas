@@ -2,10 +2,15 @@ import { useNavigate } from 'react-router-dom'
 import { useCompaniesStore } from '../store/companies.store'
 import { CompanyForm } from '../components/CompanyForm'
 import type { CreateCompanyDto } from '../types'
+import { useEffect } from 'react'
 
 export default function CreateCompanyPage() {
   const navigate = useNavigate()
-  const { createCompany, loading } = useCompaniesStore()
+  const { createCompany, loading, reset } = useCompaniesStore()
+
+  useEffect(() => {
+    return () => reset()
+  }, [])
 
   const handleSubmit = async (data: CreateCompanyDto) => {
     try {
@@ -13,7 +18,8 @@ export default function CreateCompanyPage() {
       alert('Company created successfully')
       navigate('/companies')
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to create company')
+      // Error already handled in form
+      throw error
     }
   }
 

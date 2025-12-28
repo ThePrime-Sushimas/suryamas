@@ -1,40 +1,59 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCompaniesStore } from '../store/companies.store'
 import { CompanyTable } from '../components/CompanyTable'
+import { useDebounce } from '@/hooks/_shared/useDebounce'
 
 export default function CompaniesPage() {
   const navigate = useNavigate()
-  const { companies, loading, fetchCompanies, searchCompanies, deleteCompany } = useCompaniesStore()
+  const { companies, loading, pagination, fetchCompanies, searchCompanies, deleteCompany, reset } = useCompaniesStore()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Record<string, any>>({})
+  const [page, setPage] = useState(1)
+  const [limit] = useState(25)
+  
+  const debouncedSearch = useDebounce(search, 500)
 
   useEffect(() => {
-    if (search) {
-      searchCompanies(search, 1, 1000, filter)
+    return () => reset()
+  }, [])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, filter])
+
+  useEffect(() => {
+    if (debouncedSearch) {
+      searchCompanies(debouncedSearch, page, limit, filter)
     } else {
-      fetchCompanies(1, 1000, undefined, filter)
+      fetchCompanies(page, limit, undefined, filter)
     }
-  }, [search, JSON.stringify(filter)])
+  }, [debouncedSearch, page, limit, filter, fetchCompanies, searchCompanies])
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Delete this company?')) {
-      try {
-        await deleteCompany(id)
-      } catch (error) {
-        console.error('Delete failed')
+  const handleDelete = useCallback(async (id: string) => {
+    if (!confirm('Are you sure you want to delete this company?')) return
+    
+    try {
+      await deleteCompany(id)
+      // Refresh current page
+      if (debouncedSearch) {
+        searchCompanies(debouncedSearch, page, limit, filter)
+      } else {
+        fetchCompanies(page, limit, undefined, filter)
       }
+    } catch (error) {
+      alert('Failed to delete company')
     }
-  }
+  }, [deleteCompany, debouncedSearch, page, limit, filter, searchCompanies, fetchCompanies])
 
-  const setFilterKey = (key: string, value?: string) => {
+  const setFilterKey = useCallback((key: string, value?: string) => {
     setFilter(prev => {
       const next = { ...prev }
       if (!value) delete next[key]
       else next[key] = value
       return next
     })
-  }
+  }, [])
 
   return (
     <div className="p-6">
@@ -88,14 +107,43 @@ export default function CompaniesPage() {
       {loading ? (
         <div className="text-center py-8">Loading...</div>
       ) : (
-        <CompanyTable
-          companies={companies}
-          onView={id => navigate(`/companies/${id}`)}
-          onEdit={id => navigate(`/companies/${id}/edit`)}
-          onDelete={handleDelete}
-          canEdit={true}
-          canDelete={true}
-        />
+        <>
+          <CompanyTable
+            companies={companies}
+            onView={id => navigate(`/companies/${id}`)}
+            onEdit={id => navigate(`/companies/${id}/edit`)}
+            onDelete={handleDelete}
+            canEdit={true}
+            canDelete={true}
+          />
+          
+          {pagination.total > 0 && (
+            <div className="mt-6 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, pagination.total)} of {pagination.total} companies
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  Previous
+                </button>
+                <span className="px-4 py-2 border rounded-md bg-gray-50">
+                  Page {page} of {pagination.totalPages || 1}
+                </span>
+                <button
+                  onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
+                  disabled={page >= pagination.totalPages}
+                  className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

@@ -2,30 +2,54 @@ import { create } from 'zustand'
 import { companiesApi } from '../api/companies.api'
 import type { Company, CreateCompanyDto, UpdateCompanyDto } from '../types'
 
+interface Pagination {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+}
+
 interface CompaniesState {
   companies: Company[]
+  selectedCompany: Company | null
   loading: boolean
   error: string | null
+  pagination: Pagination
   
   fetchCompanies: (page: number, limit: number, sort?: { field: string; order: string }, filter?: Record<string, any>) => Promise<void>
   searchCompanies: (q: string, page: number, limit: number, filter?: Record<string, any>) => Promise<void>
+  getCompanyById: (id: string) => Promise<Company>
   createCompany: (data: CreateCompanyDto) => Promise<Company>
   updateCompany: (id: string, data: UpdateCompanyDto) => Promise<Company>
   deleteCompany: (id: string) => Promise<void>
   bulkDelete: (ids: string[]) => Promise<void>
   clearError: () => void
+  reset: () => void
+}
+
+const initialState = {
+  companies: [],
+  selectedCompany: null,
+  loading: false,
+  error: null,
+  pagination: { page: 1, limit: 25, total: 0, totalPages: 0 }
 }
 
 export const useCompaniesStore = create<CompaniesState>((set, get) => ({
-  companies: [],
-  loading: false,
-  error: null,
+  ...initialState,
 
   fetchCompanies: async (page, limit, sort, filter) => {
     set({ loading: true, error: null })
     try {
       const res = await companiesApi.list(page, limit, sort, filter)
-      set({ companies: res.data, loading: false })
+      set({ 
+        companies: res.data, 
+        loading: false,
+        pagination: {
+          ...res.pagination,
+          totalPages: Math.ceil(res.pagination.total / res.pagination.limit)
+        }
+      })
     } catch (error: any) {
       set({ error: error.response?.data?.error || 'Failed to fetch companies', loading: false })
     }
@@ -35,9 +59,28 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
     set({ loading: true, error: null })
     try {
       const res = await companiesApi.search(q, page, limit, filter)
-      set({ companies: res.data, loading: false })
+      set({ 
+        companies: res.data, 
+        loading: false,
+        pagination: {
+          ...res.pagination,
+          totalPages: Math.ceil(res.pagination.total / res.pagination.limit)
+        }
+      })
     } catch (error: any) {
       set({ error: error.response?.data?.error || 'Failed to search companies', loading: false })
+    }
+  },
+
+  getCompanyById: async (id) => {
+    set({ loading: true, error: null })
+    try {
+      const company = await companiesApi.getById(id)
+      set({ selectedCompany: company, loading: false })
+      return company
+    } catch (error: any) {
+      set({ error: error.response?.data?.error || 'Company not found', loading: false })
+      throw error
     }
   },
 
@@ -90,5 +133,7 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
     }
   },
 
-  clearError: () => set({ error: null })
+  clearError: () => set({ error: null }),
+
+  reset: () => set(initialState)
 }))

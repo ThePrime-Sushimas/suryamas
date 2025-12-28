@@ -21,6 +21,7 @@ const UserDetailPage = lazy(() => import('./features/users').then(m => ({ defaul
 const UserEditPage = lazy(() => import('./features/users').then(m => ({ default: m.UserEditPage })))
 const CompaniesPage = lazy(() => import('./features/companies').then(m => ({ default: m.CompaniesPage })))
 const CreateCompanyPage = lazy(() => import('./features/companies').then(m => ({ default: m.CreateCompanyPage })))
+const CompaniesDetailPage = lazy(() => import('./features/companies').then(m => ({ default: m.CompaniesDetailPage })))
 const EditCompanyPage = lazy(() => import('./features/companies').then(m => ({ default: m.EditCompanyPage })))
 const BranchesPage = lazy(() => import('./features/branches').then(m => ({ default: m.BranchesPage })))
 const CreateBranchPage = lazy(() => import('./features/branches').then(m => ({ default: m.CreateBranchPage })))
@@ -91,7 +92,7 @@ function App() {
           <Route path="employees/edit/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditEmployeePage /></Suspense></ProtectedRoute>} />
           <Route path="companies" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CompaniesPage /></Suspense></ProtectedRoute>} />
           <Route path="companies/new" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateCompanyPage /></Suspense></ProtectedRoute>} />
-          <Route path="companies/:id" element={<ProtectedRoute><div>Detail</div></ProtectedRoute>} />
+          <Route path="companies/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CompaniesDetailPage /></Suspense></ProtectedRoute>} />
           <Route path="companies/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditCompanyPage /></Suspense></ProtectedRoute>} />
           <Route path="branches" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><BranchesPage /></Suspense></ProtectedRoute>} />
           <Route path="branches/new" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateBranchPage /></Suspense></ProtectedRoute>} />

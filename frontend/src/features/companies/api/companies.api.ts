@@ -16,11 +16,7 @@ export const companiesApi = {
     if (filter) {
       Object.entries(filter).forEach(([key, value]) => {
         if (value === undefined || value === null || value === '') return
-        if (Array.isArray(value)) {
-          value.forEach(v => params.append(`filter[${key}]`, String(v)))
-        } else {
-          params.append(`filter[${key}]`, String(value))
-        }
+        params.append(key, String(value))
       })
     }
     const res = await api.get<PaginatedResponse<Company>>(`/companies?${params}`)
@@ -35,11 +31,7 @@ export const companiesApi = {
     if (filter) {
       Object.entries(filter).forEach(([key, value]) => {
         if (value === undefined || value === null || value === '') return
-        if (Array.isArray(value)) {
-          value.forEach(v => params.append(`filter[${key}]`, String(v)))
-        } else {
-          params.append(`filter[${key}]`, String(value))
-        }
+        params.append(key, String(value))
       })
     }
     const res = await api.get<PaginatedResponse<Company>>(`/companies/search?${params}`)

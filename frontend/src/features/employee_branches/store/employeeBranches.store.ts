@@ -47,7 +47,7 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
     items: [],
     total: 0,
     page: 1,
-    limit: 10,
+    limit: 200,
     selected: null,
     loading: { list: false, detail: false, create: false, update: false, remove: false, setPrimary: false },
     error: { list: null, detail: null, create: null, update: null, remove: null },

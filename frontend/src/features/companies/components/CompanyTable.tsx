@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import type { Company, CompanyStatus } from '../types'
 
 const statusColors: Record<CompanyStatus, string> = {
@@ -24,7 +25,9 @@ export const CompanyTable = ({
   canEdit,
   canDelete
 }: CompanyTableProps) => {
-  if (companies.length === 0) {
+  const isEmpty = useMemo(() => companies.length === 0, [companies.length])
+  
+  if (isEmpty) {
     return <div className="text-center py-8 text-gray-500">No companies found</div>
   }
 

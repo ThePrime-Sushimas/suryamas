@@ -14,7 +14,7 @@ export class CompaniesController {
   async list(req: AuthenticatedQueryRequest, res: Response) {
     try {
       const { offset } = getPaginationParams(req.query)
-      const result = await companiesService.list({ ...req.pagination, offset }, req.sort)
+      const result = await companiesService.list({ ...req.pagination, offset }, req.sort, req.filterParams)
       sendSuccess(res, result.data, 'Companies retrieved', 200, result.pagination)
     } catch (error) {
       logError('Failed to list companies', {
@@ -29,7 +29,7 @@ export class CompaniesController {
     try {
       const { q } = req.query
       const { offset } = getPaginationParams(req.query)
-      const result = await companiesService.search(q as string, { ...req.pagination, offset }, req.sort)
+      const result = await companiesService.search(q as string, { ...req.pagination, offset }, req.sort, req.filterParams)
       sendSuccess(res, result.data, 'Companies retrieved', 200, result.pagination)
     } catch (error) {
       logError('Failed to search companies', {
