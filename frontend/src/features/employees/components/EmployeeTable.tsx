@@ -1,18 +1,7 @@
-interface Employee {
-  id: string
-  employee_id: string
-  full_name: string
-  job_position: string
-  branch_name?: string | null
-  email?: string | null
-  mobile_phone?: string | null
-  status_employee: string
-  is_active?: boolean
-  profile_picture?: string | null
-}
+import type { EmployeeResponse } from '../types'
 
 interface EmployeeTableProps {
-  employees: Employee[]
+  employees: EmployeeResponse[]
   onView: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string, name: string) => void

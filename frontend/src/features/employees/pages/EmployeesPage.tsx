@@ -121,12 +121,12 @@ export default function EmployeesPage() {
         const hasFilters = Object.keys(filters).length > 0
         
         if (query.search || hasFilters) {
-          await searchEmployees(query.search || '', query.sort, query.order, filters, query.page, query.limit)
+          await searchEmployees(query.search || '', query.sort, query.order, filters, query.page, query.limit, controller.signal)
         } else {
-          await fetchEmployees(query.sort, query.order, query.page, query.limit)
+          await fetchEmployees(query.sort, query.order, query.page, query.limit, controller.signal)
         }
       } catch (err: any) {
-        if (err.name !== 'AbortError') {
+        if (err.name !== 'CanceledError' && !controller.signal.aborted) {
           setError(err.message || 'Failed to load employees')
         }
       }
@@ -183,33 +183,57 @@ export default function EmployeesPage() {
 
   const handleBulkDelete = useCallback(() => {
     if (selectedCount === 0) return
+    
+    // Validate BEFORE showing confirm
+    const validIds = selectedIds.filter(id => employees.some(e => e.id === id))
+    if (validIds.length === 0) {
+      toastError('Selected employees no longer available. Please refresh.')
+      clearSelection()
+      return
+    }
+    
+    if (validIds.length !== selectedIds.length) {
+      toastError(`${selectedIds.length - validIds.length} employee(s) no longer available`)
+    }
+    
     setConfirm({
       open: true,
       title: 'Delete Multiple Employees',
-      message: `Delete ${selectedCount} employee(s)? This action cannot be undone.`,
+      message: `Delete ${validIds.length} employee(s)? This action cannot be undone.`,
       action: async () => {
-        const validIds = selectedIds.filter(id => employees.some(e => e.id === id))
-        if (validIds.length === 0) throw new Error('Selected employees no longer exist')
         await bulkDelete(validIds)
         success(`${validIds.length} employee(s) deleted`)
+        clearSelection()
       }
     })
-  }, [selectedCount, selectedIds, employees, bulkDelete, success])
+  }, [selectedCount, selectedIds, employees, bulkDelete, success, toastError, clearSelection])
 
   const handleBulkActive = useCallback((active: boolean) => {
     if (selectedCount === 0) return
+    
+    // Validate BEFORE showing confirm
+    const validIds = selectedIds.filter(id => employees.some(e => e.id === id))
+    if (validIds.length === 0) {
+      toastError('Selected employees no longer available. Please refresh.')
+      clearSelection()
+      return
+    }
+    
+    if (validIds.length !== selectedIds.length) {
+      toastError(`${selectedIds.length - validIds.length} employee(s) no longer available`)
+    }
+    
     setConfirm({
       open: true,
       title: active ? 'Set Active' : 'Set Inactive',
-      message: `Update ${selectedCount} employee(s) to ${active ? 'Active' : 'Inactive'}?`,
+      message: `Update ${validIds.length} employee(s) to ${active ? 'Active' : 'Inactive'}?`,
       action: async () => {
-        const validIds = selectedIds.filter(id => employees.some(e => e.id === id))
-        if (validIds.length === 0) throw new Error('Selected employees no longer exist')
         await bulkUpdateActive(validIds, active)
         success(`${validIds.length} employee(s) updated`)
+        clearSelection()
       }
     })
-  }, [selectedCount, selectedIds, employees, bulkUpdateActive, success])
+  }, [selectedCount, selectedIds, employees, bulkUpdateActive, success, toastError, clearSelection])
 
   const handleConfirm = useCallback(async () => {
     if (!confirm || isConfirming) return
@@ -222,8 +246,9 @@ export default function EmployeesPage() {
     } finally {
       setIsConfirming(false)
       setConfirm(null)
+      clearSelection()
     }
-  }, [confirm, isConfirming, toastError])
+  }, [confirm, isConfirming, toastError, clearSelection])
 
   const handleImportSuccess = useCallback(() => {
     setShowImport(false)

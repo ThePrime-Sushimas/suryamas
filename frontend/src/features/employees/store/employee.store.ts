@@ -1,254 +1,177 @@
 import { create } from 'zustand'
-import api from '@/lib/axios'
-
-interface Employee {
-  id: string
-  employee_id: string
-  full_name: string
-  job_position: string
-  join_date: string
-  resign_date: string | null
-  status_employee: 'Permanent' | 'Contract'
-  end_date: string | null
-  sign_date: string | null
-  email: string | null
-  birth_date: string | null
-  age: number | null
-  years_of_service?: { years: number; months: number; days: number } | null
-  birth_place: string | null
-  citizen_id_address: string | null
-  ptkp_status: 'TK/0' | 'TK/1' | 'TK/2' | 'TK/3' | 'K/0' | 'K/1' | 'K/2' | 'K/3'
-  bank_name: string | null
-  bank_account: string | null
-  bank_account_holder: string | null
-  nik: string | null
-  mobile_phone: string | null
-  branch_name?: string | null
-  branch_code?: string | null
-  branch_city?: string | null
-  brand_name: string | null
-  religion: 'Islam' | 'Christian' | 'Catholic' | 'Hindu' | 'Buddha' | 'Other' | null
-  gender: 'Male' | 'Female' | null
-  marital_status: 'Single' | 'Married' | 'Divorced' | 'Widow' | null
-  profile_picture: string | null
-  created_at: string
-  updated_at: string
-  user_id: string | null
-  is_active: boolean
-}
-
-interface ApiResponse<T> {
-  success: boolean
-  data: T
-  pagination?: {
-    page: number
-    limit: number
-    total: number
-    totalPages: number
-    hasNext: boolean
-    hasPrev: boolean
-  }
-}
-
-interface FilterOptions {
-  branches: string[]
-  positions: string[]
-  statuses: string[]
-}
+import { employeesApi } from '../api/employees.api'
+import type { EmployeeResponse, EmployeeFormData, FilterOptions, PaginationData } from '../types'
 
 interface EmployeeState {
-  employees: Employee[]
-  profile: Employee | null
+  employees: EmployeeResponse[]
+  profile: EmployeeResponse | null
   filterOptions: FilterOptions | null
-  pagination: {
-    page: number
-    limit: number
-    total: number
-    totalPages: number
-    hasNext: boolean
-    hasPrev: boolean
-  } | null
+  pagination: PaginationData | null
   isLoading: boolean
+  error: string | null
+  
   fetchProfile: () => Promise<void>
-  updateProfile: (data: Partial<Employee>) => Promise<void>
+  updateProfile: (data: Partial<EmployeeFormData>) => Promise<void>
   uploadProfilePicture: (file: File) => Promise<void>
-  fetchEmployees: (sort?: string, order?: 'asc' | 'desc', page?: number, limit?: number) => Promise<void>
-  searchEmployees: (query: string, sort?: string, order?: 'asc' | 'desc', filter?: any, page?: number, limit?: number) => Promise<void>
+  fetchEmployees: (sort?: string, order?: 'asc' | 'desc', page?: number, limit?: number, signal?: AbortSignal) => Promise<void>
+  searchEmployees: (query: string, sort?: string, order?: 'asc' | 'desc', filter?: Record<string, string>, page?: number, limit?: number, signal?: AbortSignal) => Promise<void>
   fetchFilterOptions: () => Promise<void>
-  createEmployee: (data: Partial<Employee>, profilePicture?: File) => Promise<void>
+  createEmployee: (data: EmployeeFormData, file?: File) => Promise<EmployeeResponse>
+  updateEmployee: (id: string, data: Partial<EmployeeFormData>, file?: File) => Promise<EmployeeResponse>
   deleteEmployee: (id: string) => Promise<void>
   bulkUpdateActive: (ids: string[], isActive: boolean) => Promise<void>
   bulkDelete: (ids: string[]) => Promise<void>
+  clearError: () => void
 }
 
-export const useEmployeeStore = create<EmployeeState>((set) => ({
+export const useEmployeeStore = create<EmployeeState>((set, get) => ({
   employees: [],
   profile: null,
   filterOptions: null,
   pagination: null,
   isLoading: false,
+  error: null,
 
   fetchProfile: async () => {
-    set({ isLoading: true })
+    set({ isLoading: true, error: null })
     try {
-      const { data } = await api.get<ApiResponse<Employee>>('/employees/profile')
-      set({ profile: data.data })
-    } catch (error) {
-      console.error('Failed to fetch profile:', error)
-      throw error
-    } finally {
-      set({ isLoading: false })
+      const profile = await employeesApi.getProfile()
+      set({ profile, isLoading: false })
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Failed to fetch profile'
+      set({ error: message, isLoading: false })
+      throw new Error(message)
     }
   },
 
   updateProfile: async (updates) => {
-    set({ isLoading: true })
+    set({ isLoading: true, error: null })
     try {
-      const { data } = await api.put<ApiResponse<Employee>>('/employees/profile', updates)
-      set({ profile: data.data })
-    } catch (error) {
-      console.error('Failed to update profile:', error)
-      throw error
-    } finally {
-      set({ isLoading: false })
+      const profile = await employeesApi.updateProfile(updates)
+      set({ profile, isLoading: false })
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Failed to update profile'
+      set({ error: message, isLoading: false })
+      throw new Error(message)
     }
   },
 
-  uploadProfilePicture: async (file: File) => {
-    set({ isLoading: true })
+  uploadProfilePicture: async (file) => {
+    set({ isLoading: true, error: null })
     try {
-      const formData = new FormData()
-      formData.append('picture', file)
-      const { data } = await api.post<ApiResponse<{ profile_picture: string }>>('/employees/profile/picture', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-      set((state) => ({
-        profile: state.profile ? { ...state.profile, profile_picture: data.data.profile_picture } : null
+      const url = await employeesApi.uploadProfilePicture(file)
+      set(state => ({
+        profile: state.profile ? { ...state.profile, profile_picture: url } : null,
+        isLoading: false
       }))
-    } catch (error) {
-      console.error('Failed to upload profile picture:', error)
-      throw error
-    } finally {
-      set({ isLoading: false })
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Failed to upload picture'
+      set({ error: message, isLoading: false })
+      throw new Error(message)
     }
   },
 
-  fetchEmployees: async (sort = 'full_name', order = 'asc', page = 1, limit = 50) => {
-    set({ isLoading: true })
+  fetchEmployees: async (sort = 'full_name', order = 'asc', page = 1, limit = 50, signal) => {
+    set({ isLoading: true, error: null })
     try {
-      const { data } = await api.get<ApiResponse<Employee[]>>('/employees', {
-        params: { sort, order, page, limit }
-      })
-      set({ employees: data.data, pagination: data.pagination || null })
-    } finally {
-      set({ isLoading: false })
+      const response = await employeesApi.list(page, limit, sort, order)
+      if (signal?.aborted) return
+      set({ employees: response.data, pagination: response.pagination, isLoading: false })
+    } catch (error: any) {
+      if (error.name === 'CanceledError' || signal?.aborted) return
+      const message = error.response?.data?.message || 'Failed to fetch employees'
+      set({ error: message, isLoading: false })
     }
   },
 
-  searchEmployees: async (query, sort = 'full_name', order = 'desc', filter = {}, page = 1, limit = 50) => {
-    set({ isLoading: true })
+  searchEmployees: async (query, sort = 'full_name', order = 'asc', filter = {}, page = 1, limit = 50, signal) => {
+    set({ isLoading: true, error: null })
     try {
-      const params: Record<string, string> = {
-        sort,
-        order,
-        page: String(page),
-        limit: String(limit),
-      }
-      
-      if (query?.trim()) {
-        params.q = query.trim()
-      }
-      
-      Object.entries(filter).forEach(([key, value]) => {
-        if (value !== '' && value !== null && value !== undefined) {
-          params[key] = String(value)
-        }
-      })
-      
-      const queryString = new URLSearchParams(params).toString()
-      const { data } = await api.get<ApiResponse<Employee[]>>(`/employees/search?${queryString}`)
-      set({ employees: data.data, pagination: data.pagination || null })
-    } finally {
-      set({ isLoading: false })
+      const response = await employeesApi.search(query, page, limit, sort, order, filter)
+      if (signal?.aborted) return
+      set({ employees: response.data, pagination: response.pagination, isLoading: false })
+    } catch (error: any) {
+      if (error.name === 'CanceledError' || signal?.aborted) return
+      const message = error.response?.data?.message || 'Failed to search employees'
+      set({ error: message, isLoading: false })
     }
   },
 
   fetchFilterOptions: async () => {
     try {
-      const { data } = await api.get<ApiResponse<FilterOptions>>('/employees/filter-options')
-      set({ filterOptions: data.data })
-    } catch (error) {
+      const filterOptions = await employeesApi.getFilterOptions()
+      set({ filterOptions })
+    } catch (error: any) {
       console.error('Failed to fetch filter options:', error)
     }
   },
 
-  createEmployee: async (employeeData, profilePicture?: File) => {
-    set({ isLoading: true })
+  createEmployee: async (data, file) => {
+    set({ isLoading: true, error: null })
     try {
-      const formData = new FormData()
-      Object.entries(employeeData).forEach(([key, value]) => {
-        if (value !== '' && value !== null && value !== undefined) {
-          formData.append(key, value as string)
-        }
-      })
-      if (profilePicture) {
-        formData.append('profile_picture', profilePicture)
-      }
-      await api.post('/employees', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-    } catch (error) {
-      console.error('Failed to create employee:', error)
-      throw error
-    } finally {
+      const employee = await employeesApi.create(data, file)
       set({ isLoading: false })
+      return employee
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Failed to create employee'
+      set({ error: message, isLoading: false })
+      throw new Error(message)
+    }
+  },
+
+  updateEmployee: async (id, data, file) => {
+    set({ isLoading: true, error: null })
+    try {
+      const employee = await employeesApi.update(id, data, file)
+      set(state => ({
+        employees: state.employees.map(e => e.id === id ? employee : e),
+        isLoading: false
+      }))
+      return employee
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Failed to update employee'
+      set({ error: message, isLoading: false })
+      throw new Error(message)
     }
   },
 
   deleteEmployee: async (id) => {
-    set({ isLoading: true })
+    const prev = get().employees
+    set(state => ({ employees: state.employees.filter(e => e.id !== id) }))
     try {
-      await api.delete(`/employees/${id}`)
-      set((state) => ({
-        employees: state.employees.filter((e) => e.id !== id),
-      }))
-    } catch (error) {
-      console.error('Failed to delete employee:', error)
-      throw error
-    } finally {
-      set({ isLoading: false })
+      await employeesApi.delete(id)
+    } catch (error: any) {
+      set({ employees: prev })
+      const message = error.response?.data?.message || 'Failed to delete employee'
+      throw new Error(message)
     }
   },
 
   bulkUpdateActive: async (ids, isActive) => {
-    set({ isLoading: true })
+    const prev = get().employees
+    set(state => ({
+      employees: state.employees.map(e => ids.includes(e.id) ? { ...e, is_active: isActive } : e)
+    }))
     try {
-      await api.post('/employees/bulk/update-active', { ids, is_active: isActive })
-      set((state) => ({
-        employees: state.employees.map((e) => 
-          ids.includes(e.id) ? { ...e, is_active: isActive } : e
-        ),
-      }))
-    } catch (error) {
-      console.error('Failed to update active status:', error)
-      throw error
-    } finally {
-      set({ isLoading: false })
+      await employeesApi.bulkUpdateActive(ids, isActive)
+    } catch (error: any) {
+      set({ employees: prev })
+      const message = error.response?.data?.message || 'Failed to update employees'
+      throw new Error(message)
     }
   },
 
   bulkDelete: async (ids) => {
-    set({ isLoading: true })
+    const prev = get().employees
+    set(state => ({ employees: state.employees.filter(e => !ids.includes(e.id)) }))
     try {
-      await api.post('/employees/bulk/delete', { ids })
-      set((state) => ({
-        employees: state.employees.filter((e) => !ids.includes(e.id)),
-      }))
-    } catch (error) {
-      console.error('Failed to bulk delete employees:', error)
-      throw error
-    } finally {
-      set({ isLoading: false })
+      await employeesApi.bulkDelete(ids)
+    } catch (error: any) {
+      set({ employees: prev })
+      const message = error.response?.data?.message || 'Failed to delete employees'
+      throw new Error(message)
     }
   },
+
+  clearError: () => set({ error: null })
 }))

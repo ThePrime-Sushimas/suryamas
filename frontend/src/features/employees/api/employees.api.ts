@@ -1,33 +1,54 @@
 import api from '@/lib/axios'
-import type { Employee, CreateEmployeeDto, UpdateEmployeeDto } from '../types'
-
-type ApiResponse<T> = { success: boolean; data: T }
-type PaginatedResponse<T> = ApiResponse<T[]> & { pagination: { total: number; page: number; limit: number } }
+import type { EmployeeResponse, EmployeeFormData, PaginatedApiResponse, ApiResponse, FilterOptions } from '../types'
 
 export const employeesApi = {
-  list: async (page = 1, limit = 10, sort?: any, filter?: any) => {
-    const res = await api.get<PaginatedResponse<Employee>>('/employees', { params: { page, limit, ...sort, ...filter } })
-    return res.data
+  list: async (page = 1, limit = 10, sort?: string, order?: 'asc' | 'desc') => {
+    const { data } = await api.get<PaginatedApiResponse<EmployeeResponse>>('/employees', { 
+      params: { page, limit, sort, order } 
+    })
+    return data
   },
 
-  search: async (q: string, page = 1, limit = 10) => {
-    const res = await api.get<PaginatedResponse<Employee>>('/employees/search', { params: { q, page, limit } })
-    return res.data
+  search: async (q: string, page = 1, limit = 10, sort?: string, order?: 'asc' | 'desc', filter?: Record<string, string>) => {
+    const { data } = await api.get<PaginatedApiResponse<EmployeeResponse>>('/employees/search', { 
+      params: { q, page, limit, sort, order, ...filter } 
+    })
+    return data
   },
 
   getById: async (id: string) => {
-    const res = await api.get<ApiResponse<Employee>>(`/employees/${id}`)
-    return res.data.data
+    const { data } = await api.get<ApiResponse<EmployeeResponse>>(`/employees/${id}`)
+    return data.data
   },
 
-  create: async (data: CreateEmployeeDto) => {
-    const res = await api.post<ApiResponse<Employee>>('/employees', data)
-    return res.data.data
+  create: async (formData: EmployeeFormData, file?: File) => {
+    const payload = new FormData()
+    Object.entries(formData).forEach(([key, value]) => {
+      if (value !== '' && value !== null && value !== undefined) {
+        payload.append(key, value as string)
+      }
+    })
+    if (file) payload.append('profile_picture', file)
+    
+    const { data } = await api.post<ApiResponse<EmployeeResponse>>('/employees', payload, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return data.data
   },
 
-  update: async (id: string, data: UpdateEmployeeDto) => {
-    const res = await api.put<ApiResponse<Employee>>(`/employees/${id}`, data)
-    return res.data.data
+  update: async (id: string, formData: Partial<EmployeeFormData>, file?: File) => {
+    const payload = new FormData()
+    Object.entries(formData).forEach(([key, value]) => {
+      if (value !== '' && value !== null && value !== undefined) {
+        payload.append(key, value as string)
+      }
+    })
+    if (file) payload.append('profile_picture', file)
+    
+    const { data } = await api.put<ApiResponse<EmployeeResponse>>(`/employees/${id}`, payload, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return data.data
   },
 
   delete: async (id: string) => {
@@ -36,5 +57,33 @@ export const employeesApi = {
 
   bulkDelete: async (ids: string[]) => {
     await api.post('/employees/bulk/delete', { ids })
+  },
+
+  bulkUpdateActive: async (ids: string[], isActive: boolean) => {
+    await api.post('/employees/bulk/update-active', { ids, is_active: isActive })
+  },
+
+  getFilterOptions: async () => {
+    const { data } = await api.get<ApiResponse<FilterOptions>>('/employees/filter-options')
+    return data.data
+  },
+
+  getProfile: async () => {
+    const { data } = await api.get<ApiResponse<EmployeeResponse>>('/employees/profile')
+    return data.data
+  },
+
+  updateProfile: async (updates: Partial<EmployeeFormData>) => {
+    const { data } = await api.put<ApiResponse<EmployeeResponse>>('/employees/profile', updates)
+    return data.data
+  },
+
+  uploadProfilePicture: async (file: File) => {
+    const formData = new FormData()
+    formData.append('picture', file)
+    const { data } = await api.post<ApiResponse<{ profile_picture: string }>>('/employees/profile/picture', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return data.data.profile_picture
   }
 }

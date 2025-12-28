@@ -1,11 +1,38 @@
 import { useState } from 'react'
+import { employeeFormSchema } from '../schemas/employee.schema'
+import type { EmployeeFormData } from '../types'
+import { ZodError } from 'zod'
 
 interface EmployeeFormProps {
-  initialData?: any
-  onSubmit: (data: any, file?: File) => Promise<void>
+  initialData?: Partial<EmployeeFormData>
+  onSubmit: (data: EmployeeFormData, file?: File) => Promise<void>
   onCancel: () => void
   isLoading?: boolean
   submitLabel?: string
+}
+
+const defaultFormData: EmployeeFormData = {
+  employee_id: '',
+  full_name: '',
+  job_position: '',
+  brand_name: '',
+  ptkp_status: 'TK/0',
+  status_employee: 'Permanent',
+  join_date: '',
+  sign_date: '',
+  end_date: '',
+  email: '',
+  mobile_phone: '',
+  nik: '',
+  birth_date: '',
+  birth_place: '',
+  citizen_id_address: '',
+  religion: undefined,
+  gender: undefined,
+  marital_status: undefined,
+  bank_name: '',
+  bank_account: '',
+  bank_account_holder: '',
 }
 
 export default function EmployeeForm({ 
@@ -15,52 +42,51 @@ export default function EmployeeForm({
   isLoading = false,
   submitLabel = 'Submit'
 }: EmployeeFormProps) {
-  const [formData, setFormData] = useState(initialData || {
-    employee_id: '',
-    full_name: '',
-    job_position: '',
-    brand_name: '',
-    ptkp_status: 'TK/0',
-    status_employee: 'Permanent',
-    join_date: '',
-    sign_date: '',
-    end_date: '',
-    email: '',
-    mobile_phone: '',
-    nik: '',
-    birth_date: '',
-    birth_place: '',
-    citizen_id_address: '',
-    religion: '',
-    gender: '',
-    marital_status: '',
-    bank_name: '',
-    bank_account: '',
-    bank_account_holder: '',
-  })
+  const [formData, setFormData] = useState<EmployeeFormData>({ ...defaultFormData, ...initialData })
   const [profilePicture, setProfilePicture] = useState<File | null>(null)
-  const [error, setError] = useState('')
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
+    if (isSubmitting) return
+
+    setErrors({})
+    setIsSubmitting(true)
+
     try {
-      await onSubmit(formData, profilePicture || undefined)
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Operation failed')
+      const validated = employeeFormSchema.parse(formData)
+      await onSubmit(validated, profilePicture || undefined)
+      setFormData(defaultFormData)
+      setProfilePicture(null)
+    } catch (err) {
+      if (err instanceof ZodError) {
+        const fieldErrors: Record<string, string> = {}
+        err.errors.forEach(error => {
+          if (error.path[0]) {
+            fieldErrors[error.path[0] as string] = error.message
+          }
+        })
+        setErrors(fieldErrors)
+      }
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }))
+    }
   }
+
+  const ErrorMessage = ({ field }: { field: string }) => 
+    errors[field] ? <p className="text-red-600 text-sm mt-1">{errors[field]}</p> : null
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
-      {error && (
-        <div className="bg-red-50 text-red-600 p-3 rounded text-sm md:text-base">{error}</div>
-      )}
-      
       {/* Basic Info */}
       <div className="border-b border-gray-200 pb-4 md:pb-6">
         <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Basic Information</h3>
@@ -76,47 +102,47 @@ export default function EmployeeForm({
               onChange={handleChange}
               placeholder="Leave empty for auto-generation"
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px] bg-gray-50"
-              disabled={!!initialData}
+              disabled={!!initialData?.employee_id}
             />
+            <ErrorMessage field="employee_id" />
           </div>
           <div>
             <label className="block text-xs md:text-sm font-medium text-gray-700">Full Name *</label>
             <input
               type="text"
               name="full_name"
-              required
               value={formData.full_name}
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
             />
+            <ErrorMessage field="full_name" />
           </div>
           <div>
             <label className="block text-xs md:text-sm font-medium text-gray-700">Job Position *</label>
             <input
               type="text"
               name="job_position"
-              required
               value={formData.job_position}
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
             />
+            <ErrorMessage field="job_position" />
           </div>
           <div>
             <label className="block text-xs md:text-sm font-medium text-gray-700">Brand Name *</label>
             <input
               type="text"
               name="brand_name"
-              required
               value={formData.brand_name}
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
             />
+            <ErrorMessage field="brand_name" />
           </div>
           <div>
             <label className="block text-xs md:text-sm font-medium text-gray-700">PTKP Status *</label>
             <select
               name="ptkp_status"
-              required
               value={formData.ptkp_status}
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
@@ -130,12 +156,12 @@ export default function EmployeeForm({
               <option value="K/2">K/2</option>
               <option value="K/3">K/3</option>
             </select>
+            <ErrorMessage field="ptkp_status" />
           </div>
           <div>
             <label className="block text-xs md:text-sm font-medium text-gray-700">Status *</label>
             <select
               name="status_employee"
-              required
               value={formData.status_employee}
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
@@ -143,6 +169,7 @@ export default function EmployeeForm({
               <option value="Permanent">Permanent</option>
               <option value="Contract">Contract</option>
             </select>
+            <ErrorMessage field="status_employee" />
           </div>
         </div>
       </div>
@@ -156,11 +183,11 @@ export default function EmployeeForm({
             <input
               type="date"
               name="join_date"
-              required
               value={formData.join_date}
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             />
+            <ErrorMessage field="join_date" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Sign Date</label>
@@ -171,9 +198,12 @@ export default function EmployeeForm({
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             />
+            <ErrorMessage field="sign_date" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">End Date</label>
+            <label className="block text-sm font-medium text-gray-700">
+              End Date {formData.status_employee === 'Contract' && '*'}
+            </label>
             <input
               type="date"
               name="end_date"
@@ -181,6 +211,18 @@ export default function EmployeeForm({
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             />
+            <ErrorMessage field="end_date" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Resign Date</label>
+            <input
+              type="date"
+              name="resign_date"
+              value={formData.resign_date}
+              onChange={handleChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+            />
+            <ErrorMessage field="resign_date" />
           </div>
         </div>
       </div>
@@ -198,6 +240,7 @@ export default function EmployeeForm({
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             />
+            <ErrorMessage field="nik" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Birth Date</label>
@@ -208,6 +251,7 @@ export default function EmployeeForm({
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             />
+            <ErrorMessage field="birth_date" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Birth Place</label>
@@ -218,12 +262,13 @@ export default function EmployeeForm({
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             />
+            <ErrorMessage field="birth_place" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Gender</label>
             <select
               name="gender"
-              value={formData.gender}
+              value={formData.gender || ''}
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             >
@@ -231,12 +276,13 @@ export default function EmployeeForm({
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </select>
+            <ErrorMessage field="gender" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Religion</label>
             <select
               name="religion"
-              value={formData.religion}
+              value={formData.religion || ''}
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             >
@@ -248,12 +294,13 @@ export default function EmployeeForm({
               <option value="Buddha">Buddha</option>
               <option value="Other">Other</option>
             </select>
+            <ErrorMessage field="religion" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Marital Status</label>
             <select
               name="marital_status"
-              value={formData.marital_status}
+              value={formData.marital_status || ''}
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             >
@@ -263,6 +310,7 @@ export default function EmployeeForm({
               <option value="Divorced">Divorced</option>
               <option value="Widow">Widow</option>
             </select>
+            <ErrorMessage field="marital_status" />
           </div>
         </div>
       </div>
@@ -280,6 +328,7 @@ export default function EmployeeForm({
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             />
+            <ErrorMessage field="email" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Mobile Phone</label>
@@ -290,6 +339,7 @@ export default function EmployeeForm({
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             />
+            <ErrorMessage field="mobile_phone" />
           </div>
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700">Address (KTP)</label>
@@ -300,6 +350,7 @@ export default function EmployeeForm({
               rows={3}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             />
+            <ErrorMessage field="citizen_id_address" />
           </div>
         </div>
       </div>
@@ -317,6 +368,7 @@ export default function EmployeeForm({
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             />
+            <ErrorMessage field="bank_name" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Bank Account</label>
@@ -327,6 +379,7 @@ export default function EmployeeForm({
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             />
+            <ErrorMessage field="bank_account" />
           </div>
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700">Bank Account Holder</label>
@@ -337,6 +390,7 @@ export default function EmployeeForm({
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             />
+            <ErrorMessage field="bank_account_holder" />
           </div>
         </div>
       </div>
@@ -362,15 +416,16 @@ export default function EmployeeForm({
       <div className="flex flex-col md:flex-row gap-2 md:gap-3 pt-4">
         <button
           type="submit"
-          disabled={isLoading}
-          className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 text-sm md:text-base min-h-[44px]"
+          disabled={isSubmitting || isLoading}
+          className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base min-h-[44px]"
         >
-          {isLoading ? 'Processing...' : submitLabel}
+          {isSubmitting || isLoading ? 'Processing...' : submitLabel}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 text-sm md:text-base min-h-[44px]"
+          disabled={isSubmitting || isLoading}
+          className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 disabled:opacity-50 text-sm md:text-base min-h-[44px]"
         >
           Cancel
         </button>
