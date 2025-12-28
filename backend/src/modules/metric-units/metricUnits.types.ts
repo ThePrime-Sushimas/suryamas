@@ -1,4 +1,6 @@
-export type MetricType = 'Unit' | 'Volume' | 'Weight'
+import { MetricType } from './metricUnits.constants'
+
+export type { MetricType }
 
 export interface MetricUnit {
   id: string
@@ -20,7 +22,11 @@ export interface CreateMetricUnitDto {
   created_by?: string | null
 }
 
-export interface UpdateMetricUnitDto extends Partial<CreateMetricUnitDto> {
+export interface UpdateMetricUnitDto {
+  metric_type?: MetricType
+  unit_name?: string
+  notes?: string | null
+  is_active?: boolean
   updated_by?: string | null
   updated_at?: string
 }

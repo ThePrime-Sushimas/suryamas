@@ -2,16 +2,9 @@ import { metricUnitsRepository } from './metricUnits.repository'
 import { MetricUnit, CreateMetricUnitDto, UpdateMetricUnitDto } from './metricUnits.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
 import { AuditService } from '../../services/audit.service'
-
-const VALID_METRIC_TYPES = ['Unit', 'Volume', 'Weight']
-
-function isValidMetricType(type: any): type is string {
-  return VALID_METRIC_TYPES.includes(type)
-}
-
-function isNonEmptyString(str: any): str is string {
-  return typeof str === 'string' && str.trim().length > 0
-}
+import { METRIC_UNIT_CONFIG } from './metricUnits.constants'
+import { MetricUnitNotFoundError, DuplicateMetricUnitError } from './metricUnits.errors'
+import { logError, logWarn } from '../../config/logger'
 
 export class MetricUnitsService {
   async list(
@@ -33,82 +26,69 @@ export class MetricUnitsService {
 
   async getById(id: string): Promise<MetricUnit> {
     const metricUnit = await metricUnitsRepository.findById(id)
-    if (!metricUnit) throw new Error('Metric unit not found')
+    if (!metricUnit) throw new MetricUnitNotFoundError(id)
     return metricUnit
   }
 
   async create(dto: CreateMetricUnitDto, userId?: string): Promise<MetricUnit> {
-    if (!isValidMetricType(dto.metric_type)) {
-      throw new Error('Invalid metric_type')
-    }
-    if (!isNonEmptyString(dto.unit_name) || dto.unit_name.length > 100) {
-      throw new Error('Invalid unit_name')
-    }
+    try {
+      const created = await metricUnitsRepository.create({
+        ...dto,
+        is_active: dto.is_active ?? true,
+        created_by: userId ?? null
+      })
 
-    const isDuplicate = await metricUnitsRepository.isDuplicate(dto.metric_type, dto.unit_name)
-    if (isDuplicate) {
-      throw new Error('409: Duplicate metric_type + unit_name')
+      await AuditService.log('CREATE', 'metric_unit', created.id, userId ?? null, null, created)
+      return created
+    } catch (error: any) {
+      if (error.code === '23505') {
+        logWarn('Duplicate metric unit attempt', { dto, userId })
+        throw new DuplicateMetricUnitError()
+      }
+      logError('Unexpected error creating metric unit', { error: error.message, dto })
+      throw error
     }
-
-    const created = await metricUnitsRepository.create({
-      ...dto,
-      is_active: dto.is_active ?? true,
-      created_by: userId || null
-    })
-
-    await AuditService.log('CREATE', 'metric_unit', created.id, userId || null, null, created)
-    return created
   }
 
   async update(id: string, dto: UpdateMetricUnitDto, userId?: string): Promise<MetricUnit> {
-    if (dto.metric_type && !isValidMetricType(dto.metric_type)) {
-      throw new Error('Invalid metric_type')
-    }
-    if (dto.unit_name && (!isNonEmptyString(dto.unit_name) || dto.unit_name.length > 100)) {
-      throw new Error('Invalid unit_name')
-    }
-
     const before = await metricUnitsRepository.findById(id)
-    if (!before) throw new Error('Metric unit not found')
+    if (!before) throw new MetricUnitNotFoundError(id)
 
-    if (dto.metric_type || dto.unit_name) {
-      const isDuplicate = await metricUnitsRepository.isDuplicate(
-        dto.metric_type || before.metric_type,
-        dto.unit_name || before.unit_name,
-        id
-      )
-      if (isDuplicate) {
-        throw new Error('409: Duplicate metric_type + unit_name')
+    try {
+      const updated = await metricUnitsRepository.updateById(id, {
+        ...dto,
+        updated_by: userId ?? null
+      })
+      
+      await AuditService.log('UPDATE', 'metric_unit', id, userId ?? null, before, dto)
+      return updated
+    } catch (error: any) {
+      if (error.code === '23505') {
+        logWarn('Duplicate metric unit attempt on update', { id, dto, userId })
+        throw new DuplicateMetricUnitError()
       }
+      logError('Unexpected error updating metric unit', { error: error.message, id, dto })
+      throw error
     }
-
-    const updateData = {
-      ...dto,
-      updated_by: userId || null,
-      updated_at: new Date().toISOString()
-    }
-    const updated = await metricUnitsRepository.updateById(id, updateData)
-    await AuditService.log('UPDATE', 'metric_unit', id, userId || null, before, dto)
-    return updated
   }
 
   async delete(id: string, userId?: string): Promise<void> {
     const before = await metricUnitsRepository.findById(id)
-    if (!before) throw new Error('Metric unit not found')
+    if (!before) throw new MetricUnitNotFoundError(id)
 
     await metricUnitsRepository.delete(id)
-    await AuditService.log('DELETE', 'metric_unit', id, userId || null, before, null)
+    await AuditService.log('DELETE', 'metric_unit', id, userId ?? null, before, null)
   }
 
   async bulkUpdateStatus(ids: string[], isActive: boolean, userId?: string): Promise<void> {
     await metricUnitsRepository.bulkUpdateStatus(ids, isActive)
-    await AuditService.log('BULK', 'metric_unit', 'BULK', userId || null, { ids }, { is_active: isActive })
+    await AuditService.log('BULK_UPDATE_STATUS', 'metric_unit', ids.join(','), userId ?? null, { ids }, { is_active: isActive })
   }
 
   async filterOptions() {
     return {
-      metric_types: VALID_METRIC_TYPES,
-      statuses: [true, false]
+      metric_types: METRIC_UNIT_CONFIG.VALID_TYPES,
+      statuses: [{ label: 'Active', value: true }, { label: 'Inactive', value: false }]
     }
   }
 }

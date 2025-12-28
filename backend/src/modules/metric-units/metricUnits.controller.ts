@@ -1,19 +1,20 @@
 import { Response } from 'express'
 import { metricUnitsService } from './metricUnits.service'
-import { sendSuccess, sendError } from '../../utils/response.util'
-import { logInfo, logError } from '../../config/logger'
+import { sendSuccess } from '../../utils/response.util'
+import { logInfo } from '../../config/logger'
 import { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 import { getPaginationParams } from '../../utils/pagination.util'
+import { CreateMetricUnitSchema, UpdateMetricUnitSchema, BulkUpdateStatusSchema, UuidParamSchema } from './metricUnits.schema'
+import { handleError } from '../../utils/error-handler.util'
 
 export class MetricUnitsController {
   async list(req: AuthenticatedQueryRequest, res: Response) {
     try {
       const { offset } = getPaginationParams(req.query)
-      const result = await metricUnitsService.list({ ...req.pagination, offset }, req.sort)
-      res.json({ success: true, data: result.data, pagination: result.pagination })
+      const result = await metricUnitsService.list({ ...req.pagination, offset }, req.sort, req.queryFilter)
+      sendSuccess(res, result.data, 'Success', 200, result.pagination)
     } catch (error) {
-      logError('Failed to list metric units', { error: (error as Error).message })
-      sendError(res, (error as Error).message, 400)
+      handleError(res, error)
     }
   }
 
@@ -21,86 +22,64 @@ export class MetricUnitsController {
     try {
       const { offset } = getPaginationParams(req.query)
       const result = await metricUnitsService.listActive({ ...req.pagination, offset }, req.sort)
-      res.json({ success: true, data: result.data, pagination: result.pagination })
+      sendSuccess(res, result.data, 'Success', 200, result.pagination)
     } catch (error) {
-      logError('Failed to list active metric units', { error: (error as Error).message })
-      sendError(res, (error as Error).message, 400)
+      handleError(res, error)
     }
   }
 
   async getById(req: AuthenticatedRequest, res: Response) {
     try {
-      const id = req.params.id
-      if (!id) return sendError(res, 'Invalid ID', 400)
-
-      const metricUnit = await metricUnitsService.getById(id)
+      UuidParamSchema.parse(req.params)
+      const metricUnit = await metricUnitsService.getById(req.params.id)
       sendSuccess(res, metricUnit)
     } catch (error) {
-      const msg = (error as Error).message
-      sendError(res, msg, msg.includes('not found') ? 404 : 400)
+      handleError(res, error)
     }
   }
 
   async create(req: AuthenticatedRequest, res: Response) {
     try {
-      const metricUnit = await metricUnitsService.create(req.body, req.user?.id)
-      logInfo('Metric unit created', { id: metricUnit.id })
+      const dto = CreateMetricUnitSchema.parse(req.body)
+      const metricUnit = await metricUnitsService.create(dto, req.user?.id)
+      logInfo('Metric unit created', { id: metricUnit.id, userId: req.user?.id })
       sendSuccess(res, metricUnit, 'Created', 201)
     } catch (error) {
-      const msg = (error as Error).message
-      if (msg.startsWith('409:')) {
-        return sendError(res, msg.replace('409: ', ''), 409)
-      }
-      sendError(res, msg, msg.includes('Invalid') ? 400 : 500)
+      handleError(res, error)
     }
   }
 
   async update(req: AuthenticatedRequest, res: Response) {
     try {
-      const id = req.params.id
-      if (!id) return sendError(res, 'Invalid ID', 400)
-
-      const metricUnit = await metricUnitsService.update(id, req.body, req.user?.id)
-      logInfo('Metric unit updated', { id })
+      UuidParamSchema.parse(req.params)
+      const dto = UpdateMetricUnitSchema.parse(req.body)
+      const metricUnit = await metricUnitsService.update(req.params.id, dto, req.user?.id)
+      logInfo('Metric unit updated', { id: req.params.id, userId: req.user?.id })
       sendSuccess(res, metricUnit, 'Updated')
     } catch (error) {
-      const msg = (error as Error).message
-      if (msg.startsWith('409:')) {
-        return sendError(res, msg.replace('409: ', ''), 409)
-      }
-      sendError(res, msg, msg.includes('not found') ? 404 : msg.includes('Invalid') ? 400 : 500)
+      handleError(res, error)
     }
   }
 
   async delete(req: AuthenticatedRequest, res: Response) {
     try {
-      const id = req.params.id
-      if (!id) return sendError(res, 'Invalid ID', 400)
-
-      await metricUnitsService.delete(id, req.user?.id)
-      logInfo('Metric unit deleted', { id })
+      UuidParamSchema.parse(req.params)
+      await metricUnitsService.delete(req.params.id, req.user?.id)
+      logInfo('Metric unit deleted', { id: req.params.id, userId: req.user?.id })
       sendSuccess(res, null, 'Deleted')
     } catch (error) {
-      const msg = (error as Error).message
-      sendError(res, msg, msg.includes('not found') ? 404 : 500)
+      handleError(res, error)
     }
   }
 
   async bulkUpdateStatus(req: AuthenticatedRequest, res: Response) {
     try {
-      const { ids, is_active } = req.body
-      if (!Array.isArray(ids) || ids.length === 0) {
-        return sendError(res, 'ids must be non-empty array', 400)
-      }
-      if (typeof is_active !== 'boolean') {
-        return sendError(res, 'is_active must be boolean', 400)
-      }
-
+      const { ids, is_active } = BulkUpdateStatusSchema.parse(req.body)
       await metricUnitsService.bulkUpdateStatus(ids, is_active, req.user?.id)
-      logInfo('Bulk status updated', { count: ids.length })
+      logInfo('Bulk status updated', { count: ids.length, userId: req.user?.id })
       sendSuccess(res, null, 'Updated')
     } catch (error) {
-      sendError(res, (error as Error).message, 400)
+      handleError(res, error)
     }
   }
 
@@ -109,7 +88,7 @@ export class MetricUnitsController {
       const options = await metricUnitsService.filterOptions()
       sendSuccess(res, options)
     } catch (error) {
-      sendError(res, (error as Error).message, 400)
+      handleError(res, error)
     }
   }
 }
