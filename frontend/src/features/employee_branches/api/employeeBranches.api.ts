@@ -62,4 +62,13 @@ export const employeeBranchesApi = {
       throw normalizeError(err)
     }
   },
+
+  async getByEmployeeId(employeeId: string): Promise<EmployeeBranch[]> {
+    try {
+      const { data } = await api.get<{ success: boolean; data: EmployeeBranch[] }>(`${BASE}/employee/${employeeId}`)
+      return data.data
+    } catch (err) {
+      throw normalizeError(err)
+    }
+  },
 }
