@@ -44,10 +44,13 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
         page: currentPage,
         limit
       }
+      
+      // Use search endpoint if there's a search query
+      const endpoint = searchQuery ? '/employees/search' : '/employees'
       if (searchQuery) params.q = searchQuery
       
-      // Fetch all employees
-      const { data } = await api.get('/employees', { params })
+      // Fetch employees
+      const { data } = await api.get(endpoint, { params })
       const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
       
       // Filter out employees already assigned to this branch
