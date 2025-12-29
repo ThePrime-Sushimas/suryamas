@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useMetricUnitsStore } from '../store/metricUnits.store'
 import { MetricUnitForm } from '../components/MetricUnitForm'
 import { useToast } from '@/contexts/ToastContext'
@@ -10,12 +10,21 @@ export default function EditMetricUnitPage() {
   const navigate = useNavigate()
   const toast = useToast()
   const { currentMetricUnit, loading, filterOptions, fetchMetricUnitById, updateMetricUnit } = useMetricUnitsStore()
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (id) {
       fetchMetricUnitById(id).catch(() => {
-        toast.error('Metric unit not found')
-        navigate('/metric-units')
+        if (isMountedRef.current) {
+          toast.error('Metric unit not found')
+          navigate('/metric-units')
+        }
       })
     }
   }, [id, fetchMetricUnitById, navigate, toast])
@@ -24,10 +33,14 @@ export default function EditMetricUnitPage() {
     if (!id) return
     try {
       await updateMetricUnit(id, data)
-      toast.success('Metric unit updated successfully')
-      navigate('/metric-units')
+      if (isMountedRef.current) {
+        toast.success('Metric unit updated successfully')
+        navigate('/metric-units')
+      }
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to update metric unit')
+      if (isMountedRef.current) {
+        toast.error(error.message || 'Failed to update metric unit')
+      }
     }
   }
 

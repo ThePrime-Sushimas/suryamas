@@ -52,7 +52,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
       const res = await metricUnitsApi.list(currentPage, currentLimit, state.sort, state.filter)
       set({ metricUnits: res.data, pagination: res.pagination, loading: false })
     } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Failed to fetch metric units', loading: false })
+      set({ error: error.message || 'Failed to fetch metric units', loading: false })
     }
   },
 
@@ -63,7 +63,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
       set({ currentMetricUnit: metricUnit, loading: false })
       return metricUnit
     } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Metric unit not found', loading: false })
+      set({ error: error.message || 'Metric unit not found', loading: false })
       throw error
     }
   },
@@ -84,7 +84,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
       }))
       return metricUnit
     } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Failed to create metric unit', loading: false })
+      set({ error: error.message || 'Failed to create metric unit', loading: false })
       throw error
     }
   },
@@ -100,19 +100,20 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
       }))
       return metricUnit
     } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Failed to update metric unit', loading: false })
+      set({ error: error.message || 'Failed to update metric unit', loading: false })
       throw error
     }
   },
 
   deleteMetricUnit: async (id) => {
-    const prev = get().metricUnits
+    const prevUnits = get().metricUnits
+    const prevPagination = get().pagination
     set(state => ({ metricUnits: state.metricUnits.map(m => m.id === id ? { ...m, is_active: false } : m) }))
     try {
       await metricUnitsApi.delete(id)
       set(state => ({ pagination: { ...state.pagination, total: state.pagination.total - 1 } }))
     } catch (error: any) {
-      set({ metricUnits: prev, error: error.response?.data?.error || 'Failed to delete metric unit' })
+      set({ metricUnits: prevUnits, pagination: prevPagination, error: error.message || 'Failed to delete metric unit' })
       throw error
     }
   },
@@ -126,7 +127,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
         loading: false
       }))
     } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Failed to restore metric unit', loading: false })
+      set({ error: error.message || 'Failed to restore metric unit', loading: false })
       throw error
     }
   },
@@ -140,7 +141,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
         loading: false
       }))
     } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Failed to update status', loading: false })
+      set({ error: error.message || 'Failed to update status', loading: false })
       throw error
     }
   },

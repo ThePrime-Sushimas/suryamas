@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
 import { useMetricUnitsStore } from '../store/metricUnits.store'
 import { MetricUnitForm } from '../components/MetricUnitForm'
 import { useToast } from '@/contexts/ToastContext'
@@ -8,14 +9,25 @@ export default function CreateMetricUnitPage() {
   const navigate = useNavigate()
   const toast = useToast()
   const { createMetricUnit, loading, filterOptions } = useMetricUnitsStore()
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const handleSubmit = async (data: CreateMetricUnitDto) => {
     try {
       await createMetricUnit(data)
-      toast.success('Metric unit created successfully')
-      navigate('/metric-units')
+      if (isMountedRef.current) {
+        toast.success('Metric unit created successfully')
+        navigate('/metric-units')
+      }
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to create metric unit')
+      if (isMountedRef.current) {
+        toast.error(error.message || 'Failed to create metric unit')
+      }
     }
   }
 

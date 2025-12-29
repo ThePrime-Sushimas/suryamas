@@ -26,12 +26,31 @@ export const MetricUnitForm = ({ initialData, isEdit, onSubmit, isLoading, metri
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [isDirty, setIsDirty] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [initialFormData] = useState(formData)
+
+  useEffect(() => {
+    if (initialData) {
+      const newData = {
+        metric_type: (initialData.metric_type || 'Unit') as MetricType,
+        unit_name: initialData.unit_name || '',
+        notes: initialData.notes || null,
+        is_active: initialData.is_active ?? true
+      }
+      setFormData(newData)
+      setErrors({})
+      setTouched({})
+      setIsDirty(false)
+    }
+  }, [initialData?.id])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, type } = e.target
     const value = type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value
     setFormData(prev => ({ ...prev, [name]: value === '' ? null : value }))
     setTouched(prev => ({ ...prev, [name]: true }))
+    setIsDirty(true)
   }
 
   const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -56,8 +75,19 @@ export const MetricUnitForm = ({ initialData, isEdit, onSubmit, isLoading, metri
     }
   }, [formData, touched])
 
+  const hasChanges = () => {
+    if (!isEdit) return true
+    return JSON.stringify(formData) !== JSON.stringify(initialFormData)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (isSubmitting) return
+    
+    if (isEdit && !hasChanges()) {
+      return
+    }
     
     const result = metricUnitSchema.safeParse(formData)
     if (!result.success) {
@@ -71,8 +101,33 @@ export const MetricUnitForm = ({ initialData, isEdit, onSubmit, isLoading, metri
     }
     
     setErrors({})
-    await onSubmit(result.data)
+    setIsSubmitting(true)
+    
+    try {
+      await onSubmit(result.data)
+      setIsDirty(false)
+      setFormData({
+        metric_type: 'Unit',
+        unit_name: '',
+        notes: null,
+        is_active: true
+      })
+      setTouched({})
+    } finally {
+      setIsSubmitting(false)
+    }
   }
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [isDirty])
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -154,10 +209,10 @@ export const MetricUnitForm = ({ initialData, isEdit, onSubmit, isLoading, metri
       
       <button 
         type="submit" 
-        disabled={isLoading || Object.keys(errors).length > 0}
+        disabled={isLoading || isSubmitting || Object.keys(errors).length > 0 || (isEdit && !hasChanges())}
         className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
       >
-        {isLoading ? 'Saving...' : isEdit ? 'Update' : 'Create'}
+        {isLoading || isSubmitting ? 'Saving...' : isEdit ? (hasChanges() ? 'Update' : 'No Changes') : 'Create'}
       </button>
     </form>
   )

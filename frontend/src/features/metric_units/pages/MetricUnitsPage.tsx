@@ -39,10 +39,10 @@ export default function MetricUnitsPage() {
       if (value) {
         searchMetricUnits(value)
       } else {
-        setFilter({ ...filter, q: undefined })
+        setFilter(prev => ({ ...prev, q: undefined }))
       }
     }, 300),
-    [searchMetricUnits, setFilter, filter]
+    [searchMetricUnits, setFilter]
   )
 
   useEffect(() => {
@@ -178,8 +178,8 @@ export default function MetricUnitsPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPage(pagination.page - 1)}
-              disabled={!pagination.hasPrev}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              disabled={!pagination.hasPrev || loading}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
             >
               Previous
             </button>
@@ -189,8 +189,8 @@ export default function MetricUnitsPage() {
             </span>
             <button
               onClick={() => setPage(pagination.page + 1)}
-              disabled={!pagination.hasNext}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              disabled={!pagination.hasNext || loading}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
             >
               Next
             </button>
