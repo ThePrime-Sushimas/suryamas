@@ -4,6 +4,7 @@ import { subCategoriesApi } from '../api/categories.api'
 import { useCategoriesStore } from '../store/categories.store'
 import { SubCategoryForm } from '../components/SubCategoryForm'
 import type { SubCategory } from '../types'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function EditSubCategoryPage() {
   const { id } = useParams<{ id: string }>()
@@ -11,29 +12,30 @@ export default function EditSubCategoryPage() {
   const { updateSubCategory, loading: updating } = useCategoriesStore()
   const [subCategory, setSubCategory] = useState<SubCategory | null>(null)
   const [loading, setLoading] = useState(true)
+  const { success, error } = useToast()
 
   useEffect(() => {
     const fetch = async () => {
       try {
         const data = await subCategoriesApi.getById(id || '')
         setSubCategory(data)
-      } catch (error) {
-        alert('Sub-category not found')
+      } catch (err) {
+        error('Sub-category not found')
         navigate('/sub-categories')
       } finally {
         setLoading(false)
       }
     }
     fetch()
-  }, [id, navigate])
+  }, [id, navigate, error])
 
   const handleSubmit = async (data: any) => {
     try {
       await updateSubCategory(id || '', data)
-      alert('Sub-category updated successfully')
+      success('Sub-category updated successfully')
       navigate('/sub-categories')
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to update sub-category')
+    } catch (err: any) {
+      error(err.response?.data?.error || 'Failed to update sub-category')
     }
   }
 

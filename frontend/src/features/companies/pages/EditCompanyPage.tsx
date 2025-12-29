@@ -3,32 +3,34 @@ import { useEffect } from 'react'
 import { useCompaniesStore } from '../store/companies.store'
 import { CompanyForm } from '../components/CompanyForm'
 import type { UpdateCompanyDto } from '../types'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function EditCompanyPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { selectedCompany, loading, getCompanyById, updateCompany, reset } = useCompaniesStore()
+  const { success, error } = useToast()
 
   useEffect(() => {
     if (id) {
       getCompanyById(id).catch(() => {
-        alert('Company not found')
+        error('Company not found')
         navigate('/companies')
       })
     }
     return () => reset()
-  }, [id, getCompanyById, navigate, reset])
+  }, [id, getCompanyById, navigate, reset, error])
 
   const handleSubmit = async (data: UpdateCompanyDto) => {
     if (!id) return
     
     try {
       await updateCompany(id, data)
-      alert('Company updated successfully')
+      success('Company updated successfully')
       navigate('/companies')
-    } catch (error: any) {
-      // Error already handled in form
-      throw error
+    } catch (err: any) {
+      error(err.response?.data?.error || 'Failed to update company')
+      throw err
     }
   }
 

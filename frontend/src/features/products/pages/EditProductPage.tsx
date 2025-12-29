@@ -4,6 +4,7 @@ import { productsApi } from '../api/products.api'
 import { useProductsStore } from '../store/products.store'
 import { ProductForm } from '../components/ProductForm'
 import type { Product } from '../types'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function EditProductPage() {
   const { id } = useParams<{ id: string }>()
@@ -11,29 +12,30 @@ export default function EditProductPage() {
   const { updateProduct, loading: updating } = useProductsStore()
   const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
+  const { success, error } = useToast()
 
   useEffect(() => {
     const fetchProduct = async () => {
       try {
         const data = await productsApi.getById(id || '')
         setProduct(data)
-      } catch (error) {
-        alert('Product not found')
+      } catch (err) {
+        error('Product not found')
         navigate('/products')
       } finally {
         setLoading(false)
       }
     }
     fetchProduct()
-  }, [id, navigate])
+  }, [id, navigate, error])
 
   const handleSubmit = async (data: any) => {
     try {
       await updateProduct(id || '', data)
-      alert('Product updated successfully')
+      success('Product updated successfully')
       navigate('/products')
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to update product')
+    } catch (err: any) {
+      error(err.response?.data?.error || 'Failed to update product')
     }
   }
 

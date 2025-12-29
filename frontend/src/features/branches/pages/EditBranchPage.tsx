@@ -4,6 +4,7 @@ import { branchesApi } from '../api/branches.api'
 import { useBranchesStore } from '../store/branches.store'
 import { BranchForm } from '../components/BranchForm'
 import type { Branch, UpdateBranchDto } from '../types'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function EditBranchPage() {
   const { id } = useParams<{ id: string }>()
@@ -11,29 +12,30 @@ export default function EditBranchPage() {
   const { updateBranch, loading: updating } = useBranchesStore()
   const [branch, setBranch] = useState<Branch | null>(null)
   const [loading, setLoading] = useState(true)
+  const { success, error } = useToast()
 
   useEffect(() => {
     const fetchBranch = async () => {
       try {
         const data = await branchesApi.getById(id || '')
         setBranch(data)
-      } catch (error) {
-        alert('Branch not found')
+      } catch (err) {
+        error('Branch not found')
         navigate('/branches')
       } finally {
         setLoading(false)
       }
     }
     fetchBranch()
-  }, [id, navigate])
+  }, [id, navigate, error])
 
   const handleSubmit = async (data: UpdateBranchDto) => {
     try {
       await updateBranch(id || '', data)
-      alert('Branch updated successfully')
+      success('Branch updated successfully')
       navigate(`/branches/${id}`)
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to update branch')
+    } catch (err: any) {
+      error(err.response?.data?.error || 'Failed to update branch')
     }
   }
 

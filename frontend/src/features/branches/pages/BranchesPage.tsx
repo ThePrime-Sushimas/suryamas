@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBranchesStore } from '../store/branches.store'
 import { BranchTable } from '../components/BranchTable'
+import { useToast } from '@/contexts/ToastContext'
 
 function debounce<T extends (...args: any[]) => any>(fn: T, delay: number) {
   let timeoutId: ReturnType<typeof setTimeout>
@@ -15,6 +16,7 @@ export default function BranchesPage() {
   const navigate = useNavigate()
   const { branches, loading, fetchBranches, searchBranches, deleteBranch } = useBranchesStore()
   const [search, setSearch] = useState('')
+  const { success, error } = useToast()
 
   const debouncedSearch = useMemo(
     () => debounce((value: string) => {
@@ -35,10 +37,10 @@ export default function BranchesPage() {
     if (confirm('Delete this branch?')) {
       try {
         await deleteBranch(id)
-        alert('Branch deleted successfully')
-      } catch (error) {
-        alert('Failed to delete branch')
-        console.error('Delete failed:', error)
+        success('Branch deleted successfully')
+      } catch (err) {
+        error('Failed to delete branch')
+        console.error('Delete failed:', err)
       }
     }
   }

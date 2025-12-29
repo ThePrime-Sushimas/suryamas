@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useCompaniesStore } from '../store/companies.store'
 import { CompanyTable } from '../components/CompanyTable'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function CompaniesPage() {
   const navigate = useNavigate()
@@ -11,6 +12,7 @@ export default function CompaniesPage() {
   const [filter, setFilter] = useState<Record<string, any>>({})
   const [page, setPage] = useState(1)
   const [limit] = useState(25)
+  const { error } = useToast()
   
   const debouncedSearch = useDebounce(search, 500)
 
@@ -41,10 +43,10 @@ export default function CompaniesPage() {
       } else {
         fetchCompanies(page, limit, undefined, filter)
       }
-    } catch (error) {
-      alert('Failed to delete company')
+    } catch (err) {
+      error('Failed to delete company')
     }
-  }, [deleteCompany, debouncedSearch, page, limit, filter, searchCompanies, fetchCompanies])
+  }, [deleteCompany, debouncedSearch, page, limit, filter, searchCompanies, fetchCompanies, error])
 
   const setFilterKey = useCallback((key: string, value?: string) => {
     setFilter(prev => {

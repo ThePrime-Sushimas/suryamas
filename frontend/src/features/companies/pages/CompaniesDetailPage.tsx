@@ -1,31 +1,33 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useCompaniesStore } from '../store/companies.store'
+import { useToast } from '@/contexts/ToastContext'
 
 function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { selectedCompany, loading, getCompanyById, deleteCompany, reset } = useCompaniesStore()
+  const { success, error } = useToast()
 
   useEffect(() => {
     if (id) {
       getCompanyById(id).catch(() => {
-        alert('Company not found')
+        error('Company not found')
         navigate('/companies')
       })
     }
     return () => reset()
-  }, [id, getCompanyById, navigate, reset])
+  }, [id, getCompanyById, navigate, reset, error])
 
   const handleDelete = async () => {
     if (!id || !confirm('Are you sure you want to delete this company?')) return
     
     try {
       await deleteCompany(id)
-      alert('Company deleted successfully')
+      success('Company deleted successfully')
       navigate('/companies')
-    } catch (error) {
-      alert('Failed to delete company')
+    } catch (err) {
+      error('Failed to delete company')
     }
   }
 

@@ -1,18 +1,20 @@
 import { useNavigate } from 'react-router-dom'
 import { useCategoriesStore } from '../store/categories.store'
 import { CategoryForm } from '../components/CategoryForm'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function CreateCategoryPage() {
   const navigate = useNavigate()
   const { createCategory, loading } = useCategoriesStore()
+  const { success, error } = useToast()
 
   const handleSubmit = async (data: any) => {
     try {
       await createCategory(data)
-      alert('Category created successfully')
+      success('Category created successfully')
       navigate('/categories')
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to create category')
+    } catch (err: any) {
+      error(err.response?.data?.error || 'Failed to create category')
     }
   }
 

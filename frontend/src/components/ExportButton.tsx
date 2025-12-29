@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import api from '../lib/axios'
+import { useToast } from '@/contexts/ToastContext'
 
 interface ApiResponse<T> {
   success: boolean
@@ -15,6 +16,7 @@ interface ExportButtonProps {
 export default function ExportButton({ endpoint, filename, filter = {} }: ExportButtonProps) {
   const [isExporting, setIsExporting] = useState(false)
   const [progress, setProgress] = useState(0)
+  const { error } = useToast()
 
   const handleExport = async () => {
     setIsExporting(true)
@@ -36,9 +38,9 @@ export default function ExportButton({ endpoint, filename, filter = {} }: Export
       
       setProgress(100)
       setTimeout(() => setProgress(0), 1000)
-    } catch (error) {
+    } catch (err) {
       setProgress(0)
-      alert('Export failed')
+      error('Export failed')
     } finally {
       setIsExporting(false)
     }

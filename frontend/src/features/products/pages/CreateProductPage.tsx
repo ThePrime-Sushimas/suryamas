@@ -1,18 +1,20 @@
 import { useNavigate } from 'react-router-dom'
 import { useProductsStore } from '../store/products.store'
 import { ProductForm } from '../components/ProductForm'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function CreateProductPage() {
   const navigate = useNavigate()
   const { createProduct, loading } = useProductsStore()
+  const { success, error } = useToast()
 
   const handleSubmit = async (data: any) => {
     try {
       await createProduct(data)
-      alert('Product created successfully')
+      success('Product created successfully')
       navigate('/products')
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to create product')
+    } catch (err: any) {
+      error(err.response?.data?.error || 'Failed to create product')
     }
   }
 

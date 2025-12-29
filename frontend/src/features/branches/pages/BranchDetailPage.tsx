@@ -133,10 +133,11 @@ function BranchDetailPage() {
     setDeleting(true)
     try {
       await branchesApi.delete(id!)
+      success('Branch deleted successfully')
       navigate('/branches')
-    } catch (error) {
-      console.error('Delete failed:', error)
-      alert('Failed to delete branch. Please try again.')
+    } catch (err) {
+      console.error('Delete failed:', err)
+      showError('Failed to delete branch. Please try again.')
     } finally {
       setDeleting(false)
     }

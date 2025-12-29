@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import api from '../lib/axios'
+import { useToast } from '@/contexts/ToastContext'
 
 interface ApiResponse<T> {
   success: boolean
@@ -20,18 +21,19 @@ export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, titl
   const [skipDuplicates, setSkipDuplicates] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const { error } = useToast()
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (!selectedFile) return
 
     if (!selectedFile.name.endsWith('.xlsx') && !selectedFile.name.endsWith('.xls')) {
-      alert('Only Excel files (.xlsx, .xls) are allowed')
+      error('Only Excel files (.xlsx, .xls) are allowed')
       return
     }
 
     if (selectedFile.size > 5 * 1024 * 1024) {
-      alert('File size must be less than 5MB')
+      error('File size must be less than 5MB')
       return
     }
 
@@ -43,8 +45,8 @@ export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, titl
         headers: { 'Content-Type': 'multipart/form-data' }
       })
       setPreview(data.data)
-    } catch (error) {
-      alert('Failed to preview file')
+    } catch (err) {
+      error('Failed to preview file')
     }
   }
 
@@ -65,8 +67,8 @@ export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, titl
           handleClose()
         }, 2000)
       }
-    } catch (error: any) {
-      alert(error.message || 'Import failed')
+    } catch (err: any) {
+      error(err.message || 'Import failed')
     } finally {
       setIsLoading(false)
     }

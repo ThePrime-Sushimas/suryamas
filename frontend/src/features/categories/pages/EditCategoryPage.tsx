@@ -4,6 +4,7 @@ import { categoriesApi } from '../api/categories.api'
 import { useCategoriesStore } from '../store/categories.store'
 import { CategoryForm } from '../components/CategoryForm'
 import type { Category } from '../types'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function EditCategoryPage() {
   const { id } = useParams<{ id: string }>()
@@ -11,29 +12,30 @@ export default function EditCategoryPage() {
   const { updateCategory, loading: updating } = useCategoriesStore()
   const [category, setCategory] = useState<Category | null>(null)
   const [loading, setLoading] = useState(true)
+  const { success, error } = useToast()
 
   useEffect(() => {
     const fetchCategory = async () => {
       try {
         const data = await categoriesApi.getById(id || '')
         setCategory(data)
-      } catch (error) {
-        alert('Category not found')
+      } catch (err) {
+        error('Category not found')
         navigate('/categories')
       } finally {
         setLoading(false)
       }
     }
     fetchCategory()
-  }, [id, navigate])
+  }, [id, navigate, error])
 
   const handleSubmit = async (data: any) => {
     try {
       await updateCategory(id || '', data)
-      alert('Category updated successfully')
+      success('Category updated successfully')
       navigate('/categories')
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to update category')
+    } catch (err: any) {
+      error(err.response?.data?.error || 'Failed to update category')
     }
   }
 

@@ -1,18 +1,20 @@
 import { useNavigate } from 'react-router-dom'
 import { useCategoriesStore } from '../store/categories.store'
 import { SubCategoryForm } from '../components/SubCategoryForm'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function CreateSubCategoryPage() {
   const navigate = useNavigate()
   const { createSubCategory, loading } = useCategoriesStore()
+  const { success, error } = useToast()
 
   const handleSubmit = async (data: any) => {
     try {
       await createSubCategory(data)
-      alert('Sub-category created successfully')
+      success('Sub-category created successfully')
       navigate('/sub-categories')
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to create sub-category')
+    } catch (err: any) {
+      error(err.response?.data?.error || 'Failed to create sub-category')
     }
   }
 

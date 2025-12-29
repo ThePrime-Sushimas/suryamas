@@ -3,10 +3,12 @@ import { useCompaniesStore } from '../store/companies.store'
 import { CompanyForm } from '../components/CompanyForm'
 import type { CreateCompanyDto } from '../types'
 import { useEffect } from 'react'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function CreateCompanyPage() {
   const navigate = useNavigate()
   const { createCompany, loading, reset } = useCompaniesStore()
+  const { success, error } = useToast()
 
   useEffect(() => {
     return () => reset()
@@ -15,11 +17,11 @@ export default function CreateCompanyPage() {
   const handleSubmit = async (data: CreateCompanyDto) => {
     try {
       await createCompany(data)
-      alert('Company created successfully')
+      success('Company created successfully')
       navigate('/companies')
-    } catch (error: any) {
-      // Error already handled in form
-      throw error
+    } catch (err: any) {
+      error(err.response?.data?.error || 'Failed to create company')
+      throw err
     }
   }
 

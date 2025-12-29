@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../lib/axios'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState('')
@@ -8,6 +9,7 @@ export default function ResetPasswordPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
+  const { success } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,7 +28,7 @@ export default function ResetPasswordPage() {
     setIsLoading(true)
     try {
       await api.post('/auth/reset-password', { password })
-      alert('Password updated successfully!')
+      success('Password updated successfully!')
       navigate('/login')
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to reset password')

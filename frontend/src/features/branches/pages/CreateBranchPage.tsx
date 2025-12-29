@@ -2,18 +2,20 @@ import { useNavigate } from 'react-router-dom'
 import { useBranchesStore } from '../store/branches.store'
 import { BranchForm } from '../components/BranchForm'
 import type { CreateBranchDto } from '../types'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function CreateBranchPage() {
   const navigate = useNavigate()
   const { createBranch, loading } = useBranchesStore()
+  const { success, error } = useToast()
 
   const handleSubmit = async (data: any) => {
     try {
       await createBranch(data as CreateBranchDto)
-      alert('Branch created successfully')
+      success('Branch created successfully')
       navigate('/branches')
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to create branch')
+    } catch (err: any) {
+      error(err.response?.data?.error || 'Failed to create branch')
     }
   }
 
