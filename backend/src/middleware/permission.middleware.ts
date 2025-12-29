@@ -5,7 +5,6 @@
 import { Response, NextFunction } from 'express'
 import { AuthRequest } from '../types/common.types'
 import type { PermissionAction } from '../modules/permissions/permissions.types'
-import { PermissionService } from '../services/permission.service'
 import { sendError } from '../utils/response.util'
 import { logWarn } from '../config/logger'
 import { isPublicModule } from '../utils/permissions.util'
