@@ -18,6 +18,7 @@ interface MetricUnitsState {
   createMetricUnit: (data: CreateMetricUnitDto) => Promise<MetricUnit>
   updateMetricUnit: (id: string, data: UpdateMetricUnitDto) => Promise<MetricUnit>
   deleteMetricUnit: (id: string) => Promise<void>
+  restoreMetricUnit: (id: string) => Promise<void>
   bulkUpdateStatus: (ids: string[], isActive: boolean) => Promise<void>
   fetchFilterOptions: () => Promise<void>
   setPage: (page: number) => void
@@ -106,12 +107,26 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
 
   deleteMetricUnit: async (id) => {
     const prev = get().metricUnits
-    set(state => ({ metricUnits: state.metricUnits.filter(m => m.id !== id) }))
+    set(state => ({ metricUnits: state.metricUnits.map(m => m.id === id ? { ...m, is_active: false } : m) }))
     try {
       await metricUnitsApi.delete(id)
       set(state => ({ pagination: { ...state.pagination, total: state.pagination.total - 1 } }))
     } catch (error: any) {
       set({ metricUnits: prev, error: error.response?.data?.error || 'Failed to delete metric unit' })
+      throw error
+    }
+  },
+
+  restoreMetricUnit: async (id) => {
+    set({ loading: true, error: null })
+    try {
+      const metricUnit = await metricUnitsApi.restore(id)
+      set(state => ({
+        metricUnits: state.metricUnits.map(m => m.id === id ? metricUnit : m),
+        loading: false
+      }))
+    } catch (error: any) {
+      set({ error: error.response?.data?.error || 'Failed to restore metric unit', loading: false })
       throw error
     }
   },

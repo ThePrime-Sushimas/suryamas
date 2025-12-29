@@ -51,6 +51,11 @@ export const metricUnitsApi = {
     await api.delete(`/metric-units/${id}`)
   },
 
+  restore: async (id: string) => {
+    const res = await api.post<ApiResponse<MetricUnit>>(`/metric-units/${id}/restore`)
+    return res.data.data
+  },
+
   bulkUpdateStatus: async (ids: string[], is_active: boolean) => {
     await api.post('/metric-units/bulk/status', { ids, is_active })
   },

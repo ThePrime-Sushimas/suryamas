@@ -4,13 +4,20 @@ interface MetricUnitTableProps {
   metricUnits: MetricUnit[]
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onRestore: (id: string) => void
   loading?: boolean
 }
 
-export const MetricUnitTable = ({ metricUnits, onEdit, onDelete, loading }: MetricUnitTableProps) => {
+export const MetricUnitTable = ({ metricUnits, onEdit, onDelete, onRestore, loading }: MetricUnitTableProps) => {
   const handleDelete = (id: string, unitName: string) => {
     if (confirm(`Delete metric unit "${unitName}"?`)) {
       onDelete(id)
+    }
+  }
+
+  const handleRestore = (id: string, unitName: string) => {
+    if (confirm(`Restore metric unit "${unitName}"?`)) {
+      onRestore(id)
     }
   }
 
@@ -74,13 +81,23 @@ export const MetricUnitTable = ({ metricUnits, onEdit, onDelete, loading }: Metr
                 >
                   Edit
                 </button>
-                <button 
-                  onClick={() => handleDelete(unit.id, unit.unit_name)} 
-                  className="text-red-600 hover:text-red-900 transition-colors"
-                  aria-label={`Delete ${unit.unit_name}`}
-                >
-                  Delete
-                </button>
+                {unit.is_active ? (
+                  <button 
+                    onClick={() => handleDelete(unit.id, unit.unit_name)} 
+                    className="text-red-600 hover:text-red-900 transition-colors"
+                    aria-label={`Delete ${unit.unit_name}`}
+                  >
+                    Delete
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => handleRestore(unit.id, unit.unit_name)} 
+                    className="text-green-600 hover:text-green-900 transition-colors"
+                    aria-label={`Restore ${unit.unit_name}`}
+                  >
+                    Restore
+                  </button>
+                )}
               </td>
             </tr>
           ))}

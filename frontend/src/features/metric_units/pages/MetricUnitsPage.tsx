@@ -23,6 +23,7 @@ export default function MetricUnitsPage() {
     filterOptions,
     fetchMetricUnits, 
     deleteMetricUnit,
+    restoreMetricUnit,
     searchMetricUnits,
     setPage,
     setFilter,
@@ -58,6 +59,15 @@ export default function MetricUnitsPage() {
       toast.error('Failed to delete metric unit')
     }
   }, [deleteMetricUnit, toast])
+
+  const handleRestore = useCallback(async (id: string) => {
+    try {
+      await restoreMetricUnit(id)
+      toast.success('Metric unit restored successfully')
+    } catch (error) {
+      toast.error('Failed to restore metric unit')
+    }
+  }, [restoreMetricUnit, toast])
 
   const handleFilterChange = (key: string, value: string) => {
     const newLocalFilter = { ...localFilter, [key]: value }
@@ -155,6 +165,7 @@ export default function MetricUnitsPage() {
         metricUnits={metricUnits} 
         onEdit={id => navigate(`/metric-units/${id}/edit`)} 
         onDelete={handleDelete}
+        onRestore={handleRestore}
         loading={loading}
       />
 

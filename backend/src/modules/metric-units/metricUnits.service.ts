@@ -76,8 +76,18 @@ export class MetricUnitsService {
     const before = await metricUnitsRepository.findById(id)
     if (!before) throw new MetricUnitNotFoundError(id)
 
-    await metricUnitsRepository.delete(id)
-    await AuditService.log('DELETE', 'metric_unit', id, userId ?? null, before, null)
+    // Soft delete: set is_active to false
+    await metricUnitsRepository.updateById(id, { is_active: false, updated_by: userId ?? null })
+    await AuditService.log('DELETE', 'metric_unit', id, userId ?? null, before, { is_active: false })
+  }
+
+  async restore(id: string, userId?: string): Promise<MetricUnit> {
+    const before = await metricUnitsRepository.findById(id)
+    if (!before) throw new MetricUnitNotFoundError(id)
+
+    const restored = await metricUnitsRepository.updateById(id, { is_active: true, updated_by: userId ?? null })
+    await AuditService.log('RESTORE', 'metric_unit', id, userId ?? null, before, { is_active: true })
+    return restored
   }
 
   async bulkUpdateStatus(ids: string[], isActive: boolean, userId?: string): Promise<void> {

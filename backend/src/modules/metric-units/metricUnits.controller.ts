@@ -11,7 +11,14 @@ export class MetricUnitsController {
   async list(req: AuthenticatedQueryRequest, res: Response) {
     try {
       const { offset } = getPaginationParams(req.query)
-      const result = await metricUnitsService.list({ ...req.pagination, offset }, req.sort, req.queryFilter)
+      const filter = { ...(req.filterParams || req.queryFilter) }
+      
+      // Add search query if present
+      if (req.query.q) {
+        filter.q = req.query.q as string
+      }
+      
+      const result = await metricUnitsService.list({ ...req.pagination, offset }, req.sort, filter)
       sendSuccess(res, result.data, 'Success', 200, result.pagination)
     } catch (error) {
       handleError(res, error)
@@ -67,6 +74,17 @@ export class MetricUnitsController {
       await metricUnitsService.delete(req.params.id, req.user?.id)
       logInfo('Metric unit deleted', { id: req.params.id, userId: req.user?.id })
       sendSuccess(res, null, 'Deleted')
+    } catch (error) {
+      handleError(res, error)
+    }
+  }
+
+  async restore(req: AuthenticatedRequest, res: Response) {
+    try {
+      UuidParamSchema.parse(req.params)
+      const metricUnit = await metricUnitsService.restore(req.params.id, req.user?.id)
+      logInfo('Metric unit restored', { id: req.params.id, userId: req.user?.id })
+      sendSuccess(res, metricUnit, 'Restored')
     } catch (error) {
       handleError(res, error)
     }

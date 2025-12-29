@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/auth.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
+import { filterMiddleware } from '../../middleware/filter.middleware'
 import { PermissionService } from '../../services/permission.service'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 import { logError } from '../../config/logger'
@@ -32,7 +33,8 @@ router.get('/',
   authenticate, 
   canView('metric-units'), 
   paginationMiddleware, 
-  sortMiddleware, 
+  sortMiddleware,
+  filterMiddleware,
   (req, res) => metricUnitsController.list(req as AuthenticatedQueryRequest, res)
 )
 
@@ -64,6 +66,12 @@ router.delete('/:id',
   authenticate, 
   canDelete('metric-units'), 
   (req, res) => metricUnitsController.delete(req as AuthenticatedRequest, res)
+)
+
+router.post('/:id/restore',
+  authenticate,
+  canUpdate('metric-units'),
+  (req, res) => metricUnitsController.restore(req as AuthenticatedRequest, res)
 )
 
 export default router
