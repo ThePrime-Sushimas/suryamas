@@ -19,7 +19,6 @@ export default function MetricUnitsPage() {
     metricUnits, 
     loading, 
     pagination, 
-    filter,
     filterOptions,
     fetchMetricUnits, 
     deleteMetricUnit,
@@ -39,7 +38,10 @@ export default function MetricUnitsPage() {
       if (value) {
         searchMetricUnits(value)
       } else {
-        setFilter(prev => ({ ...prev, q: undefined }))
+        // Remove search query from current filter
+        const currentFilter = useMetricUnitsStore.getState().filter
+        const newFilter = currentFilter ? { ...currentFilter, q: undefined } : null
+        setFilter(newFilter)
       }
     }, 300),
     [searchMetricUnits, setFilter]

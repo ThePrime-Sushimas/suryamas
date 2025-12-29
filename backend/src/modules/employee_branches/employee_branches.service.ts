@@ -17,13 +17,17 @@ export class EmployeeBranchesService {
       id: entity.id,
       employee_id: entity.employee_id,
       branch_id: entity.branch_id,
+      role_id: entity.role_id,
       is_primary: entity.is_primary,
+      approval_limit: entity.approval_limit,
+      status: entity.status,
       employee_name: entity.employee.full_name,
       job_position: entity.employee.job_position,
       email: entity.employee.email,
       mobile_phone: entity.employee.mobile_phone,
       branch_name: entity.branch.branch_name,
       branch_code: entity.branch.branch_code,
+      role_name: entity.role.name,
       created_at: entity.created_at,
     }
   }
@@ -77,28 +81,21 @@ export class EmployeeBranchesService {
   }
 
   async create(data: CreateEmployeeBranchData): Promise<EmployeeBranchDto> {
-    // Validate employee exists
     const employeeExists = await employeeBranchesRepository.employeeExists(data.employee_id)
     if (!employeeExists) throw EmployeeBranchErrors.EMPLOYEE_NOT_FOUND()
 
-    // Validate branch exists
     const branchExists = await employeeBranchesRepository.branchExists(data.branch_id)
     if (!branchExists) throw EmployeeBranchErrors.BRANCH_NOT_FOUND()
 
-    // Check if assignment already exists
     const existing = await employeeBranchesRepository.findByEmployeeAndBranch(data.employee_id, data.branch_id)
     if (existing) throw EmployeeBranchErrors.ALREADY_EXISTS()
 
-    // Check if employee already has branches
     const currentBranches = await employeeBranchesRepository.findByEmployeeId(data.employee_id)
     
-    // Determine if this should be primary
     let isPrimary = false
     if (currentBranches.length === 0) {
-      // First branch is always primary
       isPrimary = true
     } else if (data.is_primary === true) {
-      // User explicitly wants this as primary, unset others first
       await employeeBranchesRepository.unsetPrimaryForEmployee(data.employee_id)
       isPrimary = true
     }
@@ -106,12 +103,14 @@ export class EmployeeBranchesService {
     const created = await employeeBranchesRepository.create({
       employee_id: data.employee_id,
       branch_id: data.branch_id,
+      role_id: data.role_id,
       is_primary: isPrimary,
+      approval_limit: data.approval_limit || 0,
+      status: data.status || 'active',
     })
 
     logInfo('Employee branch created', { id: created.id, employee_id: data.employee_id, branch_id: data.branch_id })
 
-    // Fetch with relations for response
     const result = await employeeBranchesRepository.findById(created.id)
     return this.toDto(result!)
   }
@@ -120,7 +119,7 @@ export class EmployeeBranchesService {
     const existing = await employeeBranchesRepository.findById(id)
     if (!existing) throw EmployeeBranchErrors.NOT_FOUND()
 
-    const updated = await employeeBranchesRepository.update(id, { is_primary: data.is_primary })
+    const updated = await employeeBranchesRepository.update(id, data)
     if (!updated) throw EmployeeBranchErrors.NOT_FOUND()
 
     logInfo('Employee branch updated', { id })

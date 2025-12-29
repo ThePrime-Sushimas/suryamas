@@ -4,9 +4,10 @@ import { mapEmployeeBranch } from './employee_branches.mapper'
 
 export class EmployeeBranchesRepository {
   private baseSelect = `
-    id, employee_id, branch_id, is_primary, created_at,
+    id, employee_id, branch_id, role_id, is_primary, approval_limit, status, created_at,
     employees!inner(full_name, job_position, email, mobile_phone),
-    branches!inner(branch_name, branch_code)
+    branches!inner(branch_name, branch_code, company_id),
+    perm_roles!inner(name, description)
   `
 
   async findAll(limit: number, offset: number): Promise<{ data: EmployeeBranchWithRelations[]; total: number }> {
@@ -81,7 +82,7 @@ export class EmployeeBranchesRepository {
   async findByEmployeeAndBranch(employeeId: string, branchId: string): Promise<EmployeeBranchEntity | null> {
     const { data, error } = await supabase
       .from('employee_branches')
-      .select('id, employee_id, branch_id, is_primary, created_at')
+      .select('id, employee_id, branch_id, role_id, is_primary, approval_limit, status, created_at')
       .eq('employee_id', employeeId)
       .eq('branch_id', branchId)
       .maybeSingle()
@@ -114,19 +115,19 @@ export class EmployeeBranchesRepository {
     const { data: result, error } = await supabase
       .from('employee_branches')
       .insert(data)
-      .select('id, employee_id, branch_id, is_primary, created_at')
+      .select('id, employee_id, branch_id, role_id, is_primary, approval_limit, status, created_at')
       .single()
 
     if (error) throw error
     return result as EmployeeBranchEntity
   }
 
-  async update(id: string, updates: Partial<Pick<EmployeeBranchEntity, 'is_primary'>>): Promise<EmployeeBranchEntity | null> {
+  async update(id: string, updates: Partial<Omit<EmployeeBranchEntity, 'id' | 'employee_id' | 'branch_id' | 'created_at'>>): Promise<EmployeeBranchEntity | null> {
     const { data, error } = await supabase
       .from('employee_branches')
       .update(updates)
       .eq('id', id)
-      .select('id, employee_id, branch_id, is_primary, created_at')
+      .select('id, employee_id, branch_id, role_id, is_primary, approval_limit, status, created_at')
       .maybeSingle()
 
     if (error) throw error

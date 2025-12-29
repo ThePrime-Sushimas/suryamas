@@ -4,12 +4,18 @@ import { z } from 'zod'
 export const CreateEmployeeBranchSchema = z.object({
   employee_id: z.string().uuid('Invalid employee ID format'),
   branch_id: z.string().uuid('Invalid branch ID format'),
+  role_id: z.string().uuid('Invalid role ID format'),
   is_primary: z.boolean().optional().default(false),
+  approval_limit: z.number().min(0).optional().default(0),
+  status: z.enum(['active', 'inactive', 'suspended']).optional().default('active'),
 })
 
 // Update employee branch assignment
 export const UpdateEmployeeBranchSchema = z.object({
-  is_primary: z.boolean(),
+  role_id: z.string().uuid('Invalid role ID format').optional(),
+  is_primary: z.boolean().optional(),
+  approval_limit: z.number().min(0).optional(),
+  status: z.enum(['active', 'inactive', 'suspended']).optional(),
 })
 
 // Set primary branch

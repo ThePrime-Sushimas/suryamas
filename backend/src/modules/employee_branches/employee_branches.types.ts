@@ -5,7 +5,10 @@ export interface EmployeeBranchEntity {
   id: string
   employee_id: string
   branch_id: string
+  role_id: string
   is_primary: boolean
+  approval_limit: number
+  status: 'active' | 'inactive' | 'suspended'
   created_at: string
 }
 
@@ -19,7 +22,8 @@ export interface EmployeeBranchWithRelations extends EmployeeBranchEntity {
     email: string | null
     mobile_phone: string | null
   }
-  branch: { branch_name: string; branch_code: string }
+  branch: { branch_name: string; branch_code: string; company_id: string }
+  role: { name: string; description: string | null }
 }
 
 // =========================
@@ -29,13 +33,17 @@ export interface EmployeeBranchDto {
   id: string
   employee_id: string
   branch_id: string
+  role_id: string
   is_primary: boolean
+  approval_limit: number
+  status: 'active' | 'inactive' | 'suspended'
   employee_name: string
   job_position: string | null
   email: string | null
   mobile_phone: string | null
   branch_name: string
   branch_code: string
+  role_name: string
   created_at: string
 }
 
@@ -47,11 +55,17 @@ export type EmployeeBranchResponse = EmployeeBranchDto
 export interface CreateEmployeeBranchData {
   employee_id: string
   branch_id: string
+  role_id: string
   is_primary: boolean
+  approval_limit?: number
+  status?: 'active' | 'inactive' | 'suspended'
 }
 
 export interface UpdateEmployeeBranchData {
-  is_primary: boolean
+  role_id?: string
+  is_primary?: boolean
+  approval_limit?: number
+  status?: 'active' | 'inactive' | 'suspended'
 }
 
 export interface PaginationParams {

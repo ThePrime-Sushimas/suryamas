@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useLocation, Link, Outlet, useNavigate } from 'react-router-dom'
 import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard,Key, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User } from 'lucide-react'
 import { useAuthStore } from '@/features/auth'
+import { BranchSwitcher } from '@/features/branch_context'
 
 interface MenuItem {
   id: string
@@ -174,6 +175,7 @@ export default function Layout() {
             </div>
 
             <div className="flex items-center gap-4">
+              <BranchSwitcher />
               <button 
                 className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400"
                 aria-label="Search"

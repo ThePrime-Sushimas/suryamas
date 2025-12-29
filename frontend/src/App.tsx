@@ -1,6 +1,7 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/features/auth'
+import { BranchSelectionGuard } from '@/features/branch_context'
 import { ToastProvider } from './contexts/ToastContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import Layout from './components/layout/Layout'
@@ -83,7 +84,7 @@ function App() {
         <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         {/* Protected Routes - With Layout */}
-        <Route path="/" element={<Layout />}>
+        <Route path="/" element={<BranchSelectionGuard><Layout /></BranchSelectionGuard>}>
           <Route index element={<HomePage />} />
           <Route path="profile" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><ProfilePage /></Suspense></ProtectedRoute>} />
           <Route path="employees" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeesPage /></Suspense></ProtectedRoute>} />
