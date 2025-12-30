@@ -75,9 +75,11 @@ export default function EmployeesPage() {
   const {
     selectedIds,
     selectedCount,
+    selectAll,
     selectOne,
     clearSelection,
-    isSelected
+    isSelected,
+    isAllSelected
   } = useBulkSelection(employees)
 
   // Debounce search
@@ -348,6 +350,18 @@ export default function EmployeesPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* List Panel */}
         <div className="w-96 flex flex-col bg-white border-r border-gray-200">
+          {/* Select All Header */}
+          {employees.length > 0 && (
+            <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                onChange={(e) => selectAll(e.target.checked)}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-600">Select All</span>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto">
             {isLoading ? (
               <div className="p-8 text-center text-gray-500">Loading...</div>
