@@ -22,14 +22,16 @@ export const EmployeeBranchDetailPage = () => {
   const { success, error: showError } = useToast()
 
   useEffect(() => {
-    if (!hasUpdatePermission) {
-      navigate('/')
-      return
-    }
     if (employeeId) {
       fetchBranches()
     }
-  }, [employeeId, hasUpdatePermission, navigate, fetchBranches])
+  }, [employeeId, fetchBranches])
+
+  useEffect(() => {
+    if (hasUpdatePermission === false) {
+      navigate('/')
+    }
+  }, [hasUpdatePermission, navigate])
 
   const handleOpenModal = async (assignment?: EmployeeBranch) => {
     setEditingAssignment(assignment)
@@ -92,7 +94,15 @@ export const EmployeeBranchDetailPage = () => {
     }
   }
 
-  if (!hasUpdatePermission) {
+  if (hasUpdatePermission === null) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    )
+  }
+
+  if (hasUpdatePermission === false) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">

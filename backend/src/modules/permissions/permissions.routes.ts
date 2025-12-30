@@ -64,4 +64,18 @@ router.put('/roles/:roleId/permissions', canUpdate('permissions'), (req, res) =>
 router.post('/seed-defaults', canInsert('permissions'), (req, res) => 
   seedController.seedDefaults(req as AuthenticatedRequest, res))
 
+// USER PERMISSIONS
+router.get('/me/permissions', async (req, res) => {
+  try {
+    const userId = (req as AuthenticatedRequest).user?.id
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' })
+    }
+    const permissions = await PermissionService.getUserPermissions(userId)
+    res.json({ success: true, data: permissions })
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
 export default router

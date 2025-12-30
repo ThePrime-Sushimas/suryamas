@@ -1,21 +1,18 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-
-export interface BranchContext {
-  branch_id: string
-  branch_name: string
-  company_id: string
-  role_id: string
-  approval_limit: number
-}
+import type { BranchContext } from '@/features/branch_context/types'
 
 interface BranchContextState {
   currentBranch: BranchContext | null
   branches: BranchContext[]
   isLoaded: boolean
+  isLoading: boolean
+  error: string | null
 
   setBranches: (branches: BranchContext[]) => void
   switchBranch: (branchId: string) => void
+  setLoading: (loading: boolean) => void
+  setError: (error: string | null) => void
   clear: () => void
 }
 
@@ -25,6 +22,8 @@ export const useBranchContextStore = create<BranchContextState>()(
       currentBranch: null,
       branches: [],
       isLoaded: false,
+      isLoading: false,
+      error: null,
 
       setBranches: (branches) => {
         const current = get().currentBranch
@@ -34,6 +33,7 @@ export const useBranchContextStore = create<BranchContextState>()(
           branches,
           currentBranch: validCurrent || (branches.length === 1 ? branches[0] : null),
           isLoaded: true,
+          error: null,
         })
       },
 
@@ -42,16 +42,24 @@ export const useBranchContextStore = create<BranchContextState>()(
         const branch = branches.find(b => b.branch_id === branchId)
         
         if (!branch) {
-          console.error('Invalid branch:', branchId, 'Available:', branches)
-          return
+          const error = `Invalid branch: ${branchId}`
+          set({ error })
+          throw new Error(error)
         }
         
-        set({ currentBranch: branch })
+        set({ currentBranch: branch, error: null })
         
-        // Clear all caches on switch
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('branch-switched', { detail: branch }))
         }
+      },
+
+      setLoading: (loading) => {
+        set({ isLoading: loading })
+      },
+
+      setError: (error) => {
+        set({ error })
       },
 
       clear: () => {
@@ -59,6 +67,8 @@ export const useBranchContextStore = create<BranchContextState>()(
           currentBranch: null,
           branches: [],
           isLoaded: false,
+          isLoading: false,
+          error: null,
         })
       },
     }),
