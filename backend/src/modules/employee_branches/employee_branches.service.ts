@@ -47,7 +47,7 @@ export class EmployeeBranchesService {
 
   async list(params: PaginationParams): Promise<PaginatedResult<EmployeeBranchDto>> {
     const offset = (params.page - 1) * params.limit
-    const { data, total } = await employeeBranchesRepository.findAll(params.limit, offset)
+    const { data, total } = await employeeBranchesRepository.findAll(params.limit, offset, params.search)
 
     return {
       data: data.map(item => this.toDto(item)),

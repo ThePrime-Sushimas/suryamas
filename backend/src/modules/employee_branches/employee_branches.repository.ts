@@ -11,20 +11,46 @@ export class EmployeeBranchesRepository {
     perm_roles!inner(name, description)
   `
 
-  async findAll(limit: number, offset: number): Promise<{ data: EmployeeBranchWithRelations[]; total: number }> {
-    const [{ data, error }, { count, error: countError }] = await Promise.all([
-      supabase
-        .from('employee_branches')
-        .select(this.baseSelect)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1),
-      supabase.from('employee_branches').select('id', { count: 'exact', head: true })
-    ])
+  async findAll(limit: number, offset: number, search?: string): Promise<{ data: EmployeeBranchWithRelations[]; total: number }> {
+    if (!search || !search.trim()) {
+      const [{ data, error }, { count, error: countError }] = await Promise.all([
+        supabase
+          .from('employee_branches')
+          .select(this.baseSelect)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + limit - 1),
+        supabase.from('employee_branches').select('id', { count: 'exact', head: true })
+      ])
+
+      if (error) throw error
+      if (countError) throw countError
+
+      return { data: (data || []).map(mapEmployeeBranch), total: count || 0 }
+    }
+
+    const { data, error } = await supabase
+      .from('employee_branches')
+      .select(this.baseSelect)
+      .order('created_at', { ascending: false })
 
     if (error) throw error
-    if (countError) throw countError
 
-    return { data: (data || []).map(mapEmployeeBranch), total: count || 0 }
+    const searchLower = search.toLowerCase().trim()
+    const filtered = (data || []).filter((row: any) => {
+      const employee = Array.isArray(row.employees) ? row.employees[0] : row.employees
+      const branch = Array.isArray(row.branches) ? row.branches[0] : row.branches
+      
+      return (
+        employee?.full_name?.toLowerCase().includes(searchLower) ||
+        branch?.branch_name?.toLowerCase().includes(searchLower) ||
+        branch?.branch_code?.toLowerCase().includes(searchLower)
+      )
+    })
+
+    const total = filtered.length
+    const paginated = filtered.slice(offset, offset + limit)
+
+    return { data: paginated.map(mapEmployeeBranch), total }
   }
 
   async findByEmployeeId(employeeId: string): Promise<EmployeeBranchWithRelations[]> {

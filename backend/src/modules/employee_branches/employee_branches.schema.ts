@@ -33,6 +33,7 @@ export const BulkDeleteSchema = z.object({
 export const PaginationQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(1000).default(10),
+  search: z.string().optional().default(''),
 })
 
 // Export types
