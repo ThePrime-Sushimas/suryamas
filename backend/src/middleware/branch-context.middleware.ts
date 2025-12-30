@@ -93,6 +93,10 @@ export const resolveBranchContext = async (
       }
     }
 
+    // Load permissions based on branch role
+    const PermissionService = require('../services/permission.service').PermissionService
+    req.permissions = await PermissionService.getUserPermissionsByRole(req.context.role_id)
+
     next()
   } catch (error: any) {
     logWarn('Branch context resolution failed', {

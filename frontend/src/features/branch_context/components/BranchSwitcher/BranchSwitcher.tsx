@@ -35,9 +35,16 @@ export const BranchSwitcher = () => {
 
     setLoading(true)
     try {
+      const newBranch = branches.find(b => b.branch_id === branchId)
+      
       switchBranch(branchId)
       clearPermissions()
-      await branchApi.getPermissions().then(setPermissions)
+      
+      if (newBranch) {
+        const perms = await branchApi.getPermissions(newBranch.role_id)
+        setPermissions(perms)
+      }
+      
       success('Branch switched successfully')
     } catch (error: any) {
       showError(error.message || 'Failed to switch branch')
@@ -49,18 +56,25 @@ export const BranchSwitcher = () => {
 
   return (
     <div className="flex items-center gap-2">
-      <select
-        value={currentBranch?.branch_id || ''}
-        onChange={(e) => handleSwitch(e.target.value)}
-        disabled={branches.length <= 1}
-        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {branches.map((branch) => (
-          <option key={branch.branch_id} value={branch.branch_id}>
-            {branch.branch_name}
-          </option>
-        ))}
-      </select>
+      <div className="flex flex-col">
+        <select
+          value={currentBranch?.branch_id || ''}
+          onChange={(e) => handleSwitch(e.target.value)}
+          disabled={branches.length <= 1}
+          className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {branches.map((branch) => (
+            <option key={branch.branch_id} value={branch.branch_id}>
+              {branch.branch_name}
+            </option>
+          ))}
+        </select>
+        {currentBranch && (
+          <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Role: {branches.find(b => b.branch_id === currentBranch.branch_id)?.role_id || 'N/A'}
+          </span>
+        )}
+      </div>
       <button
         onClick={refreshBranches}
         disabled={isRefreshing}

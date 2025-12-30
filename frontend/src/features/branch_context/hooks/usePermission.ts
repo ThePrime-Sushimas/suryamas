@@ -10,10 +10,10 @@ export const usePermission = (module: string, action: PermissionAction) => {
 
   useEffect(() => {
     const loadPermissions = async () => {
-      if (!isLoaded && currentBranch) {
+      if (currentBranch) {
         setLoading(true)
         try {
-          const perms = await branchApi.getPermissions()
+          const perms = await branchApi.getPermissions(currentBranch.role_id)
           setPermissions(perms)
         } catch (error: any) {
           setError(error.message || 'Failed to load permissions')
@@ -22,8 +22,10 @@ export const usePermission = (module: string, action: PermissionAction) => {
       }
     }
 
-    loadPermissions()
-  }, [isLoaded, currentBranch, setPermissions, setLoading, setError])
+    if (!isLoaded || currentBranch?.role_id) {
+      loadPermissions()
+    }
+  }, [currentBranch?.role_id, setPermissions, setLoading, setError])
 
   return hasPermission(module, action)
 }

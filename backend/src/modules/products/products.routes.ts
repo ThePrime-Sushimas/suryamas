@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
+import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
@@ -15,7 +16,7 @@ const upload = multer({ storage: multer.memoryStorage() })
 
 PermissionService.registerModule('products', 'Product Management').catch(() => {})
 
-router.use(authenticate)
+router.use(authenticate, resolveBranchContext)
 
 router.get('/export', canView('products'), (req, res) => 
   productsController.export(req as AuthenticatedRequest, res))
@@ -37,7 +38,7 @@ router.get('/search', canView('products'), paginationMiddleware, sortMiddleware,
 router.get('/filter-options', canView('products'), (req, res) => 
   productsController.getFilterOptions(req as AuthenticatedRequest, res))
 
-router.get('/minimal/active', authenticate, (req, res) => 
+router.get('/minimal/active', (req, res) => 
   productsController.minimalActive(req as AuthenticatedRequest, res))
 
 router.get('/check/name', canView('products'), (req, res) => 

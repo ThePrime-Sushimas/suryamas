@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { metricUnitsController } from './metricUnits.controller'
 import { authenticate } from '../../middleware/auth.middleware'
+import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
@@ -15,8 +16,9 @@ PermissionService.registerModule('metric-units', 'Metric Units Management').catc
 
 const router = Router()
 
+router.use(authenticate, resolveBranchContext)
+
 router.get('/active', 
-  authenticate, 
   canView('metric-units'), 
   paginationMiddleware, 
   sortMiddleware, 
@@ -24,13 +26,11 @@ router.get('/active',
 )
 
 router.get('/filter-options', 
-  authenticate, 
   canView('metric-units'), 
   (req, res) => metricUnitsController.getFilterOptions(req as AuthenticatedRequest, res)
 )
 
 router.get('/', 
-  authenticate, 
   canView('metric-units'), 
   paginationMiddleware, 
   sortMiddleware,
@@ -39,37 +39,31 @@ router.get('/',
 )
 
 router.post('/bulk/status', 
-  authenticate, 
   canUpdate('metric-units'), 
   (req, res) => metricUnitsController.bulkUpdateStatus(req as AuthenticatedRequest, res)
 )
 
 router.post('/', 
-  authenticate, 
   canInsert('metric-units'), 
   (req, res) => metricUnitsController.create(req as AuthenticatedRequest, res)
 )
 
 router.get('/:id', 
-  authenticate, 
   canView('metric-units'), 
   (req, res) => metricUnitsController.getById(req as AuthenticatedRequest, res)
 )
 
 router.put('/:id', 
-  authenticate, 
   canUpdate('metric-units'), 
   (req, res) => metricUnitsController.update(req as AuthenticatedRequest, res)
 )
 
 router.delete('/:id', 
-  authenticate, 
   canDelete('metric-units'), 
   (req, res) => metricUnitsController.delete(req as AuthenticatedRequest, res)
 )
 
 router.post('/:id/restore',
-  authenticate,
   canUpdate('metric-units'),
   (req, res) => metricUnitsController.restore(req as AuthenticatedRequest, res)
 )

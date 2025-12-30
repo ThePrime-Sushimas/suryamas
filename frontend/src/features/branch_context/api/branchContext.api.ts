@@ -11,9 +11,10 @@ export const branchApi = {
     }
   },
 
-  getPermissions: async (): Promise<PermissionsResponse['data']> => {
+  getPermissions: async (roleId?: string): Promise<PermissionsResponse['data']> => {
     try {
-      const res = await api.get<PermissionsResponse>('/permissions/me/permissions')
+      const url = roleId ? `/permissions/me/permissions?roleId=${roleId}` : '/permissions/me/permissions'
+      const res = await api.get<PermissionsResponse>(url)
       return res.data.data
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Failed to load permissions')

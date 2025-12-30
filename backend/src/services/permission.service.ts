@@ -242,6 +242,18 @@ export class PermissionService {
 
       if (profileError || !profile) throw profileError || new Error('User profile not found')
 
+      return await this.getUserPermissionsByRole(profile.role_id)
+    } catch (error: any) {
+      logError('Failed to get user permissions', { userId, error: error.message })
+      return {}
+    }
+  }
+
+  /**
+   * Get permissions by role ID
+   */
+  static async getUserPermissionsByRole(roleId: string): Promise<PermissionMatrix> {
+    try {
       // Get role permissions
       const { data: permissions, error: permError } = await supabase
         .from('perm_role_permissions')
@@ -254,7 +266,7 @@ export class PermissionService {
           can_release,
           perm_modules!inner (name)
         `)
-        .eq('role_id', profile.role_id)
+        .eq('role_id', roleId)
 
       if (permError) throw permError
 
@@ -272,15 +284,9 @@ export class PermissionService {
         }
       }
 
-      // Cache result
-      this.userPermissionsCache.set(userId, {
-        permissions: matrix,
-        expiresAt: Date.now() + this.USER_PERMISSIONS_CACHE_TTL,
-      })
-
       return matrix
     } catch (error: any) {
-      logError('Failed to get user permissions', { userId, error: error.message })
+      logError('Failed to get permissions by role', { roleId, error: error.message })
       return {}
     }
   }

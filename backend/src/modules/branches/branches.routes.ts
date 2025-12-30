@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
+import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
@@ -14,7 +15,7 @@ const router = Router()
 PermissionService.registerModule('branches', 'Branch Management').catch(() => {})
 
 // All routes require authentication
-router.use(authenticate)
+router.use(authenticate, resolveBranchContext)
 
 // Get filter options (must be before /:id route)
 router.get(

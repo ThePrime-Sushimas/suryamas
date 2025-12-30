@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
+import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { productUomsController } from './product-uoms.controller'
 import { PermissionService } from '../../services/permission.service'
@@ -9,7 +10,7 @@ PermissionService.registerModule('product-uoms', 'Product UOM Management').catch
 
 const router = Router({ mergeParams: true })
 
-router.use(authenticate)
+router.use(authenticate, resolveBranchContext)
 
 router.get('/', canView('product-uoms'), (req, res) => 
   productUomsController.list(req as AuthenticatedRequest, res))

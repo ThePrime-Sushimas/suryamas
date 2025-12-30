@@ -68,8 +68,5 @@ export const authenticate = async (
 
   req.user = user as any
   
-  // Preload permissions for this request
-  req.permissions = await PermissionService.getUserPermissions(user.id)
-  
   next()
 }

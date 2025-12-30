@@ -4,6 +4,7 @@ import { RolesController } from './roles.controller'
 import { RolePermissionsController } from './role-permissions.controller'
 import { SeedController } from './seed.controller'
 import { authenticate } from '../../middleware/auth.middleware'
+import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { PermissionService } from '../../services/permission.service'
 import type { AuthenticatedRequest } from '../../types/request.types'
@@ -16,7 +17,7 @@ const rolesController = new RolesController()
 const rolePermissionsController = new RolePermissionsController()
 const seedController = new SeedController()
 
-router.use(authenticate)
+router.use(authenticate, resolveBranchContext)
 
 // MODULES
 router.get('/modules', canView('permissions'), (req, res) => 
@@ -68,10 +69,16 @@ router.post('/seed-defaults', canInsert('permissions'), (req, res) =>
 router.get('/me/permissions', async (req, res) => {
   try {
     const userId = (req as AuthenticatedRequest).user?.id
+    const roleId = req.query.roleId as string
+    
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' })
     }
-    const permissions = await PermissionService.getUserPermissions(userId)
+    
+    const permissions = roleId 
+      ? await PermissionService.getUserPermissionsByRole(roleId)
+      : await PermissionService.getUserPermissions(userId)
+    
     res.json({ success: true, data: permissions })
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message })

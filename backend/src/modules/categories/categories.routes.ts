@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
+import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
@@ -11,7 +12,7 @@ const router = Router()
 
 PermissionService.registerModule('categories', 'Category Management').catch(() => {})
 
-router.use(authenticate)
+router.use(authenticate, resolveBranchContext)
 
 router.get('/search', canView('categories'), paginationMiddleware, sortMiddleware, (req, res) => 
   categoriesController.search(req as AuthenticatedQueryRequest, res))

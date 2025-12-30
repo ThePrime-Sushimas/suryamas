@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useLocation, Link, Outlet, useNavigate } from 'react-router-dom'
 import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard,Key, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User } from 'lucide-react'
 import { useAuthStore } from '@/features/auth'
-import { BranchSwitcher } from '@/features/branch_context'
+import { BranchSwitcher, usePermissionStore } from '@/features/branch_context'
 
 interface MenuItem {
   id: string
@@ -12,12 +12,14 @@ interface MenuItem {
   submenu?: MenuItem[]
   disabled?: boolean
   badge?: number
+  module?: string
 }
 
 export default function Layout() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
+  const { permissions, isLoaded } = usePermissionStore()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null)
@@ -38,12 +40,12 @@ export default function Layout() {
       name: 'Master Data',
       icon: <Package size={18} />,
       submenu: [
-        { id: 'products', name: 'Products', href: '/products', icon: <Package size={16} /> },
-        { id: 'categories', name: 'Categories', href: '/categories', icon: <Package size={16} /> },
-        { id: 'sub-categories', name: 'Sub Categories', href: '/sub-categories', icon: <Package size={16} /> },
-        { id: 'metric-units', name: 'Metric Units', href: '/metric-units', icon: <Package size={16} /> },
-        { id: 'companies', name: 'v.Companies', href: '/companies', icon: <Factory size={16} /> },
-        { id: 'branches', name: 'v.Branches', href: '/branches', icon: <Warehouse size={16} /> },
+        { id: 'products', name: 'Products', href: '/products', icon: <Package size={16} />, module: 'products' },
+        { id: 'categories', name: 'Categories', href: '/categories', icon: <Package size={16} />, module: 'categories' },
+        { id: 'sub-categories', name: 'Sub Categories', href: '/sub-categories', icon: <Package size={16} />, module: 'sub_categories' },
+        { id: 'metric-units', name: 'Metric Units', href: '/metric-units', icon: <Package size={16} />, module: 'metric-units' },
+        { id: 'companies', name: 'Companies', href: '/companies', icon: <Factory size={16} />, module: 'companies' },
+        { id: 'branches', name: 'Branches', href: '/branches', icon: <Warehouse size={16} />, module: 'branches' },
       ]
     },
     {
@@ -51,8 +53,8 @@ export default function Layout() {
       name: 'Employees & Users',
       icon: <Package size={18} />,
       submenu: [
-        { id: 'employees', name: 'v.Employees', href: '/employees', icon: <Users size={16} /> },
-        { id: 'employee_branches', name: 'v.Employee Branches', href: '/employee-branches', icon: <Users size={16} /> },
+        { id: 'employees', name: 'Employees', href: '/employees', icon: <Users size={16} />, module: 'employees' },
+        { id: 'employee_branches', name: 'Employee Branches', href: '/employee-branches', icon: <Users size={16} />, module: 'employee_branches' },
       ]
     },
     {
@@ -60,22 +62,40 @@ export default function Layout() {
       name: 'Settings',
       icon: <Settings size={18} />,
       submenu: [
-        { id: 'users', name: 'v.Users', href: '/users', icon: <Users size={16} /> },
-        { id: 'permissions', name: 'v.Permissions', href: '/permissions', icon: <Settings size={16} /> },
+        { id: 'users', name: 'Users', href: '/users', icon: <Users size={16} />, module: 'users' },
+        { id: 'permissions', name: 'Permissions', href: '/permissions', icon: <Settings size={16} />, module: 'permissions' },
       ]
     },
   ], [])
 
+  const filteredMenuItems = useMemo(() => {
+    if (!isLoaded) return menuItems
+    
+    return menuItems.map(item => {
+      if (item.submenu) {
+        const filteredSubmenu = item.submenu.filter(subItem => {
+          if (!subItem.module) return true
+          return permissions[subItem.module]?.view === true
+        })
+        return { ...item, submenu: filteredSubmenu }
+      }
+      return item
+    }).filter(item => {
+      if (item.submenu) return item.submenu.length > 0
+      return true
+    })
+  }, [menuItems, permissions, isLoaded])
+
   // Auto buka submenu berdasarkan current route
   useEffect(() => {
-    menuItems.forEach(item => {
+    filteredMenuItems.forEach(item => {
       if (item.submenu) {
         if (item.submenu.some(subItem => isActiveMenu(subItem.href))) {
           setActiveSubmenu(item.id)
         }
       }
     })
-  }, [location.pathname])
+  }, [location.pathname, filteredMenuItems])
 
   // Handle click outside sidebar
   useEffect(() => {
@@ -257,7 +277,7 @@ export default function Layout() {
         >
           <nav className="mt-8 px-4 h-[calc(100vh-8rem)] overflow-y-auto">
             <div className="space-y-1">
-              {menuItems.map((item) => (
+              {filteredMenuItems.map((item) => (
                 <div key={item.id}>
                   {item.submenu ? (
                     <div className="relative group">

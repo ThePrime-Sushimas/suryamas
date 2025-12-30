@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { employeeBranchesController } from './employee_branches.controller'
 import { authenticate } from '../../middleware/auth.middleware'
+import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { PermissionService } from '../../services/permission.service'
 import type { AuthenticatedRequest } from '../../types/request.types'
@@ -9,7 +10,7 @@ PermissionService.registerModule('employee_branches', 'Employee Branch Managemen
 
 const router = Router()
 
-router.use(authenticate)
+router.use(authenticate, resolveBranchContext)
 
 // Public endpoint - get current user's branches (no permission check)
 router.get('/me', (req, res, next) => 
