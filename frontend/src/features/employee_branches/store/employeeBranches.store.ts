@@ -80,18 +80,39 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
 
     async create(payload) {
       set(s => ({ loading: { ...s.loading, create: true }, error: { ...s.error, create: null } }))
+      
+      // Optimistic update
+      const tempId = `temp-${Date.now()}`
+      const optimisticItem = { ...payload, id: tempId, created_at: new Date().toISOString() } as any
+      set(s => ({ items: [optimisticItem, ...s.items], total: s.total + 1 }))
+      
       try {
         const created = await employeeBranchesApi.create(payload)
-        set(s => ({ items: [created, ...s.items], total: s.total + 1, loading: { ...s.loading, create: false } }))
+        set(s => ({
+          items: s.items.map(i => i.id === tempId ? created : i),
+          loading: { ...s.loading, create: false },
+        }))
         return created
       } catch (err) {
-        set(s => ({ loading: { ...s.loading, create: false }, error: { ...s.error, create: err as DomainError } }))
+        // Rollback on error
+        set(s => ({
+          items: s.items.filter(i => i.id !== tempId),
+          total: Math.max(0, s.total - 1),
+          loading: { ...s.loading, create: false },
+          error: { ...s.error, create: err as DomainError },
+        }))
         return null
       }
     },
 
     async update(id, payload) {
       set(s => ({ loading: { ...s.loading, update: true }, error: { ...s.error, update: null } }))
+      
+      // Optimistic update
+      const snapshot = get().items
+      const optimisticItems = snapshot.map(i => i.id === id ? { ...i, ...payload } : i)
+      set({ items: optimisticItems })
+      
       try {
         const updated = await employeeBranchesApi.update(id, payload)
         set(s => ({
@@ -100,7 +121,12 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
         }))
         return updated
       } catch (err) {
-        set(s => ({ loading: { ...s.loading, update: false }, error: { ...s.error, update: err as DomainError } }))
+        // Rollback on error
+        set(s => ({
+          items: snapshot,
+          loading: { ...s.loading, update: false },
+          error: { ...s.error, update: err as DomainError },
+        }))
         return null
       }
     },

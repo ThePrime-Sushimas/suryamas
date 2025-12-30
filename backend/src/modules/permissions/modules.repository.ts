@@ -17,7 +17,7 @@ export class ModulesRepository {
     return (data as Module[]) || []
   }
 
-  async getById(id: string): Promise<Module | null> {
+  async findById(id: string): Promise<Module | null> {
     const { data, error } = await supabase
       .from('perm_modules')
       .select('*')

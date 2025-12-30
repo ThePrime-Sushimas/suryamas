@@ -17,7 +17,7 @@ export class RolesRepository {
     return (data as Role[]) || []
   }
 
-  async getById(id: string) {
+  async findById(id: string) {
     const { data, error } = await supabase
       .from('perm_roles')
       .select(
@@ -71,7 +71,7 @@ export class RolesRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const role = await this.getById(id)
+    const role = await this.findById(id)
     if ((role as any)?.is_system_role) {
       throw new Error('Cannot delete system role')
     }

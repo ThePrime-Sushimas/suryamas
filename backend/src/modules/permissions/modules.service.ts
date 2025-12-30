@@ -34,8 +34,8 @@ export class ModulesService {
     return modules
   }
 
-  async getById(id: string) {
-    return await this.repository.getById(id)
+  async findById(id: string) {
+    return await this.repository.findById(id)
   }
 
   async create(dto: CreateModuleDto, createdBy?: string) {

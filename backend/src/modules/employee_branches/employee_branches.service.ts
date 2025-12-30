@@ -7,7 +7,8 @@ import {
   UpdateEmployeeBranchData,
   PaginationParams,
   PaginatedResult,
-  PaginationMeta
+  PaginationMeta,
+  MyBranchDto
 } from './employee_branches.types'
 import { logInfo } from '../../config/logger'
 
@@ -57,6 +58,25 @@ export class EmployeeBranchesService {
   async getByEmployeeId(employeeId: string): Promise<EmployeeBranchDto[]> {
     const data = await employeeBranchesRepository.findByEmployeeId(employeeId)
     return data.map(item => this.toDto(item))
+  }
+
+  async getMyBranches(userId: string): Promise<MyBranchDto[]> {
+    const employee = await employeeBranchesRepository.findEmployeeByUserId(userId)
+    if (!employee) throw EmployeeBranchErrors.EMPLOYEE_NOT_FOUND()
+
+    const data = await employeeBranchesRepository.findByEmployeeId(employee.id)
+    
+    return data.map(item => ({
+      branch_id: item.branch_id,
+      branch_name: item.branch.branch_name,
+      branch_code: item.branch.branch_code,
+      company_id: item.branch.company_id,
+      employee_id: item.employee_id,
+      role_id: item.role_id,
+      approval_limit: item.approval_limit,
+      status: item.status,
+      is_primary: item.is_primary,
+    }))
   }
 
   async getById(id: string): Promise<EmployeeBranchDto> {

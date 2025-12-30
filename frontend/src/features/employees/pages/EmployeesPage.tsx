@@ -473,6 +473,7 @@ export default function EmployeesPage() {
                 onDelete={handleDelete}
                 onView={id => navigate(`/employees/${id}`)}
                 onEdit={id => navigate(`/employees/edit/${id}`)}
+                onManageBranches={id => navigate(`/employees/${id}/branches`)}
                 selectedIds={selectedIds}
                 onSelect={selectOne}
                 onSelectAll={selectAll}

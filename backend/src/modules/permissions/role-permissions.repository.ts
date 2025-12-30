@@ -1,20 +1,23 @@
-// =====================================================
-// ROLE PERMISSIONS REPOSITORY
-// Responsibility: Role-permission database operations only
-// =====================================================
-
 import { supabase } from '../../config/supabase'
 import type { RolePermission, UpdateRolePermissionsDto } from './permissions.types'
+import { employeesRepository } from '../employees/employees.repository'
 
 export class RolePermissionsRepository {
-  async getByRoleId(roleId: string): Promise<RolePermission[]> {
+  async getByRoleId(roleId: string): Promise<Array<RolePermission & { module_name: string }>> {
     const { data, error } = await supabase
       .from('perm_role_permissions')
-      .select('*, perm_modules(*)')
+      .select('*, perm_modules(name)')
       .eq('role_id', roleId)
 
     if (error) throw error
-    return (data as any[]) || []
+    
+    return ((data as any[]) || []).map(item => {
+      const { perm_modules, ...rest } = item
+      return {
+        ...rest,
+        module_name: perm_modules?.name || ''
+      }
+    })
   }
 
   async get(roleId: string, moduleId: string): Promise<RolePermission | null> {
@@ -70,5 +73,22 @@ export class RolePermissionsRepository {
   async bulkCreate(permissions: Partial<RolePermission>[]): Promise<boolean> {
     const { error } = await supabase.from('perm_role_permissions').insert(permissions)
     return !error
+  }
+
+  async getEmployeeByUserId(userId: string): Promise<{ id: string } | null> {
+    return employeesRepository.findByUserId(userId)
+  }
+
+  async getEmployeeRoleId(employeeId: string): Promise<string | null> {
+    const { data, error } = await supabase
+      .from('employee_branches')
+      .select('role_id')
+      .eq('employee_id', employeeId)
+      .eq('status', 'active')
+      .eq('is_primary', true)
+      .maybeSingle()
+
+    if (error) throw error
+    return data?.role_id || null
   }
 }

@@ -1,6 +1,7 @@
 import { supabase } from '../../config/supabase'
 import { EmployeeBranchEntity, EmployeeBranchWithRelations } from './employee_branches.types'
 import { mapEmployeeBranch } from './employee_branches.mapper'
+import { employeesRepository } from '../employees/employees.repository'
 
 export class EmployeeBranchesRepository {
   private baseSelect = `
@@ -99,6 +100,10 @@ export class EmployeeBranchesRepository {
 
     if (error) throw error
     return (count || 0) > 0
+  }
+
+  async findEmployeeByUserId(userId: string): Promise<{ id: string } | null> {
+    return employeesRepository.findByUserId(userId)
   }
 
   async branchExists(branchId: string): Promise<boolean> {

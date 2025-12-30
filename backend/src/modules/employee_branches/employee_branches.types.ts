@@ -86,3 +86,18 @@ export interface PaginatedResult<T> {
   data: T[]
   pagination: PaginationMeta
 }
+
+// =========================
+// MY BRANCHES DTO
+// =========================
+export interface MyBranchDto {
+  branch_id: string
+  branch_name: string
+  branch_code: string
+  company_id: string
+  employee_id: string
+  role_id: string
+  approval_limit: number
+  status: 'active' | 'inactive' | 'suspended'
+  is_primary: boolean
+}

@@ -26,10 +26,10 @@ export class ModulesController {
     }
   }
 
-  getById = async (req: AuthRequest, res: Response): Promise<void> => {
+  findById = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { id } = req.params
-      const module = await this.service.getById(id)
+      const module = await this.service.findById(id)
 
       if (!module) {
         sendError(res, 'Module not found', 404)

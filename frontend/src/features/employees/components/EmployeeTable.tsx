@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { MoreVertical, Eye, Edit, Trash2, Building2 } from 'lucide-react'
 import type { EmployeeResponse } from '../types'
 
 interface EmployeeTableProps {
@@ -5,6 +7,7 @@ interface EmployeeTableProps {
   onView: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string, name: string) => void
+  onManageBranches?: (id: string) => void
   onSort?: (field: string) => void
   sortField?: string
   sortOrder?: 'asc' | 'desc'
@@ -18,6 +21,7 @@ export default function EmployeeTable({
   onView,
   onEdit,
   onDelete,
+  onManageBranches,
   onSort,
   sortField,
   sortOrder,
@@ -25,6 +29,7 @@ export default function EmployeeTable({
   onSelect,
   onSelectAll
 }: EmployeeTableProps) {
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const isSelected = (id: string) => selectedIds.includes(id)
   const isAllSelected = employees.length > 0 && employees.every(e => isSelected(e.id))
 
@@ -141,28 +146,45 @@ export default function EmployeeTable({
                   {employee.is_active ? 'Active' : 'Inactive'}
                 </span>
               </td>
-              <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-center relative">
                 <button
                   type="button"
-                  onClick={() => onView(employee.id)}
-                  className="text-blue-600 hover:text-blue-900 mr-2"
+                  onClick={() => setOpenMenuId(openMenuId === employee.id ? null : employee.id)}
+                  className="p-2 hover:bg-gray-100 rounded-full"
+                  aria-label="Actions menu"
                 >
-                  View
+                  <MoreVertical className="h-4 w-4" />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => onEdit(employee.id)}
-                  className="text-green-600 hover:text-green-900 mr-2"
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDelete(employee.id, employee.full_name)}
-                  className="text-red-600 hover:text-red-900"
-                >
-                  Delete
-                </button>
+                {openMenuId === employee.id && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                    <button
+                      onClick={() => { onView(employee.id); setOpenMenuId(null) }}
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <Eye className="h-4 w-4" /> View Profile
+                    </button>
+                    <button
+                      onClick={() => { onEdit(employee.id); setOpenMenuId(null) }}
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <Edit className="h-4 w-4" /> Edit Profile
+                    </button>
+                    {onManageBranches && (
+                      <button
+                        onClick={() => { onManageBranches(employee.id); setOpenMenuId(null) }}
+                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 border-t border-gray-100"
+                      >
+                        <Building2 className="h-4 w-4" /> Manage Branch Access
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { onDelete(employee.id, employee.full_name); setOpenMenuId(null) }}
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50 border-t border-gray-100"
+                    >
+                      <Trash2 className="h-4 w-4" /> Delete
+                    </button>
+                  </div>
+                )}
               </td>
             </tr>
           ))}

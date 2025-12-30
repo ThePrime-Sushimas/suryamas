@@ -11,6 +11,10 @@ const router = Router()
 
 router.use(authenticate)
 
+// Public endpoint - get current user's branches (no permission check)
+router.get('/me', (req, res, next) => 
+  employeeBranchesController.getMyBranches(req as AuthenticatedRequest, res, next))
+
 router.get('/', canView('employee_branches'), (req, res, next) => 
   employeeBranchesController.list(req, res, next))
 

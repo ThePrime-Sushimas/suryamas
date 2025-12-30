@@ -187,7 +187,7 @@ export default function Layout() {
                 aria-label="Notifications"
               >
                 <Bell size={20} />
-                <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+                <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full" aria-hidden="true"></span>
               </button>
               
               {/* Profile Dropdown */}

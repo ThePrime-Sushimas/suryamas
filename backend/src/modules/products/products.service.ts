@@ -124,8 +124,8 @@ export class ProductsService {
     return product
   }
 
-  async getById(id: string, includeDeleted = false): Promise<Product | null> {
-    return productsRepository.getById(id, includeDeleted)
+  async findById(id: string, includeDeleted = false): Promise<Product | null> {
+    return productsRepository.findById(id, includeDeleted)
   }
 
   async delete(id: string, userId?: string): Promise<void> {

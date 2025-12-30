@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { User, Mail, CreditCard, Briefcase, Settings, ArrowLeft, Edit } from 'lucide-react'
+import { User, Mail, CreditCard, Briefcase, Settings, ArrowLeft, Edit, Building2 } from 'lucide-react'
 import api from '@/lib/axios'
+import { EmployeeBranchAccessTab } from '../components/EmployeeBranchAccessTab'
 
 interface Employee {
   id: string
@@ -41,13 +42,14 @@ interface ApiResponse<T> {
   data: T
 }
 
-type Tab = 'personal' | 'contact' | 'employment' | 'banking' | 'system'
+type Tab = 'personal' | 'contact' | 'employment' | 'banking' | 'branches' | 'system'
 
 const TABS = [
   { id: 'personal' as const, label: 'Personal Info', icon: User },
   { id: 'contact' as const, label: 'Contact', icon: Mail },
   { id: 'employment' as const, label: 'Employment', icon: Briefcase },
   { id: 'banking' as const, label: 'Banking', icon: CreditCard },
+  { id: 'branches' as const, label: 'Branch Access', icon: Building2 },
   { id: 'system' as const, label: 'System', icon: Settings },
 ]
 
@@ -265,6 +267,10 @@ export default function EmployeeDetailPage() {
                     <InfoItem label="Bank Account Holder" value={employee.bank_account_holder} />
                   </div>
                 </div>
+              )}
+
+              {activeTab === 'branches' && id && (
+                <EmployeeBranchAccessTab employeeId={id} />
               )}
 
               {activeTab === 'system' && (

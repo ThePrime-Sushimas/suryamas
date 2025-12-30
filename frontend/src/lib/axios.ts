@@ -9,6 +9,13 @@ const PUBLIC_ENDPOINTS = [
   '/auth/logout',
   '/employee-branches/me',
   '/employees/profile',
+  '/permissions/me/permissions',
+]
+
+const BRANCH_AGNOSTIC_ENDPOINTS = [
+  '/roles',
+  '/branches',
+  '/employee-branches/employee/',
 ]
 
 const api = axios.create({
@@ -29,12 +36,15 @@ api.interceptors.request.use(
 
     // Enforce branch context
     const isPublic = PUBLIC_ENDPOINTS.some(endpoint => config.url?.includes(endpoint))
+    const isBranchAgnostic = BRANCH_AGNOSTIC_ENDPOINTS.some(endpoint => config.url?.includes(endpoint))
     
-    if (!isPublic) {
+    if (!isPublic && !isBranchAgnostic) {
       const branch = useBranchContextStore.getState().currentBranch
       
       if (!branch) {
-        throw new Error('Branch context missing - cannot make API call')
+        // Redirect to branch selection instead of throwing error
+        window.location.href = '/'
+        return Promise.reject(new Error('Branch context required'))
       }
       
       config.headers['x-branch-id'] = branch.branch_id

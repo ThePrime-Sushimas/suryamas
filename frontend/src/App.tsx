@@ -42,8 +42,7 @@ const ProductsPage = lazy(() => import('./features/products').then(m => ({ defau
 const CreateProductPage = lazy(() => import('./features/products').then(m => ({ default: m.CreateProductPage })))
 const EditProductPage = lazy(() => import('./features/products').then(m => ({ default: m.EditProductPage })))
 const EmployeeBranchesPage = lazy(() => import('./features/employee_branches').then(m => ({ default: m.EmployeeBranchesPage })))
-const EmployeeBranchCreatePage = lazy(() => import('./features/employee_branches').then(m => ({ default: m.EmployeeBranchCreatePage })))
-const EmployeeBranchEditPage = lazy(() => import('./features/employee_branches').then(m => ({ default: m.EmployeeBranchEditPage })))
+const EmployeeBranchDetailPage = lazy(() => import('./features/employee_branches').then(m => ({ default: m.EmployeeBranchDetailPage })))
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -119,8 +118,7 @@ function App() {
           <Route path="products/:id" element={<ProtectedRoute><div>Detail</div></ProtectedRoute>} />
           <Route path="products/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditProductPage /></Suspense></ProtectedRoute>} />
           <Route path="employee-branches" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeeBranchesPage /></Suspense></ProtectedRoute>} />
-          <Route path="employee-branches/create" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeeBranchCreatePage /></Suspense></ProtectedRoute>} />
-          <Route path="employee-branches/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeeBranchEditPage /></Suspense></ProtectedRoute>} />
+          <Route path="employees/:employeeId/branches" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeeBranchDetailPage /></Suspense></ProtectedRoute>} />
         </Route>
         </Routes>
       </BrowserRouter>

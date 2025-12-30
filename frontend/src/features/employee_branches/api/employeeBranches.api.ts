@@ -6,6 +6,8 @@ import type {
   PaginatedResponse,
   CreateEmployeeBranchDTO,
   UpdateEmployeeBranchDTO,
+  Role,
+  BranchOption,
 } from './types'
 
 const BASE = '/employee-branches'
@@ -67,6 +69,30 @@ export const employeeBranchesApi = {
     try {
       const { data } = await api.get<{ success: boolean; data: EmployeeBranch[] }>(`${BASE}/employee/${employeeId}`)
       return data.data
+    } catch (err) {
+      throw normalizeError(err)
+    }
+  },
+
+  async getRoles(): Promise<Role[]> {
+    try {
+      const { data } = await api.get<{ success: boolean; data: Role[] }>('/permissions/roles')
+      return data.data
+    } catch (err) {
+      throw normalizeError(err)
+    }
+  },
+
+  async getBranches(): Promise<BranchOption[]> {
+    try {
+      const { data } = await api.get<{ success: boolean; data: any[] }>('/branches', {
+        params: { limit: 1000 },
+      })
+      return (data.data || []).map((b: any) => ({
+        id: b.id,
+        branch_name: b.branch_name,
+        branch_code: b.branch_code
+      }))
     } catch (err) {
       throw normalizeError(err)
     }

@@ -55,11 +55,11 @@ export class ProductsController {
     }
   }
 
-  getById = async (req: AuthRequest, res: Response): Promise<void> => {
+  findById = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { id } = req.params
       const includeDeleted = req.query.includeDeleted === 'true'
-      const product = await productsService.getById(id, includeDeleted)
+      const product = await productsService.findById(id, includeDeleted)
 
       if (!product) {
         sendError(res, 'Product not found', 404)
@@ -175,7 +175,7 @@ export class ProductsController {
     try {
       const { id } = req.params
       await productsService.restore(id, req.user?.id)
-      const product = await productsService.getById(id, true)
+      const product = await productsService.findById(id, true)
       sendSuccess(res, product, 'Product restored successfully')
     } catch (error: any) {
       logError('Restore product failed', { error: error.message })

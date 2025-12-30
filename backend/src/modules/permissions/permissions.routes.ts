@@ -23,7 +23,7 @@ router.get('/modules', canView('permissions'), (req, res) =>
   modulesController.getAll(req as AuthenticatedRequest, res))
 
 router.get('/modules/:id', canView('permissions'), (req, res) => 
-  modulesController.getById(req as AuthenticatedRequest, res))
+  modulesController.findById(req as AuthenticatedRequest, res))
 
 router.post('/modules', canInsert('permissions'), (req, res) => 
   modulesController.create(req as AuthenticatedRequest, res))
@@ -39,7 +39,7 @@ router.get('/roles', canView('permissions'), (req, res) =>
   rolesController.getAll(req as AuthenticatedRequest, res))
 
 router.get('/roles/:id', canView('permissions'), (req, res) => 
-  rolesController.getById(req as AuthenticatedRequest, res))
+  rolesController.findById(req as AuthenticatedRequest, res))
 
 router.post('/roles', canInsert('permissions'), (req, res) => 
   rolesController.create(req as AuthenticatedRequest, res))

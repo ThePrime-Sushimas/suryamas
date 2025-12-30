@@ -34,11 +34,11 @@ export class RolesService {
     return roles
   }
 
-  async getById(id: string) {
+  async findById(id: string) {
     const cached = PermissionsCache.getRole(id)
     if (cached) return cached
 
-    const role = await this.repository.getById(id)
+    const role = await this.repository.findById(id)
     if (role) {
       PermissionsCache.setRole(id, role)
     }
@@ -97,7 +97,7 @@ export class RolesService {
   }
 
   async delete(id: string, deletedBy?: string) {
-    const role = await this.repository.getById(id)
+    const role = await this.repository.findById(id)
     const result = await this.repository.delete(id)
 
     if (result && role && deletedBy) {

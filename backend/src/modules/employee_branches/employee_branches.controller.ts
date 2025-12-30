@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { employeeBranchesService } from './employee_branches.service'
+import type { AuthenticatedRequest } from '../../types/request.types'
 import {
   CreateEmployeeBranchSchema,
   UpdateEmployeeBranchSchema,
@@ -8,6 +9,19 @@ import {
 } from './employee_branches.schema'
 
 export class EmployeeBranchesController {
+  async getMyBranches(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await employeeBranchesService.getMyBranches(req.user.id)
+
+      res.json({
+        success: true,
+        data,
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
+
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = PaginationQuerySchema.parse(req.query)

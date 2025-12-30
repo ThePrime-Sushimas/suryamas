@@ -120,7 +120,7 @@ export class ProductsRepository {
     })), total: count || 0 }
   }
 
-  async getById(id: string, includeDeleted = false): Promise<Product | null> {
+  async findById(id: string, includeDeleted = false): Promise<Product | null> {
     const { data, error } = await supabase
       .from('products')
       .select('*')

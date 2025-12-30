@@ -44,7 +44,7 @@ router.get('/check/name', canView('products'), (req, res) =>
   productsController.checkProductName(req as AuthenticatedRequest, res))
 
 router.get('/:id', canView('products'), (req, res) => 
-  productsController.getById(req as AuthenticatedRequest, res))
+  productsController.findById(req as AuthenticatedRequest, res))
 
 // amazonq-ignore-next-line
 // amazonq-ignore-next-line

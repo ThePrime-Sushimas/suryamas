@@ -26,10 +26,10 @@ export class RolesController {
     }
   }
 
-  getById = async (req: AuthRequest, res: Response): Promise<void> => {
+  findById = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { id } = req.params
-      const role = await this.service.getById(id)
+      const role = await this.service.findById(id)
 
       if (!role) {
         sendError(res, 'Role not found', 404)
