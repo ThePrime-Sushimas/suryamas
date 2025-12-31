@@ -50,7 +50,7 @@ export const BranchSwitcher = () => {
       </button>
       {currentBranch && (
         <span className="text-xs text-gray-500 dark:text-gray-400">
-          Role: {currentBranch.role_id}
+          Role: {currentBranch.role_name}
         </span>
       )}
     </div>

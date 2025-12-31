@@ -83,6 +83,7 @@ export class EmployeeBranchesService {
       company_id: item.branch.company_id,
       employee_id: item.employee_id,
       role_id: item.role_id,
+      role_name: item.role.name,
       approval_limit: item.approval_limit,
       status: item.status,
       is_primary: item.is_primary,
