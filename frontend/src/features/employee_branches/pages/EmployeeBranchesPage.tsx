@@ -1,28 +1,20 @@
-import { useEffect, useCallback, useState, useMemo } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users, Plus, Building2, Search, ChevronLeft, ChevronRight, Settings } from 'lucide-react'
-import { useEmployeeBranchesStore } from '../store/employeeBranches.store'
-import type { EmployeeBranch } from '../api/types'
+import { employeeBranchesApi } from '../api/employeeBranches.api'
+import type { GroupedEmployeeBranch } from '../api/types'
 
 export default function EmployeeBranchesPage() {
   const navigate = useNavigate()
-  const { items, total, loading, list } = useEmployeeBranchesStore()
   
+  const [items, setItems] = useState<GroupedEmployeeBranch[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [isSearching, setIsSearching] = useState(false)
   const itemsPerPage = 10
-  
-  const grouped = useMemo(() => {
-    return items.reduce((acc, item) => {
-      if (!acc[item.employee_id]) {
-        acc[item.employee_id] = { employee_name: item.employee_name, branches: [] }
-      }
-      acc[item.employee_id].branches.push(item)
-      return acc
-    }, {} as Record<string, { employee_name: string; branches: EmployeeBranch[] }>)
-  }, [items])
 
   useEffect(() => {
     setIsSearching(true)
@@ -38,16 +30,25 @@ export default function EmployeeBranchesPage() {
   }, [search])
 
   useEffect(() => {
-    list({ page: currentPage, limit: itemsPerPage, search: debouncedSearch })
-  }, [list, currentPage, debouncedSearch])
-
-  const getPrimaryBranch = useCallback((employeeId: string) => {
-    return items.find(i => i.employee_id === employeeId && i.is_primary)
-  }, [items])
-
-  const getBranchCount = useCallback((employeeId: string) => {
-    return items.filter(i => i.employee_id === employeeId).length
-  }, [items])
+    const fetchData = async () => {
+      setLoading(true)
+      try {
+        const result = await employeeBranchesApi.listGrouped({ 
+          page: currentPage, 
+          limit: itemsPerPage, 
+          search: debouncedSearch 
+        })
+        setItems(result.data)
+        setTotal(result.pagination.total)
+      } catch (err) {
+        setItems([])
+        setTotal(0)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [currentPage, debouncedSearch])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -95,7 +96,7 @@ export default function EmployeeBranchesPage() {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          {loading.list ? (
+          {loading ? (
             <div className="p-12">
               <div className="animate-pulse space-y-4">
                 <div className="h-4 bg-gray-200 rounded w-3/4"></div>
@@ -134,54 +135,50 @@ export default function EmployeeBranchesPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {Object.entries(grouped).map(([employeeId, { employee_name }]) => {
-                    const primaryBranch = getPrimaryBranch(employeeId)
-                    const branchCount = getBranchCount(employeeId)
-                    return (
-                      <tr key={employeeId} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold text-sm">
-                              {employee_name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="font-medium text-gray-900">{employee_name}</div>
+                  {items.map((item) => (
+                    <tr key={item.employee_id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold text-sm">
+                            {item.employee_name.charAt(0).toUpperCase()}
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {primaryBranch ? (
-                            <div className="flex items-center gap-2">
-                              <Building2 className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm text-gray-900">{primaryBranch.branch_name}</span>
-                              <span className="text-xs text-gray-500">({primaryBranch.branch_code})</span>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-gray-500 italic">No primary</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {branchCount} {branchCount === 1 ? 'branch' : 'branches'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={() => navigate(`/employees/${employeeId}/branches`)}
-                            className="inline-flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
-                          >
-                            <Settings className="w-4 h-4" />
-                            Manage Branches
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
+                          <div className="font-medium text-gray-900">{item.employee_name}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {item.primary_branch ? (
+                          <div className="flex items-center gap-2">
+                            <Building2 className="w-4 h-4 text-gray-400" />
+                            <span className="text-sm text-gray-900">{item.primary_branch.branch_name}</span>
+                            <span className="text-xs text-gray-500">({item.primary_branch.branch_code})</span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-500 italic">No primary</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {item.total_branches} {item.total_branches === 1 ? 'branch' : 'branches'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button
+                          onClick={() => navigate(`/employees/${item.employee_id}/branches`)}
+                          className="inline-flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                        >
+                          <Settings className="w-4 h-4" />
+                          Manage Branches
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
           )}
         </div>
 
-        {!loading.list && Object.keys(grouped).length > 0 && (
+        {!loading && items.length > 0 && (
           <div className="mt-6 flex items-center justify-between bg-white rounded-lg border border-gray-200 px-6 py-4">
             <div className="text-sm text-gray-600">
               Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, total)} of {total} assignments

@@ -25,13 +25,23 @@ export class EmployeeBranchesController {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = PaginationQuerySchema.parse(req.query)
-      const result = await employeeBranchesService.list(query)
-
-      res.json({
-        success: true,
-        data: result.data,
-        pagination: result.pagination,
-      })
+      const grouped = req.query.grouped === 'true'
+      
+      if (grouped) {
+        const result = await employeeBranchesService.listGrouped(query)
+        res.json({
+          success: true,
+          data: result.data,
+          pagination: result.pagination,
+        })
+      } else {
+        const result = await employeeBranchesService.list(query)
+        res.json({
+          success: true,
+          data: result.data,
+          pagination: result.pagination,
+        })
+      }
     } catch (error) {
       next(error)
     }

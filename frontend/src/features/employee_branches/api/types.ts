@@ -19,6 +19,18 @@ export interface EmployeeBranchListQuery {
   page?: number
   limit?: number
   search?: string
+  grouped?: boolean
+}
+
+export interface GroupedEmployeeBranch {
+  employee_id: string
+  employee_name: string
+  primary_branch: {
+    branch_id: string
+    branch_name: string
+    branch_code: string
+  } | null
+  total_branches: number
 }
 
 export interface PaginatedResponse<T> {

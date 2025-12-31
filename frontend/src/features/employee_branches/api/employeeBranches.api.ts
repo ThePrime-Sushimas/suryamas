@@ -8,6 +8,7 @@ import type {
   UpdateEmployeeBranchDTO,
   Role,
   BranchOption,
+  GroupedEmployeeBranch,
 } from './types'
 
 const BASE = '/employee-branches'
@@ -16,6 +17,17 @@ export const employeeBranchesApi = {
   async list(query: EmployeeBranchListQuery): Promise<PaginatedResponse<EmployeeBranch>> {
     try {
       const { data } = await api.get<PaginatedResponse<EmployeeBranch>>(BASE, { params: query })
+      return data
+    } catch (err) {
+      throw normalizeError(err)
+    }
+  },
+
+  async listGrouped(query: EmployeeBranchListQuery): Promise<PaginatedResponse<GroupedEmployeeBranch>> {
+    try {
+      const { data } = await api.get<PaginatedResponse<GroupedEmployeeBranch>>(BASE, { 
+        params: { ...query, grouped: true } 
+      })
       return data
     } catch (err) {
       throw normalizeError(err)

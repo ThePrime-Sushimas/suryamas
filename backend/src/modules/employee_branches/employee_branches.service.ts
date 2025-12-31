@@ -55,6 +55,16 @@ export class EmployeeBranchesService {
     }
   }
 
+  async listGrouped(params: PaginationParams): Promise<PaginatedResult<any>> {
+    const offset = (params.page - 1) * params.limit
+    const { data, total } = await employeeBranchesRepository.findGroupedByEmployee(params.limit, offset, params.search)
+
+    return {
+      data,
+      pagination: this.calculatePagination(params.page, params.limit, total),
+    }
+  }
+
   async getByEmployeeId(employeeId: string): Promise<EmployeeBranchDto[]> {
     const data = await employeeBranchesRepository.findByEmployeeId(employeeId)
     return data.map(item => this.toDto(item))

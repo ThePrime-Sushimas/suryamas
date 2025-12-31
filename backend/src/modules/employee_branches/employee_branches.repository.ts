@@ -53,6 +53,62 @@ export class EmployeeBranchesRepository {
     return { data: paginated.map(mapEmployeeBranch), total }
   }
 
+  async findGroupedByEmployee(limit: number, offset: number, search?: string): Promise<{ data: any[]; total: number }> {
+    const { data, error } = await supabase
+      .from('employee_branches')
+      .select(this.baseSelect)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    const mapped = (data || []).map(mapEmployeeBranch)
+    
+    // Filter by search if provided
+    const filtered = search && search.trim() 
+      ? mapped.filter(item => {
+          const searchLower = search.toLowerCase().trim()
+          return (
+            item.employee.full_name?.toLowerCase().includes(searchLower) ||
+            item.branch.branch_name?.toLowerCase().includes(searchLower) ||
+            item.branch.branch_code?.toLowerCase().includes(searchLower)
+          )
+        })
+      : mapped
+
+    // Group by employee
+    const grouped = filtered.reduce((acc, item) => {
+      if (!acc[item.employee_id]) {
+        acc[item.employee_id] = {
+          employee_id: item.employee_id,
+          employee_name: item.employee.full_name,
+          branches: [],
+          primary_branch: null,
+          total_branches: 0
+        }
+      }
+      acc[item.employee_id].branches.push(item)
+      if (item.is_primary) {
+        acc[item.employee_id].primary_branch = {
+          branch_id: item.branch_id,
+          branch_name: item.branch.branch_name,
+          branch_code: item.branch.branch_code
+        }
+      }
+      return acc
+    }, {} as Record<string, any>)
+
+    // Convert to array and calculate totals
+    const groupedArray = Object.values(grouped).map(g => ({
+      ...g,
+      total_branches: g.branches.length
+    }))
+
+    const total = groupedArray.length
+    const paginated = groupedArray.slice(offset, offset + limit)
+
+    return { data: paginated, total }
+  }
+
   async findByEmployeeId(employeeId: string): Promise<EmployeeBranchWithRelations[]> {
     const { data, error } = await supabase
       .from('employee_branches')
