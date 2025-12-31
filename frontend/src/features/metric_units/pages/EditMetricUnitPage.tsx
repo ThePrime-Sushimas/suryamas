@@ -33,14 +33,10 @@ export default function EditMetricUnitPage() {
     if (!id) return
     try {
       await updateMetricUnit(id, data)
-      if (isMountedRef.current) {
-        toast.success('Metric unit updated successfully')
-        navigate('/metric-units')
-      }
+      toast.success('Metric unit updated successfully')
+      navigate('/metric-units')
     } catch (error: any) {
-      if (isMountedRef.current) {
-        toast.error(error.message || 'Failed to update metric unit')
-      }
+      toast.error(error.message || 'Failed to update metric unit')
     }
   }
 
