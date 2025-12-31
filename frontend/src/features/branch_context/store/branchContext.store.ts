@@ -81,12 +81,13 @@ export const useBranchContextStore = create<BranchContextState>()(
           usePermissionStore.getState().setPermissions(permissions)
           
           return { success: true }
-        } catch (error: unknown) {
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to switch branch'
           set({ 
             isLoading: false,
-            error: error.message || 'Failed to switch branch',
+            error: errorMessage,
           })
-          return { success: false, error: error.message }
+          return { success: false, error: errorMessage }
         }
       },
 
@@ -95,8 +96,9 @@ export const useBranchContextStore = create<BranchContextState>()(
         try {
           const userBranches = await branchApi.getUserBranches()
           get().setBranches(userBranches)
-        } catch (error: unknown) {
-          set({ error: error.message || 'Failed to refresh branches' })
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to refresh branches'
+          set({ error: errorMessage })
         } finally {
           set({ isLoading: false })
         }

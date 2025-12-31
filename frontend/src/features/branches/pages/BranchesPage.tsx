@@ -31,7 +31,7 @@ export default function BranchesPage() {
 
   useEffect(() => {
     fetchBranches(1, 1000)
-  }, [])
+  }, [fetchBranches])
 
   const handleDelete = async (id: string) => {
     if (confirm('Delete this branch?')) {

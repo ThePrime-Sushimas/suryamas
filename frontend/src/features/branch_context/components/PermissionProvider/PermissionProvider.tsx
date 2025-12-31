@@ -29,8 +29,8 @@ export const PermissionProvider = ({ children }: PermissionProviderProps) => {
         if (isCurrentRequest) {
           setPermissions(perms)
         }
-      } catch (error: unknown) {
-        if (error.name !== 'AbortError' && isCurrentRequest) {
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError' && isCurrentRequest) {
           setError(error.message || 'Failed to load permissions')
         }
       } finally {
@@ -46,7 +46,7 @@ export const PermissionProvider = ({ children }: PermissionProviderProps) => {
       controller.abort()
       isCurrentRequest = false
     }
-  }, [currentBranch?.role_id, retryCount])
+  }, [clear, currentBranch?.role_id, retryCount, setError, setLoading, setPermissions])
   
   if (error) {
     return (

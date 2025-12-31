@@ -35,8 +35,8 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
         }
         
         setInitialLoad(false)
-      } catch (err: unknown) {
-        if (err.name !== 'AbortError') {
+      } catch (err) {
+        if (err instanceof Error && err.name !== 'AbortError') {
           setError(err.message || 'Failed to load branches')
         }
       } finally {
@@ -46,7 +46,7 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
 
     loadBranches()
     return () => controller.abort()
-  }, [token])
+  }, [initialLoad, setBranches, setError, setLoading, switchBranch, token])
 
   const handleRetry = () => {
     setError(null)

@@ -81,23 +81,23 @@ function BranchDetailPage() {
         if (data.company_id) {
           promises.push(
             api.get<{ success: boolean; data: { company_name: string } }>(`/companies/${data.company_id}`)
-              .then((r: any) => setCompanyName(r.data.data.company_name))
+              .then((r) => setCompanyName(r.data.data.company_name))
               .catch(() => setCompanyName('Not available'))
           )
         }
         if (data.manager_id) {
           promises.push(
             api.get<{ success: boolean; data: { full_name: string } }>(`/employees/${data.manager_id}`)
-              .then((r: any) => setManagerName(r.data.data.full_name))
+              .then((r) => setManagerName(r.data.data.full_name))
               .catch(() => setManagerName('Not assigned'))
           )
         }
         promises.push(
-          api.get<{ success: boolean; data: any[] }>(`/employee-branches/branch/${id}?limit=1000`)
-            .then((r: any) => {
+          api.get<{ success: boolean; data: Array<{ employee_id: string; employee_name: string; job_position: string; email: string; mobile_phone: string }> }>(`/employee-branches/branch/${id}?limit=1000`)
+            .then((r) => {
               const assignments = r.data.data || []
               const emps = assignments
-                .map((assignment: any) => ({
+                .map((assignment) => ({
                   id: assignment.employee_id,
                   employee_id: assignment.employee_id,
                   full_name: assignment.employee_name,
@@ -105,7 +105,7 @@ function BranchDetailPage() {
                   email: assignment.email,
                   mobile_phone: assignment.mobile_phone
                 }))
-                .filter((emp: any) => emp.full_name)
+                .filter((emp) => emp.full_name)
               setEmployees(emps)
             })
             .catch((err) => {
@@ -114,8 +114,8 @@ function BranchDetailPage() {
             })
         )
         await Promise.all(promises)
-      } catch {
-        console.error('Failed to fetch branch:', error)
+      } catch (err) {
+        console.error('Failed to fetch branch:', err)
         setError('Failed to load branch details. Please try again.')
       } finally {
         setLoading(false)
@@ -135,7 +135,7 @@ function BranchDetailPage() {
       await branchesApi.delete(id!)
       success('Branch deleted successfully')
       navigate('/branches')
-    } catch {
+    } catch (err) {
       console.error('Delete failed:', err)
       showError('Failed to delete branch. Please try again.')
     } finally {
@@ -168,7 +168,7 @@ function BranchDetailPage() {
       await employeeBranchesApi.removeByEmployeeAndBranch(employeeId, id!)
       setEmployees(prev => prev.filter(emp => emp.employee_id !== employeeId))
       success('Employee berhasil dihapus dari cabang')
-    } catch {
+    } catch (err) {
       console.error('Failed to remove employee:', err)
       showError('Gagal menghapus employee dari cabang')
     } finally {
@@ -178,7 +178,7 @@ function BranchDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100 flex items-center justify-center p-4">
         <div className="text-center">
           <Loader2 className="h-12 w-12 text-blue-600 animate-spin mx-auto mb-4" />
           <p className="text-gray-600 text-lg">Loading branch details...</p>
@@ -189,7 +189,7 @@ function BranchDetailPage() {
 
   if (!branch) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100 flex items-center justify-center p-4">
         <div className="text-center max-w-md w-full">
           <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Branch Not Found</h2>
@@ -207,7 +207,7 @@ function BranchDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100">
       {/* Mobile Header */}
       <div className="lg:hidden bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="px-4 py-3">
@@ -295,7 +295,7 @@ function BranchDetailPage() {
             <div className="flex items-center gap-3">             
               <button
                 onClick={() => navigate(`/branches/${id}/edit`)}
-                className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-2.5 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-sm hover:shadow-md"
+                className="inline-flex items-center gap-2 bg-linear-to-r from-blue-600 to-blue-700 text-white px-6 py-2.5 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-sm hover:shadow-md"
               >
                 <Edit2 className="h-5 w-5" />
                 Edit Branch
@@ -303,7 +303,7 @@ function BranchDetailPage() {
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="inline-flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2.5 rounded-xl hover:from-red-700 hover:to-red-800 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50"
+                className="inline-flex items-center gap-2 bg-linear-to-r from-red-600 to-red-700 text-white px-6 py-2.5 rounded-xl hover:from-red-700 hover:to-red-800 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50"
               >
                 {deleting ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -321,11 +321,11 @@ function BranchDetailPage() {
         {/* Error Message */}
         {error && (
           <div className="mb-4 lg:mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+            <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
             <p className="text-red-700 flex-1 text-sm lg:text-base">{error}</p>
             <button 
               onClick={() => setError(null)}
-              className="text-red-600 hover:text-red-800 p-1 flex-shrink-0"
+              className="text-red-600 hover:text-red-800 p-1 shrink-0"
             >
               ×
             </button>
@@ -339,7 +339,7 @@ function BranchDetailPage() {
               onClick={() => setActiveTab('details')}
               className={`flex-1 px-4 py-3 text-sm font-medium transition-all duration-200 ${
                 activeTab === 'details'
-                  ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-b-2 border-blue-600'
+                  ? 'bg-linear-to-r from-blue-50 to-blue-100 text-blue-700 border-b-2 border-blue-600'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
@@ -352,7 +352,7 @@ function BranchDetailPage() {
               onClick={() => setActiveTab('employees')}
               className={`flex-1 px-4 py-3 text-sm font-medium transition-all duration-200 ${
                 activeTab === 'employees'
-                  ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-b-2 border-blue-600'
+                  ? 'bg-linear-to-r from-blue-50 to-blue-100 text-blue-700 border-b-2 border-blue-600'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
@@ -378,7 +378,7 @@ function BranchDetailPage() {
                   onClick={() => setActiveTab('details')}
                   className={`flex-1 px-6 py-4 text-lg font-medium transition-all duration-200 ${
                     activeTab === 'details'
-                      ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-b-2 border-blue-600'
+                      ? 'bg-linear-to-r from-blue-50 to-blue-100 text-blue-700 border-b-2 border-blue-600'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                 >
@@ -391,7 +391,7 @@ function BranchDetailPage() {
                   onClick={() => setActiveTab('employees')}
                   className={`flex-1 px-6 py-4 text-lg font-medium transition-all duration-200 ${
                     activeTab === 'employees'
-                      ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-b-2 border-blue-600'
+                      ? 'bg-linear-to-r from-blue-50 to-blue-100 text-blue-700 border-b-2 border-blue-600'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                 >
@@ -410,7 +410,7 @@ function BranchDetailPage() {
                 {activeTab === 'details' ? (
                   <div className="space-y-8">
                     {/* Basic Information Card */}
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-6 border border-blue-200">
+                    <div className="bg-linear-to-br from-blue-50 to-blue-100 rounded-2xl p-6 border border-blue-200">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                         <Building className="h-5 w-5 text-blue-600" />
                         Basic Information
@@ -528,7 +528,7 @@ function BranchDetailPage() {
 
                     {/* Additional Notes */}
                     {branch.notes && (
-                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200 p-6">
+                      <div className="bg-linear-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200 p-6">
                         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                           <FileText className="h-5 w-5 text-blue-600" />
                           Additional Notes
@@ -617,7 +617,7 @@ function BranchDetailPage() {
                                       >
                                         <div className="flex items-center justify-between">
                                           <div className="flex items-center gap-4">
-                                            <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-semibold">
+                                            <div className="h-12 w-12 bg-linear-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-semibold">
                                               {emp.full_name?.[0] || '?'}
                                             </div>
                                             <div>
@@ -695,7 +695,7 @@ function BranchDetailPage() {
               {activeTab === 'details' && (
                 <div className="space-y-4">
                   {/* Basic Information Card - Mobile Accordion */}
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                  <div className="bg-linear-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
                     <button
                       onClick={() => toggleSection('basic')}
                       className="w-full flex items-center justify-between"
@@ -840,7 +840,7 @@ function BranchDetailPage() {
 
                   {/* Additional Notes - Mobile Accordion */}
                   {branch.notes && (
-                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200 p-4">
+                    <div className="bg-linear-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200 p-4">
                       <button
                         onClick={() => toggleSection('notes')}
                         className="w-full flex items-center justify-between"
@@ -946,7 +946,7 @@ function BranchDetailPage() {
                                     >
                                       <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                          <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold text-sm">
+                                          <div className="h-10 w-10 bg-linear-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold text-sm">
                                             {emp.full_name?.[0] || '?'}
                                           </div>
                                           <div className="min-w-0 flex-1">
@@ -1059,7 +1059,7 @@ function BranchDetailPage() {
             </div>
 
             {/* Branch Summary Card */}
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl lg:rounded-2xl border border-blue-200 p-4 lg:p-6">
+            <div className="bg-linear-to-br from-blue-50 to-blue-100 rounded-xl lg:rounded-2xl border border-blue-200 p-4 lg:p-6">
               <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4">Branch Summary</h3>
               <div className="space-y-3 lg:space-y-4">
                 <div className="flex items-center justify-between">
@@ -1089,7 +1089,7 @@ function BranchDetailPage() {
               <div className="space-y-3 lg:space-y-4">
                 {branch.phone && (
                   <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 lg:h-5 lg:w-5 text-gray-400 flex-shrink-0" />
+                    <Phone className="h-4 w-4 lg:h-5 lg:w-5 text-gray-400 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <p className="text-xs lg:text-sm text-gray-600">Phone</p>
                       <a 
@@ -1103,7 +1103,7 @@ function BranchDetailPage() {
                 )}
                 {branch.whatsapp && (
                   <div className="flex items-center gap-3">
-                    <Smartphone className="h-4 w-4 lg:h-5 lg:w-5 text-gray-400 flex-shrink-0" />
+                    <Smartphone className="h-4 w-4 lg:h-5 lg:w-5 text-gray-400 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <p className="text-xs lg:text-sm text-gray-600">WhatsApp</p>
                       <a 
@@ -1119,7 +1119,7 @@ function BranchDetailPage() {
                 )}
                 {branch.email && (
                   <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 lg:h-5 lg:w-5 text-gray-400 flex-shrink-0" />
+                    <Mail className="h-4 w-4 lg:h-5 lg:w-5 text-gray-400 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <p className="text-xs lg:text-sm text-gray-600">Email</p>
                       <a 
@@ -1163,7 +1163,7 @@ function BranchDetailPage() {
       <div className="lg:hidden fixed bottom-6 right-6 z-40">
         <button
           onClick={() => setShowAssignModal(true)}
-          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 rounded-full shadow-lg hover:shadow-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200"
+          className="bg-linear-to-r from-blue-600 to-blue-700 text-white p-4 rounded-full shadow-lg hover:shadow-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200"
         >
           <User className="h-6 w-6" />
         </button>
@@ -1177,11 +1177,11 @@ function BranchDetailPage() {
         onSuccess={() => {
           setShowAssignModal(false)
           if (id) {
-            api.get<{ success: boolean; data: any[] }>(`/employee-branches/branch/${id}?limit=1000`)
+            api.get<{ success: boolean; data: Array<{ employee_id: string; employee_name: string; job_position: string; email: string; mobile_phone: string }> }>(`/employee-branches/branch/${id}?limit=1000`)
               .then(r => {
                 const assignments = r.data.data || []
                 const emps = assignments
-                  .map((assignment: any) => ({
+                  .map((assignment) => ({
                     id: assignment.employee_id,
                     employee_id: assignment.employee_id,
                     full_name: assignment.employee_name,
@@ -1189,7 +1189,7 @@ function BranchDetailPage() {
                     email: assignment.email,
                     mobile_phone: assignment.mobile_phone
                   }))
-                  .filter((emp: any) => emp.full_name)
+                  .filter((emp) => emp.full_name)
                 setEmployees(emps)
               })
               .catch(() => setEmployees([]))
