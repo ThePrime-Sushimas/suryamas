@@ -1,7 +1,7 @@
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { branchApi } from '@/features/branch_context/api/branchContext.api'
 import { useAuthStore } from '@/features/auth'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 interface BranchSelectionGuardProps {
   children: React.ReactNode
@@ -10,10 +10,10 @@ interface BranchSelectionGuardProps {
 export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) => {
   const { token } = useAuthStore()
   const { currentBranch, branches, setBranches, switchBranch, isLoading, error, setLoading, setError } = useBranchContextStore()
+  const [initialLoad, setInitialLoad] = useState(true)
 
   useEffect(() => {
     if (!token) return
-    if (branches.length > 0) return
 
     const controller = new AbortController()
     
@@ -24,32 +24,33 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
         
         if (userBranches.length === 0) {
           setError('No branch assignments found')
-          setLoading(false)
           return
         }
 
         setBranches(userBranches)
         
-        if (userBranches.length === 1) {
+        // Auto-switch hanya saat initial load dan ada 1 branch
+        if (initialLoad && userBranches.length === 1) {
           switchBranch(userBranches[0].branch_id)
         }
         
-        setLoading(false)
+        setInitialLoad(false)
       } catch (err: any) {
         if (err.name !== 'AbortError') {
           setError(err.message || 'Failed to load branches')
         }
+      } finally {
         setLoading(false)
       }
     }
 
     loadBranches()
     return () => controller.abort()
-  }, [token, branches.length, setBranches, switchBranch, setLoading, setError])
+  }, [token])
 
   const handleRetry = () => {
     setError(null)
-    setBranches([])
+    setInitialLoad(true)
   }
 
   if (!token) {
@@ -60,7 +61,7 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div role="status" aria-live="polite" className="text-center">
-          <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+          <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" aria-label="Loading" />
           <p className="mt-4 text-gray-700 dark:text-gray-300">Loading branch context...</p>
         </div>
       </div>
@@ -89,7 +90,7 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
       return (
         <div className="flex items-center justify-center min-h-screen">
           <div role="status" aria-live="polite" className="text-center">
-            <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+            <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" aria-label="Loading" />
             <p className="mt-4 text-gray-700 dark:text-gray-300">Setting up branch...</p>
           </div>
         </div>

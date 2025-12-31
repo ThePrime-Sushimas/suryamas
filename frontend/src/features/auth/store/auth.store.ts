@@ -66,6 +66,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     } finally {
       localStorage.removeItem('token')
       set({ user: null, token: null })
+      
+      // Clear branch context and permissions
+      const { useBranchContextStore } = await import('@/features/branch_context/store/branchContext.store')
+      const { usePermissionStore } = await import('@/features/branch_context/store/permission.store')
+      useBranchContextStore.getState().clear()
+      usePermissionStore.getState().clear()
     }
   },
 
