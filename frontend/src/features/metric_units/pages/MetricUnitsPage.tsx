@@ -31,7 +31,7 @@ export default function MetricUnitsPage() {
   } = useMetricUnitsStore()
   
   const [search, setSearch] = useState('')
-  const [localFilter, setLocalFilter] = useState<{ metric_type?: string; is_active?: string }>({})
+  const [localFilter, setLocalFilter] = useState<{ metric_type?: string; is_active?: string }>({ is_active: 'true' })
 
   const debouncedSearch = useMemo(
     () => debounce((value: string) => {
@@ -48,6 +48,9 @@ export default function MetricUnitsPage() {
   )
 
   useEffect(() => {
+    // Set initial filter to show only active units
+    const initialFilter = { is_active: true }
+    setFilter(initialFilter)
     fetchMetricUnits()
     fetchFilterOptions()
     return () => reset()
