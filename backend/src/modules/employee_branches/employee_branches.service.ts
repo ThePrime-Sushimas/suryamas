@@ -149,6 +149,11 @@ export class EmployeeBranchesService {
     const existing = await employeeBranchesRepository.findById(id)
     if (!existing) throw EmployeeBranchErrors.NOT_FOUND()
 
+    // If setting as primary, unset other primary branches first
+    if (data.is_primary === true && !existing.is_primary) {
+      await employeeBranchesRepository.unsetPrimaryForEmployee(existing.employee_id)
+    }
+
     const updated = await employeeBranchesRepository.update(id, data)
     if (!updated) throw EmployeeBranchErrors.NOT_FOUND()
 

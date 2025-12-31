@@ -39,7 +39,6 @@ export const EmployeeBranchDetailForm = ({ employeeId, assignment, assignedBranc
     if (!assignment && !branchId) newErrors.branchId = 'Branch is required'
     if (!roleId) newErrors.roleId = 'Role is required'
     if (Number(approvalLimit) < 0) newErrors.approvalLimit = 'Approval limit must be >= 0'
-    if (isPrimary && hasPrimaryBranch && !assignment?.is_primary) newErrors.isPrimary = 'Only one primary branch allowed'
     if (isPrimary && status === 'suspended') newErrors.status = 'Cannot suspend primary branch'
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -106,7 +105,6 @@ export const EmployeeBranchDetailForm = ({ employeeId, assignment, assignedBranc
         <input type="checkbox" id="isPrimary" checked={isPrimary} onChange={(e) => setIsPrimary(e.target.checked)} className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" disabled={submitting} />
         <label htmlFor="isPrimary" className="ml-2 block text-sm text-gray-900">Set as primary branch</label>
       </div>
-      {errors.isPrimary && <p className="text-sm text-red-600">{errors.isPrimary}</p>}
 
       {isPrimary && hasPrimaryBranch && !assignment?.is_primary && (
         <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
