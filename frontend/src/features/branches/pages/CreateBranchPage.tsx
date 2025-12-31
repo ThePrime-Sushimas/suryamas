@@ -9,13 +9,14 @@ export default function CreateBranchPage() {
   const { createBranch, loading } = useBranchesStore()
   const { success, error } = useToast()
 
-  const handleSubmit = async (data: any) => {
+  const handleSubmit = async (data: unknown) => {
     try {
       await createBranch(data as CreateBranchDto)
       success('Branch created successfully')
       navigate('/branches')
-    } catch (err: unknown) {
-      error(err.response?.data?.error || 'Failed to create branch')
+    } catch (err) {
+      const errorMessage = err instanceof Error && 'response' in err && typeof err.response === 'object' && err.response && 'data' in err.response && typeof err.response.data === 'object' && err.response.data && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to create branch'
+      error(errorMessage)
     }
   }
 

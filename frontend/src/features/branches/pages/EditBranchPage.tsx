@@ -34,8 +34,9 @@ export default function EditBranchPage() {
       await updateBranch(id || '', data)
       success('Branch updated successfully')
       navigate(`/branches/${id}`)
-    } catch (err: unknown) {
-      error(err.response?.data?.error || 'Failed to update branch')
+    } catch (err) {
+      const errorMessage = err instanceof Error && 'response' in err && typeof err.response === 'object' && err.response && 'data' in err.response && typeof err.response.data === 'object' && err.response.data && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to update branch'
+      error(errorMessage)
     }
   }
 

@@ -26,8 +26,9 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
     try {
       const res = await branchesApi.list(page, limit, sort, filter)
       set({ branches: res.data, loading: false })
-    } catch (error: unknown) {
-      set({ error: error.response?.data?.error || 'Failed to fetch branches', loading: false })
+    } catch (error) {
+      const errorMessage = error instanceof Error && 'response' in error && typeof error.response === 'object' && error.response && 'data' in error.response && typeof error.response.data === 'object' && error.response.data && 'error' in error.response.data ? String(error.response.data.error) : 'Failed to fetch branches'
+      set({ error: errorMessage, loading: false })
     }
   },
 
@@ -36,8 +37,9 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
     try {
       const res = await branchesApi.search(q, page, limit, sort)
       set({ branches: res.data, loading: false })
-    } catch (error: unknown) {
-      set({ error: error.response?.data?.error || 'Failed to search branches', loading: false })
+    } catch (error) {
+      const errorMessage = error instanceof Error && 'response' in error && typeof error.response === 'object' && error.response && 'data' in error.response && typeof error.response.data === 'object' && error.response.data && 'error' in error.response.data ? String(error.response.data.error) : 'Failed to search branches'
+      set({ error: errorMessage, loading: false })
     }
   },
 
@@ -50,8 +52,9 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
         loading: false
       }))
       return branch
-    } catch (error: unknown) {
-      set({ error: error.response?.data?.error || 'Failed to create branch', loading: false })
+    } catch (error) {
+      const errorMessage = error instanceof Error && 'response' in error && typeof error.response === 'object' && error.response && 'data' in error.response && typeof error.response.data === 'object' && error.response.data && 'error' in error.response.data ? String(error.response.data.error) : 'Failed to create branch'
+      set({ error: errorMessage, loading: false })
       throw error
     }
   },
@@ -65,8 +68,9 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
         loading: false
       }))
       return branch
-    } catch (error: unknown) {
-      set({ error: error.response?.data?.error || 'Failed to update branch', loading: false })
+    } catch (error) {
+      const errorMessage = error instanceof Error && 'response' in error && typeof error.response === 'object' && error.response && 'data' in error.response && typeof error.response.data === 'object' && error.response.data && 'error' in error.response.data ? String(error.response.data.error) : 'Failed to update branch'
+      set({ error: errorMessage, loading: false })
       throw error
     }
   },
@@ -78,8 +82,9 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
     try {
       await branchesApi.delete(id)
       set({ loading: false })
-    } catch (error: unknown) {
-      set({ branches: prev, error: error.response?.data?.error || 'Failed to delete branch', loading: false })
+    } catch (error) {
+      const errorMessage = error instanceof Error && 'response' in error && typeof error.response === 'object' && error.response && 'data' in error.response && typeof error.response.data === 'object' && error.response.data && 'error' in error.response.data ? String(error.response.data.error) : 'Failed to delete branch'
+      set({ branches: prev, error: errorMessage, loading: false })
       throw error
     }
   },
@@ -91,8 +96,9 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
     try {
       await branchesApi.bulkDelete(ids)
       set({ loading: false })
-    } catch (error: unknown) {
-      set({ branches: prev, error: error.response?.data?.error || 'Failed to delete branches', loading: false })
+    } catch (error) {
+      const errorMessage = error instanceof Error && 'response' in error && typeof error.response === 'object' && error.response && 'data' in error.response && typeof error.response.data === 'object' && error.response.data && 'error' in error.response.data ? String(error.response.data.error) : 'Failed to delete branches'
+      set({ branches: prev, error: errorMessage, loading: false })
       throw error
     }
   },
