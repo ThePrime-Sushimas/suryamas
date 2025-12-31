@@ -20,7 +20,7 @@ export default function CategoriesPage() {
     if (confirm('Delete this category?')) {
       try {
         await deleteCategory(id)
-      } catch (error) {
+      } catch {
         console.error('Delete failed')
       }
     }

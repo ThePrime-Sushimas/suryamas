@@ -26,7 +26,7 @@ function CompanyDetailPage() {
       await deleteCompany(id)
       success('Company deleted successfully')
       navigate('/companies')
-    } catch (err) {
+    } catch {
       error('Failed to delete company')
     }
   }

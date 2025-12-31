@@ -13,7 +13,7 @@ export default function CreateSubCategoryPage() {
       await createSubCategory(data)
       success('Sub-category created successfully')
       navigate('/sub-categories')
-    } catch (err: any) {
+    } catch (err: unknown) {
       error(err.response?.data?.error || 'Failed to create sub-category')
     }
   }

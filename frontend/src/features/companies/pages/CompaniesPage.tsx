@@ -1,61 +1,87 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCompaniesStore } from '../store/companies.store'
 import { CompanyTable } from '../components/CompanyTable'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { useToast } from '@/contexts/ToastContext'
 
+type CompanyFilter = {
+  status?: 'active' | 'inactive' | 'suspended' | 'closed'
+  company_type?: 'PT' | 'CV' | 'Firma' | 'Koperasi' | 'Yayasan'
+}
+
+const LIMIT = 25
+
 export default function CompaniesPage() {
   const navigate = useNavigate()
   const { companies, loading, pagination, fetchCompanies, searchCompanies, deleteCompany, reset } = useCompaniesStore()
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<Record<string, any>>({})
+  const [filter, setFilter] = useState<CompanyFilter>({})
   const [page, setPage] = useState(1)
-  const [limit] = useState(25)
   const { error } = useToast()
   
   const debouncedSearch = useDebounce(search, 500)
+  
+  // Create a key that changes when search or filter changes
+  const searchFilterKey = useMemo(() => 
+    `${debouncedSearch}-${JSON.stringify(filter)}`, 
+    [debouncedSearch, filter]
+  )
+  
+  // Track the current key to detect changes
+  const [currentKey, setCurrentKey] = useState(searchFilterKey)
+  
+  // Calculate effective page - reset to 1 when search/filter changes
+  const effectivePage = currentKey === searchFilterKey ? page : 1
+
+  const loadCompanies = useCallback(() => {
+    if (debouncedSearch) {
+      return searchCompanies(debouncedSearch, effectivePage, LIMIT, filter)
+    }
+    return fetchCompanies(effectivePage, LIMIT, undefined, filter)
+  }, [debouncedSearch, effectivePage, filter, searchCompanies, fetchCompanies])
+
+  // Update current key and page when search/filter changes
+  useEffect(() => {
+    setCurrentKey(searchFilterKey)
+  }, [searchFilterKey])
+  
+  useEffect(() => {
+    if (effectivePage === 1 && page !== 1) {
+      setPage(1)
+    }
+  }, [effectivePage, page])
 
   useEffect(() => {
     return () => reset()
-  }, [])
+  }, [reset])
 
   useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, filter])
-
-  useEffect(() => {
-    if (debouncedSearch) {
-      searchCompanies(debouncedSearch, page, limit, filter)
-    } else {
-      fetchCompanies(page, limit, undefined, filter)
-    }
-  }, [debouncedSearch, page, limit, filter, fetchCompanies, searchCompanies])
+    loadCompanies()
+  }, [loadCompanies])
 
   const handleDelete = useCallback(async (id: string) => {
     if (!confirm('Are you sure you want to delete this company?')) return
     
     try {
       await deleteCompany(id)
-      // Refresh current page
-      if (debouncedSearch) {
-        searchCompanies(debouncedSearch, page, limit, filter)
-      } else {
-        fetchCompanies(page, limit, undefined, filter)
-      }
-    } catch (err) {
+      await loadCompanies()
+    } catch {
       error('Failed to delete company')
     }
-  }, [deleteCompany, debouncedSearch, page, limit, filter, searchCompanies, fetchCompanies, error])
+  }, [deleteCompany, loadCompanies, error])
 
-  const setFilterKey = useCallback((key: string, value?: string) => {
-    setFilter(prev => {
-      const next = { ...prev }
-      if (!value) delete next[key]
-      else next[key] = value
-      return next
-    })
-  }, [])
+  const setFilterKey = useCallback(
+    <K extends keyof CompanyFilter>(key: K, value?: CompanyFilter[K]) => {
+      setFilter(prev => {
+        const next = { ...prev }
+        if (!value) delete next[key]
+        else next[key] = value
+        return next
+      })
+    },
+    []
+  )
 
   return (
     <div className="p-6">
@@ -81,7 +107,7 @@ export default function CompaniesPage() {
 
           <select
             value={filter.status || ''}
-            onChange={e => setFilterKey('status', e.target.value || undefined)}
+            onChange={e => setFilterKey('status', (e.target.value || undefined) as CompanyFilter['status'])}
             className="border rounded-md px-3 py-2"
           >
             <option value="">All Status</option>
@@ -93,7 +119,7 @@ export default function CompaniesPage() {
 
           <select
             value={filter.company_type || ''}
-            onChange={e => setFilterKey('company_type', e.target.value || undefined)}
+            onChange={e => setFilterKey('company_type', (e.target.value || undefined) as CompanyFilter['company_type'])}
             className="border rounded-md px-3 py-2"
           >
             <option value="">All Types</option>
@@ -122,22 +148,22 @@ export default function CompaniesPage() {
           {pagination.total > 0 && (
             <div className="mt-6 flex items-center justify-between">
               <div className="text-sm text-gray-600">
-                Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, pagination.total)} of {pagination.total} companies
+                Showing {((effectivePage - 1) * LIMIT) + 1} to {Math.min(effectivePage * LIMIT, pagination.total)} of {pagination.total} companies
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
+                  disabled={effectivePage === 1}
                   className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                 >
                   Previous
                 </button>
                 <span className="px-4 py-2 border rounded-md bg-gray-50">
-                  Page {page} of {pagination.totalPages || 1}
+                  Page {effectivePage} of {pagination.totalPages || 1}
                 </span>
                 <button
                   onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
-                  disabled={page >= pagination.totalPages}
+                  disabled={effectivePage >= pagination.totalPages}
                   className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                 >
                   Next

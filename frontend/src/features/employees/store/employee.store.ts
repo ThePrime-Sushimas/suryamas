@@ -37,7 +37,7 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
     try {
       const profile = await employeesApi.getProfile()
       set({ profile, isLoading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       const message = error.response?.data?.message || 'Failed to fetch profile'
       set({ error: message, isLoading: false })
       throw new Error(message)
@@ -49,7 +49,7 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
     try {
       const profile = await employeesApi.updateProfile(updates)
       set({ profile, isLoading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       const message = error.response?.data?.message || 'Failed to update profile'
       set({ error: message, isLoading: false })
       throw new Error(message)
@@ -64,7 +64,7 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
         profile: state.profile ? { ...state.profile, profile_picture: url } : null,
         isLoading: false
       }))
-    } catch (error: any) {
+    } catch (error: unknown) {
       const message = error.response?.data?.message || 'Failed to upload picture'
       set({ error: message, isLoading: false })
       throw new Error(message)
@@ -77,7 +77,7 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       const response = await employeesApi.list(page, limit, sort, order)
       if (signal?.aborted) return
       set({ employees: response.data, pagination: response.pagination, isLoading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error.name === 'CanceledError' || signal?.aborted) return
       const message = error.response?.data?.message || 'Failed to fetch employees'
       set({ error: message, isLoading: false })
@@ -90,7 +90,7 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       const response = await employeesApi.search(query, page, limit, sort, order, filter)
       if (signal?.aborted) return
       set({ employees: response.data, pagination: response.pagination, isLoading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error.name === 'CanceledError' || signal?.aborted) return
       const message = error.response?.data?.message || 'Failed to search employees'
       set({ error: message, isLoading: false })
@@ -101,7 +101,7 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
     try {
       const filterOptions = await employeesApi.getFilterOptions()
       set({ filterOptions })
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to fetch filter options:', error)
     }
   },
@@ -112,7 +112,7 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       const employee = await employeesApi.create(data, file)
       set({ isLoading: false })
       return employee
-    } catch (error: any) {
+    } catch (error: unknown) {
       const message = error.response?.data?.message || 'Failed to create employee'
       set({ error: message, isLoading: false })
       throw new Error(message)
@@ -128,7 +128,7 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
         isLoading: false
       }))
       return employee
-    } catch (error: any) {
+    } catch (error: unknown) {
       const message = error.response?.data?.message || 'Failed to update employee'
       set({ error: message, isLoading: false })
       throw new Error(message)
@@ -140,7 +140,7 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
     set(state => ({ employees: state.employees.filter(e => e.id !== id) }))
     try {
       await employeesApi.delete(id)
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ employees: prev })
       const message = error.response?.data?.message || 'Failed to delete employee'
       throw new Error(message)
@@ -154,7 +154,7 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
     }))
     try {
       await employeesApi.bulkUpdateActive(ids, isActive)
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ employees: prev })
       const message = error.response?.data?.message || 'Failed to update employees'
       throw new Error(message)
@@ -166,7 +166,7 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
     set(state => ({ employees: state.employees.filter(e => !ids.includes(e.id)) }))
     try {
       await employeesApi.bulkDelete(ids)
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ employees: prev })
       const message = error.response?.data?.message || 'Failed to delete employees'
       throw new Error(message)

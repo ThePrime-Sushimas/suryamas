@@ -19,7 +19,7 @@ export default function EditProductPage() {
       try {
         const data = await productsApi.getById(id || '')
         setProduct(data)
-      } catch (err) {
+      } catch {
         error('Product not found')
         navigate('/products')
       } finally {
@@ -34,7 +34,7 @@ export default function EditProductPage() {
       await updateProduct(id || '', data)
       success('Product updated successfully')
       navigate('/products')
-    } catch (err: any) {
+    } catch (err: unknown) {
       error(err.response?.data?.error || 'Failed to update product')
     }
   }

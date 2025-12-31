@@ -16,8 +16,8 @@ interface CompaniesState {
   error: string | null
   pagination: Pagination
   
-  fetchCompanies: (page: number, limit: number, sort?: { field: string; order: string }, filter?: Record<string, any>) => Promise<void>
-  searchCompanies: (q: string, page: number, limit: number, filter?: Record<string, any>) => Promise<void>
+  fetchCompanies: (page: number, limit: number, sort?: { field: string; order: string }, filter?: Record<string, unknown>) => Promise<void>
+  searchCompanies: (q: string, page: number, limit: number, filter?: Record<string, unknown>) => Promise<void>
   getCompanyById: (id: string) => Promise<Company>
   createCompany: (data: CreateCompanyDto) => Promise<Company>
   updateCompany: (id: string, data: UpdateCompanyDto) => Promise<Company>
@@ -50,8 +50,9 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
           totalPages: Math.ceil(res.pagination.total / res.pagination.limit)
         }
       })
-    } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Failed to fetch companies', loading: false })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch companies'
+      set({ error: message, loading: false })
     }
   },
 
@@ -67,8 +68,9 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
           totalPages: Math.ceil(res.pagination.total / res.pagination.limit)
         }
       })
-    } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Failed to search companies', loading: false })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to search companies'
+      set({ error: message, loading: false })
     }
   },
 
@@ -78,8 +80,9 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
       const company = await companiesApi.getById(id)
       set({ selectedCompany: company, loading: false })
       return company
-    } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Company not found', loading: false })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Company not found'
+      set({ error: message, loading: false })
       throw error
     }
   },
@@ -90,8 +93,9 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
       const company = await companiesApi.create(data)
       set({ loading: false })
       return company
-    } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Failed to create company', loading: false })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to create company'
+      set({ error: message, loading: false })
       throw error
     }
   },
@@ -105,8 +109,9 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
         loading: false
       }))
       return company
-    } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Failed to update company', loading: false })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to update company'
+      set({ error: message, loading: false })
       throw error
     }
   },
@@ -116,8 +121,9 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
     set(state => ({ companies: state.companies.filter(c => c.id !== id) }))
     try {
       await companiesApi.delete(id)
-    } catch (error: any) {
-      set({ companies: prev, error: error.response?.data?.error || 'Failed to delete company' })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to delete company'
+      set({ companies: prev, error: message })
       throw error
     }
   },
@@ -127,8 +133,9 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
     set(state => ({ companies: state.companies.filter(c => !ids.includes(c.id)) }))
     try {
       await companiesApi.bulkDelete(ids)
-    } catch (error: any) {
-      set({ companies: prev, error: error.response?.data?.error || 'Failed to delete companies' })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to delete companies'
+      set({ companies: prev, error: message })
       throw error
     }
   },

@@ -19,7 +19,7 @@ export default function EditCategoryPage() {
       try {
         const data = await categoriesApi.getById(id || '')
         setCategory(data)
-      } catch (err) {
+      } catch {
         error('Category not found')
         navigate('/categories')
       } finally {
@@ -34,7 +34,7 @@ export default function EditCategoryPage() {
       await updateCategory(id || '', data)
       success('Category updated successfully')
       navigate('/categories')
-    } catch (err: any) {
+    } catch (err: unknown) {
       error(err.response?.data?.error || 'Failed to update category')
     }
   }

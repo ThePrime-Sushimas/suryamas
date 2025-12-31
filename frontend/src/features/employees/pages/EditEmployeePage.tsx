@@ -61,9 +61,10 @@ export default function EditEmployeePage() {
           bank_account: data.bank_account || '',
           bank_account_holder: data.bank_account_holder || '',
         })
-      } catch (err: any) {
+      } catch (err: unknown ) {
         if (!isMountedRef.current) return
-        toastError(err.message || 'Failed to load employee')
+        const message = err instanceof Error ? err.message : 'Failed to load employee'
+        toastError(message)
         navigate('/employees')
       } finally {
         if (isMountedRef.current) {
@@ -83,8 +84,9 @@ export default function EditEmployeePage() {
       await employeesApi.update(id, formData, file)
       success('Employee updated successfully!')
       navigate('/employees', { replace: true })
-    } catch (err: any) {
-      toastError(err.message || 'Failed to update employee')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to update employee'
+      toastError(message)
       throw err
     }
   }, [id, navigate, success, toastError])
@@ -136,7 +138,7 @@ export default function EditEmployeePage() {
               </div>
               <Link
                 to="/employee-branches"
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm md:text-base min-h-[44px] flex items-center justify-center"
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm md:text-base min-h-11 flex items-center justify-center"
               >
                 Manage Branches
               </Link>

@@ -38,7 +38,7 @@ export default function BranchesPage() {
       try {
         await deleteBranch(id)
         success('Branch deleted successfully')
-      } catch (err) {
+      } catch {
         error('Failed to delete branch')
         console.error('Delete failed:', err)
       }

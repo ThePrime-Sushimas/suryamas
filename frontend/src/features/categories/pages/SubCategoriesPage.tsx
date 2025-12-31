@@ -20,7 +20,7 @@ export default function SubCategoriesPage() {
     if (confirm('Delete this sub-category?')) {
       try {
         await deleteSubCategory(id)
-      } catch (error) {
+      } catch {
         console.error('Delete failed')
       }
     }

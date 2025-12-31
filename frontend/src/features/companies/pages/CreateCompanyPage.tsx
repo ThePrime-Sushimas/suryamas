@@ -12,15 +12,16 @@ export default function CreateCompanyPage() {
 
   useEffect(() => {
     return () => reset()
-  }, [])
+  }, [reset])
 
-  const handleSubmit = async (data: CreateCompanyDto) => {
+  const handleSubmit = async (data: Record<string, unknown>) => {
     try {
-      await createCompany(data)
+      await createCompany(data as CreateCompanyDto)
       success('Company created successfully')
       navigate('/companies')
-    } catch (err: any) {
-      error(err.response?.data?.error || 'Failed to create company')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to create company'
+      error(message)
       throw err
     }
   }

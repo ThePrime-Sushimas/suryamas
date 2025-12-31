@@ -11,12 +11,12 @@ export const branchApi = {
     try {
       const res = await api.get<BranchesResponse>(ENDPOINTS.USER_BRANCHES, { signal })
       return res.data.data
-    } catch (error: any) {
-      if (error.name === 'AbortError') throw error
-      if (error.response?.data?.message) {
-        const customError = new Error(error.response.data.message) as any
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') throw error
+      if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response && error.response.data && typeof error.response.data === 'object' && 'message' in error.response.data) {
+        const customError = new Error(String(error.response.data.message)) as Error & { cause?: unknown; statusCode?: number }
         customError.cause = error
-        customError.statusCode = error.response.status
+        if ('status' in error.response) customError.statusCode = Number(error.response.status)
         throw customError
       }
       throw error
@@ -30,12 +30,12 @@ export const branchApi = {
         signal,
       })
       return res.data.data
-    } catch (error: any) {
-      if (error.name === 'AbortError') throw error
-      if (error.response?.data?.message) {
-        const customError = new Error(error.response.data.message) as any
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') throw error
+      if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response && error.response.data && typeof error.response.data === 'object' && 'message' in error.response.data) {
+        const customError = new Error(String(error.response.data.message)) as Error & { cause?: unknown; statusCode?: number }
         customError.cause = error
-        customError.statusCode = error.response.status
+        if ('status' in error.response) customError.statusCode = Number(error.response.status)
         throw customError
       }
       throw error

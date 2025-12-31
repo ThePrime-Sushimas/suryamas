@@ -39,14 +39,14 @@ export const EmployeeListItem = ({ employee, isSelected, isActive, onClick, onSe
         <img
           src={employee.profile_picture}
           alt={employee.full_name}
-          className="w-10 h-10 rounded-full object-cover flex-shrink-0 border-2 border-blue-100"
+          className="w-10 h-10 rounded-full object-cover shrink-0 border-2 border-blue-100"
           onError={(e) => {
             e.currentTarget.style.display = 'none'
             e.currentTarget.nextElementSibling?.classList.remove('hidden')
           }}
         />
       ) : null}
-      <div className={`w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0 ${employee.profile_picture ? 'hidden' : ''}`}>
+      <div className={`w-10 h-10 rounded-full bg-linear-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-semibold text-sm shrink-0 ${employee.profile_picture ? 'hidden' : ''}`}>
         {employee.full_name.charAt(0).toUpperCase()}
       </div>
 
@@ -57,7 +57,7 @@ export const EmployeeListItem = ({ employee, isSelected, isActive, onClick, onSe
       </div>
 
       {/* Status */}
-      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+      <div className={`w-2 h-2 rounded-full shrink-0 ${
         employee.is_active ? 'bg-green-500' : 'bg-gray-300'
       }`} />
     </div>

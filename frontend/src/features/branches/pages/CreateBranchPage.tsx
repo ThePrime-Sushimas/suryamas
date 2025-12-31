@@ -14,7 +14,7 @@ export default function CreateBranchPage() {
       await createBranch(data as CreateBranchDto)
       success('Branch created successfully')
       navigate('/branches')
-    } catch (err: any) {
+    } catch (err: unknown) {
       error(err.response?.data?.error || 'Failed to create branch')
     }
   }

@@ -34,7 +34,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     try {
       const res = await productsApi.list(page, limit, sort, filter, includeDeleted)
       set({ products: res.data, loading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to fetch products', loading: false })
     }
   },
@@ -44,7 +44,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     try {
       const res = await productsApi.search(q, page, limit, includeDeleted)
       set({ products: res.data, loading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to search products', loading: false })
     }
   },
@@ -55,7 +55,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       const product = await productsApi.create(data)
       set({ loading: false })
       return product
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to create product', loading: false })
       throw error
     }
@@ -70,7 +70,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         loading: false
       }))
       return product
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to update product', loading: false })
       throw error
     }
@@ -81,7 +81,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     set(state => ({ products: state.products.filter(p => p.id !== id) }))
     try {
       await productsApi.delete(id)
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ products: prev, error: error.response?.data?.error || 'Failed to delete product' })
       throw error
     }
@@ -92,7 +92,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     set(state => ({ products: state.products.filter(p => !ids.includes(p.id)) }))
     try {
       await productsApi.bulkDelete(ids)
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ products: prev, error: error.response?.data?.error || 'Failed to delete products' })
       throw error
     }
@@ -103,7 +103,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     try {
       const uoms = await productsApi.getUoms(productId, includeDeleted)
       set({ uoms, loading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to fetch UOMs', loading: false })
     }
   },
@@ -114,7 +114,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       const uom = await productsApi.createUom(productId, data)
       set({ loading: false })
       return uom
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to create UOM', loading: false })
       throw error
     }
@@ -129,7 +129,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         loading: false
       }))
       return uom
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to update UOM', loading: false })
       throw error
     }
@@ -140,7 +140,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     set(state => ({ uoms: state.uoms.filter(u => u.id !== uomId) }))
     try {
       await productsApi.deleteUom(productId, uomId)
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ uoms: prev, error: error.response?.data?.error || 'Failed to delete UOM' })
       throw error
     }

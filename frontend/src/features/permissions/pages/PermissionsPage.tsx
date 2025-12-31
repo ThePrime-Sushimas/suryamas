@@ -16,13 +16,13 @@ export default function PermissionsPage() {
   useEffect(() => {
     fetchModules()
     fetchRoles()
-  }, [])
+  }, [fetchModules, fetchRoles])
 
   useEffect(() => {
     if (selectedRole) {
       fetchRolePermissions(selectedRole)
     }
-  }, [selectedRole])
+  }, [selectedRole, fetchRolePermissions])
 
   const handlePermissionChange = async (moduleId: string, field: string, value: boolean) => {
     if (!selectedRole) return
@@ -48,8 +48,9 @@ export default function PermissionsPage() {
       setNewRole({ name: '', description: '' })
       await fetchRoles()
       success('Role created successfully')
-    } catch (err: any) {
-      showError(err.response?.data?.error || 'Failed to create role')
+    } catch (err: unknown) {
+      const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to update role'
+      showError(message)
     } finally {
       setSaving(false)
     }
@@ -70,8 +71,9 @@ export default function PermissionsPage() {
       setEditModal(false)
       await fetchRoles()
       success('Role updated successfully')
-    } catch (err: any) {
-      showError(err.response?.data?.error || 'Failed to update role')
+    } catch (err: unknown) {
+      const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to update role'
+      showError(message)
     } finally {
       setSaving(false)
     }
@@ -85,8 +87,9 @@ export default function PermissionsPage() {
       setSelectedRole('')
       await fetchRoles()
       success('Role deleted successfully')
-    } catch (err: any) {
-      showError(err.response?.data?.error || 'Failed to delete role')
+    } catch (err: unknown) {
+      const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to delete role'
+      showError(message)
     }
   }
 

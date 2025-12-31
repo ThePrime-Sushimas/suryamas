@@ -3,7 +3,7 @@ import { type DomainError } from './types'
 
 export function normalizeError(err: unknown): DomainError {
   if (axios.isAxiosError(err)) {
-    const e = err as AxiosError<any>
+    const e = err as AxiosError<{ error?: string }>
     const status = e.response?.status ?? 0
     const backendMessage = e.response?.data?.error || e.message
 

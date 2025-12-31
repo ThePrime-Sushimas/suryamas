@@ -118,8 +118,8 @@ export default function EmployeesPage() {
         } else {
           await fetchEmployees(query.sort, query.order, query.page, query.limit, controller.signal)
         }
-      } catch (err: any) {
-        if (err.name !== 'CanceledError' && !controller.signal.aborted) {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name !== 'CanceledError' && !controller.signal.aborted) {
           console.error('Failed to load employees:', err)
         }
       }
@@ -211,8 +211,9 @@ export default function EmployeesPage() {
     try {
       await confirm.action()
       setQuery(q => ({ ...q }))
-    } catch (e: any) {
-      toastError(e.message || 'Action failed')
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Action failed'
+      toastError(message)
     } finally {
       setIsConfirming(false)
       setConfirm(null)

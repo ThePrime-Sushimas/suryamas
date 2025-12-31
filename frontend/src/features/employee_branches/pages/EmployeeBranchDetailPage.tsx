@@ -44,8 +44,9 @@ export const EmployeeBranchDetailPage = () => {
       ])
       setRoles(rolesData)
       setBranchOptions(branchesData)
-    } catch (err: any) {
-      showError(err.message || 'Failed to load options')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load options'
+      showError(message)
       setIsModalOpen(false)
     }
   }
@@ -68,8 +69,9 @@ export const EmployeeBranchDetailPage = () => {
       }
       handleCloseModal()
       await refetch()
-    } catch (err: any) {
-      showError(err.message || 'Operation failed')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Operation failed'
+      showError(message)
       throw err
     }
   }
@@ -79,8 +81,9 @@ export const EmployeeBranchDetailPage = () => {
       await employeeBranchesApi.remove(assignment.id)
       success('Assignment deleted successfully')
       refetch()
-    } catch (err: any) {
-      showError(err.message || 'Failed to delete')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to delete'
+      showError(message)
     }
   }
 
@@ -89,8 +92,9 @@ export const EmployeeBranchDetailPage = () => {
       await employeeBranchesApi.update(assignment.id, { status: 'suspended' })
       success('Assignment suspended successfully')
       refetch()
-    } catch (err: any) {
-      showError(err.message || 'Failed to suspend')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to suspend'
+      showError(message)
     }
   }
 
@@ -119,7 +123,7 @@ export const EmployeeBranchDetailPage = () => {
   const isLoadingOptions = isModalOpen && (roles.length === 0 || branchOptions.length === 0)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 p-4 md:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           <button onClick={() => navigate(-1)} className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6">
@@ -127,7 +131,7 @@ export const EmployeeBranchDetailPage = () => {
             <span className="font-medium">Back to Employee</span>
           </button>
           
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl shadow-xl p-6 md:p-8">
+          <div className="bg-linear-to-r from-blue-600 to-blue-700 rounded-2xl shadow-xl p-6 md:p-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="text-white">
                 <div className="flex items-center gap-3 mb-2">
@@ -155,7 +159,7 @@ export const EmployeeBranchDetailPage = () => {
         )}
 
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-          <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-6 border-b">
+          <div className="bg-linear-to-r from-gray-50 to-gray-100 p-6 border-b">
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
               <div className="w-1 h-6 bg-blue-600 rounded-full"></div>
               Branch Assignments

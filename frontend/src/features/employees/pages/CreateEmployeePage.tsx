@@ -3,19 +3,21 @@ import { useNavigate } from 'react-router-dom'
 import { useEmployeeStore } from '@/features/employees'
 import { useToast } from '@/contexts/ToastContext'
 import { EmployeeForm } from '@/features/employees'
+import type { EmployeeFormData } from '@/features/employees/types'
 
 export default function CreateEmployeePage() {
   const { createEmployee, isLoading } = useEmployeeStore()
   const navigate = useNavigate()
   const { success, error } = useToast()
 
-  const handleSubmit = useCallback(async (data: any, file?: File) => {
+  const handleSubmit = useCallback(async (data: EmployeeFormData, file?: File) => {
     try {
       await createEmployee(data, file)
       success('Employee created successfully!')
       navigate('/employees', { replace: true })
-    } catch (err: any) {
-      error(err.message || 'Failed to create employee')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to create employee'
+      error(message)
     }
   }, [createEmployee, navigate, success, error])
 

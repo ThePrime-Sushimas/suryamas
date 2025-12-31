@@ -85,7 +85,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const { data } = await api.get<ApiResponse<User>>('/employees/profile')
       set({ user: data.data, token, isInitialized: true })
-    } catch (error) {
+    } catch {
       localStorage.removeItem('token')
       set({ user: null, token: null, isInitialized: true })
     }

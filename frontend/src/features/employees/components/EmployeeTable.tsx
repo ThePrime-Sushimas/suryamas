@@ -2,6 +2,11 @@ import { useState } from 'react'
 import { MoreVertical, Eye, Edit, Trash2, Building2 } from 'lucide-react'
 import type { EmployeeResponse } from '../types'
 
+const SortIcon = ({ field, sortField, sortOrder }: { field: string; sortField?: string; sortOrder?: 'asc' | 'desc' }) => {
+  if (sortField !== field) return <span className="text-gray-400">⇅</span>
+  return sortOrder === 'asc' ? <span>↑</span> : <span>↓</span>
+}
+
 interface EmployeeTableProps {
   employees: EmployeeResponse[]
   onView: (id: string) => void
@@ -33,11 +38,6 @@ export default function EmployeeTable({
   const isSelected = (id: string) => selectedIds.includes(id)
   const isAllSelected = employees.length > 0 && employees.every(e => isSelected(e.id))
 
-  const SortIcon = ({ field }: { field: string }) => {
-    if (sortField !== field) return <span className="text-gray-400">⇅</span>
-    return sortOrder === 'asc' ? <span>↑</span> : <span>↓</span>
-  }
-
   return (
     <div className="bg-white shadow rounded-lg overflow-x-auto">
       <table className="min-w-full divide-y divide-gray-200">
@@ -58,19 +58,19 @@ export default function EmployeeTable({
               className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
               onClick={() => onSort?.('employee_id')}
             >
-              Employee ID {onSort && <SortIcon field="employee_id" />}
+              Employee ID {onSort && <SortIcon field="employee_id" sortField={sortField} sortOrder={sortOrder} />}
             </th>
             <th
               className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
               onClick={() => onSort?.('full_name')}
             >
-              Name {onSort && <SortIcon field="full_name" />}
+              Name {onSort && <SortIcon field="full_name" sortField={sortField} sortOrder={sortOrder} />}
             </th>
             <th
               className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
               onClick={() => onSort?.('job_position')}
             >
-              Position {onSort && <SortIcon field="job_position" />}
+              Position {onSort && <SortIcon field="job_position" sortField={sortField} sortOrder={sortOrder} />}
             </th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>

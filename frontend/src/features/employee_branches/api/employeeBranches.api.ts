@@ -18,7 +18,7 @@ export const employeeBranchesApi = {
     try {
       const { data } = await api.get<PaginatedResponse<EmployeeBranch>>(BASE, { params: query })
       return data
-    } catch (err) {
+    } catch {
       throw normalizeError(err)
     }
   },
@@ -29,7 +29,7 @@ export const employeeBranchesApi = {
         params: { ...query, grouped: true } 
       })
       return data
-    } catch (err) {
+    } catch {
       throw normalizeError(err)
     }
   },
@@ -38,7 +38,7 @@ export const employeeBranchesApi = {
     try {
       const { data } = await api.get<{ success: boolean; data: EmployeeBranch }>(`${BASE}/${id}`)
       return data.data
-    } catch (err) {
+    } catch {
       throw normalizeError(err)
     }
   },
@@ -47,7 +47,7 @@ export const employeeBranchesApi = {
     try {
       const { data } = await api.post<{ success: boolean; data: EmployeeBranch }>(BASE, payload)
       return data.data
-    } catch (err) {
+    } catch {
       throw normalizeError(err)
     }
   },
@@ -56,7 +56,7 @@ export const employeeBranchesApi = {
     try {
       const { data } = await api.put<{ success: boolean; data: EmployeeBranch }>(`${BASE}/${id}`, payload)
       return data.data
-    } catch (err) {
+    } catch {
       throw normalizeError(err)
     }
   },
@@ -64,7 +64,7 @@ export const employeeBranchesApi = {
   async remove(id: string): Promise<void> {
     try {
       await api.delete(`${BASE}/${id}`)
-    } catch (err) {
+    } catch {
       throw normalizeError(err)
     }
   },
@@ -72,7 +72,7 @@ export const employeeBranchesApi = {
   async setPrimary(employeeId: string, branchId: string): Promise<void> {
     try {
       await api.put(`${BASE}/employee/${employeeId}/branch/${branchId}/primary`)
-    } catch (err) {
+    } catch {
       throw normalizeError(err)
     }
   },
@@ -81,7 +81,7 @@ export const employeeBranchesApi = {
     try {
       const { data } = await api.get<{ success: boolean; data: EmployeeBranch[] }>(`${BASE}/employee/${employeeId}`)
       return data.data
-    } catch (err) {
+    } catch {
       throw normalizeError(err)
     }
   },
@@ -90,22 +90,22 @@ export const employeeBranchesApi = {
     try {
       const { data } = await api.get<{ success: boolean; data: Role[] }>('/permissions/roles')
       return data.data
-    } catch (err) {
+    } catch {
       throw normalizeError(err)
     }
   },
 
   async getBranches(): Promise<BranchOption[]> {
     try {
-      const { data } = await api.get<{ success: boolean; data: any[] }>('/branches', {
+      const { data } = await api.get<{ success: boolean; data: Array<{ id: string; branch_name: string; branch_code: string }> }>('/branches', {
         params: { limit: 1000 },
       })
-      return (data.data || []).map((b: any) => ({
+      return (data.data || []).map((b) => ({
         id: b.id,
         branch_name: b.branch_name,
         branch_code: b.branch_code
       }))
-    } catch (err) {
+    } catch {
       throw normalizeError(err)
     }
   },
@@ -113,7 +113,7 @@ export const employeeBranchesApi = {
   async removeByEmployeeAndBranch(employeeId: string, branchId: string): Promise<void> {
     try {
       await api.delete(`${BASE}/employee/${employeeId}/branch/${branchId}`)
-    } catch (err) {
+    } catch {
       throw normalizeError(err)
     }
   },

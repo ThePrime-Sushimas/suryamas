@@ -26,7 +26,7 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
     try {
       const res = await branchesApi.list(page, limit, sort, filter)
       set({ branches: res.data, loading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to fetch branches', loading: false })
     }
   },
@@ -36,7 +36,7 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
     try {
       const res = await branchesApi.search(q, page, limit, sort)
       set({ branches: res.data, loading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to search branches', loading: false })
     }
   },
@@ -50,7 +50,7 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
         loading: false
       }))
       return branch
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to create branch', loading: false })
       throw error
     }
@@ -65,7 +65,7 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
         loading: false
       }))
       return branch
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to update branch', loading: false })
       throw error
     }
@@ -78,7 +78,7 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
     try {
       await branchesApi.delete(id)
       set({ loading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ branches: prev, error: error.response?.data?.error || 'Failed to delete branch', loading: false })
       throw error
     }
@@ -91,7 +91,7 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
     try {
       await branchesApi.bulkDelete(ids)
       set({ loading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ branches: prev, error: error.response?.data?.error || 'Failed to delete branches', loading: false })
       throw error
     }

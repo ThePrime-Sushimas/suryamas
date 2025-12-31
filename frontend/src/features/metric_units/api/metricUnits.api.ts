@@ -27,7 +27,7 @@ const handleApiCall = async <T>(
 ): Promise<T> => {
   try {
     return await apiCall()
-  } catch (error: any) {
+  } catch (error: unknown) {
     const message = error.response?.data?.error || errorMessage
     throw new Error(message)
   }

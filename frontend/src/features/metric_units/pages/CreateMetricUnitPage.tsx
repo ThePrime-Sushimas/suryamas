@@ -22,7 +22,7 @@ export default function CreateMetricUnitPage() {
       await createMetricUnit(data)
       toast.success('Metric unit created successfully')
       navigate('/metric-units')
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(error.message || 'Failed to create metric unit')
     }
   }

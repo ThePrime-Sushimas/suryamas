@@ -13,8 +13,9 @@ export const useEmployeeBranchDetail = (employeeId: string) => {
     try {
       const data = await employeeBranchesApi.getByEmployeeId(employeeId)
       setBranches(data)
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load branches')
+    } catch (err: unknown)   {
+      const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'message' in err.response.data ? String(err.response.data.message) : 'Failed to load branches'
+      setError(message)
     } finally {
       setLoading(false)
     }

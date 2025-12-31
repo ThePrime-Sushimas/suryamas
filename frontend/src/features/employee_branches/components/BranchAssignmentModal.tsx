@@ -31,7 +31,7 @@ export const BranchAssignmentModal = ({ isOpen, employeeId, assignment, assigned
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[9999] overflow-y-auto" role="dialog" aria-modal="true" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+    <div className="fixed inset-0 z-9999 overflow-y-auto" role="dialog" aria-modal="true" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
       <div className="flex items-center justify-center min-h-screen px-4">
         <div className="fixed inset-0 bg-gray-900 bg-opacity-50" onClick={onClose} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}></div>
         <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full z-10" style={{ position: 'relative', zIndex: 10 }}>
@@ -54,7 +54,7 @@ export const BranchAssignmentModal = ({ isOpen, employeeId, assignment, assigned
             {/* Warning for primary branch */}
             {!isLoadingOptions && hasPrimaryBranch && !assignment?.is_primary && (
               <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl flex items-start gap-2">
-                <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
                 <div className="text-sm text-yellow-800">
                   <p className="font-semibold">Only one primary branch allowed</p>
                   <p className="text-yellow-700 mt-1">Changing primary affects approvals and ownership</p>

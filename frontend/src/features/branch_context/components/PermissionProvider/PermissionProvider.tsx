@@ -29,7 +29,7 @@ export const PermissionProvider = ({ children }: PermissionProviderProps) => {
         if (isCurrentRequest) {
           setPermissions(perms)
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (error.name !== 'AbortError' && isCurrentRequest) {
           setError(error.message || 'Failed to load permissions')
         }

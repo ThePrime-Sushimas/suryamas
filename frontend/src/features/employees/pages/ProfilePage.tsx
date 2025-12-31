@@ -59,29 +59,46 @@ export default function ProfilePage() {
   }, [fetchProfile])
 
   // Sync form data with profile
-  useEffect(() => {
-    if (profile) {
-      setFormData({
-        email: profile.email || '',
-        mobile_phone: profile.mobile_phone || '',
-        citizen_id_address: profile.citizen_id_address || '',
-        bank_name: profile.bank_name || '',
-        bank_account: profile.bank_account || '',
-        bank_account_holder: profile.bank_account_holder || '',
-        birth_place: profile.birth_place || '',
-        birth_date: profile.birth_date || '',
-        nik: profile.nik || '',
-        gender: profile.gender || '',
-        religion: profile.religion || '',
-        marital_status: profile.marital_status || '',
-      })
+  const initialFormData = useMemo(() => {
+    if (!profile) return {
+      email: '',
+      mobile_phone: '',
+      citizen_id_address: '',
+      bank_name: '',
+      bank_account: '',
+      bank_account_holder: '',
+      birth_place: '',
+      birth_date: '',
+      nik: '',
+      gender: '',
+      religion: '',
+      marital_status: '',
+    }
+    
+    return {
+      email: profile.email || '',
+      mobile_phone: profile.mobile_phone || '',
+      citizen_id_address: profile.citizen_id_address || '',
+      bank_name: profile.bank_name || '',
+      bank_account: profile.bank_account || '',
+      bank_account_holder: profile.bank_account_holder || '',
+      birth_place: profile.birth_place || '',
+      birth_date: profile.birth_date || '',
+      nik: profile.nik || '',
+      gender: profile.gender || '',
+      religion: profile.religion || '',
+      marital_status: profile.marital_status || '',
     }
   }, [profile])
+
+  useEffect(() => {
+    setFormData(initialFormData)
+  }, [initialFormData])
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const updates: any = { ...formData }
+      const updates: Record<string, unknown> = { ...formData }
       if (!updates.gender) delete updates.gender
       if (!updates.religion) delete updates.religion
       if (!updates.marital_status) delete updates.marital_status
@@ -89,8 +106,9 @@ export default function ProfilePage() {
       await updateProfile(updates)
       success('Profile updated successfully')
       setIsEditing(false)
-    } catch (err: any) {
-      toastError(err.message || 'Failed to update profile')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to update profile'
+      toastError(message)
     }
   }, [formData, updateProfile, success, toastError])
 
@@ -102,31 +120,17 @@ export default function ProfilePage() {
       await uploadProfilePicture(file)
       await fetchProfile()
       success('Profile picture updated successfully')
-    } catch (err: any) {
-      toastError(err.response?.data?.error || err.message || 'Failed to upload photo')
+    } catch (err: unknown) {
+      const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'error' in err.response.data ? String(err.response.data.error) : err instanceof Error ? err.message : 'Failed to upload photo'
+      toastError(message)
     }
   }, [uploadProfilePicture, fetchProfile, success, toastError])
 
   const handleCancel = useCallback(() => {
     if (isLoading) return // Prevent cancel during loading
     setIsEditing(false)
-    if (profile) {
-      setFormData({
-        email: profile.email || '',
-        mobile_phone: profile.mobile_phone || '',
-        citizen_id_address: profile.citizen_id_address || '',
-        bank_name: profile.bank_name || '',
-        bank_account: profile.bank_account || '',
-        bank_account_holder: profile.bank_account_holder || '',
-        birth_place: profile.birth_place || '',
-        birth_date: profile.birth_date || '',
-        nik: profile.nik || '',
-        gender: profile.gender || '',
-        religion: profile.religion || '',
-        marital_status: profile.marital_status || '',
-      })
-    }
-  }, [profile, isLoading])
+    setFormData(initialFormData)
+  }, [isLoading, initialFormData])
 
   const profileInitial = useMemo(() => 
     profile?.full_name?.charAt(0).toUpperCase() || '?'
@@ -154,11 +158,11 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100 p-4 md:p-6 lg:p-8">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 md:p-8">
+          <div className="bg-linear-to-r from-blue-600 to-blue-700 p-6 md:p-8">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div className="flex items-center gap-4">
                 {profile.profile_picture ? (

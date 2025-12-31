@@ -63,7 +63,7 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
           limit: res.pagination.limit,
           loading: { ...s.loading, list: false },
         }))
-      } catch (err) {
+      } catch {
         set(s => ({ loading: { ...s.loading, list: false }, error: { ...s.error, list: err as DomainError } }))
       }
     },
@@ -73,7 +73,7 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
       try {
         const data = await employeeBranchesApi.getById(id)
         set(s => ({ selected: data, loading: { ...s.loading, detail: false } }))
-      } catch (err) {
+      } catch {
         set(s => ({ loading: { ...s.loading, detail: false }, error: { ...s.error, detail: err as DomainError } }))
       }
     },
@@ -93,7 +93,7 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
           loading: { ...s.loading, create: false },
         }))
         return created
-      } catch (err) {
+      } catch {
         // Rollback on error
         set(s => ({
           items: s.items.filter(i => i.id !== tempId),
@@ -120,7 +120,7 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
           loading: { ...s.loading, update: false },
         }))
         return updated
-      } catch (err) {
+      } catch {
         // Rollback on error
         set(s => ({
           items: snapshot,
@@ -139,7 +139,7 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
         await employeeBranchesApi.remove(id)
         set(s => ({ loading: { ...s.loading, remove: false } }))
         return true
-      } catch (err) {
+      } catch {
         set(s => ({ items: snapshot, total: snapshot.length, loading: { ...s.loading, remove: false }, error: { ...s.error, remove: err as DomainError } }))
         return false
       }
@@ -160,7 +160,7 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
         await employeeBranchesApi.setPrimary(employeeId, branchId)
         await get().list({ page: get().page, limit: get().limit })
         return true
-      } catch (err) {
+      } catch {
         set({ items: snapshot })
         return false
       } finally {

@@ -114,7 +114,7 @@ function BranchDetailPage() {
             })
         )
         await Promise.all(promises)
-      } catch (error) {
+      } catch {
         console.error('Failed to fetch branch:', error)
         setError('Failed to load branch details. Please try again.')
       } finally {
@@ -135,7 +135,7 @@ function BranchDetailPage() {
       await branchesApi.delete(id!)
       success('Branch deleted successfully')
       navigate('/branches')
-    } catch (err) {
+    } catch {
       console.error('Delete failed:', err)
       showError('Failed to delete branch. Please try again.')
     } finally {
@@ -168,7 +168,7 @@ function BranchDetailPage() {
       await employeeBranchesApi.removeByEmployeeAndBranch(employeeId, id!)
       setEmployees(prev => prev.filter(emp => emp.employee_id !== employeeId))
       success('Employee berhasil dihapus dari cabang')
-    } catch (err) {
+    } catch {
       console.error('Failed to remove employee:', err)
       showError('Gagal menghapus employee dari cabang')
     } finally {

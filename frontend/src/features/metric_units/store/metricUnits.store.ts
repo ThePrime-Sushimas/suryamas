@@ -51,7 +51,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
     try {
       const res = await metricUnitsApi.list(currentPage, currentLimit, state.sort, state.filter)
       set({ metricUnits: res.data, pagination: res.pagination, loading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.message || 'Failed to fetch metric units', loading: false })
     }
   },
@@ -62,7 +62,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
       const metricUnit = await metricUnitsApi.getById(id)
       set({ currentMetricUnit: metricUnit, loading: false })
       return metricUnit
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.message || 'Metric unit not found', loading: false })
       throw error
     }
@@ -83,7 +83,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
         loading: false
       }))
       return metricUnit
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.message || 'Failed to create metric unit', loading: false })
       throw error
     }
@@ -99,7 +99,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
         loading: false
       }))
       return metricUnit
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.message || 'Failed to update metric unit', loading: false })
       throw error
     }
@@ -112,7 +112,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
     try {
       await metricUnitsApi.delete(id)
       set(state => ({ pagination: { ...state.pagination, total: state.pagination.total - 1 } }))
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ metricUnits: prevUnits, pagination: prevPagination, error: error.message || 'Failed to delete metric unit' })
       throw error
     }
@@ -126,7 +126,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
         metricUnits: state.metricUnits.map(m => m.id === id ? metricUnit : m),
         loading: false
       }))
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.message || 'Failed to restore metric unit', loading: false })
       throw error
     }
@@ -140,7 +140,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
         metricUnits: state.metricUnits.map(m => ids.includes(m.id) ? { ...m, is_active: isActive } : m),
         loading: false
       }))
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.message || 'Failed to update status', loading: false })
       throw error
     }
@@ -150,7 +150,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
     try {
       const options = await metricUnitsApi.getFilterOptions()
       set({ filterOptions: options })
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to fetch filter options:', error)
     }
   },

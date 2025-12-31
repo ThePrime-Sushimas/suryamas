@@ -56,7 +56,7 @@ export default function EmployeeForm({
   // Sync form data when initialData changes (for edit mode)
   useEffect(() => {  
     if (initialData) {
-      setFormData(prev => Object.assign({}, prev, initialData) as any)
+      setFormData(prev => ({ ...prev, ...initialData }))
     }
   }, [initialData])
 
@@ -72,7 +72,7 @@ export default function EmployeeForm({
       await onSubmit(validated, profilePicture || undefined)
       setFormData(defaultFormData)
       setProfilePicture(null)
-    } catch (err) {
+    } catch {
       if (err instanceof ZodError) {
         const fieldErrors: Record<string, string> = {}
         err.errors.forEach(error => {
@@ -114,7 +114,7 @@ export default function EmployeeForm({
               value={formData.employee_id}
               onChange={handleChange}
               placeholder="Leave empty for auto-generation"
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px] bg-gray-50"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-11 bg-gray-50"
               disabled={!!initialData?.employee_id}
             />
             <ErrorMessage field="employee_id" />
@@ -126,7 +126,7 @@ export default function EmployeeForm({
               name="full_name"
               value={formData.full_name}
               onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-11"
             />
             <ErrorMessage field="full_name" />
           </div>
@@ -137,7 +137,7 @@ export default function EmployeeForm({
               name="job_position"
               value={formData.job_position}
               onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-11"
             />
             <ErrorMessage field="job_position" />
           </div>
@@ -148,7 +148,7 @@ export default function EmployeeForm({
               name="brand_name"
               value={formData.brand_name}
               onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-11"
             />
             <ErrorMessage field="brand_name" />
           </div>
@@ -158,7 +158,7 @@ export default function EmployeeForm({
               name="ptkp_status"
               value={formData.ptkp_status}
               onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-11"
             >
               <option value="TK/0">TK/0</option>
               <option value="TK/1">TK/1</option>
@@ -177,7 +177,7 @@ export default function EmployeeForm({
               name="status_employee"
               value={formData.status_employee}
               onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-[44px]"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm md:text-base min-h-11"
             >
               <option value="Permanent">Permanent</option>
               <option value="Contract">Contract</option>
@@ -430,7 +430,7 @@ export default function EmployeeForm({
         <button
           type="submit"
           disabled={isSubmitting || isLoading}
-          className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base min-h-[44px]"
+          className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base min-h-11"
         >
           {isSubmitting || isLoading ? 'Processing...' : submitLabel}
         </button>
@@ -438,7 +438,7 @@ export default function EmployeeForm({
           type="button"
           onClick={onCancel}
           disabled={isSubmitting || isLoading}
-          className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 disabled:opacity-50 text-sm md:text-base min-h-[44px]"
+          className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 disabled:opacity-50 text-sm md:text-base min-h-11"
         >
           Cancel
         </button>

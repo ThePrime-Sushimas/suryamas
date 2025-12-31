@@ -35,8 +35,9 @@ export default function EditMetricUnitPage() {
       await updateMetricUnit(id, data)
       toast.success('Metric unit updated successfully')
       navigate('/metric-units')
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to update metric unit')
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to update metric unit'
+      toast.error(message)
     }
   }
 

@@ -35,7 +35,7 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
         }
         
         setInitialLoad(false)
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (err.name !== 'AbortError') {
           setError(err.message || 'Failed to load branches')
         }

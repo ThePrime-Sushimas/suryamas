@@ -19,7 +19,7 @@ export default function EditSubCategoryPage() {
       try {
         const data = await subCategoriesApi.getById(id || '')
         setSubCategory(data)
-      } catch (err) {
+      } catch {
         error('Sub-category not found')
         navigate('/sub-categories')
       } finally {
@@ -34,7 +34,7 @@ export default function EditSubCategoryPage() {
       await updateSubCategory(id || '', data)
       success('Sub-category updated successfully')
       navigate('/sub-categories')
-    } catch (err: any) {
+    } catch (err: unknown) {
       error(err.response?.data?.error || 'Failed to update sub-category')
     }
   }

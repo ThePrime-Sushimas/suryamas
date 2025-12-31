@@ -20,7 +20,7 @@ export default function ProductsPage() {
     if (confirm('Delete this product?')) {
       try {
         await deleteProduct(id)
-      } catch (error) {
+      } catch {
         console.error('Delete failed')
       }
     }

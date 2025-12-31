@@ -28,8 +28,9 @@ export default function EditCompanyPage() {
       await updateCompany(id, data)
       success('Company updated successfully')
       navigate('/companies')
-    } catch (err: any) {
-      error(err.response?.data?.error || 'Failed to update company')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to update company'
+      error(message)
       throw err
     }
   }

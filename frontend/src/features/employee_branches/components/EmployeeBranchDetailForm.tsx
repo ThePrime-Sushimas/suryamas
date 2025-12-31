@@ -28,7 +28,8 @@ export const EmployeeBranchDetailForm = ({ employeeId, assignment, assignedBranc
       setErrors((prev) => ({ ...prev, status: 'Cannot suspend primary branch' }))
     } else {
       setErrors((prev) => {
-        const { status, ...rest } = prev
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { status: statusError, ...rest } = prev
         return rest
       })
     }

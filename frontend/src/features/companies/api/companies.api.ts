@@ -5,7 +5,7 @@ type ApiResponse<T> = { success: boolean; data: T }
 type PaginatedResponse<T> = ApiResponse<T[]> & { pagination: { total: number; page: number; limit: number } }
 
 export const companiesApi = {
-  list: async (page: number, limit: number, sort?: { field: string; order: string }, filter?: Record<string, any>) => {
+  list: async (page: number, limit: number, sort?: { field: string; order: string }, filter?: Record<string, unknown>) => {
     const params = new URLSearchParams()
     params.append('page', String(page))
     params.append('limit', String(limit))
@@ -23,7 +23,7 @@ export const companiesApi = {
     return res.data
   },
 
-  search: async (q: string, page: number, limit: number, filter?: Record<string, any>) => {
+  search: async (q: string, page: number, limit: number, filter?: Record<string, unknown>) => {
     const params = new URLSearchParams()
     params.append('q', q)
     params.append('page', String(page))

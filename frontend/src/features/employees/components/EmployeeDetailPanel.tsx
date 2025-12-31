@@ -31,7 +31,7 @@ export const EmployeeDetailPanel = ({ employee, onClose, onEdit, onDelete, onMan
       try {
         const { data } = await api.get(`/employee-branches/employee/${employee.id}`)
         setBranches(data.data || [])
-      } catch (err) {
+      } catch {
         console.error('Failed to load branches:', err)
         setBranches([])
       } finally {
@@ -73,7 +73,7 @@ export const EmployeeDetailPanel = ({ employee, onClose, onEdit, onDelete, onMan
               }}
             />
           ) : null}
-          <div className={`w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-3xl font-bold ${employee.profile_picture ? 'hidden' : ''}`}>
+          <div className={`w-24 h-24 mx-auto mb-4 rounded-full bg-linear-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-3xl font-bold ${employee.profile_picture ? 'hidden' : ''}`}>
             {employee.full_name.charAt(0).toUpperCase()}
           </div>
           <h3 className="text-xl font-bold text-gray-900">{employee.full_name}</h3>

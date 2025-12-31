@@ -92,9 +92,10 @@ export default function EmployeeDetailPage() {
           setEmployee(data.data)
           setError(null)
         }
-      } catch (err: any) {
+      } catch (err: unknown ) {
         if (!isCancelled) {
-          setError(err.response?.data?.error || 'Failed to load employee')
+          const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to load employee'
+          setError(message)
         }
       } finally {
         if (!isCancelled) {
@@ -133,7 +134,7 @@ export default function EmployeeDetailPage() {
 
   if (error || !employee) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4 md:p-6 lg:p-8">
+      <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100 p-4 md:p-6 lg:p-8">
         <div className="max-w-4xl mx-auto">
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 mb-4">
             {error || 'Employee not found'}
@@ -151,11 +152,11 @@ export default function EmployeeDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100 p-4 md:p-6 lg:p-8">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 md:p-8">
+          <div className="bg-linear-to-r from-blue-600 to-blue-700 p-6 md:p-8">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div className="flex items-center gap-4">
                 {employee.profile_picture ? (

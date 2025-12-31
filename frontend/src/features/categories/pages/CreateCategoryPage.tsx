@@ -13,7 +13,7 @@ export default function CreateCategoryPage() {
       await createCategory(data)
       success('Category created successfully')
       navigate('/categories')
-    } catch (err: any) {
+    } catch (err: unknown) {
       error(err.response?.data?.error || 'Failed to create category')
     }
   }

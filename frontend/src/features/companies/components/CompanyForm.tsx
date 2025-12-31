@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type { Company, CompanyType, CompanyStatus } from '../types'
 
 interface CompanyFormProps {
   initialData?: Company
   isEdit?: boolean
-  onSubmit: (data: any) => Promise<void>
+  onSubmit: (data: Record<string, unknown>) => Promise<void>
   isLoading?: boolean
 }
 
@@ -12,7 +12,7 @@ const COMPANY_TYPES: CompanyType[] = ['PT', 'CV', 'Firma', 'Koperasi', 'Yayasan'
 const COMPANY_STATUSES: CompanyStatus[] = ['active', 'inactive', 'suspended', 'closed']
 
 export const CompanyForm = ({ initialData, isEdit, onSubmit, isLoading }: CompanyFormProps) => {
-  const [formData, setFormData] = useState({
+  const initialFormData = useMemo(() => ({
     company_code: initialData?.company_code || '',
     company_name: initialData?.company_name || '',
     company_type: (initialData?.company_type || 'PT') as CompanyType,
@@ -21,25 +21,15 @@ export const CompanyForm = ({ initialData, isEdit, onSubmit, isLoading }: Compan
     phone: initialData?.phone || '',
     npwp: initialData?.npwp || '',
     status: (initialData?.status || 'active') as CompanyStatus
-  })
+  }), [initialData])
 
+  const [formData, setFormData] = useState(initialFormData)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [touched, setTouched] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
-    if (initialData) {
-      setFormData({
-        company_code: initialData.company_code,
-        company_name: initialData.company_name,
-        company_type: initialData.company_type,
-        email: initialData.email || '',
-        website: initialData.website || '',
-        phone: initialData.phone || '',
-        npwp: initialData.npwp || '',
-        status: initialData.status
-      })
-    }
-  }, [initialData])
+    setFormData(initialFormData)
+  }, [initialFormData])
 
   const validateField = (name: string, value: string): string => {
     switch (name) {
@@ -122,8 +112,8 @@ export const CompanyForm = ({ initialData, isEdit, onSubmit, isLoading }: Compan
           }
 
       await onSubmit(submitData)
-    } catch (error: any) {
-      const errorMsg = error.response?.data?.error || error.message || 'Failed to save company'
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error && 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response && error.response.data && typeof error.response.data === 'object' && 'error' in error.response.data ? String(error.response.data.error) : error instanceof Error ? error.message : 'Failed to save company'
       setErrors({ submit: errorMsg })
     }
   }

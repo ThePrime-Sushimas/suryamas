@@ -19,7 +19,7 @@ export default function EditBranchPage() {
       try {
         const data = await branchesApi.getById(id || '')
         setBranch(data)
-      } catch (err) {
+      } catch {
         error('Branch not found')
         navigate('/branches')
       } finally {
@@ -34,7 +34,7 @@ export default function EditBranchPage() {
       await updateBranch(id || '', data)
       success('Branch updated successfully')
       navigate(`/branches/${id}`)
-    } catch (err: any) {
+    } catch (err: unknown) {
       error(err.response?.data?.error || 'Failed to update branch')
     }
   }

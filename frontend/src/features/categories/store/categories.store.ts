@@ -34,7 +34,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     try {
       const res = await categoriesApi.list(page, limit)
       set({ categories: res.data, loading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to fetch categories', loading: false })
     }
   },
@@ -44,7 +44,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     try {
       const res = await categoriesApi.search(q, page, limit)
       set({ categories: res.data, loading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to search categories', loading: false })
     }
   },
@@ -55,7 +55,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
       const category = await categoriesApi.create(data)
       set({ loading: false })
       return category
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to create category', loading: false })
       throw error
     }
@@ -70,7 +70,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
         loading: false
       }))
       return category
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to update category', loading: false })
       throw error
     }
@@ -81,7 +81,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     set(state => ({ categories: state.categories.filter(c => c.id !== id) }))
     try {
       await categoriesApi.delete(id)
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ categories: prev, error: error.response?.data?.error || 'Failed to delete category' })
       throw error
     }
@@ -92,7 +92,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     try {
       const res = await subCategoriesApi.list(page, limit, categoryId)
       set({ subCategories: res.data, loading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to fetch sub-categories', loading: false })
     }
   },
@@ -102,7 +102,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     try {
       const res = await subCategoriesApi.search(q, page, limit)
       set({ subCategories: res.data, loading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to search sub-categories', loading: false })
     }
   },
@@ -113,7 +113,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
       const subCategory = await subCategoriesApi.create(data)
       set({ loading: false })
       return subCategory
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to create sub-category', loading: false })
       throw error
     }
@@ -128,7 +128,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
         loading: false
       }))
       return subCategory
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ error: error.response?.data?.error || 'Failed to update sub-category', loading: false })
       throw error
     }
@@ -139,7 +139,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     set(state => ({ subCategories: state.subCategories.filter(sc => sc.id !== id) }))
     try {
       await subCategoriesApi.delete(id)
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ subCategories: prev, error: error.response?.data?.error || 'Failed to delete sub-category' })
       throw error
     }

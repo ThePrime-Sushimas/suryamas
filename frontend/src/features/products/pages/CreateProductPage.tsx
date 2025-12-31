@@ -13,7 +13,7 @@ export default function CreateProductPage() {
       await createProduct(data)
       success('Product created successfully')
       navigate('/products')
-    } catch (err: any) {
+    } catch (err: unknown) {
       error(err.response?.data?.error || 'Failed to create product')
     }
   }

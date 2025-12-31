@@ -43,7 +43,7 @@ export const MetricUnitForm = ({ initialData, isEdit, onSubmit, isLoading, metri
       setTouched({})
       setIsDirty(false)
     }
-  }, [initialData?.id])
+  }, [initialData])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, type } = e.target
