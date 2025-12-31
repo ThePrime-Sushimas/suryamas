@@ -6,6 +6,8 @@ export { branchApi } from './api/branchContext.api'
 
 export { BranchSwitcher } from './components/BranchSwitcher'
 export { BranchSelectionGuard } from './components/BranchSelectionGuard'
+export { PermissionProvider } from './components/PermissionProvider'
+export { BranchContextErrorBoundary } from './components/BranchContextErrorBoundary'
 
-export { useBranchContext } from './hooks/useBranchContext'
+export { useBranchContext, useRequiredBranchContext } from './hooks/useBranchContext'
 export { usePermission } from './hooks/usePermission'

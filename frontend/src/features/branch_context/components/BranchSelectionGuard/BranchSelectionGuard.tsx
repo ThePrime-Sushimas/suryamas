@@ -1,20 +1,23 @@
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { branchApi } from '@/features/branch_context/api/branchContext.api'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 interface BranchSelectionGuardProps {
   children: React.ReactNode
 }
 
 export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) => {
-  const { currentBranch, branches, setBranches, switchBranch } = useBranchContextStore()
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { currentBranch, branches, setBranches, switchBranch, isLoading, error, setLoading, setError } = useBranchContextStore()
 
   useEffect(() => {
+    if (branches.length > 0) return
+
+    const controller = new AbortController()
+    
     const loadBranches = async () => {
+      setLoading(true)
       try {
-        const userBranches = await branchApi.getUserBranches()
+        const userBranches = await branchApi.getUserBranches(controller.signal)
         
         if (userBranches.length === 0) {
           setError('No branch assignments found')
@@ -22,58 +25,74 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
         }
 
         setBranches(userBranches)
+        
+        if (userBranches.length === 1) {
+          switchBranch(userBranches[0].branch_id)
+        }
       } catch (err: any) {
-        setError(err.message || 'Failed to load branches')
+        if (err.name !== 'AbortError') {
+          setError(err.message || 'Failed to load branches')
+        }
       } finally {
-        setIsLoading(false)
+        setLoading(false)
       }
     }
 
-    // Only load if branches not yet loaded
-    if (branches.length === 0) {
-      loadBranches()
-    } else {
-      setIsLoading(false)
-    }
-  }, [branches.length, setBranches])
+    loadBranches()
+    return () => controller.abort()
+  }, [branches.length, setBranches, switchBranch, setLoading, setError])
+
+  const handleRetry = () => {
+    setError(null)
+    setBranches([])
+  }
 
   if (isLoading) {
     return (
-      <div className="branch-loading">
-        <div className="spinner" />
-        <p>Loading branch context...</p>
+      <div className="flex items-center justify-center min-h-screen">
+        <div role="status" aria-live="polite" className="text-center">
+          <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+          <p className="mt-4 text-gray-700 dark:text-gray-300">Loading branch context...</p>
+        </div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="branch-error">
-        <h2>Branch Access Error</h2>
-        <p>{error}</p>
-        <button onClick={() => window.location.href = '/login'}>
-          Back to Login
-        </button>
+      <div className="flex items-center justify-center min-h-screen p-4" role="alert">
+        <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-semibold text-red-600 dark:text-red-400 mb-4">Branch Access Error</h2>
+          <p className="text-gray-700 dark:text-gray-300 mb-4">{error}</p>
+          <button
+            onClick={handleRetry}
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     )
   }
 
   if (branches.length > 1 && !currentBranch) {
     return (
-      <div className="branch-selection">
-        <h2>Select Branch</h2>
-        <p>You have access to multiple branches. Please select one to continue.</p>
-        <div className="branch-list">
-          {branches.map((branch) => (
-            <button
-              key={branch.branch_id}
-              onClick={() => switchBranch(branch.branch_id)}
-              className="branch-option"
-            >
-              <h3>{branch.branch_name}</h3>
-              <p>Approval Limit: {branch.approval_limit.toLocaleString()}</p>
-            </button>
-          ))}
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <div className="max-w-2xl w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Select Branch</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">You have access to multiple branches. Please select one to continue.</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            {branches.map((branch) => (
+              <button
+                key={branch.branch_id}
+                onClick={() => switchBranch(branch.branch_id)}
+                className="p-4 text-left border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 transition-colors"
+              >
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-1">{branch.branch_name}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Approval Limit: {branch.approval_limit.toLocaleString()}</p>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -81,9 +100,11 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
 
   if (!currentBranch) {
     return (
-      <div className="branch-error">
-        <h2>No Branch Selected</h2>
-        <p>Unable to determine active branch</p>
+      <div className="flex items-center justify-center min-h-screen p-4" role="alert">
+        <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-semibold text-red-600 dark:text-red-400 mb-4">No Branch Selected</h2>
+          <p className="text-gray-700 dark:text-gray-300">Unable to determine active branch</p>
+        </div>
       </div>
     )
   }

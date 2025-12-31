@@ -1,7 +1,7 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/features/auth'
-import { BranchSelectionGuard } from '@/features/branch_context'
+import { BranchSelectionGuard, BranchContextErrorBoundary, PermissionProvider } from '@/features/branch_context'
 import { ToastProvider } from './contexts/ToastContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import Layout from './components/layout/Layout'
@@ -74,16 +74,23 @@ function App() {
   return (
     <ErrorBoundary>
       <ToastProvider>
-        <BrowserRouter>
-      <Routes>
-        {/* Auth Routes - No Layout */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <BranchContextErrorBoundary>
+          <BrowserRouter>
+            <Routes>
+              {/* Auth Routes - No Layout */}
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-        {/* Protected Routes - With Layout */}
-        <Route path="/" element={<BranchSelectionGuard><Layout /></BranchSelectionGuard>}>
+              {/* Protected Routes - With Layout */}
+              <Route path="/" element={
+                <BranchSelectionGuard>
+                  <PermissionProvider>
+                    <Layout />
+                  </PermissionProvider>
+                </BranchSelectionGuard>
+              }>
           <Route index element={<HomePage />} />
           <Route path="profile" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><ProfilePage /></Suspense></ProtectedRoute>} />
           <Route path="employees" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeesPage /></Suspense></ProtectedRoute>} />
@@ -119,9 +126,10 @@ function App() {
           <Route path="products/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditProductPage /></Suspense></ProtectedRoute>} />
           <Route path="employee-branches" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeeBranchesPage /></Suspense></ProtectedRoute>} />
           <Route path="employees/:employeeId/branches" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeeBranchDetailPage /></Suspense></ProtectedRoute>} />
-        </Route>
-        </Routes>
-      </BrowserRouter>
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </BranchContextErrorBoundary>
       </ToastProvider>
     </ErrorBoundary>
   )

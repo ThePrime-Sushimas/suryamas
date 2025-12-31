@@ -8,7 +8,7 @@ interface PermissionState {
   error: string | null
 
   setPermissions: (permissions: PermissionMatrix) => void
-  hasPermission: (module: string, action: PermissionAction) => boolean | null
+  hasPermission: (module: string, action: PermissionAction) => boolean
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   clear: () => void
@@ -21,14 +21,13 @@ export const usePermissionStore = create<PermissionState>((set, get) => ({
   error: null,
 
   setPermissions: (permissions) => {
-    set({ permissions, isLoaded: true, error: null })
+    set({ permissions, isLoaded: true, isLoading: false, error: null })
   },
 
   hasPermission: (module, action) => {
     const state = get()
-    if (!state.isLoaded) return null
-    const perms = state.permissions[module]
-    return perms?.[action] || false
+    if (!state.isLoaded) return false
+    return state.permissions[module]?.[action] ?? false
   },
 
   setLoading: (loading) => {

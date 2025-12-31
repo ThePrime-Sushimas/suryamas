@@ -1,88 +1,47 @@
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
-import { branchApi } from '@/features/branch_context/api/branchContext.api'
-import { useState, useEffect } from 'react'
-import { RefreshCw } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 
 export const BranchSwitcher = () => {
-  const { currentBranch, branches, switchBranch, setBranches, setLoading, setError } = useBranchContextStore()
-  const { setPermissions, clear: clearPermissions } = usePermissionStore()
+  const { currentBranch, branches, switchBranch, isLoading } = useBranchContextStore()
+  const { clear: clearPermissions } = usePermissionStore()
   const { success, error: showError } = useToast()
-  const [isRefreshing, setIsRefreshing] = useState(false)
-
-  const refreshBranches = async () => {
-    setIsRefreshing(true)
-    try {
-      const data = await branchApi.getUserBranches()
-      setBranches(data)
-    } catch (error: any) {
-      showError(error.message || 'Failed to refresh branches')
-      setError(error.message)
-    } finally {
-      setIsRefreshing(false)
-    }
-  }
-
-  useEffect(() => {
-    refreshBranches()
-  }, [])
 
   if (branches.length === 0) return null
 
-  const handleSwitch = async (branchId: string) => {
-    if (branchId === currentBranch?.branch_id) return
+  const handleSwitch = (branchId: string) => {
+    if (branchId === currentBranch?.branch_id || isLoading) return
 
-    setLoading(true)
-    try {
-      const newBranch = branches.find(b => b.branch_id === branchId)
-      
-      switchBranch(branchId)
-      clearPermissions()
-      
-      if (newBranch) {
-        const perms = await branchApi.getPermissions(newBranch.role_id)
-        setPermissions(perms)
-      }
-      
-      success('Branch switched successfully')
-    } catch (error: any) {
-      showError(error.message || 'Failed to switch branch')
-      setError(error.message)
-    } finally {
-      setLoading(false)
+    const switched = switchBranch(branchId)
+    if (!switched) {
+      showError('Invalid branch selection')
+      return
     }
+
+    clearPermissions()
+    success('Branch switched successfully')
   }
 
   return (
     <div className="flex items-center gap-2">
-      <div className="flex flex-col">
-        <select
-          value={currentBranch?.branch_id || ''}
-          onChange={(e) => handleSwitch(e.target.value)}
-          disabled={branches.length <= 1}
-          className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {branches.map((branch) => (
-            <option key={branch.branch_id} value={branch.branch_id}>
-              {branch.branch_name}
-            </option>
-          ))}
-        </select>
-        {currentBranch && (
-          <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Role: {branches.find(b => b.branch_id === currentBranch.branch_id)?.role_id || 'N/A'}
-          </span>
-        )}
-      </div>
-      <button
-        onClick={refreshBranches}
-        disabled={isRefreshing}
-        className="p-1.5 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white disabled:opacity-50"
-        title="Refresh branches"
+      <select
+        value={currentBranch?.branch_id || ''}
+        onChange={(e) => handleSwitch(e.target.value)}
+        disabled={branches.length <= 1 || isLoading}
+        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-      </button>
+        {isLoading && <option>Switching branch...</option>}
+        {branches.map((branch) => (
+          <option key={branch.branch_id} value={branch.branch_id}>
+            {branch.branch_name}
+          </option>
+        ))}
+      </select>
+      {currentBranch && (
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          Role: {currentBranch.role_id}
+        </span>
+      )}
     </div>
   )
 }

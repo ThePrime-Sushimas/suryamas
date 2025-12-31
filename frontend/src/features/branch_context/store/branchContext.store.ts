@@ -10,7 +10,7 @@ interface BranchContextState {
   error: string | null
 
   setBranches: (branches: BranchContext[]) => void
-  switchBranch: (branchId: string) => void
+  switchBranch: (branchId: string) => boolean
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   clear: () => void
@@ -31,7 +31,7 @@ export const useBranchContextStore = create<BranchContextState>()(
         
         set({
           branches,
-          currentBranch: validCurrent || (branches.length === 1 ? branches[0] : null),
+          currentBranch: validCurrent || null,
           isLoaded: true,
           error: null,
         })
@@ -42,16 +42,12 @@ export const useBranchContextStore = create<BranchContextState>()(
         const branch = branches.find(b => b.branch_id === branchId)
         
         if (!branch) {
-          const error = `Invalid branch: ${branchId}`
-          set({ error })
-          throw new Error(error)
+          set({ error: `Invalid branch: ${branchId}` })
+          return false
         }
         
         set({ currentBranch: branch, error: null })
-        
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('branch-switched', { detail: branch }))
-        }
+        return true
       },
 
       setLoading: (loading) => {
@@ -59,7 +55,7 @@ export const useBranchContextStore = create<BranchContextState>()(
       },
 
       setError: (error) => {
-        set({ error })
+        set({ error, isLoading: false })
       },
 
       clear: () => {
@@ -76,7 +72,6 @@ export const useBranchContextStore = create<BranchContextState>()(
       name: 'erp:branch-context',
       partialize: (state) => ({
         currentBranch: state.currentBranch,
-        branches: state.branches,
       }),
     }
   )

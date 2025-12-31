@@ -1,11 +1,17 @@
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 
 export const useBranchContext = () => {
-  const { currentBranch } = useBranchContextStore()
+  const { currentBranch, isLoading, isLoaded } = useBranchContextStore()
 
-  if (!currentBranch) {
-    throw new Error('Branch context not available')
+  if (!currentBranch && !isLoading && isLoaded) {
+    return null
   }
 
   return currentBranch
+}
+
+export const useRequiredBranchContext = () => {
+  const branch = useBranchContext()
+if (!branch) return null
+
 }

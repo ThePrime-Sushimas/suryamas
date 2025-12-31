@@ -12,7 +12,7 @@ import type { EmployeeBranch, CreateEmployeeBranchDTO, UpdateEmployeeBranchDTO, 
 export const EmployeeBranchDetailPage = () => {
   const { employeeId } = useParams<{ employeeId: string }>()
   const navigate = useNavigate()
-  const hasUpdatePermission = usePermission('employee_branches', 'update')
+  const { hasPermission, isLoading } = usePermission('employee_branches', 'update')
   const { branches, loading, error, fetchBranches, refetch } = useEmployeeBranchDetail(employeeId!)
   
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -28,10 +28,10 @@ export const EmployeeBranchDetailPage = () => {
   }, [employeeId, fetchBranches])
 
   useEffect(() => {
-    if (hasUpdatePermission === false) {
+    if (!isLoading && !hasPermission) {
       navigate('/')
     }
-  }, [hasUpdatePermission, navigate])
+  }, [hasPermission, isLoading, navigate])
 
   const handleOpenModal = async (assignment?: EmployeeBranch) => {
     setEditingAssignment(assignment)
@@ -94,7 +94,7 @@ export const EmployeeBranchDetailPage = () => {
     }
   }
 
-  if (hasUpdatePermission === null) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
@@ -102,7 +102,7 @@ export const EmployeeBranchDetailPage = () => {
     )
   }
 
-  if (hasUpdatePermission === false) {
+  if (!hasPermission) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
