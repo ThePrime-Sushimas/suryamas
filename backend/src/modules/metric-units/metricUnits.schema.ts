@@ -5,14 +5,14 @@ export const MetricTypeEnum = z.enum(METRIC_UNIT_CONFIG.VALID_TYPES)
 
 export const CreateMetricUnitSchema = z.object({
   metric_type: MetricTypeEnum,
-  unit_name: z.string().min(1, 'Unit name is required').max(METRIC_UNIT_CONFIG.VALIDATION.UNIT_NAME_MAX_LENGTH).trim(),
+  unit_name: z.string().trim().min(1, 'Unit name is required').max(METRIC_UNIT_CONFIG.VALIDATION.UNIT_NAME_MAX_LENGTH),
   notes: z.string().max(METRIC_UNIT_CONFIG.VALIDATION.NOTES_MAX_LENGTH).optional().nullable(),
   is_active: z.boolean().default(true)
 })
 
 export const UpdateMetricUnitSchema = z.object({
   metric_type: MetricTypeEnum.optional(),
-  unit_name: z.string().min(1).max(METRIC_UNIT_CONFIG.VALIDATION.UNIT_NAME_MAX_LENGTH).trim().optional(),
+  unit_name: z.string().trim().min(1).max(METRIC_UNIT_CONFIG.VALIDATION.UNIT_NAME_MAX_LENGTH).optional(),
   notes: z.string().max(METRIC_UNIT_CONFIG.VALIDATION.NOTES_MAX_LENGTH).optional().nullable(),
   is_active: z.boolean().optional()
 })

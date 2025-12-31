@@ -39,6 +39,7 @@ export class MetricUnitsController {
     try {
       UuidParamSchema.parse(req.params)
       const metricUnit = await metricUnitsService.getById(req.params.id)
+      logInfo('Metric unit retrieved', { id: req.params.id, userId: req.user?.id })
       sendSuccess(res, metricUnit)
     } catch (error) {
       handleError(res, error)
@@ -94,7 +95,7 @@ export class MetricUnitsController {
     try {
       const { ids, is_active } = BulkUpdateStatusSchema.parse(req.body)
       await metricUnitsService.bulkUpdateStatus(ids, is_active, req.user?.id)
-      logInfo('Bulk status updated', { count: ids.length, userId: req.user?.id })
+      logInfo('Bulk status updated', { count: ids.length, is_active, userId: req.user?.id })
       sendSuccess(res, null, 'Updated')
     } catch (error) {
       handleError(res, error)
@@ -103,7 +104,7 @@ export class MetricUnitsController {
 
   async getFilterOptions(req: AuthenticatedRequest, res: Response) {
     try {
-      const options = await metricUnitsService.filterOptions()
+      const options = metricUnitsService.filterOptions()
       sendSuccess(res, options)
     } catch (error) {
       handleError(res, error)

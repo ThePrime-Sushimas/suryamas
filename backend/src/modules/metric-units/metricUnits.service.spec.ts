@@ -118,11 +118,11 @@ describe('MetricUnitsService', () => {
     it('should delete metric unit successfully', async () => {
       const existing = { id: '123', metric_type: 'Unit', unit_name: 'kg' }
       mockRepository.findById.mockResolvedValue(existing as any)
-      mockRepository.delete.mockResolvedValue()
+      mockRepository.updateById.mockResolvedValue({ ...existing, is_active: false } as any)
 
       await service.delete('123', 'user123')
 
-      expect(mockRepository.delete).toHaveBeenCalledWith('123')
+      expect(mockRepository.updateById).toHaveBeenCalledWith('123', { is_active: false, updated_by: 'user123' })
       expect(mockAuditService.log).toHaveBeenCalled()
     })
 
@@ -143,11 +143,17 @@ describe('MetricUnitsService', () => {
       expect(mockRepository.bulkUpdateStatus).toHaveBeenCalledWith(ids, false)
       expect(mockAuditService.log).toHaveBeenCalled()
     })
+
+    it('should throw error for empty ids array', async () => {
+      mockRepository.bulkUpdateStatus.mockRejectedValue(new Error('No IDs provided for bulk update'))
+
+      await expect(service.bulkUpdateStatus([], false, 'user123')).rejects.toThrow('No IDs provided')
+    })
   })
 
   describe('filterOptions', () => {
-    it('should return filter options', async () => {
-      const result = await service.filterOptions()
+    it('should return filter options', () => {
+      const result = service.filterOptions()
 
       expect(result.metric_types).toEqual(['Unit', 'Volume', 'Weight'])
       expect(result.statuses).toHaveLength(2)

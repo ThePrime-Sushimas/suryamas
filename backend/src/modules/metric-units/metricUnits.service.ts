@@ -10,7 +10,7 @@ export class MetricUnitsService {
   async list(
     pagination: { page: number; limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: any
+    filter?: { metric_type?: string; is_active?: boolean; q?: string }
   ): Promise<PaginatedResponse<MetricUnit>> {
     const { data, total } = await metricUnitsRepository.list(pagination, sort, filter)
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
@@ -38,14 +38,14 @@ export class MetricUnitsService {
         created_by: userId ?? null
       })
 
-      await AuditService.log('CREATE', 'metric_unit', created.id, userId ?? null, null, created)
+      await AuditService.log('CREATE', 'metric_unit', created.id, userId ?? null, null, dto)
       return created
     } catch (error: any) {
       if (error.code === '23505') {
         logWarn('Duplicate metric unit attempt', { dto, userId })
-        throw new DuplicateMetricUnitError()
+        throw new DuplicateMetricUnitError(dto.metric_type, dto.unit_name)
       }
-      logError('Unexpected error creating metric unit', { error: error.message, dto })
+      logError('Unexpected error creating metric unit', { error, message: error.message, stack: error.stack, dto })
       throw error
     }
   }
@@ -60,14 +60,14 @@ export class MetricUnitsService {
         updated_by: userId ?? null
       })
       
-      await AuditService.log('UPDATE', 'metric_unit', id, userId ?? null, before, dto)
+      await AuditService.log('UPDATE', 'metric_unit', id, userId ?? null, before, updated)
       return updated
     } catch (error: any) {
       if (error.code === '23505') {
         logWarn('Duplicate metric unit attempt on update', { id, dto, userId })
-        throw new DuplicateMetricUnitError()
+        throw new DuplicateMetricUnitError(dto.metric_type, dto.unit_name)
       }
-      logError('Unexpected error updating metric unit', { error: error.message, id, dto })
+      logError('Unexpected error updating metric unit', { error, message: error.message, stack: error.stack, id, dto })
       throw error
     }
   }
@@ -95,7 +95,7 @@ export class MetricUnitsService {
     await AuditService.log('BULK_UPDATE_STATUS', 'metric_unit', ids.join(','), userId ?? null, { ids }, { is_active: isActive })
   }
 
-  async filterOptions() {
+  filterOptions() {
     return {
       metric_types: METRIC_UNIT_CONFIG.VALID_TYPES,
       statuses: [{ label: 'Active', value: true }, { label: 'Inactive', value: false }]

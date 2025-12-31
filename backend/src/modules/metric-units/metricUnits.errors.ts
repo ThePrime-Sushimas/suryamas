@@ -16,8 +16,9 @@ export class MetricUnitNotFoundError extends MetricUnitError {
 }
 
 export class DuplicateMetricUnitError extends MetricUnitError {
-  constructor() {
-    super('Duplicate metric_type and unit_name combination', 409, 'DUPLICATE_METRIC_UNIT')
+  constructor(metricType?: string, unitName?: string) {
+    const detail = metricType && unitName ? `: ${metricType} - ${unitName}` : ''
+    super(`Duplicate metric_type and unit_name combination${detail}`, 409, 'DUPLICATE_METRIC_UNIT')
   }
 }
 

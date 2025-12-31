@@ -20,14 +20,10 @@ export default function CreateMetricUnitPage() {
   const handleSubmit = async (data: CreateMetricUnitDto) => {
     try {
       await createMetricUnit(data)
-      if (isMountedRef.current) {
-        toast.success('Metric unit created successfully')
-        navigate('/metric-units')
-      }
+      toast.success('Metric unit created successfully')
+      navigate('/metric-units')
     } catch (error: any) {
-      if (isMountedRef.current) {
-        toast.error(error.message || 'Failed to create metric unit')
-      }
+      toast.error(error.message || 'Failed to create metric unit')
     }
   }
 

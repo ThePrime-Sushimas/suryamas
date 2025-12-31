@@ -9,7 +9,7 @@ export class MetricUnitsRepository {
   async list(
     pagination: { page: number; limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: any
+    filter?: { metric_type?: string; is_active?: boolean; q?: string }
   ): Promise<{ data: MetricUnit[]; total: number }> {
     let query = supabase.from(this.tableName).select('*')
     let countQuery = supabase.from(this.tableName).select('id', { count: 'exact', head: true })
@@ -30,7 +30,7 @@ export class MetricUnitsRepository {
       countQuery = countQuery.or(`unit_name.ilike.${searchTerm},notes.ilike.${searchTerm}`)
     }
 
-    if (sort?.field && this.sortableFields.includes(sort.field as any)) {
+    if (sort?.field && this.sortableFields.includes(sort.field as typeof this.sortableFields[number])) {
       query = query.order(sort.field, { ascending: sort.order === 'asc' })
     } else {
       query = query.order('metric_type', { ascending: true }).order('unit_name', { ascending: true }).order('id', { ascending: true })
@@ -38,9 +38,10 @@ export class MetricUnitsRepository {
 
     query = query.range(pagination.offset, pagination.offset + pagination.limit - 1)
 
-    const [{ data, error }, { count }] = await Promise.all([query, countQuery])
+    const [{ data, error }, { count, error: countError }] = await Promise.all([query, countQuery])
 
     if (error) throw error
+    if (countError) throw countError
     return { data: data || [], total: count || 0 }
   }
 
@@ -51,10 +52,10 @@ export class MetricUnitsRepository {
     let query = supabase.from(this.tableName).select('*').eq('is_active', true)
     let countQuery = supabase.from(this.tableName).select('id', { count: 'exact', head: true }).eq('is_active', true)
 
-    if (sort?.field && this.sortableFields.includes(sort.field as any)) {
+    if (sort?.field && this.sortableFields.includes(sort.field as typeof this.sortableFields[number])) {
       query = query.order(sort.field, { ascending: sort.order === 'asc' })
     } else {
-      query = query.order('metric_type', { ascending: true }).order('unit_name', { ascending: true })
+      query = query.order('metric_type', { ascending: true }).order('unit_name', { ascending: true }).order('id', { ascending: true })
     }
 
     query = query.range(pagination.offset, pagination.offset + pagination.limit - 1)
@@ -90,6 +91,9 @@ export class MetricUnitsRepository {
   }
 
   async bulkUpdateStatus(ids: string[], is_active: boolean): Promise<void> {
+    if (!ids || ids.length === 0) {
+      throw new Error('No IDs provided for bulk update')
+    }
     const { error } = await supabase.from(this.tableName).update({ is_active }).in('id', ids)
     if (error) throw error
   }

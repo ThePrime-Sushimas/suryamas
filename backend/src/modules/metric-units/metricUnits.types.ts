@@ -28,5 +28,4 @@ export interface UpdateMetricUnitDto {
   notes?: string | null
   is_active?: boolean
   updated_by?: string | null
-  updated_at?: string
 }
