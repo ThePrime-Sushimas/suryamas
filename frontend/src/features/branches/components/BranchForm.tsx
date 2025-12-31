@@ -14,7 +14,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
 
   useEffect(() => {
     fetchCompanies(1, 1000)
-  }, [])
+  }, [fetchCompanies])
 
   const [formData, setFormData] = useState({
     company_id: initialData?.company_id || '',
@@ -80,7 +80,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
           manager_id: formData.manager_id || undefined,
           notes: formData.notes || undefined
         }
-    await onSubmit(submitData as any)
+    await onSubmit(submitData as CreateBranchDto | UpdateBranchDto)
   }
 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
