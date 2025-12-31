@@ -4,11 +4,11 @@ import { useMetricUnitsStore } from '../store/metricUnits.store'
 import { MetricUnitTable } from '../components/MetricUnitTable'
 import { useToast } from '@/contexts/ToastContext'
 
-function debounce<T extends (...args: any[]) => any>(fn: T, delay: number) {
+function debounce(fn: (value: string) => void, delay: number) {
   let timeoutId: ReturnType<typeof setTimeout>
-  return (...args: Parameters<T>) => {
+  return (value: string) => {
     clearTimeout(timeoutId)
-    timeoutId = setTimeout(() => fn(...args), delay)
+    timeoutId = setTimeout(() => fn(value), delay)
   }
 }
 
@@ -54,13 +54,13 @@ export default function MetricUnitsPage() {
     fetchMetricUnits()
     fetchFilterOptions()
     return () => reset()
-  }, [])
+  }, [setFilter, fetchMetricUnits, fetchFilterOptions, reset])
 
   const handleDelete = useCallback(async (id: string) => {
     try {
       await deleteMetricUnit(id)
       toast.success('Metric unit deleted successfully')
-    } catch (error) {
+    } catch {
       toast.error('Failed to delete metric unit')
     }
   }, [deleteMetricUnit, toast])
@@ -69,7 +69,7 @@ export default function MetricUnitsPage() {
     try {
       await restoreMetricUnit(id)
       toast.success('Metric unit restored successfully')
-    } catch (error) {
+    } catch {
       toast.error('Failed to restore metric unit')
     }
   }, [restoreMetricUnit, toast])
@@ -78,7 +78,7 @@ export default function MetricUnitsPage() {
     const newLocalFilter = { ...localFilter, [key]: value }
     setLocalFilter(newLocalFilter)
     
-    const apiFilter: any = {}
+    const apiFilter: Record<string, string | boolean> = {}
     if (newLocalFilter.metric_type) apiFilter.metric_type = newLocalFilter.metric_type
     if (newLocalFilter.is_active) apiFilter.is_active = newLocalFilter.is_active === 'true'
     if (search) apiFilter.q = search
