@@ -1,5 +1,6 @@
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { branchApi } from '@/features/branch_context/api/branchContext.api'
+import { useAuthStore } from '@/features/auth'
 import { useEffect } from 'react'
 
 interface BranchSelectionGuardProps {
@@ -7,9 +8,11 @@ interface BranchSelectionGuardProps {
 }
 
 export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) => {
+  const { token } = useAuthStore()
   const { currentBranch, branches, setBranches, switchBranch, isLoading, error, setLoading, setError } = useBranchContextStore()
 
   useEffect(() => {
+    if (!token) return
     if (branches.length > 0) return
 
     const controller = new AbortController()
@@ -21,6 +24,7 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
         
         if (userBranches.length === 0) {
           setError('No branch assignments found')
+          setLoading(false)
           return
         }
 
@@ -29,22 +33,27 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
         if (userBranches.length === 1) {
           switchBranch(userBranches[0].branch_id)
         }
+        
+        setLoading(false)
       } catch (err: any) {
         if (err.name !== 'AbortError') {
           setError(err.message || 'Failed to load branches')
         }
-      } finally {
         setLoading(false)
       }
     }
 
     loadBranches()
     return () => controller.abort()
-  }, [branches.length, setBranches, switchBranch, setLoading, setError])
+  }, [token, branches.length, setBranches, switchBranch, setLoading, setError])
 
   const handleRetry = () => {
     setError(null)
     setBranches([])
+  }
+
+  if (!token) {
+    return <>{children}</>
   }
 
   if (isLoading) {
@@ -75,7 +84,18 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
     )
   }
 
-  if (branches.length > 1 && !currentBranch) {
+  if (branches.length > 0 && !currentBranch) {
+    if (branches.length === 1) {
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <div role="status" aria-live="polite" className="text-center">
+            <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+            <p className="mt-4 text-gray-700 dark:text-gray-300">Setting up branch...</p>
+          </div>
+        </div>
+      )
+    }
+    
     return (
       <div className="flex items-center justify-center min-h-screen p-4">
         <div className="max-w-2xl w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
@@ -93,17 +113,6 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
               </button>
             ))}
           </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (!currentBranch) {
-    return (
-      <div className="flex items-center justify-center min-h-screen p-4" role="alert">
-        <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-semibold text-red-600 dark:text-red-400 mb-4">No Branch Selected</h2>
-          <p className="text-gray-700 dark:text-gray-300">Unable to determine active branch</p>
         </div>
       </div>
     )
