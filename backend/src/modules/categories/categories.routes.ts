@@ -38,6 +38,9 @@ router.delete('/:id', canDelete('categories'), (req, res) =>
 router.patch('/:id/restore', canUpdate('categories'), (req, res) => 
   categoriesController.restore(req as AuthenticatedRequest, res))
 
+router.patch('/:id/status', canUpdate('categories'), (req, res) => 
+  categoriesController.updateStatus(req as AuthenticatedRequest, res))
+
 router.post('/bulk/delete', canDelete('categories'), (req, res) => 
   categoriesController.bulkDelete(req as AuthenticatedRequest, res))
 

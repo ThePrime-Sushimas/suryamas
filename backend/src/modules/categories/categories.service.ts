@@ -1,12 +1,13 @@
 import { categoriesRepository } from './categories.repository'
 import { Category, CreateCategoryDto, UpdateCategoryDto } from './categories.types'
+import { CategoryErrors } from './categories.errors'
 import { AuditService } from '../../services/audit.service'
 import { logError, logInfo } from '../../config/logger'
 
 export class CategoriesService {
-  async list(pagination: { page: number; limit: number }, sort?: { field: string; order: 'asc' | 'desc' }) {
+  async list(pagination: { page: number; limit: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: { is_active?: boolean }) {
     const offset = (pagination.page - 1) * pagination.limit
-    const { data, total } = await categoriesRepository.findAll({ limit: pagination.limit, offset }, sort)
+    const { data, total } = await categoriesRepository.findAll({ limit: pagination.limit, offset }, sort, filter)
 
     const totalPages = Math.ceil(total / pagination.limit)
     return {
@@ -60,20 +61,15 @@ export class CategoriesService {
 
   async create(dto: CreateCategoryDto, userId?: string): Promise<Category> {
     if (!dto.category_code || !dto.category_name) {
-      throw new Error('category_code and category_name are required')
+      throw CategoryErrors.INVALID_NAME()
     }
 
     if (dto.category_code.length > 50) {
-      throw new Error('category_code must not exceed 50 characters')
+      throw CategoryErrors.INVALID_CODE()
     }
 
     if (dto.category_name.length > 255) {
-      throw new Error('category_name must not exceed 255 characters')
-    }
-
-    const existing = await categoriesRepository.findByCode(dto.category_code)
-    if (existing) {
-      throw new Error('category_code already exists')
+      throw CategoryErrors.INVALID_NAME()
     }
 
     const category = await categoriesRepository.create({
@@ -92,7 +88,7 @@ export class CategoriesService {
 
   async update(id: string, dto: UpdateCategoryDto, userId?: string): Promise<Category | null> {
     if (dto.category_name && dto.category_name.length > 255) {
-      throw new Error('category_name must not exceed 255 characters')
+      throw CategoryErrors.INVALID_NAME()
     }
 
     const category = await categoriesRepository.updateById(id, {
@@ -100,7 +96,11 @@ export class CategoriesService {
       updated_by: userId,
     })
 
-    if (category && userId) {
+    if (!category) {
+      throw CategoryErrors.NOT_FOUND()
+    }
+
+    if (userId) {
       await AuditService.log('UPDATE', 'category', id, userId, undefined, dto)
     }
 
@@ -108,8 +108,12 @@ export class CategoriesService {
     return category
   }
 
-  async getById(id: string): Promise<Category | null> {
-    return categoriesRepository.findById(id)
+  async getById(id: string): Promise<Category> {
+    const category = await categoriesRepository.findById(id)
+    if (!category) {
+      throw CategoryErrors.NOT_FOUND()
+    }
+    return category
   }
 
   async delete(id: string, userId?: string): Promise<void> {
@@ -150,6 +154,17 @@ export class CategoriesService {
     }
 
     logInfo('Bulk delete', { count: ids.length })
+  }
+
+  async updateStatus(id: string, is_active: boolean, userId?: string): Promise<Category | null> {
+    const category = await categoriesRepository.updateStatus(id, is_active, userId)
+
+    if (category && userId) {
+      await AuditService.log('UPDATE', 'category', id, userId, undefined, { is_active })
+    }
+
+    logInfo('Category status updated', { id, is_active })
+    return category
   }
 
   async exportToExcel(): Promise<Category[]> {

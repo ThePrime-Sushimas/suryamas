@@ -8,6 +8,7 @@ export interface Category {
   category_name: string
   description: string | null
   sort_order: number
+  is_active: boolean
   is_deleted: boolean
   created_at: string
   updated_at: string
@@ -43,12 +44,14 @@ export interface CreateCategoryDto {
   category_name: string
   description?: string
   sort_order?: number
+  is_active?: boolean
 }
 
 export interface UpdateCategoryDto {
   category_name?: string
   description?: string
   sort_order?: number
+  is_active?: boolean
 }
 
 export interface CreateSubCategoryDto {

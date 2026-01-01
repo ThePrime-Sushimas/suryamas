@@ -9,7 +9,9 @@ export class CategoriesController {
     try {
       const page = parseInt(req.query.page as string) || 1
       const limit = parseInt(req.query.limit as string) || 10
-      const result = await categoriesService.list({ page, limit }, req.sort)
+      const is_active = req.query.is_active === 'true' ? true : req.query.is_active === 'false' ? false : undefined
+      const filter = is_active !== undefined ? { is_active } : undefined
+      const result = await categoriesService.list({ page, limit }, req.sort, filter)
       res.json({
         success: true,
         data: result.data,
@@ -61,16 +63,10 @@ export class CategoriesController {
     try {
       const { id } = req.params
       const category = await categoriesService.getById(id)
-
-      if (!category) {
-        sendError(res, 'Category not found', 404)
-        return
-      }
-
       sendSuccess(res, category, 'Category retrieved successfully')
     } catch (error: any) {
       logError('Get category failed', { error: error.message })
-      sendError(res, 'Failed to retrieve category', 500)
+      sendError(res, error.message || 'Failed to retrieve category', error.statusCode || 500)
     }
   }
 
@@ -80,7 +76,7 @@ export class CategoriesController {
       sendSuccess(res, category, 'Category created successfully', 201)
     } catch (error: any) {
       logError('Create category failed', { error: error.message })
-      sendError(res, error.message || 'Failed to create category', 400)
+      sendError(res, error.message || 'Failed to create category', error.statusCode || 400)
     }
   }
 
@@ -91,7 +87,7 @@ export class CategoriesController {
       sendSuccess(res, category, 'Category updated successfully')
     } catch (error: any) {
       logError('Update category failed', { error: error.message })
-      sendError(res, error.message || 'Failed to update category', 400)
+      sendError(res, error.message || 'Failed to update category', error.statusCode || 400)
     }
   }
 
@@ -126,6 +122,18 @@ export class CategoriesController {
     } catch (error: any) {
       logError('Bulk delete failed', { error: error.message })
       sendError(res, error.message || 'Failed to delete categories', 400)
+    }
+  }
+
+  updateStatus = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params
+      const { is_active } = req.body
+      const category = await categoriesService.updateStatus(id, is_active, req.user?.id)
+      sendSuccess(res, category, 'Category status updated successfully')
+    } catch (error: any) {
+      logError('Update status failed', { error: error.message })
+      sendError(res, error.message || 'Failed to update status', 400)
     }
   }
 }
