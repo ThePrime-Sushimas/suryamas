@@ -1,6 +1,7 @@
 import { supabase } from '../../config/supabase'
 import { MetricUnit, CreateMetricUnitDto, UpdateMetricUnitDto } from './metricUnits.types'
 import { METRIC_UNIT_CONFIG } from './metricUnits.constants'
+import { DuplicateMetricUnitError } from './metricUnits.errors'
 
 export class MetricUnitsRepository {
   private readonly tableName = METRIC_UNIT_CONFIG.TABLE_NAME
@@ -30,7 +31,7 @@ export class MetricUnitsRepository {
       countQuery = countQuery.or(`unit_name.ilike.${searchTerm},notes.ilike.${searchTerm}`)
     }
 
-    if (sort?.field && this.sortableFields.includes(sort.field as typeof this.sortableFields[number])) {
+    if (sort?.field && this.sortableFields.includes(sort.field as typeof METRIC_UNIT_CONFIG.SORTABLE_FIELDS[number])) {
       query = query.order(sort.field, { ascending: sort.order === 'asc' })
     } else {
       query = query.order('metric_type', { ascending: true }).order('unit_name', { ascending: true }).order('id', { ascending: true })
@@ -52,7 +53,7 @@ export class MetricUnitsRepository {
     let query = supabase.from(this.tableName).select('*').eq('is_active', true)
     let countQuery = supabase.from(this.tableName).select('id', { count: 'exact', head: true }).eq('is_active', true)
 
-    if (sort?.field && this.sortableFields.includes(sort.field as typeof this.sortableFields[number])) {
+    if (sort?.field && this.sortableFields.includes(sort.field as typeof METRIC_UNIT_CONFIG.SORTABLE_FIELDS[number])) {
       query = query.order(sort.field, { ascending: sort.order === 'asc' })
     } else {
       query = query.order('metric_type', { ascending: true }).order('unit_name', { ascending: true }).order('id', { ascending: true })
@@ -74,14 +75,23 @@ export class MetricUnitsRepository {
 
   async create(dto: CreateMetricUnitDto): Promise<MetricUnit> {
     const { data, error } = await supabase.from(this.tableName).insert([dto]).select().single()
-    if (error) throw error
+    if (error) {
+      if (error.code === '23505') {
+        throw new DuplicateMetricUnitError(dto.metric_type, dto.unit_name)
+      }
+      throw error
+    }
     return data
   }
 
-  async updateById(id: string, dto: UpdateMetricUnitDto): Promise<MetricUnit> {
+  async updateById(id: string, dto: UpdateMetricUnitDto): Promise<MetricUnit | null> {
     const { data, error } = await supabase.from(this.tableName).update(dto).eq('id', id).select().maybeSingle()
-    if (error) throw error
-    if (!data) throw new Error('Metric unit not found')
+    if (error) {
+      if (error.code === '23505') {
+        throw new DuplicateMetricUnitError(dto.metric_type, dto.unit_name)
+      }
+      throw error
+    }
     return data
   }
 

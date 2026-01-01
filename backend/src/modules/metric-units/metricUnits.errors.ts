@@ -21,9 +21,3 @@ export class DuplicateMetricUnitError extends MetricUnitError {
     super(`Duplicate metric_type and unit_name combination${detail}`, 409, 'DUPLICATE_METRIC_UNIT')
   }
 }
-
-export class InvalidMetricUnitError extends MetricUnitError {
-  constructor(message: string) {
-    super(message, 400, 'INVALID_METRIC_UNIT')
-  }
-}
