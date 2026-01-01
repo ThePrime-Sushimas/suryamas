@@ -16,8 +16,8 @@ export default function UserDetailPage() {
       try {
         const userData = await usersApi.getById(id)
         setUser(userData)
-      } catch {
-        console.error('Failed to load data:', error)
+      } catch (err) {
+        console.error('Failed to load data:', err)
         setUser(null)
       } finally {
         setLoading(false)

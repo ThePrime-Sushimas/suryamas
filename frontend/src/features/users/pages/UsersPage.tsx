@@ -32,29 +32,6 @@ export default function UsersPage() {
   }, [])
 
   useEffect(() => {
-    filterUsers()
-  }, [users, searchQuery, selectedBranch])
-
-  useEffect(() => {
-    // Set all branches as collapsed by default on initial load
-    if (users.length > 0 && collapsedBranches.size === 0) {
-      const branches = Array.from(new Set(users.map(u => u.branch)))
-      setCollapsedBranches(new Set(branches))
-    }
-  }, [users])
-
-  const loadData = async () => {
-    try {
-      const usersData = await usersApi.getAll()
-      setUsers(usersData)
-    } catch {
-      console.error('Failed to load data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const filterUsers = () => {
     let filtered = users
 
     if (searchQuery) {
@@ -71,6 +48,25 @@ export default function UsersPage() {
 
     setFilteredUsers(filtered)
     setCurrentPage(1)
+  }, [users, searchQuery, selectedBranch])
+
+  useEffect(() => {
+    // Set all branches as collapsed by default on initial load
+    if (users.length > 0 && collapsedBranches.size === 0) {
+      const branches = Array.from(new Set(users.map(u => u.branch)))
+      setCollapsedBranches(new Set(branches))
+    }
+  }, [users])
+
+  const loadData = async () => {
+    try {
+      const usersData = await usersApi.getAll()
+      setUsers(usersData)
+    } catch {
+      console.error('Failed to load data:', Error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleDelete = async (employeeId: string) => {
