@@ -1,33 +1,32 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useMetricUnitsStore } from '../store/metricUnits.store'
 import { MetricUnitForm } from '../components/MetricUnitForm'
 import { useToast } from '@/contexts/ToastContext'
 import type { CreateMetricUnitDto } from '../types'
+import { getErrorMessage } from '../utils/errors'
 
 export default function EditMetricUnitPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const toast = useToast()
-  const { currentMetricUnit, loading, filterOptions, fetchMetricUnitById, updateMetricUnit } = useMetricUnitsStore()
-  const isMountedRef = useRef(true)
+  const { currentMetricUnit, loading, filterOptions, updateMetricUnit, fetchFilterOptions } = useMetricUnitsStore()
 
   useEffect(() => {
-    return () => {
-      isMountedRef.current = false
+    if (!filterOptions) {
+      fetchFilterOptions()
     }
-  }, [])
+  }, [filterOptions, fetchFilterOptions])
 
   useEffect(() => {
     if (id) {
-      fetchMetricUnitById(id).catch(() => {
-        if (isMountedRef.current) {
-          toast.error('Metric unit not found')
-          navigate('/metric-units')
-        }
+      const store = useMetricUnitsStore.getState()
+      store.fetchMetricUnitById(id).catch(() => {
+        toast.error('Metric unit not found')
+        navigate('/metric-units')
       })
     }
-  }, [id, fetchMetricUnitById, navigate, toast])
+  }, [id, navigate, toast])
 
   const handleSubmit = async (data: CreateMetricUnitDto) => {
     if (!id) return
@@ -36,8 +35,7 @@ export default function EditMetricUnitPage() {
       toast.success('Metric unit updated successfully')
       navigate('/metric-units')
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to update metric unit'
-      toast.error(message)
+      toast.error(getErrorMessage(error))
     }
   }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { z } from 'zod'
 import type { MetricUnit, CreateMetricUnitDto, MetricType } from '../types'
 
@@ -28,7 +28,6 @@ export const MetricUnitForm = ({ initialData, isEdit, onSubmit, isLoading, metri
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [isDirty, setIsDirty] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [initialFormData] = useState(formData)
 
   useEffect(() => {
     if (initialData) {
@@ -75,10 +74,15 @@ export const MetricUnitForm = ({ initialData, isEdit, onSubmit, isLoading, metri
     }
   }, [formData, touched])
 
-  const hasChanges = () => {
-    if (!isEdit) return true
-    return JSON.stringify(formData) !== JSON.stringify(initialFormData)
-  }
+  const hasChanges = useCallback(() => {
+    if (!isEdit || !initialData) return true
+    return (
+      formData.metric_type !== initialData.metric_type ||
+      formData.unit_name !== initialData.unit_name ||
+      (formData.notes ?? null) !== (initialData.notes ?? null) ||
+      formData.is_active !== initialData.is_active
+    )
+  }, [isEdit, initialData, formData])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -106,13 +110,15 @@ export const MetricUnitForm = ({ initialData, isEdit, onSubmit, isLoading, metri
     try {
       await onSubmit(result.data)
       setIsDirty(false)
-      setFormData({
-        metric_type: 'Unit',
-        unit_name: '',
-        notes: null,
-        is_active: true
-      })
-      setTouched({})
+      if (!isEdit) {
+        setFormData({
+          metric_type: 'Unit',
+          unit_name: '',
+          notes: null,
+          is_active: true
+        })
+        setTouched({})
+      }
     } finally {
       setIsSubmitting(false)
     }

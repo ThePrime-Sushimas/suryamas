@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMetricUnitsStore } from '../store/metricUnits.store'
 import { MetricUnitTable } from '../components/MetricUnitTable'
@@ -20,41 +20,40 @@ export default function MetricUnitsPage() {
     loading, 
     pagination, 
     filterOptions,
-    fetchMetricUnits, 
     deleteMetricUnit,
     restoreMetricUnit,
     searchMetricUnits,
     setPage,
-    setFilter,
-    fetchFilterOptions,
-    reset
+    setFilter
   } = useMetricUnitsStore()
   
   const [search, setSearch] = useState('')
   const [localFilter, setLocalFilter] = useState<{ metric_type?: string; is_active?: string }>({ is_active: 'true' })
 
-  const debouncedSearch = useMemo(
-    () => debounce((value: string) => {
+  const debouncedSearchRef = useRef<((value: string) => void) | undefined>(undefined)
+
+  useEffect(() => {
+    debouncedSearchRef.current = debounce((value: string) => {
       if (value) {
         searchMetricUnits(value)
       } else {
-        // Remove search query from current filter
         const currentFilter = useMetricUnitsStore.getState().filter
         const newFilter = currentFilter ? { ...currentFilter, q: undefined } : null
         setFilter(newFilter)
       }
-    }, 300),
-    [searchMetricUnits, setFilter]
-  )
+    }, 300)
+  }, [searchMetricUnits, setFilter])
 
   useEffect(() => {
-    // Set initial filter to show only active units
-    const initialFilter = { is_active: true }
-    setFilter(initialFilter)
-    fetchMetricUnits()
-    fetchFilterOptions()
-    return () => reset()
-  }, [setFilter, fetchMetricUnits, fetchFilterOptions, reset])
+    const store = useMetricUnitsStore.getState()
+    store.setFilter({ is_active: true })
+    store.fetchMetricUnits()
+    store.fetchFilterOptions()
+    
+    return () => {
+      store.reset()
+    }
+  }, [])
 
   const handleDelete = useCallback(async (id: string) => {
     try {
@@ -119,7 +118,7 @@ export default function MetricUnitsPage() {
               value={search}
               onChange={e => {
                 setSearch(e.target.value)
-                debouncedSearch(e.target.value)
+                debouncedSearchRef.current?.(e.target.value)
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />

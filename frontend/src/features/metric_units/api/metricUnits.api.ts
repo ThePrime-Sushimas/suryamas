@@ -1,5 +1,6 @@
 import api from '@/lib/axios'
 import type { MetricUnit, CreateMetricUnitDto, UpdateMetricUnitDto, SortParams, FilterParams, FilterOptions, PaginationParams } from '../types'
+import { getErrorMessage } from '../utils/errors'
 
 interface ApiResponse<T> {
   success: boolean
@@ -18,7 +19,9 @@ interface ListParams {
   limit: number
   sort?: string
   order?: 'asc' | 'desc'
-  [key: string]: any
+  metric_type?: string
+  is_active?: boolean
+  q?: string
 }
 
 const handleApiCall = async <T>(
@@ -28,8 +31,12 @@ const handleApiCall = async <T>(
   try {
     return await apiCall()
   } catch (error: unknown) {
-    const message = error.response?.data?.error || errorMessage
-    throw new Error(message)
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as { response?: { data?: { error?: string } } }
+      const message = axiosError.response?.data?.error || errorMessage
+      throw new Error(message)
+    }
+    throw new Error(getErrorMessage(error) || errorMessage)
   }
 }
 
@@ -38,17 +45,37 @@ const validatePagination = (page: number, limit: number) => {
   if (limit < 1 || limit > 100) throw new Error('Limit must be 1-100')
 }
 
-let searchController: AbortController | null = null
+class RequestManager {
+  private controllers = new Map<string, AbortController>()
+  
+  getSignal(key: string): AbortSignal {
+    this.abort(key)
+    const controller = new AbortController()
+    this.controllers.set(key, controller)
+    return controller.signal
+  }
+  
+  abort(key: string) {
+    const controller = this.controllers.get(key)
+    if (controller) {
+      controller.abort()
+      this.controllers.delete(key)
+    }
+  }
+  
+  cleanup(key: string) {
+    this.controllers.delete(key)
+  }
+}
+
+const requestManager = new RequestManager()
 
 export const metricUnitsApi = {
   list: async (page = 1, limit = 25, sort?: SortParams | null, filter?: FilterParams | null) => {
     return handleApiCall(async () => {
       validatePagination(page, limit)
       
-      if (searchController) {
-        searchController.abort()
-      }
-      searchController = new AbortController()
+      const signal = requestManager.getSignal('list')
       
       const params: ListParams = { page, limit }
       if (sort) {
@@ -59,11 +86,17 @@ export const metricUnitsApi = {
         Object.assign(params, filter)
       }
       
-      const res = await api.get<PaginatedResponse<MetricUnit>>('/metric-units', { 
-        params,
-        signal: searchController.signal 
-      })
-      return res.data
+      try {
+        const res = await api.get<PaginatedResponse<MetricUnit>>('/metric-units', { 
+          params,
+          signal
+        })
+        requestManager.cleanup('list')
+        return res.data
+      } catch (error) {
+        requestManager.cleanup('list')
+        throw error
+      }
     }, 'Failed to fetch metric units')
   },
 
