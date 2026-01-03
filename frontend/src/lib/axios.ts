@@ -1,4 +1,5 @@
-import axios from 'axios'
+import axios, { AxiosError } from 'axios'
+import type { InternalAxiosRequestConfig } from 'axios'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 
 const PUBLIC_ENDPOINTS = [
@@ -7,15 +8,14 @@ const PUBLIC_ENDPOINTS = [
   '/auth/refresh',
   '/auth/forgot-password',
   '/auth/logout',
-  '/employee-branches/me',
-  '/employees/profile',
-  '/permissions/me/permissions',
 ]
 
 const BRANCH_AGNOSTIC_ENDPOINTS = [
   '/roles',
   '/branches',
-  '/employee-branches/employee/',
+  '/employee-branches',
+  '/employees/profile',
+  '/permissions/me',
 ]
 
 const api = axios.create({
@@ -28,15 +28,15 @@ const api = axios.create({
 
 // Request interceptor - add auth token and branch context
 api.interceptors.request.use(
-  (config: any) => {
+  (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('token')
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
     }
 
     // Enforce branch context
-    const isPublic = PUBLIC_ENDPOINTS.some(endpoint => config.url?.includes(endpoint))
-    const isBranchAgnostic = BRANCH_AGNOSTIC_ENDPOINTS.some(endpoint => config.url?.includes(endpoint))
+    const isPublic = PUBLIC_ENDPOINTS.some(endpoint => config.url?.startsWith(endpoint))
+    const isBranchAgnostic = BRANCH_AGNOSTIC_ENDPOINTS.some(endpoint => config.url?.startsWith(endpoint))
     
     if (!isPublic && !isBranchAgnostic) {
       const branch = useBranchContextStore.getState().currentBranch
@@ -58,11 +58,14 @@ api.interceptors.request.use(
 // Response interceptor - handle errors and token refresh
 api.interceptors.response.use(
   (response) => response,
-  async (error: any) => {
-    const originalRequest = error.config
+  async (error: unknown) => {
+    if (!error || typeof error !== 'object') return Promise.reject(error)
+    
+    const axiosError = error as AxiosError
+    const originalRequest = axiosError.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
     // Token expired - try refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (axiosError.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true
       
       try {
@@ -82,7 +85,7 @@ api.interceptors.response.use(
     }
 
     // Retry logic for network errors
-    if (!error.response && !originalRequest._retry) {
+    if (!axiosError.response && !originalRequest._retry) {
       originalRequest._retry = true
       return api(originalRequest)
     }

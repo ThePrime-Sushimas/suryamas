@@ -2,6 +2,7 @@ import { useBranchContextStore } from '@/features/branch_context/store/branchCon
 import { branchApi } from '@/features/branch_context/api/branchContext.api'
 import { useAuthStore } from '@/features/auth'
 import { useEffect, useState } from 'react'
+import { Navigate } from 'react-router-dom'
 
 interface BranchSelectionGuardProps {
   children: React.ReactNode
@@ -54,7 +55,7 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
   }
 
   if (!token) {
-    return <>{children}</>
+    return <Navigate to="/login" replace />
   }
 
   if (isLoading) {
