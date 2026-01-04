@@ -4,6 +4,7 @@ export interface Category {
   category_name: string
   description: string | null
   sort_order: number
+  is_active: boolean
   is_deleted: boolean
   created_at: string
   updated_at: string

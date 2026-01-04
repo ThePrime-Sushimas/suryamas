@@ -5,8 +5,15 @@ type ApiResponse<T> = { success: boolean; data: T }
 type PaginatedResponse<T> = ApiResponse<T[]> & { pagination: { total: number; page: number; limit: number } }
 
 export const categoriesApi = {
-  list: async (page = 1, limit = 10) => {
-    const res = await api.get<PaginatedResponse<Category>>('/categories', { params: { page, limit } })
+  list: async (page = 1, limit = 10, isActive?: string) => {
+    const params: Record<string, string | number> = { page, limit }
+    if (isActive) params.is_active = isActive
+    const res = await api.get<PaginatedResponse<Category>>('/categories', { params })
+    return res.data
+  },
+
+  trash: async (page = 1, limit = 10) => {
+    const res = await api.get<PaginatedResponse<Category>>('/categories/trash', { params: { page, limit } })
     return res.data
   },
 
@@ -36,6 +43,15 @@ export const categoriesApi = {
 
   bulkDelete: async (ids: string[]) => {
     await api.post('/categories/bulk/delete', { ids })
+  },
+
+  updateStatus: async (id: string, isActive: boolean) => {
+    const res = await api.patch<ApiResponse<Category>>(`/categories/${id}/status`, { is_active: isActive })
+    return res.data.data
+  },
+
+  restore: async (id: string) => {
+    await api.patch(`/categories/${id}/restore`)
   }
 }
 

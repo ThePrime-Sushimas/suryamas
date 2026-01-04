@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import type { SubCategory } from '../types'
+import type { SubCategory, CreateSubCategoryDto, UpdateSubCategoryDto } from '../types'
 
 interface SubCategoryFormProps {
   initialData?: SubCategory
   isEdit?: boolean
-  onSubmit: (data: any) => Promise<void>
+  onSubmit: (data: CreateSubCategoryDto | UpdateSubCategoryDto) => Promise<void>
   isLoading?: boolean
 }
 

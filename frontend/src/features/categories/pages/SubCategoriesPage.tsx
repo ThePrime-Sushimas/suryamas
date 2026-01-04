@@ -1,27 +1,50 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCategoriesStore } from '../store/categories.store'
 import { SubCategoryTable } from '../components/SubCategoryTable'
+import { useToast } from '@/contexts/ToastContext'
+
+function debounce(fn: (value: string) => void, delay: number) {
+  let timeoutId: ReturnType<typeof setTimeout>
+  return (value: string) => {
+    clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => fn(value), delay)
+  }
+}
 
 export default function SubCategoriesPage() {
   const navigate = useNavigate()
   const { subCategories, loading, fetchSubCategories, searchSubCategories, deleteSubCategory } = useCategoriesStore()
   const [search, setSearch] = useState('')
+  const { success, error } = useToast()
+
+  const debouncedSearch = useMemo(
+    () => debounce((value: string) => {
+      if (value) {
+        searchSubCategories(value, 1, 1000)
+      } else {
+        fetchSubCategories(1, 1000)
+      }
+    }, 300),
+    [searchSubCategories, fetchSubCategories]
+  )
 
   useEffect(() => {
-    if (search) {
-      searchSubCategories(search, 1, 1000)
-    } else {
-      fetchSubCategories(1, 1000)
-    }
-  }, [search])
+    fetchSubCategories(1, 1000)
+  }, [fetchSubCategories])
+
+  useEffect(() => {
+    debouncedSearch(search)
+  }, [search, debouncedSearch])
 
   const handleDelete = async (id: string) => {
     if (confirm('Delete this sub-category?')) {
       try {
         await deleteSubCategory(id)
-      } catch {
-        console.error('Delete failed')
+        success('Sub-category deleted successfully')
+      } catch (err) {
+        error('Failed to delete sub-category')
+        console.error('Delete failed:', err)
       }
     }
   }

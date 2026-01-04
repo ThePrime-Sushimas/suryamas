@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { subCategoriesApi } from '../api/categories.api'
 import { useCategoriesStore } from '../store/categories.store'
 import { SubCategoryForm } from '../components/SubCategoryForm'
-import type { SubCategory } from '../types'
+import type { SubCategory, CreateSubCategoryDto, UpdateSubCategoryDto } from '../types'
 import { useToast } from '@/contexts/ToastContext'
 
 export default function EditSubCategoryPage() {
@@ -15,27 +15,38 @@ export default function EditSubCategoryPage() {
   const { success, error } = useToast()
 
   useEffect(() => {
+    const controller = new AbortController()
     const fetch = async () => {
       try {
         const data = await subCategoriesApi.getById(id || '')
-        setSubCategory(data)
+        if (!controller.signal.aborted) {
+          setSubCategory(data)
+        }
       } catch {
-        error('Sub-category not found')
-        navigate('/sub-categories')
+        if (!controller.signal.aborted) {
+          error('Sub-category not found')
+          navigate('/sub-categories')
+        }
       } finally {
-        setLoading(false)
+        if (!controller.signal.aborted) {
+          setLoading(false)
+        }
       }
     }
     fetch()
+    return () => controller.abort()
   }, [id, navigate, error])
 
-  const handleSubmit = async (data: any) => {
+  const handleSubmit = async (data: CreateSubCategoryDto | UpdateSubCategoryDto) => {
     try {
-      await updateSubCategory(id || '', data)
+      await updateSubCategory(id || '', data as UpdateSubCategoryDto)
       success('Sub-category updated successfully')
       navigate('/sub-categories')
     } catch (err: unknown) {
-      error(err.response?.data?.error || 'Failed to update sub-category')
+      const message = err instanceof Error && 'response' in err 
+        ? (err as { response?: { data?: { error?: string } } }).response?.data?.error 
+        : 'Failed to update sub-category'
+      error(message || 'Failed to update sub-category')
     }
   }
 

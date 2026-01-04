@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { categoriesApi } from '../api/categories.api'
 import { useCategoriesStore } from '../store/categories.store'
 import { CategoryForm } from '../components/CategoryForm'
-import type { Category } from '../types'
+import type { Category, CreateCategoryDto, UpdateCategoryDto } from '../types'
 import { useToast } from '@/contexts/ToastContext'
 
 export default function EditCategoryPage() {
@@ -15,27 +15,38 @@ export default function EditCategoryPage() {
   const { success, error } = useToast()
 
   useEffect(() => {
+    const controller = new AbortController()
     const fetchCategory = async () => {
       try {
         const data = await categoriesApi.getById(id || '')
-        setCategory(data)
+        if (!controller.signal.aborted) {
+          setCategory(data)
+        }
       } catch {
-        error('Category not found')
-        navigate('/categories')
+        if (!controller.signal.aborted) {
+          error('Category not found')
+          navigate('/categories')
+        }
       } finally {
-        setLoading(false)
+        if (!controller.signal.aborted) {
+          setLoading(false)
+        }
       }
     }
     fetchCategory()
+    return () => controller.abort()
   }, [id, navigate, error])
 
-  const handleSubmit = async (data: any) => {
+  const handleSubmit = async (data: CreateCategoryDto | UpdateCategoryDto) => {
     try {
-      await updateCategory(id || '', data)
+      await updateCategory(id || '', data as UpdateCategoryDto)
       success('Category updated successfully')
       navigate('/categories')
     } catch (err: unknown) {
-      error(err.response?.data?.error || 'Failed to update category')
+      const message = err instanceof Error && 'response' in err 
+        ? (err as { response?: { data?: { error?: string } } }).response?.data?.error 
+        : 'Failed to update category'
+      error(message || 'Failed to update category')
     }
   }
 
