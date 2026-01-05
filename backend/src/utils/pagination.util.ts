@@ -31,3 +31,27 @@ export const calculatePagination = (
 export const calculateOffset = (page: number, limit: number): number => {
   return (page - 1) * limit
 }
+
+export const getPaginationParams = (query: Record<string, unknown>) => {
+  const page = Math.max(1, Number(query.page) || 1)
+  const limit = Math.min(100, Math.max(1, Number(query.limit) || 10))
+  const offset = calculateOffset(page, limit)
+  return { page, limit, offset }
+}
+
+export interface PaginatedResponse<T> {
+  data: T[]
+  pagination: PaginationMeta
+}
+
+export const createPaginatedResponse = <T>(
+  data: T[],
+  total: number,
+  page: number,
+  limit: number
+): PaginatedResponse<T> => {
+  return {
+    data,
+    pagination: calculatePagination({ page, limit }, total)
+  }
+}

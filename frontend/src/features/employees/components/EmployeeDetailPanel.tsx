@@ -31,7 +31,7 @@ export const EmployeeDetailPanel = ({ employee, onClose, onEdit, onDelete, onMan
       try {
         const { data } = await api.get(`/employee-branches/employee/${employee.id}`)
         setBranches(data.data || [])
-      } catch {
+      } catch (err) {
         console.error('Failed to load branches:', err)
         setBranches([])
       } finally {

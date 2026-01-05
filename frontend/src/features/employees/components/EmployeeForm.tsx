@@ -72,7 +72,7 @@ export default function EmployeeForm({
       await onSubmit(validated, profilePicture || undefined)
       setFormData(defaultFormData)
       setProfilePicture(null)
-    } catch {
+    } catch (err) {
       if (err instanceof ZodError) {
         const fieldErrors: Record<string, string> = {}
         err.errors.forEach(error => {

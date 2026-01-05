@@ -8,49 +8,167 @@ const statusColors: Record<ProductStatus, string> = {
 
 interface ProductTableProps {
   products: Product[]
+  selectedIds: string[]
+  deletingId: string | null
   onView: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onToggleSelect: (id: string) => void
+  onToggleSelectAll: () => void
 }
 
-export const ProductTable = ({ products, onView, onEdit, onDelete }: ProductTableProps) => {
+export const ProductTable = ({
+  products,
+  selectedIds,
+  deletingId,
+  onView,
+  onEdit,
+  onDelete,
+  onToggleSelect,
+  onToggleSelectAll
+}: ProductTableProps) => {
   if (products.length === 0) {
-    return <div className="text-center py-8 text-gray-500">No products found</div>
+    return (
+      <div className="bg-white rounded-lg shadow p-12">
+        <div className="text-center">
+          <svg
+            className="mx-auto h-12 w-12 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+            />
+          </svg>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No products found</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Get started by creating a new product.
+          </p>
+        </div>
+      </div>
+    )
   }
 
+  const allSelected = products.length > 0 && selectedIds.length === products.length
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border px-4 py-2 text-left">Code</th>
-            <th className="border px-4 py-2 text-left">Name</th>
-            <th className="border px-4 py-2 text-left">BOM Name</th>
-            <th className="border px-4 py-2 text-left">Status</th>
-            <th className="border px-4 py-2 text-left">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {products.map(product => (
-            <tr key={product.id} className="hover:bg-gray-50">
-              <td className="border px-4 py-2">{product.product_code}</td>
-              <td className="border px-4 py-2 font-semibold text-blue-900 hover:text-red-600 cursor-pointer" onClick={() => onView(product.id)}>
-                {product.product_name}
-              </td>
-              <td className="border px-4 py-2">{product.bom_name || '-'}</td>
-              <td className="border px-4 py-2">
-                <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[product.status]}`}>
-                  {product.status}
-                </span>
-              </td>
-              <td className="border px-4 py-2 space-x-2">
-                <button onClick={() => onEdit(product.id)} className="text-green-600 hover:underline text-sm">Edit</button>
-                <button onClick={() => onDelete(product.id)} className="text-red-600 hover:underline text-sm">Delete</button>
-              </td>
+    <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b">
+            <tr>
+              <th className="px-4 py-3 text-left">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={onToggleSelectAll}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Code
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Name
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                BOM Name
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Flags
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {products.map(product => {
+              const isSelected = selectedIds.includes(product.id)
+              const isDeleting = deletingId === product.id
+
+              return (
+                <tr
+                  key={product.id}
+                  className={`hover:bg-gray-50 transition ${
+                    isSelected ? 'bg-blue-50' : ''
+                  } ${isDeleting ? 'opacity-50' : ''}`}
+                >
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onToggleSelect(product.id)}
+                      disabled={isDeleting}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                    />
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900">
+                    {product.product_code}
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => onView(product.id)}
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-800 hover:underline text-left"
+                    >
+                      {product.product_name}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    {product.bom_name || '-'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        statusColors[product.status]
+                      }`}
+                    >
+                      {product.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    <div className="flex gap-2">
+                      {product.is_requestable && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                          REQ
+                        </span>
+                      )}
+                      {product.is_purchasable && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                          PUR
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right text-sm space-x-2">
+                    <button
+                      onClick={() => onEdit(product.id)}
+                      disabled={isDeleting}
+                      className="text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => onDelete(product.id)}
+                      disabled={isDeleting}
+                      className="text-red-600 hover:text-red-800 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isDeleting ? 'Deleting...' : 'Delete'}
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

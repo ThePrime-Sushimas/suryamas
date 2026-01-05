@@ -8,7 +8,7 @@ import { handleError } from '../../utils/error-handler.util'
 import { logInfo } from '../../config/logger'
 
 export class ProductsController {
-  list = async (req: AuthRequest & { sort?: any; filter?: any; pagination?: any }, res: Response): Promise<void> => {
+  list = async (req: AuthRequest & { sort?: any; filterParams?: any; pagination?: any }, res: Response): Promise<void> => {
     try {
       const page = req.pagination?.page || parseInt(req.query.page as string) || 1
       const limit = req.pagination?.limit || parseInt(req.query.limit as string) || 10
@@ -17,7 +17,7 @@ export class ProductsController {
       const result = await productsService.list(
         { page, limit },
         req.sort,
-        req.filter,
+        req.filterParams,
         includeDeleted
       )
       
@@ -27,7 +27,7 @@ export class ProductsController {
     }
   }
 
-  search = async (req: AuthRequest & { sort?: any; filter?: any; pagination?: any }, res: Response): Promise<void> => {
+  search = async (req: AuthRequest & { sort?: any; filterParams?: any; pagination?: any }, res: Response): Promise<void> => {
     try {
       const q = (req.query.q as string) || ''
       const page = req.pagination?.page || parseInt(req.query.page as string) || 1
@@ -38,7 +38,7 @@ export class ProductsController {
         q,
         { page, limit },
         req.sort,
-        req.filter,
+        req.filterParams,
         includeDeleted
       )
       

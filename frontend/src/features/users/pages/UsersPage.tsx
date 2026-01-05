@@ -62,7 +62,7 @@ export default function UsersPage() {
     try {
       const usersData = await usersApi.getAll()
       setUsers(usersData)
-    } catch {
+    } catch (err) {
       console.error('Failed to load data:', Error)
     } finally {
       setLoading(false)

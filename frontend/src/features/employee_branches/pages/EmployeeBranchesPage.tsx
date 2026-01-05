@@ -40,7 +40,7 @@ export default function EmployeeBranchesPage() {
         })
         setItems(result.data)
         setTotal(result.pagination.total)
-      } catch {
+      } catch (err) {
         setItems([])
         setTotal(0)
       } finally {

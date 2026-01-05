@@ -4,6 +4,7 @@ import { resolveBranchContext } from '../../middleware/branch-context.middleware
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
+import { filterMiddleware } from '../../middleware/filter.middleware'
 import { productsController } from './products.controller'
 import productUomsRoutes from '../product-uoms/product-uoms.routes'
 import { PermissionService } from '../../services/permission.service'
@@ -26,10 +27,10 @@ router.post('/import/preview', canInsert('products'), upload.single('file'), (re
 router.post('/import', canInsert('products'), upload.single('file'), (req, res) => 
   productsController.import(req as AuthenticatedRequest, res))
 
-router.get('/', canView('products'), paginationMiddleware, sortMiddleware, (req, res) => 
+router.get('/', canView('products'), paginationMiddleware, sortMiddleware, filterMiddleware, (req, res) => 
   productsController.list(req as AuthenticatedQueryRequest, res))
 
-router.get('/search', canView('products'), paginationMiddleware, sortMiddleware, (req, res) => 
+router.get('/search', canView('products'), paginationMiddleware, sortMiddleware, filterMiddleware, (req, res) => 
   productsController.search(req as AuthenticatedQueryRequest, res))
 
 router.get('/filter-options', canView('products'), (req, res) => 

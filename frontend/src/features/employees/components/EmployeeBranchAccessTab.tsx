@@ -27,7 +27,7 @@ export function EmployeeBranchAccessTab({ employeeId }: Props) {
       try {
         const { data } = await api.get<{ success: boolean; data: BranchAssignment[] }>(`/employee-branches/employee/${employeeId}`)
         setBranches(data.data || [])
-      } catch {
+      } catch (err) {
         setBranches([])
       } finally {
         setIsLoading(false)

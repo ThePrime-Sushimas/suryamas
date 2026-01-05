@@ -5,7 +5,7 @@ type ApiResponse<T> = { success: boolean; data: T }
 type PaginatedResponse<T> = ApiResponse<T[]> & { pagination: { total: number; page: number; limit: number } }
 
 export const productsApi = {
-  list: async (page = 1, limit = 10, sort?: any, filter?: any, includeDeleted = false) => {
+  list: async (page = 1, limit = 10, sort?: Record<string, unknown>, filter?: Record<string, unknown>, includeDeleted = false) => {
     const res = await api.get<PaginatedResponse<Product>>('/products', { params: { page, limit, ...sort, ...filter, includeDeleted } })
     return res.data
   },
