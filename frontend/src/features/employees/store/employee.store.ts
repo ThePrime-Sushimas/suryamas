@@ -38,9 +38,11 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       const profile = await employeesApi.getProfile()
       set({ profile, isLoading: false })
     } catch (error: unknown) {
-      const message = error.response?.data?.message || 'Failed to fetch profile'
-      set({ error: message, isLoading: false })
-      throw new Error(message)
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : 'Failed to fetch profile'
+      set({ error: message || 'Failed to fetch profile', isLoading: false })
+      throw new Error(message || 'Failed to fetch profile')
     }
   },
 
@@ -50,9 +52,11 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       const profile = await employeesApi.updateProfile(updates)
       set({ profile, isLoading: false })
     } catch (error: unknown) {
-      const message = error.response?.data?.message || 'Failed to update profile'
-      set({ error: message, isLoading: false })
-      throw new Error(message)
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : 'Failed to update profile'
+      set({ error: message || 'Failed to update profile', isLoading: false })
+      throw new Error(message || 'Failed to update profile')
     }
   },
 
@@ -65,9 +69,11 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
         isLoading: false
       }))
     } catch (error: unknown) {
-      const message = error.response?.data?.message || 'Failed to upload picture'
-      set({ error: message, isLoading: false })
-      throw new Error(message)
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : 'Failed to upload picture'
+      set({ error: message || 'Failed to upload picture', isLoading: false })
+      throw new Error(message || 'Failed to upload picture')
     }
   },
 
@@ -78,9 +84,11 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       if (signal?.aborted) return
       set({ employees: response.data, pagination: response.pagination, isLoading: false })
     } catch (error: unknown) {
-      if (error.name === 'CanceledError' || signal?.aborted) return
-      const message = error.response?.data?.message || 'Failed to fetch employees'
-      set({ error: message, isLoading: false })
+      if ((error instanceof Error && error.name === 'CanceledError') || signal?.aborted) return
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : 'Failed to fetch employees'
+      set({ error: message || 'Failed to fetch employees', isLoading: false })
     }
   },
 
@@ -91,9 +99,11 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       if (signal?.aborted) return
       set({ employees: response.data, pagination: response.pagination, isLoading: false })
     } catch (error: unknown) {
-      if (error.name === 'CanceledError' || signal?.aborted) return
-      const message = error.response?.data?.message || 'Failed to search employees'
-      set({ error: message, isLoading: false })
+      if ((error instanceof Error && error.name === 'CanceledError') || signal?.aborted) return
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : 'Failed to search employees'
+      set({ error: message || 'Failed to search employees', isLoading: false })
     }
   },
 
@@ -113,9 +123,11 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       set({ isLoading: false })
       return employee
     } catch (error: unknown) {
-      const message = error.response?.data?.message || 'Failed to create employee'
-      set({ error: message, isLoading: false })
-      throw new Error(message)
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : 'Failed to create employee'
+      set({ error: message || 'Failed to create employee', isLoading: false })
+      throw new Error(message || 'Failed to create employee')
     }
   },
 
@@ -129,9 +141,11 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       }))
       return employee
     } catch (error: unknown) {
-      const message = error.response?.data?.message || 'Failed to update employee'
-      set({ error: message, isLoading: false })
-      throw new Error(message)
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : 'Failed to update employee'
+      set({ error: message || 'Failed to update employee', isLoading: false })
+      throw new Error(message || 'Failed to update employee')
     }
   },
 
@@ -142,8 +156,10 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       await employeesApi.delete(id)
     } catch (error: unknown) {
       set({ employees: prev })
-      const message = error.response?.data?.message || 'Failed to delete employee'
-      throw new Error(message)
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : 'Failed to delete employee'
+      throw new Error(message || 'Failed to delete employee')
     }
   },
 
@@ -156,8 +172,10 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       await employeesApi.bulkUpdateActive(ids, isActive)
     } catch (error: unknown) {
       set({ employees: prev })
-      const message = error.response?.data?.message || 'Failed to update employees'
-      throw new Error(message)
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : 'Failed to update employees'
+      throw new Error(message || 'Failed to update employees')
     }
   },
 
@@ -168,8 +186,10 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       await employeesApi.bulkDelete(ids)
     } catch (error: unknown) {
       set({ employees: prev })
-      const message = error.response?.data?.message || 'Failed to delete employees'
-      throw new Error(message)
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : 'Failed to delete employees'
+      throw new Error(message || 'Failed to delete employees')
     }
   },
 

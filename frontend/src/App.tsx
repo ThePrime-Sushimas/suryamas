@@ -30,9 +30,11 @@ const EditBranchPage = lazy(() => import('./features/branches').then(m => ({ def
 const BranchDetailPage = lazy(() => import('./features/branches').then(m => ({ default: m.BranchDetailPage })))
 const CategoriesPage = lazy(() => import('./features/categories').then(m => ({ default: m.CategoriesPage })))
 const CreateCategoryPage = lazy(() => import('./features/categories').then(m => ({ default: m.CreateCategoryPage })))
+const CategoryDetailPage = lazy(() => import('./features/categories').then(m => ({ default: m.CategoryDetailPage })))
 const EditCategoryPage = lazy(() => import('./features/categories').then(m => ({ default: m.EditCategoryPage })))
 const SubCategoriesPage = lazy(() => import('./features/categories').then(m => ({ default: m.SubCategoriesPage })))
 const CreateSubCategoryPage = lazy(() => import('./features/categories').then(m => ({ default: m.CreateSubCategoryPage })))
+const SubCategoryDetailPage = lazy(() => import('./features/categories').then(m => ({ default: m.SubCategoryDetailPage })))
 const EditSubCategoryPage = lazy(() => import('./features/categories').then(m => ({ default: m.EditSubCategoryPage })))
 const MetricUnitsPage = lazy(() => import('./features/metric_units').then(m => ({ default: m.MetricUnitsPage })))
 const CreateMetricUnitPage = lazy(() => import('./features/metric_units').then(m => ({ default: m.CreateMetricUnitPage })))
@@ -111,11 +113,11 @@ function App() {
           <Route path="users/edit/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><UserEditPage /></Suspense></ProtectedRoute>} />
           <Route path="categories" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CategoriesPage /></Suspense></ProtectedRoute>} />
           <Route path="categories/new" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateCategoryPage /></Suspense></ProtectedRoute>} />
-          <Route path="categories/:id" element={<ProtectedRoute><div>Detail</div></ProtectedRoute>} />
+          <Route path="categories/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CategoryDetailPage /></Suspense></ProtectedRoute>} />
           <Route path="categories/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditCategoryPage /></Suspense></ProtectedRoute>} />
           <Route path="sub-categories" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><SubCategoriesPage /></Suspense></ProtectedRoute>} />
           <Route path="sub-categories/new" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateSubCategoryPage /></Suspense></ProtectedRoute>} />
-          <Route path="sub-categories/:id" element={<ProtectedRoute><div>Detail</div></ProtectedRoute>} />
+          <Route path="sub-categories/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><SubCategoryDetailPage /></Suspense></ProtectedRoute>} />
           <Route path="sub-categories/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditSubCategoryPage /></Suspense></ProtectedRoute>} />
           <Route path="metric-units" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><MetricUnitsPage /></Suspense></ProtectedRoute>} />
           <Route path="metric-units/new" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateMetricUnitPage /></Suspense></ProtectedRoute>} />
