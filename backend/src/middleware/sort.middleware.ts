@@ -7,7 +7,8 @@ const ALLOWED_SORT_FIELDS = [
   'gender', 'religion', 'marital_status', 'join_date', 'resign_date',
   'sign_date', 'end_date', 'status_employee', 'ptkp_status',
   'bank_name', 'bank_account', 'bank_account_holder', 'is_active',
-  'branch_code', 'city', 'status', 'hari_operasional', 'created_at'
+  'branch_code', 'city', 'status', 'hari_operasional', 'created_at',
+  'product_name', 'product_code', 'category_id', 'sub_category_id', 'updated_at'
 ]
 
 export const sortMiddleware = (

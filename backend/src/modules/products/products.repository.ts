@@ -1,5 +1,7 @@
 import { supabase } from '../../config/supabase'
-import { Product, ProductUom, CreateProductDto, UpdateProductDto, CreateProductUomDto, UpdateProductUomDto } from './products.types'
+import { Product, CreateProductDto, UpdateProductDto, ProductStatus } from './products.types'
+import { mapProductFromDb, mapProductWithRelations } from './products.mapper'
+import { PRODUCT_SORT_FIELDS, PRODUCT_LIMITS } from './products.constants'
 
 export class ProductsRepository {
   async findAll(
@@ -35,11 +37,8 @@ export class ProductsRepository {
       }
     }
 
-    if (sort) {
-      const validFields = ['product_name', 'product_code', 'status', 'category_id', 'sub_category_id', 'created_at']
-      if (validFields.includes(sort.field)) {
-        query = query.order(sort.field, { ascending: sort.order === 'asc' })
-      }
+    if (sort && PRODUCT_SORT_FIELDS.includes(sort.field as any)) {
+      query = query.order(sort.field, { ascending: sort.order === 'asc' })
     } else {
       query = query.order('product_name', { ascending: true })
     }
@@ -52,17 +51,9 @@ export class ProductsRepository {
     if (error) throw new Error(error.message)
     if (countError) throw new Error(countError.message)
 
-    const rows = (data || []).map((item: any) => ({
-      ...item,
-      is_requestable: item.is_requestable === true || item.is_requestable === 'true',
-      is_purchasable: item.is_purchasable === true || item.is_purchasable === 'true',
-      category_name: item.categories?.category_name,
-      sub_category_name: item.sub_categories?.sub_category_name,
-      categories: undefined,
-      sub_categories: undefined
-    }))
+    const rows = (data || []).map(mapProductWithRelations)
 
-    return { data: rows || [], total: count || 0 }
+    return { data: rows, total: count || 0 }
   }
 
   async search(
@@ -101,8 +92,10 @@ export class ProductsRepository {
       }
     }
 
-    if (sort) {
+    if (sort && PRODUCT_SORT_FIELDS.includes(sort.field as any)) {
       query = query.order(sort.field, { ascending: sort.order === 'asc' })
+    } else {
+      query = query.order('product_name', { ascending: true })
     }
 
     const [{ data, error }, { count, error: countError }] = await Promise.all([
@@ -113,11 +106,7 @@ export class ProductsRepository {
     if (error) throw new Error(error.message)
     if (countError) throw new Error(countError.message)
 
-    return { data: (data || []).map((item: any) => ({
-      ...item,
-      is_requestable: item.is_requestable === true || item.is_requestable === 'true',
-      is_purchasable: item.is_purchasable === true || item.is_purchasable === 'true',
-    })), total: count || 0 }
+    return { data: (data || []).map(mapProductFromDb), total: count || 0 }
   }
 
   async findById(id: string, includeDeleted = false): Promise<Product | null> {
@@ -130,11 +119,7 @@ export class ProductsRepository {
     if (error) throw new Error(error.message)
     if (!data) return null
     if (data.is_deleted && !includeDeleted) return null
-    return {
-      ...data,
-      is_requestable: data.is_requestable === true || data.is_requestable === 'true',
-      is_purchasable: data.is_purchasable === true || data.is_purchasable === 'true',
-    }
+    return mapProductFromDb(data)
   }
 
   async findByProductCode(code: string): Promise<Product | null> {
@@ -147,18 +132,14 @@ export class ProductsRepository {
 
     if (error) throw new Error(error.message)
     if (!data) return null
-    return {
-      ...data,
-      is_requestable: data.is_requestable === true || data.is_requestable === 'true',
-      is_purchasable: data.is_purchasable === true || data.is_purchasable === 'true',
-    }
+    return mapProductFromDb(data)
   }
 
   async findByProductName(name: string, excludeId?: string): Promise<Product | null> {
     let query = supabase
       .from('products')
       .select('*')
-      .eq('product_name', name)
+      .ilike('product_name', name)
       .eq('is_deleted', false)
 
     if (excludeId) {
@@ -169,11 +150,7 @@ export class ProductsRepository {
 
     if (error) throw new Error(error.message)
     if (!data) return null
-    return {
-      ...data,
-      is_requestable: data.is_requestable === true || data.is_requestable === 'true',
-      is_purchasable: data.is_purchasable === true || data.is_purchasable === 'true',
-    }
+    return mapProductFromDb(data)
   }
 
   async create(data: CreateProductDto & { created_by?: string; updated_by?: string }): Promise<Product> {
@@ -184,10 +161,10 @@ export class ProductsRepository {
       .single()
 
     if (error) throw new Error(error.message)
-    return product
+    return mapProductFromDb(product)
   }
 
-  async updateById(id: string, updates: UpdateProductDto & { updated_by?: string }): Promise<Product | null> {
+  async updateById(id: string, updates: UpdateProductDto & { updated_by?: string; is_deleted?: boolean }): Promise<Product | null> {
     const { data, error } = await supabase
       .from('products')
       .update(updates)
@@ -196,7 +173,7 @@ export class ProductsRepository {
       .maybeSingle()
 
     if (error) throw new Error(error.message)
-    return data
+    return data ? mapProductFromDb(data) : null
   }
 
   async delete(id: string): Promise<void> {
@@ -209,12 +186,21 @@ export class ProductsRepository {
     if (!Array.isArray(ids) || ids.length === 0) {
       throw new Error('Invalid ids array')
     }
+    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) {
+      throw new Error(`Bulk operation exceeds maximum limit of ${PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE}`)
+    }
     const { error } = await supabase.from('products').update({ is_deleted: true }).in('id', ids)
 
     if (error) throw new Error(error.message)
   }
 
-  async bulkUpdateStatus(ids: string[], status: string): Promise<void> {
+  async bulkUpdateStatus(ids: string[], status: ProductStatus): Promise<void> {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new Error('Invalid ids array')
+    }
+    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) {
+      throw new Error(`Bulk operation exceeds maximum limit of ${PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE}`)
+    }
     const { error } = await supabase.from('products').update({ status }).in('id', ids)
 
     if (error) throw new Error(error.message)
@@ -232,7 +218,7 @@ export class ProductsRepository {
       .eq('status', 'ACTIVE')
       .eq('is_deleted', false)
       .order('product_name')
-      .limit(1000)
+      .limit(PRODUCT_LIMITS.MAX_MINIMAL_PRODUCTS)
 
     if (error) throw new Error(error.message)
     return data || []

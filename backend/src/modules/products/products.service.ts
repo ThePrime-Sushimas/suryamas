@@ -1,20 +1,32 @@
-import { productsRepository } from './products.repository'
-import { Product, ProductUom, CreateProductDto, UpdateProductDto, CreateProductUomDto, UpdateProductUomDto, ProductStatus, UomStatus } from './products.types'
+import { ProductsRepository, productsRepository } from './products.repository'
+import { Product, CreateProductDto, UpdateProductDto, ProductStatus } from './products.types'
 import { AuditService } from '../../services/audit.service'
 import { logError, logInfo } from '../../config/logger'
-
-const VALID_STATUSES: ProductStatus[] = ['ACTIVE', 'INACTIVE', 'DISCONTINUED']
-const VALID_UOM_STATUSES: UomStatus[] = ['ACTIVE', 'INACTIVE']
+import {
+  ProductNotFoundError,
+  DuplicateProductCodeError,
+  DuplicateProductNameError,
+  InvalidProductStatusError,
+  ProductCodeUpdateError,
+  BulkOperationLimitError,
+} from './products.errors'
+import { VALID_PRODUCT_STATUSES, PRODUCT_DEFAULTS, PRODUCT_LIMITS } from './products.constants'
+import { calculatePagination, calculateOffset } from '../../utils/pagination.util'
 
 export class ProductsService {
+  constructor(
+    private repository: ProductsRepository = productsRepository,
+    private auditService: typeof AuditService = AuditService
+  ) {}
+
   async list(
     pagination: { page: number; limit: number },
     sort?: { field: string; order: 'asc' | 'desc' },
     filter?: any,
     includeDeleted = false
   ) {
-    const offset = (pagination.page - 1) * pagination.limit
-    const { data, total } = await productsRepository.findAll(
+    const offset = calculateOffset(pagination.page, pagination.limit)
+    const { data, total } = await this.repository.findAll(
       { limit: pagination.limit, offset },
       sort,
       filter,
@@ -23,14 +35,7 @@ export class ProductsService {
 
     return {
       data,
-      pagination: {
-        page: pagination.page,
-        limit: pagination.limit,
-        total,
-        totalPages: Math.ceil(total / pagination.limit),
-        hasNext: pagination.page < Math.ceil(total / pagination.limit),
-        hasPrev: pagination.page > 1,
-      },
+      pagination: calculatePagination(pagination, total),
     }
   }
 
@@ -41,156 +46,171 @@ export class ProductsService {
     filter?: any,
     includeDeleted = false
   ) {
-    const offset = (pagination.page - 1) * pagination.limit
-    const { data, total } = await productsRepository.search(q, { limit: pagination.limit, offset }, sort, filter, includeDeleted)
+    const offset = calculateOffset(pagination.page, pagination.limit)
+    const { data, total } = await this.repository.search(
+      q,
+      { limit: pagination.limit, offset },
+      sort,
+      filter,
+      includeDeleted
+    )
 
     return {
       data,
-      pagination: {
-        page: pagination.page,
-        limit: pagination.limit,
-        total,
-        totalPages: Math.ceil(total / pagination.limit),
-        hasNext: pagination.page < Math.ceil(total / pagination.limit),
-        hasPrev: pagination.page > 1,
-      },
+      pagination: calculatePagination(pagination, total),
     }
   }
 
   async create(dto: CreateProductDto, userId?: string): Promise<Product> {
-    if (!dto.product_name || !dto.category_id || !dto.sub_category_id) {
-      throw new Error('Missing required fields: product_name, category_id, sub_category_id')
-    }
-
-    if (dto.status && !VALID_STATUSES.includes(dto.status)) {
-      throw new Error(`Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`)
+    if (dto.status && !VALID_PRODUCT_STATUSES.includes(dto.status)) {
+      throw new InvalidProductStatusError(dto.status, VALID_PRODUCT_STATUSES)
     }
 
     if (dto.product_code) {
-      const existing = await productsRepository.findByProductCode(dto.product_code)
+      const existing = await this.repository.findByProductCode(dto.product_code)
       if (existing) {
-        throw new Error('Product code already exists')
+        throw new DuplicateProductCodeError(dto.product_code)
       }
     }
 
-    const existingName = await productsRepository.findByProductName(dto.product_name)
+    const existingName = await this.repository.findByProductName(dto.product_name)
     if (existingName) {
-      throw new Error('Product name already exists')
+      throw new DuplicateProductNameError(dto.product_name)
     }
 
-    const data: any = {
+    const data = {
       ...dto,
-      status: dto.status || 'ACTIVE',
-      is_requestable: dto.is_requestable ?? true,
-      is_purchasable: dto.is_purchasable ?? true,
+      status: dto.status || PRODUCT_DEFAULTS.STATUS,
+      is_requestable: dto.is_requestable ?? PRODUCT_DEFAULTS.IS_REQUESTABLE,
+      is_purchasable: dto.is_purchasable ?? PRODUCT_DEFAULTS.IS_PURCHASABLE,
       created_by: userId,
       updated_by: userId,
     }
 
-    const product = await productsRepository.create(data)
+    const product = await this.repository.create(data)
 
     if (userId) {
-      await AuditService.log('CREATE', 'product', product.id, userId, undefined, product)
+      await this.auditService.log('CREATE', 'product', product.id, userId, undefined, product)
     }
 
-    logInfo('Product created', { id: product.id, code: product.product_code })
+    logInfo('Product created', { id: product.id, code: product.product_code, userId })
     return product
   }
 
-  async update(id: string, dto: UpdateProductDto, userId?: string): Promise<Product | null> {
+  async update(id: string, dto: UpdateProductDto, userId?: string): Promise<Product> {
     if ('product_code' in dto) {
-      throw new Error('Product code cannot be updated')
+      throw new ProductCodeUpdateError()
     }
 
-    if (dto.status && !VALID_STATUSES.includes(dto.status)) {
-      throw new Error(`Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`)
+    if (dto.status && !VALID_PRODUCT_STATUSES.includes(dto.status)) {
+      throw new InvalidProductStatusError(dto.status, VALID_PRODUCT_STATUSES)
+    }
+
+    const existing = await this.repository.findById(id)
+    if (!existing) {
+      throw new ProductNotFoundError(id)
     }
 
     if (dto.product_name) {
-      const existingName = await productsRepository.findByProductName(dto.product_name, id)
+      const existingName = await this.repository.findByProductName(dto.product_name, id)
       if (existingName) {
-        throw new Error('Product name already exists')
+        throw new DuplicateProductNameError(dto.product_name)
       }
     }
 
-    const data: any = { ...dto, updated_by: userId }
-    const product = await productsRepository.updateById(id, data)
+    const data = { ...dto, updated_by: userId }
+    const product = await this.repository.updateById(id, data)
 
     if (product && userId) {
-      await AuditService.log('UPDATE', 'product', id, userId, undefined, dto)
+      await this.auditService.log('UPDATE', 'product', id, userId, existing, dto)
     }
 
-    logInfo('Product updated', { id })
+    logInfo('Product updated', { id, userId })
+    return product!
+  }
+
+  async findById(id: string, includeDeleted = false): Promise<Product> {
+    const product = await this.repository.findById(id, includeDeleted)
+    if (!product) {
+      throw new ProductNotFoundError(id)
+    }
     return product
   }
 
-  async findById(id: string, includeDeleted = false): Promise<Product | null> {
-    return productsRepository.findById(id, includeDeleted)
-  }
-
   async delete(id: string, userId?: string): Promise<void> {
-    try {
-      await productsRepository.delete(id)
-
-      if (userId) {
-        await AuditService.log('DELETE', 'product', id, userId)
-      }
-
-      logInfo('Product deleted', { id })
-    } catch (error: any) {
-      logError('Delete product failed', { id, error: error.message })
-      throw error
+    const existing = await this.repository.findById(id)
+    if (!existing) {
+      throw new ProductNotFoundError(id)
     }
+
+    await this.repository.delete(id)
+
+    if (userId) {
+      await this.auditService.log('DELETE', 'product', id, userId, existing)
+    }
+
+    logInfo('Product deleted', { id, userId })
   }
 
   async bulkDelete(ids: string[], userId?: string): Promise<void> {
-    try {
-      await productsRepository.bulkDelete(ids)
-
-      if (userId) {
-        await AuditService.log('DELETE', 'product', ids.join(','), userId)
-      }
-
-      logInfo('Bulk delete products', { count: ids.length })
-    } catch (error: any) {
-      logError('Bulk delete products failed', { ids, error: error.message })
-      throw error
+    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) {
+      throw new BulkOperationLimitError(PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE)
     }
+
+    await this.repository.bulkDelete(ids)
+
+    if (userId) {
+      await this.auditService.log('DELETE', 'product', ids.join(','), userId)
+    }
+
+    logInfo('Bulk delete products', { count: ids.length, userId })
   }
 
   async bulkUpdateStatus(ids: string[], status: ProductStatus, userId?: string): Promise<void> {
-    if (!VALID_STATUSES.includes(status)) {
-      throw new Error(`Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`)
+    if (!VALID_PRODUCT_STATUSES.includes(status)) {
+      throw new InvalidProductStatusError(status, VALID_PRODUCT_STATUSES)
     }
 
-    await productsRepository.bulkUpdateStatus(ids, status)
+    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) {
+      throw new BulkOperationLimitError(PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE)
+    }
+
+    await this.repository.bulkUpdateStatus(ids, status)
 
     if (userId) {
-      await AuditService.log('UPDATE', 'product', ids.join(','), userId, undefined, { status })
+      await this.auditService.log('UPDATE', 'product', ids.join(','), userId, undefined, { status })
     }
 
-    logInfo('Bulk status update', { count: ids.length, status })
+    logInfo('Bulk status update', { count: ids.length, status, userId })
   }
 
   async getFilterOptions() {
-    return productsRepository.getFilterOptions()
+    return this.repository.getFilterOptions()
   }
 
   async minimalActive(): Promise<{ id: string; product_name: string }[]> {
-    return productsRepository.minimalActive()
+    return this.repository.minimalActive()
   }
 
   async checkProductNameExists(productName: string, excludeId?: string): Promise<boolean> {
-    const existing = await productsRepository.findByProductName(productName, excludeId)
+    const existing = await this.repository.findByProductName(productName, excludeId)
     return !!existing
   }
 
-  async restore(id: string, userId?: string): Promise<void> {
-    await productsRepository.updateById(id, { is_deleted: false, updated_by: userId } as any)
-    if (userId) {
-      await AuditService.log('RESTORE', 'product', id, userId)
+  async restore(id: string, userId?: string): Promise<Product> {
+    const existing = await this.repository.findById(id, true)
+    if (!existing) {
+      throw new ProductNotFoundError(id)
     }
-    logInfo('Product restored', { id })
+
+    const product = await this.repository.updateById(id, { is_deleted: false, updated_by: userId })
+    
+    if (userId) {
+      await this.auditService.log('RESTORE', 'product', id, userId, existing)
+    }
+    
+    logInfo('Product restored', { id, userId })
+    return product!
   }
 }
 
