@@ -5,11 +5,11 @@ import { BranchTable } from '../components/BranchTable'
 import { useToast } from '@/contexts/ToastContext'
 import { MapPin, Plus, Search, X } from 'lucide-react'
 
-function debounce<T extends (...args: unknown[]) => unknown>(fn: T, delay: number) {
+function debounce(fn: (value: string) => void, delay: number) {
   let timeoutId: ReturnType<typeof setTimeout>
-  return (...args: Parameters<T>) => {
+  return (value: string) => {
     clearTimeout(timeoutId)
-    timeoutId = setTimeout(() => fn(...args), delay)
+    timeoutId = setTimeout(() => fn(value), delay)
   }
 }
 
@@ -28,7 +28,7 @@ export default function BranchesPage() {
       }
     }, 300),
     [searchBranches, fetchBranches]
-  ) as (value: string) => void
+  )
 
   useEffect(() => {
     fetchBranches(1, 1000)

@@ -31,13 +31,17 @@ export class ProductUomsRepository {
     return data
   }
 
-  async findById(id: string): Promise<ProductUom | null> {
-    const { data, error } = await supabase
+  async findById(id: string, includeDeleted = false): Promise<ProductUom | null> {
+    let query = supabase
       .from('product_uoms')
       .select('*')
       .eq('id', id)
-      .eq('is_deleted', false)
-      .maybeSingle()
+
+    if (!includeDeleted) {
+      query = query.eq('is_deleted', false)
+    }
+
+    const { data, error } = await query.maybeSingle()
 
     if (error) throw new Error(error.message)
     return data
