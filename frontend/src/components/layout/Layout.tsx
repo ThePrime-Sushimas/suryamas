@@ -86,63 +86,6 @@ export default function Layout() {
     })
   }, [menuItems, permissions, isLoaded])
 
-  // Auto buka submenu berdasarkan current route
-  useEffect(() => {
-    filteredMenuItems.forEach(item => {
-      if (item.submenu) {
-        if (item.submenu.some(subItem => isActiveMenu(subItem.href))) {
-          setActiveSubmenu(item.id)
-        }
-      }
-    })
-  }, [location.pathname, filteredMenuItems])
-
-  // Handle click outside sidebar
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (sidebarRef.current && !sidebarRef.current.contains(event.target as Node) && window.innerWidth < 1024) {
-        setIsSidebarOpen(false)
-      }
-    }
-    
-    if (isSidebarOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-    
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isSidebarOpen])
-
-  // Handle resize
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        setIsSidebarOpen(false)
-      }
-    }
-
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
-
-  // Close profile dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
-        setIsProfileOpen(false)
-      }
-    }
-
-    if (isProfileOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isProfileOpen])
-
   const toggleSubmenu = useCallback((menuId: string) => {
     setActiveSubmenu(prev => prev === menuId ? null : menuId)
   }, [])
@@ -154,6 +97,17 @@ export default function Layout() {
   const isSubmenuActive = useCallback((submenu?: MenuItem[]) => {
     return submenu?.some(item => isActiveMenu(item.href))
   }, [isActiveMenu])
+
+  // Auto buka submenu berdasarkan current route
+  useEffect(() => {
+    filteredMenuItems.forEach(item => {
+      if (item.submenu) {
+        if (item.submenu.some(subItem => subItem.href === location.pathname)) {
+          setActiveSubmenu(item.id)
+        }
+      }
+    })
+  }, [location.pathname, filteredMenuItems])
 
   const handleLogout = async () => {
     await logout()
@@ -184,7 +138,7 @@ export default function Layout() {
                 <Menu size={20} />
               </button>
               <Link to="/" className="flex items-center">
-                <div className="h-10 w-10 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center text-white font-bold mr-3">
+                <div className="h-10 w-10 bg-linear-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center text-white font-bold mr-3">
                   SIS
                 </div>
                 <div className="hidden sm:block">
@@ -297,7 +251,7 @@ export default function Layout() {
                         aria-expanded={activeSubmenu === item.id}
                         aria-label={item.name}
                       >
-                        <span className={`${isSidebarCollapsed ? 'mx-auto' : 'mr-3'} flex-shrink-0`}>
+                        <span className={`${isSidebarCollapsed ? 'mx-auto' : 'mr-3'} shrink-0`}>
                           {item.icon}
                         </span>
                         {!isSidebarCollapsed && (
@@ -331,7 +285,7 @@ export default function Layout() {
                                   : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
                                 }`}
                             >
-                              <span className="mr-3 flex-shrink-0">{subItem.icon}</span>
+                              <span className="mr-3 shrink-0">{subItem.icon}</span>
                               {subItem.name}
                             </Link>
                           ))}
@@ -348,7 +302,7 @@ export default function Layout() {
                           : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                         }`}
                     >
-                      <span className={`${isSidebarCollapsed ? 'mx-auto' : 'mr-3'} flex-shrink-0`}>
+                      <span className={`${isSidebarCollapsed ? 'mx-auto' : 'mr-3'} shrink-0`}>
                         {item.icon}
                       </span>
                       {!isSidebarCollapsed && item.name}

@@ -213,6 +213,7 @@ export default function ProductsPage() {
               onView={id => navigate(`/products/${id}`)}
               onEdit={id => navigate(`/products/${id}/edit`)}
               onDelete={handleDelete}
+              onManageUoms={id => navigate(`/products/${id}/uoms`)}
               onToggleSelect={toggleSelect}
               onToggleSelectAll={toggleSelectAll}
             />

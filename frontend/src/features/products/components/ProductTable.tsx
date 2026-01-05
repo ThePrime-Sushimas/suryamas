@@ -13,6 +13,7 @@ interface ProductTableProps {
   onView: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onManageUoms: (id: string) => void
   onToggleSelect: (id: string) => void
   onToggleSelectAll: () => void
 }
@@ -24,6 +25,7 @@ export const ProductTable = ({
   onView,
   onEdit,
   onDelete,
+  onManageUoms,
   onToggleSelect,
   onToggleSelectAll
 }: ProductTableProps) => {
@@ -148,6 +150,13 @@ export const ProductTable = ({
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right text-sm space-x-2">
+                    <button
+                      onClick={() => onManageUoms(product.id)}
+                      disabled={isDeleting}
+                      className="text-purple-600 hover:text-purple-800 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      UOMs
+                    </button>
                     <button
                       onClick={() => onEdit(product.id)}
                       disabled={isDeleting}
