@@ -28,7 +28,7 @@ export default function BranchesPage() {
       }
     }, 300),
     [searchBranches, fetchBranches]
-  )
+  ) as (value: string) => void
 
   useEffect(() => {
     fetchBranches(1, 1000)
