@@ -112,6 +112,30 @@ export default function CategoriesPage() {
     })
   }, [selectedCount, selectedIds, categories, bulkDeleteCategories, success, toastError, clearSelection])
 
+  const handleBulkRestore = useCallback(() => {
+    if (selectedCount === 0) return
+    
+    const validIds = selectedIds.filter(id => categories.some(c => c.id === id))
+    if (validIds.length === 0) {
+      toastError('Selected categories no longer available')
+      clearSelection()
+      return
+    }
+    
+    setConfirm({
+      open: true,
+      title: 'Restore Multiple Categories',
+      message: `Restore ${validIds.length} category(ies)?`,
+      action: async () => {
+        for (const id of validIds) {
+          await restoreCategory(id)
+        }
+        success(`${validIds.length} category(ies) restored`)
+        clearSelection()
+      }
+    })
+  }, [selectedCount, selectedIds, categories, restoreCategory, success, toastError, clearSelection])
+
   const handleBulkStatus = useCallback((isActive: boolean) => {
     if (selectedCount === 0) return
     
@@ -157,11 +181,18 @@ export default function CategoriesPage() {
     return count
   }, [statusFilter, deletedFilter])
 
-  const bulkActions = useMemo(() => [
-    { label: 'Set Active', onClick: () => handleBulkStatus(true), className: 'px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700' },
-    { label: 'Set Inactive', onClick: () => handleBulkStatus(false), className: 'px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700' },
-    { label: 'Delete', onClick: handleBulkDelete, className: 'px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700' }
-  ], [handleBulkStatus, handleBulkDelete])
+  const bulkActions = useMemo(() => {
+    if (deletedFilter === 'true') {
+      return [
+        { label: 'Restore', onClick: handleBulkRestore, className: 'px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700' }
+      ]
+    }
+    return [
+      { label: 'Set Active', onClick: () => handleBulkStatus(true), className: 'px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700' },
+      { label: 'Set Inactive', onClick: () => handleBulkStatus(false), className: 'px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700' },
+      { label: 'Delete', onClick: handleBulkDelete, className: 'px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700' }
+    ]
+  }, [deletedFilter, handleBulkStatus, handleBulkDelete, handleBulkRestore])
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">

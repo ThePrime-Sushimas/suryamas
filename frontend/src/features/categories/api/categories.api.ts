@@ -61,6 +61,11 @@ export const subCategoriesApi = {
     return res.data
   },
 
+  trash: async (page = 1, limit = 10) => {
+    const res = await api.get<PaginatedResponse<SubCategory>>('/sub-categories/trash', { params: { page, limit } })
+    return res.data
+  },
+
   search: async (q: string, page = 1, limit = 10) => {
     const res = await api.get<PaginatedResponse<SubCategory>>('/sub-categories/search', { params: { q, page, limit } })
     return res.data
@@ -87,5 +92,14 @@ export const subCategoriesApi = {
 
   bulkDelete: async (ids: string[]) => {
     await api.post('/sub-categories/bulk/delete', { ids })
+  },
+
+  restore: async (id: string) => {
+    await api.patch(`/sub-categories/${id}/restore`)
+  },
+
+  getByCategoryId: async (categoryId: string) => {
+    const res = await api.get<ApiResponse<SubCategory[]>>(`/sub-categories/category/${categoryId}`)
+    return res.data.data
   }
 }

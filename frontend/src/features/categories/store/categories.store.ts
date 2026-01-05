@@ -17,11 +17,13 @@ interface CategoriesState {
   updateCategoryStatus: (id: string, isActive: boolean) => Promise<void>
   restoreCategory: (id: string) => Promise<void>
   
-  fetchSubCategories: (page?: number, limit?: number, categoryId?: string) => Promise<void>
+  fetchSubCategories: (page?: number, limit?: number, categoryId?: string, isDeleted?: string) => Promise<void>
   searchSubCategories: (q: string, page?: number, limit?: number) => Promise<void>
   createSubCategory: (data: CreateSubCategoryDto) => Promise<SubCategory>
   updateSubCategory: (id: string, data: UpdateSubCategoryDto) => Promise<SubCategory>
   deleteSubCategory: (id: string) => Promise<void>
+  bulkDeleteSubCategories: (ids: string[]) => Promise<void>
+  restoreSubCategory: (id: string) => Promise<void>
   
   clearError: () => void
 }
@@ -156,10 +158,15 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     }
   },
 
-  fetchSubCategories: async (page = 1, limit = 10, categoryId) => {
+  fetchSubCategories: async (page = 1, limit = 10, categoryId, isDeleted?: string) => {
     set({ loading: true, error: null })
     try {
-      const res = await subCategoriesApi.list(page, limit, categoryId)
+      let res
+      if (isDeleted === 'true') {
+        res = await subCategoriesApi.trash(page, limit)
+      } else {
+        res = await subCategoriesApi.list(page, limit, categoryId)
+      }
       set({ subCategories: res.data, loading: false })
     } catch (error: unknown) {
       const message = error instanceof Error && 'response' in error
@@ -225,6 +232,34 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
         ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
         : 'Failed to delete sub-category'
       set({ subCategories: prev, error: message || 'Failed to delete sub-category' })
+      throw error
+    }
+  },
+
+  bulkDeleteSubCategories: async (ids) => {
+    const prev = get().subCategories
+    set(state => ({ subCategories: state.subCategories.filter(sc => !ids.includes(sc.id)) }))
+    try {
+      await subCategoriesApi.bulkDelete(ids)
+    } catch (error: unknown) {
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+        : 'Failed to bulk delete sub-categories'
+      set({ subCategories: prev, error: message || 'Failed to bulk delete sub-categories' })
+      throw error
+    }
+  },
+
+  restoreSubCategory: async (id) => {
+    const prev = get().subCategories
+    set(state => ({ subCategories: state.subCategories.filter(sc => sc.id !== id) }))
+    try {
+      await subCategoriesApi.restore(id)
+    } catch (error: unknown) {
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+        : 'Failed to restore sub-category'
+      set({ subCategories: prev, error: message || 'Failed to restore sub-category' })
       throw error
     }
   },

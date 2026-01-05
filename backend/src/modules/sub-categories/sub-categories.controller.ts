@@ -3,6 +3,7 @@ import { AuthRequest } from '../../types/common.types'
 import { subCategoriesService } from './sub-categories.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logError } from '../../config/logger'
+import { CreateSubCategorySchema, UpdateSubCategorySchema, BulkDeleteSchema } from './sub-categories.schema'
 
 export class SubCategoriesController {
   list = async (req: AuthRequest & { sort?: any }, res: Response): Promise<void> => {
@@ -88,22 +89,40 @@ export class SubCategoriesController {
 
   create = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const subCategory = await subCategoriesService.create(req.body, req.user?.id)
+      const validated = CreateSubCategorySchema.parse(req.body)
+      const data = {
+        ...validated,
+        description: validated.description ?? undefined
+      }
+      const subCategory = await subCategoriesService.create(data, req.user?.id)
       sendSuccess(res, subCategory, 'SubCategory created successfully', 201)
     } catch (error: any) {
       logError('Create sub_category failed', { error: error.message })
-      sendError(res, error.message || 'Failed to create sub_category', 400)
+      if (error.name === 'ZodError') {
+        sendError(res, error.errors[0].message, 400)
+      } else {
+        sendError(res, error.message || 'Failed to create sub_category', 400)
+      }
     }
   }
 
   update = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { id } = req.params
-      const subCategory = await subCategoriesService.update(id, req.body, req.user?.id)
+      const validated = UpdateSubCategorySchema.parse(req.body)
+      const data = {
+        ...validated,
+        description: validated.description ?? undefined
+      }
+      const subCategory = await subCategoriesService.update(id, data, req.user?.id)
       sendSuccess(res, subCategory, 'SubCategory updated successfully')
     } catch (error: any) {
       logError('Update sub_category failed', { error: error.message })
-      sendError(res, error.message || 'Failed to update sub_category', 400)
+      if (error.name === 'ZodError') {
+        sendError(res, error.errors[0].message, 400)
+      } else {
+        sendError(res, error.message || 'Failed to update sub_category', 400)
+      }
     }
   }
 
@@ -132,12 +151,16 @@ export class SubCategoriesController {
 
   bulkDelete = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { ids } = req.body
-      await subCategoriesService.bulkDelete(ids, req.user?.id)
+      const validated = BulkDeleteSchema.parse(req.body)
+      await subCategoriesService.bulkDelete(validated.ids, req.user?.id)
       sendSuccess(res, null, 'SubCategories deleted successfully')
     } catch (error: any) {
       logError('Bulk delete failed', { error: error.message })
-      sendError(res, error.message || 'Failed to delete sub_categories', 400)
+      if (error.name === 'ZodError') {
+        sendError(res, error.errors[0].message, 400)
+      } else {
+        sendError(res, error.message || 'Failed to delete sub_categories', 400)
+      }
     }
   }
 }
