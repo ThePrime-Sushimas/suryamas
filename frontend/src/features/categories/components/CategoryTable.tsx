@@ -27,74 +27,81 @@ export const CategoryTable = ({
 }: CategoryTableProps) => {
   if (categories.length === 0) {
     return (
-      <div className="text-center py-12 text-gray-500">
-        <p className="text-lg">No categories found</p>
-        <p className="text-sm mt-2">Try adjusting your search or filters</p>
+      <div className="bg-white rounded-lg shadow p-12">
+        <div className="text-center">
+          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+          </svg>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No categories found</h3>
+          <p className="mt-1 text-sm text-gray-500">Try adjusting your search or filters</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border px-4 py-3 text-left w-12">
-              <input
-                type="checkbox"
-                checked={isAllSelected}
-                onChange={(e) => onSelectAll(e.target.checked)}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-            </th>
-            <th className="border px-4 py-3 text-left">Code</th>
-            <th className="border px-4 py-3 text-left">Name</th>
-            <th className="border px-4 py-3 text-left">Description</th>
-            <th className="border px-4 py-3 text-left">Sort Order</th>
-            <th className="border px-4 py-3 text-left">Status</th>
-            <th className="border px-4 py-3 text-left">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {categories.map(cat => (
-            <tr key={cat.id} className="hover:bg-gray-50">
-              <td className="border px-4 py-2">
+    <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b">
+            <tr>
+              <th className="px-4 py-3 text-left">
                 <input
                   type="checkbox"
-                  checked={isSelected(cat.id)}
-                  onChange={(e) => onSelect(cat.id, e.target.checked)}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  checked={isAllSelected}
+                  onChange={(e) => onSelectAll(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-              </td>
-              <td className="border px-4 py-2 font-mono text-sm">{cat.category_code}</td>
-              <td className="border px-4 py-2 font-semibold text-blue-900 hover:text-blue-600 cursor-pointer" onClick={() => onView(cat.id)}>
-                {cat.category_name}
-              </td>
-              <td className="border px-4 py-2 text-gray-600">{cat.description || '-'}</td>
-              <td className="border px-4 py-2 text-center">{cat.sort_order}</td>
-              <td className="border px-4 py-2">
-                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                  cat.is_active 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {cat.is_active ? 'Active' : 'Inactive'}
-                </span>
-              </td>
-              <td className="border px-4 py-2 space-x-2">
-                {showDeleted ? (
-                  <button onClick={() => onRestore(cat.id, cat.category_name)} className="text-blue-600 hover:underline text-sm font-medium">Restore</button>
-                ) : (
-                  <>
-                    <button onClick={() => onEdit(cat.id)} className="text-green-600 hover:underline text-sm font-medium">Edit</button>
-                    <button onClick={() => onDelete(cat.id, cat.category_name)} className="text-red-600 hover:underline text-sm font-medium">Delete</button>
-                  </>
-                )}
-              </td>
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sort Order</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {categories.map(cat => (
+              <tr key={cat.id} className="hover:bg-gray-50 transition">
+                <td className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={isSelected(cat.id)}
+                    onChange={(e) => onSelect(cat.id, e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </td>
+                <td className="px-4 py-3 text-sm font-mono text-gray-900">{cat.category_code}</td>
+                <td className="px-4 py-3 text-sm font-medium text-blue-600 hover:text-blue-800 cursor-pointer transition" onClick={() => onView(cat.id)}>
+                  {cat.category_name}
+                </td>
+                <td className="px-4 py-3 text-sm text-gray-600">{cat.description || '-'}</td>
+                <td className="px-4 py-3 text-sm text-center text-gray-900">{cat.sort_order}</td>
+                <td className="px-4 py-3">
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    cat.is_active 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {cat.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right text-sm space-x-2">
+                  {showDeleted ? (
+                    <button onClick={() => onRestore(cat.id, cat.category_name)} className="text-blue-600 hover:text-blue-800 font-medium transition">Restore</button>
+                  ) : (
+                    <>
+                      <button onClick={() => onEdit(cat.id)} className="text-green-600 hover:text-green-800 font-medium transition">Edit</button>
+                      <button onClick={() => onDelete(cat.id, cat.category_name)} className="text-red-600 hover:text-red-800 font-medium transition">Delete</button>
+                    </>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
