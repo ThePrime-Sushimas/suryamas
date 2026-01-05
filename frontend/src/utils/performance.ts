@@ -1,5 +1,5 @@
 // Web Vitals monitoring (optional - install web-vitals package)
-export const reportWebVitals = (onPerfEntry?: (metric: any) => void) => {
+export const reportWebVitals = (onPerfEntry?: (metric: unknown) => void) => {
   if (onPerfEntry && typeof onPerfEntry === 'function') {
     // Uncomment after installing: npm install web-vitals
     // import('web-vitals').then(({ onCLS, onFID, onFCP, onLCP, onTTFB }) => {
