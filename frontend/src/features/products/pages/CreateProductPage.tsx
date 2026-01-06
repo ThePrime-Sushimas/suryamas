@@ -1,14 +1,17 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProductsStore } from '../store/products.store'
 import { ProductForm } from '../components/ProductForm'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useToast } from '@/contexts/ToastContext'
 
 import type { CreateProductDto, UpdateProductDto } from '../types'
 
 export default function CreateProductPage() {
   const navigate = useNavigate()
-  const { createProduct, loading } = useProductsStore()
+  const { createProduct, mutationLoading } = useProductsStore()
   const { success, error } = useToast()
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
 
   const handleSubmit = async (data: CreateProductDto | UpdateProductDto) => {
     try {
@@ -21,9 +24,11 @@ export default function CreateProductPage() {
   }
 
   const handleCancel = () => {
-    if (confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
-      navigate('/products')
-    }
+    setCancelDialogOpen(true)
+  }
+
+  const confirmCancel = () => {
+    navigate('/products')
   }
 
   return (
@@ -46,9 +51,19 @@ export default function CreateProductPage() {
         <ProductForm
           onSubmit={handleSubmit}
           onCancel={handleCancel}
-          isLoading={loading}
+          isLoading={mutationLoading}
         />
       </div>
+
+      <ConfirmModal
+        isOpen={cancelDialogOpen}
+        onClose={() => setCancelDialogOpen(false)}
+        onConfirm={confirmCancel}
+        title="Cancel Creation"
+        message="Are you sure you want to cancel? Any unsaved changes will be lost."
+        confirmText="Yes, Cancel"
+        variant="danger"
+      />
     </div>
   )
 }

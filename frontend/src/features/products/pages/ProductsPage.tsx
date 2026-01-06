@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProductsStore } from '../store/products.store'
 import { ProductTable } from '../components/ProductTable'
+import { ProductDeleteDialog } from '../components/ProductDeleteDialog'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useToast } from '@/contexts/ToastContext'
 import { useDebounce } from '@/hooks/useDebounce'
 import { Package, Plus, Search, Filter, X } from 'lucide-react'
@@ -11,7 +13,9 @@ export default function ProductsPage() {
   const {
     products,
     pagination,
-    loading,
+    fetchLoading,
+    mutationLoading,
+    error: storeError,
     selectedIds,
     fetchProducts,
     searchProducts,
@@ -19,15 +23,17 @@ export default function ProductsPage() {
     bulkDelete,
     toggleSelect,
     toggleSelectAll,
-    clearSelection
+    clearSelection,
+    clearError
   } = useProductsStore()
 
   const { success, error: showError } = useToast()
   
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
-  const [deleting, setDeleting] = useState<string | null>(null)
-  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null)
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
   const [showFilter, setShowFilter] = useState(false)
   
   const debouncedSearch = useDebounce(search, 500)
@@ -50,19 +56,32 @@ export default function ProductsPage() {
     loadProducts(1)
   }, [debouncedSearch, statusFilter, loadProducts])
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
-      return
+  useEffect(() => {
+    if (storeError) {
+      showError(storeError)
+      clearError()
     }
+  }, [storeError, showError, clearError])
 
-    setDeleting(id)
+  const handleDelete = async (id: string) => {
+    const product = products.find(p => p.id === id)
+    if (!product) return
+    
+    setProductToDelete({ id, name: product.product_name })
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!productToDelete) return
+
     try {
-      await deleteProduct(id)
+      await deleteProduct(productToDelete.id)
       success('Product deleted successfully')
+      setDeleteDialogOpen(false)
+      setProductToDelete(null)
+      loadProducts(pagination.page)
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to delete product')
-    } finally {
-      setDeleting(null)
     }
   }
 
@@ -72,18 +91,17 @@ export default function ProductsPage() {
       return
     }
 
-    if (!confirm(`Are you sure you want to delete ${selectedIds.length} product(s)? This action cannot be undone.`)) {
-      return
-    }
+    setBulkDeleteDialogOpen(true)
+  }
 
-    setBulkDeleting(true)
+  const confirmBulkDelete = async () => {
     try {
       await bulkDelete(selectedIds)
       success(`${selectedIds.length} product(s) deleted successfully`)
+      setBulkDeleteDialogOpen(false)
+      loadProducts(pagination.page)
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to delete products')
-    } finally {
-      setBulkDeleting(false)
     }
   }
 
@@ -185,10 +203,10 @@ export default function ProductsPage() {
               </button>
               <button
                 onClick={handleBulkDelete}
-                disabled={bulkDeleting}
+                disabled={mutationLoading}
                 className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 disabled:bg-gray-400 transition"
               >
-                {bulkDeleting ? 'Deleting...' : 'Delete Selected'}
+                {mutationLoading ? 'Deleting...' : 'Delete Selected'}
               </button>
             </div>
           </div>
@@ -197,7 +215,7 @@ export default function ProductsPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
-        {loading && !deleting ? (
+        {fetchLoading ? (
           <div className="bg-white rounded-lg shadow p-8">
             <div className="flex flex-col items-center justify-center space-y-4">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -209,7 +227,7 @@ export default function ProductsPage() {
             <ProductTable
               products={products}
               selectedIds={selectedIds}
-              deletingId={deleting}
+              deletingId={mutationLoading && productToDelete ? productToDelete.id : null}
               onView={id => navigate(`/products/${id}`)}
               onEdit={id => navigate(`/products/${id}/edit`)}
               onDelete={handleDelete}
@@ -229,13 +247,23 @@ export default function ProductsPage() {
                 <div className="flex space-x-2">
                   <button
                     onClick={() => handlePageChange(pagination.page - 1)}
-                    disabled={pagination.page === 1}
+                    disabled={!pagination.hasPrev}
                     className="px-3 py-1 border rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Previous
                   </button>
-                  {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                    const page = i + 1
+                  {Array.from({ length: Math.min(10, pagination.totalPages) }, (_, i) => {
+                    let page: number
+                    if (pagination.totalPages <= 10) {
+                      page = i + 1
+                    } else if (pagination.page <= 5) {
+                      page = i + 1
+                    } else if (pagination.page >= pagination.totalPages - 4) {
+                      page = pagination.totalPages - 9 + i
+                    } else {
+                      page = pagination.page - 4 + i
+                    }
+                    
                     return (
                       <button
                         key={page}
@@ -250,10 +278,9 @@ export default function ProductsPage() {
                       </button>
                     )
                   })}
-                  {pagination.totalPages > 5 && <span className="px-2">...</span>}
                   <button
                     onClick={() => handlePageChange(pagination.page + 1)}
-                    disabled={pagination.page === pagination.totalPages}
+                    disabled={!pagination.hasNext}
                     className="px-3 py-1 border rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Next
@@ -264,6 +291,31 @@ export default function ProductsPage() {
           </>
         )}
       </div>
+
+      {/* Delete Dialogs */}
+      {productToDelete && (
+        <ProductDeleteDialog
+          isOpen={deleteDialogOpen}
+          onClose={() => {
+            setDeleteDialogOpen(false)
+            setProductToDelete(null)
+          }}
+          onConfirm={confirmDelete}
+          productName={productToDelete.name}
+          isLoading={mutationLoading}
+        />
+      )}
+
+      <ConfirmModal
+        isOpen={bulkDeleteDialogOpen}
+        onClose={() => setBulkDeleteDialogOpen(false)}
+        onConfirm={confirmBulkDelete}
+        title="Delete Products"
+        message={`Are you sure you want to delete ${selectedIds.length} product(s)? This action can be reversed later.`}
+        confirmText="Delete"
+        variant="danger"
+        isLoading={mutationLoading}
+      />
     </div>
   )
 }

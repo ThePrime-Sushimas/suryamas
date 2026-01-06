@@ -1,40 +1,46 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { productsApi } from '../api/products.api'
 import { useProductsStore } from '../store/products.store'
 import { ProductForm } from '../components/ProductForm'
-import type { Product, UpdateProductDto } from '../types'
+import type { UpdateProductDto } from '../types'
 import { useToast } from '@/contexts/ToastContext'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 
 export default function EditProductPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { updateProduct, loading: updating } = useProductsStore()
-  const [product, setProduct] = useState<Product | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { currentProduct, fetchProductById, updateProduct, fetchLoading, mutationLoading, error: storeError, clearError } = useProductsStore()
   const [error, setError] = useState<string | null>(null)
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const { success, error: showError } = useToast()
 
   useEffect(() => {
     const fetchProduct = async () => {
       if (!id) {
         setError('Invalid product ID')
-        setLoading(false)
+        return
+      }
+
+      if (isNaN(Number(id))) {
+        setError('Invalid product ID format')
         return
       }
 
       try {
-        const data = await productsApi.getById(id)
-        setProduct(data)
+        await fetchProductById(id)
       } catch {
         setError('Product not found')
-        showError('Failed to load product')
-      } finally {
-        setLoading(false)
       }
     }
     fetchProduct()
-  }, [id, showError])
+  }, [id, fetchProductById])
+
+  useEffect(() => {
+    if (storeError) {
+      showError(storeError)
+      clearError()
+    }
+  }, [storeError, showError, clearError])
 
   const handleSubmit = async (data: UpdateProductDto) => {
     if (!id) return
@@ -49,12 +55,14 @@ export default function EditProductPage() {
   }
 
   const handleCancel = () => {
-    if (confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
-      navigate('/products')
-    }
+    setCancelDialogOpen(true)
   }
 
-  if (loading) {
+  const confirmCancel = () => {
+    navigate('/products')
+  }
+
+  if (fetchLoading) {
     return (
       <div className="max-w-2xl mx-auto p-6">
         <div className="bg-white rounded-lg shadow p-12">
@@ -67,7 +75,7 @@ export default function EditProductPage() {
     )
   }
 
-  if (error || !product) {
+  if (error || !currentProduct) {
     return (
       <div className="max-w-2xl mx-auto p-6">
         <div className="bg-white rounded-lg shadow p-12">
@@ -119,13 +127,23 @@ export default function EditProductPage() {
 
       <div className="bg-white rounded-lg shadow p-6">
         <ProductForm
-          initialData={product}
+          initialData={currentProduct}
           isEdit
           onSubmit={handleSubmit}
           onCancel={handleCancel}
-          isLoading={updating}
+          isLoading={mutationLoading}
         />
       </div>
+
+      <ConfirmModal
+        isOpen={cancelDialogOpen}
+        onClose={() => setCancelDialogOpen(false)}
+        onConfirm={confirmCancel}
+        title="Cancel Editing"
+        message="Are you sure you want to cancel? Any unsaved changes will be lost."
+        confirmText="Yes, Cancel"
+        variant="danger"
+      />
     </div>
   )
 }

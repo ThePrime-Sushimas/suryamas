@@ -7,17 +7,23 @@ interface PaginationState {
   limit: number
   total: number
   totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
 }
 
 interface ProductsState {
   products: Product[]
+  currentProduct: Product | null
   uoms: ProductUom[]
   pagination: PaginationState
-  loading: boolean
+  fetchLoading: boolean
+  mutationLoading: boolean
   error: string | null
   selectedIds: string[]
+  currentRequestId: number
   
   fetchProducts: (page?: number, limit?: number, sort?: Record<string, unknown>, filter?: Record<string, unknown>) => Promise<void>
+  fetchProductById: (id: string) => Promise<Product>
   searchProducts: (q: string, page?: number, limit?: number) => Promise<void>
   createProduct: (data: CreateProductDto) => Promise<Product>
   updateProduct: (id: string, data: UpdateProductDto) => Promise<Product>
@@ -35,171 +41,191 @@ interface ProductsState {
   clearError: () => void
 }
 
-const handleApiError = (error: unknown): string => {
-  if (error && typeof error === 'object' && 'response' in error) {
-    const apiError = error as { response?: { data?: { error?: string } } }
-    return apiError.response?.data?.error || 'An error occurred'
-  }
-  return 'An unexpected error occurred'
-}
-
-export const useProductsStore = create<ProductsState>((set) => ({
+const initialState = {
   products: [],
+  currentProduct: null,
   uoms: [],
-  pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
-  loading: false,
+  pagination: { page: 1, limit: 10, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
+  fetchLoading: false,
+  mutationLoading: false,
   error: null,
   selectedIds: [],
+  currentRequestId: 0
+}
+
+export const useProductsStore = create<ProductsState>((set, get) => ({
+  ...initialState,
 
   fetchProducts: async (page = 1, limit = 10, sort, filter) => {
-    set({ loading: true, error: null })
+    const requestId = get().currentRequestId + 1
+    set({ currentRequestId: requestId, fetchLoading: true, error: null })
+    
     try {
       const res = await productsApi.list(page, limit, sort, filter, false)
-      set({
-        products: res.data,
-        pagination: {
-          page: res.pagination.page,
-          limit: res.pagination.limit,
-          total: res.pagination.total,
-          totalPages: Math.ceil(res.pagination.total / res.pagination.limit)
-        },
-        loading: false
-      })
+      
+      if (get().currentRequestId === requestId) {
+        set({
+          products: res.data,
+          pagination: res.pagination,
+          fetchLoading: false
+        })
+      }
     } catch (error: unknown) {
-      set({ error: handleApiError(error), loading: false })
+      if (get().currentRequestId === requestId) {
+        const message = error instanceof Error ? error.message : 'Failed to fetch products'
+        set({ error: message, fetchLoading: false })
+      }
+    }
+  },
+
+  fetchProductById: async (id) => {
+    set({ fetchLoading: true, error: null })
+    try {
+      const product = await productsApi.getById(id)
+      set({ currentProduct: product, fetchLoading: false })
+      return product
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch product'
+      set({ error: message, fetchLoading: false })
+      throw error
     }
   },
 
   searchProducts: async (q, page = 1, limit = 10) => {
-    set({ loading: true, error: null })
+    const requestId = get().currentRequestId + 1
+    set({ currentRequestId: requestId, fetchLoading: true, error: null })
+    
     try {
       const res = await productsApi.search(q, page, limit, false)
-      set({
-        products: res.data,
-        pagination: {
-          page: res.pagination.page,
-          limit: res.pagination.limit,
-          total: res.pagination.total,
-          totalPages: Math.ceil(res.pagination.total / res.pagination.limit)
-        },
-        loading: false
-      })
+      
+      if (get().currentRequestId === requestId) {
+        set({
+          products: res.data,
+          pagination: res.pagination,
+          fetchLoading: false
+        })
+      }
     } catch (error: unknown) {
-      set({ error: handleApiError(error), loading: false })
+      if (get().currentRequestId === requestId) {
+        const message = error instanceof Error ? error.message : 'Failed to search products'
+        set({ error: message, fetchLoading: false })
+      }
     }
   },
 
   createProduct: async (data) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       const product = await productsApi.create(data)
-      set({ loading: false })
+      set({ mutationLoading: false })
       return product
     } catch (error: unknown) {
-      const errorMsg = handleApiError(error)
-      set({ error: errorMsg, loading: false })
-      throw new Error(errorMsg)
+      const message = error instanceof Error ? error.message : 'Failed to create product'
+      set({ error: message, mutationLoading: false })
+      throw error
     }
   },
 
   updateProduct: async (id, data) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       const product = await productsApi.update(id, data)
       set(state => ({
         products: state.products.map(p => p.id === id ? product : p),
-        loading: false
+        currentProduct: state.currentProduct?.id === id ? product : state.currentProduct,
+        mutationLoading: false
       }))
       return product
     } catch (error: unknown) {
-      const errorMsg = handleApiError(error)
-      set({ error: errorMsg, loading: false })
-      throw new Error(errorMsg)
+      const message = error instanceof Error ? error.message : 'Failed to update product'
+      set({ error: message, mutationLoading: false })
+      throw error
     }
   },
 
   deleteProduct: async (id) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       await productsApi.delete(id)
       set(state => ({
-        products: state.products.filter(p => p.id !== id),
-        loading: false
+        products: state.products.map(p => p.id === id ? { ...p, is_deleted: true } : p),
+        mutationLoading: false
       }))
     } catch (error: unknown) {
-      const errorMsg = handleApiError(error)
-      set({ error: errorMsg, loading: false })
-      throw new Error(errorMsg)
+      const message = error instanceof Error ? error.message : 'Failed to delete product'
+      set({ error: message, mutationLoading: false })
+      throw error
     }
   },
 
   bulkDelete: async (ids) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       await productsApi.bulkDelete(ids)
       set(state => ({
-        products: state.products.filter(p => !ids.includes(p.id)),
+        products: state.products.map(p => ids.includes(p.id) ? { ...p, is_deleted: true } : p),
         selectedIds: [],
-        loading: false
+        mutationLoading: false
       }))
     } catch (error: unknown) {
-      const errorMsg = handleApiError(error)
-      set({ error: errorMsg, loading: false })
-      throw new Error(errorMsg)
+      const message = error instanceof Error ? error.message : 'Failed to delete products'
+      set({ error: message, mutationLoading: false })
+      throw error
     }
   },
 
   fetchUoms: async (productId) => {
-    set({ loading: true, error: null })
+    set({ fetchLoading: true, error: null })
     try {
       const uoms = await productsApi.getUoms(productId, false)
-      set({ uoms, loading: false })
+      set({ uoms, fetchLoading: false })
     } catch (error: unknown) {
-      set({ error: handleApiError(error), loading: false })
+      const message = error instanceof Error ? error.message : 'Failed to fetch UOMs'
+      set({ error: message, fetchLoading: false })
     }
   },
 
   createUom: async (productId, data) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       const uom = await productsApi.createUom(productId, data)
-      set({ loading: false })
+      set({ mutationLoading: false })
       return uom
     } catch (error: unknown) {
-      const errorMsg = handleApiError(error)
-      set({ error: errorMsg, loading: false })
-      throw new Error(errorMsg)
+      const message = error instanceof Error ? error.message : 'Failed to create UOM'
+      set({ error: message, mutationLoading: false })
+      throw error
     }
   },
 
   updateUom: async (productId, uomId, data) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       const uom = await productsApi.updateUom(productId, uomId, data)
       set(state => ({
         uoms: state.uoms.map(u => u.id === uomId ? uom : u),
-        loading: false
+        mutationLoading: false
       }))
       return uom
     } catch (error: unknown) {
-      const errorMsg = handleApiError(error)
-      set({ error: errorMsg, loading: false })
-      throw new Error(errorMsg)
+      const message = error instanceof Error ? error.message : 'Failed to update UOM'
+      set({ error: message, mutationLoading: false })
+      throw error
     }
   },
 
   deleteUom: async (productId, uomId) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       await productsApi.deleteUom(productId, uomId)
       set(state => ({
-        uoms: state.uoms.filter(u => u.id !== uomId),
-        loading: false
+        uoms: state.uoms.map(u => u.id === uomId ? { ...u, is_deleted: true } : u),
+        mutationLoading: false
       }))
     } catch (error: unknown) {
-      const errorMsg = handleApiError(error)
-      set({ error: errorMsg, loading: false })
-      throw new Error(errorMsg)
+      const message = error instanceof Error ? error.message : 'Failed to delete UOM'
+      set({ error: message, mutationLoading: false })
+      throw error
     }
   },
 
