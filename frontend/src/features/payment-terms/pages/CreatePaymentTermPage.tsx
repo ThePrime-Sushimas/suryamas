@@ -43,15 +43,8 @@ export default function CreatePaymentTermPage() {
         <PaymentTermForm 
           onSubmit={handleSubmit} 
           isLoading={loading}
+          onCancel={handleCancel}
         />
-        
-        <button
-          onClick={handleCancel}
-          className="w-full mt-4 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-          disabled={loading}
-        >
-          Cancel
-        </button>
       </div>
     </div>
   )

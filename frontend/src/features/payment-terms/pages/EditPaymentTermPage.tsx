@@ -10,17 +10,20 @@ export default function EditPaymentTermPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const toast = useToast()
-  const { currentPaymentTerm, loading, updatePaymentTerm } = usePaymentTermsStore()
+  const { currentPaymentTerm, loading, updatePaymentTerm, fetchPaymentTermById } = usePaymentTermsStore()
 
   useEffect(() => {
-    if (id) {
-      const store = usePaymentTermsStore.getState()
-      store.fetchPaymentTermById(parseInt(id)).catch(() => {
-        toast.error('Payment term not found')
-        navigate('/payment-terms')
-      })
+    if (!id || isNaN(Number(id))) {
+      toast.error('Invalid payment term ID')
+      navigate('/payment-terms')
+      return
     }
-  }, [id, navigate, toast])
+
+    fetchPaymentTermById(parseInt(id)).catch(() => {
+      toast.error('Payment term not found')
+      navigate('/payment-terms')
+    })
+  }, [id, navigate, toast, fetchPaymentTermById])
 
   const handleSubmit = async (data: UpdatePaymentTermDto) => {
     if (!id) return
@@ -102,15 +105,8 @@ export default function EditPaymentTermPage() {
           isEdit 
           onSubmit={handleSubmit} 
           isLoading={loading}
+          onCancel={handleCancel}
         />
-        
-        <button
-          onClick={handleCancel}
-          className="w-full mt-4 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-          disabled={loading}
-        >
-          Cancel
-        </button>
       </div>
     </div>
   )

@@ -46,6 +46,7 @@ interface PaymentTermFormProps {
   isEdit?: boolean
   onSubmit: (data: CreatePaymentTermDto) => Promise<void>
   isLoading?: boolean
+  onCancel?: () => void
 }
 
 const CALCULATION_TYPES: { value: CalculationType; label: string }[] = [
@@ -58,7 +59,7 @@ const CALCULATION_TYPES: { value: CalculationType; label: string }[] = [
 
 const PAYMENT_METHODS = ['Cash', 'Bank Transfer', 'Credit Card', 'Check', 'E-Wallet']
 
-export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading }: PaymentTermFormProps) => {
+export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCancel }: PaymentTermFormProps) => {
   const [formData, setFormData] = useState({
     term_code: initialData?.term_code || '',
     term_name: initialData?.term_name || '',
@@ -570,6 +571,16 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading }: Pa
       </div>
 
       <div className="flex gap-3 pt-4 border-t">
+        {onCancel && (
+          <button 
+            type="button"
+            onClick={onCancel}
+            disabled={isLoading}
+            className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+          >
+            Cancel
+          </button>
+        )}
         <button 
           type="submit" 
           disabled={isLoading || Object.keys(errors).length > 0}

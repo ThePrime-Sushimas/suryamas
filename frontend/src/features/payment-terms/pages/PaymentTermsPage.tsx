@@ -1,19 +1,12 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePaymentTermsStore } from '../store/paymentTerms.store'
 import { PaymentTermTable } from '../components/PaymentTermTable'
 import { PaymentTermFilters } from '../components/PaymentTermFilters'
 import { PaymentTermDeleteDialog } from '../components/PaymentTermDeleteDialog'
 import { useToast } from '@/contexts/ToastContext'
+import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { FileText, Plus, Search, X } from 'lucide-react'
-
-function debounce(fn: (value: string) => void, delay: number) {
-  let timeoutId: ReturnType<typeof setTimeout>
-  return (value: string) => {
-    clearTimeout(timeoutId)
-    timeoutId = setTimeout(() => fn(value), delay)
-  }
-}
 
 export default function PaymentTermsPage() {
   const navigate = useNavigate()
@@ -21,7 +14,8 @@ export default function PaymentTermsPage() {
   const { 
     paymentTerms, 
     loading, 
-    pagination, 
+    pagination,
+    filter,
     deletePaymentTerm,
     restorePaymentTerm,
     searchPaymentTerms,
@@ -40,19 +34,17 @@ export default function PaymentTermsPage() {
     isRestore: false
   })
 
-  const debouncedSearchRef = useRef<((value: string) => void) | undefined>(undefined)
+  const debouncedSearch = useDebounce(search, 300)
 
   useEffect(() => {
-    debouncedSearchRef.current = debounce((value: string) => {
-      if (value) {
-        searchPaymentTerms(value)
-      } else {
-        const currentFilter = usePaymentTermsStore.getState().filter
-        const newFilter = currentFilter ? { ...currentFilter, q: undefined } : null
-        setFilter(newFilter)
-      }
-    }, 300)
-  }, [searchPaymentTerms, setFilter])
+    if (debouncedSearch) {
+      searchPaymentTerms(debouncedSearch)
+    } else {
+      const currentFilter = filter
+      const newFilter = currentFilter ? { ...currentFilter, q: undefined } : null
+      setFilter(newFilter)
+    }
+  }, [debouncedSearch, searchPaymentTerms, setFilter, filter])
 
   useEffect(() => {
     fetchPaymentTerms()
@@ -62,7 +54,10 @@ export default function PaymentTermsPage() {
     }
   }, [fetchPaymentTerms])
 
-  const activeFilterCount = (localFilter.calculation_type ? 1 : 0) + (localFilter.is_active ? 1 : 0)
+  const activeFilterCount = useMemo(
+    () => (localFilter.calculation_type ? 1 : 0) + (localFilter.is_active ? 1 : 0),
+    [localFilter]
+  )
 
   const handleDelete = useCallback((id: number, termName: string) => {
     setDeleteDialog({ isOpen: true, id, name: termName, isRestore: false })
@@ -99,6 +94,7 @@ export default function PaymentTermsPage() {
     if (search) apiFilter.q = search
     
     setFilter(apiFilter)
+    fetchPaymentTerms()
   }
 
   return (
@@ -131,18 +127,12 @@ export default function PaymentTermsPage() {
                 type="text"
                 placeholder="Search by term code, name, or description..."
                 value={search}
-                onChange={e => {
-                  setSearch(e.target.value)
-                  debouncedSearchRef.current?.(e.target.value)
-                }}
+                onChange={e => setSearch(e.target.value)}
                 className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               />
               {search && (
                 <button
-                  onClick={() => {
-                    setSearch('')
-                    debouncedSearchRef.current?.('')
-                  }}
+                  onClick={() => setSearch('')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   <X className="w-4 h-4" />
@@ -178,7 +168,10 @@ export default function PaymentTermsPage() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setPage(pagination.page - 1)}
+                  onClick={() => {
+                    setPage(pagination.page - 1)
+                    fetchPaymentTerms()
+                  }}
                   disabled={!pagination.hasPrev || loading}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
                 >
@@ -189,7 +182,10 @@ export default function PaymentTermsPage() {
                   <span className="font-medium">{pagination.totalPages}</span>
                 </span>
                 <button
-                  onClick={() => setPage(pagination.page + 1)}
+                  onClick={() => {
+                    setPage(pagination.page + 1)
+                    fetchPaymentTerms()
+                  }}
                   disabled={!pagination.hasNext || loading}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
                 >

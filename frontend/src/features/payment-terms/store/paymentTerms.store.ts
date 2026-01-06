@@ -152,17 +152,14 @@ export const usePaymentTermsStore = create<PaymentTermsState>((set, get) => ({
 
   setPage: (page) => {
     set(state => ({ pagination: { ...state.pagination, page } }))
-    get().fetchPaymentTerms()
   },
 
   setSort: (sort) => {
     set({ sort })
-    get().fetchPaymentTerms()
   },
 
   setFilter: (filter) => {
     set({ filter, pagination: { ...get().pagination, page: 1 } })
-    get().fetchPaymentTerms()
   },
 
   clearError: () => set({ error: null }),
