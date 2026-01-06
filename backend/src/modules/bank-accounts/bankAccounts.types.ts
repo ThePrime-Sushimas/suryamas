@@ -1,0 +1,65 @@
+export type OwnerType = 'company' | 'supplier'
+
+export interface BankAccount {
+  id: number
+  bank_id: number
+  account_name: string
+  account_number: string
+  owner_type: OwnerType
+  owner_id: number
+  currency: string
+  is_primary: boolean
+  is_active: boolean
+
+  verification_status: 'unverified' | 'pending' | 'verified' | 'rejected'
+  verified_at: string | null
+  verified_by: string | null // UUID
+
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+  deleted_by: string | null // UUID
+}
+
+
+export interface BankAccountWithBank extends BankAccount {
+  bank?: {
+    id: number
+    bank_code: string
+    bank_name: string
+  }
+}
+
+
+export interface CreateBankAccountDto {
+  bank_id: number
+  account_name: string
+  account_number: string
+  owner_type: OwnerType
+  owner_id: number
+  is_primary?: boolean
+  is_active?: boolean
+}
+
+export interface UpdateBankAccountDto {
+  account_name?: string
+  account_number?: string
+  is_primary?: boolean
+  is_active?: boolean
+}
+
+export interface BankAccountListQuery {
+  page?: number
+  limit?: number
+  owner_type?: OwnerType
+  owner_id?: number
+  bank_id?: number
+  is_active?: boolean
+}
+
+export interface BankAccountOption {
+  id: number
+  account_name: string
+  account_number: string
+  bank_name: string
+}
