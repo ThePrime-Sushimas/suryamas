@@ -14,6 +14,7 @@ import productsRoutes from './modules/products/products.routes'
 import productUomsRoutes from './modules/product-uoms/product-uoms.routes'
 import employeeBranchesRoutes from './modules/employee_branches/employee_branches.routes'
 import paymentTermsRoutes from './modules/payment-terms/payment-terms.routes'
+import suppliersRoutes from './modules/suppliers/suppliers.routes'
 import { errorHandler } from './middleware/error.middleware'
 import { requestLogger } from './middleware/request-logger.middleware'
 
@@ -44,6 +45,7 @@ app.use('/api/v1/products', productsRoutes)
 app.use('/api/v1/product-uoms', productUomsRoutes)
 app.use('/api/v1/employee-branches', employeeBranchesRoutes)
 app.use('/api/v1/payment-terms', paymentTermsRoutes)
+app.use('/api/v1/suppliers', suppliersRoutes)
 
 // Error handler
 app.use(errorHandler)
