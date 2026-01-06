@@ -47,6 +47,7 @@ export default function Layout() {
         { id: 'companies', name: 'Companies', href: '/companies', icon: <Factory size={16} />, module: 'companies' },
         { id: 'branches', name: 'Branches', href: '/branches', icon: <Warehouse size={16} />, module: 'branches' },
         { id: 'payment-terms', name: 'Payment Terms', href: '/payment-terms', icon: <Package size={16} />, module: 'payment_terms' },
+        { id: 'suppliers', name: 'Suppliers', href: '/suppliers', icon: <Package size={16} />, module: 'suppliers' },
       ]
     },
     {
