@@ -22,7 +22,7 @@ export default function Navbar() {
               {user && (
                 <button
                   onClick={() => setIsDrawerOpen(true)}
-                  className="md:hidden mr-3 p-2 rounded-md text-gray-600 hover:bg-gray-100 min-h-[44px] min-w-[44px]"
+                  className="md:hidden mr-3 p-2 rounded-md text-gray-600 hover:bg-gray-100 min-h-11 min-w-11"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -73,7 +73,7 @@ export default function Navbar() {
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="bg-red-600 text-white px-3 md:px-4 py-2 rounded hover:bg-red-700 text-sm md:text-base min-h-[44px]"
+                    className="bg-red-600 text-white px-3 md:px-4 py-2 rounded hover:bg-red-700 text-sm md:text-base min-h-11"
                   >
                     Logout
                   </button>
@@ -81,7 +81,7 @@ export default function Navbar() {
               ) : (
                 <Link
                   to="/login"
-                  className="bg-blue-600 text-white px-3 md:px-4 py-2 rounded hover:bg-blue-700 text-sm md:text-base min-h-[44px]"
+                  className="bg-blue-600 text-white px-3 md:px-4 py-2 rounded hover:bg-blue-700 text-sm md:text-base min-h-11"
                 >
                   Login
                 </Link>

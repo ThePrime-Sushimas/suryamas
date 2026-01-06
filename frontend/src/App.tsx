@@ -46,6 +46,9 @@ const EditProductPage = lazy(() => import('./features/products').then(m => ({ de
 const ProductUomsPage = lazy(() => import('./features/product-uoms').then(m => ({ default: m.ProductUomsPage })))
 const EmployeeBranchesPage = lazy(() => import('./features/employee_branches').then(m => ({ default: m.EmployeeBranchesPage })))
 const EmployeeBranchDetailPage = lazy(() => import('./features/employee_branches').then(m => ({ default: m.EmployeeBranchDetailPage })))
+const PaymentTermsPage = lazy(() => import('./features/payment-terms').then(m => ({ default: m.PaymentTermsPage })))
+const CreatePaymentTermPage = lazy(() => import('./features/payment-terms').then(m => ({ default: m.CreatePaymentTermPage })))
+const EditPaymentTermPage = lazy(() => import('./features/payment-terms').then(m => ({ default: m.EditPaymentTermPage })))
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -130,6 +133,9 @@ function App() {
           <Route path="products/:productId/uoms" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><ProductUomsPage /></Suspense></ProtectedRoute>} />
           <Route path="employee-branches" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeeBranchesPage /></Suspense></ProtectedRoute>} />
           <Route path="employees/:employeeId/branches" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeeBranchDetailPage /></Suspense></ProtectedRoute>} />
+          <Route path="payment-terms" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><PaymentTermsPage /></Suspense></ProtectedRoute>} />
+          <Route path="payment-terms/new" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreatePaymentTermPage /></Suspense></ProtectedRoute>} />
+          <Route path="payment-terms/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditPaymentTermPage /></Suspense></ProtectedRoute>} />
               </Route>
             </Routes>
           </BrowserRouter>

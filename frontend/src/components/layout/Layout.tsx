@@ -46,6 +46,7 @@ export default function Layout() {
         { id: 'metric-units', name: 'Metric Units', href: '/metric-units', icon: <Package size={16} />, module: 'metric-units' },
         { id: 'companies', name: 'Companies', href: '/companies', icon: <Factory size={16} />, module: 'companies' },
         { id: 'branches', name: 'Branches', href: '/branches', icon: <Warehouse size={16} />, module: 'branches' },
+        { id: 'payment-terms', name: 'Payment Terms', href: '/payment-terms', icon: <Package size={16} />, module: 'payment_terms' },
       ]
     },
     {
