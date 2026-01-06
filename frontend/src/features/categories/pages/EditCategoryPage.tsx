@@ -22,7 +22,7 @@ export default function EditCategoryPage() {
         if (!controller.signal.aborted) {
           setCategory(data)
         }
-      } catch (err) {
+      } catch {
         if (!controller.signal.aborted) {
           error('Category not found')
           navigate('/categories')

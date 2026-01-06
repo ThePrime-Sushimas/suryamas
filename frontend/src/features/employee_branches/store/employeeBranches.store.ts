@@ -83,7 +83,7 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
       
       // Optimistic update
       const tempId = `temp-${Date.now()}`
-      const optimisticItem = { ...payload, id: tempId, created_at: new Date().toISOString() } as any
+      const optimisticItem = { ...payload, id: tempId, created_at: new Date().toISOString() } as EmployeeBranch
       set(s => ({ items: [optimisticItem, ...s.items], total: s.total + 1 }))
       
       try {
@@ -160,7 +160,7 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
         await employeeBranchesApi.setPrimary(employeeId, branchId)
         await get().list({ page: get().page, limit: get().limit })
         return true
-      } catch (err) {
+      } catch {
         set({ items: snapshot })
         return false
       } finally {

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../lib/axios'
 import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '../../lib/errorParser'
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState('')
@@ -30,8 +31,8 @@ export default function ResetPasswordPage() {
       await api.post('/auth/reset-password', { password })
       success('Password updated successfully!')
       navigate('/login')
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to reset password')
+    } catch (err) {
+      setError(parseApiError(err, 'Failed to reset password'))
     } finally {
       setIsLoading(false)
     }

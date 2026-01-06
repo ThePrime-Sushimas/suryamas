@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '@/features/auth'
+import { parseApiError } from '@/lib/errorParser'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -15,8 +16,8 @@ export default function LoginPage() {
     try {
       await login(email, password)
       navigate('/')
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Login failed')
+    } catch (err) {
+      setError(parseApiError(err, 'Login failed'))
     }
   }
 

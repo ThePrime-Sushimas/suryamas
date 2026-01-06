@@ -11,7 +11,7 @@ export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedBranch, setSelectedBranch] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
-  const [collapsedBranches, setCollapsedBranches] = useState<Set<string>>(new Set())
+  const [collapsedBranches, setCollapsedBranches] = useState<Set<string>>(() => new Set())
   const itemsPerPage = 10
   const navigate = useNavigate()
 
@@ -52,18 +52,16 @@ export default function UsersPage() {
 
   useEffect(() => {
     // Set all branches as collapsed by default on initial load
-    if (users.length > 0 && collapsedBranches.size === 0) {
-      const branches = Array.from(new Set(users.map(u => u.branch)))
-      setCollapsedBranches(new Set(branches))
-    }
+    const branches = Array.from(new Set(users.map(u => u.branch)))
+    setCollapsedBranches(new Set(branches))
   }, [users])
 
   const loadData = async () => {
     try {
       const usersData = await usersApi.getAll()
       setUsers(usersData)
-    } catch (err) {
-      console.error('Failed to load data:', Error)
+    } catch {
+      console.error('Failed to load data')
     } finally {
       setLoading(false)
     }

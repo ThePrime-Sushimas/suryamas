@@ -48,6 +48,8 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
   )
 }
 
+// Required for custom hook export alongside provider
+// eslint-disable-next-line react-refresh/only-export-components
 export const useToast = () => {
   const context = useContext(ToastContext)
   if (!context) {

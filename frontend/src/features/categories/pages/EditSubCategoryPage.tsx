@@ -22,7 +22,7 @@ export default function EditSubCategoryPage() {
         if (!controller.signal.aborted) {
           setSubCategory(data)
         }
-      } catch (err) {
+      } catch {
         if (!controller.signal.aborted) {
           error('Sub-category not found')
           navigate('/sub-categories')

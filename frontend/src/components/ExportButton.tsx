@@ -10,7 +10,7 @@ interface ApiResponse<T> {
 interface ExportButtonProps {
   endpoint: string
   filename: string
-  filter?: any
+  filter?: Record<string, string | number | boolean>
 }
 
 export default function ExportButton({ endpoint, filename, filter = {} }: ExportButtonProps) {
@@ -38,7 +38,7 @@ export default function ExportButton({ endpoint, filename, filter = {} }: Export
       
       setProgress(100)
       setTimeout(() => setProgress(0), 1000)
-    } catch (err) {
+    } catch {
       setProgress(0)
       error('Export failed')
     } finally {

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '@/features/auth'
+import { parseApiError } from '@/lib/errorParser'
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
@@ -18,8 +19,8 @@ export default function RegisterPage() {
       await register(email, password, employeeId)
       setSuccess(true)
       setTimeout(() => navigate('/login'), 2000)
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Registration failed')
+    } catch (err) {
+      setError(parseApiError(err, 'Registration failed'))
     }
   }
 

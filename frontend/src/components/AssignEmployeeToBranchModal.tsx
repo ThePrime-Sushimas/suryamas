@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import api from '@/lib/axios'
 import { useToast } from '@/contexts/ToastContext'
 import { X, Loader2, Search, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -30,17 +30,10 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
   const [total, setTotal] = useState(0)
   const limit = 300
 
-  useEffect(() => {
-    if (!isOpen || !branchId) return
-    setPage(1)
-    setSearch('')
-    fetchUnassignedEmployees(1, '')
-  }, [isOpen, branchId])
-
-  const fetchUnassignedEmployees = async (currentPage: number, searchQuery: string) => {
+  const fetchUnassignedEmployees = useCallback(async (currentPage: number, searchQuery: string) => {
     setLoading(true)
     try {
-      const params: any = {
+      const params: Record<string, string | number> = {
         page: currentPage,
         limit
       }
@@ -58,13 +51,12 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
         try {
           const assignedRes = await api.get(`/employee-branches/branch/${branchId}?limit=1000`)
           const assignedIds = new Set(
-            (assignedRes.data?.data || []).map((a: any) => a.employee_id)
+            (assignedRes.data?.data || []).map((a: { employee_id: string }) => a.employee_id)
           )
-          const unassigned = list.filter((emp: any) => !assignedIds.has(emp.id))
+          const unassigned = list.filter((emp: Employee) => !assignedIds.has(emp.id))
           setEmployees(unassigned)
           setTotal(unassigned.length)
-        } catch (err) {
-          console.error('Failed to fetch assigned employees:', err)
+        } catch {
           // If can't fetch assigned, show all
           setEmployees(list)
           setTotal(data?.pagination?.total || list.length)
@@ -73,14 +65,21 @@ export default function AssignEmployeeToBranchModal({ isOpen, branchId, branchNa
         setEmployees(list)
         setTotal(data?.pagination?.total || list.length)
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to fetch employees:', error)
       toast.error('Failed to load employees. Please try again.')
       setEmployees([])
     } finally {
       setLoading(false)
     }
-  }
+  }, [branchId, limit, toast])
+
+  useEffect(() => {
+    if (!isOpen || !branchId) return
+    setPage(1)
+    setSearch('')
+    fetchUnassignedEmployees(1, '')
+  }, [isOpen, branchId, fetchUnassignedEmployees])
 
   const handleSearch = (value: string) => {
     setSearch(value)

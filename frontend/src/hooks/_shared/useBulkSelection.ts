@@ -4,6 +4,9 @@ export function useBulkSelection<T extends { id: string }>(items: T[]) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   useEffect(() => {
+    // Sync selected IDs with current items - valid use case for setState in effect
+    // This depends on external prop and won't cause infinite loop
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedIds(prev =>
       prev.filter(id => items.some(item => item.id === id))
     )

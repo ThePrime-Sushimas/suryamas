@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../lib/axios'
+import { parseApiError } from '../../lib/errorParser'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -15,8 +16,8 @@ export default function ForgotPasswordPage() {
     try {
       await api.post('/auth/forgot-password', { email })
       setSuccess(true)
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to send reset email')
+    } catch (err) {
+      setError(parseApiError(err, 'Failed to send reset email'))
     } finally {
       setIsLoading(false)
     }

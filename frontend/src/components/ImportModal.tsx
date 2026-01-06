@@ -15,11 +15,22 @@ interface ImportModalProps {
   title: string
 }
 
+interface PreviewData {
+  total: number
+  preview: Record<string, unknown>[]
+}
+
+interface ImportResult {
+  success: number
+  failed: number
+  errors: Array<{ row: number; error: string }>
+}
+
 export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, title }: ImportModalProps) {
   const [file, setFile] = useState<File | null>(null)
-  const [preview, setPreview] = useState<any>(null)
+  const [preview, setPreview] = useState<PreviewData | null>(null)
   const [skipDuplicates, setSkipDuplicates] = useState(false)
-  const [result, setResult] = useState<any>(null)
+  const [result, setResult] = useState<ImportResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const { error } = useToast()
 
@@ -41,11 +52,11 @@ export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, titl
     try {
       const formData = new FormData()
       formData.append('file', selectedFile)
-      const { data } = await api.post<ApiResponse<any>>(`${endpoint}/import/preview`, formData, {
+      const { data } = await api.post<ApiResponse<PreviewData>>(`${endpoint}/import/preview`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
       setPreview(data.data)
-    } catch (err) {
+    } catch {
       error('Failed to preview file')
     }
   }
@@ -57,7 +68,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, titl
       const formData = new FormData()
       formData.append('file', file)
       formData.append('skipDuplicates', String(skipDuplicates))
-      const { data } = await api.post<ApiResponse<any>>(`${endpoint}/import`, formData, {
+      const { data } = await api.post<ApiResponse<ImportResult>>(`${endpoint}/import`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
       setResult(data.data)
@@ -67,8 +78,9 @@ export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, titl
           handleClose()
         }, 2000)
       }
-    } catch (err: any) {
-      error(err.message || 'Import failed')
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Import failed'
+      error(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -126,9 +138,9 @@ export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, titl
                         </tr>
                       </thead>
                       <tbody>
-                        {preview.preview.map((row: any, idx: number) => (
+                        {preview.preview.map((row, idx: number) => (
                           <tr key={idx}>
-                            {Object.entries(row).filter(([k]) => k !== '_rowNumber').map(([key, value]: [string, any]) => (
+                            {Object.entries(row).filter(([k]) => k !== '_rowNumber').map(([key, value]) => (
                               <td key={key} className="border px-2 py-1 text-sm">{String(value)}</td>
                             ))}
                           </tr>
@@ -152,7 +164,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, titl
                 <div className="mt-2">
                   <p className="font-semibold">Errors:</p>
                   <ul className="list-disc pl-5 max-h-40 overflow-y-auto">
-                    {result.errors.map((err: any, idx: number) => (
+                    {result.errors.map((err, idx: number) => (
                       <li key={idx} className="text-sm">Row {err.row}: {err.error}</li>
                     ))}
                   </ul>
