@@ -5,9 +5,12 @@ import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permi
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
 import { filterMiddleware } from '../../middleware/filter.middleware'
+import { validateSchema } from '../../middleware/validation.middleware'
 import { branchesController } from './branches.controller'
 import { PermissionService } from '../../services/permission.service'
+import { CreateBranchSchema, UpdateBranchSchema, BulkUpdateStatusSchema, branchIdSchema } from './branches.schema'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
+import { ValidatedRequest } from '../../types/validation.types'
 
 const router = Router()
 
@@ -55,6 +58,7 @@ router.get(
 router.get(
   '/:id',
   canView('branches'),
+  validateSchema(branchIdSchema),
   (req, res) => branchesController.getById(req as AuthenticatedRequest, res)
 )
 
@@ -62,20 +66,23 @@ router.get(
 router.post(
   '/',
   canInsert('branches'),
-  (req, res) => branchesController.create(req as AuthenticatedRequest, res)
+  validateSchema(CreateBranchSchema),
+  (req, res) => branchesController.create(req as ValidatedRequest<typeof CreateBranchSchema>, res)
 )
 
 // Update branch
 router.put(
   '/:id',
   canUpdate('branches'),
-  (req, res) => branchesController.update(req as AuthenticatedRequest, res)
+  validateSchema(UpdateBranchSchema),
+  (req, res) => branchesController.update(req as ValidatedRequest<typeof UpdateBranchSchema>, res)
 )
 
 // Delete branch
 router.delete(
   '/:id',
   canDelete('branches'),
+  validateSchema(branchIdSchema),
   (req, res) => branchesController.delete(req as AuthenticatedRequest, res)
 )
 
@@ -83,7 +90,8 @@ router.delete(
 router.post(
   '/bulk/update-status',
   canUpdate('branches'),
-  (req, res) => branchesController.bulkUpdateStatus(req as AuthenticatedRequest, res)
+  validateSchema(BulkUpdateStatusSchema),
+  (req, res) => branchesController.bulkUpdateStatus(req as ValidatedRequest<typeof BulkUpdateStatusSchema>, res)
 )
 
 export default router

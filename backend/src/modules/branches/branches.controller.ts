@@ -4,6 +4,7 @@ import { CreateBranchSchema, UpdateBranchSchema, BulkUpdateStatusSchema } from '
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { getPaginationParams } from '../../utils/pagination.util'
+import { ValidatedRequest, ExtractValidated } from '../../types/validation.types'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 
 export class BranchesController {
@@ -17,20 +18,19 @@ export class BranchesController {
     }
   }
 
-  create = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  create = async (req: ValidatedRequest<typeof CreateBranchSchema>, res: Response): Promise<void> => {
     try {
-      const dto = CreateBranchSchema.parse(req.body)
-      const branch = await branchesService.create(dto, req.user.id)
+      const branch = await branchesService.create(req.validated.body, req.user!.id)
       sendSuccess(res, branch, 'Branch created', 201)
     } catch (error: any) {
       handleError(res, error)
     }
   }
 
-  update = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  update = async (req: ValidatedRequest<typeof UpdateBranchSchema>, res: Response): Promise<void> => {
     try {
-      const dto = UpdateBranchSchema.parse(req.body)
-      const branch = await branchesService.update(req.params.id, dto, req.user.id)
+      const { body, params } = req.validated
+      const branch = await branchesService.update(params.id, body, req.user!.id)
       sendSuccess(res, branch, 'Branch updated')
     } catch (error: any) {
       handleError(res, error)
@@ -84,10 +84,10 @@ export class BranchesController {
     }
   }
 
-  bulkUpdateStatus = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  bulkUpdateStatus = async (req: ValidatedRequest<typeof BulkUpdateStatusSchema>, res: Response): Promise<void> => {
     try {
-      const { ids, status } = BulkUpdateStatusSchema.parse(req.body)
-      await branchesService.bulkUpdateStatus(ids, status, req.user.id)
+      const { ids, status } = req.validated.body
+      await branchesService.bulkUpdateStatus(ids, status, req.user!.id)
       sendSuccess(res, null, 'Status updated')
     } catch (error: any) {
       handleError(res, error)

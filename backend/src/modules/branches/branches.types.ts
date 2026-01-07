@@ -32,18 +32,18 @@ export interface CreateBranchDto {
   branch_name: string
   address: string
   city: string
-  province?: string
-  postal_code?: string
+  province?: string | null
+  postal_code?: string | null
   country?: string
-  phone?: string
-  whatsapp?: string
-  email?: string
+  phone?: string | null
+  whatsapp?: string | null
+  email?: string | null
   jam_buka?: string
   jam_tutup?: string
-  hari_operasional?: HariOperasional
-  notes?: string
+  hari_operasional: HariOperasional
+  notes?: string | null
   status?: BranchStatus
-  manager_id?: string
+  manager_id?: string | null
 }
 
 export interface UpdateBranchDto {
@@ -52,14 +52,14 @@ export interface UpdateBranchDto {
   manager_id?: string | null
   address?: string
   city?: string
-  province?: string
-  postal_code?: string
+  province?: string | null
+  postal_code?: string | null
   country?: string
-  phone?: string
-  whatsapp?: string
-  email?: string
+  phone?: string | null
+  whatsapp?: string | null
+  email?: string | null
   jam_buka?: string
   jam_tutup?: string
   hari_operasional?: HariOperasional
-  notes?: string
+  notes?: string | null
 }
