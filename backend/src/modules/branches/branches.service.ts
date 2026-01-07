@@ -85,7 +85,11 @@ export class BranchesService {
     const branch = await branchesRepository.findById(id)
     if (!branch) throw BranchErrors.NOT_FOUND()
 
-    const updated = await branchesRepository.updateById(id, { ...dto, updated_by: userId } as any)
+    const data = Object.fromEntries(
+      Object.entries(dto).filter(([, v]) => v !== undefined)
+    )
+
+    const updated = await branchesRepository.updateById(id, { ...data, updated_by: userId } as any)
 
     if (userId) {
       await AuditService.log('UPDATE', 'branch', id, userId, branch, dto)
