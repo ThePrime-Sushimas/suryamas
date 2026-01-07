@@ -4,16 +4,16 @@ import { UsersService } from './users.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logError } from '../../config/logger'
 import { withValidated } from '../../utils/handler'
-import type { ValidatedRequest } from '../../middleware/validation.middleware'
+import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   userIdSchema,
   assignRoleSchema,
   removeRoleSchema,
 } from './users.schema'
 
-type UserIdReq = ValidatedRequest<typeof userIdSchema>
-type AssignRoleReq = ValidatedRequest<typeof assignRoleSchema>
-type RemoveRoleReq = ValidatedRequest<typeof removeRoleSchema>
+type UserIdReq = ValidatedAuthRequest<typeof userIdSchema>
+type AssignRoleReq = ValidatedAuthRequest<typeof assignRoleSchema>
+type RemoveRoleReq = ValidatedAuthRequest<typeof removeRoleSchema>
 
 
 export class UsersController {
