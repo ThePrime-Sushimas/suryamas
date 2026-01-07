@@ -19,7 +19,7 @@ export class DuplicateBankAccountError extends ConflictError {
 }
 
 export class InvalidOwnerError extends ValidationError {
-  constructor(ownerType: string, ownerId: number) {
+  constructor(ownerType: string, ownerId: string) {
     super(`Invalid ${ownerType} with ID ${ownerId}`, { ownerType, ownerId })
   }
 }
@@ -31,7 +31,7 @@ export class InvalidOwnerTypeError extends ValidationError {
 }
 
 export class OwnerDeletedError extends BusinessRuleError {
-  constructor(ownerType: string, ownerId: number) {
+  constructor(ownerType: string, ownerId: string) {
     super(
       `${ownerType} with ID ${ownerId} has been deleted and cannot have bank accounts`,
       { ownerType, ownerId }

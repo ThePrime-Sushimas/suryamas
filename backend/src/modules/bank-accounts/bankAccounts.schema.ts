@@ -15,7 +15,7 @@ export const createBankAccountSchema = z.object({
     owner_type: z.enum(['company', 'supplier'], {
       message: 'Owner type must be either company or supplier',
     }),
-    owner_id: z.number().int().positive('Owner ID is required'),
+    owner_id: z.string().min(1, 'Owner ID is required').max(50),
     is_primary: z.boolean().optional(),
     is_active: z.boolean().optional(),
   }),
@@ -53,7 +53,7 @@ export const bankAccountListQuerySchema = z.object({
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().max(100).default(10),
     owner_type: z.enum(['company', 'supplier']).optional(),
-    owner_id: z.coerce.number().int().positive().optional(),
+    owner_id: z.string().max(50).optional(),
     bank_id: z.coerce.number().int().positive().optional(),
     is_active: z.coerce.boolean().optional(),
   }),
@@ -62,6 +62,6 @@ export const bankAccountListQuerySchema = z.object({
 export const ownerBankAccountsSchema = z.object({
   params: z.object({
     owner_type: z.enum(['companies', 'suppliers']),
-    id: z.string().regex(/^\d+$/, 'Invalid owner ID format'),
+    id: z.string().min(1).max(50),
   }),
 })

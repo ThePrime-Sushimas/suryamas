@@ -59,7 +59,18 @@ export class PermissionService {
         .select()
         .single()
 
-      if (moduleError) throw moduleError
+      if (moduleError) {
+        // Handle duplicate key error (race condition)
+        if (moduleError.code === '23505') {
+          const { data: existingModule } = await supabase
+            .from('perm_modules')
+            .select('*')
+            .eq('name', name)
+            .single()
+          return existingModule as Module
+        }
+        throw moduleError
+      }
 
       logInfo('Module registered', { module: name, id: module.id })
 

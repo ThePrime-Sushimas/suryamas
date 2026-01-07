@@ -146,7 +146,7 @@ export class BankAccountsRepository {
     if (error) throw new Error(error.message)
   }
 
-  async findByOwner(ownerType: OwnerType, ownerId: number): Promise<BankAccountWithBank[]> {
+  async findByOwner(ownerType: OwnerType, ownerId: string): Promise<BankAccountWithBank[]> {
     const { data, error } = await supabase
       .from('bank_accounts')
       .select('*, banks(id, bank_code, bank_name)')

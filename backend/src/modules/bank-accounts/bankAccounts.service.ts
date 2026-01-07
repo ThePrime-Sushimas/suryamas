@@ -7,7 +7,7 @@ import { logInfo } from '../../config/logger'
 
 export class BankAccountsService {
   // FIX #2 & #3: Whitelist tables and check soft delete
-  private async validateOwner(ownerType: OwnerType, ownerId: number): Promise<void> {
+  private async validateOwner(ownerType: OwnerType, ownerId: string): Promise<void> {
     const VALID_TABLES = {
       company: 'companies',
       supplier: 'suppliers'
@@ -16,15 +16,28 @@ export class BankAccountsService {
     const table = VALID_TABLES[ownerType]
     if (!table) throw new Error('Invalid owner type')
     
+    // Companies use status field, suppliers use deleted_at
+    const selectFields = ownerType === 'company' ? 'id, status' : 'id, deleted_at'
+    
     const { data, error } = await supabase
       .from(table)
-      .select('id, deleted_at')
+      .select(selectFields)
       .eq('id', ownerId)
       .maybeSingle()
 
     if (error) throw new Error(error.message)
     if (!data) throw new InvalidOwnerError(ownerType, ownerId)
-    if (data.deleted_at) throw new Error(`${ownerType} has been deleted and cannot have bank accounts`)
+    
+    // Check if owner is deleted/inactive
+    if (ownerType === 'company') {
+      if ((data as any).status === 'closed') {
+        throw new Error('Company is closed and cannot have bank accounts')
+      }
+    } else {
+      if ((data as any).deleted_at) {
+        throw new Error(`${ownerType} has been deleted and cannot have bank accounts`)
+      }
+    }
   }
 
   private async validateBank(bankId: number): Promise<void> {
@@ -124,7 +137,7 @@ export class BankAccountsService {
     return createPaginatedResponse(data, total, page, limit)
   }
 
-  async getBankAccountsByOwner(ownerType: OwnerType, ownerId: number): Promise<BankAccountWithBank[]> {
+  async getBankAccountsByOwner(ownerType: OwnerType, ownerId: string): Promise<BankAccountWithBank[]> {
     await this.validateOwner(ownerType, ownerId)
     return bankAccountsRepository.findByOwner(ownerType, ownerId)
   }

@@ -6,7 +6,7 @@ export interface BankAccount {
   account_name: string
   account_number: string
   owner_type: OwnerType
-  owner_id: number
+  owner_id: string // VARCHAR(50) - supports both UUID and integer as string
   currency: string
   is_primary: boolean
   is_active: boolean
@@ -36,7 +36,7 @@ export interface CreateBankAccountDto {
   account_name: string
   account_number: string
   owner_type: OwnerType
-  owner_id: number
+  owner_id: string // VARCHAR(50) - supports both UUID and integer as string
   is_primary?: boolean
   is_active?: boolean
 }
@@ -52,7 +52,7 @@ export interface BankAccountListQuery {
   page?: number
   limit?: number
   owner_type?: OwnerType
-  owner_id?: number
+  owner_id?: string // VARCHAR(50) - supports both UUID and integer as string
   bank_id?: number
   is_active?: boolean
 }
