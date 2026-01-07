@@ -1,8 +1,9 @@
-import { Router, Request, Response, NextFunction } from 'express'
+import { Router } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { createRateLimit, updateRateLimit } from '../../middleware/rateLimiter.middleware'
+import { validateSchema } from '../../middleware/validation.middleware'
 import { banksController } from './banks.controller'
 import { PermissionService } from '../../services/permission.service'
 import { createBankSchema, updateBankSchema, bankIdSchema, bankListQuerySchema } from './banks.schema'
@@ -10,21 +11,6 @@ import { createBankSchema, updateBankSchema, bankIdSchema, bankListQuerySchema }
 const router = Router()
 
 PermissionService.registerModule('banks', 'Bank Management').catch(() => {})
-
-const validateSchema = (schema: any) => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    try {
-      schema.parse(req)
-      next()
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        error: 'Validation failed',
-        details: error.errors || error.message,
-      })
-    }
-  }
-}
 
 router.use(authenticate, resolveBranchContext)
 
