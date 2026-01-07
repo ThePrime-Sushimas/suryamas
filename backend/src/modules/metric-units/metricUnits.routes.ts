@@ -6,11 +6,10 @@ import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permi
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
 import { filterMiddleware } from '../../middleware/filter.middleware'
-import { validateSchema } from '../../middleware/validation.middleware'
+import { validateSchema, ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { PermissionService } from '../../services/permission.service'
 import { CreateMetricUnitSchema, UpdateMetricUnitSchema, metricUnitIdSchema, BulkUpdateStatusSchema } from './metricUnits.schema'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
-import { ValidatedRequest } from '../../types/validation.types'
 import { logError } from '../../config/logger'
 
 PermissionService.registerModule('metric-units', 'Metric Units Management').catch(err => {
@@ -44,13 +43,13 @@ router.get('/',
 router.post('/bulk/status', 
   canUpdate('metric-units'), 
   validateSchema(BulkUpdateStatusSchema),
-  (req, res) => metricUnitsController.bulkUpdateStatus(req as ValidatedRequest<typeof BulkUpdateStatusSchema>, res)
+  (req, res) => metricUnitsController.bulkUpdateStatus(req as ValidatedAuthRequest<typeof BulkUpdateStatusSchema>, res)
 )
 
 router.post('/', 
   canInsert('metric-units'), 
   validateSchema(CreateMetricUnitSchema),
-  (req, res) => metricUnitsController.create(req as ValidatedRequest<typeof CreateMetricUnitSchema>, res)
+  (req, res) => metricUnitsController.create(req as ValidatedAuthRequest<typeof CreateMetricUnitSchema>, res)
 )
 
 router.get('/:id', 
@@ -62,7 +61,7 @@ router.get('/:id',
 router.put('/:id', 
   canUpdate('metric-units'), 
   validateSchema(UpdateMetricUnitSchema),
-  (req, res) => metricUnitsController.update(req as ValidatedRequest<typeof UpdateMetricUnitSchema>, res)
+  (req, res) => metricUnitsController.update(req as ValidatedAuthRequest<typeof UpdateMetricUnitSchema>, res)
 )
 
 router.delete('/:id', 

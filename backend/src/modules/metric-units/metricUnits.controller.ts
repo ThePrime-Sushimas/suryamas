@@ -6,7 +6,7 @@ import { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/req
 import { getPaginationParams } from '../../utils/pagination.util'
 import { CreateMetricUnitSchema, UpdateMetricUnitSchema, BulkUpdateStatusSchema, UuidParamSchema } from './metricUnits.schema'
 import { handleError } from '../../utils/error-handler.util'
-import { ValidatedRequest } from '../../types/validation.types'
+import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 
 export class MetricUnitsController {
   async list(req: AuthenticatedQueryRequest, res: Response) {
@@ -47,7 +47,7 @@ export class MetricUnitsController {
     }
   }
 
-  async create(req: ValidatedRequest<typeof CreateMetricUnitSchema>, res: Response) {
+  async create(req: ValidatedAuthRequest<typeof CreateMetricUnitSchema>, res: Response) {
     try {
       const dto = req.validated.body
       const metricUnit = await metricUnitsService.create(dto, req.user?.id)
@@ -58,7 +58,7 @@ export class MetricUnitsController {
     }
   }
 
-  async update(req: ValidatedRequest<typeof UpdateMetricUnitSchema>, res: Response) {
+  async update(req: ValidatedAuthRequest<typeof UpdateMetricUnitSchema>, res: Response) {
     try {
       const { params, body } = req.validated
       const metricUnit = await metricUnitsService.update(params.id, body, req.user?.id)
@@ -91,7 +91,7 @@ export class MetricUnitsController {
     }
   }
 
-  async bulkUpdateStatus(req: ValidatedRequest<typeof BulkUpdateStatusSchema>, res: Response) {
+  async bulkUpdateStatus(req: ValidatedAuthRequest<typeof BulkUpdateStatusSchema>, res: Response) {
     try {
       const { ids, is_active } = req.validated.body
       await metricUnitsService.bulkUpdateStatus(ids, is_active, req.user?.id)

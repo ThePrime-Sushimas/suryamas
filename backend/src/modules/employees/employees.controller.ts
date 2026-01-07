@@ -6,7 +6,7 @@ import { handleExportToken, handleExport, handleImportPreview, handleImport } fr
 import { handleBulkDelete } from '../../utils/bulk.util'
 import type { AuthenticatedPaginatedRequest, AuthenticatedRequest } from '../../types/request.types'
 import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, EmployeeSearchSchema, BulkUpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
-import { ValidatedRequest } from '../../types/validation.types'
+import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { ZodError } from 'zod'
 
 export class EmployeesController {
@@ -32,7 +32,7 @@ export class EmployeesController {
     }
   }
   
-  async create(req: ValidatedRequest<typeof CreateEmployeeSchema>, res: Response) {
+  async create(req: ValidatedAuthRequest<typeof CreateEmployeeSchema>, res: Response) {
     try {
       const employee = await employeesService.create(req.validated.body, req.file, req.user!.id)
       logInfo('Employee created', { employee_id: employee.employee_id, user: req.user!.id })
@@ -91,7 +91,7 @@ export class EmployeesController {
     }
   }
 
-  async updateProfile(req: ValidatedRequest<typeof UpdateProfileSchema>, res: Response) {
+  async updateProfile(req: ValidatedAuthRequest<typeof UpdateProfileSchema>, res: Response) {
     try {
       const employee = await employeesService.updateProfile(req.user!.id, req.validated.body)
       logInfo('Profile updated', { user: req.user!.id })
@@ -110,7 +110,7 @@ export class EmployeesController {
     }
   }
 
-  async update(req: ValidatedRequest<typeof UpdateEmployeeSchema>, res: Response) {
+  async update(req: ValidatedAuthRequest<typeof UpdateEmployeeSchema>, res: Response) {
     try {
       const { body, params } = req.validated
       const employee = await employeesService.update(params.id, body, req.file, req.user!.id)
@@ -159,7 +159,7 @@ export class EmployeesController {
     return handleImport(req, res, (buffer, skip) => employeesService.importFromExcel(buffer, skip))
   }
 
-  async bulkUpdateActive(req: ValidatedRequest<typeof BulkUpdateActiveSchema>, res: Response) {
+  async bulkUpdateActive(req: ValidatedAuthRequest<typeof BulkUpdateActiveSchema>, res: Response) {
     try {
       const { ids, is_active } = req.validated.body
       await employeesService.bulkUpdateActive(ids, is_active)
@@ -170,7 +170,7 @@ export class EmployeesController {
     }
   }
 
-  async bulkDelete(req: ValidatedRequest<typeof BulkDeleteSchema>, res: Response) {
+  async bulkDelete(req: ValidatedAuthRequest<typeof BulkDeleteSchema>, res: Response) {
     try {
       const { ids } = req.validated.body
       await employeesService.bulkDelete(ids)
