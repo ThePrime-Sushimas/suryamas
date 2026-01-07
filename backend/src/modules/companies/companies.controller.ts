@@ -6,7 +6,8 @@ import { getPaginationParams } from '../../utils/pagination.util'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
 import { handleBulkUpdate, handleBulkDelete } from '../../utils/bulk.util'
 import { CompanyError } from './companies.errors'
-import { createCompanySchema, updateCompanySchema, bulkStatusSchema, bulkDeleteSchema } from './companies.schema'
+import { createCompanySchema, updateCompanySchema, bulkUpdateStatusSchema, bulkDeleteSchema } from './companies.schema'
+import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { ZodError } from 'zod'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 
@@ -41,22 +42,16 @@ export class CompaniesController {
     }
   }
 
-  async create(req: AuthenticatedRequest, res: Response) {
+  async create(req: ValidatedAuthRequest<typeof createCompanySchema>, res: Response) {
     try {
-      const validated = createCompanySchema.parse(req.body)
-      const company = await companiesService.create(validated, req.user.id)
+      const company = await companiesService.create(req.validated.body, req.user!.id)
       logInfo('Company created', {
         company_id: company.id,
         company_code: company.company_code,
-        user: req.user.id
+        user: req.user!.id
       })
       sendSuccess(res, company, 'Company created', 201)
     } catch (error) {
-      if (error instanceof ZodError) {
-        const errors = error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ')
-        logError('Validation error creating company', { errors, user: req.user?.id })
-        return sendError(res, errors, 400)
-      }
       if (error instanceof CompanyError) {
         logError('Failed to create company', { code: error.code, user: req.user?.id })
         return sendError(res, error.message, error.statusCode)
@@ -87,21 +82,16 @@ export class CompaniesController {
     }
   }
 
-  async update(req: AuthenticatedRequest, res: Response) {
+  async update(req: ValidatedAuthRequest<typeof updateCompanySchema>, res: Response) {
     try {
-      const validated = updateCompanySchema.parse(req.body)
-      const company = await companiesService.update(req.params.id, validated, req.user.id)
+      const { body, params } = req.validated
+      const company = await companiesService.update(params.id, body, req.user!.id)
       logInfo('Company updated', {
-        company_id: req.params.id,
-        user: req.user.id
+        company_id: params.id,
+        user: req.user!.id
       })
       sendSuccess(res, company, 'Company updated')
     } catch (error) {
-      if (error instanceof ZodError) {
-        const errors = error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ')
-        logError('Validation error updating company', { errors, user: req.user?.id })
-        return sendError(res, errors, 400)
-      }
       if (error instanceof CompanyError) {
         logError('Failed to update company', { code: error.code, id: req.params.id })
         return sendError(res, error.message, error.statusCode)
@@ -166,16 +156,12 @@ export class CompaniesController {
     return handleImport(req, res, (buffer, skip) => companiesService.importFromExcel(buffer, skip))
   }
 
-  async bulkUpdateStatus(req: AuthenticatedRequest, res: Response) {
+  async bulkUpdateStatus(req: ValidatedAuthRequest<typeof bulkUpdateStatusSchema>, res: Response) {
     try {
-      const validated = bulkStatusSchema.parse(req.body)
-      await companiesService.bulkUpdateStatus(validated.ids, validated.status, req.user.id)
+      const { ids, status } = req.validated.body
+      await companiesService.bulkUpdateStatus(ids, status, req.user!.id)
       sendSuccess(res, null, 'Bulk status update completed')
     } catch (error) {
-      if (error instanceof ZodError) {
-        const errors = error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ')
-        return sendError(res, errors, 400)
-      }
       if (error instanceof CompanyError) {
         return sendError(res, error.message, error.statusCode)
       }
@@ -183,16 +169,12 @@ export class CompaniesController {
     }
   }
 
-  async bulkDelete(req: AuthenticatedRequest, res: Response) {
+  async bulkDelete(req: ValidatedAuthRequest<typeof bulkDeleteSchema>, res: Response) {
     try {
-      const validated = bulkDeleteSchema.parse(req.body)
-      await companiesService.bulkDelete(validated.ids, req.user.id)
+      const { ids } = req.validated.body
+      await companiesService.bulkDelete(ids, req.user!.id)
       sendSuccess(res, null, 'Bulk delete completed')
     } catch (error) {
-      if (error instanceof ZodError) {
-        const errors = error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ')
-        return sendError(res, errors, 400)
-      }
       if (error instanceof CompanyError) {
         return sendError(res, error.message, error.statusCode)
       }

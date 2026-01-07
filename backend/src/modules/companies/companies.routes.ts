@@ -7,7 +7,9 @@ import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
 import { filterMiddleware } from '../../middleware/filter.middleware'
 import { exportLimiter } from '../../middleware/rateLimiter.middleware'
+import { validateSchema, ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { PermissionService } from '../../services/permission.service'
+import { createCompanySchema, updateCompanySchema, companyIdSchema, bulkUpdateStatusSchema, bulkDeleteSchema } from './companies.schema'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 
 PermissionService.registerModule('companies', 'Company Management').catch((error) => {
@@ -39,22 +41,22 @@ router.post('/import/preview', canInsert('companies'), (req, res) =>
 router.post('/import', canInsert('companies'), (req, res) => 
   companiesController.importData(req as AuthenticatedRequest, res))
 
-router.post('/bulk/status', canUpdate('companies'), (req, res) => 
-  companiesController.bulkUpdateStatus(req as AuthenticatedRequest, res))
+router.post('/bulk/status', canUpdate('companies'), validateSchema(bulkUpdateStatusSchema), (req, res) => 
+  companiesController.bulkUpdateStatus(req as ValidatedAuthRequest<typeof bulkUpdateStatusSchema>, res))
 
-router.post('/bulk/delete', canDelete('companies'), (req, res) => 
-  companiesController.bulkDelete(req as AuthenticatedRequest, res))
+router.post('/bulk/delete', canDelete('companies'), validateSchema(bulkDeleteSchema), (req, res) => 
+  companiesController.bulkDelete(req as ValidatedAuthRequest<typeof bulkDeleteSchema>, res))
 
-router.post('/', canInsert('companies'), (req, res) => 
-  companiesController.create(req as AuthenticatedRequest, res))
+router.post('/', canInsert('companies'), validateSchema(createCompanySchema), (req, res) => 
+  companiesController.create(req as ValidatedAuthRequest<typeof createCompanySchema>, res))
 
-router.get('/:id', canView('companies'), (req, res) => 
+router.get('/:id', canView('companies'), validateSchema(companyIdSchema), (req, res) => 
   companiesController.getById(req as AuthenticatedRequest, res))
 
-router.put('/:id', canUpdate('companies'), (req, res) => 
-  companiesController.update(req as AuthenticatedRequest, res))
+router.put('/:id', canUpdate('companies'), validateSchema(updateCompanySchema), (req, res) => 
+  companiesController.update(req as ValidatedAuthRequest<typeof updateCompanySchema>, res))
 
-router.delete('/:id', canDelete('companies'), (req, res) => 
+router.delete('/:id', canDelete('companies'), validateSchema(companyIdSchema), (req, res) => 
   companiesController.delete(req as AuthenticatedRequest, res))
 
 export default router

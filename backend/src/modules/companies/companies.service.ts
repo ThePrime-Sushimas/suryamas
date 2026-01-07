@@ -25,11 +25,15 @@ export class CompaniesService {
     logInfo('Creating company', { company_code: data.company_code, user: userId })
     
     try {
-      const company = await this.repository.create({
+      const trimmedData = {
         ...data,
+        company_code: data.company_code.trim(),
+        company_name: data.company_name.trim(),
         company_type: data.company_type || 'PT',
         status: data.status || 'active'
-      })
+      }
+
+      const company = await this.repository.create(trimmedData)
 
       if (!company) {
         throw CompanyErrors.CREATE_FAILED()
@@ -71,7 +75,12 @@ export class CompaniesService {
     }
 
     try {
-      const company = await this.repository.update(id, data)
+      const trimmedData = {
+        ...data,
+        ...(data.company_name && { company_name: data.company_name.trim() })
+      }
+
+      const company = await this.repository.update(id, trimmedData)
       if (!company) {
         throw CompanyErrors.UPDATE_FAILED()
       }
@@ -107,6 +116,12 @@ export class CompaniesService {
   async bulkUpdateStatus(ids: string[], status: string, userId: string): Promise<void> {
     logInfo('Bulk updating company status', { count: ids.length, status, user: userId })
     
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const invalidIds = ids.filter(id => !uuidRegex.test(id))
+    if (invalidIds.length > 0) {
+      throw new Error(`Invalid UUID format: ${invalidIds.join(', ')}`)
+    }
+
     if (!CompanyConfig.STATUSES.includes(status as any)) {
       throw CompanyErrors.INVALID_STATUS([...CompanyConfig.STATUSES])
     }
@@ -119,6 +134,12 @@ export class CompaniesService {
   async bulkDelete(ids: string[], userId: string): Promise<void> {
     logInfo('Bulk deleting companies', { count: ids.length, user: userId })
     
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const invalidIds = ids.filter(id => !uuidRegex.test(id))
+    if (invalidIds.length > 0) {
+      throw new Error(`Invalid UUID format: ${invalidIds.join(', ')}`)
+    }
+
     await this.repository.bulkDelete(ids)
     await AuditService.log('BULK_DELETE', 'company', ids.join(','), userId, null, null)
     logInfo('Bulk delete completed', { count: ids.length })
