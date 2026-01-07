@@ -1,5 +1,5 @@
 import { CompanyErrors } from '../companies.errors'
-import { createCompanySchema, updateCompanySchema, bulkStatusSchema } from '../companies.schema'
+import { createCompanySchema, updateCompanySchema, bulkUpdateStatusSchema } from '../companies.schema'
 import { CompanyConfig } from '../companies.config'
 
 describe('Companies Module', () => {
@@ -28,128 +28,158 @@ describe('Companies Module', () => {
     describe('createCompanySchema', () => {
       it('should validate valid company data', () => {
         const validData = {
-          company_code: 'TEST001',
-          company_name: 'Test Company',
-          company_type: 'PT' as const,
-          status: 'active' as const
+          body: {
+            company_code: 'TEST001',
+            company_name: 'Test Company',
+            company_type: 'PT' as const,
+            status: 'active' as const
+          }
         }
         const result = createCompanySchema.parse(validData)
-        expect(result.company_code).toBe('TEST001')
-        expect(result.company_name).toBe('Test Company')
+        expect(result.body.company_code).toBe('TEST001')
+        expect(result.body.company_name).toBe('Test Company')
       })
 
       it('should reject empty company_code', () => {
         const invalidData = {
-          company_code: '',
-          company_name: 'Test Company'
+          body: {
+            company_code: '',
+            company_name: 'Test Company'
+          }
         }
         expect(() => createCompanySchema.parse(invalidData)).toThrow()
       })
 
       it('should reject empty company_name', () => {
         const invalidData = {
-          company_code: 'TEST001',
-          company_name: ''
+          body: {
+            company_code: 'TEST001',
+            company_name: ''
+          }
         }
         expect(() => createCompanySchema.parse(invalidData)).toThrow()
       })
 
       it('should reject invalid email', () => {
         const invalidData = {
-          company_code: 'TEST001',
-          company_name: 'Test Company',
-          email: 'invalid-email'
+          body: {
+            company_code: 'TEST001',
+            company_name: 'Test Company',
+            email: 'invalid-email'
+          }
         }
         expect(() => createCompanySchema.parse(invalidData)).toThrow()
       })
 
       it('should reject invalid website URL', () => {
         const invalidData = {
-          company_code: 'TEST001',
-          company_name: 'Test Company',
-          website: 'not-a-url'
+          body: {
+            company_code: 'TEST001',
+            company_name: 'Test Company',
+            website: 'not-a-url'
+          }
         }
         expect(() => createCompanySchema.parse(invalidData)).toThrow()
       })
 
       it('should accept valid NPWP (15 chars)', () => {
         const validData = {
-          company_code: 'TEST001',
-          company_name: 'Test Company',
-          npwp: '123456789012345'
+          body: {
+            company_code: 'TEST001',
+            company_name: 'Test Company',
+            npwp: '123456789012345'
+          }
         }
         const result = createCompanySchema.parse(validData)
-        expect(result.npwp).toBe('123456789012345')
+        expect(result.body.npwp).toBe('123456789012345')
       })
 
       it('should reject invalid NPWP length', () => {
         const invalidData = {
-          company_code: 'TEST001',
-          company_name: 'Test Company',
-          npwp: '12345'
+          body: {
+            company_code: 'TEST001',
+            company_name: 'Test Company',
+            npwp: '12345'
+          }
         }
         expect(() => createCompanySchema.parse(invalidData)).toThrow()
       })
 
       it('should set default company_type to PT', () => {
         const data = {
-          company_code: 'TEST001',
-          company_name: 'Test Company'
+          body: {
+            company_code: 'TEST001',
+            company_name: 'Test Company'
+          }
         }
         const result = createCompanySchema.parse(data)
-        expect(result.company_type).toBe('PT')
+        expect(result.body.company_type).toBe('PT')
       })
 
       it('should set default status to active', () => {
         const data = {
-          company_code: 'TEST001',
-          company_name: 'Test Company'
+          body: {
+            company_code: 'TEST001',
+            company_name: 'Test Company'
+          }
         }
         const result = createCompanySchema.parse(data)
-        expect(result.status).toBe('active')
+        expect(result.body.status).toBe('active')
       })
     })
 
     describe('updateCompanySchema', () => {
       it('should validate partial update', () => {
         const validData = {
-          company_name: 'Updated Company'
+          params: { id: '550e8400-e29b-41d4-a716-446655440000' },
+          body: {
+            company_name: 'Updated Company'
+          }
         }
         const result = updateCompanySchema.parse(validData)
-        expect(result.company_name).toBe('Updated Company')
+        expect(result.body.company_name).toBe('Updated Company')
       })
 
       it('should allow empty update', () => {
-        const result = updateCompanySchema.parse({})
-        expect(result).toEqual({})
+        const result = updateCompanySchema.parse({
+          params: { id: '550e8400-e29b-41d4-a716-446655440000' },
+          body: {}
+        })
+        expect(result.body).toEqual({})
       })
     })
 
-    describe('bulkStatusSchema', () => {
+    describe('bulkUpdateStatusSchema', () => {
       it('should validate bulk status update', () => {
         const validData = {
-          ids: ['550e8400-e29b-41d4-a716-446655440000'],
-          status: 'inactive' as const
+          body: {
+            ids: ['550e8400-e29b-41d4-a716-446655440000'],
+            status: 'inactive' as const
+          }
         }
-        const result = bulkStatusSchema.parse(validData)
-        expect(result.ids).toHaveLength(1)
-        expect(result.status).toBe('inactive')
+        const result = bulkUpdateStatusSchema.parse(validData)
+        expect(result.body.ids).toHaveLength(1)
+        expect(result.body.status).toBe('inactive')
       })
 
       it('should reject empty ids array', () => {
         const invalidData = {
-          ids: [],
-          status: 'inactive' as const
+          body: {
+            ids: [],
+            status: 'inactive' as const
+          }
         }
-        expect(() => bulkStatusSchema.parse(invalidData)).toThrow()
+        expect(() => bulkUpdateStatusSchema.parse(invalidData)).toThrow()
       })
 
       it('should reject invalid UUID', () => {
         const invalidData = {
-          ids: ['not-a-uuid'],
-          status: 'inactive' as const
+          body: {
+            ids: ['not-a-uuid'],
+            status: 'inactive' as const
+          }
         }
-        expect(() => bulkStatusSchema.parse(invalidData)).toThrow()
+        expect(() => bulkUpdateStatusSchema.parse(invalidData)).toThrow()
       })
     })
   })
