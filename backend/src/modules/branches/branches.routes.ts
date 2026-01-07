@@ -10,7 +10,7 @@ import { branchesController } from './branches.controller'
 import { PermissionService } from '../../services/permission.service'
 import { CreateBranchSchema, UpdateBranchSchema, BulkUpdateStatusSchema, branchIdSchema } from './branches.schema'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
-import { ValidatedRequest } from '../../types/validation.types'
+import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 
 const router = Router()
 
@@ -67,7 +67,7 @@ router.post(
   '/',
   canInsert('branches'),
   validateSchema(CreateBranchSchema),
-  (req, res) => branchesController.create(req as ValidatedRequest<typeof CreateBranchSchema>, res)
+  (req, res) => branchesController.create(req as ValidatedAuthRequest<typeof CreateBranchSchema>, res)
 )
 
 // Update branch
@@ -75,7 +75,7 @@ router.put(
   '/:id',
   canUpdate('branches'),
   validateSchema(UpdateBranchSchema),
-  (req, res) => branchesController.update(req as ValidatedRequest<typeof UpdateBranchSchema>, res)
+  (req, res) => branchesController.update(req as ValidatedAuthRequest<typeof UpdateBranchSchema>, res)
 )
 
 // Delete branch
@@ -91,7 +91,7 @@ router.post(
   '/bulk/update-status',
   canUpdate('branches'),
   validateSchema(BulkUpdateStatusSchema),
-  (req, res) => branchesController.bulkUpdateStatus(req as ValidatedRequest<typeof BulkUpdateStatusSchema>, res)
+  (req, res) => branchesController.bulkUpdateStatus(req as ValidatedAuthRequest<typeof BulkUpdateStatusSchema>, res)
 )
 
 export default router
