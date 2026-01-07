@@ -1,0 +1,57 @@
+{
+  "env": {
+    "node": true,
+    "es2020": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2020,
+    "sourceType": "module"
+  },
+  "plugins": [
+    "@typescript-eslint"
+  ],
+  "rules": {
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "MemberExpression[object.name='req'][property.name='body']",
+        "message": "Use req.validated.body instead of req.body"
+      },
+      {
+        "selector": "MemberExpression[object.name='req'][property.name='params']",
+        "message": "Use req.validated.params instead of req.params in controllers"
+      },
+      {
+        "selector": "MemberExpression[object.name='req'][property.name='query']",
+        "message": "Use req.validated.query instead of req.query in controllers"
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/modules/**/**.controller.ts"],
+      "rules": {
+        "no-restricted-syntax": [
+          "error",
+          {
+            "selector": "MemberExpression[object.name='req'][property.name='body']",
+            "message": "Use req.validated.body instead of req.body"
+          },
+          {
+            "selector": "MemberExpression[object.name='req'][property.name='params']",
+            "message": "Use req.validated.params instead of req.params"
+          },
+          {
+            "selector": "MemberExpression[object.name='req'][property.name='query']",
+            "message": "Use req.validated.query instead of req.query"
+          }
+        ]
+      }
+    }
+  ]
+}
