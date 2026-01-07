@@ -3,7 +3,7 @@
 // =====================================================
 
 import { supabase } from '../config/supabase'
-import { logInfo, logError, logWarn } from '../config/logger'
+import { logError } from '../config/logger'
 import type {
   Module,
   Role,
@@ -72,8 +72,6 @@ export class PermissionService {
         throw moduleError
       }
 
-      logInfo('Module registered', { module: name, id: module.id })
-
       // Create default permissions for all roles
       const { data: roles } = await supabase.from('perm_roles').select('*')
 
@@ -90,8 +88,6 @@ export class PermissionService {
 
         if (permError) {
           logError('Failed to create default permissions', { error: permError.message })
-        } else {
-          logInfo('Default permissions created', { module: name, roleCount: roles.length })
         }
       }
 
@@ -136,7 +132,6 @@ export class PermissionService {
     // Invalidate cache for all users
     await this.invalidateAllCache()
 
-    logInfo('Module status updated', { moduleId, isActive })
     return true
   }
 
@@ -156,7 +151,6 @@ export class PermissionService {
     try {
       // Skip check for public modules
       if (isPublicModule(moduleName)) {
-        logInfo('Public module - skipping permission check', { moduleName })
         return { allowed: true, reason: 'Public module' }
       }
 
@@ -164,7 +158,6 @@ export class PermissionService {
       const memCached = this.memoryCache.get(userId)
       if (memCached && memCached.expiresAt > Date.now()) {
         const allowed = memCached.permissions[moduleName]?.[action] || false
-        logInfo('Permission from memory cache', { userId, moduleName, action, allowed })
         return { allowed, cached: true }
       }
 
@@ -177,14 +170,10 @@ export class PermissionService {
           permissions: cached,
           expiresAt: Date.now() + this.MEMORY_CACHE_TTL,
         })
-        logInfo('Permission from database cache', { userId, moduleName, action, allowed })
         return { allowed, cached: true }
       }
-      
-      logInfo('Cache miss - checking database', { userId, moduleName, action })
 
       // Query database
-      logInfo('Calling RPC user_has_permission', { userId, moduleName, action })
       const { data, error } = await supabase.rpc('user_has_permission', {
         p_user_id: userId,
         p_module_name: moduleName,
@@ -192,11 +181,10 @@ export class PermissionService {
       })
 
       if (error) {
-        logError('RPC user_has_permission failed', { userId, moduleName, action, error: error.message, errorDetails: error })
+        logError('RPC user_has_permission failed', { userId, moduleName, action, error: error.message })
         throw error
       }
 
-      logInfo('Permission check result', { userId, moduleName, action, data, dataType: typeof data })
       const allowed = data === true
 
       // Update both caches
@@ -361,19 +349,19 @@ export class PermissionService {
   ): Promise<RolePermission | null> {
     try {
       // Check if permission exists
-      const { data: existing } = await supabase
+      const { data: existing, error: existError } = await supabase
         .from('perm_role_permissions')
         .select('*')
         .eq('role_id', roleId)
         .eq('module_id', moduleId)
 
+      if (existError) throw existError
+
       let oldPerm = existing?.[0]
       let updated
-      let error
 
       if (!existing || existing.length === 0) {
         // Auto-create permission if not found
-        logInfo('Permission not found, auto-creating', { roleId, moduleId })
         const { data: created, error: createError } = await supabase
           .from('perm_role_permissions')
           .insert({ role_id: roleId, module_id: moduleId, ...permissions })
@@ -383,19 +371,28 @@ export class PermissionService {
         updated = created
       } else {
         // Update existing permission
-        const { data: updateData, error: updateError } = await supabase
+        const { error: updateError } = await supabase
           .from('perm_role_permissions')
           .update(permissions)
           .eq('role_id', roleId)
           .eq('module_id', moduleId)
-          .select()
 
-        error = updateError
-        updated = updateData
+        if (updateError) throw updateError
+        
+        // Fetch updated record
+        const { data: fetchedData, error: fetchError } = await supabase
+          .from('perm_role_permissions')
+          .select('*')
+          .eq('role_id', roleId)
+          .eq('module_id', moduleId)
+        
+        if (fetchError) throw fetchError
+        updated = fetchedData
       }
 
-      if (error) throw error
-      if (!updated || updated.length === 0) throw new Error('Update failed')
+      if (!updated || updated.length === 0) {
+        throw new Error('Update failed - no data returned')
+      }
 
       // Log audit trail
       if (changedBy) {
@@ -413,7 +410,6 @@ export class PermissionService {
       await this.invalidateRoleCache(roleId)
       await this.invalidateAllCache()
 
-      logInfo('Role permissions updated', { roleId, moduleId, isNew: !oldPerm })
       return updated[0] as RolePermission
     } catch (error: any) {
       logError('Failed to update role permissions', {
@@ -464,9 +460,7 @@ export class PermissionService {
       }
 
       await this.invalidateRoleCache(roleId)
-      // Also invalidate all cache to ensure immediate update
       await this.invalidateAllCache()
-      logInfo('Bulk role permissions updated', { roleId, count: updates.length, changedBy })
       return true
     } catch (error: any) {
       logError('Bulk update failed', { roleId, error: error.message })
@@ -493,7 +487,6 @@ export class PermissionService {
       if (error || !data) return null
 
       const permissions = data.permissions as PermissionMatrix
-      // Return null if cache is empty
       if (!permissions || Object.keys(permissions).length === 0) return null
       
       return permissions
@@ -516,13 +509,12 @@ export class PermissionService {
         expires_at: expiresAt,
       })
     } catch (error: any) {
-      logWarn('Cache update failed', { userId, error: error.message })
+      logError('Cache update failed', { userId, error: error.message })
     }
   }
 
   /**
    * Invalidate cache for all users with specific role
-   * Public method for external use
    */
   static async invalidateRoleCache(roleId: string): Promise<void> {
     try {
@@ -534,15 +526,13 @@ export class PermissionService {
       if (users && users.length > 0) {
         const userIds = users.map((u) => u.user_id)
         await supabase.from('perm_cache').delete().in('user_id', userIds)
-        // Also clear memory caches
         userIds.forEach((id) => {
           this.memoryCache.delete(id)
           this.userPermissionsCache.delete(id)
         })
-        logInfo('Role cache invalidated', { roleId, userCount: users.length })
       }
     } catch (error: any) {
-      logWarn('Cache invalidation failed', { roleId, error: error.message })
+      logError('Cache invalidation failed', { roleId, error: error.message })
     }
   }
 
@@ -552,12 +542,10 @@ export class PermissionService {
   static async invalidateAllCache(): Promise<void> {
     try {
       await supabase.from('perm_cache').delete().neq('user_id', '00000000-0000-0000-0000-000000000000')
-      // Also clear memory caches
       this.memoryCache.clear()
       this.userPermissionsCache.clear()
-      logInfo('All permission cache invalidated')
     } catch (error: any) {
-      logWarn('Cache invalidation failed', { error: error.message })
+      logError('Cache invalidation failed', { error: error.message })
     }
   }
 
