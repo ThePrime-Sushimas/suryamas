@@ -4,56 +4,70 @@ import { bankAccountsService } from './bankAccounts.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { OwnerType } from './bankAccounts.types'
+import { withValidated } from '../../utils/handler'
+import type { ValidatedRequest, ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import {
+  createBankAccountSchema,
+  updateBankAccountSchema,
+  bankAccountIdSchema,
+  bankAccountListQuerySchema,
+} from './bankAccounts.schema'
+
+type CreateBankAccountReq = ValidatedRequest<typeof createBankAccountSchema>
+type UpdateBankAccountReq = ValidatedRequest<typeof updateBankAccountSchema>
+type BankAccountIdReq = ValidatedAuthRequest<typeof bankAccountIdSchema>
+type BankAccountListQueryReq = ValidatedRequest<typeof bankAccountListQuerySchema>
+
 
 export class BankAccountsController {
-  create = async (req: AuthRequest, res: Response): Promise<void> => {
+  create = withValidated(async (req: CreateBankAccountReq, res: Response) => {
     try {
-      const account = await bankAccountsService.createBankAccount(req.body)
+      const account = await bankAccountsService.createBankAccount(req.validated.body)
       sendSuccess(res, account, 'Bank account created successfully', 201)
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  list = async (req: AuthRequest, res: Response): Promise<void> => {
+  list = withValidated(async (req: BankAccountListQueryReq, res: Response) => {
     try {
-      const result = await bankAccountsService.getBankAccounts(req.query)
+      const result = await bankAccountsService.getBankAccounts(req.validated.query)
       sendSuccess(res, result.data, 'Bank accounts retrieved successfully', 200, result.pagination)
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  findById = async (req: AuthRequest, res: Response): Promise<void> => {
+  findById = withValidated(async (req: BankAccountIdReq, res: Response) => {
     try {
-      const id = parseInt(req.params.id)
+      const id = parseInt(req.validated.params.id)
       const account = await bankAccountsService.getBankAccountById(id)
       sendSuccess(res, account, 'Bank account retrieved successfully')
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  update = async (req: AuthRequest, res: Response): Promise<void> => {
+  update = withValidated(async (req: UpdateBankAccountReq, res: Response) => {
     try {
-      const id = parseInt(req.params.id)
-      const account = await bankAccountsService.updateBankAccount(id, req.body)
+      const id = parseInt(req.validated.params.id)
+      const account = await bankAccountsService.updateBankAccount(id, req.validated.body)
       sendSuccess(res, account, 'Bank account updated successfully')
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  delete = async (req: AuthRequest, res: Response): Promise<void> => {
+  delete = withValidated(async (req: BankAccountIdReq, res: Response) => {
     try {
-      const id = parseInt(req.params.id)
-      const userId = req.context?.employee_id ? parseInt(req.context.employee_id) : undefined
-      await bankAccountsService.deleteBankAccount(id, userId)
+      const id = parseInt(req.validated.params.id)
+      const employeeId = req.context?.employee_id
+      await bankAccountsService.deleteBankAccount(id, employeeId)
       sendSuccess(res, null, 'Bank account deleted successfully')
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
   getByOwner = async (req: AuthRequest, res: Response): Promise<void> => {
     try {

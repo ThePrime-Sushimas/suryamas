@@ -104,8 +104,8 @@ export class BankAccountsService {
     return bankAccountsRepository.updateAtomic(id, data)
   }
 
-  // FIX #5: Add userId for audit trail
-  async deleteBankAccount(id: number, userId?: number): Promise<void> {
+  // FIX #5: Add employeeId for audit trail
+  async deleteBankAccount(id: number, employeeId?: string): Promise<void> {
     const account = await bankAccountsRepository.findById(id)
     if (!account) {
       throw new BankAccountNotFoundError(id.toString())
@@ -116,10 +116,10 @@ export class BankAccountsService {
       account_id: id,
       owner_type: account.owner_type,
       owner_id: account.owner_id,
-      deleted_by: userId
+      deleted_by: employeeId
     })
 
-    await bankAccountsRepository.softDelete(id, userId)
+    await bankAccountsRepository.softDelete(id, employeeId)
   }
 
   async getBankAccountById(id: number): Promise<BankAccountWithBank> {

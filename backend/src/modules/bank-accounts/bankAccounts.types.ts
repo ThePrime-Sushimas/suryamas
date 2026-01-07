@@ -10,9 +10,6 @@ export interface BankAccount {
   currency: string
   is_primary: boolean
   is_active: boolean
-
-  verification_status: 'unverified' | 'pending' | 'verified' | 'rejected'
-  verified_at: string | null
   verified_by: string | null // UUID
 
   created_at: string

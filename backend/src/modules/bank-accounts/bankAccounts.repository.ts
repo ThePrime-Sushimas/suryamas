@@ -1,4 +1,5 @@
 import { supabase } from '../../config/supabase'
+import { DatabaseError } from '../../utils/error-handler.util'
 import { BankAccount, BankAccountWithBank, CreateBankAccountDto, UpdateBankAccountDto, BankAccountListQuery, OwnerType } from './bankAccounts.types'
 
 export class BankAccountsRepository {
@@ -30,7 +31,7 @@ export class BankAccountsRepository {
 
     const { data, error, count } = await dbQuery.range(pagination.offset, pagination.offset + pagination.limit - 1)
 
-    if (error) throw new Error(error.message)
+    if (error) throw new DatabaseError('Failed to fetch bank accounts', { cause: error })
 
     const mapped = (data || []).map(item => {
       const bank = Array.isArray(item.banks) ? item.banks[0] : item.banks
@@ -54,7 +55,7 @@ export class BankAccountsRepository {
       .is('deleted_at', null)
       .maybeSingle()
 
-    if (error) throw new Error(error.message)
+    if (error) throw new DatabaseError('Failed to fetch bank account', { cause: error })
     
     if (!data) return null
 
@@ -82,13 +83,12 @@ export class BankAccountsRepository {
 
     const { data, error } = await query.maybeSingle()
 
-    if (error) throw new Error(error.message)
+    if (error) throw new DatabaseError('Failed to find bank account by number', { cause: error })
     return data
   }
 
-  // FIX #1: Atomic create using database function
   async createAtomic(data: CreateBankAccountDto): Promise<BankAccount> {
-    const { data: account, error } = await supabase.rpc('create_bank_account_atomic', {
+    const { data: result, error } = await supabase.rpc('create_bank_account_atomic', {
       p_bank_id: data.bank_id,
       p_account_name: data.account_name,
       p_account_number: data.account_number,
@@ -98,16 +98,17 @@ export class BankAccountsRepository {
       p_is_active: data.is_active ?? true
     })
 
-    if (error) throw new Error(error.message)
+    if (error) throw new DatabaseError('Failed to create bank account', { cause: error })
+    const account = Array.isArray(result) ? result[0] : result
+    if (!account) throw new DatabaseError('Bank account creation returned no data')
     return account
   }
 
-  // FIX #1: Atomic update using database function
   async updateAtomic(id: number, updates: UpdateBankAccountDto): Promise<BankAccount> {
     const existing = await this.findById(id)
-    if (!existing) throw new Error('Bank account not found')
+    if (!existing) throw new DatabaseError('Bank account not found')
 
-    const { data: account, error } = await supabase.rpc('update_bank_account_atomic', {
+    const { data: result, error } = await supabase.rpc('update_bank_account_atomic', {
       p_id: id,
       p_account_name: updates.account_name ?? null,
       p_account_number: updates.account_number ?? null,
@@ -115,17 +116,18 @@ export class BankAccountsRepository {
       p_is_active: updates.is_active ?? null
     })
 
-    if (error) throw new Error(error.message)
+    if (error) throw new DatabaseError('Failed to update bank account', { cause: error })
+    const account = Array.isArray(result) ? result[0] : result
+    if (!account) throw new DatabaseError('Bank account update returned no data')
     return account
   }
 
-  // FIX #5: Add userId parameter for audit trail
-  async softDelete(id: number, userId?: number): Promise<void> {
+  async softDelete(id: number, employeeId?: string): Promise<void> {
     const { error } = await supabase
       .from('bank_accounts')
       .update({
         deleted_at: new Date().toISOString(),
-        deleted_by: userId,
+        deleted_by: employeeId || null,
         is_active: false,
         is_primary: false,
         updated_at: new Date().toISOString(),
@@ -133,10 +135,10 @@ export class BankAccountsRepository {
       .eq('id', id)
       .is('deleted_at', null)
 
-    if (error) throw new Error(error.message)
+    if (error) throw new DatabaseError('Failed to delete bank account', { cause: error })
   }
 
-  async unsetPrimaryForOwner(ownerType: OwnerType, ownerId: number, excludeId?: number): Promise<void> {
+  async unsetPrimaryForOwner(ownerType: OwnerType, ownerId: string, excludeId?: number): Promise<void> {
     let query = supabase
       .from('bank_accounts')
       .update({ is_primary: false, updated_at: new Date().toISOString() })
@@ -151,7 +153,7 @@ export class BankAccountsRepository {
 
     const { error } = await query
 
-    if (error) throw new Error(error.message)
+    if (error) throw new DatabaseError('Failed to unset primary account', { cause: error })
   }
 
   async findByOwner(ownerType: OwnerType, ownerId: string): Promise<BankAccountWithBank[]> {
@@ -164,7 +166,7 @@ export class BankAccountsRepository {
       .order('is_primary', { ascending: false })
       .order('created_at', { ascending: false })
 
-    if (error) throw new Error(error.message)
+    if (error) throw new DatabaseError('Failed to fetch accounts by owner', { cause: error })
 
     return (data || []).map(item => {
       const bank = Array.isArray(item.banks) ? item.banks[0] : item.banks

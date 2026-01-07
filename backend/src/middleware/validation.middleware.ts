@@ -1,14 +1,19 @@
 import { Request, Response, NextFunction } from 'express'
 import { ZodTypeAny } from 'zod'
 import { sendError } from '../utils/response.util'
+import type { AuthRequest } from '../types/common.types'
 
 /**
  * Type-safe validated request with proper output type inference
- * Preserves all Request properties while adding validated data
  */
 export type ValidatedRequest<T extends ZodTypeAny> = Request & {
   validated: T['_output']
 }
+
+/**
+ * Type-safe validated request with auth context
+ */
+export type ValidatedAuthRequest<T extends ZodTypeAny> = ValidatedRequest<T> & AuthRequest
 
 /**
  * Type-safe validation middleware with proper generic inference
