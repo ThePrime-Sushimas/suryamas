@@ -17,6 +17,7 @@ import paymentTermsRoutes from './modules/payment-terms/payment-terms.routes'
 import suppliersRoutes from './modules/suppliers/suppliers.routes'
 import banksRoutes from './modules/banks/banks.routes'
 import bankAccountsRoutes, { ownerBankAccountsRouter } from './modules/bank-accounts/bankAccounts.routes'
+import supplierProductsRoutes from './modules/supplier-products/supplier-products.routes'
 import { errorHandler } from './middleware/error.middleware'
 import { requestLogger } from './middleware/request-logger.middleware'
 
@@ -50,6 +51,7 @@ app.use('/api/v1/payment-terms', paymentTermsRoutes)
 app.use('/api/v1/suppliers', suppliersRoutes)
 app.use('/api/v1/banks', banksRoutes)
 app.use('/api/v1/bank-accounts', bankAccountsRoutes)
+app.use('/api/v1/supplier-products', supplierProductsRoutes)
 app.use('/api/v1', ownerBankAccountsRouter)
 
 // Error handler

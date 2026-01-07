@@ -18,11 +18,13 @@ export const sendSuccess = (
 export const sendError = (
   res: Response,
   error: string,
-  statusCode = 500
+  statusCode = 500,
+  details?: any
 ): void => {
   const response: ApiResponse = {
     success: false,
-    error
+    error,
+    ...(details && { details })
   }
   res.status(statusCode).json(response)
 }
