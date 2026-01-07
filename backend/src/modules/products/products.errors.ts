@@ -55,6 +55,26 @@ export class BulkOperationLimitError extends ProductError {
   }
 }
 
+export class InvalidProductTypeError extends ProductError {
+  constructor(type: string, validTypes: string[]) {
+    super(
+      'INVALID_PRODUCT_TYPE',
+      `Invalid product type '${type}'. Must be one of: ${validTypes.join(', ')}`,
+      422
+    )
+  }
+}
+
+export class InvalidAverageCostError extends ProductError {
+  constructor(cost: number) {
+    super(
+      'INVALID_AVERAGE_COST',
+      `Average cost must be >= 0, got ${cost}`,
+      422
+    )
+  }
+}
+
 export class ProductValidationError extends ProductError {
   constructor(message: string, details?: any) {
     super('PRODUCT_VALIDATION_ERROR', message, 422, details)

@@ -8,6 +8,7 @@ export const mapProductFromDb = (raw: any): Product => {
 
   return {
     ...raw,
+    average_cost: parseFloat(raw.average_cost) || 0,
     is_requestable: raw.is_requestable === true || raw.is_requestable === 'true',
     is_purchasable: raw.is_purchasable === true || raw.is_purchasable === 'true',
     is_deleted: raw.is_deleted === true || raw.is_deleted === 'true',

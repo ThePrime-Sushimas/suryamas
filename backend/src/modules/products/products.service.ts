@@ -10,7 +10,7 @@ import {
   ProductCodeUpdateError,
   BulkOperationLimitError,
 } from './products.errors'
-import { VALID_PRODUCT_STATUSES, PRODUCT_DEFAULTS, PRODUCT_LIMITS } from './products.constants'
+import { VALID_PRODUCT_STATUSES, VALID_PRODUCT_TYPES, PRODUCT_DEFAULTS, PRODUCT_LIMITS } from './products.constants'
 import { calculatePagination, calculateOffset } from '../../utils/pagination.util'
 
 export class ProductsService {
@@ -81,6 +81,8 @@ export class ProductsService {
     const data = {
       ...dto,
       status: dto.status || PRODUCT_DEFAULTS.STATUS,
+      product_type: dto.product_type || PRODUCT_DEFAULTS.PRODUCT_TYPE,
+      average_cost: dto.average_cost || PRODUCT_DEFAULTS.AVERAGE_COST,
       is_requestable: dto.is_requestable ?? PRODUCT_DEFAULTS.IS_REQUESTABLE,
       is_purchasable: dto.is_purchasable ?? PRODUCT_DEFAULTS.IS_PURCHASABLE,
       created_by: userId,

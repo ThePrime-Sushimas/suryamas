@@ -1,9 +1,21 @@
-import type { Product, ProductStatus } from '../types'
+import type { Product, ProductStatus, ProductType } from '../types'
 
 const statusColors: Record<ProductStatus, string> = {
   ACTIVE: 'bg-green-100 text-green-800',
   INACTIVE: 'bg-gray-100 text-gray-800',
   DISCONTINUED: 'bg-red-100 text-red-800'
+}
+
+const typeColors: Record<ProductType, string> = {
+  raw: 'bg-blue-100 text-blue-800',
+  semi_finished: 'bg-yellow-100 text-yellow-800',
+  finished_goods: 'bg-green-100 text-green-800'
+}
+
+const typeLabels: Record<ProductType, string> = {
+  raw: 'Raw',
+  semi_finished: 'Semi',
+  finished_goods: 'Finished'
 }
 
 interface ProductTableProps {
@@ -78,6 +90,12 @@ export const ProductTable = ({
                 Name
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Type
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Avg Cost
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 BOM Name
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -122,6 +140,22 @@ export const ProductTable = ({
                     >
                       {product.product_name}
                     </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        typeColors[product.product_type]
+                      }`}
+                    >
+                      {typeLabels[product.product_type]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900 font-mono">
+                    {new Intl.NumberFormat('id-ID', {
+                      style: 'currency',
+                      currency: 'IDR',
+                      minimumFractionDigits: 0
+                    }).format(product.average_cost)}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">
                     {product.bom_name || '-'}

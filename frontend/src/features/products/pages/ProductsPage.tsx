@@ -31,6 +31,7 @@ export default function ProductsPage() {
   
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const [typeFilter, setTypeFilter] = useState<string>('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null)
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
@@ -39,22 +40,29 @@ export default function ProductsPage() {
   const debouncedSearch = useDebounce(search, 500)
 
   const activeFilterCount = useMemo(() => {
-    return statusFilter ? 1 : 0
-  }, [statusFilter])
+    let count = 0
+    if (statusFilter) count++
+    if (typeFilter) count++
+    return count
+  }, [statusFilter, typeFilter])
 
   const loadProducts = useCallback((page: number = 1) => {
-    const filter = statusFilter ? { status: statusFilter } : undefined
+    const filter: Record<string, string> = {}
+    if (statusFilter) filter.status = statusFilter
+    if (typeFilter) filter.product_type = typeFilter
+    
+    const filterObj = Object.keys(filter).length > 0 ? filter : undefined
     
     if (debouncedSearch) {
       searchProducts(debouncedSearch, page, pagination.limit)
     } else {
-      fetchProducts(page, pagination.limit, undefined, filter)
+      fetchProducts(page, pagination.limit, undefined, filterObj)
     }
-  }, [debouncedSearch, statusFilter, pagination.limit, fetchProducts, searchProducts])
+  }, [debouncedSearch, statusFilter, typeFilter, pagination.limit, fetchProducts, searchProducts])
 
   useEffect(() => {
     loadProducts(1)
-  }, [debouncedSearch, statusFilter, loadProducts])
+  }, [debouncedSearch, statusFilter, typeFilter, loadProducts])
 
   useEffect(() => {
     if (storeError) {
@@ -170,18 +178,33 @@ export default function ProductsPage() {
         {/* Filter Panel */}
         {showFilter && (
           <div className="mt-3 pt-3 border-t border-gray-200">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-              >
-                <option value="">All Status</option>
-                <option value="ACTIVE">Active</option>
-                <option value="INACTIVE">Inactive</option>
-                <option value="DISCONTINUED">Discontinued</option>
-              </select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                >
+                  <option value="">All Status</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                  <option value="DISCONTINUED">Discontinued</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Product Type</label>
+                <select
+                  value={typeFilter}
+                  onChange={e => setTypeFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                >
+                  <option value="">All Types</option>
+                  <option value="raw">Raw Material</option>
+                  <option value="semi_finished">Semi-Finished</option>
+                  <option value="finished_goods">Finished Goods</option>
+                </select>
+              </div>
             </div>
           </div>
         )}

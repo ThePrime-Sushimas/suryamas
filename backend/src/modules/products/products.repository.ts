@@ -11,7 +11,7 @@ export class ProductsRepository {
     includeDeleted = false
   ): Promise<{ data: Product[]; total: number }> {
     let query = supabase.from('products').select(`
-      id, product_code, product_name, category_id, sub_category_id, status, is_deleted, is_requestable, is_purchasable, created_at,
+      id, product_code, product_name, category_id, sub_category_id, product_type, average_cost, status, is_deleted, is_requestable, is_purchasable, created_at,
       categories(category_name),
       sub_categories(sub_category_name)
     `)
@@ -26,6 +26,10 @@ export class ProductsRepository {
       if (filter.status) {
         query = query.eq('status', filter.status)
         countQuery = countQuery.eq('status', filter.status)
+      }
+      if (filter.product_type) {
+        query = query.eq('product_type', filter.product_type)
+        countQuery = countQuery.eq('product_type', filter.product_type)
       }
       if (filter.category_id) {
         query = query.eq('category_id', filter.category_id)
@@ -81,6 +85,10 @@ export class ProductsRepository {
       if (filter.status) {
         query = query.eq('status', filter.status)
         countQuery = countQuery.eq('status', filter.status)
+      }
+      if (filter.product_type) {
+        query = query.eq('product_type', filter.product_type)
+        countQuery = countQuery.eq('product_type', filter.product_type)
       }
       if (filter.category_id) {
         query = query.eq('category_id', filter.category_id)
@@ -206,9 +214,10 @@ export class ProductsRepository {
     if (error) throw new Error(error.message)
   }
 
-  async getFilterOptions(): Promise<{ statuses: string[] }> {
+  async getFilterOptions(): Promise<{ statuses: string[]; productTypes: string[] }> {
     const statuses = ['ACTIVE', 'INACTIVE', 'DISCONTINUED']
-    return { statuses }
+    const productTypes = ['raw', 'semi_finished', 'finished_goods']
+    return { statuses, productTypes }
   }
 
   async minimalActive(): Promise<{ id: string; product_name: string }[]> {

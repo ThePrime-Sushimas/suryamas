@@ -4,10 +4,19 @@ export const PRODUCT_STATUS = {
   DISCONTINUED: 'DISCONTINUED',
 } as const
 
+export const PRODUCT_TYPE = {
+  RAW: 'raw',
+  SEMI_FINISHED: 'semi_finished',
+  FINISHED_GOODS: 'finished_goods',
+} as const
+
 export const VALID_PRODUCT_STATUSES = Object.values(PRODUCT_STATUS)
+export const VALID_PRODUCT_TYPES = Object.values(PRODUCT_TYPE)
 
 export const PRODUCT_DEFAULTS = {
   STATUS: PRODUCT_STATUS.ACTIVE,
+  PRODUCT_TYPE: PRODUCT_TYPE.RAW,
+  AVERAGE_COST: 0,
   IS_REQUESTABLE: true,
   IS_PURCHASABLE: true,
   PAGE_SIZE: 10,
@@ -26,6 +35,8 @@ export const PRODUCT_SORT_FIELDS = [
   'product_name',
   'product_code',
   'status',
+  'product_type',
+  'average_cost',
   'category_id',
   'sub_category_id',
   'created_at',
@@ -34,6 +45,7 @@ export const PRODUCT_SORT_FIELDS = [
 
 export const PRODUCT_FILTER_FIELDS = [
   'status',
+  'product_type',
   'category_id',
   'sub_category_id',
   'is_requestable',

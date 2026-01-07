@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Product, ProductStatus, CreateProductDto, UpdateProductDto } from '../types'
+import type { Product, ProductStatus, ProductType, CreateProductDto, UpdateProductDto } from '../types'
 import api from '@/lib/axios'
 
 interface ProductFormProps {
@@ -28,6 +28,8 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
     bom_name: initialData?.bom_name || '',
     category_id: initialData?.category_id || '',
     sub_category_id: initialData?.sub_category_id || '',
+    product_type: (initialData?.product_type || 'raw') as ProductType,
+    average_cost: initialData?.average_cost || 0,
     is_requestable: initialData?.is_requestable ?? true,
     is_purchasable: initialData?.is_purchasable ?? true,
     notes: initialData?.notes || '',
@@ -70,7 +72,12 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target
-    const newValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+    let newValue: any = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+    
+    // Convert average_cost to number
+    if (name === 'average_cost') {
+      newValue = parseFloat(value) || 0
+    }
     
     setFormData(prev => ({
       ...prev,
@@ -115,6 +122,8 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
       bom_name: formData.bom_name || undefined,
       category_id: formData.category_id,
       sub_category_id: formData.sub_category_id,
+      product_type: formData.product_type,
+      average_cost: formData.average_cost,
       is_requestable: formData.is_requestable,
       is_purchasable: formData.is_purchasable,
       notes: formData.notes || undefined,
@@ -231,6 +240,36 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
           {errors.sub_category_id && (
             <p className="mt-1 text-sm text-red-600">{errors.sub_category_id}</p>
           )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Product Type</label>
+          <select
+            name="product_type"
+            value={formData.product_type}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="raw">Raw Material</option>
+            <option value="semi_finished">Semi-Finished</option>
+            <option value="finished_goods">Finished Goods</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Average Cost</label>
+          <input
+            type="number"
+            name="average_cost"
+            value={formData.average_cost}
+            onChange={handleChange}
+            min="0"
+            step="0.01"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="0.00"
+          />
         </div>
       </div>
 

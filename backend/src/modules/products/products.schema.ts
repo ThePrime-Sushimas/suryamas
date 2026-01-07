@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { VALID_PRODUCT_STATUSES, PRODUCT_LIMITS } from './products.constants'
+import { VALID_PRODUCT_STATUSES, VALID_PRODUCT_TYPES, PRODUCT_LIMITS } from './products.constants'
 
 export const createProductSchema = z.object({
   body: z.object({
@@ -8,6 +8,8 @@ export const createProductSchema = z.object({
     bom_name: z.string().max(PRODUCT_LIMITS.PRODUCT_NAME_MAX_LENGTH).optional(),
     category_id: z.string().uuid('Invalid category ID format'),
     sub_category_id: z.string().uuid('Invalid sub-category ID format'),
+    product_type: z.enum(VALID_PRODUCT_TYPES as [string, ...string[]]).optional(),
+    average_cost: z.number().min(0).optional(),
     is_requestable: z.boolean().optional(),
     is_purchasable: z.boolean().optional(),
     notes: z.string().max(PRODUCT_LIMITS.NOTES_MAX_LENGTH).optional(),
@@ -21,6 +23,8 @@ export const updateProductSchema = z.object({
     bom_name: z.string().max(PRODUCT_LIMITS.PRODUCT_NAME_MAX_LENGTH).optional(),
     category_id: z.string().uuid('Invalid category ID format').optional(),
     sub_category_id: z.string().uuid('Invalid sub-category ID format').optional(),
+    product_type: z.enum(VALID_PRODUCT_TYPES as [string, ...string[]]).optional(),
+    average_cost: z.number().min(0).optional(),
     is_requestable: z.boolean().optional(),
     is_purchasable: z.boolean().optional(),
     notes: z.string().max(PRODUCT_LIMITS.NOTES_MAX_LENGTH).optional(),
