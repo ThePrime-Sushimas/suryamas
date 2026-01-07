@@ -101,7 +101,7 @@ export class CategoriesRepository {
     const { data, error } = await supabase
       .from('categories')
       .select('*')
-      .ilike('category_code', code)
+      .eq('category_code', code)
       .eq('is_deleted', false)
       .maybeSingle()
 
@@ -167,6 +167,12 @@ export class CategoriesRepository {
   }
 
   async bulkDelete(ids: string[], userId?: string): Promise<void> {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const invalidIds = ids.filter(id => !uuidRegex.test(id))
+    if (invalidIds.length > 0) {
+      throw new Error(`Invalid UUID format: ${invalidIds.join(', ')}`)
+    }
+
     const { error } = await supabase
       .from('categories')
       .update({ is_deleted: true, updated_by: userId })

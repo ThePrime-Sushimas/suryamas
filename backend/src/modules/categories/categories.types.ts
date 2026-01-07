@@ -42,14 +42,14 @@ export interface SubCategoryWithCategory extends SubCategory {
 export interface CreateCategoryDto {
   category_code: string
   category_name: string
-  description?: string
+  description?: string | null
   sort_order?: number
   is_active?: boolean
 }
 
 export interface UpdateCategoryDto {
   category_name?: string
-  description?: string
+  description?: string | null
   sort_order?: number
   is_active?: boolean
 }

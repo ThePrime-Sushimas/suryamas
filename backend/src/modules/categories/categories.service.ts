@@ -72,6 +72,11 @@ export class CategoriesService {
       throw CategoryErrors.INVALID_NAME()
     }
 
+    const existing = await categoriesRepository.findByCode(dto.category_code)
+    if (existing) {
+      throw CategoryErrors.ALREADY_EXISTS(dto.category_code)
+    }
+
     const category = await categoriesRepository.create({
       ...dto,
       created_by: userId,
@@ -147,13 +152,22 @@ export class CategoriesService {
   }
 
   async bulkDelete(ids: string[], userId?: string): Promise<void> {
-    await categoriesRepository.bulkDelete(ids, userId)
-
-    if (userId) {
-      await AuditService.log('DELETE', 'category', ids.join(','), userId)
+    if (!ids || ids.length === 0) {
+      throw new Error('No IDs provided for bulk delete')
     }
 
-    logInfo('Bulk delete', { count: ids.length })
+    try {
+      await categoriesRepository.bulkDelete(ids, userId)
+
+      if (userId) {
+        await AuditService.log('DELETE', 'category', ids.join(','), userId)
+      }
+
+      logInfo('Bulk delete completed', { count: ids.length })
+    } catch (error: any) {
+      logError('Bulk delete failed', { ids, error: error.message })
+      throw error
+    }
   }
 
   async updateStatus(id: string, is_active: boolean, userId?: string): Promise<Category | null> {

@@ -1,8 +1,22 @@
 import { Response } from 'express'
-import { AuthRequest } from '../../types/common.types'
 import { categoriesService } from './categories.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logError } from '../../config/logger'
+import { withValidated } from '../../utils/handler'
+import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import type { AuthRequest } from '../../types/common.types'
+import {
+  CreateCategorySchema,
+  UpdateCategorySchema,
+  UpdateStatusSchema,
+  BulkDeleteSchema,
+} from './categories.schema'
+
+type CreateCategoryReq = ValidatedAuthRequest<typeof CreateCategorySchema>
+type UpdateCategoryReq = ValidatedAuthRequest<typeof UpdateCategorySchema>
+type UpdateStatusReq = ValidatedAuthRequest<typeof UpdateStatusSchema>
+type BulkDeleteReq = ValidatedAuthRequest<typeof BulkDeleteSchema>
+
 
 export class CategoriesController {
   list = async (req: AuthRequest & { sort?: any }, res: Response): Promise<void> => {
@@ -70,26 +84,26 @@ export class CategoriesController {
     }
   }
 
-  create = async (req: AuthRequest, res: Response): Promise<void> => {
+  create = withValidated(async (req: CreateCategoryReq, res: Response) => {
     try {
-      const category = await categoriesService.create(req.body, req.user?.id)
+      const category = await categoriesService.create(req.validated.body, req.user?.id)
       sendSuccess(res, category, 'Category created successfully', 201)
     } catch (error: any) {
       logError('Create category failed', { error: error.message })
       sendError(res, error.message || 'Failed to create category', error.statusCode || 400)
     }
-  }
+  })
 
-  update = async (req: AuthRequest, res: Response): Promise<void> => {
+  update = withValidated(async (req: UpdateCategoryReq, res: Response) => {
     try {
-      const { id } = req.params
-      const category = await categoriesService.update(id, req.body, req.user?.id)
+      const { params, body } = req.validated
+      const category = await categoriesService.update(params.id, body, req.user?.id)
       sendSuccess(res, category, 'Category updated successfully')
     } catch (error: any) {
       logError('Update category failed', { error: error.message })
       sendError(res, error.message || 'Failed to update category', error.statusCode || 400)
     }
-  }
+  })
 
   delete = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -114,28 +128,27 @@ export class CategoriesController {
     }
   }
 
-  bulkDelete = async (req: AuthRequest, res: Response): Promise<void> => {
+  bulkDelete = withValidated(async (req: BulkDeleteReq, res: Response) => {
     try {
-      const { ids } = req.body
+      const { ids } = req.validated.body
       await categoriesService.bulkDelete(ids, req.user?.id)
       sendSuccess(res, null, 'Categories deleted successfully')
     } catch (error: any) {
       logError('Bulk delete failed', { error: error.message })
       sendError(res, error.message || 'Failed to delete categories', 400)
     }
-  }
+  })
 
-  updateStatus = async (req: AuthRequest, res: Response): Promise<void> => {
+  updateStatus = withValidated(async (req: UpdateStatusReq, res: Response) => {
     try {
-      const { id } = req.params
-      const { is_active } = req.body
-      const category = await categoriesService.updateStatus(id, is_active, req.user?.id)
+      const { params, body } = req.validated
+      const category = await categoriesService.updateStatus(params.id, body.is_active, req.user?.id)
       sendSuccess(res, category, 'Category status updated successfully')
     } catch (error: any) {
       logError('Update status failed', { error: error.message })
       sendError(res, error.message || 'Failed to update status', 400)
     }
-  }
+  })
 }
 
 export const categoriesController = new CategoriesController()
