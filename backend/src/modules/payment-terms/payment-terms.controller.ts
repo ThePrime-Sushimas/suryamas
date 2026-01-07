@@ -5,16 +5,17 @@ import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { logInfo } from '../../config/logger'
 import { withValidated } from '../../utils/handler'
-import type { ValidatedRequest } from '../../middleware/validation.middleware'
+import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   createPaymentTermSchema,
   updatePaymentTermSchema,
   paymentTermIdSchema,
 } from './payment-terms.schema'
+import type { CalculationType } from './payment-terms.types'
 
-type CreatePaymentTermReq = ValidatedRequest<typeof createPaymentTermSchema>
-type UpdatePaymentTermReq = ValidatedRequest<typeof updatePaymentTermSchema>
-type PaymentTermIdReq = ValidatedRequest<typeof paymentTermIdSchema>
+type CreatePaymentTermReq = ValidatedAuthRequest<typeof createPaymentTermSchema>
+type UpdatePaymentTermReq = ValidatedAuthRequest<typeof updatePaymentTermSchema>
+type PaymentTermIdReq = ValidatedAuthRequest<typeof paymentTermIdSchema>
 
 export class PaymentTermsController {
   list = async (req: AuthRequest & { sort?: any; filterParams?: any; pagination?: any }, res: Response): Promise<void> => {
@@ -51,7 +52,11 @@ export class PaymentTermsController {
   create = withValidated(async (req: CreatePaymentTermReq, res: Response) => {
     try {
       const userId = req.user?.id
-      const term = await paymentTermsService.create(req.validated.body, userId)
+      const body = req.validated.body as any
+      const term = await paymentTermsService.create({
+        ...body,
+        calculation_type: body.calculation_type as CalculationType | undefined,
+      }, userId)
       logInfo('Payment term created via API', { termId: term.id, userId })
       sendSuccess(res, term, 'Payment term created successfully', 201)
     } catch (error: any) {
@@ -63,7 +68,11 @@ export class PaymentTermsController {
     try {
       const id = parseInt(req.validated.params.id)
       const userId = req.user?.id
-      const term = await paymentTermsService.update(id, req.validated.body, userId)
+      const body = req.validated.body as any
+      const term = await paymentTermsService.update(id, {
+        ...body,
+        calculation_type: body.calculation_type as CalculationType | undefined,
+      }, userId)
       logInfo('Payment term updated via API', { termId: id, userId })
       sendSuccess(res, term, 'Payment term updated successfully')
     } catch (error: any) {
