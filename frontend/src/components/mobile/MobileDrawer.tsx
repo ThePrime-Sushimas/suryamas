@@ -42,6 +42,12 @@ export default function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
               <Link to="/products" onClick={onClose} className="block py-3 px-4 rounded hover:bg-gray-100">
                 Products
               </Link>
+              <Link to="/suppliers" onClick={onClose} className="block py-3 px-4 rounded hover:bg-gray-100">
+                Suppliers
+              </Link>
+              <Link to="/settings/banks" onClick={onClose} className="block py-3 px-4 rounded hover:bg-gray-100">
+                Banks
+              </Link>
               <Link to="/employee-branches" onClick={onClose} className="block py-3 px-4 rounded hover:bg-gray-100">
                 Employee Branches
               </Link>

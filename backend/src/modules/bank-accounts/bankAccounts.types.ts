@@ -23,6 +23,8 @@ export interface BankAccount {
 
 
 export interface BankAccountWithBank extends BankAccount {
+  bank_code?: string
+  bank_name?: string
   bank?: {
     id: number
     bank_code: string

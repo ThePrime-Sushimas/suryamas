@@ -57,7 +57,11 @@ export const CompanyTable = ({
           </thead>
           <tbody className="divide-y divide-gray-200">
             {companies.map(company => (
-              <tr key={company.id} className="hover:bg-gray-50 transition">
+              <tr 
+                key={company.id} 
+                onClick={() => onView(company.id)}
+                className="hover:bg-gray-50 transition cursor-pointer"
+              >
                 <td className="px-4 py-3 text-sm font-mono text-gray-900">{company.company_code}</td>
                 <td className="px-4 py-3 text-sm font-medium text-gray-900">{company.company_name}</td>
                 <td className="px-4 py-3 text-sm text-gray-600">{company.company_type}</td>
@@ -68,9 +72,28 @@ export const CompanyTable = ({
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right text-sm space-x-2">
-                  <button onClick={() => onView(company.id)} className="text-blue-600 hover:text-blue-800 font-medium transition">View</button>
-                  {canEdit && <button onClick={() => onEdit(company.id)} className="text-green-600 hover:text-green-800 font-medium transition">Edit</button>}
-                  {canDelete && <button onClick={() => onDelete(company.id)} className="text-red-600 hover:text-red-800 font-medium transition">Delete</button>}
+                  {canEdit && (
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onEdit(company.id)
+                      }} 
+                      className="text-green-600 hover:text-green-800 font-medium transition"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onDelete(company.id)
+                      }} 
+                      className="text-red-600 hover:text-red-800 font-medium transition"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

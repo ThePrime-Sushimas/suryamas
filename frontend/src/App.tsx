@@ -52,6 +52,10 @@ const EditPaymentTermPage = lazy(() => import('./features/payment-terms').then(m
 const SuppliersPage = lazy(() => import('./features/suppliers').then(m => ({ default: m.SuppliersPage })))
 const CreateSupplierPage = lazy(() => import('./features/suppliers').then(m => ({ default: m.CreateSupplierPage })))
 const EditSupplierPage = lazy(() => import('./features/suppliers').then(m => ({ default: m.EditSupplierPage })))
+const SupplierDetailPage = lazy(() => import('./features/suppliers').then(m => ({ default: m.SupplierDetailPage })))
+const BanksListPage = lazy(() => import('./features/banks').then(m => ({ default: m.BanksListPage })))
+const CreateBankPage = lazy(() => import('./features/banks').then(m => ({ default: m.CreateBankPage })))
+const EditBankPage = lazy(() => import('./features/banks').then(m => ({ default: m.EditBankPage })))
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -141,7 +145,11 @@ function App() {
           <Route path="payment-terms/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditPaymentTermPage /></Suspense></ProtectedRoute>} />
           <Route path="suppliers" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><SuppliersPage /></Suspense></ProtectedRoute>} />
           <Route path="suppliers/create" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateSupplierPage /></Suspense></ProtectedRoute>} />
+          <Route path="suppliers/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><SupplierDetailPage /></Suspense></ProtectedRoute>} />
           <Route path="suppliers/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditSupplierPage /></Suspense></ProtectedRoute>} />
+          <Route path="settings/banks" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><BanksListPage /></Suspense></ProtectedRoute>} />
+          <Route path="settings/banks/create" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateBankPage /></Suspense></ProtectedRoute>} />
+          <Route path="settings/banks/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditBankPage /></Suspense></ProtectedRoute>} />
               </Route>
             </Routes>
           </BrowserRouter>

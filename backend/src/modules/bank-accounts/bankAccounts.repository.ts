@@ -32,11 +32,16 @@ export class BankAccountsRepository {
 
     if (error) throw new Error(error.message)
 
-    const mapped = (data || []).map(item => ({
-      ...item,
-      bank: Array.isArray(item.banks) ? item.banks[0] : item.banks,
-      banks: undefined,
-    }))
+    const mapped = (data || []).map(item => {
+      const bank = Array.isArray(item.banks) ? item.banks[0] : item.banks
+      return {
+        ...item,
+        bank_code: bank?.bank_code,
+        bank_name: bank?.bank_name,
+        bank,
+        banks: undefined,
+      }
+    })
 
     return { data: mapped, total: count || 0 }
   }
@@ -53,9 +58,12 @@ export class BankAccountsRepository {
     
     if (!data) return null
 
+    const bank = Array.isArray(data.banks) ? data.banks[0] : data.banks
     return {
       ...data,
-      bank: Array.isArray(data.banks) ? data.banks[0] : data.banks,
+      bank_code: bank?.bank_code,
+      bank_name: bank?.bank_name,
+      bank,
       banks: undefined,
     }
   }
@@ -158,11 +166,16 @@ export class BankAccountsRepository {
 
     if (error) throw new Error(error.message)
 
-    return (data || []).map(item => ({
-      ...item,
-      bank: Array.isArray(item.banks) ? item.banks[0] : item.banks,
-      banks: undefined,
-    }))
+    return (data || []).map(item => {
+      const bank = Array.isArray(item.banks) ? item.banks[0] : item.banks
+      return {
+        ...item,
+        bank_code: bank?.bank_code,
+        bank_name: bank?.bank_name,
+        bank,
+        banks: undefined,
+      }
+    })
   }
 }
 

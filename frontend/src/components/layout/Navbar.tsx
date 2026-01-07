@@ -49,6 +49,12 @@ export default function Navbar() {
                   <Link to="/products" className="text-gray-700 hover:text-gray-900">
                     Products
                   </Link>
+                  <Link to="/suppliers" className="text-gray-700 hover:text-gray-900">
+                    Suppliers
+                  </Link>
+                  <Link to="/settings/banks" className="text-gray-700 hover:text-gray-900">
+                    Banks
+                  </Link>
                   <Link to="/sub-categories" className="text-gray-700 hover:text-gray-900">
                     SubCategories
                   </Link>

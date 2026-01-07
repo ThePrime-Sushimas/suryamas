@@ -176,7 +176,11 @@ export function SuppliersPage() {
                 </tr>
               ) : (
                 suppliers.map((supplier) => (
-                  <tr key={supplier.id} className="hover:bg-gray-50">
+                  <tr 
+                    key={supplier.id} 
+                    onClick={() => navigate(`/suppliers/${supplier.id}`)}
+                    className="hover:bg-gray-50 cursor-pointer"
+                  >
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {supplier.supplier_code}
                     </td>
@@ -200,13 +204,19 @@ export function SuppliersPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
-                        onClick={() => navigate(`/suppliers/${supplier.id}/edit`)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigate(`/suppliers/${supplier.id}/edit`)
+                        }}
                         className="text-blue-600 hover:text-blue-900 mr-3"
                       >
                         Edit
                       </button>
                       <button
-                        onClick={() => setDeleteConfirm(supplier.id)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDeleteConfirm(supplier.id)
+                        }}
                         disabled={mutationLoading}
                         className="text-red-600 hover:text-red-900 disabled:opacity-50"
                       >
