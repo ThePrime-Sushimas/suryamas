@@ -80,7 +80,12 @@ export class SupplierProductsController {
 
   create = withValidated(async (req: CreateSupplierProductReq, res: Response) => {
     try {
-      const supplierProduct = await supplierProductsService.create(req.validated.body, (req as any).user?.id)
+      const body = req.validated.body as any
+      const supplierProduct = await supplierProductsService.create({
+        ...body,
+        lead_time_days: body.lead_time_days ?? undefined,
+        min_order_qty: body.min_order_qty ?? undefined,
+      }, (req as any).user?.id)
       
       logInfo('Supplier product created via API', { 
         supplierProductId: supplierProduct.id,
@@ -98,7 +103,12 @@ export class SupplierProductsController {
   update = withValidated(async (req: UpdateSupplierProductReq, res: Response) => {
     try {
       const { id } = req.validated.params
-      const supplierProduct = await supplierProductsService.update(id, req.validated.body, (req as any).user?.id)
+      const body = req.validated.body as any
+      const supplierProduct = await supplierProductsService.update(id, {
+        ...body,
+        lead_time_days: body.lead_time_days ?? undefined,
+        min_order_qty: body.min_order_qty ?? undefined,
+      }, (req as any).user?.id)
       
       logInfo('Supplier product updated via API', { 
         supplierProductId: id,

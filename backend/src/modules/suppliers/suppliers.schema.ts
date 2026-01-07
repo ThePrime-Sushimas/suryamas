@@ -131,13 +131,13 @@ export const updateSupplierSchema = z.object({
       .optional(),
   }),
   params: z.object({
-    id: z.string().regex(/^\d+$/, 'Invalid supplier ID format'),
+    id: z.preprocess(val => Number(val), z.number().int().positive('Invalid supplier ID format')),
   }),
 })
 
 export const supplierIdSchema = z.object({
   params: z.object({
-    id: z.string().regex(/^\d+$/, 'Invalid supplier ID format'),
+    id: z.preprocess(val => Number(val), z.number().int().positive('Invalid supplier ID format')),
   }),
 })
 
@@ -147,7 +147,7 @@ export const supplierListQuerySchema = z.object({
     limit: z.coerce.number().int().positive().max(100).default(10),
     search: z.string().trim().optional(),
     supplier_type: z.enum(VALID_SUPPLIER_TYPES as [string, ...string[]]).optional(),
-    is_active: z.string().transform(v => v === 'true').optional(),
+    is_active: z.preprocess(val => val === 'true' || val === true, z.boolean()).optional(),
     sort_by: z.string().optional(),
     sort_order: z.enum(['asc', 'desc']).optional(),
   }),

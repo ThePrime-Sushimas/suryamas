@@ -8,6 +8,7 @@ import { logInfo } from '../../config/logger'
 import { withValidated } from '../../utils/handler'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 import type { ValidatedRequest } from '../../middleware/validation.middleware'
+import type { ProductType, ProductStatus } from './products.types'
 import {
   createProductSchema,
   updateProductSchema,
@@ -78,7 +79,11 @@ export class ProductsController {
 
   create = withValidated(async (req: CreateProductReq, res: Response) => {
     try {
-      const product = await productsService.create(req.validated.body, (req as any).user?.id)
+      const body = req.validated.body as any
+      const product = await productsService.create({
+        ...body,
+        product_type: body.product_type as ProductType | undefined,
+      }, (req as any).user?.id)
       logInfo('Product created via API', { 
         productId: product.id, 
         userId: (req as any).user?.id
@@ -92,7 +97,11 @@ export class ProductsController {
   update = withValidated(async (req: UpdateProductReq, res: Response) => {
     try {
       const { params, body } = req.validated
-      const product = await productsService.update(params.id, body, (req as any).user?.id)
+      const bodyData = body as any
+      const product = await productsService.update(params.id, {
+        ...bodyData,
+        product_type: bodyData.product_type as ProductType | undefined,
+      }, (req as any).user?.id)
       logInfo('Product updated via API', { 
         productId: params.id, 
         userId: (req as any).user?.id
@@ -126,7 +135,7 @@ export class ProductsController {
   bulkUpdateStatus = withValidated(async (req: BulkUpdateStatusReq, res: Response) => {
     try {
       const { ids, status } = req.validated.body
-      await productsService.bulkUpdateStatus(ids, status, (req as any).user?.id)
+      await productsService.bulkUpdateStatus(ids, status as ProductStatus, (req as any).user?.id)
       sendSuccess(res, null, 'Status updated successfully')
     } catch (error: any) {
       handleError(res, error)

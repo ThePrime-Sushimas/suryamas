@@ -30,7 +30,7 @@ export class ProductUomsController {
 
   create = withValidated(async (req: CreateProductUomReq, res: Response) => {
     try {
-      const { productId } = req.validated.params
+      const { productId } = req.params
       const uom = await productUomsService.create(productId, req.validated.body, (req as any).user?.id)
       sendSuccess(res, uom, 'UOM created successfully', 201)
     } catch (error: any) {
