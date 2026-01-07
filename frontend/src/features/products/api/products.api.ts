@@ -78,6 +78,23 @@ export const productsApi = {
     }
   },
 
+  restore: async (id: string) => {
+    try {
+      const res = await api.post<ApiResponse<Product>>(`/products/${id}/restore`, {})
+      return res.data.data
+    } catch (error) {
+      return handleApiError(error)
+    }
+  },
+
+  bulkRestore: async (ids: string[]) => {
+    try {
+      await api.post('/products/bulk/restore', { ids })
+    } catch (error) {
+      return handleApiError(error)
+    }
+  },
+
   getUoms: async (productId: string, includeDeleted = false, signal?: AbortSignal) => {
     try {
       const res = await api.get<ApiResponse<ProductUom[]>>(`/products/${productId}/uoms`, { params: { includeDeleted }, signal })

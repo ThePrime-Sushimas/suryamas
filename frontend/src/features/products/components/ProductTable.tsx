@@ -25,6 +25,7 @@ interface ProductTableProps {
   onView: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onRestore: (id: string) => void
   onManageUoms: (id: string) => void
   onToggleSelect: (id: string) => void
   onToggleSelectAll: () => void
@@ -37,6 +38,7 @@ export const ProductTable = ({
   onView,
   onEdit,
   onDelete,
+  onRestore,
   onManageUoms,
   onToggleSelect,
   onToggleSelectAll
@@ -113,13 +115,14 @@ export const ProductTable = ({
             {products.map(product => {
               const isSelected = selectedIds.includes(product.id)
               const isDeleting = deletingId === product.id
+              const isDeleted = product.is_deleted
 
               return (
                 <tr
                   key={product.id}
                   className={`hover:bg-gray-50 transition ${
                     isSelected ? 'bg-blue-50' : ''
-                  } ${isDeleting ? 'opacity-50' : ''}`}
+                  } ${isDeleting ? 'opacity-50' : ''} ${isDeleted ? 'bg-red-50' : ''}`}
                 >
                   <td className="px-4 py-3">
                     <input
@@ -181,30 +184,47 @@ export const ProductTable = ({
                           PUR
                         </span>
                       )}
+                      {isDeleted && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                          DEL
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right text-sm space-x-2">
-                    <button
-                      onClick={() => onManageUoms(product.id)}
-                      disabled={isDeleting}
-                      className="text-purple-600 hover:text-purple-800 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      UOMs
-                    </button>
-                    <button
-                      onClick={() => onEdit(product.id)}
-                      disabled={isDeleting}
-                      className="text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => onDelete(product.id)}
-                      disabled={isDeleting}
-                      className="text-red-600 hover:text-red-800 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isDeleting ? 'Deleting...' : 'Delete'}
-                    </button>
+                    {isDeleted ? (
+                      <button
+                        onClick={() => onRestore(product.id)}
+                        disabled={isDeleting}
+                        className="text-green-600 hover:text-green-800 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Restore
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => onManageUoms(product.id)}
+                          disabled={isDeleting}
+                          className="text-purple-600 hover:text-purple-800 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          UOMs
+                        </button>
+                        <button
+                          onClick={() => onEdit(product.id)}
+                          disabled={isDeleting}
+                          className="text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => onDelete(product.id)}
+                          disabled={isDeleting}
+                          className="text-red-600 hover:text-red-800 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isDeleting ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               )

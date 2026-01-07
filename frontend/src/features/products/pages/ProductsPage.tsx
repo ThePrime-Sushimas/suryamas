@@ -21,6 +21,8 @@ export default function ProductsPage() {
     searchProducts,
     deleteProduct,
     bulkDelete,
+    bulkRestore,
+    restoreProduct,
     toggleSelect,
     toggleSelectAll,
     clearSelection,
@@ -32,9 +34,11 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [typeFilter, setTypeFilter] = useState<string>('')
+  const [showDeletedFilter, setShowDeletedFilter] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null)
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
+  const [bulkRestoreDialogOpen, setBulkRestoreDialogOpen] = useState(false)
   const [showFilter, setShowFilter] = useState(false)
   
   const debouncedSearch = useDebounce(search, 500)
@@ -43,8 +47,9 @@ export default function ProductsPage() {
     let count = 0
     if (statusFilter) count++
     if (typeFilter) count++
+    if (showDeletedFilter) count++
     return count
-  }, [statusFilter, typeFilter])
+  }, [statusFilter, typeFilter, showDeletedFilter])
 
   const loadProducts = useCallback((page: number = 1) => {
     const filter: Record<string, string> = {}
@@ -54,15 +59,15 @@ export default function ProductsPage() {
     const filterObj = Object.keys(filter).length > 0 ? filter : undefined
     
     if (debouncedSearch) {
-      searchProducts(debouncedSearch, page, pagination.limit)
+      searchProducts(debouncedSearch, page, pagination.limit, showDeletedFilter)
     } else {
-      fetchProducts(page, pagination.limit, undefined, filterObj)
+      fetchProducts(page, pagination.limit, undefined, filterObj, showDeletedFilter)
     }
-  }, [debouncedSearch, statusFilter, typeFilter, pagination.limit, fetchProducts, searchProducts])
+  }, [debouncedSearch, statusFilter, typeFilter, pagination.limit, fetchProducts, searchProducts, showDeletedFilter])
 
   useEffect(() => {
     loadProducts(1)
-  }, [debouncedSearch, statusFilter, typeFilter, loadProducts])
+  }, [debouncedSearch, statusFilter, typeFilter, showDeletedFilter, loadProducts])
 
   useEffect(() => {
     if (storeError) {
@@ -93,6 +98,16 @@ export default function ProductsPage() {
     }
   }
 
+  const handleRestore = async (id: string) => {
+    try {
+      await restoreProduct(id)
+      success('Product restored successfully')
+      loadProducts(pagination.page)
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Failed to restore product')
+    }
+  }
+
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) {
       showError('Please select products to delete')
@@ -113,9 +128,31 @@ export default function ProductsPage() {
     }
   }
 
+  const handleBulkRestore = async () => {
+    if (selectedIds.length === 0) {
+      showError('Please select products to restore')
+      return
+    }
+
+    setBulkRestoreDialogOpen(true)
+  }
+
+  const confirmBulkRestore = async () => {
+    try {
+      await bulkRestore(selectedIds)
+      success(`${selectedIds.length} product(s) restored successfully`)
+      setBulkRestoreDialogOpen(false)
+      loadProducts(pagination.page)
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Failed to restore products')
+    }
+  }
+
   const handlePageChange = (newPage: number) => {
     loadProducts(newPage)
   }
+
+  const hasDeletedSelected = selectedIds.some(id => products.find(p => p.id === id)?.is_deleted)
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
@@ -178,7 +215,7 @@ export default function ProductsPage() {
         {/* Filter Panel */}
         {showFilter && (
           <div className="mt-3 pt-3 border-t border-gray-200">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                 <select
@@ -205,6 +242,17 @@ export default function ProductsPage() {
                   <option value="finished_goods">Finished Goods</option>
                 </select>
               </div>
+              <div className="flex items-end">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showDeletedFilter}
+                    onChange={e => setShowDeletedFilter(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Show Deleted</span>
+                </label>
+              </div>
             </div>
           </div>
         )}
@@ -224,13 +272,23 @@ export default function ProductsPage() {
               >
                 Clear
               </button>
-              <button
-                onClick={handleBulkDelete}
-                disabled={mutationLoading}
-                className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 disabled:bg-gray-400 transition"
-              >
-                {mutationLoading ? 'Deleting...' : 'Delete Selected'}
-              </button>
+              {hasDeletedSelected ? (
+                <button
+                  onClick={handleBulkRestore}
+                  disabled={mutationLoading}
+                  className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 disabled:bg-gray-400 transition"
+                >
+                  {mutationLoading ? 'Restoring...' : 'Restore Selected'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={mutationLoading}
+                  className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 disabled:bg-gray-400 transition"
+                >
+                  {mutationLoading ? 'Deleting...' : 'Delete Selected'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -254,6 +312,7 @@ export default function ProductsPage() {
               onView={id => navigate(`/products/${id}`)}
               onEdit={id => navigate(`/products/${id}/edit`)}
               onDelete={handleDelete}
+              onRestore={handleRestore}
               onManageUoms={id => navigate(`/products/${id}/uoms`)}
               onToggleSelect={toggleSelect}
               onToggleSelectAll={toggleSelectAll}
@@ -337,6 +396,17 @@ export default function ProductsPage() {
         message={`Are you sure you want to delete ${selectedIds.length} product(s)? This action can be reversed later.`}
         confirmText="Delete"
         variant="danger"
+        isLoading={mutationLoading}
+      />
+
+      <ConfirmModal
+        isOpen={bulkRestoreDialogOpen}
+        onClose={() => setBulkRestoreDialogOpen(false)}
+        onConfirm={confirmBulkRestore}
+        title="Restore Products"
+        message={`Are you sure you want to restore ${selectedIds.length} product(s)?`}
+        confirmText="Restore"
+        variant="success"
         isLoading={mutationLoading}
       />
     </div>

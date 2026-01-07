@@ -11,6 +11,7 @@ export { ProductTable } from './components/ProductTable'
 // Pages
 export { default as ProductsPage } from './pages/ProductsPage'
 export { default as CreateProductPage } from './pages/CreateProductPage'
+export { default as ProductDetailPage } from './pages/ProductDetailPage'
 export { default as EditProductPage } from './pages/EditProductPage'
 
 // Types

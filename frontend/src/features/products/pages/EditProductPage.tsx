@@ -21,11 +21,6 @@ export default function EditProductPage() {
         return
       }
 
-      if (isNaN(Number(id))) {
-        setError('Invalid product ID format')
-        return
-      }
-
       try {
         await fetchProductById(id)
       } catch {

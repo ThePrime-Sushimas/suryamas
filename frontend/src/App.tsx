@@ -42,6 +42,7 @@ const EditMetricUnitPage = lazy(() => import('./features/metric_units').then(m =
 const PermissionsPage = lazy(() => import('./features/permissions').then(m => ({ default: m.PermissionsPage })))
 const ProductsPage = lazy(() => import('./features/products').then(m => ({ default: m.ProductsPage })))
 const CreateProductPage = lazy(() => import('./features/products').then(m => ({ default: m.CreateProductPage })))
+const ProductDetailPage = lazy(() => import('./features/products').then(m => ({ default: m.ProductDetailPage })))
 const EditProductPage = lazy(() => import('./features/products').then(m => ({ default: m.EditProductPage })))
 const ProductUomsPage = lazy(() => import('./features/product-uoms').then(m => ({ default: m.ProductUomsPage })))
 const EmployeeBranchesPage = lazy(() => import('./features/employee_branches').then(m => ({ default: m.EmployeeBranchesPage })))
@@ -135,7 +136,7 @@ function App() {
           <Route path="metric-units/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditMetricUnitPage /></Suspense></ProtectedRoute>} />
           <Route path="products" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><ProductsPage /></Suspense></ProtectedRoute>} />
           <Route path="products/create" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateProductPage /></Suspense></ProtectedRoute>} />
-          <Route path="products/:id" element={<ProtectedRoute><div>Detail</div></ProtectedRoute>} />
+          <Route path="products/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><ProductDetailPage /></Suspense></ProtectedRoute>} />
           <Route path="products/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditProductPage /></Suspense></ProtectedRoute>} />
           <Route path="products/:productId/uoms" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><ProductUomsPage /></Suspense></ProtectedRoute>} />
           <Route path="employee-branches" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EmployeeBranchesPage /></Suspense></ProtectedRoute>} />

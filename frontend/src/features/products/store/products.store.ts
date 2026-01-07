@@ -22,13 +22,15 @@ interface ProductsState {
   selectedIds: string[]
   currentRequestId: number
   
-  fetchProducts: (page?: number, limit?: number, sort?: Record<string, unknown>, filter?: Record<string, unknown>) => Promise<void>
+  fetchProducts: (page?: number, limit?: number, sort?: Record<string, unknown>, filter?: Record<string, unknown>, includeDeleted?: boolean) => Promise<void>
   fetchProductById: (id: string) => Promise<Product>
-  searchProducts: (q: string, page?: number, limit?: number) => Promise<void>
+  searchProducts: (q: string, page?: number, limit?: number, includeDeleted?: boolean) => Promise<void>
   createProduct: (data: CreateProductDto) => Promise<Product>
   updateProduct: (id: string, data: UpdateProductDto) => Promise<Product>
   deleteProduct: (id: string) => Promise<void>
   bulkDelete: (ids: string[]) => Promise<void>
+  restoreProduct: (id: string) => Promise<void>
+  bulkRestore: (ids: string[]) => Promise<void>
   
   fetchUoms: (productId: string) => Promise<void>
   createUom: (productId: string, data: CreateProductUomDto) => Promise<ProductUom>
@@ -56,12 +58,12 @@ const initialState = {
 export const useProductsStore = create<ProductsState>((set, get) => ({
   ...initialState,
 
-  fetchProducts: async (page = 1, limit = 10, sort, filter) => {
+  fetchProducts: async (page = 1, limit = 10, sort, filter, includeDeleted = false) => {
     const requestId = get().currentRequestId + 1
     set({ currentRequestId: requestId, fetchLoading: true, error: null })
     
     try {
-      const res = await productsApi.list(page, limit, sort, filter, false)
+      const res = await productsApi.list(page, limit, sort, filter, includeDeleted)
       
       if (get().currentRequestId === requestId) {
         set({
@@ -91,12 +93,12 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     }
   },
 
-  searchProducts: async (q, page = 1, limit = 10) => {
+  searchProducts: async (q, page = 1, limit = 10, includeDeleted = false) => {
     const requestId = get().currentRequestId + 1
     set({ currentRequestId: requestId, fetchLoading: true, error: null })
     
     try {
-      const res = await productsApi.search(q, page, limit, false)
+      const res = await productsApi.search(q, page, limit, includeDeleted)
       
       if (get().currentRequestId === requestId) {
         set({
@@ -174,6 +176,37 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     }
   },
 
+  restoreProduct: async (id) => {
+    set({ mutationLoading: true, error: null })
+    try {
+      const product = await productsApi.restore(id)
+      set(state => ({
+        products: state.products.map(p => p.id === id ? product : p),
+        mutationLoading: false
+      }))
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to restore product'
+      set({ error: message, mutationLoading: false })
+      throw error
+    }
+  },
+
+  bulkRestore: async (ids) => {
+    set({ mutationLoading: true, error: null })
+    try {
+      await productsApi.bulkRestore(ids)
+      set(state => ({
+        products: state.products.filter(p => !ids.includes(p.id)),
+        selectedIds: [],
+        mutationLoading: false
+      }))
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to restore products'
+      set({ error: message, mutationLoading: false })
+      throw error
+    }
+  },
+
   fetchUoms: async (productId) => {
     set({ fetchLoading: true, error: null })
     try {
@@ -219,7 +252,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     try {
       await productsApi.deleteUom(productId, uomId)
       set(state => ({
-        uoms: state.uoms.map(u => u.id === uomId ? { ...u, is_deleted: true } : u),
+        uoms: state.uoms.map(u => u.id === uomId ? { ...u, deleted_at: new Date().toISOString() } : u),
         mutationLoading: false
       }))
     } catch (error: unknown) {
