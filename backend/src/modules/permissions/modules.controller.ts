@@ -54,7 +54,10 @@ export class ModulesController {
 
   create = withValidated(async (req: CreateModuleReq, res: Response) => {
     try {
-      const module = await this.service.create(req.validated.body, (req as any).user?.id)
+      const module = await this.service.create({
+        name: req.validated.body.module_name,
+        description: req.validated.body.description,
+      }, (req as any).user?.id)
       sendSuccess(res, module, 'Module created successfully', 201)
     } catch (error: any) {
       logError('Create module failed', { error: error.message })
@@ -67,7 +70,10 @@ export class ModulesController {
   update = withValidated(async (req: UpdateModuleReq, res: Response) => {
     try {
       const { id } = req.validated.params
-      const module = await this.service.update(id, req.validated.body)
+      const module = await this.service.update(id, {
+        ...(req.validated.body.module_name && { name: req.validated.body.module_name }),
+        description: req.validated.body.description,
+      })
       sendSuccess(res, module, 'Module updated successfully')
     } catch (error: any) {
       logError('Update module failed', { error: error.message })

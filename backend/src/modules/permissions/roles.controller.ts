@@ -54,7 +54,10 @@ export class RolesController {
 
   create = withValidated(async (req: CreateRoleReq, res: Response) => {
     try {
-      const role = await this.service.create(req.validated.body, (req as any).user?.id)
+      const role = await this.service.create({
+        name: req.validated.body.role_name,
+        description: req.validated.body.description,
+      }, (req as any).user?.id)
       sendSuccess(res, role, 'Role created successfully', 201)
     } catch (error: any) {
       logError('Create role failed', { error: error.message })
@@ -67,7 +70,10 @@ export class RolesController {
   update = withValidated(async (req: UpdateRoleReq, res: Response) => {
     try {
       const { id } = req.validated.params
-      const role = await this.service.update(id, req.validated.body)
+      const role = await this.service.update(id, {
+        ...(req.validated.body.role_name && { name: req.validated.body.role_name }),
+        description: req.validated.body.description,
+      })
       sendSuccess(res, role, 'Role updated successfully')
     } catch (error: any) {
       logError('Update role failed', { error: error.message })
