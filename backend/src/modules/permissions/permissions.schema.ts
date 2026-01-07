@@ -35,7 +35,7 @@ export const roleIdSchema = z.object({
 
 export const createRoleSchema = z.object({
   body: z.object({
-    role_name: z.string().min(1).max(100),
+    name: z.string().min(1).max(100),
     description: z.string().max(255).optional(),
   }),
 })
@@ -45,7 +45,7 @@ export const updateRoleSchema = z.object({
     id: uuidSchema,
   }),
   body: z.object({
-    role_name: z.string().min(1).max(100).optional(),
+    name: z.string().min(1).max(100).optional(),
     description: z.string().max(255).optional(),
   }),
 })

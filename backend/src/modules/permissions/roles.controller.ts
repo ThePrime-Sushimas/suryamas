@@ -55,7 +55,7 @@ export class RolesController {
   create = withValidated(async (req: CreateRoleReq, res: Response) => {
     try {
       const role = await this.service.create({
-        name: req.validated.body.role_name,
+        name: req.validated.body.name,
         description: req.validated.body.description,
       }, req.user?.id)
       sendSuccess(res, role, 'Role created successfully', 201)
@@ -71,7 +71,7 @@ export class RolesController {
     try {
       const { id } = req.validated.params
       const role = await this.service.update(id, {
-        ...(req.validated.body.role_name && { name: req.validated.body.role_name }),
+        ...(req.validated.body.name && { name: req.validated.body.name }),
         description: req.validated.body.description,
       })
       sendSuccess(res, role, 'Role updated successfully')
