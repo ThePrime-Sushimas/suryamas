@@ -1,11 +1,20 @@
-// backend/src/modules/payment-terms/payment-terms.controller.ts
-
 import { Response } from 'express'
 import { AuthRequest } from '../../types/common.types'
 import { paymentTermsService } from './payment-terms.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { logInfo } from '../../config/logger'
+import { withValidated } from '../../utils/handler'
+import type { ValidatedRequest } from '../../middleware/validation.middleware'
+import {
+  createPaymentTermSchema,
+  updatePaymentTermSchema,
+  paymentTermIdSchema,
+} from './payment-terms.schema'
+
+type CreatePaymentTermReq = ValidatedRequest<typeof createPaymentTermSchema>
+type UpdatePaymentTermReq = ValidatedRequest<typeof updatePaymentTermSchema>
+type PaymentTermIdReq = ValidatedRequest<typeof paymentTermIdSchema>
 
 export class PaymentTermsController {
   list = async (req: AuthRequest & { sort?: any; filterParams?: any; pagination?: any }, res: Response): Promise<void> => {
@@ -39,28 +48,28 @@ export class PaymentTermsController {
     }
   }
 
-  create = async (req: AuthRequest, res: Response): Promise<void> => {
+  create = withValidated(async (req: CreatePaymentTermReq, res: Response) => {
     try {
       const userId = req.user?.id
-      const term = await paymentTermsService.create(req.body, userId)
+      const term = await paymentTermsService.create(req.validated.body, userId)
       logInfo('Payment term created via API', { termId: term.id, userId })
       sendSuccess(res, term, 'Payment term created successfully', 201)
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  update = async (req: AuthRequest, res: Response): Promise<void> => {
+  update = withValidated(async (req: UpdatePaymentTermReq, res: Response) => {
     try {
-      const id = parseInt(req.params.id)
+      const id = parseInt(req.validated.params.id)
       const userId = req.user?.id
-      const term = await paymentTermsService.update(id, req.body, userId)
+      const term = await paymentTermsService.update(id, req.validated.body, userId)
       logInfo('Payment term updated via API', { termId: id, userId })
       sendSuccess(res, term, 'Payment term updated successfully')
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
   delete = async (req: AuthRequest, res: Response): Promise<void> => {
     try {

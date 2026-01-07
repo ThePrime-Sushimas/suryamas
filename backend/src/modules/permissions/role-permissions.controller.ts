@@ -3,11 +3,20 @@
 // Responsibility: HTTP handling for role-permissions only
 // =====================================================
 
-import { Response } from 'express'
+import { Response, Request } from 'express'
 import { AuthRequest } from '../../types/common.types'
 import { RolePermissionsService } from './role-permissions.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logError } from '../../config/logger'
+import { withValidated } from '../../utils/handler'
+import type { ValidatedRequest } from '../../middleware/validation.middleware'
+import {
+  updateRolePermissionSchema,
+  bulkUpdateRolePermissionsSchema,
+} from './permissions.schema'
+
+type UpdateRolePermissionReq = ValidatedRequest<typeof updateRolePermissionSchema>
+type BulkUpdateRolePermissionsReq = ValidatedRequest<typeof bulkUpdateRolePermissionsSchema>
 
 export class RolePermissionsController {
   private service: RolePermissionsService
@@ -27,31 +36,31 @@ export class RolePermissionsController {
     }
   }
 
-  update = async (req: AuthRequest, res: Response): Promise<void> => {
+  update = withValidated(async (req: UpdateRolePermissionReq, res: Response) => {
     try {
-      const { roleId, moduleId } = req.params
+      const { roleId, moduleId } = req.validated.params
       const permission = await this.service.update(
         roleId,
         moduleId,
-        req.body,
-        req.user?.id
+        req.validated.body,
+        (req as any).user?.id
       )
       sendSuccess(res, permission, 'Role permission updated successfully')
     } catch (error: any) {
       logError('Update role permission failed', { error: error.message })
       sendError(res, 'Failed to update role permission', 500)
     }
-  }
+  })
 
-  bulkUpdate = async (req: AuthRequest, res: Response): Promise<void> => {
+  bulkUpdate = withValidated(async (req: BulkUpdateRolePermissionsReq, res: Response) => {
     try {
-      const { roleId } = req.params
-      const { updates } = req.body
-      await this.service.bulkUpdate(roleId, updates, req.user?.id)
+      const { roleId } = req.validated.params
+      const updates = req.validated.body
+      await this.service.bulkUpdate(roleId, updates, (req as any).user?.id)
       sendSuccess(res, null, 'Role permissions updated successfully')
     } catch (error: any) {
       logError('Bulk update role permissions failed', { error: error.message })
       sendError(res, 'Failed to update role permissions', 500)
     }
-  }
+  })
 }

@@ -6,8 +6,11 @@ import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permi
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
 import { filterMiddleware } from '../../middleware/filter.middleware'
+import { validateSchema } from '../../middleware/validation.middleware'
 import { PermissionService } from '../../services/permission.service'
+import { CreateMetricUnitSchema, UpdateMetricUnitSchema, metricUnitIdSchema, BulkUpdateStatusSchema } from './metricUnits.schema'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
+import { ValidatedRequest } from '../../types/validation.types'
 import { logError } from '../../config/logger'
 
 PermissionService.registerModule('metric-units', 'Metric Units Management').catch(err => {
@@ -40,31 +43,37 @@ router.get('/',
 
 router.post('/bulk/status', 
   canUpdate('metric-units'), 
-  (req, res) => metricUnitsController.bulkUpdateStatus(req as AuthenticatedRequest, res)
+  validateSchema(BulkUpdateStatusSchema),
+  (req, res) => metricUnitsController.bulkUpdateStatus(req as ValidatedRequest<typeof BulkUpdateStatusSchema>, res)
 )
 
 router.post('/', 
   canInsert('metric-units'), 
-  (req, res) => metricUnitsController.create(req as AuthenticatedRequest, res)
+  validateSchema(CreateMetricUnitSchema),
+  (req, res) => metricUnitsController.create(req as ValidatedRequest<typeof CreateMetricUnitSchema>, res)
 )
 
 router.get('/:id', 
   canView('metric-units'), 
+  validateSchema(metricUnitIdSchema),
   (req, res) => metricUnitsController.getById(req as AuthenticatedRequest, res)
 )
 
 router.put('/:id', 
   canUpdate('metric-units'), 
-  (req, res) => metricUnitsController.update(req as AuthenticatedRequest, res)
+  validateSchema(UpdateMetricUnitSchema),
+  (req, res) => metricUnitsController.update(req as ValidatedRequest<typeof UpdateMetricUnitSchema>, res)
 )
 
 router.delete('/:id', 
   canDelete('metric-units'), 
+  validateSchema(metricUnitIdSchema),
   (req, res) => metricUnitsController.delete(req as AuthenticatedRequest, res)
 )
 
 router.post('/:id/restore',
   canUpdate('metric-units'),
+  validateSchema(metricUnitIdSchema),
   (req, res) => metricUnitsController.restore(req as AuthenticatedRequest, res)
 )
 

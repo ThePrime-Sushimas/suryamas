@@ -5,9 +5,11 @@ import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permi
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
 import { filterMiddleware } from '../../middleware/filter.middleware'
+import { validateSchema } from '../../middleware/validation.middleware'
 import { productsController } from './products.controller'
 import productUomsRoutes from '../product-uoms/product-uoms.routes'
 import { PermissionService } from '../../services/permission.service'
+import { createProductSchema, updateProductSchema, productIdSchema, bulkDeleteSchema, bulkUpdateStatusSchema, bulkRestoreSchema, checkProductNameSchema } from './products.schema'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 import multer from 'multer'
 
@@ -39,29 +41,25 @@ router.get('/filter-options', canView('products'), (req, res) =>
 router.get('/minimal/active', authenticate, (req, res) => 
   productsController.minimalActive(req as AuthenticatedRequest, res))
 
-router.get('/check/name', canView('products'), (req, res) => 
+router.get('/check/name', canView('products'), validateSchema(checkProductNameSchema), (req, res) => 
   productsController.checkProductName(req as AuthenticatedRequest, res))
 
-router.get('/:id', canView('products'), (req, res) => 
-  productsController.findById(req as AuthenticatedRequest, res))
+router.get('/:id', canView('products'), validateSchema(productIdSchema), productsController.findById)
 
-router.post('/', canInsert('products'), (req, res) => 
-  productsController.create(req as AuthenticatedRequest, res))
+router.post('/', canInsert('products'), validateSchema(createProductSchema), productsController.create)
 
-router.put('/:id', canUpdate('products'), (req, res) => 
-  productsController.update(req as AuthenticatedRequest, res))
+router.put('/:id', canUpdate('products'), validateSchema(updateProductSchema), productsController.update)
 
-router.delete('/:id', canDelete('products'), (req, res) => 
+router.delete('/:id', canDelete('products'), validateSchema(productIdSchema), (req, res) => 
   productsController.delete(req as AuthenticatedRequest, res))
 
-router.post('/bulk/delete', canDelete('products'), (req, res) => 
-  productsController.bulkDelete(req as AuthenticatedRequest, res))
+router.post('/bulk/delete', canDelete('products'), validateSchema(bulkDeleteSchema), productsController.bulkDelete)
 
-router.post('/bulk/update-status', canUpdate('products'), (req, res) => 
-  productsController.bulkUpdateStatus(req as AuthenticatedRequest, res))
+router.post('/bulk/update-status', canUpdate('products'), validateSchema(bulkUpdateStatusSchema), productsController.bulkUpdateStatus)
 
-router.post('/:id/restore', canUpdate('products'), (req, res) => 
-  productsController.restore(req as AuthenticatedRequest, res))
+router.post('/bulk/restore', canUpdate('products'), validateSchema(bulkRestoreSchema), productsController.bulkRestore)
+
+router.post('/:id/restore', canUpdate('products'), validateSchema(productIdSchema), productsController.restore)
 
 router.use('/:productId/uoms', productUomsRoutes)
 

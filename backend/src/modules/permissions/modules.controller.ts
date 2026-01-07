@@ -3,11 +3,20 @@
 // Responsibility: HTTP handling for modules only
 // =====================================================
 
-import { Response } from 'express'
+import { Response, Request } from 'express'
 import { AuthRequest } from '../../types/common.types'
 import { ModulesService } from './modules.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logError } from '../../config/logger'
+import { withValidated } from '../../utils/handler'
+import type { ValidatedRequest } from '../../middleware/validation.middleware'
+import {
+  createModuleSchema,
+  updateModuleSchema,
+} from './permissions.schema'
+
+type CreateModuleReq = ValidatedRequest<typeof createModuleSchema>
+type UpdateModuleReq = ValidatedRequest<typeof updateModuleSchema>
 
 export class ModulesController {
   private service: ModulesService
@@ -43,9 +52,9 @@ export class ModulesController {
     }
   }
 
-  create = async (req: AuthRequest, res: Response): Promise<void> => {
+  create = withValidated(async (req: CreateModuleReq, res: Response) => {
     try {
-      const module = await this.service.create(req.body, req.user?.id)
+      const module = await this.service.create(req.validated.body, (req as any).user?.id)
       sendSuccess(res, module, 'Module created successfully', 201)
     } catch (error: any) {
       logError('Create module failed', { error: error.message })
@@ -53,18 +62,18 @@ export class ModulesController {
       const message = error.isOperational ? error.message : 'Failed to create module'
       sendError(res, message, statusCode)
     }
-  }
+  })
 
-  update = async (req: AuthRequest, res: Response): Promise<void> => {
+  update = withValidated(async (req: UpdateModuleReq, res: Response) => {
     try {
-      const { id } = req.params
-      const module = await this.service.update(id, req.body)
+      const { id } = req.validated.params
+      const module = await this.service.update(id, req.validated.body)
       sendSuccess(res, module, 'Module updated successfully')
     } catch (error: any) {
       logError('Update module failed', { error: error.message })
       sendError(res, 'Failed to update module', 500)
     }
-  }
+  })
 
   delete = async (req: AuthRequest, res: Response): Promise<void> => {
     try {

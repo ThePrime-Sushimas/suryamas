@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, Response } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
@@ -6,7 +6,7 @@ import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
 import { filterMiddleware } from '../../middleware/filter.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
-import { rateLimit } from '../../middleware/rate-limit.middleware'
+import { supplierProductsRateLimit } from '../../middleware/rateLimiter.middleware'
 import { supplierProductsController } from './supplier-products.controller'
 import {
   createSupplierProductSchema,
@@ -30,13 +30,6 @@ PermissionService.registerModule('supplier_products', 'Supplier Product Manageme
 router.use(authenticate, resolveBranchContext)
 
 // Apply rate limiting
-const supplierProductsRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: SUPPLIER_PRODUCT_LIMITS.REQUEST_RATE_LIMIT,
-  message: 'Too many requests to supplier-products API',
-  keyGenerator: (req) => `${req.ip}-${(req as any).user?.id || 'anonymous'}`
-})
-
 router.use(supplierProductsRateLimit)
 
 // Routes with specific validation and permissions
@@ -47,7 +40,7 @@ router.use(supplierProductsRateLimit)
  */
 router.get('/options/active', 
   canView('supplier_products'), 
-  (req, res) => supplierProductsController.getActiveOptions(req as AuthenticatedRequest, res)
+  (req: any, res: Response) => supplierProductsController.getActiveOptions(req, res)
 )
 
 /**
@@ -57,7 +50,7 @@ router.get('/options/active',
 router.get('/supplier/:supplier_id', 
   canView('supplier_products'),
   validateSchema(getBySupplierSchema),
-  (req, res) => supplierProductsController.findBySupplier(req as AuthenticatedRequest, res)
+  (req: any, res: Response) => supplierProductsController.findBySupplier(req, res)
 )
 
 /**
@@ -67,7 +60,7 @@ router.get('/supplier/:supplier_id',
 router.get('/product/:product_id', 
   canView('supplier_products'),
   validateSchema(getByProductSchema),
-  (req, res) => supplierProductsController.findByProduct(req as AuthenticatedRequest, res)
+  (req: any, res: Response) => supplierProductsController.findByProduct(req, res)
 )
 
 /**
@@ -80,7 +73,7 @@ router.get('/',
   sortMiddleware, 
   filterMiddleware,
   validateSchema(supplierProductListSchema),
-  (req, res) => supplierProductsController.list(req as AuthenticatedQueryRequest, res)
+  (req: any, res: Response) => supplierProductsController.list(req, res)
 )
 
 /**
@@ -90,7 +83,7 @@ router.get('/',
 router.get('/:id', 
   canView('supplier_products'),
   validateSchema(supplierProductIdSchema),
-  (req, res) => supplierProductsController.findById(req as AuthenticatedRequest, res)
+  (req: any, res: Response) => supplierProductsController.findById(req, res)
 )
 
 /**
@@ -100,7 +93,7 @@ router.get('/:id',
 router.post('/', 
   canInsert('supplier_products'),
   validateSchema(createSupplierProductSchema),
-  (req, res) => supplierProductsController.create(req as AuthenticatedRequest, res)
+  supplierProductsController.create
 )
 
 /**
@@ -110,7 +103,7 @@ router.post('/',
 router.put('/:id', 
   canUpdate('supplier_products'),
   validateSchema(updateSupplierProductSchema),
-  (req, res) => supplierProductsController.update(req as AuthenticatedRequest, res)
+  supplierProductsController.update
 )
 
 /**
@@ -120,7 +113,7 @@ router.put('/:id',
 router.delete('/:id', 
   canDelete('supplier_products'),
   validateSchema(supplierProductIdSchema),
-  (req, res) => supplierProductsController.delete(req as AuthenticatedRequest, res)
+  (req: any, res: Response) => supplierProductsController.delete(req, res)
 )
 
 /**
@@ -130,7 +123,7 @@ router.delete('/:id',
 router.post('/bulk/delete', 
   canDelete('supplier_products'),
   validateSchema(bulkDeleteSchema),
-  (req, res) => supplierProductsController.bulkDelete(req as AuthenticatedRequest, res)
+  supplierProductsController.bulkDelete
 )
 
 export default router

@@ -1,9 +1,17 @@
 import { z } from 'zod'
 import { VALID_UOM_STATUSES, UOM_LIMITS } from './product-uoms.constants'
 
+const uuidSchema = z.string().uuid()
+
+export const productUomIdSchema = z.object({
+  params: z.object({
+    uomId: uuidSchema,
+  }),
+})
+
 export const createProductUomSchema = z.object({
   body: z.object({
-    metric_unit_id: z.string().uuid().optional(),
+    metric_unit_id: uuidSchema.optional(),
     unit_name: z.string().min(1).max(UOM_LIMITS.MAX_UNIT_NAME_LENGTH),
     conversion_factor: z.number()
       .positive()
@@ -23,6 +31,9 @@ export const createProductUomSchema = z.object({
 })
 
 export const updateProductUomSchema = z.object({
+  params: z.object({
+    uomId: uuidSchema,
+  }),
   body: z.object({
     unit_name: z.string().min(1).max(UOM_LIMITS.MAX_UNIT_NAME_LENGTH).optional(),
     conversion_factor: z.number()
@@ -42,6 +53,3 @@ export const updateProductUomSchema = z.object({
     { message: 'Base unit must have conversion factor of 1', path: ['conversion_factor'] }
   ),
 })
-
-export type CreateProductUomInput = z.infer<typeof createProductUomSchema>['body']
-export type UpdateProductUomInput = z.infer<typeof updateProductUomSchema>['body']

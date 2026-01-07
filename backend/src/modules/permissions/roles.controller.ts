@@ -3,11 +3,20 @@
 // Responsibility: HTTP handling for roles only
 // =====================================================
 
-import { Response } from 'express'
+import { Response, Request } from 'express'
 import { AuthRequest } from '../../types/common.types'
 import { RolesService } from './roles.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logError } from '../../config/logger'
+import { withValidated } from '../../utils/handler'
+import type { ValidatedRequest } from '../../middleware/validation.middleware'
+import {
+  createRoleSchema,
+  updateRoleSchema,
+} from './permissions.schema'
+
+type CreateRoleReq = ValidatedRequest<typeof createRoleSchema>
+type UpdateRoleReq = ValidatedRequest<typeof updateRoleSchema>
 
 export class RolesController {
   private service: RolesService
@@ -43,9 +52,9 @@ export class RolesController {
     }
   }
 
-  create = async (req: AuthRequest, res: Response): Promise<void> => {
+  create = withValidated(async (req: CreateRoleReq, res: Response) => {
     try {
-      const role = await this.service.create(req.body, req.user?.id)
+      const role = await this.service.create(req.validated.body, (req as any).user?.id)
       sendSuccess(res, role, 'Role created successfully', 201)
     } catch (error: any) {
       logError('Create role failed', { error: error.message })
@@ -53,18 +62,18 @@ export class RolesController {
       const message = error.isOperational ? error.message : 'Failed to create role'
       sendError(res, message, statusCode)
     }
-  }
+  })
 
-  update = async (req: AuthRequest, res: Response): Promise<void> => {
+  update = withValidated(async (req: UpdateRoleReq, res: Response) => {
     try {
-      const { id } = req.params
-      const role = await this.service.update(id, req.body)
+      const { id } = req.validated.params
+      const role = await this.service.update(id, req.validated.body)
       sendSuccess(res, role, 'Role updated successfully')
     } catch (error: any) {
       logError('Update role failed', { error: error.message })
       sendError(res, 'Failed to update role', 500)
     }
-  }
+  })
 
   delete = async (req: AuthRequest, res: Response): Promise<void> => {
     try {

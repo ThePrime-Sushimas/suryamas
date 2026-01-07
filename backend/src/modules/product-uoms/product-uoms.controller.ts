@@ -1,8 +1,20 @@
-import { Response } from 'express'
+import { Response, Request } from 'express'
 import { AuthRequest } from '../../types/common.types'
 import { productUomsService } from './product-uoms.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
+import { withValidated } from '../../utils/handler'
+import type { ValidatedRequest } from '../../middleware/validation.middleware'
+import {
+  productUomIdSchema,
+  createProductUomSchema,
+  updateProductUomSchema,
+} from './product-uoms.schema'
+
+type ProductUomIdReq = ValidatedRequest<typeof productUomIdSchema>
+type CreateProductUomReq = ValidatedRequest<typeof createProductUomSchema>
+type UpdateProductUomReq = ValidatedRequest<typeof updateProductUomSchema>
+
 
 export class ProductUomsController {
   list = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -16,25 +28,25 @@ export class ProductUomsController {
     }
   }
 
-  create = async (req: AuthRequest, res: Response): Promise<void> => {
+  create = withValidated(async (req: CreateProductUomReq, res: Response) => {
     try {
-      const { productId } = req.params
-      const uom = await productUomsService.create(productId, req.body, req.user?.id)
+      const { productId } = req.validated.params
+      const uom = await productUomsService.create(productId, req.validated.body, (req as any).user?.id)
       sendSuccess(res, uom, 'UOM created successfully', 201)
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  update = async (req: AuthRequest, res: Response): Promise<void> => {
+  update = withValidated(async (req: UpdateProductUomReq, res: Response) => {
     try {
-      const { uomId } = req.params
-      const uom = await productUomsService.update(uomId, req.body, req.user?.id)
+      const { uomId } = req.validated.params
+      const uom = await productUomsService.update(uomId, req.validated.body, (req as any).user?.id)
       sendSuccess(res, uom, 'UOM updated successfully')
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
   delete = async (req: AuthRequest, res: Response): Promise<void> => {
     try {

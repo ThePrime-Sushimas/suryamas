@@ -24,7 +24,7 @@ export const sendError = (
   const response: ApiResponse = {
     success: false,
     error,
-    ...(details && { details })
+    ...(details && { ...details })
   }
   res.status(statusCode).json(response)
 }

@@ -6,6 +6,7 @@ import { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/req
 import { getPaginationParams } from '../../utils/pagination.util'
 import { CreateMetricUnitSchema, UpdateMetricUnitSchema, BulkUpdateStatusSchema, UuidParamSchema } from './metricUnits.schema'
 import { handleError } from '../../utils/error-handler.util'
+import { ValidatedRequest } from '../../types/validation.types'
 
 export class MetricUnitsController {
   async list(req: AuthenticatedQueryRequest, res: Response) {
@@ -46,9 +47,9 @@ export class MetricUnitsController {
     }
   }
 
-  async create(req: AuthenticatedRequest, res: Response) {
+  async create(req: ValidatedRequest<typeof CreateMetricUnitSchema>, res: Response) {
     try {
-      const dto = CreateMetricUnitSchema.parse(req.body)
+      const dto = req.validated.body
       const metricUnit = await metricUnitsService.create(dto, req.user?.id)
       logInfo('Metric unit created', { id: metricUnit.id, userId: req.user?.id })
       sendSuccess(res, metricUnit, 'Created', 201)
@@ -57,12 +58,11 @@ export class MetricUnitsController {
     }
   }
 
-  async update(req: AuthenticatedRequest, res: Response) {
+  async update(req: ValidatedRequest<typeof UpdateMetricUnitSchema>, res: Response) {
     try {
-      UuidParamSchema.parse(req.params)
-      const dto = UpdateMetricUnitSchema.parse(req.body)
-      const metricUnit = await metricUnitsService.update(req.params.id, dto, req.user?.id)
-      logInfo('Metric unit updated', { id: req.params.id, userId: req.user?.id })
+      const { params, body } = req.validated
+      const metricUnit = await metricUnitsService.update(params.id, body, req.user?.id)
+      logInfo('Metric unit updated', { id: params.id, userId: req.user?.id })
       sendSuccess(res, metricUnit, 'Updated')
     } catch (error) {
       handleError(res, error)
@@ -91,9 +91,9 @@ export class MetricUnitsController {
     }
   }
 
-  async bulkUpdateStatus(req: AuthenticatedRequest, res: Response) {
+  async bulkUpdateStatus(req: ValidatedRequest<typeof BulkUpdateStatusSchema>, res: Response) {
     try {
-      const { ids, is_active } = BulkUpdateStatusSchema.parse(req.body)
+      const { ids, is_active } = req.validated.body
       await metricUnitsService.bulkUpdateStatus(ids, is_active, req.user?.id)
       logInfo('Bulk status updated', { count: ids.length, is_active, userId: req.user?.id })
       sendSuccess(res, null, 'Updated')

@@ -6,6 +6,7 @@ import { handleExportToken, handleExport, handleImportPreview, handleImport } fr
 import { handleBulkDelete } from '../../utils/bulk.util'
 import type { AuthenticatedPaginatedRequest, AuthenticatedRequest } from '../../types/request.types'
 import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, EmployeeSearchSchema, BulkUpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
+import { ValidatedRequest } from '../../types/validation.types'
 import { ZodError } from 'zod'
 
 export class EmployeesController {
@@ -31,20 +32,19 @@ export class EmployeesController {
     }
   }
   
-  async create(req: AuthenticatedRequest, res: Response) {
+  async create(req: ValidatedRequest<typeof CreateEmployeeSchema>, res: Response) {
     try {
-      const payload = CreateEmployeeSchema.parse(req.body)
-      const employee = await employeesService.create(payload, req.file, req.user.id)
-      logInfo('Employee created', { employee_id: employee.employee_id, user: req.user.id })
+      const employee = await employeesService.create(req.validated.body, req.file, req.user!.id)
+      logInfo('Employee created', { employee_id: employee.employee_id, user: req.user!.id })
       sendSuccess(res, employee, 'Employee created', 201)
     } catch (error) {
-      this.handleError(res, error, 'create employee', req.user.id, req.body)
+      this.handleError(res, error, 'create employee', req.user!.id, req.validated)
     }
   }
 
   async search(req: AuthenticatedPaginatedRequest, res: Response) {
     try {
-      const { q } = EmployeeSearchSchema.parse(req.query)
+      const { q } = req.query as any
       
       const filters: any = {}
       if (req.query.branch_name) filters.branch_name = req.query.branch_name
@@ -91,14 +91,13 @@ export class EmployeesController {
     }
   }
 
-  async updateProfile(req: AuthenticatedRequest, res: Response) {
+  async updateProfile(req: ValidatedRequest<typeof UpdateProfileSchema>, res: Response) {
     try {
-      const payload = UpdateProfileSchema.parse(req.body)
-      const employee = await employeesService.updateProfile(req.user.id, payload)
-      logInfo('Profile updated', { user: req.user.id })
+      const employee = await employeesService.updateProfile(req.user!.id, req.validated.body)
+      logInfo('Profile updated', { user: req.user!.id })
       sendSuccess(res, employee, 'Profile updated')
     } catch (error) {
-      this.handleError(res, error, 'update profile', req.user.id, req.body)
+      this.handleError(res, error, 'update profile', req.user!.id, req.validated)
     }
   }
 
@@ -111,14 +110,14 @@ export class EmployeesController {
     }
   }
 
-  async update(req: AuthenticatedRequest, res: Response) {
+  async update(req: ValidatedRequest<typeof UpdateEmployeeSchema>, res: Response) {
     try {
-      const payload = UpdateEmployeeSchema.parse(req.body)
-      const employee = await employeesService.update(req.params.id, payload, req.file, req.user.id)
-      logInfo('Employee updated', { id: req.params.id, user: req.user.id })
+      const { body, params } = req.validated
+      const employee = await employeesService.update(params.id, body, req.file, req.user!.id)
+      logInfo('Employee updated', { id: params.id, user: req.user!.id })
       sendSuccess(res, employee, 'Employee updated')
     } catch (error) {
-      this.handleError(res, error, 'update employee', req.user.id, { id: req.params.id })
+      this.handleError(res, error, 'update employee', req.user!.id, { id: req.validated.params.id })
     }
   }
 
@@ -160,25 +159,25 @@ export class EmployeesController {
     return handleImport(req, res, (buffer, skip) => employeesService.importFromExcel(buffer, skip))
   }
 
-  async bulkUpdateActive(req: AuthenticatedRequest, res: Response) {
+  async bulkUpdateActive(req: ValidatedRequest<typeof BulkUpdateActiveSchema>, res: Response) {
     try {
-      const payload = BulkUpdateActiveSchema.parse(req.body)
-      await employeesService.bulkUpdateActive(payload.ids, payload.is_active)
-      logInfo('Bulk update active', { count: payload.ids.length, user: req.user.id })
+      const { ids, is_active } = req.validated.body
+      await employeesService.bulkUpdateActive(ids, is_active)
+      logInfo('Bulk update active', { count: ids.length, user: req.user!.id })
       sendSuccess(res, null, 'Employees updated')
     } catch (error) {
-      this.handleError(res, error, 'bulk update active', req.user.id)
+      this.handleError(res, error, 'bulk update active', req.user!.id)
     }
   }
 
-  async bulkDelete(req: AuthenticatedRequest, res: Response) {
+  async bulkDelete(req: ValidatedRequest<typeof BulkDeleteSchema>, res: Response) {
     try {
-      const payload = BulkDeleteSchema.parse(req.body)
-      await employeesService.bulkDelete(payload.ids)
-      logInfo('Bulk delete', { count: payload.ids.length, user: req.user.id })
+      const { ids } = req.validated.body
+      await employeesService.bulkDelete(ids)
+      logInfo('Bulk delete', { count: ids.length, user: req.user!.id })
       sendSuccess(res, null, 'Employees deleted')
     } catch (error) {
-      this.handleError(res, error, 'bulk delete', req.user.id)
+      this.handleError(res, error, 'bulk delete', req.user!.id)
     }
   }
 

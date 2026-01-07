@@ -1,62 +1,80 @@
-import { Response } from 'express'
-import { AuthRequest } from '../../types/common.types'
+import { Response, Request } from 'express'
 import { suppliersService } from './suppliers.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
+import { withValidated } from '../../utils/handler'
+import { AuthRequest } from '../../types/common.types'
+import type { ValidatedRequest } from '../../middleware/validation.middleware'
+import {
+  createSupplierSchema,
+  updateSupplierSchema,
+  supplierIdSchema,
+  supplierListQuerySchema,
+} from './suppliers.schema'
+
+type CreateSupplierReq = ValidatedRequest<typeof createSupplierSchema>
+type UpdateSupplierReq = ValidatedRequest<typeof updateSupplierSchema>
+type SupplierIdReq = ValidatedRequest<typeof supplierIdSchema>
+type SupplierListReq = ValidatedRequest<typeof supplierListQuerySchema>
 
 export class SuppliersController {
-  create = async (req: AuthRequest, res: Response): Promise<void> => {
+  create = withValidated(async (req: CreateSupplierReq, res: Response) => {
     try {
+      const { body } = req.validated
       const userId = req.context?.employee_id ? parseInt(req.context.employee_id) : undefined
-      const supplier = await suppliersService.createSupplier(req.body, userId)
+      const supplier = await suppliersService.createSupplier(body, userId)
       sendSuccess(res, supplier, 'Supplier created successfully', 201)
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  list = async (req: AuthRequest, res: Response): Promise<void> => {
+  list = withValidated(async (req: SupplierListReq, res: Response) => {
     try {
-      const result = await suppliersService.getSuppliers(req.query)
+      const { query } = req.validated
+      const result = await suppliersService.getSuppliers(query)
       sendSuccess(res, result.data, 'Suppliers retrieved successfully', 200, result.pagination)
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  findById = async (req: AuthRequest, res: Response): Promise<void> => {
+  findById = withValidated(async (req: SupplierIdReq, res: Response) => {
     try {
-      const id = parseInt(req.params.id)
+      const { params } = req.validated
+      const id = parseInt(params.id)
       const supplier = await suppliersService.getSupplierById(id)
       sendSuccess(res, supplier, 'Supplier retrieved successfully')
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  update = async (req: AuthRequest, res: Response): Promise<void> => {
+  update = withValidated(async (req: UpdateSupplierReq, res: Response) => {
     try {
-      const id = parseInt(req.params.id)
+      const { params, body } = req.validated
+      const id = parseInt(params.id)
       const userId = req.context?.employee_id ? parseInt(req.context.employee_id) : undefined
-      const supplier = await suppliersService.updateSupplier(id, req.body, userId)
+      const supplier = await suppliersService.updateSupplier(id, body, userId)
       sendSuccess(res, supplier, 'Supplier updated successfully')
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  delete = async (req: AuthRequest, res: Response): Promise<void> => {
+  delete = withValidated(async (req: SupplierIdReq, res: Response) => {
     try {
-      const id = parseInt(req.params.id)
+      const { params } = req.validated
+      const id = parseInt(params.id)
       const userId = req.context?.employee_id ? parseInt(req.context.employee_id) : undefined
       await suppliersService.deleteSupplier(id, userId)
       sendSuccess(res, null, 'Supplier deleted successfully')
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  getOptions = async (req: AuthRequest, res: Response): Promise<void> => {
+  getOptions = async (req: Request, res: Response): Promise<void> => {
     try {
       const options = await suppliersService.getSupplierOptions()
       sendSuccess(res, options, 'Supplier options retrieved successfully')

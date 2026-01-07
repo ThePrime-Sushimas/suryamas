@@ -214,6 +214,18 @@ export class ProductsRepository {
     if (error) throw new Error(error.message)
   }
 
+  async bulkRestore(ids: string[]): Promise<void> {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new Error('Invalid ids array')
+    }
+    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) {
+      throw new Error(`Bulk operation exceeds maximum limit of ${PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE}`)
+    }
+    const { error } = await supabase.from('products').update({ is_deleted: false }).in('id', ids)
+
+    if (error) throw new Error(error.message)
+  }
+
   async getFilterOptions(): Promise<{ statuses: string[]; productTypes: string[] }> {
     const statuses = ['ACTIVE', 'INACTIVE', 'DISCONTINUED']
     const productTypes = ['raw', 'semi_finished', 'finished_goods']

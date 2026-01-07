@@ -1,14 +1,31 @@
-import { Response } from 'express'
-import { AuthRequest } from '../../types/common.types'
+import { Response, Request } from 'express'
 import { productsService } from './products.service'
 import { productsExportService } from '../../services/products.export.service'
 import { productsImportService } from '../../services/products.import.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { logInfo } from '../../config/logger'
+import { withValidated } from '../../utils/handler'
+import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
+import type { ValidatedRequest } from '../../middleware/validation.middleware'
+import {
+  createProductSchema,
+  updateProductSchema,
+  bulkDeleteSchema,
+  bulkUpdateStatusSchema,
+  bulkRestoreSchema,
+  productIdSchema,
+} from './products.schema'
+
+type CreateProductReq = ValidatedRequest<typeof createProductSchema>
+type UpdateProductReq = ValidatedRequest<typeof updateProductSchema>
+type BulkDeleteReq = ValidatedRequest<typeof bulkDeleteSchema>
+type BulkUpdateStatusReq = ValidatedRequest<typeof bulkUpdateStatusSchema>
+type BulkRestoreReq = ValidatedRequest<typeof bulkRestoreSchema>
+type ProductIdReq = ValidatedRequest<typeof productIdSchema>
 
 export class ProductsController {
-  list = async (req: AuthRequest & { sort?: any; filterParams?: any; pagination?: any }, res: Response): Promise<void> => {
+  list = async (req: AuthenticatedQueryRequest, res: Response): Promise<void> => {
     try {
       const page = req.pagination?.page || parseInt(req.query.page as string) || 1
       const limit = req.pagination?.limit || parseInt(req.query.limit as string) || 10
@@ -27,7 +44,7 @@ export class ProductsController {
     }
   }
 
-  search = async (req: AuthRequest & { sort?: any; filterParams?: any; pagination?: any }, res: Response): Promise<void> => {
+  search = async (req: AuthenticatedQueryRequest, res: Response): Promise<void> => {
     try {
       const q = (req.query.q as string) || ''
       const page = req.pagination?.page || parseInt(req.query.page as string) || 1
@@ -48,46 +65,45 @@ export class ProductsController {
     }
   }
 
-  findById = async (req: AuthRequest, res: Response): Promise<void> => {
+  findById = withValidated(async (req: ProductIdReq, res: Response) => {
     try {
-      const { id } = req.params
+      const { params } = req.validated
       const includeDeleted = req.query.includeDeleted === 'true'
-      const product = await productsService.findById(id, includeDeleted)
-
+      const product = await productsService.findById(params.id, includeDeleted)
       sendSuccess(res, product, 'Product retrieved successfully')
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  create = async (req: AuthRequest, res: Response): Promise<void> => {
+  create = withValidated(async (req: CreateProductReq, res: Response) => {
     try {
-      const product = await productsService.create(req.body, req.user?.id)
+      const product = await productsService.create(req.validated.body, (req as any).user?.id)
       logInfo('Product created via API', { 
         productId: product.id, 
-        userId: req.user?.id
+        userId: (req as any).user?.id
       })
       sendSuccess(res, product, 'Product created successfully', 201)
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  update = async (req: AuthRequest, res: Response): Promise<void> => {
+  update = withValidated(async (req: UpdateProductReq, res: Response) => {
     try {
-      const { id } = req.params
-      const product = await productsService.update(id, req.body, req.user?.id)
+      const { params, body } = req.validated
+      const product = await productsService.update(params.id, body, (req as any).user?.id)
       logInfo('Product updated via API', { 
-        productId: id, 
-        userId: req.user?.id
+        productId: params.id, 
+        userId: (req as any).user?.id
       })
       sendSuccess(res, product, 'Product updated successfully')
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  delete = async (req: AuthRequest, res: Response): Promise<void> => {
+  delete = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const { id } = req.params
       await productsService.delete(id, req.user?.id)
@@ -97,27 +113,27 @@ export class ProductsController {
     }
   }
 
-  bulkDelete = async (req: AuthRequest, res: Response): Promise<void> => {
+  bulkDelete = withValidated(async (req: BulkDeleteReq, res: Response) => {
     try {
-      const { ids } = req.body
-      await productsService.bulkDelete(ids, req.user?.id)
+      const { ids } = req.validated.body
+      await productsService.bulkDelete(ids, (req as any).user?.id)
       sendSuccess(res, null, 'Products deleted successfully')
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  bulkUpdateStatus = async (req: AuthRequest, res: Response): Promise<void> => {
+  bulkUpdateStatus = withValidated(async (req: BulkUpdateStatusReq, res: Response) => {
     try {
-      const { ids, status } = req.body
-      await productsService.bulkUpdateStatus(ids, status, req.user?.id)
+      const { ids, status } = req.validated.body
+      await productsService.bulkUpdateStatus(ids, status, (req as any).user?.id)
       sendSuccess(res, null, 'Status updated successfully')
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  getFilterOptions = async (req: AuthRequest, res: Response): Promise<void> => {
+  getFilterOptions = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const options = await productsService.getFilterOptions()
       sendSuccess(res, options, 'Filter options retrieved successfully')
@@ -126,7 +142,7 @@ export class ProductsController {
     }
   }
 
-  minimalActive = async (req: AuthRequest, res: Response): Promise<void> => {
+  minimalActive = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const products = await productsService.minimalActive()
       sendSuccess(res, products, 'Products retrieved successfully')
@@ -135,7 +151,7 @@ export class ProductsController {
     }
   }
 
-  checkProductName = async (req: AuthRequest, res: Response): Promise<void> => {
+  checkProductName = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const { product_name, excludeId } = req.query
       const exists = await productsService.checkProductNameExists(
@@ -148,17 +164,27 @@ export class ProductsController {
     }
   }
 
-  restore = async (req: AuthRequest, res: Response): Promise<void> => {
+  restore = withValidated(async (req: ProductIdReq, res: Response) => {
     try {
-      const { id } = req.params
-      const product = await productsService.restore(id, req.user?.id)
+      const { params } = req.validated
+      const product = await productsService.restore(params.id, (req as any).user?.id)
       sendSuccess(res, product, 'Product restored successfully')
     } catch (error: any) {
       handleError(res, error)
     }
-  }
+  })
 
-  export = async (req: AuthRequest, res: Response): Promise<void> => {
+  bulkRestore = withValidated(async (req: BulkRestoreReq, res: Response) => {
+    try {
+      const { ids } = req.validated.body
+      await productsService.bulkRestore(ids, (req as any).user?.id)
+      sendSuccess(res, null, 'Products restored successfully')
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  })
+
+  export = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const buffer = await productsExportService.export()
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -169,7 +195,7 @@ export class ProductsController {
     }
   }
 
-  importPreview = async (req: AuthRequest, res: Response): Promise<void> => {
+  importPreview = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.file) {
         res.status(400).json({ success: false, error: 'No file uploaded' })
@@ -182,7 +208,7 @@ export class ProductsController {
     }
   }
 
-  import = async (req: AuthRequest, res: Response): Promise<void> => {
+  import = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.file) {
         res.status(400).json({ success: false, error: 'No file uploaded' })

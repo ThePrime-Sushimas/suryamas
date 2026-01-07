@@ -1,12 +1,20 @@
-// =====================================================
-// USERS CONTROLLER
-// =====================================================
-
-import { Response } from 'express'
+import { Response, Request } from 'express'
 import { AuthRequest } from '../../types/common.types'
 import { UsersService } from './users.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logError } from '../../config/logger'
+import { withValidated } from '../../utils/handler'
+import type { ValidatedRequest } from '../../middleware/validation.middleware'
+import {
+  userIdSchema,
+  assignRoleSchema,
+  removeRoleSchema,
+} from './users.schema'
+
+type UserIdReq = ValidatedRequest<typeof userIdSchema>
+type AssignRoleReq = ValidatedRequest<typeof assignRoleSchema>
+type RemoveRoleReq = ValidatedRequest<typeof removeRoleSchema>
+
 
 export class UsersController {
   private service: UsersService
@@ -59,23 +67,16 @@ export class UsersController {
     }
   }
 
-  assignRole = async (req: AuthRequest, res: Response): Promise<void> => {
+  assignRole = withValidated(async (req: AssignRoleReq, res: Response) => {
     try {
-      const { userId } = req.params
-      const { role_id } = req.body
-
-      if (!role_id) {
-        sendError(res, 'role_id is required', 400)
-        return
-      }
-
-      const result = await this.service.assignRoleByEmployeeId(userId, role_id, req.user?.id)
+      const { params, body } = req.validated
+      const result = await this.service.assignRoleByEmployeeId(params.userId, body.role_id, req.user?.id)
       sendSuccess(res, result, 'Role assigned successfully')
     } catch (error: any) {
       logError('Assign role failed', { error: error.message })
       sendError(res, 'Failed to assign role', 500)
     }
-  }
+  })
 
   removeRole = async (req: AuthRequest, res: Response): Promise<void> => {
     try {

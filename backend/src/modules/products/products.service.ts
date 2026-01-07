@@ -214,6 +214,20 @@ export class ProductsService {
     logInfo('Product restored', { id, userId })
     return product!
   }
+
+  async bulkRestore(ids: string[], userId?: string): Promise<void> {
+    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) {
+      throw new BulkOperationLimitError(PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE)
+    }
+
+    await this.repository.bulkRestore(ids)
+
+    if (userId) {
+      await this.auditService.log('RESTORE', 'product', ids.join(','), userId)
+    }
+
+    logInfo('Bulk restore products', { count: ids.length, userId })
+  }
 }
 
 export const productsService = new ProductsService()

@@ -4,8 +4,10 @@ import { resolveBranchContext } from '../../middleware/branch-context.middleware
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
+import { validateSchema } from '../../middleware/validation.middleware'
 import { subCategoriesController } from './sub-categories.controller'
 import { PermissionService } from '../../services/permission.service'
+import { CreateSubCategorySchema, UpdateSubCategorySchema, subCategoryIdSchema, BulkDeleteSchema, categoryIdSchema } from './sub-categories.schema'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 
 const router = Router()
@@ -20,28 +22,25 @@ router.get('/search', canView('sub_categories'), paginationMiddleware, sortMiddl
 router.get('/trash', canView('sub_categories'), paginationMiddleware, sortMiddleware, (req, res) => 
   subCategoriesController.trash(req as AuthenticatedQueryRequest, res))
 
-router.get('/category/:categoryId', canView('sub_categories'), (req, res) => 
+router.get('/category/:categoryId', canView('sub_categories'), validateSchema(categoryIdSchema), (req, res) => 
   subCategoriesController.getByCategory(req as AuthenticatedRequest, res))
 
 router.get('/', canView('sub_categories'), paginationMiddleware, sortMiddleware, (req, res) => 
   subCategoriesController.list(req as AuthenticatedQueryRequest, res))
 
-router.get('/:id', canView('sub_categories'), (req, res) => 
+router.get('/:id', canView('sub_categories'), validateSchema(subCategoryIdSchema), (req, res) => 
   subCategoriesController.getById(req as AuthenticatedRequest, res))
 
-router.post('/', canInsert('sub_categories'), (req, res) => 
-  subCategoriesController.create(req as AuthenticatedRequest, res))
+router.post('/', canInsert('sub_categories'), validateSchema(CreateSubCategorySchema), subCategoriesController.create)
 
-router.put('/:id', canUpdate('sub_categories'), (req, res) => 
-  subCategoriesController.update(req as AuthenticatedRequest, res))
+router.put('/:id', canUpdate('sub_categories'), validateSchema(UpdateSubCategorySchema), subCategoriesController.update)
 
-router.delete('/:id', canDelete('sub_categories'), (req, res) => 
+router.delete('/:id', canDelete('sub_categories'), validateSchema(subCategoryIdSchema), (req, res) => 
   subCategoriesController.delete(req as AuthenticatedRequest, res))
 
-router.patch('/:id/restore', canUpdate('sub_categories'), (req, res) => 
+router.patch('/:id/restore', canUpdate('sub_categories'), validateSchema(subCategoryIdSchema), (req, res) => 
   subCategoriesController.restore(req as AuthenticatedRequest, res))
 
-router.post('/bulk/delete', canDelete('sub_categories'), (req, res) => 
-  subCategoriesController.bulkDelete(req as AuthenticatedRequest, res))
+router.post('/bulk/delete', canDelete('sub_categories'), validateSchema(BulkDeleteSchema), subCategoriesController.bulkDelete)
 
 export default router

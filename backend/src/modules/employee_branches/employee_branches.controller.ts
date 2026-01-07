@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { employeeBranchesService } from './employee_branches.service'
 import type { AuthenticatedRequest } from '../../types/request.types'
+import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   CreateEmployeeBranchSchema,
   UpdateEmployeeBranchSchema,
@@ -105,10 +106,10 @@ export class EmployeeBranchesController {
     }
   }
 
-  async create(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async create(req: ValidatedAuthRequest<typeof CreateEmployeeBranchSchema>, res: Response, next: NextFunction): Promise<void> {
     try {
-      const validated = CreateEmployeeBranchSchema.parse(req.body)
-      const result = await employeeBranchesService.create(validated)
+      const validated = req.validated.body
+      const result = await employeeBranchesService.create(validated, req.user?.id)
 
       res.status(201).json({
         success: true,
@@ -120,11 +121,11 @@ export class EmployeeBranchesController {
     }
   }
 
-  async update(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async update(req: ValidatedAuthRequest<typeof UpdateEmployeeBranchSchema>, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params
-      const validated = UpdateEmployeeBranchSchema.parse(req.body)
-      const result = await employeeBranchesService.update(id, validated)
+      const { body } = req.validated
+      const result = await employeeBranchesService.update(id, body, req.user?.id)
 
       res.json({
         success: true,
@@ -136,10 +137,10 @@ export class EmployeeBranchesController {
     }
   }
 
-  async setPrimaryBranch(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async setPrimaryBranch(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { employeeId, branchId } = req.params
-      await employeeBranchesService.setPrimaryBranch(employeeId, branchId)
+      await employeeBranchesService.setPrimaryBranch(employeeId, branchId, req.user?.id)
 
       res.json({
         success: true,
@@ -150,10 +151,10 @@ export class EmployeeBranchesController {
     }
   }
 
-  async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async delete(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params
-      await employeeBranchesService.delete(id)
+      await employeeBranchesService.delete(id, req.user?.id)
 
       res.json({
         success: true,
@@ -164,10 +165,10 @@ export class EmployeeBranchesController {
     }
   }
 
-  async deleteByEmployeeAndBranch(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async deleteByEmployeeAndBranch(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { employeeId, branchId } = req.params
-      await employeeBranchesService.deleteByEmployeeAndBranch(employeeId, branchId)
+      await employeeBranchesService.deleteByEmployeeAndBranch(employeeId, branchId, req.user?.id)
 
       res.json({
         success: true,
@@ -178,14 +179,14 @@ export class EmployeeBranchesController {
     }
   }
 
-  async bulkDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async bulkDelete(req: ValidatedAuthRequest<typeof BulkDeleteSchema>, res: Response, next: NextFunction): Promise<void> {
     try {
-      const validated = BulkDeleteSchema.parse(req.body)
-      await employeeBranchesService.bulkDelete(validated.ids)
+      const { ids } = req.validated.body
+      await employeeBranchesService.bulkDelete(ids, req.user?.id)
 
       res.json({
         success: true,
-        message: `${validated.ids.length} employee branch assignments deleted`,
+        message: `${ids.length} employee branch assignments deleted`,
       })
     } catch (error) {
       next(error)

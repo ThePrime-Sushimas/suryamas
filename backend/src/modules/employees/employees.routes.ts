@@ -8,7 +8,10 @@ import { filterMiddleware } from '../../middleware/filter.middleware'
 import { upload } from '../../middleware/upload.middleware'
 import { exportLimiter } from '../../middleware/rateLimiter.middleware'
 import { PermissionService } from '../../services/permission.service'
+import { validateSchema } from '../../middleware/validation.middleware'
+import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, EmployeeSearchSchema, BulkUpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
 import type { AuthenticatedPaginatedRequest, AuthenticatedRequest } from '../../types/request.types'
+import { ValidatedRequest } from '../../types/validation.types'
 
 // Auto-register employees module
 PermissionService.registerModule('employees', 'Employee Management System')
@@ -27,7 +30,7 @@ router.get('/unassigned', canView('employees'), paginationMiddleware, (req, res)
   employeesController.getUnassigned(req as AuthenticatedPaginatedRequest, res))
 
 // Search with pagination
-router.get('/search', canView('employees'), paginationMiddleware, (req, res) => 
+router.get('/search', canView('employees'), paginationMiddleware, validateSchema(EmployeeSearchSchema), (req, res) => 
   employeesController.search(req as AuthenticatedPaginatedRequest, res))
 
 router.get('/autocomplete', canView('employees'), (req, res) => 
@@ -40,8 +43,8 @@ router.get('/filter-options', canView('employees'), (req, res) =>
 router.get('/profile', (req, res) => 
   employeesController.getProfile(req as AuthenticatedRequest, res))
 
-router.put('/profile', (req, res) => 
-  employeesController.updateProfile(req as AuthenticatedRequest, res))
+router.put('/profile', validateSchema(UpdateProfileSchema), (req, res) => 
+  employeesController.updateProfile(req as ValidatedRequest<typeof UpdateProfileSchema>, res))
 
 router.post('/profile/picture', upload.single('picture'), (req, res) => 
   employeesController.uploadProfilePicture(req as AuthenticatedRequest, res))
@@ -60,21 +63,21 @@ router.post('/import', canInsert('employees'), upload.single('file'), (req, res)
   employeesController.importData(req as AuthenticatedRequest, res))
 
 // Bulk Actions
-router.post('/bulk/update-active', canUpdate('employees'), (req, res) => 
-  employeesController.bulkUpdateActive(req as AuthenticatedRequest, res))
+router.post('/bulk/update-active', canUpdate('employees'), validateSchema(BulkUpdateActiveSchema), (req, res) => 
+  employeesController.bulkUpdateActive(req as ValidatedRequest<typeof BulkUpdateActiveSchema>, res))
 
-router.post('/bulk/delete', canDelete('employees'), (req, res) => 
-  employeesController.bulkDelete(req as AuthenticatedRequest, res))
+router.post('/bulk/delete', canDelete('employees'), validateSchema(BulkDeleteSchema), (req, res) => 
+  employeesController.bulkDelete(req as ValidatedRequest<typeof BulkDeleteSchema>, res))
 
 // Employee CRUD
-router.post('/', canInsert('employees'), upload.single('profile_picture'), (req, res) => 
-  employeesController.create(req as AuthenticatedRequest, res))
+router.post('/', canInsert('employees'), upload.single('profile_picture'), validateSchema(CreateEmployeeSchema), (req, res) => 
+  employeesController.create(req as ValidatedRequest<typeof CreateEmployeeSchema>, res))
 
 router.get('/:id', canView('employees'), (req, res) => 
   employeesController.getById(req as AuthenticatedRequest, res))
 
-router.put('/:id', canUpdate('employees'), upload.single('profile_picture'), (req, res) => 
-  employeesController.update(req as AuthenticatedRequest, res))
+router.put('/:id', canUpdate('employees'), upload.single('profile_picture'), validateSchema(UpdateEmployeeSchema), (req, res) => 
+  employeesController.update(req as ValidatedRequest<typeof UpdateEmployeeSchema>, res))
 
 router.delete('/:id', canDelete('employees'), (req, res) => 
   employeesController.delete(req as AuthenticatedRequest, res))

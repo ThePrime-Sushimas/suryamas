@@ -50,6 +50,12 @@ export const bulkUpdateStatusSchema = z.object({
   }),
 })
 
+export const bulkRestoreSchema = z.object({
+  body: z.object({
+    ids: z.array(z.string().uuid()).min(1).max(PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE),
+  }),
+})
+
 export const productIdSchema = z.object({
   params: z.object({
     id: z.string().uuid('Invalid product ID format'),
@@ -60,5 +66,13 @@ export const checkProductNameSchema = z.object({
   query: z.object({
     product_name: z.string().min(1),
     excludeId: z.string().uuid().optional(),
+  }),
+})
+
+export const productListQuerySchema = z.object({
+  query: z.object({
+    page: z.coerce.number().int().positive().default(1),
+    limit: z.coerce.number().int().positive().max(100).default(10),
+    includeDeleted: z.string().transform(v => v === 'true').optional(),
   }),
 })

@@ -7,8 +7,10 @@ import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permi
 import { paginationMiddleware } from '../../middleware/pagination.middleware'
 import { sortMiddleware } from '../../middleware/sort.middleware'
 import { filterMiddleware } from '../../middleware/filter.middleware'
+import { validateSchema } from '../../middleware/validation.middleware'
 import { paymentTermsController } from './payment-terms.controller'
 import { PermissionService } from '../../services/permission.service'
+import { createPaymentTermSchema, updatePaymentTermSchema, paymentTermIdSchema } from './payment-terms.schema'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 
 const router = Router()
@@ -23,19 +25,16 @@ router.get('/', canView('payment_terms'), paginationMiddleware, sortMiddleware, 
 router.get('/minimal/active', authenticate, (req, res) =>
   paymentTermsController.minimalActive(req as AuthenticatedRequest, res))
 
-router.get('/:id', canView('payment_terms'), (req, res) =>
+router.get('/:id', canView('payment_terms'), validateSchema(paymentTermIdSchema), (req, res) =>
   paymentTermsController.findById(req as AuthenticatedRequest, res))
 
-router.post('/', canInsert('payment_terms'), (req, res) =>
-  paymentTermsController.create(req as AuthenticatedRequest, res))
+router.post('/', canInsert('payment_terms'), validateSchema(createPaymentTermSchema), paymentTermsController.create)
 
-router.put('/:id', canUpdate('payment_terms'), (req, res) =>
-  paymentTermsController.update(req as AuthenticatedRequest, res))
+router.put('/:id', canUpdate('payment_terms'), validateSchema(updatePaymentTermSchema), paymentTermsController.update)
 
-router.delete('/:id', canDelete('payment_terms'), (req, res) =>
+router.delete('/:id', canDelete('payment_terms'), validateSchema(paymentTermIdSchema), (req, res) =>
   paymentTermsController.delete(req as AuthenticatedRequest, res))
 
-router.post('/:id/restore', canUpdate('payment_terms'), (req, res) =>
-  paymentTermsController.restore(req as AuthenticatedRequest, res))
+router.post('/:id/restore', canUpdate('payment_terms'), validateSchema(paymentTermIdSchema), paymentTermsController.restore)
 
 export default router

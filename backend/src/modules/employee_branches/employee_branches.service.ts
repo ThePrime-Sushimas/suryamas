@@ -11,6 +11,7 @@ import {
   MyBranchDto
 } from './employee_branches.types'
 import { logInfo } from '../../config/logger'
+import { AuditService } from '../../services/audit.service'
 
 export class EmployeeBranchesService {
   private toDto(entity: EmployeeBranchWithRelations): EmployeeBranchDto {
@@ -111,7 +112,7 @@ export class EmployeeBranchesService {
     return result ? this.toDto(result) : null
   }
 
-  async create(data: CreateEmployeeBranchData): Promise<EmployeeBranchDto> {
+  async create(data: CreateEmployeeBranchData, userId?: string): Promise<EmployeeBranchDto> {
     const employeeExists = await employeeBranchesRepository.employeeExists(data.employee_id)
     if (!employeeExists) throw EmployeeBranchErrors.EMPLOYEE_NOT_FOUND()
 
@@ -140,13 +141,17 @@ export class EmployeeBranchesService {
       status: data.status || 'active',
     })
 
+    if (userId) {
+      await AuditService.log('CREATE', 'employee_branch', created.id, userId, undefined, created)
+    }
+
     logInfo('Employee branch created', { id: created.id, employee_id: data.employee_id, branch_id: data.branch_id })
 
     const result = await employeeBranchesRepository.findById(created.id)
     return this.toDto(result!)
   }
 
-  async update(id: string, data: UpdateEmployeeBranchData): Promise<EmployeeBranchDto> {
+  async update(id: string, data: UpdateEmployeeBranchData, userId?: string): Promise<EmployeeBranchDto> {
     const existing = await employeeBranchesRepository.findById(id)
     if (!existing) throw EmployeeBranchErrors.NOT_FOUND()
 
@@ -158,13 +163,17 @@ export class EmployeeBranchesService {
     const updated = await employeeBranchesRepository.update(id, data)
     if (!updated) throw EmployeeBranchErrors.NOT_FOUND()
 
+    if (userId) {
+      await AuditService.log('UPDATE', 'employee_branch', id, userId, existing, updated)
+    }
+
     logInfo('Employee branch updated', { id })
 
     const result = await employeeBranchesRepository.findById(id)
     return this.toDto(result!)
   }
 
-  async setPrimaryBranch(employeeId: string, branchId: string): Promise<void> {
+  async setPrimaryBranch(employeeId: string, branchId: string, userId?: string): Promise<void> {
     // Validate assignment exists
     const assignment = await employeeBranchesRepository.findByEmployeeAndBranch(employeeId, branchId)
     if (!assignment) throw EmployeeBranchErrors.NO_ASSIGNMENT()
@@ -172,10 +181,14 @@ export class EmployeeBranchesService {
     // Use atomic DB function for transaction safety
     await employeeBranchesRepository.setPrimaryBranch(employeeId, branchId)
 
+    if (userId) {
+      await AuditService.log('UPDATE', 'employee_branch', assignment.id, userId, undefined, { is_primary: true })
+    }
+
     logInfo('Primary branch set', { employee_id: employeeId, branch_id: branchId })
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, userId?: string): Promise<void> {
     const existing = await employeeBranchesRepository.findById(id)
     if (!existing) throw EmployeeBranchErrors.NOT_FOUND()
 
@@ -188,10 +201,15 @@ export class EmployeeBranchesService {
     }
 
     await employeeBranchesRepository.delete(id)
+
+    if (userId) {
+      await AuditService.log('DELETE', 'employee_branch', id, userId, existing, null)
+    }
+
     logInfo('Employee branch deleted', { id })
   }
 
-  async deleteByEmployeeAndBranch(employeeId: string, branchId: string): Promise<void> {
+  async deleteByEmployeeAndBranch(employeeId: string, branchId: string, userId?: string): Promise<void> {
     const assignment = await employeeBranchesRepository.findByEmployeeAndBranch(employeeId, branchId)
     if (!assignment) throw EmployeeBranchErrors.NOT_FOUND()
 
@@ -204,10 +222,15 @@ export class EmployeeBranchesService {
     }
 
     await employeeBranchesRepository.deleteByEmployeeAndBranch(employeeId, branchId)
+
+    if (userId) {
+      await AuditService.log('DELETE', 'employee_branch', assignment.id, userId, assignment, null)
+    }
+
     logInfo('Employee branch deleted', { employee_id: employeeId, branch_id: branchId })
   }
 
-  async bulkDelete(ids: string[]): Promise<void> {
+  async bulkDelete(ids: string[], userId?: string): Promise<void> {
     // Validate all exist and check primary constraints
     for (const id of ids) {
       const existing = await employeeBranchesRepository.findById(id)
@@ -220,6 +243,11 @@ export class EmployeeBranchesService {
     }
 
     await employeeBranchesRepository.bulkDelete(ids)
+
+    if (userId) {
+      await AuditService.log('DELETE', 'employee_branch', ids.join(','), userId, null, null)
+    }
+
     logInfo('Bulk delete employee branches', { count: ids.length })
   }
 }
