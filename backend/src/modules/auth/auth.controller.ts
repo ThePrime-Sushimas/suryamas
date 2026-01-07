@@ -1,11 +1,22 @@
-import { Request, Response } from 'express'
+import { Response } from 'express'
 import { supabase } from '../../config/supabase'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logInfo, logError, logWarn } from '../../config/logger'
+import { withValidated } from '../../utils/handler'
+import type { AuthenticatedRequest } from '../../types/request.types'
+import type { ValidatedRequest } from '../../middleware/validation.middleware'
+import { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.schema'
+
+const DEFAULT_ROLE = 'staff'
+
+type RegisterReq = ValidatedRequest<typeof registerSchema>
+type LoginReq = ValidatedRequest<typeof loginSchema>
+type ForgotPasswordReq = ValidatedRequest<typeof forgotPasswordSchema>
+type ResetPasswordReq = ValidatedRequest<typeof resetPasswordSchema>
 
 export class AuthController {
-  async register(req: Request, res: Response) {
-    const { email, password, employee_id } = req.body
+  register = withValidated(async (req: RegisterReq, res: Response) => {
+    const { email, password, employee_id } = req.validated.body
 
     const { data: employee } = await supabase
       .from('employees')
@@ -39,16 +50,20 @@ export class AuthController {
       return sendError(res, authError.message, 400)
     }
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('employees')
       .update({ user_id: authData.user!.id })
       .eq('employee_id', employee_id)
 
-    // Assign default role (staff) to new user
+    if (updateError) {
+      logError('Failed to link user to employee', { employee_id, error: updateError.message })
+      return sendError(res, 'Registration failed', 500)
+    }
+
     const { data: staffRole } = await supabase
       .from('perm_roles')
       .select('id')
-      .eq('name', 'staff')
+      .eq('name', DEFAULT_ROLE)
       .single()
 
     if (staffRole) {
@@ -70,10 +85,10 @@ export class AuthController {
       user: authData.user,
       employee: employee.full_name
     }, 'Registration successful', 201)
-  }
+  })
 
-  async login(req: Request, res: Response) {
-    const { email, password } = req.body
+  login = withValidated(async (req: LoginReq, res: Response) => {
+    const { email, password } = req.validated.body
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -103,17 +118,17 @@ export class AuthController {
       access_token: data.session.access_token,
       user: data.user
     }, 'Login successful')
-  }
+  })
 
-  async logout(req: Request, res: Response) {
-    const userId = (req as any).user?.id
+  logout = async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user?.id
     await supabase.auth.signOut()
     logInfo('User logged out', { user_id: userId })
     sendSuccess(res, null, 'Logout successful')
   }
 
-  async forgotPassword(req: Request, res: Response) {
-    const { email } = req.body
+  forgotPassword = withValidated(async (req: ForgotPasswordReq, res: Response) => {
+    const { email } = req.validated.body
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${process.env.FRONTEND_URL}/reset-password`
@@ -124,10 +139,10 @@ export class AuthController {
     }
 
     sendSuccess(res, null, 'Password reset email sent')
-  }
+  })
 
-  async resetPassword(req: Request, res: Response) {
-    const { password } = req.body
+  resetPassword = withValidated(async (req: ResetPasswordReq, res: Response) => {
+    const { password } = req.validated.body
 
     const { error } = await supabase.auth.updateUser({
       password
@@ -138,7 +153,7 @@ export class AuthController {
     }
 
     sendSuccess(res, null, 'Password updated successfully')
-  }
+  })
 }
 
 export const authController = new AuthController()
