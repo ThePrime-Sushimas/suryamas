@@ -9,14 +9,14 @@ import { RolesService } from './roles.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logError } from '../../config/logger'
 import { withValidated } from '../../utils/handler'
-import type { ValidatedRequest } from '../../middleware/validation.middleware'
+import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   createRoleSchema,
   updateRoleSchema,
 } from './permissions.schema'
 
-type CreateRoleReq = ValidatedRequest<typeof createRoleSchema>
-type UpdateRoleReq = ValidatedRequest<typeof updateRoleSchema>
+type CreateRoleReq = ValidatedAuthRequest<typeof createRoleSchema>
+type UpdateRoleReq = ValidatedAuthRequest<typeof updateRoleSchema>
 
 export class RolesController {
   private service: RolesService
@@ -57,7 +57,7 @@ export class RolesController {
       const role = await this.service.create({
         name: req.validated.body.role_name,
         description: req.validated.body.description,
-      }, (req as any).user?.id)
+      }, req.user?.id)
       sendSuccess(res, role, 'Role created successfully', 201)
     } catch (error: any) {
       logError('Create role failed', { error: error.message })
