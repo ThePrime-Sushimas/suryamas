@@ -58,7 +58,7 @@ export class BankAccountsController {
   getByOwner = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const ownerType = req.params.owner_type === 'companies' ? 'company' : 'supplier'
-      const ownerId = parseInt(req.params.id)
+      const ownerId = req.params.id
       const accounts = await bankAccountsService.getBankAccountsByOwner(ownerType as OwnerType, ownerId)
       sendSuccess(res, accounts, 'Bank accounts retrieved successfully')
     } catch (error: any) {
