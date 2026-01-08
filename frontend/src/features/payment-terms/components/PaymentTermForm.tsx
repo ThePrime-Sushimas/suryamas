@@ -5,7 +5,7 @@ import type { PaymentTerm, CreatePaymentTermDto, CalculationType } from '../type
 const paymentTermSchema = z.object({
   term_code: z.string().min(1, 'Term code is required').max(50, 'Max 50 characters').trim(),
   term_name: z.string().min(1, 'Term name is required').max(100, 'Max 100 characters').trim(),
-  calculation_type: z.enum(['from_invoice', 'from_delivery', 'fixed_dates', 'weekly', 'monthly']),
+  calculation_type: z.enum(['from_invoice', 'from_delivery', 'fixed_date', 'weekly', 'monthly']),
   days: z.number().min(0, 'Days must be >= 0').max(999, 'Days must be <= 999'),
   payment_dates: z.array(z.number().refine(val => (val >= 1 && val <= 31) || val === 999, {
     message: 'Payment dates must be 1-31 or 999 (end of month)'
@@ -25,8 +25,8 @@ const paymentTermSchema = z.object({
   if (data.calculation_type === 'weekly' && data.payment_day_of_week === null) {
     return false
   }
-  // fixed_dates/monthly MUST have payment_dates
-  if (['fixed_dates', 'monthly'].includes(data.calculation_type) && (!data.payment_dates || data.payment_dates.length === 0)) {
+  // fixed_date/monthly MUST have payment_dates
+  if (['fixed_date', 'monthly'].includes(data.calculation_type) && (!data.payment_dates || data.payment_dates.length === 0)) {
     return false
   }
   // from_invoice/from_delivery MUST NOT have payment_dates or payment_day_of_week
@@ -52,7 +52,7 @@ interface PaymentTermFormProps {
 const CALCULATION_TYPES: { value: CalculationType; label: string }[] = [
   { value: 'from_invoice', label: 'From Invoice Date' },
   { value: 'from_delivery', label: 'From Delivery Date' },
-  { value: 'fixed_dates', label: 'Fixed Dates (e.g., 15,30 or 999 for end of month)' },
+  { value: 'fixed_date', label: 'Fixed Dates (e.g., 15,30 or 999 for end of month)' },
   { value: 'weekly', label: 'Weekly' },
   { value: 'monthly', label: 'Monthly' }
 ]
@@ -103,7 +103,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
     return newErrors
   }, [formData, touched])
 
-  const showPaymentDates = ['fixed_dates', 'monthly'].includes(formData.calculation_type)
+  const showPaymentDates = ['fixed_date', 'monthly'].includes(formData.calculation_type)
   const showPaymentDayOfWeek = formData.calculation_type === 'weekly'
 
   // Preview due date calculation
@@ -117,7 +117,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
         result.setDate(result.getDate() + formData.days)
         return result.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
 
-      case 'fixed_dates':
+      case 'fixed_date':
         if (formData.payment_dates && formData.payment_dates.length > 0) {
           const currentDay = today.getDate()
           const nextDate = formData.payment_dates.find(d => d > currentDay) || formData.payment_dates[0]
@@ -173,14 +173,14 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
       setFormData(prev => ({
         ...prev,
         calculation_type: newType,
-        // Clear payment_dates if not fixed_dates/monthly
-        payment_dates: ['fixed_dates', 'monthly'].includes(newType) ? prev.payment_dates : null,
+        // Clear payment_dates if not fixed_date/monthly
+        payment_dates: ['fixed_date', 'monthly'].includes(newType) ? prev.payment_dates : null,
         // Clear payment_day_of_week if not weekly
         payment_day_of_week: newType === 'weekly' ? prev.payment_day_of_week : null,
         // Set days to 0 if not from_invoice/from_delivery
         days: ['from_invoice', 'from_delivery'].includes(newType) ? prev.days : 0
       }))
-      if (!['fixed_dates', 'monthly'].includes(newType)) {
+      if (!['fixed_date', 'monthly'].includes(newType)) {
         setPaymentDatesInput('')
       }
     } else {
@@ -227,10 +227,21 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
       return
     }
     
+    // Sanitize payload: ensure unused fields are null based on calculation_type
+    const sanitized = { ...result.data }
+    if (['from_invoice', 'from_delivery'].includes(sanitized.calculation_type)) {
+      sanitized.payment_dates = null
+      sanitized.payment_day_of_week = null
+    } else if (sanitized.calculation_type === 'weekly') {
+      sanitized.payment_dates = null
+    } else if (['fixed_date', 'monthly'].includes(sanitized.calculation_type)) {
+      sanitized.payment_day_of_week = null
+    }
+    
     // Remove term_code from update payload (immutable)
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { term_code, ...updateData } = result.data
-    const submitData = isEdit ? updateData : result.data
+    const { term_code, ...updateData } = sanitized
+    const submitData = isEdit ? updateData : sanitized
     
     await onSubmit(submitData as CreatePaymentTermDto)
   }
@@ -334,17 +345,26 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
       {showPaymentDates && (
         <div>
           <label htmlFor="payment_dates" className="block text-sm font-medium text-gray-700 mb-1">
-            Payment Dates
+            Payment Dates *
           </label>
           <input 
             id="payment_dates"
             value={paymentDatesInput}
             onChange={e => handlePaymentDatesChange(e.target.value)}
+            onBlur={() => setTouched(prev => ({ ...prev, payment_dates: true }))}
             placeholder="e.g., 1, 15, 30 or 999 for end of month"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
+              touched.payment_dates && (!formData.payment_dates || formData.payment_dates.length === 0)
+                ? 'border-red-500'
+                : 'border-gray-300'
+            }`}
             disabled={isLoading}
+            aria-invalid={touched.payment_dates && (!formData.payment_dates || formData.payment_dates.length === 0)}
           />
           <p className="text-xs text-gray-500 mt-1">Comma-separated day numbers (1-31) or 999 for end of month</p>
+          {touched.payment_dates && (!formData.payment_dates || formData.payment_dates.length === 0) && (
+            <p className="text-red-600 text-sm mt-1">Payment dates are required for this calculation type</p>
+          )}
         </div>
       )}
 
@@ -384,7 +404,12 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
           <div className="flex-1">
             <h4 className="text-sm font-semibold text-blue-900 mb-1">Preview Due Date</h4>
             <p className="text-sm text-blue-800">
-              If {formData.calculation_type === 'from_delivery' ? 'delivery' : 'invoice'} date is <span className="font-semibold">today</span>, payment due: <span className="font-semibold">{getPreviewDueDate()}</span>
+              {formData.calculation_type === 'fixed_date' 
+                ? `Pembayaran setiap tanggal ${formData.payment_dates?.map(d => d === 999 ? '(akhir bulan)' : d).join(', ') || '-'}. Next: ${getPreviewDueDate()}`
+                : formData.calculation_type === 'monthly'
+                ? `Monthly payment on day ${formData.payment_dates?.[0] === 999 ? 'end of month' : formData.payment_dates?.[0] || '-'}: ${getPreviewDueDate()}`
+                : `If ${formData.calculation_type === 'from_delivery' ? 'delivery' : formData.calculation_type === 'weekly' ? 'any' : 'invoice'} date is today, payment due: ${getPreviewDueDate()}`
+              }
             </p>
             <p className="text-xs text-blue-600 mt-1">This is an example calculation for reference</p>
           </div>
