@@ -4,7 +4,7 @@ import { SupplierNotFoundError, SupplierCodeAlreadyExistsError } from './supplie
 import { getPaginationParams, createPaginatedResponse } from '../../utils/pagination.util'
 
 export class SuppliersService {
-  async createSupplier(data: CreateSupplierDto, userId?: number): Promise<Supplier> {
+  async createSupplier(data: CreateSupplierDto, userId?: string): Promise<Supplier> {
     // Check if supplier code already exists
     const existingSupplier = await suppliersRepository.findByCode(data.supplier_code)
     if (existingSupplier) {
@@ -17,7 +17,7 @@ export class SuppliersService {
     })
   }
 
-  async updateSupplier(id: number, data: UpdateSupplierDto, userId?: number): Promise<Supplier> {
+  async updateSupplier(id: number, data: UpdateSupplierDto, userId?: string): Promise<Supplier> {
     const existingSupplier = await suppliersRepository.findById(id)
     if (!existingSupplier) {
       throw new SupplierNotFoundError(id.toString())
@@ -35,7 +35,7 @@ export class SuppliersService {
     return updatedSupplier
   }
 
-  async deleteSupplier(id: number, userId?: number): Promise<void> {
+  async deleteSupplier(id: number, userId?: string): Promise<void> {
     const supplier = await suppliersRepository.findById(id)
     if (!supplier) {
       throw new SupplierNotFoundError(id.toString())

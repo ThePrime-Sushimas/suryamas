@@ -20,8 +20,8 @@ export interface Supplier {
   rating: number | null
   is_active: boolean
   notes: string | null
-  created_by: number | null
-  updated_by: number | null
+  created_by: string | null
+  updated_by: string | null
   created_at: string
   updated_at: string
   deleted_at: string | null

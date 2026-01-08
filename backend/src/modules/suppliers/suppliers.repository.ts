@@ -78,7 +78,7 @@ export class SuppliersRepository {
     return data ? mapSupplierResponse(data) : null
   }
 
-  async create(data: CreateSupplierDto & { created_by?: number }): Promise<Supplier> {
+  async create(data: CreateSupplierDto & { created_by?: string }): Promise<Supplier> {
     const { data: supplier, error } = await supabase
       .from('suppliers')
       .insert({
@@ -94,7 +94,7 @@ export class SuppliersRepository {
     return mapSupplierResponse(supplier)
   }
 
-  async updateById(id: number, updates: UpdateSupplierDto & { updated_by?: number }): Promise<Supplier | null> {
+  async updateById(id: number, updates: UpdateSupplierDto & { updated_by?: string }): Promise<Supplier | null> {
     const { data, error } = await supabase
       .from('suppliers')
       .update({
@@ -110,7 +110,7 @@ export class SuppliersRepository {
     return data ? mapSupplierResponse(data) : null
   }
 
-  async softDelete(id: number, userId?: number): Promise<void> {
+  async softDelete(id: number, userId?: string): Promise<void> {
     const { error } = await supabase
       .from('suppliers')
       .update({

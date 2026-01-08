@@ -22,7 +22,7 @@ export class SuppliersController {
   create = withValidated(async (req: CreateSupplierReq, res: Response) => {
     try {
       const { body } = req.validated
-      const userId = req.context?.employee_id ? parseInt(req.context.employee_id) : undefined
+      const userId = req.context?.employee_id
       const supplier = await suppliersService.createSupplier({
         ...body,
         supplier_type: body.supplier_type as SupplierType,
@@ -59,7 +59,7 @@ export class SuppliersController {
   update = withValidated(async (req: UpdateSupplierReq, res: Response) => {
     try {
       const { params, body } = req.validated
-      const userId = req.context?.employee_id ? parseInt(req.context.employee_id) : undefined
+      const userId = req.context?.employee_id
       const supplier = await suppliersService.updateSupplier(params.id, {
         ...body,
         supplier_type: body.supplier_type as SupplierType | undefined,
@@ -73,7 +73,7 @@ export class SuppliersController {
   delete = withValidated(async (req: SupplierIdReq, res: Response) => {
     try {
       const { params } = req.validated
-      const userId = req.context?.employee_id ? parseInt(req.context.employee_id) : undefined
+      const userId = req.context?.employee_id
       await suppliersService.deleteSupplier(params.id, userId)
       sendSuccess(res, null, 'Supplier deleted successfully')
     } catch (error: any) {
