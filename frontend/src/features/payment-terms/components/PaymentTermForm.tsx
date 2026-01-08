@@ -190,8 +190,8 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
         calculation_type: newType,
         // Clear payment_dates if not fixed_date/fixed_date_immediate/monthly
         payment_dates: ['fixed_date', 'fixed_date_immediate', 'monthly'].includes(newType) ? prev.payment_dates : null,
-        // Clear payment_day_of_week if not weekly
-        payment_day_of_week: newType === 'weekly' ? prev.payment_day_of_week : null,
+        // Set payment_day_of_week: default to 1 (Monday) if weekly, else null
+        payment_day_of_week: newType === 'weekly' ? (prev.payment_day_of_week ?? 1) : null,
         // Set days to 0 if not from_invoice/from_delivery
         days: ['from_invoice', 'from_delivery'].includes(newType) ? prev.days : 0
       }))
