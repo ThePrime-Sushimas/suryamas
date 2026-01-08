@@ -73,23 +73,10 @@ export class ProductUomsRepository {
     return data
   }
 
-  async create(data: CreateProductUomDto & { product_id: string; created_by?: string; updated_by?: string }): Promise<ProductUom> {
-    // Get unit_name from metric_units table
-    const { data: metricUnit, error: metricError } = await supabase
-      .from('metric_units')
-      .select('unit_name')
-      .eq('id', data.metric_unit_id)
-      .maybeSingle()
-
-    if (metricError) throw new Error(metricError.message)
-    if (!metricUnit) throw new Error(`Metric unit ${data.metric_unit_id} not found`)
-
+  async create(data: CreateProductUomDto & { product_id: string; unit_name: string; created_by?: string; updated_by?: string }): Promise<ProductUom> {
     const { data: uom, error } = await supabase
       .from('product_uoms')
-      .insert({
-        ...data,
-        unit_name: metricUnit.unit_name,
-      })
+      .insert(data)
       .select()
       .single()
 
