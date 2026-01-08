@@ -31,6 +31,14 @@ import {
   Menu
 } from 'lucide-react'
 
+interface EmployeeBranchAssignment {
+  employee_id: string
+  employee_name: string
+  job_position: string
+  email: string
+  mobile_phone: string
+}
+
 interface Employee {
   id: string
   employee_id: string
@@ -93,7 +101,7 @@ function BranchDetailPage() {
           )
         }
         promises.push(
-          api.get<{ success: boolean; data: Array<{ employee_id: string; employee_name: string; job_position: string; email: string; mobile_phone: string }> }>(`/employee-branches/branch/${id}?limit=1000`)
+          api.get<{ success: boolean; data: EmployeeBranchAssignment[] }>(`/employee-branches/branch/${id}?page=1&limit=100`)
             .then((r) => {
               const assignments = r.data.data || []
               const emps = assignments
@@ -108,10 +116,7 @@ function BranchDetailPage() {
                 .filter((emp) => emp.full_name)
               setEmployees(emps)
             })
-            .catch((err) => {
-              console.error('Failed to fetch employee branches:', err)
-              setEmployees([])
-            })
+            .catch(() => setEmployees([]))
         )
         await Promise.all(promises)
       } catch (err) {
@@ -1082,58 +1087,6 @@ function BranchDetailPage() {
                 </div>
               </div>
             </div>
-
-            {/* Contact Card */}
-            <div className="bg-white rounded-xl lg:rounded-2xl shadow-sm border border-gray-200 p-4 lg:p-6">
-              <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4">Contact</h3>
-              <div className="space-y-3 lg:space-y-4">
-                {branch.phone && (
-                  <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 lg:h-5 lg:w-5 text-gray-400 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs lg:text-sm text-gray-600">Phone</p>
-                      <a 
-                        href={`tel:${branch.phone}`}
-                        className="text-sm lg:text-base font-semibold text-gray-900 hover:text-blue-600 truncate block"
-                      >
-                        {branch.phone}
-                      </a>
-                    </div>
-                  </div>
-                )}
-                {branch.whatsapp && (
-                  <div className="flex items-center gap-3">
-                    <Smartphone className="h-4 w-4 lg:h-5 lg:w-5 text-gray-400 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs lg:text-sm text-gray-600">WhatsApp</p>
-                      <a 
-                        href={`https://wa.me/${branch.whatsapp.replace(/\D/g, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm lg:text-base font-semibold text-gray-900 hover:text-blue-600 truncate block"
-                      >
-                        {branch.whatsapp}
-                      </a>
-                    </div>
-                  </div>
-                )}
-                {branch.email && (
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 lg:h-5 lg:w-5 text-gray-400 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs lg:text-sm text-gray-600">Email</p>
-                      <a 
-                        href={`mailto:${branch.email}`}
-                        className="text-sm lg:text-base font-semibold text-gray-900 hover:text-blue-600 truncate block"
-                      >
-                        {branch.email}
-                      </a>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* Operating Hours Card */}
             <div className="bg-white rounded-xl lg:rounded-2xl shadow-sm border border-gray-200 p-4 lg:p-6">
               <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4 flex items-center gap-2">
@@ -1177,8 +1130,8 @@ function BranchDetailPage() {
         onSuccess={() => {
           setShowAssignModal(false)
           if (id) {
-            api.get<{ success: boolean; data: Array<{ employee_id: string; employee_name: string; job_position: string; email: string; mobile_phone: string }> }>(`/employee-branches/branch/${id}?limit=1000`)
-              .then(r => {
+            api.get<{ success: boolean; data: EmployeeBranchAssignment[] }>(`/employee-branches/branch/${id}?page=1&limit=100`)
+              .then((r) => {
                 const assignments = r.data.data || []
                 const emps = assignments
                   .map((assignment) => ({
