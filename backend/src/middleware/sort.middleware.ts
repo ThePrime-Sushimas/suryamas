@@ -9,7 +9,8 @@ const ALLOWED_SORT_FIELDS = [
   'bank_name', 'bank_account', 'bank_account_holder', 'is_active',
   'branch_code', 'city', 'status', 'hari_operasional', 'created_at',
   'product_name', 'product_code', 'category_id', 'sub_category_id', 'updated_at',
-  'term_code', 'term_name', 'calculation_type', 'days'
+  'term_code', 'term_name', 'calculation_type', 'days',
+  'category_code', 'category_name', 'sort_order', 'id'
 ]
 
 export const sortMiddleware = (
@@ -17,8 +18,8 @@ export const sortMiddleware = (
   res: Response,
   next: NextFunction
 ) => {
-  const sortField = (req.query.sort as string) || 'created_at'
-  const sortOrder = (req.query.order as string) || 'desc'
+  const sortField = (req.query.sort as string) || 'sort_order'
+  const sortOrder = (req.query.order as string) || 'asc'
 
   if (!ALLOWED_SORT_FIELDS.includes(sortField)) {
     return res.status(400).json({
