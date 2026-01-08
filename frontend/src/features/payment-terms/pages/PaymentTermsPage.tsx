@@ -25,7 +25,7 @@ export default function PaymentTermsPage() {
   } = usePaymentTermsStore()
   
   const [search, setSearch] = useState('')
-  const [localFilter, setLocalFilter] = useState<{ calculation_type?: string; is_active?: string }>({})
+  const [localFilter, setLocalFilter] = useState<{ calculation_type?: string; is_active?: string; include_deleted?: string }>({})
   const [showFilter, setShowFilter] = useState(false)
   const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; id: number | null; name: string; isRestore: boolean }>({
     isOpen: false,
@@ -44,7 +44,7 @@ export default function PaymentTermsPage() {
       const newFilter = currentFilter ? { ...currentFilter, q: undefined } : null
       setFilter(newFilter)
     }
-  }, [debouncedSearch, searchPaymentTerms, setFilter, filter])
+  }, [debouncedSearch, searchPaymentTerms, setFilter])
 
   useEffect(() => {
     fetchPaymentTerms()
@@ -55,7 +55,7 @@ export default function PaymentTermsPage() {
   }, [fetchPaymentTerms])
 
   const activeFilterCount = useMemo(
-    () => (localFilter.calculation_type ? 1 : 0) + (localFilter.is_active ? 1 : 0),
+    () => (localFilter.calculation_type ? 1 : 0) + (localFilter.is_active ? 1 : 0) + (localFilter.include_deleted ? 1 : 0),
     [localFilter]
   )
 
@@ -85,15 +85,24 @@ export default function PaymentTermsPage() {
   }, [deleteDialog, deletePaymentTerm, restorePaymentTerm, toast])
 
   const handleFilterChange = (key: string, value: string) => {
-    const newLocalFilter = { ...localFilter, [key]: value }
+    const newLocalFilter = { ...localFilter }
+    
+    // Remove key if value is empty ("All" selected)
+    if (!value) {
+      delete newLocalFilter[key as keyof typeof newLocalFilter]
+    } else {
+      newLocalFilter[key as keyof typeof newLocalFilter] = value
+    }
+    
     setLocalFilter(newLocalFilter)
     
     const apiFilter: Record<string, string | boolean> = {}
     if (newLocalFilter.calculation_type) apiFilter.calculation_type = newLocalFilter.calculation_type
-    if (newLocalFilter.is_active) apiFilter.is_active = newLocalFilter.is_active === 'true'
+    if (newLocalFilter.is_active !== undefined) apiFilter.is_active = newLocalFilter.is_active === 'true'
+    if (newLocalFilter.include_deleted !== undefined) apiFilter.includeDeleted = newLocalFilter.include_deleted === 'true'
     if (search) apiFilter.q = search
     
-    setFilter(apiFilter)
+    setFilter(Object.keys(apiFilter).length > 0 ? apiFilter : null)
     fetchPaymentTerms()
   }
 
@@ -144,8 +153,10 @@ export default function PaymentTermsPage() {
               onToggle={() => setShowFilter(!showFilter)}
               calculationType={localFilter.calculation_type}
               isActive={localFilter.is_active}
+              includeDeleted={localFilter.include_deleted}
               onCalculationTypeChange={value => handleFilterChange('calculation_type', value)}
               onIsActiveChange={value => handleFilterChange('is_active', value)}
+              onIncludeDeletedChange={value => handleFilterChange('include_deleted', value)}
               activeCount={activeFilterCount}
             />
           </div>

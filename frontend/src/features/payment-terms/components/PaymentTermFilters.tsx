@@ -6,15 +6,18 @@ interface PaymentTermFiltersProps {
   onToggle: () => void
   calculationType?: string
   isActive?: string
+  includeDeleted?: string
   onCalculationTypeChange: (value: string) => void
   onIsActiveChange: (value: string) => void
+  onIncludeDeletedChange: (value: string) => void
   activeCount: number
 }
 
 const CALCULATION_TYPES: { value: CalculationType; label: string }[] = [
   { value: 'from_invoice', label: 'From Invoice Date' },
   { value: 'from_delivery', label: 'From Delivery Date' },
-  { value: 'fixed_dates', label: 'Fixed Dates' },
+  { value: 'fixed_date', label: 'Fixed Dates' },
+  { value: 'fixed_date_immediate', label: 'Fixed Dates (Immediate)' },
   { value: 'weekly', label: 'Weekly' },
   { value: 'monthly', label: 'Monthly' }
 ]
@@ -24,8 +27,10 @@ export const PaymentTermFilters = ({
   onToggle,
   calculationType,
   isActive,
+  includeDeleted,
   onCalculationTypeChange,
   onIsActiveChange,
+  onIncludeDeletedChange,
   activeCount
 }: PaymentTermFiltersProps) => {
   return (
@@ -45,7 +50,7 @@ export const PaymentTermFilters = ({
       </button>
 
       {isOpen && (
-        <div className="mt-3 pt-3 border-t border-gray-200 grid grid-cols-2 gap-3">
+        <div className="mt-3 pt-3 border-t border-gray-200 grid grid-cols-3 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Calculation Type
@@ -75,6 +80,19 @@ export const PaymentTermFilters = ({
               <option value="">All Status</option>
               <option value="true">Active</option>
               <option value="false">Inactive</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Show Deleted
+            </label>
+            <select
+              value={includeDeleted || ''}
+              onChange={e => onIncludeDeletedChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+            >
+              <option value="">Active Only</option>
+              <option value="true">Include Deleted</option>
             </select>
           </div>
         </div>
