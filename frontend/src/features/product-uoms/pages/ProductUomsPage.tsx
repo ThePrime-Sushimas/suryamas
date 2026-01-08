@@ -6,6 +6,7 @@ import { ProductUomForm } from '../components/ProductUomForm'
 import { useToast } from '@/contexts/ToastContext'
 import { Package, Plus, ArrowLeft, X } from 'lucide-react'
 import type { ProductUom, CreateProductUomDto, UpdateProductUomDto } from '../types'
+import api from '@/lib/axios'
 
 export default function ProductUomsPage() {
   const { productId } = useParams<{ productId: string }>()
@@ -16,12 +17,13 @@ export default function ProductUomsPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingUom, setEditingUom] = useState<ProductUom | undefined>()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showDeleted, setShowDeleted] = useState(false)
 
   useEffect(() => {
     if (productId) {
-      fetchUoms(productId)
+      fetchUoms(productId, showDeleted)
     }
-  }, [productId, fetchUoms])
+  }, [productId, showDeleted, fetchUoms])
 
   const handleCreate = async (data: CreateProductUomDto | UpdateProductUomDto) => {
     if (!productId || isSubmitting) return
@@ -65,6 +67,21 @@ export default function ProductUomsPage() {
       success('UOM deleted successfully')
     } catch (err) {
       error(err instanceof Error ? err.message : 'Failed to delete UOM')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleRestore = async (uomId: string) => {
+    if (!productId || isSubmitting) return
+
+    setIsSubmitting(true)
+    try {
+      await api.post(`/products/${productId}/uoms/${uomId}/restore`)
+      success('UOM restored successfully')
+      fetchUoms(productId, showDeleted)
+    } catch (err) {
+      error(err instanceof Error ? err.message : 'Failed to restore UOM')
     } finally {
       setIsSubmitting(false)
     }
@@ -153,10 +170,22 @@ export default function ProductUomsPage() {
           </div>
         ) : (
           <div className="max-w-6xl mx-auto">
+            <div className="mb-4 flex items-center gap-4">
+              <label className="flex items-center gap-2 text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={showDeleted}
+                  onChange={(e) => setShowDeleted(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                Show Deleted
+              </label>
+            </div>
             <ProductUomTable
               uoms={uoms}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onRestore={handleRestore}
               loading={loading}
             />
           </div>

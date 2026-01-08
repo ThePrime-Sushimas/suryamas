@@ -1,14 +1,15 @@
-import { Edit2, Trash2 } from 'lucide-react'
+import { Edit2, Trash2, RotateCcw } from 'lucide-react'
 import type { ProductUom } from '../types'
 
 interface ProductUomTableProps {
   uoms: ProductUom[]
   onEdit: (uom: ProductUom) => void
   onDelete: (id: string) => void
+  onRestore: (id: string) => void
   loading?: boolean
 }
 
-export function ProductUomTable({ uoms, onEdit, onDelete, loading }: ProductUomTableProps) {
+export function ProductUomTable({ uoms, onEdit, onDelete, onRestore, loading }: ProductUomTableProps) {
   // Find base unit for conversion display
   const baseUnit = uoms.find(uom => uom.is_base_unit)
 
@@ -62,14 +63,21 @@ export function ProductUomTable({ uoms, onEdit, onDelete, loading }: ProductUomT
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
           {uoms.map((uom) => (
-            <tr key={uom.id} className="hover:bg-gray-50 transition-colors">
+            <tr key={uom.id} className={`hover:bg-gray-50 transition-colors ${uom.is_deleted ? 'bg-red-50' : ''}`}>
               {/* Unit Column */}
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-900">{uom.unit_name}</span>
+                  <span className={`text-sm font-medium ${uom.is_deleted ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                    {uom.unit_name}
+                  </span>
                   {uom.is_base_unit && (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                       Base
+                    </span>
+                  )}
+                  {uom.is_deleted && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      Deleted
                     </span>
                   )}
                 </div>
@@ -139,22 +147,34 @@ export function ProductUomTable({ uoms, onEdit, onDelete, loading }: ProductUomT
               {/* Actions Column */}
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <div className="flex items-center justify-end gap-2">
-                  <button
-                    onClick={() => onEdit(uom)}
-                    className="text-blue-600 hover:text-blue-900 p-1.5 rounded hover:bg-blue-50 transition-colors"
-                    title="Edit"
-                    disabled={uom.status_uom === 'INACTIVE'}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => onDelete(uom.id)}
-                    className="text-red-600 hover:text-red-900 p-1.5 rounded hover:bg-red-50 transition-colors"
-                    title={uom.is_base_unit ? 'Base unit cannot be deleted' : 'Delete'}
-                    disabled={uom.is_base_unit || uom.status_uom === 'INACTIVE'}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {uom.is_deleted ? (
+                    <button
+                      onClick={() => onRestore(uom.id)}
+                      className="text-green-600 hover:text-green-900 p-1.5 rounded hover:bg-green-50 transition-colors"
+                      title="Restore"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => onEdit(uom)}
+                        className="text-blue-600 hover:text-blue-900 p-1.5 rounded hover:bg-blue-50 transition-colors"
+                        title="Edit"
+                        disabled={uom.status_uom === 'INACTIVE'}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => onDelete(uom.id)}
+                        className="text-red-600 hover:text-red-900 p-1.5 rounded hover:bg-red-50 transition-colors"
+                        title={uom.is_base_unit ? 'Base unit cannot be deleted' : 'Delete'}
+                        disabled={uom.is_base_unit || uom.status_uom === 'INACTIVE'}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </td>
             </tr>

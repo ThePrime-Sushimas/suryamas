@@ -119,9 +119,14 @@ export class ProductUomsService {
 
     if (dto.is_base_unit && !current.is_base_unit) {
       const baseUom = await productUomsRepository.findBaseUom(current.product_id)
-      if (baseUom) {
-        throw new BaseUnitExistsError()
+      if (baseUom && baseUom.id !== id) {
+        // Unset the old base unit - only update is_base_unit, don't touch unit_name
+        await productUomsRepository.updateById(baseUom.id, { 
+          is_base_unit: false
+        })
       }
+      // Force conversion factor to 1 for new base unit
+      dto.conversion_factor = 1
     }
 
     // Ensure only one default per type before updating
@@ -135,13 +140,31 @@ export class ProductUomsService {
       await this.ensureSingleDefault(current.product_id, 'is_default_transfer_unit', id)
     }
 
-    const data: UpdateProductUomDto & { unit_name?: string; updated_by?: string } = { ...dto, updated_by: userId }
+    const data: UpdateProductUomDto & { unit_name?: string; updated_by?: string } = { updated_by: userId }
     
-    if (dto.metric_unit_id) {
+    // Only include fields that are actually being updated
+    if (dto.conversion_factor !== undefined) data.conversion_factor = dto.conversion_factor
+    if (dto.is_base_unit !== undefined) data.is_base_unit = dto.is_base_unit
+    if (dto.base_price !== undefined) data.base_price = dto.base_price
+    if (dto.is_default_stock_unit !== undefined) data.is_default_stock_unit = dto.is_default_stock_unit
+    if (dto.is_default_purchase_unit !== undefined) data.is_default_purchase_unit = dto.is_default_purchase_unit
+    if (dto.is_default_transfer_unit !== undefined) data.is_default_transfer_unit = dto.is_default_transfer_unit
+    if (dto.status_uom !== undefined) data.status_uom = dto.status_uom
+    
+    // Only update metric_unit_id and unit_name if metric_unit_id actually changed
+    if (dto.metric_unit_id !== undefined && dto.metric_unit_id !== current.metric_unit_id) {
       const metricUnit = await metricUnitsRepository.findById(dto.metric_unit_id)
       if (!metricUnit) {
         throw new ProductUomValidationError('Invalid metric_unit_id')
       }
+      
+      // Check if unit name already exists for this product
+      const existing = await productUomsRepository.findByProductIdAndMetricUnit(current.product_id, dto.metric_unit_id)
+      if (existing && existing.id !== id) {
+        throw new DuplicateUnitNameError('This unit already exists for this product')
+      }
+      
+      data.metric_unit_id = dto.metric_unit_id
       data.unit_name = metricUnit.unit_name
     }
 

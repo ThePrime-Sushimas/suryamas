@@ -10,6 +10,9 @@ export const productUomIdSchema = z.object({
 })
 
 export const createProductUomSchema = z.object({
+  params: z.object({
+    productId: uuidSchema,
+  }),
   body: z.object({
     metric_unit_id: uuidSchema,
     conversion_factor: z.number()
@@ -30,6 +33,7 @@ export const createProductUomSchema = z.object({
 
 export const updateProductUomSchema = z.object({
   params: z.object({
+    productId: uuidSchema,
     uomId: uuidSchema,
   }),
   body: z.object({

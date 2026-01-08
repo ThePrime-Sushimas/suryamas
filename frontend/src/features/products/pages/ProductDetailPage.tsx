@@ -2,13 +2,23 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { useProductsStore } from '../store/products.store'
 import { useToast } from '@/contexts/ToastContext'
-import { Package, ArrowLeft, Edit2, Trash2 } from 'lucide-react'
+import { Package, ArrowLeft, Edit2, Trash2, Building2, Ruler, Plus } from 'lucide-react'
+import { ProductUomTable } from '@/features/product-uoms/components/ProductUomTable'
+import { ProductUomForm } from '@/features/product-uoms/components/ProductUomForm'
+import type { ProductUom, CreateProductUomDto, UpdateProductUomDto } from '@/features/product-uoms/types'
+import api from '@/lib/axios'
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { currentProduct, fetchProductById, deleteProduct, fetchLoading, mutationLoading, error: storeError, clearError } = useProductsStore()
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'details' | 'uoms'>('details')
+  const [uoms, setUoms] = useState<ProductUom[]>([])
+  const [showDeleted, setShowDeleted] = useState(false)
+  const [uomsLoading, setUomsLoading] = useState(false)
+  const [showUomForm, setShowUomForm] = useState(false)
+  const [editingUom, setEditingUom] = useState<ProductUom | undefined>(undefined)
   const { success, error: showError } = useToast()
 
   useEffect(() => {
@@ -26,6 +36,84 @@ export default function ProductDetailPage() {
     }
     fetchProduct()
   }, [id, fetchProductById])
+
+  const fetchUoms = async () => {
+    if (!id) return
+    setUomsLoading(true)
+    try {
+      const response = await api.get<{ success: boolean; data: ProductUom[] }>(`/products/${id}/uoms`, {
+        params: { includeDeleted: showDeleted }
+      })
+      const sortedUoms = (response.data.data || []).sort((a, b) => {
+        if (a.is_base_unit) return -1
+        if (b.is_base_unit) return 1
+        return a.conversion_factor - b.conversion_factor
+      })
+      setUoms(sortedUoms)
+    } catch (err) {
+      console.error('Failed to fetch UOMs:', err)
+      showError('Failed to load UOMs')
+    } finally {
+      setUomsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'uoms' && id) {
+      fetchUoms()
+      setShowUomForm(false)
+      setEditingUom(undefined)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, id, showDeleted])
+
+  const handleEditUom = (uom: ProductUom) => {
+    setEditingUom(uom)
+    setShowUomForm(true)
+  }
+
+  const handleAddUom = () => {
+    setEditingUom(undefined)
+    setShowUomForm(true)
+  }
+
+  const handleSubmitUom = async (data: CreateProductUomDto | UpdateProductUomDto) => {
+    try {
+      if (editingUom) {
+        await api.put(`/products/${id}/uoms/${editingUom.id}`, data)
+        success('UOM updated successfully')
+      } else {
+        await api.post(`/products/${id}/uoms`, data)
+        success('UOM created successfully')
+      }
+      setShowUomForm(false)
+      setEditingUom(undefined)
+      fetchUoms()
+    } catch {
+      showError('Failed to save UOM')
+    }
+  }
+
+  const handleDeleteUom = async (uomId: string) => {
+    if (!confirm('Are you sure you want to delete this UOM?')) return
+    try {
+      await api.delete(`/products/${id}/uoms/${uomId}`)
+      success('UOM deleted successfully')
+      fetchUoms()
+    } catch {
+      showError('Failed to delete UOM')
+    }
+  }
+
+  const handleRestoreUom = async (uomId: string) => {
+    try {
+      await api.post(`/products/${id}/uoms/${uomId}/restore`)
+      success('UOM restored successfully')
+      fetchUoms()
+    } catch {
+      showError('Failed to restore UOM')
+    }
+  }
 
   useEffect(() => {
     if (storeError) {
@@ -84,7 +172,7 @@ export default function ProductDetailPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-7xl mx-auto p-6">
       <div className="mb-6">
         <button
           onClick={() => navigate('/products')}
@@ -118,95 +206,191 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Basic Info */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-600">Product Type</label>
-              <p className="text-gray-900 capitalize">{currentProduct.product_type.replace('_', ' ')}</p>
+      {/* Tabs */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-8">
+        <div className="flex border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('details')}
+            className={`flex-1 px-6 py-4 text-lg font-medium transition-all duration-200 ${
+              activeTab === 'details'
+                ? 'bg-linear-to-r from-blue-50 to-blue-100 text-blue-700 border-b-4 border-blue-600'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Product Details
             </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Status</label>
-              <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                currentProduct.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
-                currentProduct.status === 'INACTIVE' ? 'bg-gray-100 text-gray-800' :
-                'bg-red-100 text-red-800'
-              }`}>
-                {currentProduct.status}
+          </button>
+          <button
+            onClick={() => setActiveTab('uoms')}
+            className={`flex-1 px-6 py-4 text-lg font-medium transition-all duration-200 ${
+              activeTab === 'uoms'
+                ? 'bg-linear-to-r from-blue-50 to-blue-100 text-blue-700 border-b-4 border-blue-600'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Ruler className="h-5 w-5" />
+              Unit Of Measures
+              <span className="bg-gray-200 text-gray-800 text-xs px-2 py-1 rounded-full">
+                {uoms.length}
               </span>
             </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Average Cost</label>
-              <p className="text-gray-900">
-                {new Intl.NumberFormat('id-ID', {
-                  style: 'currency',
-                  currency: 'IDR',
-                  minimumFractionDigits: 0
-                }).format(currentProduct.average_cost)}
-              </p>
-            </div>
-          </div>
+          </button>
         </div>
 
-        {/* Flags */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Flags</h2>
-          <div className="space-y-3">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                checked={currentProduct.is_requestable}
-                disabled
-                className="rounded"
-              />
-              <label className="ml-2 text-gray-700">Requestable</label>
-            </div>
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                checked={currentProduct.is_purchasable}
-                disabled
-                className="rounded"
-              />
-              <label className="ml-2 text-gray-700">Purchasable</label>
-            </div>
-          </div>
-        </div>
-
-        {/* BOM Name */}
-        {currentProduct.bom_name && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">BOM Information</h2>
+        {/* Tab Content */}
+        <div className="p-6">
+          {activeTab === 'details' ? (
             <div>
-              <label className="text-sm font-medium text-gray-600">BOM Name</label>
-              <p className="text-gray-900">{currentProduct.bom_name}</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Basic Info */}
+                <div className="bg-linear-to-br from-blue-50 to-blue-100 rounded-2xl p-6 border border-blue-200">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">Product Type</label>
+                      <p className="text-gray-900 capitalize">{currentProduct.product_type.replace('_', ' ')}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">Status</label>
+                      <div className="mt-1">
+                        <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                          currentProduct.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+                          currentProduct.status === 'INACTIVE' ? 'bg-gray-100 text-gray-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {currentProduct.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">Average Cost</label>
+                      <p className="text-gray-900">
+                        {new Intl.NumberFormat('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR',
+                          minimumFractionDigits: 0
+                        }).format(currentProduct.average_cost)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Flags */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Flags</h2>
+                  <div className="space-y-3">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={currentProduct.is_requestable}
+                        disabled
+                        className="rounded"
+                      />
+                      <label className="ml-2 text-gray-700">Requestable</label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={currentProduct.is_purchasable}
+                        disabled
+                        className="rounded"
+                      />
+                      <label className="ml-2 text-gray-700">Purchasable</label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* BOM Name */}
+                {currentProduct.bom_name && (
+                  <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">BOM Information</h2>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">BOM Name</label>
+                      <p className="text-gray-900">{currentProduct.bom_name}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Notes */}
+                {currentProduct.notes && (
+                  <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Notes</h2>
+                    <p className="text-gray-700">{currentProduct.notes}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Metadata */}
+              <div className="mt-6 bg-linear-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200 p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Metadata</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <label className="text-gray-600">Created</label>
+                    <p className="text-gray-900">{new Date(currentProduct.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <label className="text-gray-600">Updated</label>
+                    <p className="text-gray-900">{new Date(currentProduct.updated_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Notes */}
-        {currentProduct.notes && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Notes</h2>
-            <p className="text-gray-700">{currentProduct.notes}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Metadata */}
-      <div className="mt-6 bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Metadata</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div>
-            <label className="text-gray-600">Created</label>
-            <p className="text-gray-900">{new Date(currentProduct.created_at).toLocaleDateString()}</p>
-          </div>
-          <div>
-            <label className="text-gray-600">Updated</label>
-            <p className="text-gray-900">{new Date(currentProduct.updated_at).toLocaleDateString()}</p>
-          </div>
+          ) : (
+            <div>
+              {showUomForm ? (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {editingUom ? 'Edit UOM' : 'Add New UOM'}
+                    </h3>
+                  </div>
+                  <ProductUomForm
+                    uom={editingUom}
+                    existingUoms={uoms}
+                    onSubmit={handleSubmitUom}
+                    onCancel={() => {
+                      setShowUomForm(false)
+                      setEditingUom(undefined)
+                    }}
+                  />
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-4">
+                      <h3 className="text-lg font-semibold text-gray-900">Units of Measure</h3>
+                      <label className="flex items-center gap-2 text-sm text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={showDeleted}
+                          onChange={(e) => setShowDeleted(e.target.checked)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        Show Deleted
+                      </label>
+                    </div>
+                    <button
+                      onClick={handleAddUom}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add UOM
+                    </button>
+                  </div>
+                  <ProductUomTable
+                    uoms={uoms}
+                    onEdit={handleEditUom}
+                    onDelete={handleDeleteUom}
+                    onRestore={handleRestoreUom}
+                    loading={uomsLoading}
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

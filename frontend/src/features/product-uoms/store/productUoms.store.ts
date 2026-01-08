@@ -7,7 +7,7 @@ interface ProductUomsState {
   loading: boolean
   error: string | null
   
-  fetchUoms: (productId: string) => Promise<void>
+  fetchUoms: (productId: string, includeDeleted?: boolean) => Promise<void>
   createUom: (productId: string, data: CreateProductUomDto) => Promise<ProductUom>
   updateUom: (productId: string, uomId: string, data: UpdateProductUomDto) => Promise<ProductUom>
   deleteUom: (productId: string, uomId: string) => Promise<void>
@@ -28,11 +28,16 @@ export const useProductUomsStore = create<ProductUomsState>((set) => ({
   loading: false,
   error: null,
 
-  fetchUoms: async (productId) => {
+  fetchUoms: async (productId, includeDeleted = false) => {
     set({ loading: true, error: null })
     try {
-      const uoms = await productUomsApi.list(productId, false)
-      set({ uoms, loading: false })
+      const uoms = await productUomsApi.list(productId, includeDeleted)
+      const sortedUoms = uoms.sort((a, b) => {
+        if (a.is_base_unit) return -1
+        if (b.is_base_unit) return 1
+        return a.conversion_factor - b.conversion_factor
+      })
+      set({ uoms: sortedUoms, loading: false })
     } catch (error) {
       set({ error: handleApiError(error), loading: false })
     }
@@ -42,7 +47,14 @@ export const useProductUomsStore = create<ProductUomsState>((set) => ({
     set({ loading: true, error: null })
     try {
       const uom = await productUomsApi.create(productId, data)
-      set(state => ({ uoms: [...state.uoms, uom], loading: false, error: null }))
+      set(state => {
+        const newUoms = [...state.uoms, uom].sort((a, b) => {
+          if (a.is_base_unit) return -1
+          if (b.is_base_unit) return 1
+          return a.conversion_factor - b.conversion_factor
+        })
+        return { uoms: newUoms, loading: false, error: null }
+      })
       return uom
     } catch (error) {
       const errorMsg = handleApiError(error)
