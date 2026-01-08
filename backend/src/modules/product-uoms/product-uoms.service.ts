@@ -11,18 +11,35 @@ import {
   ProductUomValidationError,
 } from './product-uoms.errors'
 import { VALID_UOM_STATUSES, UOM_DEFAULTS } from './product-uoms.constants'
+import { metricUnitsRepository } from '../metric-units/metricUnits.repository'
+
+type DefaultField = 'is_default_stock_unit' | 'is_default_purchase_unit' | 'is_default_transfer_unit'
 
 export class ProductUomsService {
   async getByProductId(productId: string, includeDeleted = false): Promise<ProductUom[]> {
     return productUomsRepository.findByProductId(productId, includeDeleted)
   }
 
+  /**
+   * Helper to ensure only one UOM has the specified default flag per product
+   */
+  private async ensureSingleDefault(
+    productId: string,
+    field: DefaultField,
+    currentId?: string
+  ): Promise<void> {
+    const existing = await productUomsRepository.findDefaultByProduct(productId, field)
+    if (existing && existing.id !== currentId) {
+      await productUomsRepository.updateById(existing.id, { [field]: false })
+    }
+  }
+
   async create(productId: string, dto: CreateProductUomDto, userId?: string): Promise<ProductUom> {
-    if (!dto.unit_name || dto.conversion_factor === undefined) {
-      throw new ProductUomValidationError('Missing required fields: unit_name, conversion_factor')
+    if (!dto.metric_unit_id) {
+      throw new ProductUomValidationError('metric_unit_id is required')
     }
 
-    if (dto.conversion_factor <= 0) {
+    if (dto.conversion_factor === undefined || dto.conversion_factor <= 0) {
       throw new InvalidConversionFactorError('Conversion factor must be greater than 0')
     }
 
@@ -34,9 +51,14 @@ export class ProductUomsService {
       throw new InvalidConversionFactorError('Base unit must have conversion factor of 1')
     }
 
-    const existing = await productUomsRepository.findByProductIdAndUnitName(productId, dto.unit_name)
+    const metricUnit = await metricUnitsRepository.findById(dto.metric_unit_id)
+    if (!metricUnit) {
+      throw new ProductUomValidationError('Invalid metric_unit_id')
+    }
+
+    const existing = await productUomsRepository.findByProductIdAndMetricUnit(productId, dto.metric_unit_id)
     if (existing) {
-      throw new DuplicateUnitNameError(dto.unit_name)
+      throw new DuplicateUnitNameError('This unit already exists for this product')
     }
 
     if (dto.is_base_unit) {
@@ -46,12 +68,20 @@ export class ProductUomsService {
       }
     }
 
-    if (dto.is_default_base_unit) {
-      await productUomsRepository.clearDefaultBaseUnit(productId)
+    // Ensure only one default per type before creating
+    if (dto.is_default_stock_unit) {
+      await this.ensureSingleDefault(productId, 'is_default_stock_unit')
+    }
+    if (dto.is_default_purchase_unit) {
+      await this.ensureSingleDefault(productId, 'is_default_purchase_unit')
+    }
+    if (dto.is_default_transfer_unit) {
+      await this.ensureSingleDefault(productId, 'is_default_transfer_unit')
     }
 
     const data = {
       ...dto,
+      unit_name: metricUnit.unit_name,
       product_id: productId,
       status_uom: dto.status_uom || UOM_DEFAULTS.STATUS,
       is_base_unit: dto.is_base_unit ?? UOM_DEFAULTS.IS_BASE_UNIT,
@@ -94,11 +124,27 @@ export class ProductUomsService {
       }
     }
 
-    if (dto.is_default_base_unit) {
-      await productUomsRepository.clearDefaultBaseUnit(current.product_id)
+    // Ensure only one default per type before updating
+    if (dto.is_default_stock_unit) {
+      await this.ensureSingleDefault(current.product_id, 'is_default_stock_unit', id)
+    }
+    if (dto.is_default_purchase_unit) {
+      await this.ensureSingleDefault(current.product_id, 'is_default_purchase_unit', id)
+    }
+    if (dto.is_default_transfer_unit) {
+      await this.ensureSingleDefault(current.product_id, 'is_default_transfer_unit', id)
     }
 
-    const data = { ...dto, updated_by: userId }
+    const data: UpdateProductUomDto & { unit_name?: string; updated_by?: string } = { ...dto, updated_by: userId }
+    
+    if (dto.metric_unit_id) {
+      const metricUnit = await metricUnitsRepository.findById(dto.metric_unit_id)
+      if (!metricUnit) {
+        throw new ProductUomValidationError('Invalid metric_unit_id')
+      }
+      data.unit_name = metricUnit.unit_name
+    }
+
     const uom = await productUomsRepository.updateById(id, data)
 
     if (uom && userId) {
@@ -113,6 +159,11 @@ export class ProductUomsService {
     const current = await productUomsRepository.findById(id)
     if (!current) {
       throw new ProductUomNotFoundError(id)
+    }
+
+    // Prevent deletion of base unit
+    if (current.is_base_unit) {
+      throw new ProductUomValidationError('Base unit cannot be deleted')
     }
 
     await productUomsRepository.delete(id)
@@ -142,3 +193,4 @@ export class ProductUomsService {
 }
 
 export const productUomsService = new ProductUomsService()
+

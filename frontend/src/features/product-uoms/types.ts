@@ -3,14 +3,13 @@ export type UomStatus = 'ACTIVE' | 'INACTIVE'
 export interface ProductUom {
   id: string
   product_id: string
-  metric_unit_id: string | null
+  metric_unit_id: string
   unit_name: string
   conversion_factor: number
   is_base_unit: boolean
   base_price: number | null
   is_default_stock_unit: boolean
   is_default_purchase_unit: boolean
-  is_default_base_unit: boolean
   is_default_transfer_unit: boolean
   status_uom: UomStatus
   is_deleted: boolean
@@ -21,26 +20,24 @@ export interface ProductUom {
 }
 
 export interface CreateProductUomDto {
-  metric_unit_id?: string
-  unit_name: string
+  metric_unit_id: string
   conversion_factor: number
   is_base_unit?: boolean
   base_price?: number
   is_default_stock_unit?: boolean
   is_default_purchase_unit?: boolean
-  is_default_base_unit?: boolean
   is_default_transfer_unit?: boolean
   status_uom?: UomStatus
 }
 
 export interface UpdateProductUomDto {
-  unit_name?: string
+  metric_unit_id?: string
   conversion_factor?: number
   is_base_unit?: boolean
   base_price?: number
   is_default_stock_unit?: boolean
   is_default_purchase_unit?: boolean
-  is_default_base_unit?: boolean
   is_default_transfer_unit?: boolean
   status_uom?: UomStatus
 }
+

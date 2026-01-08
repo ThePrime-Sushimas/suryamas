@@ -145,6 +145,7 @@ export default function ProductUomsPage() {
             </div>
             <ProductUomForm
               uom={editingUom}
+              existingUoms={uoms}
               onSubmit={editingUom ? handleUpdate : handleCreate}
               onCancel={handleCancel}
               loading={isSubmitting}

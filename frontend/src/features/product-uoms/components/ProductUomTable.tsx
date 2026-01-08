@@ -1,4 +1,4 @@
-import { Edit2, Trash2, Package } from 'lucide-react'
+import { Edit2, Trash2 } from 'lucide-react'
 import type { ProductUom } from '../types'
 
 interface ProductUomTableProps {
@@ -9,36 +9,48 @@ interface ProductUomTableProps {
 }
 
 export function ProductUomTable({ uoms, onEdit, onDelete, loading }: ProductUomTableProps) {
+  // Find base unit for conversion display
+  const baseUnit = uoms.find(uom => uom.is_base_unit)
+
   if (loading) {
-    return <div className="text-center py-8 text-gray-500">Loading...</div>
+    return (
+      <div className="text-center py-12">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+        <p className="text-gray-500 mt-4">Loading units of measure...</p>
+      </div>
+    )
   }
 
   if (uoms.length === 0) {
     return (
-      <div className="text-center py-12">
-        <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-        <p className="text-gray-500 text-lg font-medium">No UOMs found</p>
-        <p className="text-gray-400 text-sm mt-1">Add a unit of measure to get started</p>
+      <div className="text-center py-16 bg-white rounded-lg shadow">
+        <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-full mb-4">
+          <span className="text-4xl">📦</span>
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Units of Measure</h3>
+        <p className="text-gray-500 max-w-md mx-auto">
+          Add units to define how this product is stocked, purchased, and transferred.
+        </p>
       </div>
     )
   }
 
   return (
-    <div className="overflow-hidden rounded-lg shadow">
+    <div className="overflow-hidden rounded-lg shadow bg-white">
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Unit Name
+              Unit
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Conversion Factor
+              Conversion
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Base Price
+              Price (Base)
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Flags
+              Usage
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Status
@@ -51,6 +63,7 @@ export function ProductUomTable({ uoms, onEdit, onDelete, loading }: ProductUomT
         <tbody className="bg-white divide-y divide-gray-200">
           {uoms.map((uom) => (
             <tr key={uom.id} className="hover:bg-gray-50 transition-colors">
+              {/* Unit Column */}
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-900">{uom.unit_name}</span>
@@ -61,55 +74,84 @@ export function ProductUomTable({ uoms, onEdit, onDelete, loading }: ProductUomT
                   )}
                 </div>
               </td>
+
+              {/* Conversion Column - Business Sentence Format */}
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                {uom.conversion_factor}
+                {uom.is_base_unit ? (
+                  <span className="text-gray-500">1 (Base Unit)</span>
+                ) : baseUnit ? (
+                  <span>
+                    1 {uom.unit_name} = {uom.conversion_factor.toLocaleString('id-ID')} {baseUnit.unit_name}
+                  </span>
+                ) : (
+                  <span className="text-gray-400">—</span>
+                )}
               </td>
+
+              {/* Price (Base) Column */}
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                {uom.base_price ? `Rp ${uom.base_price.toLocaleString()}` : '-'}
+                {uom.base_price !== null && uom.base_price !== undefined ? (
+                  <span>
+                    Rp {uom.base_price.toLocaleString('id-ID')} / {baseUnit?.unit_name || 'Base'}
+                  </span>
+                ) : (
+                  <span className="text-gray-400">—</span>
+                )}
               </td>
+
+              {/* Usage Column - Colored Badges */}
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="flex flex-wrap gap-1">
                   {uom.is_default_stock_unit && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
                       Stock
                     </span>
                   )}
                   {uom.is_default_purchase_unit && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
                       Purchase
                     </span>
                   )}
                   {uom.is_default_transfer_unit && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700">
                       Transfer
                     </span>
                   )}
+                  {!uom.is_default_stock_unit && !uom.is_default_purchase_unit && !uom.is_default_transfer_unit && (
+                    <span className="text-gray-400 text-sm">—</span>
+                  )}
                 </div>
               </td>
+
+              {/* Status Column */}
               <td className="px-6 py-4 whitespace-nowrap">
                 <span
                   className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     uom.status_uom === 'ACTIVE'
                       ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800'
+                      : 'bg-gray-100 text-gray-600'
                   }`}
                 >
                   {uom.status_uom}
                 </span>
               </td>
+
+              {/* Actions Column */}
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <div className="flex items-center justify-end gap-2">
                   <button
                     onClick={() => onEdit(uom)}
-                    className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50 transition-colors"
+                    className="text-blue-600 hover:text-blue-900 p-1.5 rounded hover:bg-blue-50 transition-colors"
                     title="Edit"
+                    disabled={uom.status_uom === 'INACTIVE'}
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => onDelete(uom.id)}
-                    className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
-                    title="Delete"
+                    className="text-red-600 hover:text-red-900 p-1.5 rounded hover:bg-red-50 transition-colors"
+                    title={uom.is_base_unit ? 'Base unit cannot be deleted' : 'Delete'}
+                    disabled={uom.is_base_unit || uom.status_uom === 'INACTIVE'}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -122,3 +164,4 @@ export function ProductUomTable({ uoms, onEdit, onDelete, loading }: ProductUomT
     </div>
   )
 }
+

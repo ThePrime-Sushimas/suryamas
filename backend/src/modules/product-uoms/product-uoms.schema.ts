@@ -11,8 +11,7 @@ export const productUomIdSchema = z.object({
 
 export const createProductUomSchema = z.object({
   body: z.object({
-    metric_unit_id: uuidSchema.optional(),
-    unit_name: z.string().min(1).max(UOM_LIMITS.MAX_UNIT_NAME_LENGTH),
+    metric_unit_id: uuidSchema,
     conversion_factor: z.number()
       .positive()
       .min(UOM_LIMITS.MIN_CONVERSION_FACTOR)
@@ -21,7 +20,6 @@ export const createProductUomSchema = z.object({
     base_price: z.number().nonnegative().optional(),
     is_default_stock_unit: z.boolean().optional(),
     is_default_purchase_unit: z.boolean().optional(),
-    is_default_base_unit: z.boolean().optional(),
     is_default_transfer_unit: z.boolean().optional(),
     status_uom: z.enum(VALID_UOM_STATUSES).optional(),
   }).refine(
@@ -35,7 +33,7 @@ export const updateProductUomSchema = z.object({
     uomId: uuidSchema,
   }),
   body: z.object({
-    unit_name: z.string().min(1).max(UOM_LIMITS.MAX_UNIT_NAME_LENGTH).optional(),
+    metric_unit_id: uuidSchema.optional(),
     conversion_factor: z.number()
       .positive()
       .min(UOM_LIMITS.MIN_CONVERSION_FACTOR)
@@ -45,7 +43,6 @@ export const updateProductUomSchema = z.object({
     base_price: z.number().nonnegative().optional(),
     is_default_stock_unit: z.boolean().optional(),
     is_default_purchase_unit: z.boolean().optional(),
-    is_default_base_unit: z.boolean().optional(),
     is_default_transfer_unit: z.boolean().optional(),
     status_uom: z.enum(VALID_UOM_STATUSES).optional(),
   }).refine(
@@ -53,3 +50,4 @@ export const updateProductUomSchema = z.object({
     { message: 'Base unit must have conversion factor of 1', path: ['conversion_factor'] }
   ),
 })
+
