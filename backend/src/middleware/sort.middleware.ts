@@ -9,7 +9,7 @@ const ALLOWED_SORT_FIELDS = [
   'bank_name', 'bank_account', 'bank_account_holder', 'is_active',
   'branch_code', 'city', 'status', 'hari_operasional', 'created_at',
   'product_name', 'product_code', 'category_id', 'sub_category_id', 'updated_at',
-  'term_code', 'term_name', 'calculation_type', 'days',
+  'term_code', 'term_name', 'calculation_type', 'days', 'id_payment_term',
   'category_code', 'category_name', 'sort_order', 'id'
 ]
 
