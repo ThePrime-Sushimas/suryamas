@@ -1,4 +1,4 @@
-export type CalculationType = 'from_invoice' | 'from_delivery' | 'fixed_date' | 'weekly' | 'monthly'
+export type CalculationType = 'from_invoice' | 'from_delivery' | 'fixed_date' | 'fixed_date_immediate' | 'weekly' | 'monthly'
 
 export interface PaymentTerm {
   id: number

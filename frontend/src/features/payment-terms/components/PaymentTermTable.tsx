@@ -14,6 +14,7 @@ const CALCULATION_TYPE_LABELS: Record<CalculationType, string> = {
   from_invoice: 'From Invoice',
   from_delivery: 'From Delivery',
   fixed_date: 'Fixed Dates',
+  fixed_date_immediate: 'Fixed Dates (Immediate)',
   weekly: 'Weekly',
   monthly: 'Monthly'
 }

@@ -4,6 +4,7 @@ export const CALCULATION_TYPE = {
   FROM_INVOICE: 'from_invoice',
   FROM_DELIVERY: 'from_delivery',
   FIXED_DATE: 'fixed_date',
+  FIXED_DATE_IMMEDIATE: 'fixed_date_immediate',
   WEEKLY: 'weekly',
   MONTHLY: 'monthly',
 } as const

@@ -5,7 +5,7 @@ import type { PaymentTerm, CreatePaymentTermDto, CalculationType } from '../type
 const paymentTermSchema = z.object({
   term_code: z.string().min(1, 'Term code is required').max(50, 'Max 50 characters').trim(),
   term_name: z.string().min(1, 'Term name is required').max(100, 'Max 100 characters').trim(),
-  calculation_type: z.enum(['from_invoice', 'from_delivery', 'fixed_date', 'weekly', 'monthly']),
+  calculation_type: z.enum(['from_invoice', 'from_delivery', 'fixed_date', 'fixed_date_immediate', 'weekly', 'monthly']),
   days: z.number().min(0, 'Days must be >= 0').max(999, 'Days must be <= 999'),
   payment_dates: z.array(z.number().refine(val => (val >= 1 && val <= 31) || val === 999, {
     message: 'Payment dates must be 1-31 or 999 (end of month)'
@@ -25,8 +25,8 @@ const paymentTermSchema = z.object({
   if (data.calculation_type === 'weekly' && data.payment_day_of_week === null) {
     return false
   }
-  // fixed_date/monthly MUST have payment_dates
-  if (['fixed_date', 'monthly'].includes(data.calculation_type) && (!data.payment_dates || data.payment_dates.length === 0)) {
+  // fixed_date/fixed_date_immediate/monthly MUST have payment_dates
+  if (['fixed_date', 'fixed_date_immediate', 'monthly'].includes(data.calculation_type) && (!data.payment_dates || data.payment_dates.length === 0)) {
     return false
   }
   // from_invoice/from_delivery MUST NOT have payment_dates or payment_day_of_week
@@ -52,7 +52,8 @@ interface PaymentTermFormProps {
 const CALCULATION_TYPES: { value: CalculationType; label: string }[] = [
   { value: 'from_invoice', label: 'From Invoice Date' },
   { value: 'from_delivery', label: 'From Delivery Date' },
-  { value: 'fixed_date', label: 'Fixed Dates (e.g., 15,30 or 999 for end of month)' },
+  { value: 'fixed_date', label: 'Fixed Dates (skip if same day)' },
+  { value: 'fixed_date_immediate', label: 'Fixed Dates (pay same day if match)' },
   { value: 'weekly', label: 'Weekly' },
   { value: 'monthly', label: 'Monthly' }
 ]
@@ -103,7 +104,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
     return newErrors
   }, [formData, touched])
 
-  const showPaymentDates = ['fixed_date', 'monthly'].includes(formData.calculation_type)
+  const showPaymentDates = ['fixed_date', 'fixed_date_immediate', 'monthly'].includes(formData.calculation_type)
   const showPaymentDayOfWeek = formData.calculation_type === 'weekly'
 
   // Preview due date calculation
@@ -127,6 +128,20 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
           }
           result.setDate(nextDate)
           if (nextDate <= currentDay) result.setMonth(result.getMonth() + 1)
+          return result.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+        }
+        return '-'
+
+      case 'fixed_date_immediate':
+        if (formData.payment_dates && formData.payment_dates.length > 0) {
+          const currentDay = today.getDate()
+          const nextDate = formData.payment_dates.find(d => d >= currentDay) || formData.payment_dates[0]
+          if (nextDate === 999) {
+            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+            return lastDay.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+          }
+          result.setDate(nextDate)
+          if (nextDate < currentDay) result.setMonth(result.getMonth() + 1)
           return result.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
         }
         return '-'
@@ -173,14 +188,14 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
       setFormData(prev => ({
         ...prev,
         calculation_type: newType,
-        // Clear payment_dates if not fixed_date/monthly
-        payment_dates: ['fixed_date', 'monthly'].includes(newType) ? prev.payment_dates : null,
+        // Clear payment_dates if not fixed_date/fixed_date_immediate/monthly
+        payment_dates: ['fixed_date', 'fixed_date_immediate', 'monthly'].includes(newType) ? prev.payment_dates : null,
         // Clear payment_day_of_week if not weekly
         payment_day_of_week: newType === 'weekly' ? prev.payment_day_of_week : null,
         // Set days to 0 if not from_invoice/from_delivery
         days: ['from_invoice', 'from_delivery'].includes(newType) ? prev.days : 0
       }))
-      if (!['fixed_date', 'monthly'].includes(newType)) {
+      if (!['fixed_date', 'fixed_date_immediate', 'monthly'].includes(newType)) {
         setPaymentDatesInput('')
       }
     } else {
@@ -234,7 +249,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
       sanitized.payment_day_of_week = null
     } else if (sanitized.calculation_type === 'weekly') {
       sanitized.payment_dates = null
-    } else if (['fixed_date', 'monthly'].includes(sanitized.calculation_type)) {
+    } else if (['fixed_date', 'fixed_date_immediate', 'monthly'].includes(sanitized.calculation_type)) {
       sanitized.payment_day_of_week = null
     }
     
@@ -406,6 +421,8 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
             <p className="text-sm text-blue-800">
               {formData.calculation_type === 'fixed_date' 
                 ? `Pembayaran setiap tanggal ${formData.payment_dates?.map(d => d === 999 ? '(akhir bulan)' : d).join(', ') || '-'}. Next: ${getPreviewDueDate()}`
+                : formData.calculation_type === 'fixed_date_immediate'
+                ? `Pembayaran setiap tanggal ${formData.payment_dates?.map(d => d === 999 ? '(akhir bulan)' : d).join(', ') || '-'} (termasuk hari ini). Next: ${getPreviewDueDate()}`
                 : formData.calculation_type === 'monthly'
                 ? `Monthly payment on day ${formData.payment_dates?.[0] === 999 ? 'end of month' : formData.payment_dates?.[0] || '-'}: ${getPreviewDueDate()}`
                 : `If ${formData.calculation_type === 'from_delivery' ? 'delivery' : formData.calculation_type === 'weekly' ? 'any' : 'invoice'} date is today, payment due: ${getPreviewDueDate()}`
