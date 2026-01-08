@@ -23,7 +23,6 @@ export class ProductsExportService {
       'base_price',
       'is_default_stock_unit',
       'is_default_purchase_unit',
-      'is_default_base_unit',
       'is_default_transfer_unit',
     ]
 
@@ -73,7 +72,6 @@ export class ProductsExportService {
             uom.base_price || '',
             uom.is_default_stock_unit ? 'TRUE' : 'FALSE',
             uom.is_default_purchase_unit ? 'TRUE' : 'FALSE',
-            uom.is_default_base_unit ? 'TRUE' : 'FALSE',
             uom.is_default_transfer_unit ? 'TRUE' : 'FALSE',
           ])
         }

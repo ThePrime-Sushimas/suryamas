@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx'
 import { Product, ProductUom, CreateProductDto, CreateProductUomDto } from '../modules/products/products.types'
 import { productsRepository } from '../modules/products/products.repository'
 import { productUomsRepository } from '../modules/product-uoms/product-uoms.repository'
+import { metricUnitsRepository } from '../modules/metric-units/metricUnits.repository'
 
 interface ImportRow {
   product_code: string
@@ -13,13 +14,12 @@ interface ImportRow {
   is_purchasable?: boolean
   notes?: string
   status?: string
-  unit_name: string
+  metric_unit_name: string
   conversion_factor: number
   is_base_unit?: boolean
   base_price?: number
   is_default_stock_unit?: boolean
   is_default_purchase_unit?: boolean
-  is_default_base_unit?: boolean
   is_default_transfer_unit?: boolean
 }
 
@@ -37,7 +37,7 @@ interface ImportResult {
 }
 
 export class ProductsImportService {
-  parseExcel(buffer: Buffer): ImportRow[] {
+  async parseExcel(buffer: Buffer): Promise<ImportRow[]> {
     const workbook = XLSX.read(buffer, { type: 'buffer' })
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
     const rows = XLSX.utils.sheet_to_json(sheet) as any[]
@@ -52,23 +52,22 @@ export class ProductsImportService {
       is_purchasable: row.is_purchasable === 'TRUE' || row.is_purchasable === true,
       notes: row.notes?.toString().trim() || undefined,
       status: row.status?.toString().trim() || 'ACTIVE',
-      unit_name: row.unit_name?.toString().trim(),
+      metric_unit_name: row.metric_unit_name?.toString().trim() || row.unit_name?.toString().trim(),
       conversion_factor: parseFloat(row.conversion_factor),
       is_base_unit: row.is_base_unit === 'TRUE' || row.is_base_unit === true,
       base_price: row.base_price ? parseFloat(row.base_price) : undefined,
       is_default_stock_unit: row.is_default_stock_unit === 'TRUE' || row.is_default_stock_unit === true,
       is_default_purchase_unit: row.is_default_purchase_unit === 'TRUE' || row.is_default_purchase_unit === true,
-      is_default_base_unit: row.is_default_base_unit === 'TRUE' || row.is_default_base_unit === true,
       is_default_transfer_unit: row.is_default_transfer_unit === 'TRUE' || row.is_default_transfer_unit === true,
     }))
   }
 
-  validateRow(row: ImportRow, rowIndex: number): string | null {
+  async validateRow(row: ImportRow, rowIndex: number): Promise<string | null> {
     if (!row.product_code) return `Row ${rowIndex}: product_code is required`
     if (!row.product_name) return `Row ${rowIndex}: product_name is required`
     if (!row.category_id) return `Row ${rowIndex}: category_id is required`
     if (!row.sub_category_id) return `Row ${rowIndex}: sub_category_id is required`
-    if (!row.unit_name) return `Row ${rowIndex}: unit_name is required`
+    if (!row.metric_unit_name) return `Row ${rowIndex}: metric_unit_name is required`
     if (isNaN(row.conversion_factor) || row.conversion_factor <= 0) {
       return `Row ${rowIndex}: conversion_factor must be a positive number`
     }
@@ -76,14 +75,14 @@ export class ProductsImportService {
   }
 
   async preview(buffer: Buffer): Promise<ImportPreview> {
-    const rows = this.parseExcel(buffer)
+    const rows = await this.parseExcel(buffer)
     const errors: { row: number; message: string }[] = []
     const productCodes = new Set<string>()
     let newProducts = 0
     let existingProducts = 0
 
     for (let i = 0; i < rows.length; i++) {
-      const error = this.validateRow(rows[i], i + 2)
+      const error = await this.validateRow(rows[i], i + 2)
       if (error) {
         errors.push({ row: i + 2, message: error })
         continue
@@ -112,19 +111,39 @@ export class ProductsImportService {
   }
 
   async import(buffer: Buffer, userId?: string): Promise<ImportResult> {
-    const rows = this.parseExcel(buffer)
+    const rows = await this.parseExcel(buffer)
     const errors: { row: number; message: string }[] = []
     let success = 0
     let failed = 0
     const processedProducts = new Map<string, string>()
+    const metricUnitCache = new Map<string, string>()
+
+    // Pre-load all active metric units
+    const { data: metricUnits } = await metricUnitsRepository.listActiveFromView({ page: 1, limit: 1000, offset: 0 })
+    metricUnits.forEach(mu => metricUnitCache.set(mu.unit_name.toLowerCase(), mu.id))
 
     for (let i = 0; i < rows.length; i++) {
       try {
-        const error = this.validateRow(rows[i], i + 2)
+        const error = await this.validateRow(rows[i], i + 2)
         if (error) {
           errors.push({ row: i + 2, message: error })
           failed++
           continue
+        }
+
+        // Find metric unit ID by name
+        let metricUnitId = metricUnitCache.get(rows[i].metric_unit_name.toLowerCase())
+        if (!metricUnitId) {
+          // Try to find in database
+          const metricUnit = metricUnits.find(mu => mu.unit_name.toLowerCase() === rows[i].metric_unit_name.toLowerCase())
+          if (metricUnit) {
+            metricUnitId = metricUnit.id
+            metricUnitCache.set(rows[i].metric_unit_name.toLowerCase(), metricUnitId)
+          } else {
+            errors.push({ row: i + 2, message: `Row ${i + 2}: Metric unit "${rows[i].metric_unit_name}" not found` })
+            failed++
+            continue
+          }
         }
 
         let productId: string
@@ -154,13 +173,12 @@ export class ProductsImportService {
         }
 
         const uomDto: CreateProductUomDto = {
-          unit_name: rows[i].unit_name,
+          metric_unit_id: metricUnitId,
           conversion_factor: rows[i].conversion_factor,
           is_base_unit: rows[i].is_base_unit,
           base_price: rows[i].base_price,
           is_default_stock_unit: rows[i].is_default_stock_unit,
           is_default_purchase_unit: rows[i].is_default_purchase_unit,
-          is_default_base_unit: rows[i].is_default_base_unit,
           is_default_transfer_unit: rows[i].is_default_transfer_unit,
         }
 
@@ -182,3 +200,4 @@ export class ProductsImportService {
 }
 
 export const productsImportService = new ProductsImportService()
+
