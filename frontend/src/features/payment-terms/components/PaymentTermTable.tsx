@@ -13,7 +13,7 @@ interface PaymentTermTableProps {
 const CALCULATION_TYPE_LABELS: Record<CalculationType, string> = {
   from_invoice: 'From Invoice',
   from_delivery: 'From Delivery',
-  fixed_dates: 'Fixed Dates',
+  fixed_date: 'Fixed Dates',
   weekly: 'Weekly',
   monthly: 'Monthly'
 }
