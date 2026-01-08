@@ -63,8 +63,8 @@ export const CategoryTable = ({
           </thead>
           <tbody className="divide-y divide-gray-200">
             {categories.map(cat => (
-              <tr key={cat.id} className="hover:bg-gray-50 transition">
-                <td className="px-4 py-3">
+              <tr key={cat.id} onClick={() => onView(cat.id)} className="hover:bg-gray-50 transition cursor-pointer">
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     checked={isSelected(cat.id)}
@@ -73,7 +73,7 @@ export const CategoryTable = ({
                   />
                 </td>
                 <td className="px-4 py-3 text-sm font-mono text-gray-900">{cat.category_code}</td>
-                <td className="px-4 py-3 text-sm font-medium text-blue-600 hover:text-blue-800 cursor-pointer transition" onClick={() => onView(cat.id)}>
+                <td className="px-4 py-3 text-sm font-medium text-gray-900">
                   {cat.category_name}
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-600">{cat.description || '-'}</td>
@@ -87,7 +87,7 @@ export const CategoryTable = ({
                     {cat.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right text-sm space-x-2">
+                <td className="px-4 py-3 text-right text-sm space-x-2" onClick={(e) => e.stopPropagation()}>
                   {showDeleted ? (
                     <button onClick={() => onRestore(cat.id, cat.category_name)} className="text-blue-600 hover:text-blue-800 font-medium transition">Restore</button>
                   ) : (

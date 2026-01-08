@@ -1,4 +1,5 @@
 import { Edit2, Trash2, RotateCcw } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import type { PaymentTerm, CalculationType } from '../types'
 import { PaymentTermStatusBadge } from './PaymentTermStatusBadge'
 
@@ -45,6 +46,8 @@ export const PaymentTermTable = ({
   onRestore, 
   loading 
 }: PaymentTermTableProps) => {
+  const navigate = useNavigate()
+  
   if (loading) {
     return (
       <div className="text-center py-12">
@@ -96,11 +99,12 @@ export const PaymentTermTable = ({
             const isDeleted = !!term.deleted_at
             return (
               <tr 
-                key={term.id} 
+                key={term.id}
+                onClick={() => !isDeleted && navigate(`/payment-terms/${term.id}`)}
                 className={`transition-colors ${
                   isDeleted 
                     ? 'bg-gray-50 opacity-60' 
-                    : 'hover:bg-gray-50'
+                    : 'hover:bg-gray-50 cursor-pointer'
                 }`}
               >
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -120,7 +124,7 @@ export const PaymentTermTable = ({
                 <td className="px-6 py-4 whitespace-nowrap">
                   <PaymentTermStatusBadge isActive={term.is_active} isDeleted={isDeleted} />
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-end gap-3">
                     {!isDeleted && (
                       <>

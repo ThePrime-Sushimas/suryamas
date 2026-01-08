@@ -120,11 +120,12 @@ export const ProductTable = ({
               return (
                 <tr
                   key={product.id}
-                  className={`hover:bg-gray-50 transition ${
+                  onClick={() => onView(product.id)}
+                  className={`hover:bg-gray-50 transition cursor-pointer ${
                     isSelected ? 'bg-blue-50' : ''
                   } ${isDeleting ? 'opacity-50' : ''} ${isDeleted ? 'bg-red-50' : ''}`}
                 >
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={isSelected}
@@ -136,13 +137,8 @@ export const ProductTable = ({
                   <td className="px-4 py-3 text-sm font-mono text-gray-900">
                     {product.product_code}
                   </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => onView(product.id)}
-                      className="text-sm font-semibold text-blue-600 hover:text-blue-800 hover:underline text-left"
-                    >
-                      {product.product_name}
-                    </button>
+                  <td className="px-4 py-3 text-sm font-semibold text-gray-900">
+                    {product.product_name}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -191,7 +187,7 @@ export const ProductTable = ({
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right text-sm space-x-2">
+                  <td className="px-4 py-3 text-right text-sm space-x-2" onClick={(e) => e.stopPropagation()}>
                     {isDeleted ? (
                       <button
                         onClick={() => onRestore(product.id)}

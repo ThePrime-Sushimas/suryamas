@@ -46,9 +46,9 @@ export const BranchTable = ({ branches, onView, onEdit, onDelete, canEdit, canDe
           </thead>
           <tbody className="divide-y divide-gray-200">
             {branches.map(branch => (
-              <tr key={branch.id} className="hover:bg-gray-50 transition">
+              <tr key={branch.id} onClick={() => onView(branch.id)} className="hover:bg-gray-50 transition cursor-pointer">
                 <td className="px-4 py-3 text-sm font-mono text-gray-900">{branch.branch_code}</td>
-                <td className="px-4 py-3 text-sm font-medium text-blue-600 hover:text-blue-800 cursor-pointer transition" onClick={() => onView(branch.id)}>
+                <td className="px-4 py-3 text-sm font-medium text-gray-900">
                   {branch.branch_name}
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-600">{branch.city}</td>
@@ -58,7 +58,7 @@ export const BranchTable = ({ branches, onView, onEdit, onDelete, canEdit, canDe
                   </span>
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-600">{branch.jam_buka} - {branch.jam_tutup}</td>
-                <td className="px-4 py-3 text-right text-sm space-x-2">
+                <td className="px-4 py-3 text-right text-sm space-x-2" onClick={(e) => e.stopPropagation()}>
                   {canEdit && <button onClick={() => onEdit(branch.id)} className="text-green-600 hover:text-green-800 font-medium transition">Edit</button>}
                   {canDelete && <button onClick={() => onDelete(branch.id)} className="text-red-600 hover:text-red-800 font-medium transition">Delete</button>}
                 </td>

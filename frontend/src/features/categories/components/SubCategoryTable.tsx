@@ -63,8 +63,8 @@ export const SubCategoryTable = ({
           </thead>
           <tbody className="divide-y divide-gray-200">
             {subCategories.map(sub => (
-              <tr key={sub.id} className="hover:bg-gray-50 transition">
-                <td className="px-4 py-3">
+              <tr key={sub.id} onClick={() => onView(sub.id)} className="hover:bg-gray-50 transition cursor-pointer">
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     checked={isSelected(sub.id)}
@@ -76,12 +76,12 @@ export const SubCategoryTable = ({
                   {sub.category?.category_name || '-'}
                 </td>
                 <td className="px-4 py-3 text-sm font-mono text-gray-900">{sub.sub_category_code}</td>
-                <td className="px-4 py-3 text-sm font-medium text-blue-600 hover:text-blue-800 cursor-pointer transition" onClick={() => onView(sub.id)}>
+                <td className="px-4 py-3 text-sm font-medium text-gray-900">
                   {sub.sub_category_name}
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-600">{sub.description || '-'}</td>
                 <td className="px-4 py-3 text-sm text-center text-gray-900">{sub.sort_order}</td>
-                <td className="px-4 py-3 text-right text-sm space-x-2">
+                <td className="px-4 py-3 text-right text-sm space-x-2" onClick={(e) => e.stopPropagation()}>
                   {showDeleted ? (
                     <button onClick={() => onRestore(sub.id, sub.sub_category_name)} className="text-blue-600 hover:text-blue-800 font-medium transition">Restore</button>
                   ) : (

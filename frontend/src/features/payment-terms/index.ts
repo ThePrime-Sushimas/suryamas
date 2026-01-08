@@ -1,5 +1,6 @@
 export { default as PaymentTermsPage } from './pages/PaymentTermsPage'
 export { default as CreatePaymentTermPage } from './pages/CreatePaymentTermPage'
+export { default as PaymentTermDetailPage } from './pages/PaymentTermDetailPage'
 export { default as EditPaymentTermPage } from './pages/EditPaymentTermPage'
 export { PaymentTermForm } from './components/PaymentTermForm'
 export { PaymentTermTable } from './components/PaymentTermTable'
