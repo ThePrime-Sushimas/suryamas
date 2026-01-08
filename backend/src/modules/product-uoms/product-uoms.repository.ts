@@ -14,7 +14,7 @@ export class ProductUomsRepository {
 
     const { data, error } = await query.order('is_base_unit', { ascending: false })
 
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(`[product_uoms] ${error.message}`)
     return data || []
   }
 
@@ -27,7 +27,7 @@ export class ProductUomsRepository {
       .eq('is_deleted', false)
       .maybeSingle()
 
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(`[product_uoms] ${error.message}`)
     return data
   }
 
@@ -40,7 +40,7 @@ export class ProductUomsRepository {
       .eq('is_deleted', false)
       .maybeSingle()
 
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(`[product_uoms] ${error.message}`)
     return data
   }
 
@@ -56,7 +56,7 @@ export class ProductUomsRepository {
 
     const { data, error } = await query.maybeSingle()
 
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(`[product_uoms] ${error.message}`)
     return data
   }
 
@@ -69,7 +69,7 @@ export class ProductUomsRepository {
       .eq('is_deleted', false)
       .maybeSingle()
 
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(`[product_uoms] ${error.message}`)
     return data
   }
 
@@ -80,7 +80,7 @@ export class ProductUomsRepository {
       .select()
       .single()
 
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(`[product_uoms] ${error.message}`)
     return uom
   }
 
@@ -92,14 +92,14 @@ export class ProductUomsRepository {
       .select()
       .maybeSingle()
 
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(`[product_uoms] ${error.message}`)
     return data
   }
 
   async delete(id: string): Promise<void> {
     const { error } = await supabase.from('product_uoms').update({ is_deleted: true }).eq('id', id)
 
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(`[product_uoms] ${error.message}`)
   }
 
   async restore(id: string): Promise<ProductUom | null> {
@@ -110,7 +110,7 @@ export class ProductUomsRepository {
       .select()
       .maybeSingle()
 
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(`[product_uoms] ${error.message}`)
     return data
   }
 
@@ -121,7 +121,7 @@ export class ProductUomsRepository {
       .eq('product_id', productId)
       .eq('is_deleted', false)
 
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(`[product_uoms] ${error.message}`)
   }
 
   async findDefaultByProduct(
@@ -138,7 +138,7 @@ export class ProductUomsRepository {
       .limit(1)
       .maybeSingle()
 
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(`[product_uoms] ${error.message}`)
     return data
   }
 }
