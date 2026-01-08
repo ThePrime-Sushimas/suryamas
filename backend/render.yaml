@@ -2,6 +2,7 @@ services:
   - type: web
     name: suryamas-backend
     env: node
+    rootDir: backend
     buildCommand: npm install --include=dev && npm run build
     startCommand: node dist/server.js
     envVars:
