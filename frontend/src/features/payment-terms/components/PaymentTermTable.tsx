@@ -19,6 +19,25 @@ const CALCULATION_TYPE_LABELS: Record<CalculationType, string> = {
   monthly: 'Monthly'
 }
 
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+const getTermDetails = (term: PaymentTerm): string => {
+  switch (term.calculation_type) {
+    case 'from_invoice':
+    case 'from_delivery':
+      return `${term.days} days`
+    case 'fixed_date':
+    case 'fixed_date_immediate':
+      return term.payment_dates?.map(d => d === 999 ? 'EOM' : d).join(', ') || '-'
+    case 'weekly':
+      return term.payment_day_of_week !== null ? WEEKDAY_LABELS[term.payment_day_of_week] : '-'
+    case 'monthly':
+      return term.payment_dates?.[0] === 999 ? 'End of month' : `Day ${term.payment_dates?.[0] || '-'}`
+    default:
+      return '-'
+  }
+}
+
 export const PaymentTermTable = ({ 
   paymentTerms, 
   onEdit, 
@@ -62,7 +81,7 @@ export const PaymentTermTable = ({
               Calculation Type
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Days
+              Details
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Status
@@ -96,7 +115,7 @@ export const PaymentTermTable = ({
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="text-sm text-gray-900">{term.days}</span>
+                  <span className="text-sm text-gray-900">{getTermDetails(term)}</span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <PaymentTermStatusBadge isActive={term.is_active} isDeleted={isDeleted} />
