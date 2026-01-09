@@ -29,7 +29,7 @@ import { logInfo, logError } from '../../config/logger'
 
 export class SupplierProductsService {
   // Cache for validation results (TTL: 5 minutes)
-  private supplierCache = new Map<number, { valid: boolean; timestamp: number }>()
+  private supplierCache = new Map<string, { valid: boolean; timestamp: number }>()
   private productCache = new Map<string, { valid: boolean; timestamp: number }>()
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
@@ -73,7 +73,7 @@ export class SupplierProductsService {
   /**
    * Get supplier products by supplier ID
    */
-  async findBySupplier(supplierId: number, includeRelations = false) {
+  async findBySupplier(supplierId: string, includeRelations = false) {
     // Validate supplier exists and is active
     await this.validateSupplier(supplierId)
     
@@ -224,7 +224,7 @@ export class SupplierProductsService {
   /**
    * Validate supplier exists and is active with caching
    */
-  private async validateSupplier(supplierId: number): Promise<void> {
+  private async validateSupplier(supplierId: string): Promise<void> {
     if (!BUSINESS_RULES.REQUIRE_ACTIVE_SUPPLIER) return
 
     // Check cache first

@@ -1,6 +1,6 @@
 export interface SupplierProduct {
   id: string
-  supplier_id: number
+  supplier_id: string
   product_id: string
   price: number
   currency: string
@@ -16,7 +16,7 @@ export interface SupplierProduct {
 
 export interface SupplierProductWithRelations extends SupplierProduct {
   supplier?: {
-    id: number
+    id: string
     supplier_name: string
     supplier_code: string
     is_active: boolean
@@ -31,7 +31,7 @@ export interface SupplierProductWithRelations extends SupplierProduct {
 }
 
 export interface CreateSupplierProductDto {
-  supplier_id: number
+  supplier_id: string
   product_id: string
   price: number
   currency?: string
@@ -54,7 +54,7 @@ export interface SupplierProductListQuery {
   page?: number
   limit?: number
   search?: string
-  supplier_id?: number
+  supplier_id?: string
   product_id?: string
   is_preferred?: boolean
   is_active?: boolean

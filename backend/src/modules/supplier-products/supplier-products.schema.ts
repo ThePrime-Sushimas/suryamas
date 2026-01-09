@@ -3,7 +3,7 @@ import { VALID_CURRENCIES, SUPPLIER_PRODUCT_LIMITS, SUPPLIER_PRODUCT_SORT_FIELDS
 
 export const createSupplierProductSchema = z.object({
   body: z.object({
-    supplier_id: z.number().int().positive('Supplier ID must be a positive integer'),
+    supplier_id: z.string().uuid('Invalid supplier ID format'),
     product_id: z.string().uuid('Invalid product ID format'),
     price: z.number()
       .min(SUPPLIER_PRODUCT_LIMITS.MIN_PRICE, `Price must be at least ${SUPPLIER_PRODUCT_LIMITS.MIN_PRICE}`)
@@ -70,7 +70,7 @@ export const supplierProductListSchema = z.object({
     page: z.string().regex(/^\d+$/).transform(Number).optional(),
     limit: z.string().regex(/^\d+$/).transform(Number).optional(),
     search: z.string().min(1).max(SUPPLIER_PRODUCT_LIMITS.MAX_SEARCH_LENGTH).optional(),
-    supplier_id: z.string().regex(/^\d+$/).transform(Number).optional(),
+    supplier_id: z.string().uuid().optional(),
     product_id: z.string().uuid().optional(),
     is_preferred: z.string().regex(/^(true|false)$/).transform(val => val === 'true').optional(),
     is_active: z.string().regex(/^(true|false)$/).transform(val => val === 'true').optional(),
@@ -81,7 +81,7 @@ export const supplierProductListSchema = z.object({
 
 export const getBySupplierSchema = z.object({
   params: z.object({
-    supplier_id: z.string().regex(/^\d+$/, 'Invalid supplier ID format').transform(Number),
+    supplier_id: z.string().uuid('Invalid supplier ID format'),
   }),
 })
 

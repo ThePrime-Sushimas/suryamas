@@ -113,7 +113,7 @@ export class SupplierProductsRepository {
   /**
    * Find supplier products by supplier ID
    */
-  async findBySupplier(supplierId: number, includeRelations = false): Promise<SupplierProduct[] | SupplierProductWithRelations[]> {
+  async findBySupplier(supplierId: string, includeRelations = false): Promise<SupplierProduct[] | SupplierProductWithRelations[]> {
     const selectFields = includeRelations 
       ? `*, products(id, product_name, product_code, product_type, status)`
       : '*'
@@ -159,7 +159,7 @@ export class SupplierProductsRepository {
   /**
    * Check if supplier-product combination exists
    */
-  async findBySupplierAndProduct(supplierId: number, productId: string, excludeId?: string): Promise<SupplierProduct | null> {
+  async findBySupplierAndProduct(supplierId: string, productId: string, excludeId?: string): Promise<SupplierProduct | null> {
     let query = supabase
       .from('supplier_products')
       .select('*')
