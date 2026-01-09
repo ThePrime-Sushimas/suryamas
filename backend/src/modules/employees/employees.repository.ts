@@ -12,8 +12,10 @@ export class EmployeesRepository {
     let query = supabase.from('employees').select(`
       *, employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))
     `, { count: 'exact' })
-    .order(sort, { ascending: order === 'asc' })
-    .range((page - 1) * limit, page * limit - 1)
+    
+    query = query.is('deleted_at', null)
+    query = query.order(sort, { ascending: order === 'asc' })
+    query = query.range((page - 1) * limit, page * limit - 1)
 
     const { data, error, count } = await query
     if (error) throw new Error(error.message)
@@ -24,7 +26,7 @@ export class EmployeesRepository {
   async findUnassigned(params: { page: number; limit: number }): Promise<{ data: EmployeeWithBranch[]; total: number }> {
     const { data, error } = await supabase.from('employees').select(`
       *, employee_branches(id)
-    `).order('full_name')
+    `).is('deleted_at', null).order('full_name')
     
     if (error) throw new Error(error.message)
     
@@ -60,6 +62,7 @@ export class EmployeesRepository {
       .from('employees')
       .select(`*, employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))`)
       .eq('id', id)
+      .is('deleted_at', null)
       .maybeSingle()
 
     if (error) throw new Error(error.message)
@@ -73,6 +76,7 @@ export class EmployeesRepository {
       .from('employees')
       .select(`*, employee_branches(branch_id, is_primary, branches(id, branch_name, branch_code, city))`)
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .maybeSingle()
 
     if (error) throw new Error(error.message)
@@ -88,6 +92,10 @@ export class EmployeesRepository {
     let query = supabase.from('employees').select(`
       *, employee_branches${hasBranchFilter ? '!inner' : ''}(branch_id, is_primary, branches(id, branch_name, branch_code, city))
     `, { count: 'exact' })
+    
+    if (!filter?.include_deleted) {
+      query = query.is('deleted_at', null)
+    }
     
     if (searchTerm) {
       query = query.or(`employee_id.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,mobile_phone.ilike.%${searchTerm}%`)
@@ -113,6 +121,7 @@ export class EmployeesRepository {
       .from('employees')
       .select('id, full_name')
       .ilike('full_name', `%${query}%`)
+      .is('deleted_at', null)
       .order('full_name')
       .limit(10)
   
@@ -147,7 +156,19 @@ export class EmployeesRepository {
   }
 
   async delete(id: string): Promise<void> {
-    const { error } = await supabase.from('employees').delete().eq('id', id)
+    const { error } = await supabase
+      .from('employees')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) throw new Error(error.message)
+    EmployeesRepository.filterOptionsCache = null
+  }
+
+  async restore(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('employees')
+      .update({ deleted_at: null })
+      .eq('id', id)
     if (error) throw new Error(error.message)
     EmployeesRepository.filterOptionsCache = null
   }
@@ -171,7 +192,7 @@ export class EmployeesRepository {
     }
 
     const [{ data: employeeData }, { data: branchData }] = await Promise.all([
-      supabase.from('employees').select('job_position').eq('is_active', true),
+      supabase.from('employees').select('job_position').eq('is_active', true).is('deleted_at', null),
       supabase.from('branches').select('id, branch_name').eq('status', 'active').order('branch_name')
     ])
 
@@ -193,6 +214,10 @@ export class EmployeesRepository {
     let query = supabase.from('employees').select(`
       *, employee_branches${hasBranchFilter ? '!inner' : ''}(branch_id, is_primary, branches(id, branch_name, branch_code, city))
     `)
+    
+    if (!filter?.include_deleted) {
+      query = query.is('deleted_at', null)
+    }
     
     if (filter) {
       if (filter.search) query = query.or(`employee_id.ilike.%${filter.search}%,full_name.ilike.%${filter.search}%,email.ilike.%${filter.search}%,mobile_phone.ilike.%${filter.search}%`)
@@ -221,7 +246,19 @@ export class EmployeesRepository {
   }
 
   async bulkDelete(ids: string[]): Promise<void> {
-    const { error } = await supabase.from('employees').delete().in('id', ids)
+    const { error } = await supabase
+      .from('employees')
+      .update({ deleted_at: new Date().toISOString() })
+      .in('id', ids)
+    if (error) throw new Error(error.message)
+    EmployeesRepository.filterOptionsCache = null
+  }
+
+  async bulkRestore(ids: string[]): Promise<void> {
+    const { error } = await supabase
+      .from('employees')
+      .update({ deleted_at: null })
+      .in('id', ids)
     if (error) throw new Error(error.message)
     EmployeesRepository.filterOptionsCache = null
   }

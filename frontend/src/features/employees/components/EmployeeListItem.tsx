@@ -52,7 +52,14 @@ export const EmployeeListItem = ({ employee, isSelected, isActive, onClick, onSe
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-gray-900 truncate">{employee.full_name}</p>
+        <div className="flex items-center gap-2">
+          <p className="font-medium text-gray-900 truncate">{employee.full_name}</p>
+          {employee.deleted_at && (
+            <span className="px-1.5 py-0.5 text-xs bg-red-100 text-red-800 rounded shrink-0">
+              Deleted
+            </span>
+          )}
+        </div>
         <p className="text-xs text-gray-500 truncate">{employee.job_position || 'No position'}</p>
       </div>
 

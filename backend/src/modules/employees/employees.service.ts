@@ -107,6 +107,14 @@ export class EmployeesService {
     }
   }
 
+  async restore(id: string, userId?: string): Promise<void> {
+    await employeesRepository.restore(id)
+    const employee = await employeesRepository.findById(id)
+    if (employee) {
+      await AuditService.log('RESTORE', 'employee', id, userId || null, null, employee)
+    }
+  }
+
   async bulkUpdateActive(ids: string[], isActive: boolean): Promise<void> {
     if (ids.length === 0) throw new Error('No IDs provided')
     await employeesRepository.bulkUpdateActive(ids, isActive)
@@ -115,6 +123,11 @@ export class EmployeesService {
   async bulkDelete(ids: string[]): Promise<void> {
     if (ids.length === 0) throw new Error('No IDs provided')
     await employeesRepository.bulkDelete(ids)
+  }
+
+  async bulkRestore(ids: string[]): Promise<void> {
+    if (ids.length === 0) throw new Error('No IDs provided')
+    await employeesRepository.bulkRestore(ids)
   }
 
   async exportToExcel(filter?: EmployeeFilter): Promise<Buffer> {

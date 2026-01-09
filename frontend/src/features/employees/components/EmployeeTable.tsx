@@ -119,6 +119,11 @@ export default function EmployeeTable({
                 >
                   {employee.full_name}
                 </button>
+                {employee.deleted_at && (
+                  <span className="ml-2 px-2 py-0.5 text-xs bg-red-100 text-red-800 rounded-full">
+                    Deleted
+                  </span>
+                )}
               </td>
               <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.job_position}</td>
               <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.branch_name || '-'}</td>

@@ -9,7 +9,7 @@ import { upload } from '../../middleware/upload.middleware'
 import { exportLimiter } from '../../middleware/rateLimiter.middleware'
 import { PermissionService } from '../../services/permission.service'
 import { validateSchema, ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, EmployeeSearchSchema, BulkUpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
+import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, EmployeeSearchSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
 import type { AuthenticatedPaginatedRequest, AuthenticatedRequest } from '../../types/request.types'
 
 // Auto-register employees module
@@ -68,6 +68,9 @@ router.post('/bulk/update-active', canUpdate('employees'), validateSchema(BulkUp
 router.post('/bulk/delete', canDelete('employees'), validateSchema(BulkDeleteSchema), (req, res) => 
   employeesController.bulkDelete(req as ValidatedAuthRequest<typeof BulkDeleteSchema>, res))
 
+router.post('/bulk/restore', canUpdate('employees'), validateSchema(BulkDeleteSchema), (req, res) => 
+  employeesController.bulkRestore(req as ValidatedAuthRequest<typeof BulkDeleteSchema>, res))
+
 // Employee CRUD
 router.post('/', canInsert('employees'), upload.single('profile_picture'), validateSchema(CreateEmployeeSchema), (req, res) => 
   employeesController.create(req as ValidatedAuthRequest<typeof CreateEmployeeSchema>, res))
@@ -80,5 +83,11 @@ router.put('/:id', canUpdate('employees'), upload.single('profile_picture'), val
 
 router.delete('/:id', canDelete('employees'), (req, res) => 
   employeesController.delete(req as AuthenticatedRequest, res))
+
+router.post('/:id/restore', canUpdate('employees'), (req, res) => 
+  employeesController.restore(req as AuthenticatedRequest, res))
+
+router.patch('/:id/active', canUpdate('employees'), validateSchema(UpdateActiveSchema), (req, res) => 
+  employeesController.updateActive(req as ValidatedAuthRequest<typeof UpdateActiveSchema>, res))
 
 export default router

@@ -19,8 +19,11 @@ interface EmployeeState {
   createEmployee: (data: EmployeeFormData, file?: File) => Promise<EmployeeResponse>
   updateEmployee: (id: string, data: Partial<EmployeeFormData>, file?: File) => Promise<EmployeeResponse>
   deleteEmployee: (id: string) => Promise<void>
+  restoreEmployee: (id: string) => Promise<void>
+  updateEmployeeActive: (id: string, isActive: boolean) => Promise<void>
   bulkUpdateActive: (ids: string[], isActive: boolean) => Promise<void>
   bulkDelete: (ids: string[]) => Promise<void>
+  bulkRestore: (ids: string[]) => Promise<void>
   clearError: () => void
 }
 
@@ -163,6 +166,34 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
     }
   },
 
+  restoreEmployee: async (id) => {
+    try {
+      await employeesApi.restore(id)
+      set(state => ({
+        employees: state.employees.map(e => e.id === id ? { ...e, deleted_at: null } : e)
+      }))
+    } catch (error: unknown) {
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : 'Failed to restore employee'
+      throw new Error(message || 'Failed to restore employee')
+    }
+  },
+
+  updateEmployeeActive: async (id, isActive) => {
+    try {
+      await employeesApi.updateActive(id, isActive)
+      set(state => ({
+        employees: state.employees.map(e => e.id === id ? { ...e, is_active: isActive } : e)
+      }))
+    } catch (error: unknown) {
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : 'Failed to update employee'
+      throw new Error(message || 'Failed to update employee')
+    }
+  },
+
   bulkUpdateActive: async (ids, isActive) => {
     const prev = get().employees
     set(state => ({
@@ -190,6 +221,20 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
         ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
         : 'Failed to delete employees'
       throw new Error(message || 'Failed to delete employees')
+    }
+  },
+
+  bulkRestore: async (ids) => {
+    try {
+      await employeesApi.bulkRestore(ids)
+      set(state => ({
+        employees: state.employees.map(e => ids.includes(e.id) ? { ...e, deleted_at: null } : e)
+      }))
+    } catch (error: unknown) {
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : 'Failed to restore employees'
+      throw new Error(message || 'Failed to restore employees')
     }
   },
 

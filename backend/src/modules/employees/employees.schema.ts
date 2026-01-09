@@ -106,6 +106,15 @@ export const BulkUpdateActiveSchema = z.object({
   }),
 })
 
+export const UpdateActiveSchema = z.object({
+  params: z.object({
+    id: uuidSchema,
+  }),
+  body: z.object({
+    is_active: z.boolean(),
+  }),
+})
+
 export const BulkDeleteSchema = z.object({
   body: z.object({
     ids: z.array(uuidSchema).min(1),

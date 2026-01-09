@@ -39,6 +39,7 @@ export interface EmployeeBase {
   updated_at: string
   user_id: string | null
   is_active: boolean
+  deleted_at: string | null
 }
 
 export interface EmployeeWithBranch extends EmployeeBase {

@@ -55,8 +55,20 @@ export const employeesApi = {
     await api.delete(`/employees/${id}`)
   },
 
+  restore: async (id: string) => {
+    await api.post(`/employees/${id}/restore`)
+  },
+
+  updateActive: async (id: string, isActive: boolean) => {
+    await api.patch(`/employees/${id}/active`, { is_active: isActive })
+  },
+
   bulkDelete: async (ids: string[]) => {
     await api.post('/employees/bulk/delete', { ids })
+  },
+
+  bulkRestore: async (ids: string[]) => {
+    await api.post('/employees/bulk/restore', { ids })
   },
 
   bulkUpdateActive: async (ids: string[], isActive: boolean) => {

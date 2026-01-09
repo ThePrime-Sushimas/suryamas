@@ -33,6 +33,7 @@ export interface EmployeeDB {
   updated_at: string
   user_id: string | null
   is_active: boolean
+  deleted_at: string | null
 }
 
 export interface EmployeeWithBranch extends EmployeeDB {
@@ -114,6 +115,7 @@ export interface EmployeeFilter {
   job_position?: string
   status_employee?: StatusEmployee
   is_active?: boolean
+  include_deleted?: boolean
 }
 
 export interface PaginationParams {

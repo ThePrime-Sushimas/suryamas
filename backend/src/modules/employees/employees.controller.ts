@@ -51,6 +51,7 @@ export class EmployeesController {
       if (req.query.job_position) filters.job_position = req.query.job_position
       if (req.query.status_employee) filters.status_employee = req.query.status_employee
       if (req.query.is_active !== undefined) filters.is_active = req.query.is_active === 'true'
+      if (req.query.include_deleted !== undefined) filters.include_deleted = req.query.include_deleted === 'true'
       
       const result = await employeesService.search(q || '', {
         ...req.pagination,
@@ -131,6 +132,16 @@ export class EmployeesController {
     }
   }
 
+  async restore(req: AuthenticatedRequest, res: Response) {
+    try {
+      await employeesService.restore(req.params.id, req.user.id)
+      logInfo('Employee restored', { id: req.params.id, user: req.user.id })
+      sendSuccess(res, null, 'Employee restored')
+    } catch (error) {
+      this.handleError(res, error, 'restore employee', req.user.id, { id: req.params.id })
+    }
+  }
+
   async uploadProfilePicture(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.file) return sendError(res, 'No file uploaded', 400)
@@ -170,6 +181,18 @@ export class EmployeesController {
     }
   }
 
+  async updateActive(req: ValidatedAuthRequest<typeof UpdateActiveSchema>, res: Response) {
+    try {
+      const { id } = req.validated.params
+      const { is_active } = req.validated.body
+      await employeesService.bulkUpdateActive([id], is_active)
+      logInfo('Update active', { id, is_active, user: req.user!.id })
+      sendSuccess(res, null, `Employee ${is_active ? 'activated' : 'deactivated'}`)
+    } catch (error) {
+      this.handleError(res, error, 'update active', req.user!.id, { id: req.validated.params.id })
+    }
+  }
+
   async bulkDelete(req: ValidatedAuthRequest<typeof BulkDeleteSchema>, res: Response) {
     try {
       const { ids } = req.validated.body
@@ -178,6 +201,17 @@ export class EmployeesController {
       sendSuccess(res, null, 'Employees deleted')
     } catch (error) {
       this.handleError(res, error, 'bulk delete', req.user!.id)
+    }
+  }
+
+  async bulkRestore(req: ValidatedAuthRequest<typeof BulkDeleteSchema>, res: Response) {
+    try {
+      const { ids } = req.validated.body
+      await employeesService.bulkRestore(ids)
+      logInfo('Bulk restore', { count: ids.length, user: req.user!.id })
+      sendSuccess(res, null, 'Employees restored')
+    } catch (error) {
+      this.handleError(res, error, 'bulk restore', req.user!.id)
     }
   }
 

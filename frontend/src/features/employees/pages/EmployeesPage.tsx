@@ -21,6 +21,7 @@ type QueryState = {
   position?: string
   status?: string
   isActive?: string
+  includeDeleted?: boolean
 }
 
 type EmployeeFilters = {
@@ -28,6 +29,7 @@ type EmployeeFilters = {
   job_position?: string
   status_employee?: string
   is_active?: string
+  include_deleted?: string
 }
 
 type ConfirmState = {
@@ -46,7 +48,10 @@ export default function EmployeesPage() {
     fetchEmployees,
     searchEmployees,
     deleteEmployee,
+    restoreEmployee,
+    updateEmployeeActive,
     bulkDelete,
+    bulkRestore,
     bulkUpdateActive,
     fetchFilterOptions,
     filterOptions,
@@ -63,7 +68,8 @@ export default function EmployeesPage() {
     branch: '',
     position: '',
     status: '',
-    isActive: ''
+    isActive: '',
+    includeDeleted: false
   })
 
   const [searchInput, setSearchInput] = useState('')
@@ -102,6 +108,7 @@ export default function EmployeesPage() {
     if (q.position) filters.job_position = q.position
     if (q.status) filters.status_employee = q.status
     if (q.isActive) filters.is_active = q.isActive
+    if (q.includeDeleted) filters.include_deleted = 'true'
     return filters
   }, [])
 
@@ -151,10 +158,34 @@ export default function EmployeesPage() {
     })
   }, [deleteEmployee, success])
 
+  const handleRestore = useCallback((id: string, name: string) => {
+    setConfirm({
+      open: true,
+      title: 'Restore Employee',
+      message: `Restore "${name}"?`,
+      action: async () => {
+        await restoreEmployee(id)
+        success('Employee restored')
+      }
+    })
+  }, [restoreEmployee, success])
+
+  const handleToggleActive = useCallback((id: string, name: string, currentActive: boolean) => {
+    const newActive = !currentActive
+    setConfirm({
+      open: true,
+      title: newActive ? 'Activate Employee' : 'Deactivate Employee',
+      message: `${newActive ? 'Activate' : 'Deactivate'} "${name}"?`,
+      action: async () => {
+        await updateEmployeeActive(id, newActive)
+        success(`Employee ${newActive ? 'activated' : 'deactivated'}`)
+      }
+    })
+  }, [updateEmployeeActive, success])
+
   const handleBulkDelete = useCallback(() => {
     if (selectedCount === 0) return
     
-    // Validate BEFORE showing confirm
     const validIds = selectedIds.filter(id => employees.some(e => e.id === id))
     if (validIds.length === 0) {
       toastError('Selected employees no longer available. Please refresh.')
@@ -177,6 +208,31 @@ export default function EmployeesPage() {
       }
     })
   }, [selectedCount, selectedIds, employees, bulkDelete, success, toastError, clearSelection])
+
+  const handleBulkRestore = useCallback(() => {
+    if (selectedCount === 0) return
+    
+    const validIds = selectedIds.filter(id => {
+      const emp = employees.find(e => e.id === id)
+      return emp && emp.deleted_at
+    })
+    
+    if (validIds.length === 0) {
+      toastError('No deleted employees selected')
+      return
+    }
+    
+    setConfirm({
+      open: true,
+      title: 'Restore Multiple Employees',
+      message: `Restore ${validIds.length} employee(s)?`,
+      action: async () => {
+        await bulkRestore(validIds)
+        success(`${validIds.length} employee(s) restored`)
+        clearSelection()
+      }
+    })
+  }, [selectedCount, selectedIds, employees, bulkRestore, success, toastError, clearSelection])
 
   const handleBulkActive = useCallback((active: boolean) => {
     if (selectedCount === 0) return
@@ -227,14 +283,16 @@ export default function EmployeesPage() {
     if (query.position) count++
     if (query.status) count++
     if (query.isActive) count++
+    if (query.includeDeleted) count++
     return count
-  }, [query.branch, query.position, query.status, query.isActive])
+  }, [query.branch, query.position, query.status, query.isActive, query.includeDeleted])
 
   const bulkActions = useMemo(() => [
     { label: 'Set Active', onClick: () => handleBulkActive(true), className: 'px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700' },
     { label: 'Set Inactive', onClick: () => handleBulkActive(false), className: 'px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700' },
-    { label: 'Delete', onClick: handleBulkDelete, className: 'px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700' }
-  ], [handleBulkActive, handleBulkDelete])
+    { label: 'Delete', onClick: handleBulkDelete, className: 'px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700' },
+    ...(query.includeDeleted ? [{ label: 'Restore', onClick: handleBulkRestore, className: 'px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700' }] : [])
+  ], [handleBulkActive, handleBulkDelete, handleBulkRestore, query.includeDeleted])
 
   // Memoized export filter
   const selectedEmployee = useMemo(() => 
@@ -336,6 +394,18 @@ export default function EmployeesPage() {
               <option value="true">Active</option>
               <option value="false">Inactive</option>
             </select>
+            <div className="col-span-4 flex items-center gap-2 pt-2 border-t border-gray-200">
+              <input
+                type="checkbox"
+                id="includeDeleted"
+                checked={query.includeDeleted}
+                onChange={e => setQuery(q => ({ ...q, includeDeleted: e.target.checked, page: 1 }))}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="includeDeleted" className="text-sm text-gray-700 cursor-pointer">
+                Show deleted employees
+              </label>
+            </div>
           </div>
         )}
       </div>
@@ -416,6 +486,8 @@ export default function EmployeesPage() {
               onClose={() => setSelectedEmployeeId(null)}
               onEdit={id => navigate(`/employees/edit/${id}`)}
               onDelete={handleDelete}
+              onRestore={handleRestore}
+              onToggleActive={handleToggleActive}
               onManageBranches={id => navigate(`/employees/${id}/branches`)}
             />
           ) : (

@@ -16,10 +16,12 @@ interface EmployeeDetailPanelProps {
   onClose: () => void
   onEdit: (id: string) => void
   onDelete: (id: string, name: string) => void
+  onRestore: (id: string, name: string) => void
+  onToggleActive: (id: string, name: string, currentActive: boolean) => void
   onManageBranches: (id: string) => void
 }
 
-export const EmployeeDetailPanel = ({ employee, onClose, onEdit, onDelete, onManageBranches }: EmployeeDetailPanelProps) => {
+export const EmployeeDetailPanel = ({ employee, onClose, onEdit, onDelete, onRestore, onToggleActive, onManageBranches }: EmployeeDetailPanelProps) => {
   const [branches, setBranches] = useState<EmployeeBranch[]>([])
   const [loadingBranches, setLoadingBranches] = useState(false)
 
@@ -78,6 +80,13 @@ export const EmployeeDetailPanel = ({ employee, onClose, onEdit, onDelete, onMan
           </div>
           <h3 className="text-xl font-bold text-gray-900">{employee.full_name}</h3>
           <p className="text-sm text-gray-500">{employee.employee_id}</p>
+          {employee.deleted_at && (
+            <div className="mt-2">
+              <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                Deleted on {new Date(employee.deleted_at).toLocaleDateString('id-ID')}
+              </span>
+            </div>
+          )}
           <div className="mt-3 flex items-center justify-center gap-2">
             <span className={`px-3 py-1 rounded-full text-xs font-medium ${
               employee.is_active 
@@ -182,28 +191,49 @@ export const EmployeeDetailPanel = ({ employee, onClose, onEdit, onDelete, onMan
 
       {/* Actions */}
       <div className="p-4 border-t border-gray-200 space-y-2">
-        <button
-          onClick={() => onManageBranches(employee.id)}
-          className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-        >
-          Manage Branches
-        </button>
-        <div className="flex gap-2">
+        {!employee.deleted_at ? (
+          <>
+            <button
+              onClick={() => onToggleActive(employee.id, employee.full_name, employee.is_active)}
+              className={`w-full px-4 py-2 rounded-lg transition-colors font-medium ${
+                employee.is_active
+                  ? 'bg-yellow-600 text-white hover:bg-yellow-700'
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+            >
+              {employee.is_active ? 'Deactivate' : 'Activate'} Employee
+            </button>
+            <button
+              onClick={() => onManageBranches(employee.id)}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              Manage Branches
+            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onEdit(employee.id)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center justify-center gap-2"
+              >
+                <Edit className="w-4 h-4" />
+                Edit
+              </button>
+              <button
+                onClick={() => onDelete(employee.id, employee.full_name)}
+                className="flex-1 px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors font-medium flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+            </div>
+          </>
+        ) : (
           <button
-            onClick={() => onEdit(employee.id)}
-            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center justify-center gap-2"
+            onClick={() => onRestore(employee.id, employee.full_name)}
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
-            <Edit className="w-4 h-4" />
-            Edit
+            Restore Employee
           </button>
-          <button
-            onClick={() => onDelete(employee.id, employee.full_name)}
-            className="flex-1 px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors font-medium flex items-center justify-center gap-2"
-          >
-            <Trash2 className="w-4 h-4" />
-            Delete
-          </button>
-        </div>
+        )}
       </div>
     </div>
   )
