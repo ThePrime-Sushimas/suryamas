@@ -30,6 +30,10 @@ export class SupplierProductsRepository {
     let dbQuery = supabase.from('supplier_products').select(selectFields)
     let countQuery = supabase.from('supplier_products').select('*', { count: 'exact', head: true })
 
+    // Exclude soft deleted
+    dbQuery = dbQuery.is('deleted_at', null)
+    countQuery = countQuery.is('deleted_at', null)
+
     // Apply filters
     if (query?.supplier_id) {
       dbQuery = dbQuery.eq('supplier_id', query.supplier_id)
@@ -100,6 +104,7 @@ export class SupplierProductsRepository {
       .from('supplier_products')
       .select(selectFields)
       .eq('id', id)
+      .is('deleted_at', null)
       .maybeSingle()
 
     if (error) throw new Error(`Database query failed: ${error.message}`)
@@ -122,6 +127,7 @@ export class SupplierProductsRepository {
       .from('supplier_products')
       .select(selectFields)
       .eq('supplier_id', supplierId)
+      .is('deleted_at', null)
       .eq('is_active', true)
       .order('is_preferred', { ascending: false })
       .order('price', { ascending: true })
@@ -145,6 +151,7 @@ export class SupplierProductsRepository {
       .from('supplier_products')
       .select(selectFields)
       .eq('product_id', productId)
+      .is('deleted_at', null)
       .eq('is_active', true)
       .order('is_preferred', { ascending: false })
       .order('price', { ascending: true })
@@ -165,6 +172,7 @@ export class SupplierProductsRepository {
       .select('*')
       .eq('supplier_id', supplierId)
       .eq('product_id', productId)
+      .is('deleted_at', null)
 
     if (excludeId) {
       query = query.neq('id', excludeId)
@@ -186,6 +194,7 @@ export class SupplierProductsRepository {
       .eq('product_id', productId)
       .eq('is_preferred', true)
       .eq('is_active', true)
+      .is('deleted_at', null)
 
     if (excludeId) {
       query = query.neq('id', excludeId)
@@ -230,13 +239,17 @@ export class SupplierProductsRepository {
   }
 
   /**
-   * Delete supplier product (hard delete)
+   * Delete supplier product (soft delete)
    */
   async delete(id: string): Promise<void> {
     const { error } = await supabase
       .from('supplier_products')
-      .delete()
+      .update({
+        deleted_at: new Date().toISOString(),
+        is_active: false,
+      })
       .eq('id', id)
+      .is('deleted_at', null)
 
     if (error) throw new Error(`Database delete failed: ${error.message}`)
   }
@@ -279,6 +292,7 @@ export class SupplierProductsRepository {
         products(product_name)
       `)
       .eq('is_active', true)
+      .is('deleted_at', null)
       .order('suppliers(supplier_name)')
       .order('products(product_name)')
 

@@ -12,7 +12,7 @@ registry.registerPath({
       page: z.string().optional(),
       limit: z.string().optional(),
       search: z.string().optional(),
-      supplier_id: z.string().optional(),
+      supplier_id: z.string().uuid().optional(),
       product_id: z.string().uuid().optional(),
       is_preferred: z.string().optional(),
       is_active: z.string().optional(),
@@ -43,7 +43,7 @@ registry.registerPath({
   security: [{ bearerAuth: [] }],
   summary: 'Get supplier products by supplier ID',
   request: {
-    params: z.object({ supplier_id: z.string() })
+    params: z.object({ supplier_id: z.string().uuid() })
   },
   responses: {
     200: { description: 'Success' }
@@ -89,7 +89,7 @@ registry.registerPath({
       content: {
         'application/json': {
           schema: z.object({
-            supplier_id: z.number().int().positive(),
+            supplier_id: z.string().uuid(),
             product_id: z.string().uuid(),
             price: z.number().min(0).multipleOf(0.01),
             currency: z.enum(['IDR', 'USD', 'EUR', 'SGD']).optional(),
