@@ -14,6 +14,7 @@ interface SuppliersState {
   createSupplier: (data: CreateSupplierDto) => Promise<Supplier>
   updateSupplier: (id: string, data: UpdateSupplierDto) => Promise<Supplier>
   deleteSupplier: (id: string) => Promise<void>
+  restoreSupplier: (id: string) => Promise<Supplier>
   clearError: () => void
 }
 
@@ -97,5 +98,24 @@ export const useSuppliersStore = create<SuppliersState>((set) => ({
     }
   },
 
-  clearError: () => set({ error: null })
+  clearError: () => set({ error: null }),
+
+  restoreSupplier: async (id) => {
+    set({ mutationLoading: true, error: null })
+    try {
+      const supplier = await suppliersApi.restore(id)
+      set(state => ({
+        suppliers: state.suppliers.map(s => s.id === id ? supplier : s),
+        mutationLoading: false
+      }))
+      return supplier
+    } catch (error: unknown) {
+      const message = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string; message?: string } } }).response?.data?.error
+          || (error as { response?: { data?: { error?: string; message?: string } } }).response?.data?.message
+        : error instanceof Error ? error.message : 'Failed to restore supplier'
+      set({ error: message || 'Failed to restore supplier', mutationLoading: false })
+      throw error
+    }
+  },
 }))

@@ -89,6 +89,17 @@ export class SuppliersController {
       handleError(res, error)
     }
   }
+
+  restore = withValidated(async (req: SupplierIdReq, res: Response) => {
+    try {
+      const { params } = req.validated
+      const userId = req.context?.employee_id
+      const supplier = await suppliersService.restoreSupplier(params.id, userId)
+      sendSuccess(res, supplier, 'Supplier restored successfully')
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  })
 }
 
 export const suppliersController = new SuppliersController()

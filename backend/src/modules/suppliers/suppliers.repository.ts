@@ -10,9 +10,11 @@ export class SuppliersRepository {
     let dbQuery = supabase.from('suppliers').select('*')
     let countQuery = supabase.from('suppliers').select('*', { count: 'exact', head: true })
 
-    // Always exclude soft deleted
-    dbQuery = dbQuery.is('deleted_at', null)
-    countQuery = countQuery.is('deleted_at', null)
+    // Filter deleted
+    if (!query?.include_deleted) {
+      dbQuery = dbQuery.is('deleted_at', null)
+      countQuery = countQuery.is('deleted_at', null)
+    }
 
     // Search filter
     if (query?.search) {
@@ -123,6 +125,24 @@ export class SuppliersRepository {
       .is('deleted_at', null)
 
     if (error) throw new Error(error.message)
+  }
+
+  async restore(id: string, userId?: string): Promise<Supplier | null> {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .update({
+        deleted_at: null,
+        is_active: true,
+        updated_by: userId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .not('deleted_at', 'is', null)
+      .select()
+      .maybeSingle()
+
+    if (error) throw new Error(error.message)
+    return data ? mapSupplierResponse(data) : null
   }
 
   async getActiveOptions(): Promise<SupplierOption[]> {

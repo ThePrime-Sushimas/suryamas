@@ -5,9 +5,11 @@ interface SupplierFilterBarProps {
   search: string
   supplierType: SupplierType | ''
   isActive: string
+  includeDeleted: boolean
   onSearchChange: (value: string) => void
   onSupplierTypeChange: (value: SupplierType | '') => void
   onIsActiveChange: (value: string) => void
+  onIncludeDeletedChange: (value: boolean) => void
   onReset: () => void
 }
 
@@ -15,9 +17,11 @@ export function SupplierFilterBar({
   search,
   supplierType,
   isActive,
+  includeDeleted,
   onSearchChange,
   onSupplierTypeChange,
   onIsActiveChange,
+  onIncludeDeletedChange,
   onReset,
 }: SupplierFilterBarProps) {
   return (
@@ -72,13 +76,25 @@ export function SupplierFilterBar({
         </div>
 
         <div className="flex items-end">
-          <button
-            onClick={onReset}
-            className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            Reset Filters
-          </button>
+          <label className="flex items-center space-x-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeDeleted}
+              onChange={(e) => onIncludeDeletedChange(e.target.checked)}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <span className="text-sm font-medium text-gray-700">Show Deleted</span>
+          </label>
         </div>
+      </div>
+
+      <div className="mt-4">
+        <button
+          onClick={onReset}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          Reset Filters
+        </button>
       </div>
     </div>
   )

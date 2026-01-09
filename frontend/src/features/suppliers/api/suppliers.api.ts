@@ -27,6 +27,7 @@ export const suppliersApi = {
     if (query.search) params.search = query.search
     if (query.supplier_type) params.supplier_type = query.supplier_type
     if (query.is_active !== undefined) params.is_active = query.is_active ? 'true' : 'false'
+    if (query.include_deleted !== undefined) params.include_deleted = query.include_deleted ? 'true' : 'false'
     if (query.sort_by) params.sort_by = query.sort_by
     if (query.sort_order) params.sort_order = query.sort_order
 
@@ -56,6 +57,11 @@ export const suppliersApi = {
 
   getOptions: async () => {
     const res = await api.get<ApiResponse<SupplierOption[]>>('/suppliers/options')
+    return res.data.data
+  },
+
+  restore: async (id: string) => {
+    const res = await api.post<ApiResponse<Supplier>>(`/suppliers/${id}/restore`)
     return res.data.data
   },
 }

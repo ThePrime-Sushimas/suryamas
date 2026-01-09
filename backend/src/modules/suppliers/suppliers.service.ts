@@ -74,6 +74,14 @@ export class SuppliersService {
   async getSupplierOptions(): Promise<SupplierOption[]> {
     return suppliersRepository.getActiveOptions()
   }
+
+  async restoreSupplier(id: string, userId?: string): Promise<Supplier> {
+    const restored = await suppliersRepository.restore(id, userId)
+    if (!restored) {
+      throw new SupplierNotFoundError(id)
+    }
+    return restored
+  }
 }
 
 export const suppliersService = new SuppliersService()

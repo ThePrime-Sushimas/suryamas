@@ -75,6 +75,7 @@ export interface SupplierListQuery {
   search?: string
   supplier_type?: SupplierType
   is_active?: boolean
+  include_deleted?: boolean
   sort_by?: string
   sort_order?: 'asc' | 'desc'
 }

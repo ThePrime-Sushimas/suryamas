@@ -28,4 +28,6 @@ router.put('/:id', canUpdate('suppliers'), validateSchema(updateSupplierSchema),
 
 router.delete('/:id', canDelete('suppliers'), validateSchema(supplierIdSchema), suppliersController.delete)
 
+router.post('/:id/restore', canUpdate('suppliers'), validateSchema(supplierIdSchema), suppliersController.restore)
+
 export default router

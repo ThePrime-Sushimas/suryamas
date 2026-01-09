@@ -23,6 +23,7 @@ export interface Supplier {
   notes: string | null
   created_at: string
   updated_at: string
+  deleted_at: string | null
 }
 
 export interface CreateSupplierDto {
@@ -54,6 +55,7 @@ export interface SupplierListQuery {
   search?: string
   supplier_type?: SupplierType
   is_active?: boolean
+  include_deleted?: boolean
   sort_by?: string
   sort_order?: 'asc' | 'desc'
 }

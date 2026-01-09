@@ -12,16 +12,17 @@ const ITEMS_PER_PAGE = 10
 
 export function SuppliersPage() {
   const navigate = useNavigate()
-  const { suppliers, pagination, fetchLoading, mutationLoading, error, fetchSuppliers, deleteSupplier, clearError } = useSuppliersStore()
+  const { suppliers, pagination, fetchLoading, mutationLoading, error, fetchSuppliers, deleteSupplier, restoreSupplier, clearError } = useSuppliersStore()
   const toast = useToast()
   
   const [search, setSearch] = useState('')
   const [supplierType, setSupplierType] = useState<SupplierType | ''>('')
   const [isActive, setIsActive] = useState('')
+  const [includeDeleted, setIncludeDeleted] = useState(false)
   const [page, setPage] = useState(1)
   const [sortBy, setSortBy] = useState('supplier_name')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   const debouncedSearch = useDebounce(search, 500)
 
@@ -36,9 +37,10 @@ export function SuppliersPage() {
     if (debouncedSearch) query.search = debouncedSearch
     if (supplierType) query.supplier_type = supplierType
     if (isActive) query.is_active = isActive === 'true'
+    if (includeDeleted) query.include_deleted = true
     
     fetchSuppliers(query, signal)
-  }, [page, sortBy, sortOrder, debouncedSearch, supplierType, isActive, fetchSuppliers])
+  }, [page, sortBy, sortOrder, debouncedSearch, supplierType, isActive, includeDeleted, fetchSuppliers])
 
   // Reset page when filters change
   useEffect(() => {
@@ -46,7 +48,7 @@ export function SuppliersPage() {
       setPage(1)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supplierType, isActive, debouncedSearch])
+  }, [supplierType, isActive, debouncedSearch, includeDeleted])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -54,7 +56,7 @@ export function SuppliersPage() {
     return () => controller.abort()
   }, [loadSuppliers])
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     try {
       await deleteSupplier(id)
       toast.success('Supplier deleted successfully')
@@ -65,10 +67,21 @@ export function SuppliersPage() {
     }
   }
 
+  const handleRestore = async (id: string) => {
+    try {
+      await restoreSupplier(id)
+      toast.success('Supplier restored successfully')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to restore supplier'
+      toast.error(message)
+    }
+  }
+
   const handleResetFilters = () => {
     setSearch('')
     setSupplierType('')
     setIsActive('')
+    setIncludeDeleted(false)
     setPage(1)
   }
 
@@ -118,9 +131,11 @@ export function SuppliersPage() {
         search={search}
         supplierType={supplierType}
         isActive={isActive}
+        includeDeleted={includeDeleted}
         onSearchChange={setSearch}
         onSupplierTypeChange={setSupplierType}
         onIsActiveChange={setIsActive}
+        onIncludeDeletedChange={setIncludeDeleted}
         onReset={handleResetFilters}
       />
 
@@ -201,27 +216,47 @@ export function SuppliersPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <SupplierStatusBadge isActive={supplier.is_active} />
+                      {supplier.deleted_at && (
+                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                          Deleted
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigate(`/suppliers/${supplier.id}/edit`)
-                        }}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setDeleteConfirm(supplier.id)
-                        }}
-                        disabled={mutationLoading}
-                        className="text-red-600 hover:text-red-900 disabled:opacity-50"
-                      >
-                        Delete
-                      </button>
+                      {supplier.deleted_at ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRestore(supplier.id)
+                          }}
+                          disabled={mutationLoading}
+                          className="text-green-600 hover:text-green-900 disabled:opacity-50"
+                        >
+                          Restore
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              navigate(`/suppliers/${supplier.id}/edit`)
+                            }}
+                            className="text-blue-600 hover:text-blue-900 mr-3"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setDeleteConfirm(supplier.id)
+                            }}
+                            disabled={mutationLoading}
+                            className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))

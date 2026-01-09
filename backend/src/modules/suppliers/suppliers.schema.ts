@@ -150,6 +150,7 @@ export const supplierListQuerySchema = z.object({
     search: z.string().trim().optional(),
     supplier_type: z.enum(VALID_SUPPLIER_TYPES as [string, ...string[]]).optional(),
     is_active: z.preprocess(val => val === 'true' || val === true, z.boolean()).optional(),
+    include_deleted: z.preprocess(val => val === 'true' || val === true, z.boolean()).optional(),
     sort_by: z.string().optional(),
     sort_order: z.enum(['asc', 'desc']).optional(),
   }),
