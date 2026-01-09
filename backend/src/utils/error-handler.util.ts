@@ -1,5 +1,5 @@
 import { Response } from 'express'
-import { ZodError } from 'zod'
+import { ZodError } from '@/lib/openapi'
 import { sendError } from './response.util'
 import { logError } from '../config/logger'
 

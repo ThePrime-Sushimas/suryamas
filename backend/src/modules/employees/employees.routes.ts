@@ -11,6 +11,7 @@ import { PermissionService } from '../../services/permission.service'
 import { validateSchema, ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, EmployeeSearchSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
 import type { AuthenticatedPaginatedRequest, AuthenticatedRequest } from '../../types/request.types'
+import './employees.openapi' // Register OpenAPI docs
 
 // Auto-register employees module
 PermissionService.registerModule('employees', 'Employee Management System')

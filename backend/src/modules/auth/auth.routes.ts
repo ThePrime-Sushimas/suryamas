@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/auth.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.schema'
 import type { AuthenticatedRequest } from '../../types/request.types'
+import './auth.openapi' // Register OpenAPI docs
 
 const router = Router()
 

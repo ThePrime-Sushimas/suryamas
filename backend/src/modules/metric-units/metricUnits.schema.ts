@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '@/lib/openapi'
 import { METRIC_UNIT_CONFIG } from './metricUnits.constants'
 
 const uuidSchema = z.string().uuid()

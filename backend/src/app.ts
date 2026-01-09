@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import swaggerUi from 'swagger-ui-express'
 import authRoutes from './modules/auth/auth.routes'
 import employeesRoutes from './modules/employees/employees.routes'
 import companiesRoutes from './modules/companies/companies.routes'
@@ -20,6 +21,7 @@ import bankAccountsRoutes, { ownerBankAccountsRouter } from './modules/bank-acco
 import supplierProductsRoutes from './modules/supplier-products/supplier-products.routes'
 import { errorHandler } from './middleware/error.middleware'
 import { requestLogger } from './middleware/request-logger.middleware'
+import { generateOpenApiDocument } from './config/openapi'
 
 const app = express()
 
@@ -36,6 +38,16 @@ app.use(requestLogger)
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() })
 })
+
+// OpenAPI Documentation
+const openApiDocument = generateOpenApiDocument()
+app.get('/openapi.json', (req, res) => {
+  res.json(openApiDocument)
+})
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Sushimas ERP API Docs'
+}))
 
 // API v1 Routes
 app.use('/api/v1/auth', authRoutes)

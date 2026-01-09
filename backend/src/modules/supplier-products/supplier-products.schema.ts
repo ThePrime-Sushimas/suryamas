@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '@/lib/openapi'
 import { VALID_CURRENCIES, SUPPLIER_PRODUCT_LIMITS, SUPPLIER_PRODUCT_SORT_FIELDS } from './supplier-products.constants'
 
 export const createSupplierProductSchema = z.object({

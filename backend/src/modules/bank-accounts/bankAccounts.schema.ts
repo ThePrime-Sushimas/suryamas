@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '@/lib/openapi'
 
 export const createBankAccountSchema = z.object({
   body: z.object({

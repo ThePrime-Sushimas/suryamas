@@ -6,7 +6,7 @@ import { handleExportToken, handleExport, handleImportPreview, handleImport } fr
 import type { AuthenticatedPaginatedRequest, AuthenticatedRequest } from '../../types/request.types'
 import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, EmployeeSearchSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
 import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import { ZodError } from 'zod'
+import { ZodError } from '@/lib/openapi'
 
 export class EmployeesController {
   async list(req: AuthenticatedPaginatedRequest, res: Response) {

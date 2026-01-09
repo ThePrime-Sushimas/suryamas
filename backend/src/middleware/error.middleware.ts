@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { sendError } from '../utils/response.util'
 import { logError } from '../config/logger'
-import { ZodError } from 'zod'
+import { ZodError } from '@/lib/openapi'
 import { EmployeeBranchError } from '../modules/employee_branches/employee_branches.errors'
 import { BranchError } from '../modules/branches/branches.errors'
 import { CompanyError } from '../modules/companies/companies.errors'

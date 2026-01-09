@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '@/lib/openapi'
 import { VALID_PRODUCT_STATUSES, VALID_PRODUCT_TYPES, PRODUCT_LIMITS } from './products.constants'
 
 export const createProductSchema = z.object({

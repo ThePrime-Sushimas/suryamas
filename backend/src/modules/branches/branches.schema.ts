@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '@/lib/openapi'
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/
 const uuidSchema = z.string().uuid()

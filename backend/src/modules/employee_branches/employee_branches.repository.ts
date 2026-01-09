@@ -62,21 +62,9 @@ export class EmployeeBranchesRepository {
     if (error) throw error
 
     const mapped = (data || []).map(mapEmployeeBranch)
-    
-    // Filter by search if provided
-    const filtered = search && search.trim() 
-      ? mapped.filter(item => {
-          const searchLower = search.toLowerCase().trim()
-          return (
-            item.employee.full_name?.toLowerCase().includes(searchLower) ||
-            item.branch.branch_name?.toLowerCase().includes(searchLower) ||
-            item.branch.branch_code?.toLowerCase().includes(searchLower)
-          )
-        })
-      : mapped
 
-    // Group by employee
-    const grouped = filtered.reduce((acc, item) => {
+    // Group by employee first
+    const grouped = mapped.reduce((acc, item) => {
       if (!acc[item.employee_id]) {
         acc[item.employee_id] = {
           employee_id: item.employee_id,
@@ -98,10 +86,23 @@ export class EmployeeBranchesRepository {
     }, {} as Record<string, any>)
 
     // Convert to array and calculate totals
-    const groupedArray = Object.values(grouped).map(g => ({
+    let groupedArray = Object.values(grouped).map(g => ({
       ...g,
       total_branches: g.branches.length
     }))
+
+    // Apply search filter on grouped data
+    if (search && search.trim()) {
+      const searchLower = search.toLowerCase().trim()
+      groupedArray = groupedArray.filter(g => {
+        const employeeMatch = g.employee_name?.toLowerCase().includes(searchLower)
+        const branchMatch = g.branches.some((b: any) => 
+          b.branch.branch_name?.toLowerCase().includes(searchLower) ||
+          b.branch.branch_code?.toLowerCase().includes(searchLower)
+        )
+        return employeeMatch || branchMatch
+      })
+    }
 
     const total = groupedArray.length
     const paginated = groupedArray.slice(offset, offset + limit)

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '@/lib/openapi'
 import { VALID_UOM_STATUSES, UOM_LIMITS } from './product-uoms.constants'
 
 const uuidSchema = z.string().uuid()

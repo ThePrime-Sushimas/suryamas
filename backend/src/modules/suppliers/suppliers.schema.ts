@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '@/lib/openapi'
 import { VALID_SUPPLIER_TYPES, SUPPLIER_LIMITS } from './suppliers.constants'
 
 const phoneRegex = /^\+?[0-9]{10,15}$/

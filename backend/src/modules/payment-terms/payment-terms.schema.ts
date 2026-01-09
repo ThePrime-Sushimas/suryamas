@@ -1,6 +1,6 @@
 // backend/src/modules/payment-terms/payment-terms.schema.ts
 
-import { z } from 'zod'
+import { z } from '@/lib/openapi'
 import { VALID_CALCULATION_TYPES, PAYMENT_TERM_LIMITS } from './payment-terms.constants'
 
 export const createPaymentTermSchema = z.object({

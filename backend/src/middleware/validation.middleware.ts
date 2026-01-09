@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
-import { ZodTypeAny } from 'zod'
+import { ZodTypeAny } from '@/lib/openapi'
 import { sendError } from '../utils/response.util'
 import type { AuthRequest } from '../types/common.types'
 

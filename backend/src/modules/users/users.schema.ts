@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '@/lib/openapi'
 
 const uuidSchema = z.string().uuid()
 

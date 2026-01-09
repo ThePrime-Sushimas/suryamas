@@ -8,7 +8,7 @@ import { handleBulkUpdate, handleBulkDelete } from '../../utils/bulk.util'
 import { CompanyError } from './companies.errors'
 import { createCompanySchema, updateCompanySchema, bulkUpdateStatusSchema, bulkDeleteSchema } from './companies.schema'
 import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import { ZodError } from 'zod'
+import { ZodError } from '@/lib/openapi'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 
 export class CompaniesController {
