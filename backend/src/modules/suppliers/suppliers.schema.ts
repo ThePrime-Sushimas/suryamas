@@ -20,6 +20,7 @@ export const createSupplierSchema = z.object({
       .max(SUPPLIER_LIMITS.CONTACT_PERSON_MAX_LENGTH)
       .trim(),
     phone: z.string()
+      .trim()
       .regex(phoneRegex, 'Phone must be 10-15 digits'),
     email: z.string()
       .regex(emailRegex, 'Invalid email format')
@@ -82,6 +83,7 @@ export const updateSupplierSchema = z.object({
       .trim()
       .optional(),
     phone: z.string()
+      .trim()
       .regex(phoneRegex, 'Phone must be 10-15 digits')
       .optional(),
     email: z.string()
@@ -131,13 +133,13 @@ export const updateSupplierSchema = z.object({
       .optional(),
   }),
   params: z.object({
-    id: z.preprocess(val => Number(val), z.number().int().positive('Invalid supplier ID format')),
+    id: z.string().uuid('Invalid supplier ID format'),
   }),
 })
 
 export const supplierIdSchema = z.object({
   params: z.object({
-    id: z.preprocess(val => Number(val), z.number().int().positive('Invalid supplier ID format')),
+    id: z.string().uuid('Invalid supplier ID format'),
   }),
 })
 

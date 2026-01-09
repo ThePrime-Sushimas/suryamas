@@ -12,8 +12,8 @@ interface SuppliersState {
   
   fetchSuppliers: (query?: SupplierListQuery, signal?: AbortSignal) => Promise<void>
   createSupplier: (data: CreateSupplierDto) => Promise<Supplier>
-  updateSupplier: (id: number, data: UpdateSupplierDto) => Promise<Supplier>
-  deleteSupplier: (id: number) => Promise<void>
+  updateSupplier: (id: string, data: UpdateSupplierDto) => Promise<Supplier>
+  deleteSupplier: (id: string) => Promise<void>
   clearError: () => void
 }
 
@@ -45,7 +45,10 @@ export const useSuppliersStore = create<SuppliersState>((set) => ({
     set({ mutationLoading: true, error: null })
     try {
       const supplier = await suppliersApi.create(data)
-      set({ mutationLoading: false })
+      set(state => ({
+        suppliers: [...state.suppliers, supplier],
+        mutationLoading: false
+      }))
       return supplier
     } catch (error: unknown) {
       const message = error instanceof Error && 'response' in error

@@ -1,7 +1,7 @@
 export type SupplierType = 'vegetables' | 'meat' | 'seafood' | 'dairy' | 'beverage' | 'dry_goods' | 'packaging' | 'other'
 
 export interface Supplier {
-  id: number
+  id: string
   supplier_code: string
   supplier_name: string
   supplier_type: SupplierType
@@ -59,7 +59,7 @@ export interface SupplierListQuery {
 }
 
 export interface SupplierOption {
-  id: number
+  id: string
   supplier_name: string
 }
 

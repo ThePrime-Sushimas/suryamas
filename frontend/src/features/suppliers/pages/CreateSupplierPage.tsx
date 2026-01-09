@@ -10,9 +10,13 @@ export function CreateSupplierPage() {
   const toast = useToast()
 
   const handleSubmit = async (data: CreateSupplierDto | UpdateSupplierDto) => {
-    await createSupplier(data as CreateSupplierDto)
-    toast.success('Supplier created successfully')
-    navigate('/suppliers')
+    try {
+      await createSupplier(data as CreateSupplierDto)
+      toast.success('Supplier created successfully')
+      navigate('/suppliers')
+    } catch (error) {
+      toast.error('Failed to create supplier')
+    }
   }
 
   const handleCancel = () => {

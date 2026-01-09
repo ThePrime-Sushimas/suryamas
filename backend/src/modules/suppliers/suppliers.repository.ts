@@ -49,7 +49,7 @@ export class SuppliersRepository {
     return { data: (data || []).map(mapSupplierResponse), total: count || 0 }
   }
 
-  async findById(id: number): Promise<Supplier | null> {
+  async findById(id: string): Promise<Supplier | null> {
     const { data, error } = await supabase
       .from('suppliers')
       .select('*')
@@ -61,7 +61,7 @@ export class SuppliersRepository {
     return data ? mapSupplierResponse(data) : null
   }
 
-  async findByCode(code: string, excludeId?: number): Promise<Supplier | null> {
+  async findByCode(code: string, excludeId?: string): Promise<Supplier | null> {
     let query = supabase
       .from('suppliers')
       .select('*')
@@ -94,7 +94,7 @@ export class SuppliersRepository {
     return mapSupplierResponse(supplier)
   }
 
-  async updateById(id: number, updates: UpdateSupplierDto & { updated_by?: string }): Promise<Supplier | null> {
+  async updateById(id: string, updates: UpdateSupplierDto & { updated_by?: string }): Promise<Supplier | null> {
     const { data, error } = await supabase
       .from('suppliers')
       .update({
@@ -110,7 +110,7 @@ export class SuppliersRepository {
     return data ? mapSupplierResponse(data) : null
   }
 
-  async softDelete(id: number, userId?: string): Promise<void> {
+  async softDelete(id: string, userId?: string): Promise<void> {
     const { error } = await supabase
       .from('suppliers')
       .update({

@@ -34,7 +34,7 @@ export const suppliersApi = {
     return res.data
   },
 
-  getById: async (id: number) => {
+  getById: async (id: string) => {
     const res = await api.get<ApiResponse<Supplier>>(`/suppliers/${id}`)
     return res.data.data
   },
@@ -44,12 +44,12 @@ export const suppliersApi = {
     return res.data.data
   },
 
-  update: async (id: number, data: UpdateSupplierDto) => {
+  update: async (id: string, data: UpdateSupplierDto) => {
     const res = await api.put<ApiResponse<Supplier>>(`/suppliers/${id}`, data)
     return res.data.data
   },
 
-  delete: async (id: number) => {
+  delete: async (id: string) => {
     const res = await api.delete<ApiResponse<void>>(`/suppliers/${id}`)
     return res.data
   },

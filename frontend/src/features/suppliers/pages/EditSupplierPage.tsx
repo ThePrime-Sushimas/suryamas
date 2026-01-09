@@ -17,16 +17,17 @@ export function EditSupplierPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      if (!id || isNaN(Number(id))) {
+      if (!id) {
         toast.error('Invalid supplier ID')
         navigate('/suppliers')
         return
       }
 
       try {
-        const data = await suppliersApi.getById(Number(id))
+        const data = await suppliersApi.getById(id)
         setSupplier(data)
-      } catch {
+      } catch (error) {
+        console.error('Failed to load supplier:', error)
         toast.error('Failed to load supplier')
         navigate('/suppliers')
       } finally {
@@ -38,9 +39,13 @@ export function EditSupplierPage() {
   }, [id, navigate, toast])
 
   const handleSubmit = async (data: UpdateSupplierDto) => {
-    await updateSupplier(Number(id), data)
-    toast.success('Supplier updated successfully')
-    navigate('/suppliers')
+    try {
+      await updateSupplier(id!, data)
+      toast.success('Supplier updated successfully')
+      navigate('/suppliers')
+    } catch (error) {
+      toast.error('Failed to update supplier')
+    }
   }
 
   const handleCancel = () => {

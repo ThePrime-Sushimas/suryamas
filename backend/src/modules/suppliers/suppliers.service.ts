@@ -17,10 +17,18 @@ export class SuppliersService {
     })
   }
 
-  async updateSupplier(id: number, data: UpdateSupplierDto, userId?: string): Promise<Supplier> {
+  async updateSupplier(id: string, data: UpdateSupplierDto, userId?: string): Promise<Supplier> {
     const existingSupplier = await suppliersRepository.findById(id)
     if (!existingSupplier) {
-      throw new SupplierNotFoundError(id.toString())
+      throw new SupplierNotFoundError(id)
+    }
+
+    // Check if supplier_code is being updated and already exists
+    if (data.supplier_code) {
+      const codeExists = await suppliersRepository.findByCode(data.supplier_code, id)
+      if (codeExists) {
+        throw new SupplierCodeAlreadyExistsError(data.supplier_code)
+      }
     }
 
     const updatedSupplier = await suppliersRepository.updateById(id, {
@@ -29,16 +37,16 @@ export class SuppliersService {
     })
 
     if (!updatedSupplier) {
-      throw new SupplierNotFoundError(id.toString())
+      throw new SupplierNotFoundError(id)
     }
 
     return updatedSupplier
   }
 
-  async deleteSupplier(id: number, userId?: string): Promise<void> {
+  async deleteSupplier(id: string, userId?: string): Promise<void> {
     const supplier = await suppliersRepository.findById(id)
     if (!supplier) {
-      throw new SupplierNotFoundError(id.toString())
+      throw new SupplierNotFoundError(id)
     }
 
     // TODO: Check if supplier is used in procurement
@@ -48,10 +56,10 @@ export class SuppliersService {
     await suppliersRepository.softDelete(id, userId)
   }
 
-  async getSupplierById(id: number): Promise<Supplier> {
+  async getSupplierById(id: string): Promise<Supplier> {
     const supplier = await suppliersRepository.findById(id)
     if (!supplier) {
-      throw new SupplierNotFoundError(id.toString())
+      throw new SupplierNotFoundError(id)
     }
     return supplier
   }
