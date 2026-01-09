@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Edit, Calendar, CheckCircle, XCircle } from 'lucide-react'
+import { ArrowLeft, Edit, CheckCircle, XCircle } from 'lucide-react'
 import { paymentTermsApi } from '../api/paymentTerms.api'
 import type { PaymentTerm, CalculationType } from '../types'
 
@@ -110,7 +110,7 @@ export default function PaymentTermDetailPage() {
         {/* Main Card */}
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
           {/* Header Section */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-6 text-white">
+          <div className="bg-linear-to-r from-blue-600 to-blue-700 px-8 py-6 text-white">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-blue-100 text-sm mb-1">Term Code</p>
@@ -223,32 +223,6 @@ export default function PaymentTermDetailPage() {
               </div>
             )}
 
-            {/* Metadata Grid */}
-            <div className="grid grid-cols-2 gap-6 pt-6 border-t border-gray-200">
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-500 uppercase tracking-wide">
-                  <Calendar className="w-4 h-4" />
-                  Created At
-                </label>
-                <p className="mt-1 text-gray-900">{new Date(paymentTerm.created_at).toLocaleString()}</p>
-              </div>
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-500 uppercase tracking-wide">
-                  <Calendar className="w-4 h-4" />
-                  Updated At
-                </label>
-                <p className="mt-1 text-gray-900">{new Date(paymentTerm.updated_at).toLocaleString()}</p>
-              </div>
-              {isDeleted && (
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-500 uppercase tracking-wide">
-                    <Calendar className="w-4 h-4" />
-                    Deleted At
-                  </label>
-                  <p className="mt-1 text-red-600">{new Date(paymentTerm.deleted_at).toLocaleString()}</p>
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </div>
