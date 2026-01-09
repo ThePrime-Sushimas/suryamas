@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useLocation, Link, Outlet, useNavigate } from 'react-router-dom'
-import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard,Key, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User } from 'lucide-react'
+import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, Key, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User, ShoppingCart, Building2, UserCog, Shield } from 'lucide-react'
 import { useAuthStore } from '@/features/auth'
 import { BranchSwitcher, usePermissionStore } from '@/features/branch_context'
 
@@ -40,23 +40,30 @@ export default function Layout() {
       name: 'Master Data',
       icon: <Package size={18} />,
       submenu: [
-        { id: 'products', name: 'Products', href: '/products', icon: <Package size={16} />, module: 'products' },
+        { id: 'companies', name: 'Companies', href: '/companies', icon: <Factory size={16} />, module: 'companies' },
+        { id: 'branches', name: 'Branches', href: '/branches', icon: <Warehouse size={16} />, module: 'branches' },
         { id: 'categories', name: 'Categories', href: '/categories', icon: <Package size={16} />, module: 'categories' },
         { id: 'sub-categories', name: 'Sub Categories', href: '/sub-categories', icon: <Package size={16} />, module: 'sub_categories' },
         { id: 'metric-units', name: 'Metric Units', href: '/metric-units', icon: <Package size={16} />, module: 'metric-units' },
-        { id: 'companies', name: 'Companies', href: '/companies', icon: <Factory size={16} />, module: 'companies' },
-        { id: 'branches', name: 'Branches', href: '/branches', icon: <Warehouse size={16} />, module: 'branches' },
         { id: 'payment-terms', name: 'Payment Terms', href: '/payment-terms', icon: <Package size={16} />, module: 'payment_terms' },
-        { id: 'suppliers', name: 'Suppliers', href: '/suppliers', icon: <Package size={16} />, module: 'suppliers' },
       ]
     },
     {
-      id: 'employees',
-      name: 'Employees & Users',
-      icon: <Package size={18} />,
+      id: 'products',
+      name: 'Products',
+      icon: <ShoppingCart size={18} />,
+      submenu: [
+        { id: 'products', name: 'Products', href: '/products', icon: <Package size={16} />, module: 'products' },
+        { id: 'suppliers', name: 'Suppliers', href: '/suppliers', icon: <Building2 size={16} />, module: 'suppliers' },
+      ]
+    },
+    {
+      id: 'hr',
+      name: 'Human Resources',
+      icon: <Users size={18} />,
       submenu: [
         { id: 'employees', name: 'Employees', href: '/employees', icon: <Users size={16} />, module: 'employees' },
-        { id: 'employee_branches', name: 'Employee Branches', href: '/employee-branches', icon: <Users size={16} />, module: 'employee_branches' },
+        { id: 'employee_branches', name: 'Employee Branches', href: '/employee-branches', icon: <Building2 size={16} />, module: 'employee_branches' },
       ]
     },
     {
@@ -64,8 +71,8 @@ export default function Layout() {
       name: 'Settings',
       icon: <Settings size={18} />,
       submenu: [
-        { id: 'users', name: 'Users', href: '/users', icon: <Users size={16} />, module: 'users' },
-        { id: 'permissions', name: 'Permissions', href: '/permissions', icon: <Settings size={16} />, module: 'permissions' },
+        { id: 'users', name: 'Users', href: '/users', icon: <UserCog size={16} />, module: 'users' },
+        { id: 'permissions', name: 'Permissions', href: '/permissions', icon: <Shield size={16} />, module: 'permissions' },
       ]
     },
   ], [])
