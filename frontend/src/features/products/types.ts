@@ -77,7 +77,6 @@ export interface CreateProductUomDto {
   base_price?: number
   is_default_stock_unit?: boolean
   is_default_purchase_unit?: boolean
-  is_default_base_unit?: boolean
   is_default_transfer_unit?: boolean
   status_uom?: UomStatus
 }
@@ -89,7 +88,6 @@ export interface UpdateProductUomDto {
   base_price?: number
   is_default_stock_unit?: boolean
   is_default_purchase_unit?: boolean
-  is_default_base_unit?: boolean
   is_default_transfer_unit?: boolean
   status_uom?: UomStatus
 }

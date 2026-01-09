@@ -120,7 +120,9 @@ export class ProductsImportService {
 
     // Pre-load all active metric units
     const { data: metricUnits } = await metricUnitsRepository.listActiveFromView({ page: 1, limit: 1000, offset: 0 })
-    metricUnits.forEach(mu => metricUnitCache.set(mu.unit_name.toLowerCase(), mu.id))
+    metricUnits.forEach(mu => {
+      metricUnitCache.set(mu.unit_name.toLowerCase(), mu.id)
+    })
 
     for (let i = 0; i < rows.length; i++) {
       try {
@@ -132,18 +134,11 @@ export class ProductsImportService {
         }
 
         // Find metric unit ID by name
-        let metricUnitId = metricUnitCache.get(rows[i].metric_unit_name.toLowerCase())
-        if (!metricUnitId) {
-          // Try to find in database
-          const metricUnit = metricUnits.find(mu => mu.unit_name.toLowerCase() === rows[i].metric_unit_name.toLowerCase())
-          if (metricUnit) {
-            metricUnitId = metricUnit.id
-            metricUnitCache.set(rows[i].metric_unit_name.toLowerCase(), metricUnitId)
-          } else {
-            errors.push({ row: i + 2, message: `Row ${i + 2}: Metric unit "${rows[i].metric_unit_name}" not found` })
-            failed++
-            continue
-          }
+        const metricUnit = metricUnits.find(mu => mu.unit_name.toLowerCase() === rows[i].metric_unit_name.toLowerCase())
+        if (!metricUnit) {
+          errors.push({ row: i + 2, message: `Row ${i + 2}: Metric unit "${rows[i].metric_unit_name}" not found` })
+          failed++
+          continue
         }
 
         let productId: string
@@ -173,7 +168,7 @@ export class ProductsImportService {
         }
 
         const uomDto: CreateProductUomDto = {
-          metric_unit_id: metricUnitId,
+          metric_unit_id: metricUnit.id,
           conversion_factor: rows[i].conversion_factor,
           is_base_unit: rows[i].is_base_unit,
           base_price: rows[i].base_price,

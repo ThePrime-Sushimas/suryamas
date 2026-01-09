@@ -18,19 +18,6 @@ export class ProductUomsRepository {
     return data || []
   }
 
-  async findByProductIdAndUnitName(productId: string, unitName: string): Promise<ProductUom | null> {
-    const { data, error } = await supabase
-      .from('product_uoms')
-      .select('*')
-      .eq('product_id', productId)
-      .eq('unit_name', unitName)
-      .eq('is_deleted', false)
-      .maybeSingle()
-
-    if (error) throw new Error(`[product_uoms] ${error.message}`)
-    return data
-  }
-
   async findByProductIdAndMetricUnit(productId: string, metricUnitId: string): Promise<ProductUom | null> {
     const { data, error } = await supabase
       .from('product_uoms')
@@ -73,7 +60,7 @@ export class ProductUomsRepository {
     return data
   }
 
-  async create(data: CreateProductUomDto & { product_id: string; unit_name: string; created_by?: string; updated_by?: string }): Promise<ProductUom> {
+  async create(data: CreateProductUomDto & { product_id: string; created_by?: string; updated_by?: string }): Promise<ProductUom> {
     const { data: uom, error } = await supabase
       .from('product_uoms')
       .insert(data)
@@ -112,16 +99,6 @@ export class ProductUomsRepository {
 
     if (error) throw new Error(`[product_uoms] ${error.message}`)
     return data
-  }
-
-  async clearDefaultBaseUnit(productId: string): Promise<void> {
-    const { error } = await supabase
-      .from('product_uoms')
-      .update({ is_default_base_unit: false })
-      .eq('product_id', productId)
-      .eq('is_deleted', false)
-
-    if (error) throw new Error(`[product_uoms] ${error.message}`)
   }
 
   async findDefaultByProduct(
