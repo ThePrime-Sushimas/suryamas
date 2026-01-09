@@ -18,16 +18,17 @@ export function SupplierDetailPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      if (!id || isNaN(Number(id))) {
+      if (!id) {
         toast.error('Invalid supplier ID')
         navigate('/suppliers')
         return
       }
 
       try {
-        const data = await suppliersApi.getById(Number(id))
+        const data = await suppliersApi.getById(id)
         setSupplier(data)
-      } catch {
+      } catch (error) {
+        console.error('Failed to load supplier:', error)
         toast.error('Failed to load supplier')
         navigate('/suppliers')
       } finally {

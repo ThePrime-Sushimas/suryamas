@@ -52,12 +52,8 @@ export class SupplierProductsController {
 
   findBySupplier = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const supplierId = parseInt(req.params.supplier_id)
+      const supplierId = req.params.supplier_id
       const includeRelations = req.query.include_relations === 'true'
-      
-      if (isNaN(supplierId) || supplierId <= 0) {
-        return sendError(res, 'Invalid supplier ID format', 400)
-      }
 
       const supplierProducts = await supplierProductsService.findBySupplier(supplierId, includeRelations)
       sendSuccess(res, supplierProducts, 'Supplier products retrieved successfully')

@@ -18,7 +18,7 @@ export class SupplierProductNotFoundError extends SupplierProductError {
 }
 
 export class DuplicateSupplierProductError extends SupplierProductError {
-  constructor(supplierId: number, productId: string) {
+  constructor(supplierId: string, productId: string) {
     super(
       'DUPLICATE_SUPPLIER_PRODUCT', 
       `Product '${productId}' already exists for supplier '${supplierId}'`, 
@@ -29,7 +29,7 @@ export class DuplicateSupplierProductError extends SupplierProductError {
 }
 
 export class InvalidSupplierError extends SupplierProductError {
-  constructor(supplierId: number, reason: 'not_found' | 'inactive' | 'deleted' = 'not_found') {
+  constructor(supplierId: string, reason: 'not_found' | 'inactive' | 'deleted' = 'not_found') {
     const messages = {
       not_found: `Supplier with ID '${supplierId}' not found`,
       inactive: `Supplier with ID '${supplierId}' is inactive`,
