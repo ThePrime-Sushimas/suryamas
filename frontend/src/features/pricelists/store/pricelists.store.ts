@@ -23,6 +23,30 @@ import type {
 } from '../types/pricelist.types'
 import { parsePricelistError } from '../utils/errorParser'
 
+// Normalize query to handle undefined values and ensure consistent comparison
+function normalizeQuery(query: PricelistListQuery): PricelistListQuery {
+  return Object.fromEntries(
+    Object.entries(query).filter(([, v]) => v !== undefined)
+  ) as PricelistListQuery
+}
+
+// Shallow equality helper
+function shallowEqual(obj1: PricelistListQuery, obj2: PricelistListQuery): boolean {
+  const keys1 = Object.keys(obj1)
+  const keys2 = Object.keys(obj2)
+  
+  if (keys1.length !== keys2.length) return false
+  
+  for (const key of keys1) {
+    if (obj1[key as keyof PricelistListQuery] !== obj2[key as keyof PricelistListQuery]) return false
+  }
+  
+  return true
+}
+
+// Request ID counter to prevent race conditions
+let requestId = 0
+
 interface PricelistsState {
   // Data
   pricelists: PricelistWithRelations[]
@@ -57,26 +81,35 @@ export const usePricelistsStore = create<PricelistsState>((set, get) => ({
 
   /**
    * Fetch pricelists with query
-   * Implements query guard to prevent unnecessary refetch
+   * Implements normalized query guard and race condition protection
+   * Note: AbortController lifecycle is managed by components
    */
   fetchPricelists: async (query = {}, signal) => {
-    // Guard: prevent update if query is the same
+    const currentRequestId = ++requestId
     const state = get()
-    if (state.currentQuery && JSON.stringify(state.currentQuery) === JSON.stringify(query)) {
+    
+    const normalizedQuery = normalizeQuery(query)
+
+    // Guard: prevent update if normalized query is the same
+    if (
+      state.currentQuery &&
+      shallowEqual(state.currentQuery, normalizedQuery)
+    ) {
       return
     }
 
     set({
       fetchLoading: true,
       error: null,
-      currentQuery: query
+      currentQuery: normalizedQuery
     })
 
     try {
-      const res = await pricelistsApi.list(query, signal)
+      const res = await pricelistsApi.list(normalizedQuery, signal)
       
-      // Check if request was aborted
+      // Check if request was aborted or superseded
       if (signal?.aborted) return
+      if (currentRequestId !== requestId) return
 
       set({
         pricelists: res.data,
@@ -84,8 +117,9 @@ export const usePricelistsStore = create<PricelistsState>((set, get) => ({
         fetchLoading: false
       })
     } catch (error) {
-      // Don't set error if request was aborted
+      // Don't set error if request was aborted or superseded
       if (signal?.aborted) return
+      if (currentRequestId !== requestId) return
 
       const message = parsePricelistError(error)
       set({
