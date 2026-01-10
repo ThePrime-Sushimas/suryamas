@@ -83,14 +83,6 @@ const PricelistRow = memo(function PricelistRow({
               Edit
             </button>
           )}
-          {canApprove && (
-            <button
-              onClick={() => onApprove(pricelist.id)}
-              className="text-green-600 hover:text-green-900"
-            >
-              Approve
-            </button>
-          )}
           <button
             onClick={() => {
               if (confirm('Delete this pricelist?')) {

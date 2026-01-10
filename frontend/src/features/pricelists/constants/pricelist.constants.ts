@@ -21,7 +21,7 @@ import type { Currency, PricelistStatus, SortField, SortOrder } from '../types/p
  * Defines which status transitions are allowed
  */
 export const STATUS_TRANSITIONS: Record<PricelistStatus, PricelistStatus[]> = {
-  DRAFT: ['APPROVED', 'REJECTED'],
+  DRAFT: ['EXPIRED'],
   APPROVED: ['EXPIRED'],
   REJECTED: [], // Terminal state
   EXPIRED: [] // Terminal state
@@ -35,9 +35,9 @@ export const EDITABLE_STATUSES: PricelistStatus[] = ['DRAFT']
 
 /**
  * Approvable statuses
- * Only DRAFT pricelists can be approved/rejected
+ * No statuses can be approved/rejected anymore
  */
-export const APPROVABLE_STATUSES: PricelistStatus[] = ['DRAFT']
+export const APPROVABLE_STATUSES: PricelistStatus[] = []
 
 // ============================================================================
 // VALIDATION RULES

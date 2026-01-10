@@ -36,7 +36,6 @@ export type SortOrder = 'asc' | 'desc'
 export interface Pricelist {
   readonly id: string
   readonly company_id: string
-  readonly branch_id: string | null
   readonly supplier_id: string
   readonly product_id: string
   readonly uom_id: string
@@ -85,7 +84,6 @@ export interface PricelistWithRelations extends Pricelist {
  */
 export interface CreatePricelistDto {
   company_id: string
-  branch_id?: string | null
   supplier_id: string
   product_id: string
   uom_id: string

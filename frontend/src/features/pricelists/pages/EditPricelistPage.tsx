@@ -155,7 +155,6 @@ export const EditPricelistPage = memo(function EditPricelistPage() {
           isEdit={true}
           submitting={storeLoading.update}
           companyId={currentBranch?.company_id || ''}
-          branchId={currentBranch?.branch_id || null}
           supplierId={pricelist.supplier_id}
           productId={pricelist.product_id}
           supplierName={pricelist.supplier?.supplier_name}

@@ -42,8 +42,8 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
   // Store = SSOT for domain state
   const pricelists = usePricelistsStore(s => s.pricelists)
   const pagination = usePricelistsStore(s => s.pagination)
-  const storeLoading = usePricelistsStore(s => s.loading)
-  const storeErrors = usePricelistsStore(s => s.errors)
+  const loading = usePricelistsStore(s => s.loading)
+  const errors = usePricelistsStore(s => s.errors)
   const fetchPricelists = usePricelistsStore(s => s.fetchPricelists)
   const deletePricelist = usePricelistsStore(s => s.deletePricelist)
   const approvePricelist = usePricelistsStore(s => s.approvePricelist)
@@ -116,15 +116,15 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
 
   // Store error handling (domain errors only)
   useEffect(() => {
-    if (storeErrors.fetch) {
-      toast.error(storeErrors.fetch)
+    if (errors.fetch) {
+      toast.error(errors.fetch)
       clearError()
     }
-    if (storeErrors.mutation) {
-      toast.error(storeErrors.mutation)
+    if (errors.mutation) {
+      toast.error(errors.mutation)
       clearError()
     }
-  }, [storeErrors.fetch, storeErrors.mutation, toast, clearError])
+  }, [errors.fetch, errors.mutation, toast, clearError])
 
   // Context error handling (routing errors only)
   useEffect(() => {
@@ -252,7 +252,7 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
         <div className="flex gap-2">
           <button
             onClick={handleExport}
-            disabled={storeLoading.fetch || pricelists.length === 0}
+            disabled={loading.fetch || !pricelists || pricelists.length === 0}
             className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             Export CSV
@@ -268,8 +268,8 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
 
       {/* Table */}
       <PricelistTable
-        data={pricelists}
-        loading={storeLoading.fetch}
+        data={pricelists || []}
+        loading={loading.fetch}
         onEdit={handleEdit}
         onDelete={handleDelete}
         onView={handleView}
@@ -308,7 +308,7 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
       )}
 
       {/* Loading overlay for mutations */}
-      {(storeLoading.create || storeLoading.update || storeLoading.delete || storeLoading.approve) && (
+      {(loading.create || loading.update || loading.delete || loading.approve) && (
         <div className="fixed inset-0 bg-gray-900/20 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 shadow-xl">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>

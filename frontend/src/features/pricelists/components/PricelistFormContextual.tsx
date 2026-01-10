@@ -32,7 +32,6 @@ interface PricelistFormContextualProps {
   submitting?: boolean
   /** Fixed context values */
   companyId: string
-  branchId?: string | null
   supplierId: string
   productId: string
   supplierName?: string
@@ -51,7 +50,6 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
   isEdit = false,
   submitting = false,
   companyId,
-  branchId,
   supplierId,
   productId,
   supplierName,
@@ -63,7 +61,6 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
   // Form data state with memoized initial values
   const initialFormData = useMemo(() => ({
     company_id: companyId,
-    branch_id: branchId || null,
     supplier_id: supplierId,
     product_id: productId,
     uom_id: initialData?.uom_id || '',
@@ -74,7 +71,6 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
     is_active: initialData?.is_active ?? true
   }), [
     companyId,
-    branchId,
     supplierId,
     productId,
     initialData?.uom_id,
@@ -137,7 +133,7 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
 
       if (isEdit) {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { company_id, branch_id, supplier_id, product_id, uom_id, ...updateData } = submitData
+        const { company_id, supplier_id, product_id, uom_id, ...updateData } = submitData
         await onSubmit(updateData)
       } else {
         await onSubmit(submitData)
@@ -180,9 +176,10 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
 
   // Cleanup on unmount
   useEffect(() => {
+    const controller = abortControllerRef.current
     return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
+      if (controller) {
+        controller.abort()
       }
     }
   }, [])

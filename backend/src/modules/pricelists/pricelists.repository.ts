@@ -105,7 +105,7 @@ export class PricelistsRepository {
       .eq('product_id', productId)
       .eq('uom_id', uomId)
       .eq('is_active', true)
-      .in('status', ['DRAFT', 'APPROVED'])
+      .in('status', ['APPROVED'])
       .is('deleted_at', null)
 
     if (excludeId) {
@@ -119,14 +119,23 @@ export class PricelistsRepository {
   }
 
   async create(data: CreatePricelistDto & { created_by?: string }): Promise<Pricelist> {
+    const insertData = {
+      company_id: data.company_id,
+      supplier_id: data.supplier_id,
+      product_id: data.product_id,
+      uom_id: data.uom_id,
+      price: data.price,
+      currency: data.currency || 'IDR',
+      valid_from: data.valid_from,
+      valid_to: data.valid_to,
+      is_active: data.is_active ?? true,
+      status: 'APPROVED' as const,
+      created_by: data.created_by
+    }
+
     const { data: pricelist, error } = await supabase
       .from('pricelists')
-      .insert({
-        ...data,
-        status: 'DRAFT',
-        currency: data.currency || 'IDR',
-        is_active: data.is_active ?? true,
-      })
+      .insert(insertData)
       .select()
       .single()
 
@@ -152,7 +161,7 @@ export class PricelistsRepository {
 
   async updateStatus(
     id: string,
-    status: 'APPROVED' | 'REJECTED' | 'EXPIRED'
+    status: 'EXPIRED'
   ): Promise<Pricelist | null> {
     const updates: any = {
       status,

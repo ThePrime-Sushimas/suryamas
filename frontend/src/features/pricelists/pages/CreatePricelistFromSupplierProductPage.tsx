@@ -234,7 +234,6 @@ export const CreatePricelistFromSupplierProductPage = memo(function CreatePricel
           submitLabel="Create Pricelist"
           submitting={storeLoading.create}
           companyId={currentBranch.company_id}
-          branchId={currentBranch.branch_id}
           supplierId={supplierProduct.supplier_id}
           productId={supplierProduct.product_id}
           supplierName={supplierProduct.supplier?.supplier_name}

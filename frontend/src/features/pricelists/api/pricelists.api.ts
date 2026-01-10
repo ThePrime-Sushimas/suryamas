@@ -24,8 +24,17 @@ const BASE_URL = '/pricelists'
  * Unwrap API response data consistently
  */
 function unwrapData<T>(response: { data: unknown }): T {
-  const data = response.data as Record<string, unknown>
-  return (data?.data ?? response.data) as T
+  // For list responses, return the whole response (data + pagination)
+  // For single item responses, return just the data
+  const responseData = response.data as Record<string, unknown>
+  
+  // If response has both 'data' and 'pagination', return the whole response
+  if (responseData?.data && responseData?.pagination) {
+    return responseData as T
+  }
+  
+  // Otherwise return just the data field or the whole response
+  return (responseData?.data ?? response.data) as T
 }
 
 /**

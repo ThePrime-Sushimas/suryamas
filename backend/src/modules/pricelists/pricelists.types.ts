@@ -3,7 +3,6 @@ export type PricelistStatus = 'DRAFT' | 'APPROVED' | 'EXPIRED' | 'REJECTED'
 export interface Pricelist {
   id: string
   company_id: string
-  branch_id: string | null
   supplier_id: string
   product_id: string
   uom_id: string
@@ -28,7 +27,6 @@ export interface PricelistWithRelations extends Pricelist {
 
 export interface CreatePricelistDto {
   company_id: string
-  branch_id?: string | null
   supplier_id: string
   product_id: string
   uom_id: string
