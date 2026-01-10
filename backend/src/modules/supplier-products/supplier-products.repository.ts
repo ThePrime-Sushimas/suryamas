@@ -87,9 +87,33 @@ export class SupplierProductsRepository {
     if (error) throw new Error(`Database query failed: ${error.message}`)
     if (countError) throw new Error(`Count query failed: ${countError.message}`)
 
-    const mappedData = includeRelations
+    let mappedData = includeRelations
       ? (data || []).map(mapSupplierProductWithRelations)
       : (data || []).map(mapSupplierProductFromDb)
+
+    // Fetch default purchase UOMs for products
+    if (includeRelations && mappedData.length > 0) {
+      const productIds = mappedData.map((item: any) => item.product_id)
+      
+      const { data: uomsData, error: uomsError } = await supabase
+        .from('product_uoms')
+        .select('product_id, metric_units(unit_name)')
+        .in('product_id', productIds)
+        .eq('is_default_purchase_unit', true)
+        .eq('status_uom', 'ACTIVE')
+        .eq('is_deleted', false)
+
+      if (!uomsError && uomsData) {
+        const uomsMap = new Map(uomsData.map((uom: any) => [uom.product_id, uom.metric_units?.unit_name]))
+        mappedData = mappedData.map((item: any) => ({
+          ...item,
+          product: item.product ? {
+            ...item.product,
+            default_purchase_unit: uomsMap.get(item.product_id) || null
+          } : null
+        }))
+      }
+    }
 
     return { data: mappedData, total: count || 0 }
   }

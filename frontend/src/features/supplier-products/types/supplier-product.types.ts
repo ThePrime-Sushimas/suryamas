@@ -36,6 +36,7 @@ export interface ProductInfo {
   product_code: string
   product_type: ProductType
   status: SupplierProductStatus
+  default_purchase_unit?: string | null
 }
 
 export interface SupplierProductWithRelations extends SupplierProduct {
