@@ -319,51 +319,26 @@ export default function ProductsPage() {
             />
 
             {/* Pagination */}
-            {pagination.totalPages > 1 && (
+            {pagination.total > 0 && (
               <div className="mt-6 flex items-center justify-between bg-white rounded-lg shadow-sm px-4 py-3">
                 <div className="text-sm text-gray-600">
-                  Showing {((pagination.page - 1) * pagination.limit) + 1} to{' '}
-                  {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
-                  {pagination.total} products
+                  Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} products
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex gap-2">
                   <button
                     onClick={() => handlePageChange(pagination.page - 1)}
                     disabled={!pagination.hasPrev}
-                    className="px-3 py-1 border rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                   >
                     Previous
                   </button>
-                  {Array.from({ length: Math.min(10, pagination.totalPages) }, (_, i) => {
-                    let page: number
-                    if (pagination.totalPages <= 10) {
-                      page = i + 1
-                    } else if (pagination.page <= 5) {
-                      page = i + 1
-                    } else if (pagination.page >= pagination.totalPages - 4) {
-                      page = pagination.totalPages - 9 + i
-                    } else {
-                      page = pagination.page - 4 + i
-                    }
-                    
-                    return (
-                      <button
-                        key={page}
-                        onClick={() => handlePageChange(page)}
-                        className={`px-3 py-1 border rounded-md ${
-                          pagination.page === page
-                            ? 'bg-blue-600 text-white'
-                            : 'hover:bg-gray-50'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    )
-                  })}
+                  <span className="px-4 py-2 border rounded-md bg-gray-50">
+                    Page {pagination.page} of {pagination.totalPages || 1}
+                  </span>
                   <button
                     onClick={() => handlePageChange(pagination.page + 1)}
                     disabled={!pagination.hasNext}
-                    className="px-3 py-1 border rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                   >
                     Next
                   </button>
