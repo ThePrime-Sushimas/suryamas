@@ -52,7 +52,6 @@ export function formatPriceSimple(price: number, currency: string = 'IDR'): stri
  */
 export function formatLeadTime(days: number | null): string {
   if (days === null || days === undefined) return '-'
-  if (days === 0) return 'Same day'
   if (days === 1) return '1 day'
   return `${days} days`
 }

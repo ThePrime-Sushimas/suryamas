@@ -156,8 +156,12 @@ export function SupplierProductTable({
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
           {data.map((item) => (
-            <tr key={item.id} className="hover:bg-gray-50">
-              <td className="px-6 py-4 whitespace-nowrap">
+            <tr 
+              key={item.id} 
+              className="hover:bg-gray-50 cursor-pointer"
+              onClick={() => onView(item.id)}
+            >
+              <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                 <input
                   type="checkbox"
                   checked={selectedItems.includes(item.id)}
@@ -211,7 +215,7 @@ export function SupplierProductTable({
                   </span>
                 )}
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
                 {item.deleted_at ? (
                   <button
                     onClick={() => onRestore(item.id)}
