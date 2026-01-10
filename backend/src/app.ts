@@ -19,6 +19,7 @@ import suppliersRoutes from './modules/suppliers/suppliers.routes'
 import banksRoutes from './modules/banks/banks.routes'
 import bankAccountsRoutes, { ownerBankAccountsRouter } from './modules/bank-accounts/bankAccounts.routes'
 import supplierProductsRoutes from './modules/supplier-products/supplier-products.routes'
+import pricelistsRoutes from './modules/pricelists/pricelists.routes'
 import { errorHandler } from './middleware/error.middleware'
 import { requestLogger } from './middleware/request-logger.middleware'
 import { generateOpenApiDocument } from './config/openapi'
@@ -67,6 +68,7 @@ app.use('/api/v1/suppliers', suppliersRoutes)
 app.use('/api/v1/banks', banksRoutes)
 app.use('/api/v1/bank-accounts', bankAccountsRoutes)
 app.use('/api/v1/supplier-products', supplierProductsRoutes)
+app.use('/api/v1/pricelists', pricelistsRoutes)
 app.use('/api/v1', ownerBankAccountsRouter)
 
 // Error handler
