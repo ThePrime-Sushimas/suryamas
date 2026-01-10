@@ -1,0 +1,245 @@
+// Supplier Product Table - Data table with actions
+
+import { formatPrice, formatLeadTime, getStatusColor, getPreferredColor } from '../utils/format'
+import type { SupplierProductWithRelations } from '../types/supplier-product.types'
+
+interface SupplierProductTableProps {
+  data: SupplierProductWithRelations[]
+  loading: boolean
+  selectedItems: string[]
+  onSelectAll: (checked: boolean) => void
+  onSelectItem: (id: string, checked: boolean) => void
+  onEdit: (id: string) => void
+  onDelete: (id: string) => void
+  onView: (id: string) => void
+  onRestore: (id: string) => void
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+  onSort?: (field: string) => void
+}
+
+export function SupplierProductTable({
+  data,
+  loading,
+  selectedItems,
+  onSelectAll,
+  onSelectItem,
+  onEdit,
+  onDelete,
+  onView,
+  onRestore,
+  sortBy,
+  sortOrder,
+  onSort
+}: SupplierProductTableProps) {
+  const allSelected = data.length > 0 && selectedItems.length === data.length
+  const someSelected = selectedItems.length > 0 && selectedItems.length < data.length
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortBy !== field) return <span className="ml-1 text-gray-400">↕</span>
+    return <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+  }
+
+  const SortableHeader = ({ field, children }: { field: string; children: React.ReactNode }) => (
+    <th 
+      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+      onClick={() => onSort?.(field)}
+    >
+      <div className="flex items-center">
+        {children}
+        <SortIcon field={field} />
+      </div>
+    </th>
+  )
+
+  const handleSelectAll = () => {
+    onSelectAll(!allSelected)
+  }
+
+  const handleSelectItem = (id: string, checked: boolean) => {
+    onSelectItem(id, checked)
+  }
+
+  if (loading && data.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                <div className="h-4 w-4 bg-gray-200 rounded animate-pulse" />
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lead Time</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {[...Array(5)].map((_, i) => (
+              <tr key={i}>
+                <td className="px-6 py-4"><div className="h-4 w-4 bg-gray-200 rounded animate-pulse" /></td>
+                <td className="px-6 py-4"><div className="h-4 w-32 bg-gray-200 rounded animate-pulse" /></td>
+                <td className="px-6 py-4"><div className="h-4 w-32 bg-gray-200 rounded animate-pulse" /></td>
+                <td className="px-6 py-4"><div className="h-4 w-24 bg-gray-200 rounded animate-pulse" /></td>
+                <td className="px-6 py-4"><div className="h-4 w-16 bg-gray-200 rounded animate-pulse" /></td>
+                <td className="px-6 py-4"><div className="h-6 w-16 bg-gray-200 rounded-full animate-pulse" /></td>
+                <td className="px-6 py-4"><div className="h-8 w-20 bg-gray-200 rounded animate-pulse" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
+  if (data.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                <input type="checkbox" className="w-4 h-4 text-blue-600 border-gray-300 rounded" disabled />
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lead Time</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+        </table>
+        <div className="text-center py-12">
+          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+          </svg>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No supplier products</h3>
+          <p className="mt-1 text-sm text-gray-500">Get started by creating a new supplier product.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow overflow-hidden">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                ref={(input) => {
+                  if (input) input.indeterminate = someSelected
+                }}
+                onChange={handleSelectAll}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+            <SortableHeader field="price">Price</SortableHeader>
+            <SortableHeader field="lead_time_days">Lead Time</SortableHeader>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Min Order</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preferred</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {data.map((item) => (
+            <tr key={item.id} className="hover:bg-gray-50">
+              <td className="px-6 py-4 whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={selectedItems.includes(item.id)}
+                  onChange={(e) => handleSelectItem(item.id, e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="text-sm font-medium text-gray-900">
+                  {item.supplier?.supplier_name || '-'}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {item.supplier?.supplier_code || item.supplier_id}
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="text-sm font-medium text-gray-900">
+                  {item.product?.product_name || '-'}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {item.product?.product_code || item.product_id}
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="text-sm font-medium text-gray-900">
+                  {formatPrice(item.price, item.currency)}
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {formatLeadTime(item.lead_time_days)}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {item.min_order_qty ? item.min_order_qty.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '-'}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPreferredColor(item.is_preferred)}`}>
+                  {item.is_preferred ? '★ Yes' : 'No'}
+                </span>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                {item.deleted_at ? (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    Deleted
+                  </span>
+                ) : (
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.is_active)}`}>
+                    {item.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                )}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                {item.deleted_at ? (
+                  <button
+                    onClick={() => onRestore(item.id)}
+                    className="text-green-600 hover:text-green-900"
+                  >
+                    Restore
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => onView(item.id)}
+                      className="text-blue-600 hover:text-blue-900 mr-3"
+                    >
+                      View
+                    </button>
+                    <button
+                      onClick={() => onEdit(item.id)}
+                      className="text-indigo-600 hover:text-indigo-900 mr-3"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => onDelete(item.id)}
+                      className="text-red-600 hover:text-red-900"
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+

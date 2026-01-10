@@ -59,6 +59,7 @@ export interface SupplierProductListQuery {
   product_id?: string
   is_preferred?: boolean
   is_active?: boolean
+  include_deleted?: boolean
   sort_by?: string
   sort_order?: 'asc' | 'desc'
 }

@@ -42,7 +42,8 @@ export class SupplierProductsController {
     try {
       const { id } = req.params
       const includeRelations = req.query.include_relations === 'true'
-      const supplierProduct = await supplierProductsService.findById(id, includeRelations)
+      const includeDeleted = req.query.include_deleted === 'true'
+      const supplierProduct = await supplierProductsService.findById(id, includeRelations, includeDeleted)
 
       sendSuccess(res, supplierProduct, 'Supplier product retrieved successfully')
     } catch (error: any) {
@@ -74,20 +75,20 @@ export class SupplierProductsController {
     }
   }
 
-  create = withValidated(async (req: CreateSupplierProductReq, res: Response) => {
+  create = withValidated(async (req: CreateSupplierProductReq & AuthRequest, res: Response) => {
     try {
       const body = req.validated.body as any
       const supplierProduct = await supplierProductsService.create({
         ...body,
         lead_time_days: body.lead_time_days ?? undefined,
         min_order_qty: body.min_order_qty ?? undefined,
-      }, (req as any).user?.id)
+      }, req.user?.id)
       
       logInfo('Supplier product created via API', { 
         supplierProductId: supplierProduct.id,
         supplierId: supplierProduct.supplier_id,
         productId: supplierProduct.product_id,
-        userId: (req as any).user?.id
+        userId: req.user?.id
       })
       
       sendSuccess(res, supplierProduct, 'Supplier product created successfully', 201)
@@ -96,7 +97,7 @@ export class SupplierProductsController {
     }
   })
 
-  update = withValidated(async (req: UpdateSupplierProductReq, res: Response) => {
+  update = withValidated(async (req: UpdateSupplierProductReq & AuthRequest, res: Response) => {
     try {
       const { id } = req.validated.params
       const body = req.validated.body as any
@@ -104,11 +105,11 @@ export class SupplierProductsController {
         ...body,
         lead_time_days: body.lead_time_days ?? undefined,
         min_order_qty: body.min_order_qty ?? undefined,
-      }, (req as any).user?.id)
+      }, req.user?.id)
       
       logInfo('Supplier product updated via API', { 
         supplierProductId: id,
-        userId: (req as any).user?.id
+        userId: req.user?.id
       })
       
       sendSuccess(res, supplierProduct, 'Supplier product updated successfully')
@@ -128,10 +129,32 @@ export class SupplierProductsController {
     }
   }
 
-  bulkDelete = withValidated(async (req: BulkDeleteReq, res: Response) => {
+  restore = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params
+      const supplierProduct = await supplierProductsService.restore(id, req.user?.id)
+      
+      sendSuccess(res, supplierProduct, 'Supplier product restored successfully')
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  }
+
+  bulkRestore = withValidated(async (req: BulkDeleteReq & AuthRequest, res: Response) => {
     try {
       const { ids } = req.validated.body
-      await supplierProductsService.bulkDelete(ids, (req as any).user?.id)
+      await supplierProductsService.bulkRestore(ids, req.user?.id)
+      
+      sendSuccess(res, null, 'Supplier products restored successfully')
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  })
+
+  bulkDelete = withValidated(async (req: BulkDeleteReq & AuthRequest, res: Response) => {
+    try {
+      const { ids } = req.validated.body
+      await supplierProductsService.bulkDelete(ids, req.user?.id)
       
       sendSuccess(res, null, 'Supplier products deleted successfully')
     } catch (error: any) {
@@ -143,6 +166,39 @@ export class SupplierProductsController {
     try {
       const options = await supplierProductsService.getActiveOptions()
       sendSuccess(res, options, 'Active supplier products retrieved successfully')
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  }
+
+  exportCSV = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const includeRelations = true
+      const { data } = await supplierProductsService.list(
+        { page: 1, limit: 10000 },
+        req.filterParams,
+        includeRelations
+      )
+
+      const csv = [
+        ['Supplier Code', 'Supplier Name', 'Product Code', 'Product Name', 'Price', 'Currency', 'Lead Time (Days)', 'Min Order Qty', 'Preferred', 'Active'].join(','),
+        ...data.map((item: any) => [
+          item.supplier?.supplier_code || '',
+          item.supplier?.supplier_name || '',
+          item.product?.product_code || '',
+          item.product?.product_name || '',
+          item.price,
+          item.currency,
+          item.lead_time_days ?? '',
+          item.min_order_qty ?? '',
+          item.is_preferred ? 'Yes' : 'No',
+          item.is_active ? 'Active' : 'Inactive'
+        ].join(','))
+      ].join('\n')
+
+      res.setHeader('Content-Type', 'text/csv')
+      res.setHeader('Content-Disposition', `attachment; filename=supplier-products-${Date.now()}.csv`)
+      res.send(csv)
     } catch (error: any) {
       handleError(res, error)
     }

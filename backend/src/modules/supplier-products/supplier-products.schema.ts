@@ -74,6 +74,7 @@ export const supplierProductListSchema = z.object({
     product_id: z.string().uuid().optional(),
     is_preferred: z.string().regex(/^(true|false)$/).transform(val => val === 'true').optional(),
     is_active: z.string().regex(/^(true|false)$/).transform(val => val === 'true').optional(),
+    include_deleted: z.string().regex(/^(true|false)$/).transform(val => val === 'true').optional(),
     sort_by: z.enum(SUPPLIER_PRODUCT_SORT_FIELDS as [string, ...string[]]).optional(),
     sort_order: z.enum(['asc', 'desc']).optional(),
   }),

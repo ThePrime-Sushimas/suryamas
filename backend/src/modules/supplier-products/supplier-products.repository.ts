@@ -30,9 +30,11 @@ export class SupplierProductsRepository {
     let dbQuery = supabase.from('supplier_products').select(selectFields)
     let countQuery = supabase.from('supplier_products').select('*', { count: 'exact', head: true })
 
-    // Exclude soft deleted
-    dbQuery = dbQuery.is('deleted_at', null)
-    countQuery = countQuery.is('deleted_at', null)
+    // Exclude soft deleted (unless include_deleted is true)
+    if (!query?.include_deleted) {
+      dbQuery = dbQuery.is('deleted_at', null)
+      countQuery = countQuery.is('deleted_at', null)
+    }
 
     // Apply filters
     if (query?.supplier_id) {
@@ -95,17 +97,21 @@ export class SupplierProductsRepository {
   /**
    * Find supplier product by ID
    */
-  async findById(id: string, includeRelations = false): Promise<SupplierProduct | SupplierProductWithRelations | null> {
+  async findById(id: string, includeRelations = false, includeDeleted = false): Promise<SupplierProduct | SupplierProductWithRelations | null> {
     const selectFields = includeRelations 
       ? `*, suppliers(id, supplier_name, supplier_code, is_active), products(id, product_name, product_code, product_type, status)`
       : '*'
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('supplier_products')
       .select(selectFields)
       .eq('id', id)
-      .is('deleted_at', null)
-      .maybeSingle()
+
+    if (!includeDeleted) {
+      query = query.is('deleted_at', null)
+    }
+
+    const { data, error } = await query.maybeSingle()
 
     if (error) throw new Error(`Database query failed: ${error.message}`)
     if (!data) return null
@@ -255,27 +261,64 @@ export class SupplierProductsRepository {
   }
 
   /**
-   * Bulk delete supplier products with transaction support
+   * Bulk delete supplier products (soft delete)
    */
   async bulkDelete(ids: string[]): Promise<void> {
     if (!Array.isArray(ids) || ids.length === 0) {
       throw new Error('Invalid ids array')
     }
 
-    // Use Supabase RPC for atomic bulk delete
-    const { error } = await supabase.rpc('bulk_delete_supplier_products', {
-      supplier_product_ids: ids
-    })
+    const { error } = await supabase
+      .from('supplier_products')
+      .update({
+        deleted_at: new Date().toISOString(),
+        is_active: false,
+      })
+      .in('id', ids)
+      .is('deleted_at', null)
 
-    if (error) {
-      // Fallback to individual deletes in transaction
-      const { error: txError } = await supabase
-        .from('supplier_products')
-        .delete()
-        .in('id', ids)
+    if (error) throw new Error(`Database bulk delete failed: ${error.message}`)
+  }
 
-      if (txError) throw new Error(`Database bulk delete failed: ${txError.message}`)
+  /**
+   * Restore soft-deleted supplier product
+   */
+  async restore(id: string): Promise<SupplierProduct | null> {
+    const { data, error } = await supabase
+      .from('supplier_products')
+      .update({
+        deleted_at: null,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .not('deleted_at', 'is', null)
+      .select()
+      .maybeSingle()
+
+    if (error) throw new Error(`Database restore failed: ${error.message}`)
+    return data ? mapSupplierProductFromDb(data) : null
+  }
+
+  /**
+   * Bulk restore supplier products
+   */
+  async bulkRestore(ids: string[]): Promise<void> {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new Error('Invalid ids array')
     }
+
+    const { error } = await supabase
+      .from('supplier_products')
+      .update({
+        deleted_at: null,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      })
+      .in('id', ids)
+      .not('deleted_at', 'is', null)
+
+    if (error) throw new Error(`Database bulk restore failed: ${error.message}`)
   }
 
   /**

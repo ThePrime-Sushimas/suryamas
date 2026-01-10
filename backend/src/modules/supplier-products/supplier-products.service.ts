@@ -62,8 +62,8 @@ export class SupplierProductsService {
   /**
    * Get supplier product by ID
    */
-  async findById(id: string, includeRelations = false): Promise<SupplierProduct | SupplierProductWithRelations> {
-    const supplierProduct = await this.repository.findById(id, includeRelations)
+  async findById(id: string, includeRelations = false, includeDeleted = false): Promise<SupplierProduct | SupplierProductWithRelations> {
+    const supplierProduct = await this.repository.findById(id, includeRelations, includeDeleted)
     if (!supplierProduct) {
       throw new SupplierProductNotFoundError(id)
     }
@@ -194,6 +194,38 @@ export class SupplierProductsService {
     }
 
     logInfo('Supplier product deleted', { id, userId })
+  }
+
+  /**
+   * Restore supplier product
+   */
+  async restore(id: string, userId?: string): Promise<SupplierProduct> {
+    const restored = await this.repository.restore(id)
+    if (!restored) {
+      throw new SupplierProductNotFoundError(id)
+    }
+
+    // Audit logging
+    if (userId) {
+      await this.auditService.log('RESTORE', 'supplier_product', id, userId, undefined, restored)
+    }
+
+    logInfo('Supplier product restored', { id, userId })
+    return restored
+  }
+
+  async bulkRestore(ids: string[], userId?: string): Promise<void> {
+    if (ids.length > SUPPLIER_PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) {
+      throw new BulkOperationLimitError(SUPPLIER_PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE, ids.length)
+    }
+
+    await this.repository.bulkRestore(ids)
+
+    if (userId) {
+      await this.auditService.log('RESTORE', 'supplier_product', ids.join(','), userId)
+    }
+
+    logInfo('Bulk restore supplier products', { count: ids.length, userId })
   }
 
   /**

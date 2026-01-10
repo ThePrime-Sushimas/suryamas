@@ -44,6 +44,15 @@ router.get('/options/active',
 )
 
 /**
+ * GET /supplier-products/export
+ * Export supplier products to CSV
+ */
+router.get('/export',
+  canView('supplier_products'),
+  (req: any, res: Response) => supplierProductsController.exportCSV(req, res)
+)
+
+/**
  * GET /supplier-products/supplier/:supplier_id
  * Get supplier products by supplier ID
  */
@@ -97,6 +106,26 @@ router.post('/',
 )
 
 /**
+ * POST /supplier-products/bulk/delete
+ * Bulk delete supplier products
+ */
+router.post('/bulk/delete', 
+  canDelete('supplier_products'),
+  validateSchema(bulkDeleteSchema),
+  supplierProductsController.bulkDelete
+)
+
+/**
+ * POST /supplier-products/bulk/restore
+ * Bulk restore supplier products
+ */
+router.post('/bulk/restore',
+  canUpdate('supplier_products'),
+  validateSchema(bulkDeleteSchema),
+  supplierProductsController.bulkRestore
+)
+
+/**
  * PUT /supplier-products/:id
  * Update supplier product
  */
@@ -117,13 +146,13 @@ router.delete('/:id',
 )
 
 /**
- * POST /supplier-products/bulk/delete
- * Bulk delete supplier products
+ * POST /supplier-products/:id/restore
+ * Restore deleted supplier product
  */
-router.post('/bulk/delete', 
-  canDelete('supplier_products'),
-  validateSchema(bulkDeleteSchema),
-  supplierProductsController.bulkDelete
+router.post('/:id/restore',
+  canUpdate('supplier_products'),
+  validateSchema(supplierProductIdSchema),
+  (req: any, res: Response) => supplierProductsController.restore(req, res)
 )
 
 export default router

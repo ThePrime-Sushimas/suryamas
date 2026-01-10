@@ -46,6 +46,7 @@ export default function Layout() {
         { id: 'sub-categories', name: 'Sub Categories', href: '/sub-categories', icon: <Package size={16} />, module: 'sub_categories' },
         { id: 'metric-units', name: 'Metric Units', href: '/metric-units', icon: <Package size={16} />, module: 'metric-units' },
         { id: 'payment-terms', name: 'Payment Terms', href: '/payment-terms', icon: <Package size={16} />, module: 'payment_terms' },
+        { id: 'supplier-products', name: 'Supplier Products', href: '/supplier-products', icon: <ShoppingCart size={16} />, module: 'supplier_products' },
       ]
     },
     {
@@ -55,6 +56,7 @@ export default function Layout() {
       submenu: [
         { id: 'products', name: 'Products', href: '/products', icon: <Package size={16} />, module: 'products' },
         { id: 'suppliers', name: 'Suppliers', href: '/suppliers', icon: <Building2 size={16} />, module: 'suppliers' },
+        { id: 'supplier-products', name: 'Supplier Products', href: '/supplier-products', icon: <ShoppingCart size={16} />, module: 'supplier_products' },
       ]
     },
     {
