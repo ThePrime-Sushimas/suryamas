@@ -11,7 +11,7 @@
  * @module pricelists/components
  */
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useUomSearch } from '../hooks/useUomSearch'
 import { CURRENCY_OPTIONS } from '../constants/pricelist.constants'
 import { validateCreatePricelist, validateUpdatePricelist, hasErrors } from '../utils/validation'
@@ -76,7 +76,39 @@ export function PricelistFormContextual({
     is_active: initialData?.is_active ?? true
   }))
 
-  // Memoized validation
+  // Reset form when initialData changes (switching between items)
+  useEffect(() => {
+    if (initialData?.id) {
+      setFormData({
+        company_id: companyId,
+        branch_id: branchId || null,
+        supplier_id: supplierId,
+        product_id: productId,
+        uom_id: initialData.uom_id || '',
+        price: initialData.price || 0,
+        currency: initialData.currency || 'IDR',
+        valid_from: initialData.valid_from || new Date().toISOString().split('T')[0],
+        valid_to: initialData.valid_to || null,
+        is_active: initialData.is_active ?? true
+      })
+      setTouched({})
+      setErrors({})
+    }
+  }, [
+    initialData?.id,
+    initialData?.uom_id,
+    initialData?.price,
+    initialData?.currency,
+    initialData?.valid_from,
+    initialData?.valid_to,
+    initialData?.is_active,
+    companyId,
+    branchId,
+    supplierId,
+    productId
+  ])
+
+  // Memoized validation (pure function - no touched dependency needed)
   const validationErrors = useMemo(() => {
     if (isEdit) {
       const updateData: UpdatePricelistDto = {
@@ -96,8 +128,6 @@ export function PricelistFormContextual({
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     
-    console.log('Form submit triggered', { formData, validationErrors })
-    
     // Mark all fields as touched
     const allTouched = Object.keys(formData).reduce((acc, key) => {
       acc[key] = true
@@ -107,19 +137,17 @@ export function PricelistFormContextual({
 
     // Validate
     if (hasErrors(validationErrors)) {
-      console.log('Validation failed', validationErrors)
       setErrors(validationErrors)
       return
     }
 
-    console.log('Validation passed, submitting...')
     setSubmitting(true)
     setErrors({})
 
     try {
       const submitData = { ...formData }
       
-      // Remove default currency to save bandwidth
+      // Clean currency optimization
       if (submitData.currency === 'IDR') {
         delete submitData.currency
       }
@@ -205,7 +233,7 @@ export function PricelistFormContextual({
             required
             disabled={isEdit || isFormDisabled}
             className={`w-full px-3 py-2 mt-1 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
-              getFieldError('uom_id') ? 'border-red-500' : 'border-gray-300'
+              !isEdit && getFieldError('uom_id') ? 'border-red-500' : 'border-gray-300'
             }`}
             aria-invalid={!!getFieldError('uom_id')}
             aria-describedby={getFieldError('uom_id') ? 'uom-error' : undefined}
@@ -218,7 +246,7 @@ export function PricelistFormContextual({
           {isEdit && (
             <p id="uom-help" className="text-xs text-gray-500 mt-1">UOM cannot be changed</p>
           )}
-          {getFieldError('uom_id') && (
+          {!isEdit && getFieldError('uom_id') && (
             <p id="uom-error" className="text-xs text-red-600 mt-1" role="alert">
               {getFieldError('uom_id')}
             </p>
