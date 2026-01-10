@@ -27,7 +27,6 @@ export class PricelistsService {
 
     return pricelistsRepository.create({
       ...data,
-      branch_id: null, // Pricelist is company-wide, not per branch
       created_by: userId,
     })
   }

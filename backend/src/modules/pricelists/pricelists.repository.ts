@@ -161,7 +161,7 @@ export class PricelistsRepository {
 
   async updateStatus(
     id: string,
-    status: 'EXPIRED'
+    status: 'APPROVED' | 'REJECTED' | 'EXPIRED'
   ): Promise<Pricelist | null> {
     const updates: any = {
       status,
