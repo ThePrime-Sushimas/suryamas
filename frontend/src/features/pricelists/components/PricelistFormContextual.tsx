@@ -11,7 +11,7 @@
  * @module pricelists/components
  */
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect, memo } from 'react'
 import { useUomSearch } from '../hooks/useUomSearch'
 import { CURRENCY_OPTIONS } from '../constants/pricelist.constants'
 import { validateCreatePricelist, validateUpdatePricelist, hasErrors } from '../utils/validation'
@@ -43,7 +43,7 @@ interface PricelistFormContextualProps {
  * Contextual pricelist form with fixed supplier-product
  * Follows ERP domain-driven design principles
  */
-export function PricelistFormContextual({
+export const PricelistFormContextual = memo(function PricelistFormContextual({
   initialData,
   onSubmit,
   onCancel,
@@ -58,6 +58,7 @@ export function PricelistFormContextual({
   productName
 }: PricelistFormContextualProps) {
   const uomSearch = useUomSearch(productId)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // Form data state with memoized initial values
   const initialFormData = useMemo(() => ({
@@ -176,6 +177,15 @@ export function PricelistFormContextual({
   }, [touched, validationErrors])
 
   const isFormDisabled = submitting
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [])
 
   return (
     <form key={formKey} onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6" noValidate>
@@ -385,4 +395,4 @@ export function PricelistFormContextual({
       </div>
     </form>
   )
-}
+})

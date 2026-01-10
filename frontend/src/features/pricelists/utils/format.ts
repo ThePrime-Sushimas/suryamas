@@ -1,69 +1,80 @@
 /**
  * Pricelist Format Utilities
- * Consistent formatting for display
+ * Consistent formatting for display with memoization
  * 
  * @module pricelists/utils/format
  */
 
 import type { Currency, PricelistStatus } from '../types/pricelist.types'
 
+// Memoized formatters to prevent recreation on each render
+const priceFormatters = new Map<Currency, Intl.NumberFormat>()
+const dateFormatter = new Intl.DateTimeFormat('id-ID', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric'
+})
+const dateTimeFormatter = new Intl.DateTimeFormat('id-ID', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+})
+
+// Cached status labels
+const STATUS_LABELS: Record<PricelistStatus, string> = {
+  DRAFT: 'Draft',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
+  EXPIRED: 'Expired'
+}
+
 /**
- * Format price with currency
+ * Format price with currency (memoized formatter)
  */
 export function formatPrice(price: number, currency: Currency = 'IDR'): string {
-  const formatter = new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })
+  let formatter = priceFormatters.get(currency)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })
+    priceFormatters.set(currency, formatter)
+  }
   return formatter.format(price)
 }
 
 /**
- * Format date to locale string
+ * Format date to locale string (memoized formatter)
  */
 export function formatDate(date: string | null): string {
   if (!date) return '-'
   try {
-    return new Date(date).toLocaleDateString('id-ID', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
+    return dateFormatter.format(new Date(date))
   } catch {
     return date
   }
 }
 
 /**
- * Format datetime to locale string
+ * Format datetime to locale string (memoized formatter)
  */
 export function formatDateTime(date: string): string {
   try {
-    return new Date(date).toLocaleString('id-ID', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    return dateTimeFormatter.format(new Date(date))
   } catch {
     return date
   }
 }
 
 /**
- * Format status to display label
+ * Format status to display label (cached lookup)
  */
 export function formatStatus(status: PricelistStatus): string {
-  const labels: Record<PricelistStatus, string> = {
-    DRAFT: 'Draft',
-    APPROVED: 'Approved',
-    REJECTED: 'Rejected',
-    EXPIRED: 'Expired'
-  }
-  return labels[status] || status
+  return STATUS_LABELS[status] || status
 }
 
 /**

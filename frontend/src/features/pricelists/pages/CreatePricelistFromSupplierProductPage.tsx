@@ -11,7 +11,7 @@
  * @module pricelists/pages
  */
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, memo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useToast } from '@/contexts/ToastContext'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
@@ -32,7 +32,7 @@ interface SupplierProductContext {
  * Create pricelist page with supplier-product context
  * Follows ERP domain-driven design principles
  */
-export function CreatePricelistFromSupplierProductPage() {
+export const CreatePricelistFromSupplierProductPage = memo(function CreatePricelistFromSupplierProductPage() {
   const { supplierProductId } = useParams<{ supplierProductId: string }>()
   const navigate = useNavigate()
   const toast = useToast()
@@ -243,4 +243,4 @@ export function CreatePricelistFromSupplierProductPage() {
       </div>
     </div>
   )
-}
+})

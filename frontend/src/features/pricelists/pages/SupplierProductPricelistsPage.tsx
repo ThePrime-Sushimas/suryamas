@@ -12,7 +12,7 @@
  * @module pricelists/pages
  */
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, memo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useToast } from '@/contexts/ToastContext'
 import { supplierProductsApi } from '@/features/supplier-products'
@@ -34,7 +34,7 @@ interface SupplierProductContext {
  * Main pricelists page for supplier-product context
  * Implements proper ERP domain hierarchy
  */
-export function SupplierProductPricelistsPage() {
+export const SupplierProductPricelistsPage = memo(function SupplierProductPricelistsPage() {
   const { supplierProductId } = useParams<{ supplierProductId: string }>()
   const navigate = useNavigate()
   const toast = useToast()
@@ -318,4 +318,4 @@ export function SupplierProductPricelistsPage() {
       )}
     </div>
   )
-}
+})

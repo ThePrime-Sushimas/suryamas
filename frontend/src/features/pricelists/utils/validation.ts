@@ -1,6 +1,6 @@
 /**
  * Pricelist Validation Utilities
- * Client-side validation rules
+ * Client-side validation rules with memoization
  * 
  * @module pricelists/utils/validation
  */
@@ -8,10 +8,22 @@
 import { VALIDATION_RULES } from '../constants/pricelist.constants'
 import type { CreatePricelistDto, UpdatePricelistDto, PricelistFormErrors } from '../types/pricelist.types'
 
+// Memoized validation cache
+const validationCache = new Map<string, PricelistFormErrors>()
+
+// Generate cache key for validation data
+function getCacheKey(data: CreatePricelistDto | UpdatePricelistDto): string {
+  return JSON.stringify(data)
+}
+
 /**
- * Validate create pricelist form
+ * Validate create pricelist form (with memoization)
  */
 export function validateCreatePricelist(data: CreatePricelistDto): PricelistFormErrors {
+  const cacheKey = getCacheKey(data)
+  const cached = validationCache.get(cacheKey)
+  if (cached) return cached
+
   const errors: PricelistFormErrors = {}
 
   // Required fields
@@ -70,13 +82,19 @@ export function validateCreatePricelist(data: CreatePricelistDto): PricelistForm
     }
   }
 
+  // Cache result
+  validationCache.set(cacheKey, errors)
   return errors
 }
 
 /**
- * Validate update pricelist form
+ * Validate update pricelist form (with memoization)
  */
 export function validateUpdatePricelist(data: UpdatePricelistDto): PricelistFormErrors {
+  const cacheKey = getCacheKey(data)
+  const cached = validationCache.get(cacheKey)
+  if (cached) return cached
+
   const errors: PricelistFormErrors = {}
 
   // Price validation (if provided)
@@ -114,6 +132,8 @@ export function validateUpdatePricelist(data: UpdatePricelistDto): PricelistForm
     }
   }
 
+  // Cache result
+  validationCache.set(cacheKey, errors)
   return errors
 }
 
