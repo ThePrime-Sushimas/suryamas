@@ -21,6 +21,14 @@ import type {
 const BASE_URL = '/pricelists'
 
 /**
+ * Unwrap API response data consistently
+ */
+function unwrapData<T>(response: { data: unknown }): T {
+  const data = response.data as Record<string, unknown>
+  return (data?.data ?? response.data) as T
+}
+
+/**
  * Build query string from params
  * Removes undefined/null values
  */
@@ -40,7 +48,7 @@ export const pricelistsApi = {
   async list(query: PricelistListQuery = {}, signal?: AbortSignal): Promise<PricelistListResponse> {
     const queryString = buildQueryString(query as Record<string, unknown>)
     const response = await axios.get<PricelistListResponse>(`${BASE_URL}${queryString}`, { signal })
-    return response.data
+    return unwrapData<PricelistListResponse>(response)
   },
 
   /**
@@ -48,34 +56,23 @@ export const pricelistsApi = {
    */
   async getById(id: string, signal?: AbortSignal): Promise<PricelistWithRelations> {
     const response = await axios.get(`${BASE_URL}/${id}`, { signal })
-    return response.data.data || response.data
+    return unwrapData<PricelistWithRelations>(response)
   },
 
   /**
    * Create new pricelist
    */
   async create(data: CreatePricelistDto): Promise<Pricelist> {
-    try {
-      const response = await axios.post(BASE_URL, data)
-      return response.data.data || response.data
-    } catch (error: unknown) {
-      const axiosError = error as { response?: { data?: { error?: string } } }
-      console.error('Backend error response:', axiosError.response?.data)
-      console.error('Request data:', data)
-      // Show user-friendly error for foreign key constraint
-      if (axiosError.response?.data?.error?.includes('foreign key constraint')) {
-        throw new Error('Selected UOM is not valid. Please choose a different UOM.')
-      }
-      throw error
-    }
+    const response = await axios.post(BASE_URL, data)
+    return unwrapData<Pricelist>(response)
   },
 
   /**
    * Update existing pricelist (DRAFT only)
    */
   async update(id: string, data: UpdatePricelistDto): Promise<Pricelist> {
-    const response = await axios.patch<Pricelist>(`${BASE_URL}/${id}`, data)
-    return response.data
+    const response = await axios.patch(`${BASE_URL}/${id}`, data)
+    return unwrapData<Pricelist>(response)
   },
 
   /**
@@ -89,8 +86,8 @@ export const pricelistsApi = {
    * Approve or reject pricelist
    */
   async approve(id: string, data: PricelistApprovalDto): Promise<Pricelist> {
-    const response = await axios.post<Pricelist>(`${BASE_URL}/${id}/approve`, data)
-    return response.data
+    const response = await axios.post(`${BASE_URL}/${id}/approve`, data)
+    return unwrapData<Pricelist>(response)
   },
 
   /**
@@ -100,7 +97,7 @@ export const pricelistsApi = {
   async lookup(query: PricelistLookupQuery, signal?: AbortSignal): Promise<PricelistLookupResponse> {
     const queryString = buildQueryString(query as unknown as Record<string, unknown>)
     const response = await axios.get<PricelistLookupResponse>(`${BASE_URL}/lookup${queryString}`, { signal })
-    return response.data
+    return unwrapData<PricelistLookupResponse>(response)
   },
 
   /**
