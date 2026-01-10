@@ -18,6 +18,23 @@ interface SupplierProductTableProps {
   onSort?: (field: string) => void
 }
 
+const SortIcon = ({ field, sortBy, sortOrder }: { field: string; sortBy?: string; sortOrder?: 'asc' | 'desc' }) => {
+  if (sortBy !== field) return <span className="ml-1 text-gray-400">↕</span>
+  return <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+}
+
+const SortableHeader = ({ field, sortBy, sortOrder, onSort, children }: { field: string; sortBy?: string; sortOrder?: 'asc' | 'desc'; onSort?: (field: string) => void; children: React.ReactNode }) => (
+  <th 
+    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+    onClick={() => onSort?.(field)}
+  >
+    <div className="flex items-center">
+      {children}
+      <SortIcon field={field} sortBy={sortBy} sortOrder={sortOrder} />
+    </div>
+  </th>
+)
+
 export function SupplierProductTable({
   data,
   loading,
@@ -34,23 +51,6 @@ export function SupplierProductTable({
 }: SupplierProductTableProps) {
   const allSelected = data.length > 0 && selectedItems.length === data.length
   const someSelected = selectedItems.length > 0 && selectedItems.length < data.length
-
-  const SortIcon = ({ field }: { field: string }) => {
-    if (sortBy !== field) return <span className="ml-1 text-gray-400">↕</span>
-    return <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-  }
-
-  const SortableHeader = ({ field, children }: { field: string; children: React.ReactNode }) => (
-    <th 
-      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-      onClick={() => onSort?.(field)}
-    >
-      <div className="flex items-center">
-        {children}
-        <SortIcon field={field} />
-      </div>
-    </th>
-  )
 
   const handleSelectAll = () => {
     onSelectAll(!allSelected)
@@ -142,8 +142,8 @@ export function SupplierProductTable({
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-            <SortableHeader field="price">Price</SortableHeader>
-            <SortableHeader field="lead_time_days">Lead Time</SortableHeader>
+            <SortableHeader field="price" sortBy={sortBy} sortOrder={sortOrder} onSort={onSort}>Price</SortableHeader>
+            <SortableHeader field="lead_time_days" sortBy={sortBy} sortOrder={sortOrder} onSort={onSort}>Lead Time</SortableHeader>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Min Order</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preferred</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
