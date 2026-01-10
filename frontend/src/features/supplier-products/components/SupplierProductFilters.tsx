@@ -47,34 +47,46 @@ export function SupplierProductFilters({
 
   // Load suppliers
   useEffect(() => {
+    const controller = new AbortController()
+    
     const loadSuppliers = async () => {
       setLoadingSuppliers(true)
       try {
-        const res = await suppliersApi.list({ is_active: true, limit: 100 })
+        const res = await suppliersApi.list({ is_active: true, limit: 100 }, controller.signal)
         setSuppliers(res.data)
       } catch (error) {
-        console.error('Failed to load suppliers:', error)
+        if (error instanceof Error && error.name !== 'AbortError' && error.name !== 'CanceledError') {
+          console.error('Failed to load suppliers:', error)
+        }
       } finally {
         setLoadingSuppliers(false)
       }
     }
+    
     loadSuppliers()
+    return () => controller.abort()
   }, [])
 
   // Load products
   useEffect(() => {
+    const controller = new AbortController()
+    
     const loadProducts = async () => {
       setLoadingProducts(true)
       try {
         const res = await productsApi.search('', 1, 100)
         setProducts(res.data)
       } catch (error) {
-        console.error('Failed to load products:', error)
+        if (error instanceof Error && error.name !== 'AbortError' && error.name !== 'CanceledError') {
+          console.error('Failed to load products:', error)
+        }
       } finally {
         setLoadingProducts(false)
       }
     }
+    
     loadProducts()
+    return () => controller.abort()
   }, [])
 
 const handlePreferredChange = (e: React.ChangeEvent<HTMLSelectElement>) => {

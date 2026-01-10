@@ -38,7 +38,9 @@ export function parseSupplierProductError(error: unknown): string {
         return 'This product already has a price from this supplier. Please edit the existing record instead.'
 
       case 'INVALID_SUPPLIER': {
-        const reason = err.details?.reason as string | undefined
+        const reason = err.details && typeof err.details === 'object' && 'reason' in err.details 
+          ? String(err.details.reason) 
+          : undefined
         if (reason === 'not_found') {
           return 'The selected supplier was not found. Please select a different supplier.'
         }
@@ -52,7 +54,9 @@ export function parseSupplierProductError(error: unknown): string {
       }
 
       case 'INVALID_PRODUCT': {
-        const reason = err.details?.reason as string | undefined
+        const reason = err.details && typeof err.details === 'object' && 'reason' in err.details 
+          ? String(err.details.reason) 
+          : undefined
         if (reason === 'not_found') {
           return 'The selected product was not found. Please select a different product.'
         }
@@ -66,24 +70,36 @@ export function parseSupplierProductError(error: unknown): string {
       }
 
       case 'INVALID_PRICE': {
-        const min = err.details?.min as number ?? 0
-        const max = err.details?.max as number ?? 999999999999
+        const min = err.details && typeof err.details === 'object' && 'min' in err.details 
+          ? Number(err.details.min) 
+          : 0
+        const max = err.details && typeof err.details === 'object' && 'max' in err.details 
+          ? Number(err.details.max) 
+          : 999999999999
         return `Price must be between ${min} and ${max}. Please enter a valid price.`
       }
 
       case 'INVALID_CURRENCY': {
-        const validCurrencies = (err.details?.valid_currencies as string[])?.join(', ') || 'IDR, USD, EUR, SGD, MYR'
+        const validCurrencies = err.details && typeof err.details === 'object' && 'valid_currencies' in err.details && Array.isArray(err.details.valid_currencies)
+          ? err.details.valid_currencies.join(', ')
+          : 'IDR, USD, EUR, SGD, MYR'
         return `The selected currency is not supported. Please choose from: ${validCurrencies}`
       }
 
       case 'BULK_OPERATION_LIMIT_EXCEEDED': {
-        const limit = err.details?.limit as number ?? 100
-        const attempted = err.details?.attempted as number ?? 0
+        const limit = err.details && typeof err.details === 'object' && 'limit' in err.details 
+          ? Number(err.details.limit) 
+          : 100
+        const attempted = err.details && typeof err.details === 'object' && 'attempted' in err.details 
+          ? Number(err.details.attempted) 
+          : 0
         return `You can only delete ${limit} items at once. You selected ${attempted} items. Please reduce your selection.`
       }
 
       case 'MAX_PREFERRED_SUPPLIERS_EXCEEDED': {
-        const maxAllowed = err.details?.max_allowed as number ?? 3
+        const maxAllowed = err.details && typeof err.details === 'object' && 'max_allowed' in err.details 
+          ? Number(err.details.max_allowed) 
+          : 3
         return `A product can only have ${maxAllowed} preferred suppliers. Please deselect another preferred supplier first.`
       }
 

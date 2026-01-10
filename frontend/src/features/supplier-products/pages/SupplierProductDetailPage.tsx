@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useToast } from '@/contexts/ToastContext'
 import { supplierProductsApi } from '../api/supplierProducts.api'
+import { useSupplierProductsStore } from '../store/supplierProducts.store'
 import { formatPrice, formatLeadTime, formatDate, getStatusColor, getPreferredColor } from '../utils/format'
 import type { SupplierProductWithRelations } from '../types/supplier-product.types'
 
@@ -13,11 +14,11 @@ export function SupplierProductDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
   const includeDeleted = searchParams.get('deleted') === 'true'
+  const { deleteSupplierProduct, mutationLoading } = useSupplierProductsStore()
 
   const [supplierProduct, setSupplierProduct] = useState<SupplierProductWithRelations | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState(false)
 
   // Load supplier product data
   useEffect(() => {
@@ -49,15 +50,12 @@ export function SupplierProductDetailPage() {
     if (!id || !supplierProduct) return
 
     if (window.confirm('Are you sure you want to delete this supplier product?')) {
-      setDeleting(true)
       try {
-        await supplierProductsApi.delete(id)
+        await deleteSupplierProduct(id)
         toast.success('Supplier product deleted successfully')
         navigate('/supplier-products')
       } catch {
-        toast.error('Failed to delete supplier product')
-      } finally {
-        setDeleting(false)
+        // Error handled in store
       }
     }
   }
@@ -255,10 +253,10 @@ export function SupplierProductDetailPage() {
             </button>
             <button
               onClick={handleDelete}
-              disabled={deleting}
+              disabled={mutationLoading}
               className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50"
             >
-              {deleting ? 'Deleting...' : 'Delete'}
+              {mutationLoading ? 'Deleting...' : 'Delete'}
             </button>
           </div>
         </div>

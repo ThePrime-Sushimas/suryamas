@@ -5,7 +5,7 @@ import { useBanksStore } from '../store/useBanks'
 import { BankStatusBadge } from './BankStatusBadge'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useToast } from '@/contexts/ToastContext'
-import { useDebounce } from '@/hooks/useDebounce'
+import { useDebounce } from '@/hooks/_shared/useDebounce'
 
 export const BankTable = () => {
   const navigate = useNavigate()

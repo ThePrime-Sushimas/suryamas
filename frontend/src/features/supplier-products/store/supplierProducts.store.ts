@@ -30,6 +30,7 @@ interface SupplierProductsState {
   bulkRestoreSupplierProducts: (ids: string[]) => Promise<void>
   setSelectedItems: (items: string[]) => void
   clearError: () => void
+  reset: () => void
 }
 
 export const useSupplierProductsStore = create<SupplierProductsState>((set) => ({
@@ -78,17 +79,18 @@ export const useSupplierProductsStore = create<SupplierProductsState>((set) => (
     set({ mutationLoading: true, error: null })
     try {
       const supplierProduct = await supplierProductsApi.update(id, data)
-      set(state => ({
-        supplierProducts: state.supplierProducts.map(sp =>
-          sp.id === id ? { ...sp, ...supplierProduct } : sp
-        ),
-        mutationLoading: false
-      }))
+      // Refetch to get updated relations
+      const state = useSupplierProductsStore.getState()
+      if (state.currentQuery) {
+        await state.fetchSupplierProducts(state.currentQuery)
+      }
       return supplierProduct
     } catch (error) {
       const message = parseSupplierProductError(error)
       set({ error: message, mutationLoading: false })
       throw error
+    } finally {
+      set({ mutationLoading: false })
     }
   },
 
@@ -116,11 +118,12 @@ export const useSupplierProductsStore = create<SupplierProductsState>((set) => (
       if (state.currentQuery) {
         await state.fetchSupplierProducts(state.currentQuery)
       }
-      set({ mutationLoading: false })
     } catch (error) {
       const message = parseSupplierProductError(error)
-      set({ error: message, mutationLoading: false })
+      set({ error: message })
       throw error
+    } finally {
+      set({ mutationLoading: false })
     }
   },
 
@@ -148,16 +151,25 @@ export const useSupplierProductsStore = create<SupplierProductsState>((set) => (
       if (state.currentQuery) {
         await state.fetchSupplierProducts(state.currentQuery)
       }
-      set({ mutationLoading: false, selectedItems: [] })
     } catch (error) {
       const message = parseSupplierProductError(error)
-      set({ error: message, mutationLoading: false })
+      set({ error: message })
       throw error
+    } finally {
+      set({ mutationLoading: false, selectedItems: [] })
     }
   },
 
   setSelectedItems: (items) => set({ selectedItems: items }),
 
-  clearError: () => set({ error: null })
+  clearError: () => set({ error: null }),
+
+  reset: () => set({
+    supplierProducts: [],
+    pagination: null,
+    selectedItems: [],
+    error: null,
+    currentQuery: null
+  })
 }))
 

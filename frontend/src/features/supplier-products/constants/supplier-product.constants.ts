@@ -19,7 +19,7 @@ export const CURRENCY_SYMBOLS: Record<string, string> = {
 export const LEAD_TIME_OPTIONS = [
   ...Array.from({ length: 30 }, (_, i) => ({
     value: i + 1,
-    label: i === 0 ? '1 day' : `${i + 1} days`
+    label: i + 1 === 1 ? '1 day' : `${i + 1} days`
   })),
   { value: 45, label: '45 days' },
   { value: 60, label: '60 days' },

@@ -1,14 +1,11 @@
 // Supplier Product Form - Create/Edit form component
 
-import { useState, useEffect, useCallback } from 'react'
-import { useToast } from '@/contexts/ToastContext'
-import { suppliersApi } from '@/features/suppliers/api/suppliers.api'
-import { productsApi } from '@/features/products/api/products.api'
+import { useState, useEffect } from 'react'
 import { supplierProductsApi } from '../api/supplierProducts.api'
+import { useSupplierSearch } from '../hooks/useSupplierSearch'
+import { useProductSearch } from '../hooks/useProductSearch'
 import { CURRENCY_OPTIONS, LEAD_TIME_OPTIONS } from '../constants/supplier-product.constants'
 import type { CreateSupplierProductDto, UpdateSupplierProductDto, SupplierProduct } from '../types/supplier-product.types'
-import type { Supplier } from '@/features/suppliers/types/supplier.types'
-import type { Product } from '@/features/products/types'
 
 interface SupplierProductFormProps {
   initialData?: SupplierProduct
@@ -19,18 +16,6 @@ interface SupplierProductFormProps {
   loading?: boolean
 }
 
-interface SupplierOption {
-  id: string
-  supplier_name: string
-  supplier_code: string
-}
-
-interface ProductOption {
-  id: string
-  product_name: string
-  product_code: string
-}
-
 export function SupplierProductForm({
   initialData,
   onSubmit,
@@ -39,13 +24,8 @@ export function SupplierProductForm({
   isEdit,
   loading
 }: SupplierProductFormProps) {
-  const toast = useToast()
-  const [suppliers, setSuppliers] = useState<SupplierOption[]>([])
-  const [products, setProducts] = useState<ProductOption[]>([])
-  const [suppliersLoading, setSuppliersLoading] = useState(false)
-  const [productsLoading, setProductsLoading] = useState(false)
-  const [supplierSearch, setSupplierSearch] = useState('')
-  const [productSearch, setProductSearch] = useState('')
+  const supplierSearch = useSupplierSearch()
+  const productSearch = useProductSearch()
   const [submitting, setSubmitting] = useState(false)
   const [preferredCount, setPreferredCount] = useState(0)
 
@@ -60,61 +40,28 @@ export function SupplierProductForm({
     is_active: initialData?.is_active ?? true
   })
 
-  // Load suppliers
-  const loadSuppliers = useCallback(async (search = '') => {
-    setSuppliersLoading(true)
-    try {
-      const res = await suppliersApi.list({ search, is_active: true, limit: 50 })
-      setSuppliers(res.data.map((s: Supplier) => ({
-        id: s.id,
-        supplier_name: s.supplier_name,
-        supplier_code: s.supplier_code
-      })))
-    } catch {
-      toast.error('Failed to load suppliers')
-    } finally {
-      setSuppliersLoading(false)
-    }
-  }, [toast])
-
-  // Load products
-  const loadProducts = useCallback(async (search = '') => {
-    setProductsLoading(true)
-    try {
-      const res = await productsApi.search(search, 1, 50)
-      setProducts(res.data.map((p: Product) => ({
-        id: p.id,
-        product_name: p.product_name,
-        product_code: p.product_code
-      })))
-    } catch {
-      toast.error('Failed to load products')
-    } finally {
-      setProductsLoading(false)
-    }
-  }, [toast])
-
-  useEffect(() => {
-    loadSuppliers()
-    loadProducts()
-  }, [loadSuppliers, loadProducts])
-
   // Check preferred supplier count when product changes
   useEffect(() => {
+    const controller = new AbortController()
+    
     const checkPreferredCount = async () => {
       if (!formData.product_id) {
         setPreferredCount(0)
         return
       }
       try {
-        const products = await supplierProductsApi.getByProduct(formData.product_id, false)
+        const products = await supplierProductsApi.getByProduct(formData.product_id, false, controller.signal)
         const count = products.filter((p) => p.is_preferred && p.is_active && (!initialData || p.id !== initialData.id)).length
         setPreferredCount(count)
-      } catch {
-        setPreferredCount(0)
+      } catch (err) {
+        if (err instanceof Error && err.name !== 'AbortError' && err.name !== 'CanceledError') {
+          setPreferredCount(0)
+        }
       }
     }
+    
     checkPreferredCount()
+    return () => controller.abort()
   }, [formData.product_id, initialData])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -131,6 +78,7 @@ export function SupplierProductForm({
       if (submitData.min_order_qty === undefined || submitData.min_order_qty === null) {
         delete submitData.min_order_qty
       }
+      // Only delete currency if explicitly IDR (backend default)
       if (submitData.currency === 'IDR') {
         delete submitData.currency
       }
@@ -164,19 +112,6 @@ export function SupplierProductForm({
     }
   }
 
-  // Debounced search handlers
-  const handleSupplierSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSupplierSearch(e.target.value)
-    const timer = setTimeout(() => loadSuppliers(e.target.value), 300)
-    return () => clearTimeout(timer)
-  }
-
-  const handleProductSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setProductSearch(e.target.value)
-    const timer = setTimeout(() => loadProducts(e.target.value), 300)
-    return () => clearTimeout(timer)
-  }
-
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
       {/* Supplier Selection */}
@@ -190,8 +125,8 @@ export function SupplierProductForm({
             <input
               type="text"
               placeholder="Search supplier..."
-              value={supplierSearch}
-              onChange={handleSupplierSearchChange}
+              value={supplierSearch.search}
+              onChange={(e) => supplierSearch.setSearch(e.target.value)}
               disabled={isEdit}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
             />
@@ -200,11 +135,11 @@ export function SupplierProductForm({
               value={formData.supplier_id}
               onChange={handleChange}
               required
-              disabled={isEdit || suppliersLoading}
+              disabled={isEdit || supplierSearch.loading}
               className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
             >
               <option value="">Select Supplier</option>
-              {suppliers.map(supplier => (
+              {supplierSearch.suppliers.map(supplier => (
                 <option key={supplier.id} value={supplier.id}>
                   {supplier.supplier_code} - {supplier.supplier_name}
                 </option>
@@ -220,8 +155,8 @@ export function SupplierProductForm({
             <input
               type="text"
               placeholder="Search product..."
-              value={productSearch}
-              onChange={handleProductSearchChange}
+              value={productSearch.search}
+              onChange={(e) => productSearch.setSearch(e.target.value)}
               disabled={isEdit}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
             />
@@ -230,11 +165,11 @@ export function SupplierProductForm({
               value={formData.product_id}
               onChange={handleChange}
               required
-              disabled={isEdit || productsLoading}
+              disabled={isEdit || productSearch.loading}
               className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
             >
               <option value="">Select Product</option>
-              {products.map(product => (
+              {productSearch.products.map(product => (
                 <option key={product.id} value={product.id}>
                   {product.product_code} - {product.product_name}
                 </option>
@@ -383,4 +318,3 @@ export function SupplierProductForm({
     </form>
   )
 }
-

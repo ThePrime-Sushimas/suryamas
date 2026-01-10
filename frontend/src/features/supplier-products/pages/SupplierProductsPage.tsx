@@ -25,7 +25,8 @@ export function SupplierProductsPage() {
     bulkDeleteSupplierProducts,
     bulkRestoreSupplierProducts,
     setSelectedItems,
-    clearError
+    clearError,
+    reset
   } = useSupplierProductsStore()
 
   // Filter states
@@ -48,6 +49,11 @@ export function SupplierProductsPage() {
     fetchSupplierProducts(filters, controller.signal)
     return () => controller.abort()
   }, [fetchSupplierProducts, filters])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => reset()
+  }, [reset])
 
   // Show error toast
   useEffect(() => {

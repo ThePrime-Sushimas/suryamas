@@ -5,7 +5,7 @@ import { ProductTable } from '../components/ProductTable'
 import { ProductDeleteDialog } from '../components/ProductDeleteDialog'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useToast } from '@/contexts/ToastContext'
-import { useDebounce } from '@/hooks/useDebounce'
+import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { Package, Plus, Search, Filter, X } from 'lucide-react'
 
 export default function ProductsPage() {

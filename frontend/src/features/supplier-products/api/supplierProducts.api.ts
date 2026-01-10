@@ -24,8 +24,8 @@ interface PaginatedResponse<T> {
   message?: string
 }
 
-const buildQueryParams = (query: SupplierProductListQuery): Record<string, string | number | boolean | undefined> => {
-  const params: Record<string, string | number | boolean | undefined> = {
+const buildQueryParams = (query: SupplierProductListQuery): Record<string, string | number | boolean> => {
+  const params: Record<string, string | number | boolean> = {
     page: query.page || 1,
     limit: query.limit || 10,
   }
@@ -33,9 +33,9 @@ const buildQueryParams = (query: SupplierProductListQuery): Record<string, strin
   if (query.search) params.search = query.search
   if (query.supplier_id) params.supplier_id = query.supplier_id
   if (query.product_id) params.product_id = query.product_id
-  if (query.is_preferred !== undefined) params.is_preferred = query.is_preferred ? 'true' : 'false'
-  if (query.is_active !== undefined) params.is_active = query.is_active ? 'true' : 'false'
-  if (query.include_deleted) params.include_deleted = 'true'
+  if (query.is_preferred !== undefined) params.is_preferred = query.is_preferred
+  if (query.is_active !== undefined) params.is_active = query.is_active
+  if (query.include_deleted) params.include_deleted = true
   if (query.sort_by) params.sort_by = query.sort_by
   if (query.sort_order) params.sort_order = query.sort_order
 
@@ -45,21 +45,29 @@ const buildQueryParams = (query: SupplierProductListQuery): Record<string, strin
 export const supplierProductsApi = {
   /**
    * List supplier products with pagination and filtering
+   * @param query - Query parameters for filtering and pagination
+   * @param signal - AbortSignal for request cancellation
+   * @param includeRelations - Whether to include supplier and product relations
    */
-  list: async (query: SupplierProductListQuery = {}, signal?: AbortSignal) => {
+  list: async (query: SupplierProductListQuery = {}, signal?: AbortSignal, includeRelations = true) => {
     const params = {
       ...buildQueryParams(query),
-      include_relations: true
+      include_relations: includeRelations
     }
     const res = await api.get<PaginatedResponse<SupplierProductWithRelations>>('/supplier-products', {
       params,
-      signal
+      signal,
+      timeout: 30000
     })
     return res.data
   },
 
   /**
    * Get supplier product by ID with optional relations
+   * @param id - Supplier product ID
+   * @param includeRelations - Whether to include supplier and product relations
+   * @param includeDeleted - Whether to include soft-deleted records
+   * @param signal - AbortSignal for request cancellation
    */
   getById: async (id: string, includeRelations = true, includeDeleted = false, signal?: AbortSignal) => {
     const res = await api.get<ApiResponse<SupplierProductWithRelations>>(`/supplier-products/${id}`, {
