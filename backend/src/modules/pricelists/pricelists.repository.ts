@@ -10,10 +10,12 @@ export class PricelistsRepository {
       .from('pricelists')
       .select(`
         *,
-        suppliers!inner(supplier_name),
-        products!inner(product_name),
-        product_uoms!inner(uom_name),
-        employees:approved_by(full_name)
+        suppliers(supplier_name),
+        products(product_name),
+        product_uoms(
+          id,
+          metric_units(unit_name)
+        )
       `, { count: 'exact' })
 
     if (!query?.include_deleted) {
@@ -47,13 +49,14 @@ export class PricelistsRepository {
 
     if (error) throw new Error(error.message)
 
-    const mapped = (data || []).map(item => ({
-      ...item,
-      supplier_name: (item as any).suppliers?.supplier_name,
-      product_name: (item as any).products?.product_name,
-      uom_name: (item as any).product_uoms?.uom_name,
-      approved_by_name: (item as any).employees?.full_name,
-    }))
+    const mapped = (data || []).map(item => {
+      return {
+        ...item,
+        supplier_name: (item as any).suppliers?.supplier_name,
+        product_name: (item as any).products?.product_name,
+        uom_name: (item as any).product_uoms?.metric_units?.unit_name,
+      }
+    })
 
     return { data: mapped, total: count || 0 }
   }
@@ -63,10 +66,12 @@ export class PricelistsRepository {
       .from('pricelists')
       .select(`
         *,
-        suppliers!inner(supplier_name),
-        products!inner(product_name),
-        product_uoms!inner(uom_name),
-        employees:approved_by(full_name)
+        suppliers(supplier_name),
+        products(product_name),
+        product_uoms(
+          id,
+          metric_units(unit_name)
+        )
       `)
       .eq('id', id)
       .is('deleted_at', null)
@@ -75,12 +80,13 @@ export class PricelistsRepository {
     if (error) throw new Error(error.message)
     if (!data) return null
 
+    console.log('findById raw data:', JSON.stringify(data, null, 2))
+
     return {
       ...data,
       supplier_name: (data as any).suppliers?.supplier_name,
       product_name: (data as any).products?.product_name,
-      uom_name: (data as any).product_uoms?.uom_name,
-      approved_by_name: (data as any).employees?.full_name,
+      uom_name: (data as any).product_uoms?.metric_units?.unit_name,
     }
   }
 
@@ -146,17 +152,11 @@ export class PricelistsRepository {
 
   async updateStatus(
     id: string,
-    status: 'APPROVED' | 'REJECTED' | 'EXPIRED',
-    approvedBy?: string
+    status: 'APPROVED' | 'REJECTED' | 'EXPIRED'
   ): Promise<Pricelist | null> {
     const updates: any = {
       status,
       updated_at: new Date().toISOString(),
-    }
-
-    if (status === 'APPROVED' && approvedBy) {
-      updates.approved_by = approvedBy
-      updates.approved_at = new Date().toISOString()
     }
 
     const { data, error } = await supabase

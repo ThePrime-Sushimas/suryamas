@@ -13,6 +13,7 @@ interface SupplierProductTableProps {
   onDelete: (id: string) => void
   onView: (id: string) => void
   onRestore: (id: string) => void
+  onManagePrices: (id: string) => void
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
   onSort?: (field: string) => void
@@ -45,6 +46,7 @@ export function SupplierProductTable({
   onDelete,
   onView,
   onRestore,
+  onManagePrices,
   sortBy,
   sortOrder,
   onSort
@@ -224,16 +226,22 @@ export function SupplierProductTable({
                     Restore
                   </button>
                 ) : (
-                  <>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onManagePrices(item.id)}
+                      className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                    >
+                      Manage Prices
+                    </button>
                     <button
                       onClick={() => onView(item.id)}
-                      className="text-blue-600 hover:text-blue-900 mr-3"
+                      className="text-blue-600 hover:text-blue-900"
                     >
                       View
                     </button>
                     <button
                       onClick={() => onEdit(item.id)}
-                      className="text-indigo-600 hover:text-indigo-900 mr-3"
+                      className="text-indigo-600 hover:text-indigo-900"
                     >
                       Edit
                     </button>
@@ -243,7 +251,7 @@ export function SupplierProductTable({
                     >
                       Delete
                     </button>
-                  </>
+                  </div>
                 )}
               </td>
             </tr>

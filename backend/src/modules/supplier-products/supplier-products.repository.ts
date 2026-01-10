@@ -57,10 +57,8 @@ export class SupplierProductsRepository {
       countQuery = countQuery.eq('is_active', query.is_active)
     }
 
-    // Search disabled - use supplier/product filters instead
-
     // Sorting
-    const sortBy = query?.sort_by && SUPPLIER_PRODUCT_SORT_FIELDS.includes(query.sort_by as any) 
+    const sortBy = query?.sort_by && SUPPLIER_PRODUCT_SORT_FIELDS.includes(query.sort_by as string) 
       ? query.sort_by 
       : 'created_at'
     const sortOrder = query?.sort_order || 'desc'

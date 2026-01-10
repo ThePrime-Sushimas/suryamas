@@ -27,6 +27,7 @@ export class PricelistsService {
 
     return pricelistsRepository.create({
       ...data,
+      branch_id: null, // Pricelist is company-wide, not per branch
       created_by: userId,
     })
   }
@@ -98,8 +99,7 @@ export class PricelistsService {
 
     const updated = await pricelistsRepository.updateStatus(
       id,
-      approval.status,
-      approval.status === 'APPROVED' ? userId : undefined
+      approval.status
     )
 
     if (!updated) {

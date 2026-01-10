@@ -12,8 +12,6 @@ export interface Pricelist {
   valid_from: string
   valid_to: string | null
   status: PricelistStatus
-  approved_by: string | null
-  approved_at: string | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -26,7 +24,6 @@ export interface PricelistWithRelations extends Pricelist {
   supplier_name?: string
   product_name?: string
   uom_name?: string
-  approved_by_name?: string
 }
 
 export interface CreatePricelistDto {

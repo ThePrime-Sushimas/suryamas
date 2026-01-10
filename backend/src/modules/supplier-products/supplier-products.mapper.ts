@@ -8,7 +8,7 @@ export const mapSupplierProductFromDb = (raw: any): SupplierProduct => {
 
   return {
     ...raw,
-    price: parseFloat(raw.price) || 0,
+    price: raw.price ? parseFloat(raw.price) : 0,
     lead_time_days: raw.lead_time_days ? parseInt(raw.lead_time_days) : null,
     min_order_qty: raw.min_order_qty ? parseFloat(raw.min_order_qty) : null,
     is_preferred: raw.is_preferred === true || raw.is_preferred === 'true',
@@ -26,24 +26,25 @@ export const mapSupplierProductsFromDb = (rawSupplierProducts: any[]): SupplierP
 /**
  * Maps supplier product with joined supplier and product data
  */
-export const mapSupplierProductWithRelations = (raw: any): SupplierProductWithRelations => {
+export const mapSupplierProductWithRelations = (raw: unknown): SupplierProductWithRelations => {
   const supplierProduct = mapSupplierProductFromDb(raw)
+  const item = raw as Record<string, unknown>
   
   return {
     ...supplierProduct,
-    supplier: raw.suppliers ? {
-      id: raw.suppliers.id,
-      supplier_name: raw.suppliers.supplier_name,
-      supplier_code: raw.suppliers.supplier_code,
-      is_active: raw.suppliers.is_active === true || raw.suppliers.is_active === 'true',
+    supplier: item.suppliers ? {
+      id: (item.suppliers as Record<string, unknown>).id as string,
+      supplier_name: (item.suppliers as Record<string, unknown>).supplier_name as string,
+      supplier_code: (item.suppliers as Record<string, unknown>).supplier_code as string,
+      is_active: (item.suppliers as Record<string, unknown>).is_active === true,
     } : undefined,
-    product: raw.products ? {
-      id: raw.products.id,
-      product_name: raw.products.product_name,
-      product_code: raw.products.product_code,
-      product_type: raw.products.product_type,
-      status: raw.products.status,
-      default_purchase_unit: raw.products.default_purchase_unit,
+    product: item.products ? {
+      id: (item.products as Record<string, unknown>).id as string,
+      product_name: (item.products as Record<string, unknown>).product_name as string,
+      product_code: (item.products as Record<string, unknown>).product_code as string,
+      product_type: (item.products as Record<string, unknown>).product_type as string,
+      status: (item.products as Record<string, unknown>).status as string,
+      default_purchase_unit: (item.products as Record<string, unknown>).default_purchase_unit as string,
     } : undefined,
   }
 }

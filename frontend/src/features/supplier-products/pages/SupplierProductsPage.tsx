@@ -12,22 +12,22 @@ import type { SupplierProductListQuery } from '../types/supplier-product.types'
 export function SupplierProductsPage() {
   const navigate = useNavigate()
   const toast = useToast()
-  const {
-    supplierProducts,
-    pagination,
-    fetchLoading,
-    mutationLoading,
-    error,
-    selectedItems,
-    fetchSupplierProducts,
-    deleteSupplierProduct,
-    restoreSupplierProduct,
-    bulkDeleteSupplierProducts,
-    bulkRestoreSupplierProducts,
-    setSelectedItems,
-    clearError,
-    reset
-  } = useSupplierProductsStore()
+  
+  // Individual selectors (recommended pattern)
+  const supplierProducts = useSupplierProductsStore(s => s.supplierProducts)
+  const pagination = useSupplierProductsStore(s => s.pagination)
+  const fetchLoading = useSupplierProductsStore(s => s.fetchLoading)
+  const mutationLoading = useSupplierProductsStore(s => s.mutationLoading)
+  const error = useSupplierProductsStore(s => s.error)
+  const selectedItems = useSupplierProductsStore(s => s.selectedItems)
+  const fetchSupplierProducts = useSupplierProductsStore(s => s.fetchSupplierProducts)
+  const deleteSupplierProduct = useSupplierProductsStore(s => s.deleteSupplierProduct)
+  const restoreSupplierProduct = useSupplierProductsStore(s => s.restoreSupplierProduct)
+  const bulkDeleteSupplierProducts = useSupplierProductsStore(s => s.bulkDeleteSupplierProducts)
+  const bulkRestoreSupplierProducts = useSupplierProductsStore(s => s.bulkRestoreSupplierProducts)
+  const setSelectedItems = useSupplierProductsStore(s => s.setSelectedItems)
+  const clearError = useSupplierProductsStore(s => s.clearError)
+  const reset = useSupplierProductsStore(s => s.reset)
 
   // Filter states
   const [filters, setFilters] = useState<SupplierProductListQuery>({
@@ -166,6 +166,10 @@ export function SupplierProductsPage() {
     }
   }, [selectedItems, bulkDeleteSupplierProducts, toast])
 
+  const handleManagePrices = useCallback((id: string) => {
+    navigate(`/supplier-products/${id}/pricelists`)
+  }, [navigate])
+
   const handleRestore = useCallback(async (id: string) => {
     try {
       await restoreSupplierProduct(id)
@@ -280,6 +284,7 @@ export function SupplierProductsPage() {
         onDelete={handleDelete}
         onView={handleView}
         onRestore={handleRestore}
+        onManagePrices={handleManagePrices}
         sortBy={filters.sort_by}
         sortOrder={filters.sort_order}
         onSort={handleSort}
