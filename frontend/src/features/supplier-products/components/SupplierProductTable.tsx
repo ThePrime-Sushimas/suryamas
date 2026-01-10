@@ -192,8 +192,14 @@ export function SupplierProductTable({
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm font-medium text-gray-900">
-                  {formatPrice(item.price, item.currency)}
+                  {item.current_price !== undefined 
+                    ? formatPrice(item.current_price, item.current_currency || item.currency)
+                    : formatPrice(item.price, item.currency)
+                  }
                 </div>
+                {item.current_price !== undefined && (
+                  <div className="text-xs text-green-600">From pricelist</div>
+                )}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 {formatLeadTime(item.lead_time_days)}

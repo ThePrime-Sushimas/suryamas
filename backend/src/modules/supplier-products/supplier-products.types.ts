@@ -30,6 +30,8 @@ export interface SupplierProductWithRelations extends SupplierProduct {
     status: string
     default_purchase_unit?: string | null
   }
+  current_price?: number // Current price from active pricelist
+  current_currency?: string // Currency from active pricelist
 }
 
 export interface CreateSupplierProductDto {

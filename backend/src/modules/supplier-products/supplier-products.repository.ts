@@ -72,9 +72,14 @@ export class SupplierProductsRepository {
     if (error) throw new Error(`Database query failed: ${error.message}`)
     if (countError) throw new Error(`Count query failed: ${countError.message}`)
 
-    const mappedData = includeRelations
+    let mappedData = includeRelations
       ? (data || []).map(mapSupplierProductWithRelations)
       : (data || []).map(mapSupplierProductFromDb)
+
+    // Enrich with current prices from pricelists if including relations
+    if (includeRelations && data && data.length > 0) {
+      mappedData = await this.enrichWithCurrentPrices(mappedData as SupplierProductWithRelations[])
+    }
 
     return { data: mappedData, total: count || 0 }
   }
@@ -326,6 +331,55 @@ export class SupplierProductsRepository {
 
     if (error) throw new Error(`Database query failed: ${error.message}`)
     return (data || []).map(mapSupplierProductOption)
+  }
+
+  /**
+   * Enrich supplier products with current prices from active pricelists
+   */
+  private async enrichWithCurrentPrices(supplierProducts: SupplierProductWithRelations[]): Promise<SupplierProductWithRelations[]> {
+    if (!supplierProducts.length) return supplierProducts
+
+    const today = new Date().toISOString().split('T')[0]
+    
+    // Get all active pricelists for these supplier-product combinations
+    const { data: pricelists, error } = await supabase
+      .from('pricelists')
+      .select('supplier_id, product_id, uom_id, price, currency')
+      .eq('status', 'APPROVED')
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .lte('valid_from', today)
+      .or(`valid_to.is.null,valid_to.gte.${today}`)
+      .in('supplier_id', supplierProducts.map(sp => sp.supplier_id))
+      .in('product_id', supplierProducts.map(sp => sp.product_id))
+
+    if (error) {
+      console.error('Failed to fetch current prices:', error)
+      return supplierProducts
+    }
+
+    // Create a map for quick lookup (using supplier_id + product_id for now)
+    // TODO: Add UOM awareness when supplier_products has uom_id field
+    const priceMap = new Map<string, { price: number; currency: string }>()
+    pricelists?.forEach(p => {
+      const key = `${p.supplier_id}-${p.product_id}`
+      // For now, take the first price found (should be enhanced with UOM logic)
+      if (!priceMap.has(key)) {
+        priceMap.set(key, { price: parseFloat(p.price), currency: p.currency })
+      }
+    })
+
+    // Enrich supplier products with current prices
+    return supplierProducts.map(sp => {
+      const key = `${sp.supplier_id}-${sp.product_id}`
+      const currentPrice = priceMap.get(key)
+      
+      return {
+        ...sp,
+        current_price: currentPrice?.price,
+        current_currency: currentPrice?.currency
+      }
+    })
   }
 }
 
