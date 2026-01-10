@@ -24,10 +24,10 @@ export function PricelistDetailPage() {
 
   const deletePricelist = usePricelistsStore(s => s.deletePricelist)
   const approvePricelist = usePricelistsStore(s => s.approvePricelist)
-  const mutationLoading = usePricelistsStore(s => s.mutationLoading)
+  const loading = usePricelistsStore(s => s.loading)
   
   const [pricelist, setPricelist] = useState<PricelistWithRelations | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [pageLoading, setPageLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -52,7 +52,7 @@ export function PricelistDetailPage() {
         }
       } finally {
         if (!controller.signal.aborted) {
-          setLoading(false)
+          setPageLoading(false)
         }
       }
     }
@@ -107,7 +107,7 @@ export function PricelistDetailPage() {
     }
   }, [approvePricelist, pricelistId, toast])
 
-  if (loading) {
+  if (pageLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -151,7 +151,7 @@ export function PricelistDetailPage() {
           {canEdit && (
             <button
               onClick={handleEdit}
-              disabled={mutationLoading}
+              disabled={loading.update || loading.delete || loading.approve}
               className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
             >
               Edit
@@ -161,14 +161,14 @@ export function PricelistDetailPage() {
             <>
               <button
                 onClick={handleApprove}
-                disabled={mutationLoading}
+                disabled={loading.approve}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
               >
                 Approve
               </button>
               <button
                 onClick={handleReject}
-                disabled={mutationLoading}
+                disabled={loading.approve}
                 className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50"
               >
                 Reject
@@ -177,7 +177,7 @@ export function PricelistDetailPage() {
           )}
           <button
             onClick={handleDelete}
-            disabled={mutationLoading}
+            disabled={loading.delete}
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
           >
             Delete
@@ -266,7 +266,7 @@ export function PricelistDetailPage() {
       </div>
 
       {/* Loading overlay */}
-      {mutationLoading && (
+      {(loading.update || loading.delete || loading.approve) && (
         <div className="fixed inset-0 bg-gray-900/20 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 shadow-xl">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
