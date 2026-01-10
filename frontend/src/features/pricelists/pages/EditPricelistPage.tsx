@@ -38,23 +38,36 @@ export function EditPricelistPage() {
     const fetchPricelist = async () => {
       if (!pricelistId) {
         setError('Invalid pricelist ID')
+        setLoading(false)
         return
       }
 
+      // Early status validation to prevent unnecessary API calls
       try {
         const data = await pricelistsApi.getById(pricelistId, controller.signal)
         
         if (!controller.signal.aborted) {
+          // Business rule validation with specific error messages
           if (!isEditable(data.status)) {
-            setError(`Cannot edit pricelist with status: ${data.status}`)
+            const statusMessages = {
+              'APPROVED': 'Approved pricelists cannot be edited. Create a new version instead.',
+              'REJECTED': 'Rejected pricelists cannot be edited. Create a new pricelist.',
+              'EXPIRED': 'Expired pricelists cannot be edited. Create a new pricelist.',
+              'ARCHIVED': 'Archived pricelists cannot be edited. Contact administrator if needed.'
+            }
+            const message = statusMessages[data.status as keyof typeof statusMessages] || 
+                           `Cannot edit pricelist with status: ${data.status}`
+            setError(message)
+            setLoading(false)
             return
           }
           setPricelist(data)
           setError(null)
         }
-      } catch {
+      } catch (err) {
         if (!controller.signal.aborted) {
-          setError('Failed to load pricelist')
+          const errorMessage = err instanceof Error ? err.message : 'Failed to load pricelist'
+          setError(errorMessage)
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -68,16 +81,25 @@ export function EditPricelistPage() {
   }, [pricelistId])
 
   const handleSubmit = useCallback(async (data: CreatePricelistDto | UpdatePricelistDto) => {
-    if (!pricelistId) return
+    if (!pricelistId || !pricelist) return
+
+    // Double-check editability before submission
+    if (!isEditable(pricelist.status)) {
+      toast.error('This pricelist can no longer be edited')
+      return
+    }
 
     try {
       await updatePricelist(pricelistId, data as UpdatePricelistDto)
       toast.success('Pricelist updated successfully')
+      // Navigate after promise resolves, not based on flag
       navigate(`/supplier-products/${supplierProductId}/pricelists`)
     } catch (error) {
-      console.error('Failed to update pricelist:', error)
+      // Enhanced error handling with business context
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update pricelist'
+      toast.error(errorMessage)
     }
-  }, [updatePricelist, pricelistId, toast, navigate, supplierProductId])
+  }, [updatePricelist, pricelistId, pricelist, toast, navigate, supplierProductId])
 
   const handleCancel = useCallback(() => {
     navigate(`/supplier-products/${supplierProductId}/pricelists`)

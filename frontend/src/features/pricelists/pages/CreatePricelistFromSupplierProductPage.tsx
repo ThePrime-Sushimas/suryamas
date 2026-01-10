@@ -96,10 +96,12 @@ export function CreatePricelistFromSupplierProductPage() {
     try {
       await createPricelist(data as CreatePricelistDto)
       toast.success('Pricelist created successfully')
+      // Navigate after promise resolves, not based on flag
       navigate(`/supplier-products/${supplierProductId}/pricelists`)
     } catch (error) {
-      // Error handled in store and displayed via toast
-      console.error('Failed to create pricelist:', error)
+      // Enhanced error handling with specific messages
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create pricelist'
+      toast.error(errorMessage)
     }
   }, [createPricelist, supplierProduct, currentBranch, toast, navigate, supplierProductId])
 
@@ -164,18 +166,18 @@ export function CreatePricelistFromSupplierProductPage() {
     )
   }
 
-  // Branch context not available
-  if (!currentBranch) {
+  // Branch context validation with better robustness
+  if (!currentBranch?.company_id || !currentBranch?.branch_id) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-md mx-auto bg-yellow-50 border border-yellow-200 rounded-lg p-6">
           <h2 className="text-lg font-semibold text-yellow-800 mb-2">Branch Required</h2>
-          <p className="text-yellow-600 mb-4">Please select a branch to continue</p>
+          <p className="text-yellow-600 mb-4">Please select a valid branch with proper permissions to continue</p>
           <button
-            onClick={() => navigate('/supplier-products')}
+            onClick={() => navigate('/')}
             className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500"
           >
-            Back to List
+            Select Branch
           </button>
         </div>
       </div>
