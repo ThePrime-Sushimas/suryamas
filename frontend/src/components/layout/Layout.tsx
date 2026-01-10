@@ -56,6 +56,7 @@ export default function Layout() {
         { id: 'products', name: 'Products', href: '/products', icon: <Package size={16} />, module: 'products' },
         { id: 'suppliers', name: 'Suppliers', href: '/suppliers', icon: <Building2 size={16} />, module: 'suppliers' },
         { id: 'supplier-products', name: 'Supplier Products', href: '/supplier-products', icon: <ShoppingCart size={16} />, module: 'supplier_products' },
+        { id: 'pricelists', name: 'Pricelists', href: '/pricelists', icon: <Package size={16} />, module: 'pricelists' },
       ]
     },
     {

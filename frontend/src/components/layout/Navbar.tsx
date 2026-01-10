@@ -52,6 +52,9 @@ export default function Navbar() {
                   <Link to="/suppliers" className="text-gray-700 hover:text-gray-900">
                     Suppliers
                   </Link>
+                  <Link to="/pricelists" className="text-gray-700 hover:text-gray-900">
+                    Pricelists
+                  </Link>
                   <Link to="/settings/banks" className="text-gray-700 hover:text-gray-900">
                     Banks
                   </Link>
@@ -66,6 +69,9 @@ export default function Navbar() {
                   </Link>
                   <Link to="/users" className="text-gray-700 hover:text-gray-900">
                     Users
+                  </Link>
+                  <Link to="/supplier-products" className="text-gray-700 hover:text-gray-900">
+                    Supplier Products
                   </Link>
                 </div>
               )}
