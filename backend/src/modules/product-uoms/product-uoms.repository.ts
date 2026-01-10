@@ -5,7 +5,7 @@ export class ProductUomsRepository {
   async findByProductId(productId: string, includeDeleted = false): Promise<ProductUom[]> {
     let query = supabase
       .from('product_uoms')
-      .select('*')
+      .select('*, metric_units(id, unit_name, metric_type)')
       .eq('product_id', productId)
 
     if (!includeDeleted) {

@@ -68,7 +68,7 @@ export function ProductUomTable({ uoms, onEdit, onDelete, onRestore, loading }: 
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center gap-2">
                   <span className={`text-sm font-medium ${uom.is_deleted ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
-                    {uom.unit_name}
+                    {uom.metric_units?.unit_name || '-'}
                   </span>
                   {uom.is_base_unit && (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
@@ -89,7 +89,7 @@ export function ProductUomTable({ uoms, onEdit, onDelete, onRestore, loading }: 
                   <span className="text-gray-500">1 (Base Unit)</span>
                 ) : baseUnit ? (
                   <span>
-                    1 {uom.unit_name} = {uom.conversion_factor.toLocaleString('id-ID')} {baseUnit.unit_name}
+                    1 {uom.metric_units?.unit_name || '-'} = {uom.conversion_factor.toLocaleString('id-ID')} {baseUnit.metric_units?.unit_name || '-'}
                   </span>
                 ) : (
                   <span className="text-gray-400">—</span>
@@ -100,7 +100,7 @@ export function ProductUomTable({ uoms, onEdit, onDelete, onRestore, loading }: 
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                 {uom.base_price !== null && uom.base_price !== undefined ? (
                   <span>
-                    Rp {uom.base_price.toLocaleString('id-ID')} / {baseUnit?.unit_name || 'Base'}
+                    Rp {uom.base_price.toLocaleString('id-ID')} / {baseUnit?.metric_units?.unit_name || 'Base'}
                   </span>
                 ) : (
                   <span className="text-gray-400">—</span>

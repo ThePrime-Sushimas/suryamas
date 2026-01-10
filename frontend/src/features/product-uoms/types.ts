@@ -1,10 +1,16 @@
 export type UomStatus = 'ACTIVE' | 'INACTIVE'
 
+export interface MetricUnit {
+  id: string
+  unit_name: string
+  unit_symbol?: string
+  metric_type?: string
+}
+
 export interface ProductUom {
   id: string
   product_id: string
   metric_unit_id: string
-  unit_name: string
   conversion_factor: number
   is_base_unit: boolean
   base_price: number | null
@@ -17,6 +23,7 @@ export interface ProductUom {
   updated_at: string
   created_by: string | null
   updated_by: string | null
+  metric_units?: MetricUnit
 }
 
 export interface CreateProductUomDto {

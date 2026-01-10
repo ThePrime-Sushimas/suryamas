@@ -33,7 +33,7 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
   
   // Get base unit from existing UOMs for conversion display
   const baseUnit = existingUoms.find(existing => existing.is_base_unit) || 
-                   (uom?.is_base_unit ? { unit_name: uom.unit_name } : null)
+                   (uom?.is_base_unit ? { metric_units: uom.metric_units } : null)
 
   // Get selected unit name for display
   const selectedUnit = metricUnits.find(m => m.id === formData.metric_unit_id)
@@ -108,7 +108,7 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
     if (baseUnit && selectedUnit) {
       return (
         <span className="text-blue-600">
-          1 {selectedUnit.unit_name} = {formData.conversion_factor.toLocaleString('id-ID')} {baseUnit.unit_name}
+          1 {selectedUnit.unit_name} = {formData.conversion_factor.toLocaleString('id-ID')} {baseUnit.metric_units?.unit_name || '-'}
         </span>
       )
     }
@@ -214,7 +214,7 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
           {errors.base_price && <p className="text-red-500 text-sm mt-1">{errors.base_price}</p>}
           <p className="text-gray-500 text-xs mt-1">
             {baseUnit 
-              ? `Price per 1 ${baseUnit.unit_name}` 
+              ? `Price per 1 ${baseUnit.metric_units?.unit_name || 'base unit'}` 
               : 'Price per 1 base unit of this product'}
           </p>
         </div>
