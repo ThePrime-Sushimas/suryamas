@@ -53,12 +53,20 @@ interface PricelistsState {
   pagination: PaginationParams | null
   currentQuery: PricelistListQuery | null
 
-  // Loading states
-  fetchLoading: boolean
-  mutationLoading: boolean
+  // Unified loading state
+  loading: {
+    fetch: boolean
+    create: boolean
+    update: boolean
+    delete: boolean
+    approve: boolean
+  }
 
-  // Error state
-  error: string | null
+  // Unified error state
+  errors: {
+    fetch: string | null
+    mutation: string | null
+  }
 
   // Actions
   fetchPricelists: (query?: PricelistListQuery, signal?: AbortSignal) => Promise<void>
@@ -68,6 +76,7 @@ interface PricelistsState {
   approvePricelist: (id: string, data: PricelistApprovalDto) => Promise<Pricelist>
   clearError: () => void
   reset: () => void
+  refetch: (signal?: AbortSignal) => Promise<void>
 }
 
 export const usePricelistsStore = create<PricelistsState>((set, get) => ({
@@ -75,9 +84,17 @@ export const usePricelistsStore = create<PricelistsState>((set, get) => ({
   pricelists: [],
   pagination: null,
   currentQuery: null,
-  fetchLoading: false,
-  mutationLoading: false,
-  error: null,
+  loading: {
+    fetch: false,
+    create: false,
+    update: false,
+    delete: false,
+    approve: false
+  },
+  errors: {
+    fetch: null,
+    mutation: null
+  },
 
   /**
    * Fetch pricelists with query
@@ -98,11 +115,11 @@ export const usePricelistsStore = create<PricelistsState>((set, get) => ({
       return
     }
 
-    set({
-      fetchLoading: true,
-      error: null,
+    set(state => ({
+      loading: { ...state.loading, fetch: true },
+      errors: { ...state.errors, fetch: null },
       currentQuery: normalizedQuery
-    })
+    }))
 
     try {
       const res = await pricelistsApi.list(normalizedQuery, signal)
@@ -111,62 +128,86 @@ export const usePricelistsStore = create<PricelistsState>((set, get) => ({
       if (signal?.aborted) return
       if (currentRequestId !== requestId) return
 
-      set({
+      set(state => ({
         pricelists: res.data,
         pagination: res.pagination,
-        fetchLoading: false
-      })
+        loading: { ...state.loading, fetch: false }
+      }))
     } catch (error) {
       // Don't set error if request was aborted or superseded
       if (signal?.aborted) return
       if (currentRequestId !== requestId) return
 
       const message = parsePricelistError(error)
-      set({
-        error: message,
-        fetchLoading: false
-      })
+      set(state => ({
+        errors: { ...state.errors, fetch: message },
+        loading: { ...state.loading, fetch: false }
+      }))
     }
   },
 
   /**
-   * Create new pricelist
-   * Does NOT auto-refetch (page handles it)
+   * Create new pricelist with auto-refetch
+   * Store owns refetch policy
    */
   createPricelist: async (data) => {
-    set({ mutationLoading: true, error: null })
+    set(state => ({
+      loading: { ...state.loading, create: true },
+      errors: { ...state.errors, mutation: null }
+    }))
     
     try {
       const pricelist = await pricelistsApi.create(data)
-      set({ mutationLoading: false })
+      set(state => ({
+        loading: { ...state.loading, create: false }
+      }))
+      
+      // Auto-refetch after create (store responsibility)
+      const { currentQuery, fetchPricelists } = get()
+      if (currentQuery) {
+        await fetchPricelists(currentQuery)
+      }
+      
       return pricelist
     } catch (error) {
       const message = parsePricelistError(error)
-      set({
-        error: message,
-        mutationLoading: false
-      })
+      set(state => ({
+        errors: { ...state.errors, mutation: message },
+        loading: { ...state.loading, create: false }
+      }))
       throw error
     }
   },
 
   /**
-   * Update existing pricelist
-   * Does NOT auto-refetch (page handles it)
+   * Update existing pricelist with auto-refetch
+   * Store owns refetch policy
    */
   updatePricelist: async (id, data) => {
-    set({ mutationLoading: true, error: null })
+    set(state => ({
+      loading: { ...state.loading, update: true },
+      errors: { ...state.errors, mutation: null }
+    }))
     
     try {
       const pricelist = await pricelistsApi.update(id, data)
-      set({ mutationLoading: false })
+      set(state => ({
+        loading: { ...state.loading, update: false }
+      }))
+      
+      // Auto-refetch after update (store responsibility)
+      const { currentQuery, fetchPricelists } = get()
+      if (currentQuery) {
+        await fetchPricelists(currentQuery)
+      }
+      
       return pricelist
     } catch (error) {
       const message = parsePricelistError(error)
-      set({
-        error: message,
-        mutationLoading: false
-      })
+      set(state => ({
+        errors: { ...state.errors, mutation: message },
+        loading: { ...state.loading, update: false }
+      }))
       throw error
     }
   },
@@ -176,7 +217,10 @@ export const usePricelistsStore = create<PricelistsState>((set, get) => ({
    * Optimistically removes from list
    */
   deletePricelist: async (id) => {
-    set({ mutationLoading: true, error: null })
+    set(state => ({
+      loading: { ...state.loading, delete: true },
+      errors: { ...state.errors, mutation: null }
+    }))
     
     try {
       await pricelistsApi.delete(id)
@@ -184,43 +228,59 @@ export const usePricelistsStore = create<PricelistsState>((set, get) => ({
       // Optimistic update
       set(state => ({
         pricelists: state.pricelists.filter(p => p.id !== id),
-        mutationLoading: false
+        loading: { ...state.loading, delete: false }
       }))
     } catch (error) {
       const message = parsePricelistError(error)
-      set({
-        error: message,
-        mutationLoading: false
-      })
+      set(state => ({
+        errors: { ...state.errors, mutation: message },
+        loading: { ...state.loading, delete: false }
+      }))
       throw error
     }
   },
 
   /**
-   * Approve or reject pricelist
-   * Does NOT auto-refetch (page handles it)
+   * Approve or reject pricelist with auto-refetch
+   * Store owns refetch policy
    */
   approvePricelist: async (id, data) => {
-    set({ mutationLoading: true, error: null })
+    set(state => ({
+      loading: { ...state.loading, approve: true },
+      errors: { ...state.errors, mutation: null }
+    }))
     
     try {
       const pricelist = await pricelistsApi.approve(id, data)
-      set({ mutationLoading: false })
+      set(state => ({
+        loading: { ...state.loading, approve: false }
+      }))
+      
+      // Auto-refetch after approve (store responsibility)
+      const { currentQuery, fetchPricelists } = get()
+      if (currentQuery) {
+        await fetchPricelists(currentQuery)
+      }
+      
       return pricelist
     } catch (error) {
       const message = parsePricelistError(error)
-      set({
-        error: message,
-        mutationLoading: false
-      })
+      set(state => ({
+        errors: { ...state.errors, mutation: message },
+        loading: { ...state.loading, approve: false }
+      }))
       throw error
     }
   },
 
   /**
-   * Clear error state
+   * Clear specific error or all errors
    */
-  clearError: () => set({ error: null }),
+  clearError: (type?: 'fetch' | 'mutation') => set(state => ({
+    errors: type 
+      ? { ...state.errors, [type]: null }
+      : { fetch: null, mutation: null }
+  })),
 
   /**
    * Reset store to initial state
@@ -229,8 +289,26 @@ export const usePricelistsStore = create<PricelistsState>((set, get) => ({
     pricelists: [],
     pagination: null,
     currentQuery: null,
-    fetchLoading: false,
-    mutationLoading: false,
-    error: null
-  })
+    loading: {
+      fetch: false,
+      create: false,
+      update: false,
+      delete: false,
+      approve: false
+    },
+    errors: {
+      fetch: null,
+      mutation: null
+    }
+  }),
+
+  /**
+   * Refetch current query (consistent refetch strategy)
+   */
+  refetch: async (signal?: AbortSignal) => {
+    const { currentQuery, fetchPricelists } = get()
+    if (currentQuery) {
+      await fetchPricelists(currentQuery, signal)
+    }
+  }
 }))

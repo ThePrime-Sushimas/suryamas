@@ -26,19 +26,21 @@ export function EditPricelistPage() {
   const currentBranch = useBranchContextStore(s => s.currentBranch)
 
   const updatePricelist = usePricelistsStore(s => s.updatePricelist)
-  const mutationLoading = usePricelistsStore(s => s.mutationLoading)
+  const storeLoading = usePricelistsStore(s => s.loading)
+  const storeErrors = usePricelistsStore(s => s.errors)
+  const clearError = usePricelistsStore(s => s.clearError)
   
   const [pricelist, setPricelist] = useState<PricelistWithRelations | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [contextLoading, setContextLoading] = useState(true)
+  const [contextError, setContextError] = useState<string | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
 
     const fetchPricelist = async () => {
       if (!pricelistId) {
-        setError('Invalid pricelist ID')
-        setLoading(false)
+        setContextError('Invalid pricelist ID')
+        setContextLoading(false)
         return
       }
 
@@ -57,21 +59,21 @@ export function EditPricelistPage() {
             }
             const message = statusMessages[data.status as keyof typeof statusMessages] || 
                            `Cannot edit pricelist with status: ${data.status}`
-            setError(message)
-            setLoading(false)
+            setContextError(message)
+            setContextLoading(false)
             return
           }
           setPricelist(data)
-          setError(null)
+          setContextError(null)
         }
       } catch (err) {
         if (!controller.signal.aborted) {
           const errorMessage = err instanceof Error ? err.message : 'Failed to load pricelist'
-          setError(errorMessage)
+          setContextError(errorMessage)
         }
       } finally {
         if (!controller.signal.aborted) {
-          setLoading(false)
+          setContextLoading(false)
         }
       }
     }
@@ -79,6 +81,14 @@ export function EditPricelistPage() {
     fetchPricelist()
     return () => controller.abort()
   }, [pricelistId])
+
+  // Store error handling (domain errors only)
+  useEffect(() => {
+    if (storeErrors.mutation) {
+      toast.error(storeErrors.mutation)
+      clearError()
+    }
+  }, [storeErrors.mutation, toast, clearError])
 
   const handleSubmit = useCallback(async (data: CreatePricelistDto | UpdatePricelistDto) => {
     if (!pricelistId || !pricelist) return
@@ -92,12 +102,9 @@ export function EditPricelistPage() {
     try {
       await updatePricelist(pricelistId, data as UpdatePricelistDto)
       toast.success('Pricelist updated successfully')
-      // Navigate after promise resolves, not based on flag
       navigate(`/supplier-products/${supplierProductId}/pricelists`)
-    } catch (error) {
-      // Enhanced error handling with business context
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update pricelist'
-      toast.error(errorMessage)
+    } catch {
+      // Store handles error display
     }
   }, [updatePricelist, pricelistId, pricelist, toast, navigate, supplierProductId])
 
@@ -105,7 +112,7 @@ export function EditPricelistPage() {
     navigate(`/supplier-products/${supplierProductId}/pricelists`)
   }, [navigate, supplierProductId])
 
-  if (loading) {
+  if (contextLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -113,12 +120,12 @@ export function EditPricelistPage() {
     )
   }
 
-  if (error || !pricelist) {
+  if (contextError || !pricelist) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-md mx-auto bg-red-50 border border-red-200 rounded-lg p-6">
           <h2 className="text-lg font-semibold text-red-800 mb-2">Error</h2>
-          <p className="text-red-600 mb-4">{error || 'Pricelist not found'}</p>
+          <p className="text-red-600 mb-4">{contextError || 'Pricelist not found'}</p>
           <button
             onClick={() => navigate(`/supplier-products/${supplierProductId}/pricelists`)}
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
@@ -146,7 +153,7 @@ export function EditPricelistPage() {
           onCancel={handleCancel}
           submitLabel="Update Pricelist"
           isEdit={true}
-          loading={mutationLoading}
+          submitting={storeLoading.update}
           companyId={currentBranch?.company_id || ''}
           branchId={currentBranch?.branch_id || null}
           supplierId={pricelist.supplier_id}

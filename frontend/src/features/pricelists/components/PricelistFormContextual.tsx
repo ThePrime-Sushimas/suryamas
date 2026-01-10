@@ -11,7 +11,7 @@
  * @module pricelists/components
  */
 
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useUomSearch } from '../hooks/useUomSearch'
 import { CURRENCY_OPTIONS } from '../constants/pricelist.constants'
 import { validateCreatePricelist, validateUpdatePricelist, hasErrors } from '../utils/validation'
@@ -28,8 +28,8 @@ interface PricelistFormContextualProps {
   submitLabel: string
   /** Edit mode flag */
   isEdit?: boolean
-  /** Loading state from parent */
-  loading?: boolean
+  /** Form submission state (explicit contract) */
+  submitting?: boolean
   /** Fixed context values */
   companyId: string
   branchId?: string | null
@@ -49,7 +49,7 @@ export function PricelistFormContextual({
   onCancel,
   submitLabel,
   isEdit = false,
-  loading = false,
+  submitting = false,
   companyId,
   branchId,
   supplierId,
@@ -58,12 +58,9 @@ export function PricelistFormContextual({
   productName
 }: PricelistFormContextualProps) {
   const uomSearch = useUomSearch(productId)
-  const [submitting, setSubmitting] = useState(false)
-  const [errors, setErrors] = useState<PricelistFormErrors>({})
-  const [touched, setTouched] = useState<Record<string, boolean>>({})
 
-  // Form data state
-  const [formData, setFormData] = useState<CreatePricelistDto>(() => ({
+  // Form data state with memoized initial values
+  const initialFormData = useMemo(() => ({
     company_id: companyId,
     branch_id: branchId || null,
     supplier_id: supplierId,
@@ -74,41 +71,27 @@ export function PricelistFormContextual({
     valid_from: initialData?.valid_from || new Date().toISOString().split('T')[0],
     valid_to: initialData?.valid_to || null,
     is_active: initialData?.is_active ?? true
-  }))
-
-  // Reset form when initialData changes (switching between items)
-  useEffect(() => {
-    if (initialData?.id) {
-      setFormData({
-        company_id: companyId,
-        branch_id: branchId || null,
-        supplier_id: supplierId,
-        product_id: productId,
-        uom_id: initialData.uom_id || '',
-        price: initialData.price || 0,
-        currency: initialData.currency || 'IDR',
-        valid_from: initialData.valid_from || new Date().toISOString().split('T')[0],
-        valid_to: initialData.valid_to || null,
-        is_active: initialData.is_active ?? true
-      })
-      setTouched({})
-      setErrors({})
-    }
-  }, [
-    initialData?.id,
+  }), [
+    companyId,
+    branchId,
+    supplierId,
+    productId,
     initialData?.uom_id,
     initialData?.price,
     initialData?.currency,
     initialData?.valid_from,
     initialData?.valid_to,
-    initialData?.is_active,
-    companyId,
-    branchId,
-    supplierId,
-    productId
+    initialData?.is_active
   ])
 
-  // Memoized validation (pure function - no touched dependency needed)
+  const [formData, setFormData] = useState<CreatePricelistDto>(initialFormData)
+  const [errors, setErrors] = useState<PricelistFormErrors>({})
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
+
+  // Reset form when initial data changes (using key prop pattern)
+  const formKey = `${initialData?.id || 'new'}-${companyId}-${supplierId}-${productId}`
+
+  // Memoized validation
   const validationErrors = useMemo(() => {
     if (isEdit) {
       const updateData: UpdatePricelistDto = {
@@ -141,7 +124,6 @@ export function PricelistFormContextual({
       return
     }
 
-    setSubmitting(true)
     setErrors({})
 
     try {
@@ -161,8 +143,6 @@ export function PricelistFormContextual({
       }
     } catch {
       // Error handled by parent component
-    } finally {
-      setSubmitting(false)
     }
   }, [formData, validationErrors, isEdit, onSubmit])
 
@@ -195,10 +175,10 @@ export function PricelistFormContextual({
     return touched[fieldName] ? validationErrors[fieldName as keyof PricelistFormErrors] : undefined
   }, [touched, validationErrors])
 
-  const isFormDisabled = loading || submitting
+  const isFormDisabled = submitting
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6" noValidate>
+    <form key={formKey} onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6" noValidate>
       {/* Context Display (Read-only) */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h3 className="text-sm font-semibold text-blue-900 mb-2">Context (Fixed)</h3>

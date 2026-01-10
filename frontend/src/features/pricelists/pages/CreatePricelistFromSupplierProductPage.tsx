@@ -40,14 +40,16 @@ export function CreatePricelistFromSupplierProductPage() {
   // Branch context
   const currentBranch = useBranchContextStore(s => s.currentBranch)
 
-  // Individual selectors
+  // Store = SSOT for domain state
   const createPricelist = usePricelistsStore(s => s.createPricelist)
-  const mutationLoading = usePricelistsStore(s => s.mutationLoading)
+  const storeLoading = usePricelistsStore(s => s.loading)
+  const storeErrors = usePricelistsStore(s => s.errors)
+  const clearError = usePricelistsStore(s => s.clearError)
   
-  // Local state
+  // Page = Context resolver only
   const [supplierProduct, setSupplierProduct] = useState<SupplierProductContext | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [contextLoading, setContextLoading] = useState(true)
+  const [contextError, setContextError] = useState<string | null>(null)
 
   // Fetch supplier product context
   useEffect(() => {
@@ -55,12 +57,12 @@ export function CreatePricelistFromSupplierProductPage() {
 
     const fetchContext = async () => {
       if (!supplierProductId) {
-        setError('Invalid supplier product ID')
+        setContextError('Invalid supplier product ID')
         return
       }
 
       if (!currentBranch) {
-        setError('No branch context available')
+        setContextError('No branch context available')
         return
       }
 
@@ -69,15 +71,15 @@ export function CreatePricelistFromSupplierProductPage() {
         
         if (!controller.signal.aborted) {
           setSupplierProduct(data)
-          setError(null)
+          setContextError(null)
         }
       } catch {
         if (!controller.signal.aborted) {
-          setError('Failed to load supplier product context')
+          setContextError('Failed to load supplier product context')
         }
       } finally {
         if (!controller.signal.aborted) {
-          setLoading(false)
+          setContextLoading(false)
         }
       }
     }
@@ -85,6 +87,14 @@ export function CreatePricelistFromSupplierProductPage() {
     fetchContext()
     return () => controller.abort()
   }, [supplierProductId, currentBranch])
+
+  // Store error handling (domain errors only)
+  useEffect(() => {
+    if (storeErrors.mutation) {
+      toast.error(storeErrors.mutation)
+      clearError()
+    }
+  }, [storeErrors.mutation, toast, clearError])
 
   // Form submission handler
   const handleSubmit = useCallback(async (data: CreatePricelistDto | UpdatePricelistDto) => {
@@ -96,12 +106,9 @@ export function CreatePricelistFromSupplierProductPage() {
     try {
       await createPricelist(data as CreatePricelistDto)
       toast.success('Pricelist created successfully')
-      // Navigate after promise resolves, not based on flag
       navigate(`/supplier-products/${supplierProductId}/pricelists`)
-    } catch (error) {
-      // Enhanced error handling with specific messages
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create pricelist'
-      toast.error(errorMessage)
+    } catch {
+      // Store handles error display
     }
   }, [createPricelist, supplierProduct, currentBranch, toast, navigate, supplierProductId])
 
@@ -111,7 +118,7 @@ export function CreatePricelistFromSupplierProductPage() {
   }, [navigate, supplierProductId])
 
   // Loading state
-  if (loading) {
+  if (contextLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -123,12 +130,12 @@ export function CreatePricelistFromSupplierProductPage() {
   }
 
   // Error state
-  if (error) {
+  if (contextError) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-md mx-auto bg-red-50 border border-red-200 rounded-lg p-6">
           <h2 className="text-lg font-semibold text-red-800 mb-2">Error</h2>
-          <p className="text-red-600 mb-4">{error}</p>
+          <p className="text-red-600 mb-4">{contextError}</p>
           <div className="flex gap-2">
             <button
               onClick={() => window.location.reload()}
@@ -225,7 +232,7 @@ export function CreatePricelistFromSupplierProductPage() {
           onSubmit={handleSubmit}
           onCancel={handleCancel}
           submitLabel="Create Pricelist"
-          loading={mutationLoading}
+          submitting={storeLoading.create}
           companyId={currentBranch.company_id}
           branchId={currentBranch.branch_id}
           supplierId={supplierProduct.supplier_id}

@@ -39,20 +39,21 @@ export function SupplierProductPricelistsPage() {
   const navigate = useNavigate()
   const toast = useToast()
 
-  // Individual selectors (recommended pattern)
+  // Store = SSOT for domain state
   const pricelists = usePricelistsStore(s => s.pricelists)
   const pagination = usePricelistsStore(s => s.pagination)
-  const fetchLoading = usePricelistsStore(s => s.fetchLoading)
-  const mutationLoading = usePricelistsStore(s => s.mutationLoading)
+  const storeLoading = usePricelistsStore(s => s.loading)
+  const storeErrors = usePricelistsStore(s => s.errors)
   const fetchPricelists = usePricelistsStore(s => s.fetchPricelists)
   const deletePricelist = usePricelistsStore(s => s.deletePricelist)
   const approvePricelist = usePricelistsStore(s => s.approvePricelist)
   const clearError = usePricelistsStore(s => s.clearError)
   const reset = usePricelistsStore(s => s.reset)
 
-  // Local state
+  // Page = Context resolver only
   const [supplierProduct, setSupplierProduct] = useState<SupplierProductContext | null>(null)
   const [contextLoading, setContextLoading] = useState(true)
+  const [contextError, setContextError] = useState<string | null>(null)
   const [filters, setFilters] = useState<PricelistListQuery>({
     page: DEFAULT_VALUES.PAGE,
     limit: DEFAULT_VALUES.LIMIT,
@@ -82,11 +83,11 @@ export function SupplierProductPricelistsPage() {
         
         if (!controller.signal.aborted) {
           setSupplierProduct(data)
+          setContextError(null)
         }
       } catch {
         if (!controller.signal.aborted) {
-          toast.error('Failed to load supplier product context')
-          navigate('/supplier-products')
+          setContextError('Failed to load supplier product context')
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -113,14 +114,25 @@ export function SupplierProductPricelistsPage() {
     return () => reset()
   }, [reset])
 
-  // Error handling
+  // Store error handling (domain errors only)
   useEffect(() => {
-    const error = usePricelistsStore.getState().error
-    if (error) {
-      toast.error(error)
+    if (storeErrors.fetch) {
+      toast.error(storeErrors.fetch)
       clearError()
     }
-  }, [toast, clearError])
+    if (storeErrors.mutation) {
+      toast.error(storeErrors.mutation)
+      clearError()
+    }
+  }, [storeErrors.fetch, storeErrors.mutation, toast, clearError])
+
+  // Context error handling (routing errors only)
+  useEffect(() => {
+    if (contextError) {
+      toast.error(contextError)
+      navigate('/supplier-products')
+    }
+  }, [contextError, toast, navigate])
 
   // Event handlers
   const handleSort = useCallback((field: string) => {
@@ -153,7 +165,7 @@ export function SupplierProductPricelistsPage() {
       await deletePricelist(id)
       toast.success('Pricelist deleted successfully')
     } catch {
-      // Error handled in store
+      // Store handles error display
     }
   }, [deletePricelist, toast])
 
@@ -165,14 +177,11 @@ export function SupplierProductPricelistsPage() {
     try {
       await approvePricelist(id, { status: 'APPROVED' })
       toast.success('Pricelist approved successfully')
-      // Refetch to get updated data
-      if (supplierProduct) {
-        fetchPricelists(query)
-      }
+      // Store handles refetch automatically
     } catch {
-      // Error handled in store
+      // Store handles error display
     }
-  }, [approvePricelist, toast, fetchPricelists, query, supplierProduct])
+  }, [approvePricelist, toast])
 
   const handleExport = useCallback(async () => {
     try {
@@ -201,11 +210,11 @@ export function SupplierProductPricelistsPage() {
   }
 
   // Context not found
-  if (!supplierProduct) {
+  if (!supplierProduct || contextError) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-600">Supplier product not found</p>
+          <p className="text-red-600">{contextError || 'Supplier product not found'}</p>
         </div>
       </div>
     )
@@ -243,7 +252,7 @@ export function SupplierProductPricelistsPage() {
         <div className="flex gap-2">
           <button
             onClick={handleExport}
-            disabled={fetchLoading || pricelists.length === 0}
+            disabled={storeLoading.fetch || pricelists.length === 0}
             className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             Export CSV
@@ -260,7 +269,7 @@ export function SupplierProductPricelistsPage() {
       {/* Table */}
       <PricelistTable
         data={pricelists}
-        loading={fetchLoading}
+        loading={storeLoading.fetch}
         onEdit={handleEdit}
         onDelete={handleDelete}
         onView={handleView}
@@ -299,7 +308,7 @@ export function SupplierProductPricelistsPage() {
       )}
 
       {/* Loading overlay for mutations */}
-      {mutationLoading && (
+      {(storeLoading.create || storeLoading.update || storeLoading.delete || storeLoading.approve) && (
         <div className="fixed inset-0 bg-gray-900/20 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 shadow-xl">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
