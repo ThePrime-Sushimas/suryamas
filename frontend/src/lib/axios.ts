@@ -1,4 +1,4 @@
-import axios, { AxiosError } from 'axios'
+import axios from 'axios'
 import type { InternalAxiosRequestConfig } from 'axios'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 
@@ -59,13 +59,14 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error: unknown) => {
-    if (!error || typeof error !== 'object') return Promise.reject(error)
+    if (!axios.isAxiosError(error)) {
+      return Promise.reject(error)
+    }
     
-    const axiosError = error as AxiosError
-    const originalRequest = axiosError.config as InternalAxiosRequestConfig & { _retry?: boolean }
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
     // Token expired - try refresh
-    if (axiosError.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true
       
       try {
@@ -85,7 +86,7 @@ api.interceptors.response.use(
     }
 
     // Retry logic for network errors
-    if (!axiosError.response && !originalRequest._retry) {
+    if (!error.response && !originalRequest._retry) {
       originalRequest._retry = true
       return api(originalRequest)
     }

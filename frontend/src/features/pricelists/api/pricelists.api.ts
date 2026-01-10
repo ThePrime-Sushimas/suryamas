@@ -5,7 +5,7 @@
  * @module pricelists/api
  */
 
-import axios from '@/lib/axios'
+import axiosInstance from '@/lib/axios'
 import type {
   Pricelist,
   PricelistWithRelations,
@@ -47,7 +47,7 @@ export const pricelistsApi = {
    */
   async list(query: PricelistListQuery = {}, signal?: AbortSignal): Promise<PricelistListResponse> {
     const queryString = buildQueryString(query as Record<string, unknown>)
-    const response = await axios.get<PricelistListResponse>(`${BASE_URL}${queryString}`, { signal })
+    const response = await axiosInstance.get<PricelistListResponse>(`${BASE_URL}${queryString}`, { signal })
     return unwrapData<PricelistListResponse>(response)
   },
 
@@ -55,7 +55,7 @@ export const pricelistsApi = {
    * Get single pricelist by ID
    */
   async getById(id: string, signal?: AbortSignal): Promise<PricelistWithRelations> {
-    const response = await axios.get(`${BASE_URL}/${id}`, { signal })
+    const response = await axiosInstance.get(`${BASE_URL}/${id}`, { signal })
     return unwrapData<PricelistWithRelations>(response)
   },
 
@@ -63,7 +63,7 @@ export const pricelistsApi = {
    * Create new pricelist
    */
   async create(data: CreatePricelistDto): Promise<Pricelist> {
-    const response = await axios.post(BASE_URL, data)
+    const response = await axiosInstance.post(BASE_URL, data)
     return unwrapData<Pricelist>(response)
   },
 
@@ -71,7 +71,7 @@ export const pricelistsApi = {
    * Update existing pricelist (DRAFT only)
    */
   async update(id: string, data: UpdatePricelistDto): Promise<Pricelist> {
-    const response = await axios.patch(`${BASE_URL}/${id}`, data)
+    const response = await axiosInstance.patch(`${BASE_URL}/${id}`, data)
     return unwrapData<Pricelist>(response)
   },
 
@@ -79,14 +79,14 @@ export const pricelistsApi = {
    * Delete pricelist (soft delete)
    */
   async delete(id: string): Promise<void> {
-    await axios.delete(`${BASE_URL}/${id}`)
+    await axiosInstance.delete(`${BASE_URL}/${id}`)
   },
 
   /**
    * Approve or reject pricelist
    */
   async approve(id: string, data: PricelistApprovalDto): Promise<Pricelist> {
-    const response = await axios.post(`${BASE_URL}/${id}/approve`, data)
+    const response = await axiosInstance.post(`${BASE_URL}/${id}/approve`, data)
     return unwrapData<Pricelist>(response)
   },
 
@@ -96,7 +96,7 @@ export const pricelistsApi = {
    */
   async lookup(query: PricelistLookupQuery, signal?: AbortSignal): Promise<PricelistLookupResponse> {
     const queryString = buildQueryString(query as unknown as Record<string, unknown>)
-    const response = await axios.get<PricelistLookupResponse>(`${BASE_URL}/lookup${queryString}`, { signal })
+    const response = await axiosInstance.get<PricelistLookupResponse>(`${BASE_URL}/lookup${queryString}`, { signal })
     return unwrapData<PricelistLookupResponse>(response)
   },
 
@@ -105,7 +105,7 @@ export const pricelistsApi = {
    */
   async exportCSV(query: PricelistListQuery = {}): Promise<Blob> {
     const queryString = buildQueryString(query as Record<string, unknown>)
-    const response = await axios.get(`${BASE_URL}/export${queryString}`, {
+    const response = await axiosInstance.get(`${BASE_URL}/export${queryString}`, {
       responseType: 'blob'
     })
     return response.data
