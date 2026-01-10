@@ -133,6 +133,7 @@ export interface PricelistListQuery {
   valid_on?: string // ISO date - filter by validity
   sort_by?: SortField
   sort_order?: SortOrder
+  include_deleted?: boolean // Show deleted items
 }
 
 /**

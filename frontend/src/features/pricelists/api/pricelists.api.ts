@@ -110,6 +110,14 @@ export const pricelistsApi = {
   },
 
   /**
+   * Restore deleted pricelist
+   */
+  async restore(id: string): Promise<Pricelist> {
+    const response = await axiosInstance.post(`${BASE_URL}/${id}/restore`)
+    return unwrapData<Pricelist>(response)
+  },
+
+  /**
    * Export pricelists to CSV
    */
   async exportCSV(query: PricelistListQuery = {}): Promise<Blob> {

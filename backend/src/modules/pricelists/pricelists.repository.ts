@@ -195,6 +195,24 @@ export class PricelistsRepository {
     if (error) throw new Error(error.message)
   }
 
+  async restore(id: string, userId?: string): Promise<Pricelist | null> {
+    const { data, error } = await supabase
+      .from('pricelists')
+      .update({
+        deleted_at: null,
+        is_active: true,
+        updated_by: userId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .not('deleted_at', 'is', null)
+      .select()
+      .maybeSingle()
+
+    if (error) throw new Error(error.message)
+    return data
+  }
+
   async lookupPrice(lookup: PricelistLookup): Promise<Pricelist | null> {
     const targetDate = lookup.date || new Date().toISOString().split('T')[0]
 

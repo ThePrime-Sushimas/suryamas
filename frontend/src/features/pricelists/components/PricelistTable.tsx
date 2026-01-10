@@ -8,7 +8,7 @@
 import { memo, useCallback } from 'react'
 import type { PricelistWithRelations, SortField, SortOrder } from '../types/pricelist.types'
 import { formatPrice, formatDate, formatStatus, getValidityStatus } from '../utils/format'
-import { getStatusColor, isEditable, isApprovable } from '../constants/pricelist.constants'
+import { getStatusColor, isEditable } from '../constants/pricelist.constants'
 
 // Static class mapping for Tailwind purging safety - moved outside component
 const STATUS_CLASSES: Record<string, string> = {
@@ -23,22 +23,24 @@ const PricelistRow = memo(function PricelistRow({
   pricelist,
   onEdit,
   onDelete,
+  onRestore,
   onView,
-  onApprove,
 }: {
   pricelist: PricelistWithRelations
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onRestore?: (id: string) => void
   onView: (id: string) => void
   onApprove: (id: string) => void
+  showDeleted?: boolean
 }) {
   const validityStatus = getValidityStatus(pricelist.valid_from, pricelist.valid_to)
   const statusColor = getStatusColor(pricelist.status)
   const canEdit = isEditable(pricelist.status)
-  const canApprove = isApprovable(pricelist.status)
+  const isDeleted = !!pricelist.deleted_at
 
   return (
-    <tr className="hover:bg-gray-50">
+    <tr className={`hover:bg-gray-50 ${isDeleted ? 'bg-red-50 opacity-75' : ''}`}>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
         {pricelist.supplier_name || '-'}
       </td>
@@ -75,7 +77,7 @@ const PricelistRow = memo(function PricelistRow({
           >
             View
           </button>
-          {canEdit && (
+          {!isDeleted && canEdit && (
             <button
               onClick={() => onEdit(pricelist.id)}
               className="text-indigo-600 hover:text-indigo-900"
@@ -83,16 +85,25 @@ const PricelistRow = memo(function PricelistRow({
               Edit
             </button>
           )}
-          <button
-            onClick={() => {
-              if (confirm('Delete this pricelist?')) {
-                onDelete(pricelist.id)
-              }
-            }}
-            className="text-red-600 hover:text-red-900"
-          >
-            Delete
-          </button>
+          {isDeleted && onRestore ? (
+            <button
+              onClick={() => onRestore(pricelist.id)}
+              className="text-green-600 hover:text-green-900"
+            >
+              Restore
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                if (confirm('Delete this pricelist?')) {
+                  onDelete(pricelist.id)
+                }
+              }}
+              className="text-red-600 hover:text-red-900"
+            >
+              Delete
+            </button>
+          )}
         </div>
       </td>
     </tr>
@@ -104,11 +115,13 @@ interface PricelistTableProps {
   loading: boolean
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onRestore?: (id: string) => void
   onView: (id: string) => void
   onApprove: (id: string) => void
   sortBy?: SortField
   sortOrder?: SortOrder
   onSort: (field: SortField) => void
+  showDeleted?: boolean
 }
 
 export const PricelistTable = memo(function PricelistTable({
@@ -116,11 +129,13 @@ export const PricelistTable = memo(function PricelistTable({
   loading,
   onEdit,
   onDelete,
+  onRestore,
   onView,
   onApprove,
   sortBy,
   sortOrder,
-  onSort
+  onSort,
+  showDeleted
 }: PricelistTableProps) {
   const handleSort = useCallback((field: SortField) => {
     onSort(field)
@@ -201,8 +216,10 @@ export const PricelistTable = memo(function PricelistTable({
                 pricelist={pricelist}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onRestore={onRestore}
                 onView={onView}
                 onApprove={onApprove}
+                showDeleted={showDeleted}
               />
             ))}
           </tbody>

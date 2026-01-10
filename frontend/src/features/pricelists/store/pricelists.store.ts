@@ -73,6 +73,7 @@ interface PricelistsState {
   createPricelist: (data: CreatePricelistDto) => Promise<Pricelist>
   updatePricelist: (id: string, data: UpdatePricelistDto) => Promise<Pricelist>
   deletePricelist: (id: string) => Promise<void>
+  restorePricelist: (id: string) => Promise<void>
   approvePricelist: (id: string, data: PricelistApprovalDto) => Promise<Pricelist>
   clearError: () => void
   reset: () => void
@@ -235,6 +236,36 @@ export const usePricelistsStore = create<PricelistsState>((set, get) => ({
       set(state => ({
         errors: { ...state.errors, mutation: message },
         loading: { ...state.loading, delete: false }
+      }))
+      throw error
+    }
+  },
+
+  /**
+   * Restore deleted pricelist with auto-refetch
+   */
+  restorePricelist: async (id) => {
+    set(state => ({
+      loading: { ...state.loading, update: true },
+      errors: { ...state.errors, mutation: null }
+    }))
+    
+    try {
+      await pricelistsApi.restore(id)
+      set(state => ({
+        loading: { ...state.loading, update: false }
+      }))
+      
+      // Auto-refetch after restore
+      const { currentQuery, fetchPricelists } = get()
+      if (currentQuery) {
+        await fetchPricelists(currentQuery)
+      }
+    } catch (error) {
+      const message = parsePricelistError(error)
+      set(state => ({
+        errors: { ...state.errors, mutation: message },
+        loading: { ...state.loading, update: false }
       }))
       throw error
     }

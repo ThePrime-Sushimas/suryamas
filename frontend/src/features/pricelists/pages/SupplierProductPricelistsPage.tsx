@@ -47,6 +47,7 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
   const fetchPricelists = usePricelistsStore(s => s.fetchPricelists)
   const deletePricelist = usePricelistsStore(s => s.deletePricelist)
   const approvePricelist = usePricelistsStore(s => s.approvePricelist)
+  const restorePricelist = usePricelistsStore(s => s.restorePricelist)
   const clearError = usePricelistsStore(s => s.clearError)
   const reset = usePricelistsStore(s => s.reset)
 
@@ -54,6 +55,7 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
   const [supplierProduct, setSupplierProduct] = useState<SupplierProductContext | null>(null)
   const [contextLoading, setContextLoading] = useState(true)
   const [contextError, setContextError] = useState<string | null>(null)
+  const [showDeleted, setShowDeleted] = useState(false)
   const [filters, setFilters] = useState<PricelistListQuery>({
     page: DEFAULT_VALUES.PAGE,
     limit: DEFAULT_VALUES.LIMIT,
@@ -65,8 +67,9 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
   const query = useMemo(() => ({
     ...filters,
     supplier_id: supplierProduct?.supplier_id,
-    product_id: supplierProduct?.product_id
-  }), [filters, supplierProduct])
+    product_id: supplierProduct?.product_id,
+    include_deleted: showDeleted
+  }), [filters, supplierProduct, showDeleted])
 
   // Fetch supplier product context
   useEffect(() => {
@@ -169,6 +172,19 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
     }
   }, [deletePricelist, toast])
 
+  const handleRestore = useCallback(async (id: string) => {
+    if (!window.confirm('Are you sure you want to restore this pricelist?')) {
+      return
+    }
+
+    try {
+      await restorePricelist(id)
+      toast.success('Pricelist restored successfully')
+    } catch {
+      // Store handles error display
+    }
+  }, [restorePricelist, toast])
+
   const handleApprove = useCallback(async (id: string) => {
     if (!window.confirm('Are you sure you want to approve this pricelist?')) {
       return
@@ -250,6 +266,15 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
           <p className="text-gray-500 mt-1">Set pricing per UOM for this supplier-product combination</p>
         </div>
         <div className="flex gap-2">
+          <label className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-md">
+            <input
+              type="checkbox"
+              checked={showDeleted}
+              onChange={(e) => setShowDeleted(e.target.checked)}
+              className="rounded"
+            />
+            <span className="text-sm text-gray-700">Show deleted</span>
+          </label>
           <button
             onClick={handleExport}
             disabled={loading.fetch || !pricelists || pricelists.length === 0}
@@ -272,11 +297,13 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
         loading={loading.fetch}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onRestore={handleRestore}
         onView={handleView}
         onApprove={handleApprove}
         sortBy={filters.sort_by}
         sortOrder={filters.sort_order}
         onSort={handleSort}
+        showDeleted={showDeleted}
       />
 
       {/* Pagination */}
