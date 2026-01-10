@@ -1,7 +1,6 @@
 // Supplier Product Filters - Filter controls component
 
 import { useState, useEffect } from 'react'
-import { useDebounce } from '@/hooks/useDebounce'
 import { suppliersApi } from '@/features/suppliers/api/suppliers.api'
 import { productsApi } from '@/features/products/api/products.api'
 import { PAGE_SIZE_OPTIONS } from '../constants/supplier-product.constants'
@@ -27,8 +26,6 @@ interface SupplierProductFiltersProps {
 }
 
 export function SupplierProductFilters({
-  search,
-  onSearchChange,
   supplierId,
   onSupplierChange,
   productId,
@@ -43,17 +40,10 @@ export function SupplierProductFilters({
   onPageSizeChange,
   onReset
 }: SupplierProductFiltersProps) {
-  const [localSearch, setLocalSearch] = useState(search)
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [loadingSuppliers, setLoadingSuppliers] = useState(false)
   const [loadingProducts, setLoadingProducts] = useState(false)
-
-  // Debounce search
-  const debouncedSearch = useDebounce(localSearch, 300)
-  if (debouncedSearch !== search) {
-    onSearchChange(debouncedSearch)
-  }
 
   // Load suppliers
   useEffect(() => {
@@ -87,11 +77,7 @@ export function SupplierProductFilters({
     loadProducts()
   }, [])
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setLocalSearch(e.target.value)
-  }
-
-  const handlePreferredChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+const handlePreferredChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value
     onPreferredChange(value === '' ? undefined : value === 'true')
   }
@@ -104,18 +90,6 @@ export function SupplierProductFilters({
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
       <div className="flex flex-wrap gap-4 items-end">
-        {/* Search */}
-        <div className="flex-1 min-w-[200px]">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
-          <input
-            type="text"
-            placeholder="Search supplier or product..."
-            value={localSearch}
-            onChange={handleSearchChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
         {/* Supplier Filter */}
         <div className="min-w-[200px]">
           <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>

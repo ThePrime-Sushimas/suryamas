@@ -16,6 +16,7 @@ export interface Product {
   notes: string | null
   status: ProductStatus
   is_deleted: boolean
+  default_purchase_unit?: string | null
   created_at: string
   updated_at: string
   created_by: string | null

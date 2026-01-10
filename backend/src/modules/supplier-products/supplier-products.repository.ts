@@ -24,7 +24,7 @@ export class SupplierProductsRepository {
     includeRelations = false
   ): Promise<{ data: SupplierProduct[] | SupplierProductWithRelations[]; total: number }> {
     const selectFields = includeRelations 
-      ? `*, suppliers(id, supplier_name, supplier_code, is_active), products(id, product_name, product_code, product_type, status)`
+      ? `*, suppliers(id, supplier_name, supplier_code, is_active), products(id, product_name, product_code, product_type, status, default_purchase_unit)`
       : '*'
 
     let dbQuery = supabase.from('supplier_products').select(selectFields)
@@ -57,20 +57,7 @@ export class SupplierProductsRepository {
       countQuery = countQuery.eq('is_active', query.is_active)
     }
 
-    // Search functionality with injection protection
-    if (query?.search && query.search.trim()) {
-      // Escape special characters to prevent injection
-      const sanitizedSearch = query.search.replace(/[%_\\]/g, '\\$&')
-      const searchPattern = `%${sanitizedSearch}%`
-      
-      if (includeRelations) {
-        dbQuery = dbQuery.or(`suppliers.supplier_name.ilike.${searchPattern},products.product_name.ilike.${searchPattern}`)
-        countQuery = countQuery.or(`suppliers.supplier_name.ilike.${searchPattern},products.product_name.ilike.${searchPattern}`)
-      } else {
-        // For non-relation queries, we can't search by supplier/product names
-        // This is a limitation when not including relations
-      }
-    }
+    // Search disabled - use supplier/product filters instead
 
     // Sorting
     const sortBy = query?.sort_by && SUPPLIER_PRODUCT_SORT_FIELDS.includes(query.sort_by as any) 
@@ -87,33 +74,9 @@ export class SupplierProductsRepository {
     if (error) throw new Error(`Database query failed: ${error.message}`)
     if (countError) throw new Error(`Count query failed: ${countError.message}`)
 
-    let mappedData = includeRelations
+    const mappedData = includeRelations
       ? (data || []).map(mapSupplierProductWithRelations)
       : (data || []).map(mapSupplierProductFromDb)
-
-    // Fetch default purchase UOMs for products
-    if (includeRelations && mappedData.length > 0) {
-      const productIds = mappedData.map((item: any) => item.product_id)
-      
-      const { data: uomsData, error: uomsError } = await supabase
-        .from('product_uoms')
-        .select('product_id, metric_units(unit_name)')
-        .in('product_id', productIds)
-        .eq('is_default_purchase_unit', true)
-        .eq('status_uom', 'ACTIVE')
-        .eq('is_deleted', false)
-
-      if (!uomsError && uomsData) {
-        const uomsMap = new Map(uomsData.map((uom: any) => [uom.product_id, uom.metric_units?.unit_name]))
-        mappedData = mappedData.map((item: any) => ({
-          ...item,
-          product: item.product ? {
-            ...item.product,
-            default_purchase_unit: uomsMap.get(item.product_id) || null
-          } : null
-        }))
-      }
-    }
 
     return { data: mappedData, total: count || 0 }
   }
@@ -123,7 +86,7 @@ export class SupplierProductsRepository {
    */
   async findById(id: string, includeRelations = false, includeDeleted = false): Promise<SupplierProduct | SupplierProductWithRelations | null> {
     const selectFields = includeRelations 
-      ? `*, suppliers(id, supplier_name, supplier_code, is_active), products(id, product_name, product_code, product_type, status)`
+      ? `*, suppliers(id, supplier_name, supplier_code, is_active), products(id, product_name, product_code, product_type, status, default_purchase_unit)`
       : '*'
 
     let query = supabase
@@ -150,7 +113,7 @@ export class SupplierProductsRepository {
    */
   async findBySupplier(supplierId: string, includeRelations = false): Promise<SupplierProduct[] | SupplierProductWithRelations[]> {
     const selectFields = includeRelations 
-      ? `*, products(id, product_name, product_code, product_type, status)`
+      ? `*, products(id, product_name, product_code, product_type, status, default_purchase_unit)`
       : '*'
 
     const { data, error } = await supabase

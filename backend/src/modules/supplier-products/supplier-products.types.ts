@@ -28,6 +28,7 @@ export interface SupplierProductWithRelations extends SupplierProduct {
     product_code: string
     product_type: string
     status: string
+    default_purchase_unit?: string | null
   }
 }
 

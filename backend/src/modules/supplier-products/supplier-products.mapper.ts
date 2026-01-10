@@ -43,6 +43,7 @@ export const mapSupplierProductWithRelations = (raw: any): SupplierProductWithRe
       product_code: raw.products.product_code,
       product_type: raw.products.product_type,
       status: raw.products.status,
+      default_purchase_unit: raw.products.default_purchase_unit,
     } : undefined,
   }
 }
