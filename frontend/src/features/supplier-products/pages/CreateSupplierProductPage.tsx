@@ -25,8 +25,11 @@ export function CreateSupplierProductPage() {
       await createSupplierProduct(data as CreateSupplierProductDto)
       toast.success('Supplier product created successfully')
       navigate('/supplier-products')
-    } catch {
-      // Error handled in store
+    } catch (err) {
+      const errorMsg = err instanceof Error 
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message || err.message 
+        : 'Failed to create supplier product'
+      toast.error(errorMsg)
     }
   }
 

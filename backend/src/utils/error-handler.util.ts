@@ -2,6 +2,7 @@ import { Response } from 'express'
 import { ZodError } from '@/lib/openapi'
 import { sendError } from './response.util'
 import { logError } from '../config/logger'
+import { SupplierProductError } from '../modules/supplier-products/supplier-products.errors'
 
 export class AppError extends Error {
   constructor(
@@ -48,6 +49,16 @@ export class BusinessRuleError extends AppError {
 }
 
 export const handleError = (res: Response, error: unknown): void => {
+  // SupplierProduct custom errors
+  if (error instanceof SupplierProductError) {
+    logError(error.code, {
+      message: error.message,
+      details: error.details
+    })
+    sendError(res, error.message, error.statusCode)
+    return
+  }
+
   // Custom AppError with full context
   if (error instanceof AppError) {
     logError(error.code, {

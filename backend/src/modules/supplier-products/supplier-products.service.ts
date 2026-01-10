@@ -103,7 +103,12 @@ export class SupplierProductsService {
     // Check for duplicate supplier-product combination
     const existing = await this.repository.findBySupplierAndProduct(dto.supplier_id, dto.product_id)
     if (existing) {
-      throw new DuplicateSupplierProductError(dto.supplier_id, dto.product_id)
+      const supplier = await suppliersRepository.findById(dto.supplier_id)
+      const product = await productsRepository.findById(dto.product_id)
+      throw new DuplicateSupplierProductError(
+        supplier?.supplier_name || dto.supplier_id,
+        product?.product_name || dto.product_id
+      )
     }
 
     // Validate currency if provided
