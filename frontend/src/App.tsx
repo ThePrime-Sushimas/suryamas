@@ -59,8 +59,8 @@ const SupplierProductsPage = lazy(() => import('./features/supplier-products').t
 const CreateSupplierProductPage = lazy(() => import('./features/supplier-products').then(m => ({ default: m.CreateSupplierProductPage })))
 const EditSupplierProductPage = lazy(() => import('./features/supplier-products').then(m => ({ default: m.EditSupplierProductPage })))
 const SupplierProductDetailPage = lazy(() => import('./features/supplier-products').then(m => ({ default: m.SupplierProductDetailPage })))
-const PricelistsPage = lazy(() => import('./features/pricelists').then(m => ({ default: m.PricelistsPage })))
-const CreatePricelistPage = lazy(() => import('./features/pricelists').then(m => ({ default: m.CreatePricelistPage })))
+const SupplierProductPricelistsPage = lazy(() => import('./features/pricelists').then(m => ({ default: m.SupplierProductPricelistsPage })))
+const CreatePricelistFromSupplierProductPage = lazy(() => import('./features/pricelists').then(m => ({ default: m.CreatePricelistFromSupplierProductPage })))
 const BanksListPage = lazy(() => import('./features/banks').then(m => ({ default: m.BanksListPage })))
 const CreateBankPage = lazy(() => import('./features/banks').then(m => ({ default: m.CreateBankPage })))
 const EditBankPage = lazy(() => import('./features/banks').then(m => ({ default: m.EditBankPage })))
@@ -160,8 +160,8 @@ function App() {
           <Route path="supplier-products/create" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateSupplierProductPage /></Suspense></ProtectedRoute>} />
           <Route path="supplier-products/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><SupplierProductDetailPage /></Suspense></ProtectedRoute>} />
           <Route path="supplier-products/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditSupplierProductPage /></Suspense></ProtectedRoute>} />
-          <Route path="pricelists" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><PricelistsPage /></Suspense></ProtectedRoute>} />
-          <Route path="pricelists/create" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreatePricelistPage /></Suspense></ProtectedRoute>} />
+          <Route path="supplier-products/:supplierProductId/pricelists" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><SupplierProductPricelistsPage /></Suspense></ProtectedRoute>} />
+          <Route path="supplier-products/:supplierProductId/pricelists/create" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreatePricelistFromSupplierProductPage /></Suspense></ProtectedRoute>} />
           <Route path="settings/banks" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><BanksListPage /></Suspense></ProtectedRoute>} />
           <Route path="settings/banks/create" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateBankPage /></Suspense></ProtectedRoute>} />
           <Route path="settings/banks/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditBankPage /></Suspense></ProtectedRoute>} />
