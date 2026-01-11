@@ -64,14 +64,6 @@ export default function EmployeeBranchesPage() {
                 <p className="text-sm text-gray-600 mt-0.5">Kelola penempatan karyawan di cabang</p>
               </div>
             </div>
-            <button 
-              onClick={() => navigate('./create')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm"
-              aria-label="Add new employee branch assignment"
-            >
-              <Plus className="w-4 h-4" />
-              Tambah Penempatan
-            </button>
           </div>
         </div>
 
