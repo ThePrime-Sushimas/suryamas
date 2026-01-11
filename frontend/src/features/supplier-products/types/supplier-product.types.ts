@@ -44,6 +44,7 @@ export interface SupplierProductWithRelations extends SupplierProduct {
   product?: ProductInfo
   current_price?: number // Current price from active pricelist
   current_currency?: string // Currency from active pricelist
+  current_unit?: string // UOM from active pricelist
 }
 
 export interface CreateSupplierProductDto {

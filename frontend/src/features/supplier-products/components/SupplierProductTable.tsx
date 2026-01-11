@@ -159,8 +159,13 @@ export function SupplierProductTable({
                   {item.product?.product_code || item.product_id}
                 </div>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {item.product?.default_purchase_unit || '-'}
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="text-sm text-gray-500">
+                  {item.current_unit || item.product?.default_purchase_unit || '-'}
+                </div>
+                {item.current_unit && (
+                  <div className="text-xs text-green-600">From pricelist</div>
+                )}
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm font-medium text-gray-900">

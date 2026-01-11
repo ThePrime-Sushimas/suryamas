@@ -344,7 +344,7 @@ export class SupplierProductsRepository {
     // Get all active pricelists for these supplier-product combinations
     const { data: pricelists, error } = await supabase
       .from('pricelists')
-      .select('supplier_id, product_id, uom_id, price, currency')
+      .select('supplier_id, product_id, uom_id, price, currency, product_uoms(metric_unit_id, metric_units(unit_name))')
       .eq('status', 'APPROVED')
       .eq('is_active', true)
       .is('deleted_at', null)
@@ -354,18 +354,23 @@ export class SupplierProductsRepository {
       .in('product_id', supplierProducts.map(sp => sp.product_id))
 
     if (error) {
-      console.error('Failed to fetch current prices:', error)
+      console.error('Failed to fetch current prices:', error.message)
       return supplierProducts
     }
 
+    console.log(`Found ${pricelists?.length || 0} active pricelists for ${supplierProducts.length} supplier products`)
+
     // Create a map for quick lookup (using supplier_id + product_id for now)
-    // TODO: Add UOM awareness when supplier_products has uom_id field
-    const priceMap = new Map<string, { price: number; currency: string }>()
-    pricelists?.forEach(p => {
+    const priceMap = new Map<string, { price: number; currency: string; unit: string }>()
+    pricelists?.forEach((p: any) => {
       const key = `${p.supplier_id}-${p.product_id}`
       // For now, take the first price found (should be enhanced with UOM logic)
       if (!priceMap.has(key)) {
-        priceMap.set(key, { price: parseFloat(p.price), currency: p.currency })
+        priceMap.set(key, { 
+          price: parseFloat(p.price), 
+          currency: p.currency,
+          unit: p.product_uoms?.metric_units?.unit_name || ''
+        })
       }
     })
 
@@ -377,7 +382,8 @@ export class SupplierProductsRepository {
       return {
         ...sp,
         current_price: currentPrice?.price,
-        current_currency: currentPrice?.currency
+        current_currency: currentPrice?.currency,
+        current_unit: currentPrice?.unit
       }
     })
   }
