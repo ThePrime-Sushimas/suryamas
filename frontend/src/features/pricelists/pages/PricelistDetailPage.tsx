@@ -104,7 +104,6 @@ export function PricelistDetailPage() {
       // Error handled in store
     }
   }, [approvePricelist, id, toast])
-
   const handleRestore = useCallback(async () => {
     if (!id || !window.confirm('Are you sure you want to restore this pricelist?')) {
       return
