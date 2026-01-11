@@ -8,6 +8,11 @@ export const requireBranchAccess = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  if (!req.user) {
+    sendError(res, 'Authentication required', 401)
+    return
+  }
+
   const branchId = req.params.branchId || req.body.branch_id || req.query.branch_id
   
   if (!branchId) {
