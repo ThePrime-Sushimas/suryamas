@@ -211,12 +211,12 @@ export function SupplierProductTable({
                     >
                       Manage Prices
                     </button>
-                    <button
+                    {/* <button
                       onClick={() => onView(item.id)}
                       className="text-blue-600 hover:text-blue-900"
                     >
                       View
-                    </button>
+                    </button> */}
                     <button
                       onClick={() => onEdit(item.id)}
                       className="text-indigo-600 hover:text-indigo-900"
