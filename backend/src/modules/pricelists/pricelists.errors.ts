@@ -51,3 +51,12 @@ export class PricelistNotApprovedError extends Error {
     this.name = 'PricelistNotApprovedError'
   }
 }
+
+export class DuplicateRestoreError extends Error {
+  statusCode = 409
+  
+  constructor() {
+    super('Cannot restore: Another active pricelist exists for this supplier-product-UOM combination')
+    this.name = 'DuplicateRestoreError'
+  }
+}

@@ -41,6 +41,16 @@ export function parsePricelistError(error: unknown): string {
 
     // Backend error message
     if (data?.message) {
+      // Handle specific restore error
+      if (data.message.includes('active pricelist already exists')) {
+        return 'Cannot restore: Another active pricelist exists for this supplier-product-UOM combination. Please delete or deactivate the existing one first.'
+      }
+      
+      // Handle duplicate constraint error
+      if (data.message.includes('duplicate key value') || data.message.includes('unique constraint')) {
+        return 'Cannot restore: This would create a duplicate active pricelist. Please check for existing active pricelists.'
+      }
+      
       return data.message
     }
 
@@ -59,7 +69,7 @@ export function parsePricelistError(error: unknown): string {
       case 404:
         return 'Pricelist not found.'
       case 409:
-        return 'A pricelist with this combination already exists.'
+        return 'Cannot complete action: A conflict exists (duplicate active pricelist or constraint violation).'
       case 422:
         return 'Validation failed. Please check your input.'
       case 500:

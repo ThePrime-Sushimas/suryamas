@@ -195,7 +195,32 @@ export class PricelistsRepository {
     if (error) throw new Error(error.message)
   }
 
-  async restore(id: string, userId?: string): Promise<Pricelist | null> {
+  async restorePricelist(id: string, userId?: string): Promise<Pricelist> {
+    // Get the deleted pricelist first
+    const { data: deletedPricelist, error: fetchError } = await supabase
+      .from('pricelists')
+      .select('*')
+      .eq('id', id)
+      .not('deleted_at', 'is', null)
+      .maybeSingle()
+
+    if (fetchError) throw new Error(fetchError.message)
+    if (!deletedPricelist) {
+      throw new Error('Deleted pricelist not found')
+    }
+
+    // Check for active duplicate
+    const duplicate = await this.findActiveDuplicate(
+      deletedPricelist.company_id,
+      deletedPricelist.supplier_id,
+      deletedPricelist.product_id,
+      deletedPricelist.uom_id
+    )
+
+    if (duplicate) {
+      throw new Error('Cannot restore: An active pricelist already exists for this supplier-product-uom combination')
+    }
+
     const { data, error } = await supabase
       .from('pricelists')
       .update({

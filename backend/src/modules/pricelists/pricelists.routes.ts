@@ -32,6 +32,8 @@ router.put('/:id', canUpdate('pricelists'), validateSchema(updatePricelistSchema
 
 router.post('/:id/approve', canUpdate('pricelists'), validateSchema(approvalSchema), pricelistsController.approve)
 
+router.post('/:id/restore', canUpdate('pricelists'), validateSchema(pricelistIdSchema), pricelistsController.restore)
+
 router.delete('/:id', canDelete('pricelists'), validateSchema(pricelistIdSchema), pricelistsController.delete)
 
 export default router

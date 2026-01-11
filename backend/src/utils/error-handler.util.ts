@@ -3,6 +3,13 @@ import { ZodError } from '@/lib/openapi'
 import { sendError } from './response.util'
 import { logError } from '../config/logger'
 import { SupplierProductError } from '../modules/supplier-products/supplier-products.errors'
+import { 
+  PricelistNotFoundError, 
+  DuplicateActivePricelistError, 
+  InvalidDateRangeError,
+  PricelistNotDraftError,
+  DuplicateRestoreError
+} from '../modules/pricelists/pricelists.errors'
 
 export class AppError extends Error {
   constructor(
@@ -49,6 +56,17 @@ export class BusinessRuleError extends AppError {
 }
 
 export const handleError = (res: Response, error: unknown): void => {
+  // Pricelist custom errors
+  if (error instanceof PricelistNotFoundError || 
+      error instanceof DuplicateActivePricelistError ||
+      error instanceof InvalidDateRangeError ||
+      error instanceof PricelistNotDraftError ||
+      error instanceof DuplicateRestoreError) {
+    logError(error.name, { message: error.message })
+    sendError(res, error.message, (error as any).statusCode)
+    return
+  }
+
   // SupplierProduct custom errors
   if (error instanceof SupplierProductError) {
     logError(error.code, {

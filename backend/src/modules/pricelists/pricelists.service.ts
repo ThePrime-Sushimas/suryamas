@@ -4,7 +4,8 @@ import {
   PricelistNotFoundError, 
   DuplicateActivePricelistError, 
   InvalidDateRangeError,
-  PricelistNotDraftError 
+  PricelistNotDraftError,
+  DuplicateRestoreError
 } from './pricelists.errors'
 import { getPaginationParams, createPaginatedResponse } from '../../utils/pagination.util'
 
@@ -106,6 +107,21 @@ export class PricelistsService {
     }
 
     return updated
+  }
+
+  async restorePricelist(id: string, userId?: string): Promise<Pricelist> {
+    try {
+      const pricelist = await pricelistsRepository.restorePricelist(id, userId)
+      return pricelist
+    } catch (error: any) {
+      if (error.message.includes('active pricelist already exists')) {
+        throw new DuplicateRestoreError()
+      }
+      if (error.message.includes('unique constraint') || error.message.includes('duplicate key')) {
+        throw new DuplicateRestoreError()
+      }
+      throw error
+    }
   }
 
   async lookupPrice(lookup: PricelistLookup): Promise<Pricelist | null> {

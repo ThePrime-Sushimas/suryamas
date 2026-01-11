@@ -85,6 +85,17 @@ export class PricelistsController {
     }
   })
 
+  restore = withValidated(async (req: PricelistIdReq, res: Response) => {
+    try {
+      const { params } = req.validated
+      const userId = req.context?.employee_id
+      const pricelist = await pricelistsService.restorePricelist(params.id, userId)
+      sendSuccess(res, pricelist, 'Pricelist restored successfully')
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  })
+
   lookupPrice = withValidated(async (req: LookupPriceReq, res: Response) => {
     try {
       const { query } = req.validated
