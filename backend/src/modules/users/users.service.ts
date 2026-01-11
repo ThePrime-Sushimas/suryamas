@@ -48,7 +48,7 @@ export class UsersService {
     })
   }
 
-  async getUserById(employeeId: string): Promise<UserDTO | null> {
+  async getUserByEmployeeId(employeeId: string): Promise<UserDTO | null> {
     const { data: employee } = await supabase
       .from('employees')
       .select('employee_id, full_name, job_position, email, user_id, employee_branches(branch_id, is_primary, branches(id, branch_name))')
@@ -76,6 +76,12 @@ export class UsersService {
     }
 
     return mapToUserDTO(transformedEmployee, profile)
+  }
+
+  async getUserRoleByEmployeeId(employeeId: string) {
+    const { data: employee } = await supabase.from('employees').select('user_id').eq('employee_id', employeeId).single()
+    if (!employee?.user_id) return null
+    return await this.repository.getUserRole(employee.user_id)
   }
 
   async getUserRole(userId: string) {

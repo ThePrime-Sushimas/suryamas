@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usersApi } from '@/features/users'
 import type { User } from '@/features/users'
@@ -14,29 +14,33 @@ export default function UserEditPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadData()
-  }, [id])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!id) return
+    console.log('Loading data for user ID:', id)
     try {
       const [userData, rolesData] = await Promise.all([
         usersApi.getById(id),
         permissionsApi.getRoles(),
       ])
+      console.log('User data loaded:', userData)
+      console.log('Roles data loaded:', rolesData)
       setUser(userData)
       setSelectedRole(userData.role_id || '')
       setRoles(rolesData)
       setError(null)
     } catch (error: unknown) {
+      console.error('Error loading data:', error)
       const message = error instanceof Error ? error.message : 'Failed to load data'
       setError(message)
       setUser(null)
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

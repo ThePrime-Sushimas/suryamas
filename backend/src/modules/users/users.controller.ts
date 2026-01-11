@@ -36,7 +36,7 @@ export class UsersController {
   getUserById = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { userId } = req.params
-      const user = await this.service.getUserById(userId)
+      const user = await this.service.getUserByEmployeeId(userId)
 
       if (!user) {
         sendError(res, 'User not found', 404)
@@ -53,7 +53,7 @@ export class UsersController {
   getUserRole = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { userId } = req.params
-      const userRole = await this.service.getUserRole(userId)
+      const userRole = await this.service.getUserRoleByEmployeeId(userId)
 
       if (!userRole) {
         sendError(res, 'User not found', 404)

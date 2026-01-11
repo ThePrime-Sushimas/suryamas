@@ -13,8 +13,10 @@ export default function UserDetailPage() {
     if (!id) return
     
     const loadData = async () => {
+      console.log('Loading data for user ID:', id)
       try {
         const userData = await usersApi.getById(id)
+        console.log('User data loaded:', userData)
         setUser(userData)
       } catch (err) {
         console.error('Failed to load data:', err)
