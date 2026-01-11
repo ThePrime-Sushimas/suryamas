@@ -43,7 +43,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base min-h-[44px]"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base min-h-11"
               />
             </div>
             <div>
@@ -56,22 +56,22 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base min-h-[44px]"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base min-h-11"
               />
             </div>
           </div>
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm md:text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 min-h-[44px]"
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm md:text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 min-h-11"
           >
             {isLoading ? 'Loading...' : 'Login'}
           </button>
           <div className="text-center space-y-2">
-            <Link to="/register" className="text-blue-600 hover:text-blue-700 block text-sm md:text-base min-h-[44px] flex items-center justify-center">
+            <Link to="/register" className="text-blue-600 hover:text-blue-700 text-sm md:text-base min-h-11 flex items-center justify-center">
               Don't have an account? Register
             </Link>
-            <Link to="/forgot-password" className="text-xs md:text-sm text-gray-600 hover:text-gray-900 block min-h-[44px] flex items-center justify-center">
+            <Link to="/forgot-password" className="text-xs md:text-sm text-gray-600 hover:text-gray-900 min-h-11 flex items-center justify-center">
               Forgot password?
             </Link>
           </div>
