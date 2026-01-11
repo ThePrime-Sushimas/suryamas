@@ -87,16 +87,16 @@ export default function PricelistsPage() {
     }
   }, [restorePricelist, toast, pricelists])
 
-  const handleApprove = useCallback(async (id: string, status: 'APPROVED' | 'REJECTED') => {
+  const handleApprove = useCallback(async (id: string) => {
     try {
-      await approvePricelist(id, { status })
-      toast.success(`Pricelist ${status.toLowerCase()} successfully`)
+      await approvePricelist(id, { status: 'APPROVED' })
+      toast.success('Pricelist approved successfully')
     } catch {
-      toast.error(`Failed to ${status.toLowerCase()} pricelist`)
+      toast.error('Failed to approve pricelist')
     }
   }, [approvePricelist, toast])
 
-  const handleFilterChange = useCallback((key: string, value: any) => {
+  const handleFilterChange = useCallback((key: string, value: unknown) => {
     setFilters(prev => ({
       ...prev,
       [key]: value || undefined
