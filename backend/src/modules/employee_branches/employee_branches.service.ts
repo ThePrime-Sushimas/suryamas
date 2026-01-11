@@ -77,18 +77,29 @@ export class EmployeeBranchesService {
 
     const data = await employeeBranchesRepository.findByEmployeeId(employee.id)
     
-    return data.map(item => ({
-      branch_id: item.branch_id,
-      branch_name: item.branch.branch_name,
-      branch_code: item.branch.branch_code,
-      company_id: item.branch.company_id,
-      employee_id: item.employee_id,
-      role_id: item.role_id,
-      role_name: item.role.name,
-      approval_limit: item.approval_limit,
-      status: item.status,
-      is_primary: item.is_primary,
-    }))
+    // Only return active branches for branch selection
+    return data
+      .filter(item => item.status === 'active')
+      .map(item => ({
+        branch_id: item.branch_id,
+        branch_name: item.branch.branch_name,
+        branch_code: item.branch.branch_code,
+        company_id: item.branch.company_id,
+        employee_id: item.employee_id,
+        role_id: item.role_id,
+        role_name: item.role.name,
+        approval_limit: item.approval_limit,
+        status: item.status,
+        is_primary: item.is_primary,
+      }))
+  }
+
+  async hasActiveBranchAccess(userId: string, branchId: string): Promise<boolean> {
+    const employee = await employeeBranchesRepository.findEmployeeByUserId(userId)
+    if (!employee) return false
+
+    const assignment = await employeeBranchesRepository.findByEmployeeAndBranch(employee.id, branchId)
+    return assignment?.status === 'active'
   }
 
   async getById(id: string): Promise<EmployeeBranchDto> {
@@ -207,6 +218,55 @@ export class EmployeeBranchesService {
     }
 
     logInfo('Employee branch deleted', { id })
+  }
+
+  async suspend(id: string, userId?: string): Promise<EmployeeBranchDto> {
+    const existing = await employeeBranchesRepository.findById(id)
+    if (!existing) throw EmployeeBranchErrors.NOT_FOUND()
+
+    // Prevent suspending primary branch
+    if (existing.is_primary) {
+      throw new Error('Cannot suspend primary branch')
+    }
+
+    // Prevent suspending already suspended branch
+    if (existing.status === 'suspended') {
+      throw new Error('Branch is already suspended')
+    }
+
+    const updated = await employeeBranchesRepository.update(id, { status: 'suspended' })
+    if (!updated) throw EmployeeBranchErrors.NOT_FOUND()
+
+    if (userId) {
+      await AuditService.log('UPDATE', 'employee_branch', id, userId, existing, { status: 'suspended' })
+    }
+
+    logInfo('Employee branch suspended', { id })
+
+    const result = await employeeBranchesRepository.findById(id)
+    return this.toDto(result!)
+  }
+
+  async activate(id: string, userId?: string): Promise<EmployeeBranchDto> {
+    const existing = await employeeBranchesRepository.findById(id)
+    if (!existing) throw EmployeeBranchErrors.NOT_FOUND()
+
+    // Prevent activating already active branch
+    if (existing.status === 'active') {
+      throw new Error('Branch is already active')
+    }
+
+    const updated = await employeeBranchesRepository.update(id, { status: 'active' })
+    if (!updated) throw EmployeeBranchErrors.NOT_FOUND()
+
+    if (userId) {
+      await AuditService.log('UPDATE', 'employee_branch', id, userId, existing, { status: 'active' })
+    }
+
+    logInfo('Employee branch activated', { id })
+
+    const result = await employeeBranchesRepository.findById(id)
+    return this.toDto(result!)
   }
 
   async deleteByEmployeeAndBranch(employeeId: string, branchId: string, userId?: string): Promise<void> {

@@ -89,11 +89,22 @@ export const EmployeeBranchDetailPage = () => {
 
   const handleSuspend = async (assignment: EmployeeBranch) => {
     try {
-      await employeeBranchesApi.update(assignment.id, { status: 'suspended' })
+      await employeeBranchesApi.suspend(assignment.id)
       success('Assignment suspended successfully')
       refetch()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to suspend'
+      showError(message)
+    }
+  }
+
+  const handleActivate = async (assignment: EmployeeBranch) => {
+    try {
+      await employeeBranchesApi.activate(assignment.id)
+      success('Assignment activated successfully')
+      refetch()
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to activate'
       showError(message)
     }
   }
@@ -176,7 +187,7 @@ export const EmployeeBranchDetailPage = () => {
                 <p className="text-gray-500 font-medium">Loading branch assignments...</p>
               </div>
             ) : (
-              <EmployeeBranchDetailTable branches={branches} onEdit={handleOpenModal} onDelete={handleDelete} onSuspend={handleSuspend} />
+              <EmployeeBranchDetailTable branches={branches} onEdit={handleOpenModal} onDelete={handleDelete} onSuspend={handleSuspend} onActivate={handleActivate} />
             )}
           </div>
         </div>

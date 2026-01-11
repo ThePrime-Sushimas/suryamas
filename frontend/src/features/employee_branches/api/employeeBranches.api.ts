@@ -117,4 +117,22 @@ export const employeeBranchesApi = {
       throw normalizeError(err)
     }
   },
+
+  async suspend(id: string): Promise<EmployeeBranch> {
+    try {
+      const { data } = await api.put<{ success: boolean; data: EmployeeBranch }>(`${BASE}/${id}/suspend`)
+      return data.data
+    } catch (err) {
+      throw normalizeError(err)
+    }
+  },
+
+  async activate(id: string): Promise<EmployeeBranch> {
+    try {
+      const { data } = await api.put<{ success: boolean; data: EmployeeBranch }>(`${BASE}/${id}/activate`)
+      return data.data
+    } catch (err) {
+      throw normalizeError(err)
+    }
+  },
 }

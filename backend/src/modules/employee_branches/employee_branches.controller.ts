@@ -192,6 +192,36 @@ export class EmployeeBranchesController {
       next(error)
     }
   }
+
+  async suspend(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params
+      const result = await employeeBranchesService.suspend(id, req.user?.id)
+
+      res.json({
+        success: true,
+        data: result,
+        message: 'Employee branch access suspended',
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async activate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params
+      const result = await employeeBranchesService.activate(id, req.user?.id)
+
+      res.json({
+        success: true,
+        data: result,
+        message: 'Employee branch access activated',
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
 }
 
 export const employeeBranchesController = new EmployeeBranchesController()

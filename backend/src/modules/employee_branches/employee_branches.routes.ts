@@ -43,6 +43,12 @@ router.put('/employee/:employeeId/branch/:branchId/primary', canUpdate('employee
 router.put('/:id', canUpdate('employee_branches'), validateSchema(UpdateEmployeeBranchSchema), (req, res, next) => 
   employeeBranchesController.update(req as ValidatedAuthRequest<typeof UpdateEmployeeBranchSchema>, res, next))
 
+router.put('/:id/suspend', canUpdate('employee_branches'), validateSchema(employeeBranchIdSchema), (req, res, next) => 
+  employeeBranchesController.suspend(req as AuthenticatedRequest, res, next))
+
+router.put('/:id/activate', canUpdate('employee_branches'), validateSchema(employeeBranchIdSchema), (req, res, next) => 
+  employeeBranchesController.activate(req as AuthenticatedRequest, res, next))
+
 router.get('/:id', canView('employee_branches'), validateSchema(employeeBranchIdSchema), (req, res, next) => 
   employeeBranchesController.getById(req, res, next))
 
