@@ -169,7 +169,7 @@ export default function PricelistsPage() {
             <Filter className="w-4 h-4" />
             Filters
             {activeFilterCount > 0 && (
-              <span className="bg-green-600 text-white text-xs rounded-full px-2 py-0.5 min-w-[20px] text-center">
+              <span className="bg-green-600 text-white text-xs rounded-full px-2 py-0.5 min-w-5 text-center">
                 {activeFilterCount}
               </span>
             )}
