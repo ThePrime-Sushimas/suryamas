@@ -54,7 +54,7 @@ export default function PricelistsPage() {
   // Clear errors when they exist
   useEffect(() => {
     if (errors.fetch) {
-      const timer = setTimeout(() => clearError('fetch'), 5000)
+      const timer = setTimeout(() => clearError(), 5000)
       return () => clearTimeout(timer)
     }
   }, [errors.fetch, clearError])
@@ -248,7 +248,7 @@ export default function PricelistsPage() {
           <div className="flex items-center justify-between">
             <p className="text-red-800">{errors.fetch}</p>
             <button
-              onClick={() => clearError('fetch')}
+              onClick={() => clearError()}
               className="text-red-600 hover:text-red-800"
             >
               <X className="w-4 h-4" />
