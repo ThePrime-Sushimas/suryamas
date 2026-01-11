@@ -53,6 +53,7 @@ export interface PricelistListQuery {
   status?: PricelistStatus
   is_active?: boolean
   include_deleted?: boolean
+  search?: string
   sort_by?: string
   sort_order?: 'asc' | 'desc'
 }

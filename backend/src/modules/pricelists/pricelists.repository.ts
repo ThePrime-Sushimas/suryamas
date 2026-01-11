@@ -10,8 +10,8 @@ export class PricelistsRepository {
       .from('pricelists')
       .select(`
         *,
-        suppliers(supplier_name),
-        products(product_name),
+        suppliers!inner(supplier_name),
+        products!inner(product_name),
         product_uoms(
           id,
           metric_units(unit_name)
@@ -38,6 +38,11 @@ export class PricelistsRepository {
       dbQuery = dbQuery.eq('is_active', query.is_active)
     }
 
+    // Simple search on supplier name only
+    if (query?.search) {
+      dbQuery = dbQuery.ilike('suppliers.supplier_name', `%${query.search}%`)
+    }
+
     const sortBy = query?.sort_by || 'created_at'
     const sortOrder = query?.sort_order || 'desc'
     dbQuery = dbQuery.order(sortBy, { ascending: sortOrder === 'asc' })
@@ -49,6 +54,8 @@ export class PricelistsRepository {
 
     if (error) throw new Error(error.message)
 
+    console.log('Raw query result:', { dataLength: data?.length, count, query })
+    
     const mapped = (data || []).map(item => {
       return {
         ...item,
@@ -57,6 +64,13 @@ export class PricelistsRepository {
         uom_name: (item as any).product_uoms?.metric_units?.unit_name,
       }
     })
+
+    // Check for duplicates
+    const ids = mapped.map(item => item.id)
+    const uniqueIds = new Set(ids)
+    if (ids.length !== uniqueIds.size) {
+      console.warn('Duplicate IDs in repository result:', ids.filter((id, index) => ids.indexOf(id) !== index))
+    }
 
     return { data: mapped, total: count || 0 }
   }

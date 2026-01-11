@@ -105,6 +105,30 @@ export function PricelistDetailPage() {
     }
   }, [approvePricelist, id, toast])
 
+  const handleRestore = useCallback(async () => {
+    if (!id || !window.confirm('Are you sure you want to restore this pricelist?')) {
+      return
+    }
+
+    try {
+      await pricelistsApi.restore(id)
+      const data = await pricelistsApi.getById(id)
+      setPricelist(data)
+      toast.success('Pricelist restored successfully')
+    } catch (error: unknown) {
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as { response?: { status?: number } }
+        if (apiError.response?.status === 409) {
+          toast.error('Cannot restore: Another active pricelist exists for this supplier-product-UOM combination')
+        } else {
+          toast.error('Failed to restore pricelist')
+        }
+      } else {
+        toast.error('Failed to restore pricelist')
+      }
+    }
+  }, [id, toast])
+
   if (pageLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -138,6 +162,7 @@ export function PricelistDetailPage() {
   const statusColor = getStatusColor(pricelist.status)
   const canEdit = isEditable(pricelist.status)
   const canApprove = isApprovable(pricelist.status)
+  const canRestore = !!pricelist.deleted_at
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -177,13 +202,22 @@ export function PricelistDetailPage() {
               </button>
             </>
           )}
-          <button
-            onClick={handleDelete}
-            disabled={loading.delete}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
-          >
-            Delete
-          </button>
+          {canRestore ? (
+            <button
+              onClick={handleRestore}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Restore
+            </button>
+          ) : (
+            <button
+              onClick={handleDelete}
+              disabled={loading.delete}
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+            >
+              Delete
+            </button>
+          )}
           <button
             onClick={() => navigate('/pricelists')}
             className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
@@ -225,13 +259,25 @@ export function PricelistDetailPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700">Status</label>
-              <span className={`mt-1 inline-flex px-2 py-1 text-xs font-medium rounded-full bg-${statusColor}-100 text-${statusColor}-800`}>
+              <span className={`mt-1 inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                statusColor === 'green' ? 'bg-green-100 text-green-800' :
+                statusColor === 'yellow' ? 'bg-yellow-100 text-yellow-800' :
+                statusColor === 'red' ? 'bg-red-100 text-red-800' :
+                statusColor === 'blue' ? 'bg-blue-100 text-blue-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
                 {formatStatus(pricelist.status)}
               </span>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Validity</label>
-              <span className={`mt-1 inline-flex px-2 py-1 text-xs font-medium rounded-full bg-${validityStatus.color}-100 text-${validityStatus.color}-800`}>
+              <span className={`mt-1 inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                validityStatus.color === 'green' ? 'bg-green-100 text-green-800' :
+                validityStatus.color === 'yellow' ? 'bg-yellow-100 text-yellow-800' :
+                validityStatus.color === 'red' ? 'bg-red-100 text-red-800' :
+                validityStatus.color === 'blue' ? 'bg-blue-100 text-blue-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
                 {validityStatus.label}
               </span>
             </div>

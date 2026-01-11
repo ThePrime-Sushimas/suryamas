@@ -54,6 +54,7 @@ export const pricelistListQuerySchema = z.object({
     status: z.enum(VALID_STATUSES).optional(),
     is_active: z.preprocess(val => val === 'true' || val === true, z.boolean()).optional(),
     include_deleted: z.preprocess(val => val === 'true' || val === true, z.boolean()).optional(),
+    search: z.string().optional(),
     sort_by: z.string().optional(),
     sort_order: z.enum(['asc', 'desc']).optional(),
   }),

@@ -142,6 +142,13 @@ export const PricelistTable = memo(function PricelistTable({
     onSort(field)
   }, [onSort])
 
+  // Debug: Check for duplicate IDs
+  const ids = data.map(p => p.id)
+  const uniqueIds = new Set(ids)
+  if (ids.length !== uniqueIds.size) {
+    console.warn('Duplicate pricelist IDs found:', ids.filter((id, index) => ids.indexOf(id) !== index))
+  }
+
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -210,18 +217,22 @@ export const PricelistTable = memo(function PricelistTable({
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {data.map((pricelist) => (
-              <PricelistRow
-                key={pricelist.id}
-                pricelist={pricelist}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onRestore={onRestore}
-                onView={onView}
-                onApprove={onApprove}
-                showDeleted={showDeleted}
-              />
-            ))}
+            {data.map((pricelist) => {
+              // Use a more robust unique key
+              const uniqueKey = `${pricelist.id}-${pricelist.created_at}-${pricelist.updated_at || ''}`
+              return (
+                <PricelistRow
+                  key={uniqueKey}
+                  pricelist={pricelist}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onRestore={onRestore}
+                  onView={onView}
+                  onApprove={onApprove}
+                  showDeleted={showDeleted}
+                />
+              )
+            })}
           </tbody>
         </table>
       </div>
