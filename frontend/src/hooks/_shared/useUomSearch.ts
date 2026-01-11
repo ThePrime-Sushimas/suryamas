@@ -2,11 +2,11 @@
  * UOM Search Hook
  * Provides debounced search for UOM selection for a specific product
  * 
- * @module pricelists/hooks
+ * @module hooks/_shared
  */
 
 import { useState, useEffect } from 'react'
-import { useDebounce } from '@/hooks/_shared/useDebounce'
+import { useDebounce } from './useDebounce'
 import api from '@/lib/axios'
 
 interface UOM {

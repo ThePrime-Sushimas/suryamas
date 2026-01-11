@@ -12,7 +12,7 @@
  */
 
 import { useState, useCallback, useMemo, useRef, useEffect, memo } from 'react'
-import { useUomSearch } from '../hooks/useUomSearch'
+import { useUomSearch } from '@/hooks/_shared/useUomSearch'
 import { CURRENCY_OPTIONS } from '../constants/pricelist.constants'
 import { validateCreatePricelist, validateUpdatePricelist, hasErrors } from '../utils/validation'
 import type { CreatePricelistDto, UpdatePricelistDto, Pricelist, PricelistFormErrors } from '../types/pricelist.types'

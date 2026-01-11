@@ -18,7 +18,7 @@ export { pricelistsApi } from './api/pricelists.api'
 export { usePricelistsStore } from './store/pricelists.store'
 
 // Hooks
-export { useUomSearch } from './hooks/useUomSearch'
+export { useUomSearch } from '@/hooks/_shared/useUomSearch'
 
 // Components
 export { PricelistTable } from './components/PricelistTable'
