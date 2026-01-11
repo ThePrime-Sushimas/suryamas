@@ -2,8 +2,7 @@ import { Router } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
-import { paginationMiddleware } from '../../middleware/pagination.middleware'
-import { sortMiddleware } from '../../middleware/sort.middleware'
+import { queryMiddleware } from '../../middleware/query.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { subCategoriesController } from './sub-categories.controller'
 import { PermissionService } from '../../services/permission.service'
@@ -16,16 +15,22 @@ PermissionService.registerModule('sub_categories', 'SubCategory Management').cat
 
 router.use(authenticate, resolveBranchContext)
 
-router.get('/search', canView('sub_categories'), paginationMiddleware, sortMiddleware, (req, res) => 
+router.get('/search', canView('sub_categories'), queryMiddleware({
+  allowedSortFields: ['sub_category_code', 'sub_category_name', 'category_id', 'sort_order', 'created_at', 'updated_at', 'id']
+}), (req, res) => 
   subCategoriesController.search(req as AuthenticatedQueryRequest, res))
 
-router.get('/trash', canView('sub_categories'), paginationMiddleware, sortMiddleware, (req, res) => 
+router.get('/trash', canView('sub_categories'), queryMiddleware({
+  allowedSortFields: ['sub_category_code', 'sub_category_name', 'category_id', 'sort_order', 'created_at', 'updated_at', 'id']
+}), (req, res) => 
   subCategoriesController.trash(req as AuthenticatedQueryRequest, res))
 
 router.get('/category/:categoryId', canView('sub_categories'), validateSchema(categoryIdSchema), (req, res) => 
   subCategoriesController.getByCategory(req as AuthenticatedRequest, res))
 
-router.get('/', canView('sub_categories'), paginationMiddleware, sortMiddleware, (req, res) => 
+router.get('/', canView('sub_categories'), queryMiddleware({
+  allowedSortFields: ['sub_category_code', 'sub_category_name', 'category_id', 'sort_order', 'created_at', 'updated_at', 'id']
+}), (req, res) => 
   subCategoriesController.list(req as AuthenticatedQueryRequest, res))
 
 router.get('/:id', canView('sub_categories'), validateSchema(subCategoryIdSchema), (req, res) => 

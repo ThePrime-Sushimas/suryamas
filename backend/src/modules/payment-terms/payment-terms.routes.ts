@@ -4,9 +4,7 @@ import { Router } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
-import { paginationMiddleware } from '../../middleware/pagination.middleware'
-import { sortMiddleware } from '../../middleware/sort.middleware'
-import { filterMiddleware } from '../../middleware/filter.middleware'
+import { queryMiddleware } from '../../middleware/query.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { paymentTermsController } from './payment-terms.controller'
 import { PermissionService } from '../../services/permission.service'
@@ -19,7 +17,9 @@ PermissionService.registerModule('payment_terms', 'Payment Terms Management').ca
 
 router.use(authenticate, resolveBranchContext)
 
-router.get('/', canView('payment_terms'), paginationMiddleware, sortMiddleware, filterMiddleware, (req, res) =>
+router.get('/', canView('payment_terms'), queryMiddleware({
+  allowedSortFields: ['term_code', 'term_name', 'calculation_type', 'days', 'created_at', 'updated_at', 'id']
+}), (req, res) =>
   paymentTermsController.list(req as AuthenticatedQueryRequest, res))
 
 router.get('/minimal/active', authenticate, (req, res) =>

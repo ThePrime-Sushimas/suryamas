@@ -2,9 +2,7 @@ import { Router, Response } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
-import { paginationMiddleware } from '../../middleware/pagination.middleware'
-import { sortMiddleware } from '../../middleware/sort.middleware'
-import { filterMiddleware } from '../../middleware/filter.middleware'
+import { queryMiddleware } from '../../middleware/query.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { supplierProductsRateLimit } from '../../middleware/rateLimiter.middleware'
 import { supplierProductsController } from './supplier-products.controller'
@@ -78,9 +76,9 @@ router.get('/product/:product_id',
  */
 router.get('/', 
   canView('supplier_products'), 
-  paginationMiddleware, 
-  sortMiddleware, 
-  filterMiddleware,
+  queryMiddleware({
+    allowedSortFields: ['supplier_id', 'product_id', 'price', 'created_at', 'updated_at', 'id']
+  }),
   validateSchema(supplierProductListSchema),
   (req: any, res: Response) => supplierProductsController.list(req, res)
 )

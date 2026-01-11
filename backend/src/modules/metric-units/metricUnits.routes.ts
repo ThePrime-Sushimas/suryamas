@@ -3,9 +3,7 @@ import { metricUnitsController } from './metricUnits.controller'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
-import { paginationMiddleware } from '../../middleware/pagination.middleware'
-import { sortMiddleware } from '../../middleware/sort.middleware'
-import { filterMiddleware } from '../../middleware/filter.middleware'
+import { queryMiddleware } from '../../middleware/query.middleware'
 import { validateSchema, ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { PermissionService } from '../../services/permission.service'
 import { CreateMetricUnitSchema, UpdateMetricUnitSchema, metricUnitIdSchema, BulkUpdateStatusSchema } from './metricUnits.schema'
@@ -22,8 +20,9 @@ router.use(authenticate, resolveBranchContext)
 
 router.get('/active', 
   canView('metric-units'), 
-  paginationMiddleware, 
-  sortMiddleware, 
+  queryMiddleware({
+    allowedSortFields: ['unit_code', 'unit_name', 'sort_order', 'created_at', 'updated_at', 'id']
+  }), 
   (req, res) => metricUnitsController.listActive(req as AuthenticatedQueryRequest, res)
 )
 
@@ -34,9 +33,9 @@ router.get('/filter-options',
 
 router.get('/', 
   canView('metric-units'), 
-  paginationMiddleware, 
-  sortMiddleware,
-  filterMiddleware,
+  queryMiddleware({
+    allowedSortFields: ['unit_code', 'unit_name', 'sort_order', 'created_at', 'updated_at', 'id']
+  }),
   (req, res) => metricUnitsController.list(req as AuthenticatedQueryRequest, res)
 )
 

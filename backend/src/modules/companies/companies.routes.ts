@@ -3,9 +3,7 @@ import { companiesController } from './companies.controller'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
-import { paginationMiddleware } from '../../middleware/pagination.middleware'
-import { sortMiddleware } from '../../middleware/sort.middleware'
-import { filterMiddleware } from '../../middleware/filter.middleware'
+import { queryMiddleware } from '../../middleware/query.middleware'
 import { exportLimiter } from '../../middleware/rateLimiter.middleware'
 import { validateSchema, ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { PermissionService } from '../../services/permission.service'
@@ -20,10 +18,14 @@ const router = Router()
 
 router.use(authenticate, resolveBranchContext)
 
-router.get('/', canView('companies'), paginationMiddleware, sortMiddleware, filterMiddleware, (req, res) => 
+router.get('/', canView('companies'), queryMiddleware({
+  allowedSortFields: ['company_name', 'company_code', 'city', 'status', 'created_at', 'updated_at', 'id']
+}), (req, res) => 
   companiesController.list(req as AuthenticatedQueryRequest, res))
 
-router.get('/search', canView('companies'), paginationMiddleware, sortMiddleware, filterMiddleware, (req, res) => 
+router.get('/search', canView('companies'), queryMiddleware({
+  allowedSortFields: ['company_name', 'company_code', 'city', 'status', 'created_at', 'updated_at', 'id']
+}), (req, res) => 
   companiesController.search(req as AuthenticatedQueryRequest, res))
 
 router.get('/filter-options', canView('companies'), (req, res) => 

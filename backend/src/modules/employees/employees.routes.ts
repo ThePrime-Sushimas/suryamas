@@ -3,8 +3,7 @@ import { employeesController } from './employees.controller'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
-import { paginationMiddleware } from '../../middleware/pagination.middleware'
-import { filterMiddleware } from '../../middleware/filter.middleware'
+import { queryMiddleware } from '../../middleware/query.middleware'
 import { upload } from '../../middleware/upload.middleware'
 import { exportLimiter } from '../../middleware/rateLimiter.middleware'
 import { PermissionService } from '../../services/permission.service'
@@ -21,16 +20,21 @@ const router = Router()
 // Apply branch context to all routes
 router.use(authenticate, resolveBranchContext)
 
-// List with pagination
-router.get('/', canView('employees'), paginationMiddleware, (req, res) => 
+router.get('/', canView('employees'), queryMiddleware({
+  allowedSortFields: ['employee_id', 'full_name', 'job_position', 'email', 'mobile_phone', 'join_date', 'is_active', 'created_at', 'id']
+}), (req, res) => 
   employeesController.list(req as AuthenticatedPaginatedRequest, res))
 
 // Get unassigned employees
-router.get('/unassigned', canView('employees'), paginationMiddleware, (req, res) => 
+router.get('/unassigned', canView('employees'), queryMiddleware({
+  allowedSortFields: ['employee_id', 'full_name', 'job_position', 'email', 'mobile_phone', 'join_date', 'is_active', 'created_at', 'id']
+}), (req, res) => 
   employeesController.getUnassigned(req as AuthenticatedPaginatedRequest, res))
 
 // Search with pagination
-router.get('/search', canView('employees'), paginationMiddleware, validateSchema(EmployeeSearchSchema), (req, res) => 
+router.get('/search', canView('employees'), queryMiddleware({
+  allowedSortFields: ['employee_id', 'full_name', 'job_position', 'email', 'mobile_phone', 'join_date', 'is_active', 'created_at', 'id']
+}), validateSchema(EmployeeSearchSchema), (req, res) => 
   employeesController.search(req as AuthenticatedPaginatedRequest, res))
 
 router.get('/autocomplete', canView('employees'), (req, res) => 
@@ -53,7 +57,10 @@ router.post('/profile/picture', upload.single('picture'), (req, res) =>
 router.get('/export/token', canView('employees'), exportLimiter, (req, res) => 
   employeesController.generateExportToken(req as AuthenticatedRequest, res))
 
-router.get('/export', canView('employees'), filterMiddleware, (req, res) => 
+router.get('/export', canView('employees'), queryMiddleware({
+  allowedSortFields: ['employee_id', 'full_name', 'job_position', 'email', 'mobile_phone', 'join_date', 'is_active', 'created_at', 'id'],
+  pagination: false
+}), (req, res) => 
   employeesController.exportData(req as AuthenticatedPaginatedRequest, res))
 
 router.post('/import/preview', canInsert('employees'), upload.single('file'), (req, res) => 

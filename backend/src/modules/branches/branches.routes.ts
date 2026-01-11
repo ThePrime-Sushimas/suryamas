@@ -2,9 +2,7 @@ import { Router } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
-import { paginationMiddleware } from '../../middleware/pagination.middleware'
-import { sortMiddleware } from '../../middleware/sort.middleware'
-import { filterMiddleware } from '../../middleware/filter.middleware'
+import { queryMiddleware } from '../../middleware/query.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { branchesController } from './branches.controller'
 import { PermissionService } from '../../services/permission.service'
@@ -38,9 +36,9 @@ router.get(
 router.get(
   '/search',
   canView('branches'),
-  paginationMiddleware,
-  sortMiddleware,
-  filterMiddleware,
+  queryMiddleware({
+    allowedSortFields: ['branch_name', 'branch_code', 'city', 'status', 'created_at', 'updated_at', 'id']
+  }),
   (req, res) => branchesController.search(req as AuthenticatedQueryRequest, res)
 )
 
@@ -48,9 +46,9 @@ router.get(
 router.get(
   '/',
   canView('branches'),
-  paginationMiddleware,
-  sortMiddleware,
-  filterMiddleware,
+  queryMiddleware({
+    allowedSortFields: ['branch_name', 'branch_code', 'city', 'status', 'created_at', 'updated_at', 'id']
+  }),
   (req, res) => branchesController.list(req as AuthenticatedQueryRequest, res)
 )
 
