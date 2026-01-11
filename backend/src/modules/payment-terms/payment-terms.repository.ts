@@ -30,8 +30,8 @@ export class PaymentTermsRepository {
     }
 
     if (sort) {
-      // Map sort_order to id_payment_term for payment_terms table since sort_order doesn't exist
-      const sortField = sort.field === 'sort_order' ? 'id_payment_term' : sort.field
+      // Map id to id_payment_term for payment_terms table
+      const sortField = sort.field === 'id' ? 'id_payment_term' : sort.field
       query = query.order(sortField, { ascending: sort.order === 'asc' })
     } else {
       query = query.order('term_name', { ascending: true })

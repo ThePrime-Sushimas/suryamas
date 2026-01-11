@@ -18,7 +18,8 @@ PermissionService.registerModule('payment_terms', 'Payment Terms Management').ca
 router.use(authenticate, resolveBranchContext)
 
 router.get('/', canView('payment_terms'), queryMiddleware({
-  allowedSortFields: ['term_code', 'term_name', 'calculation_type', 'days', 'created_at', 'updated_at', 'id']
+  allowedSortFields: ['term_code', 'term_name', 'calculation_type', 'days', 'created_at', 'updated_at', 'id_payment_term'],
+  defaultSort: 'term_name'
 }), (req, res) =>
   paymentTermsController.list(req as AuthenticatedQueryRequest, res))
 

@@ -44,7 +44,7 @@ export default function PaymentTermsPage() {
       const newFilter = currentFilter ? { ...currentFilter, q: undefined } : null
       setFilter(newFilter)
     }
-  }, [debouncedSearch, searchPaymentTerms, setFilter])
+  }, [debouncedSearch, searchPaymentTerms, setFilter, filter])
 
   useEffect(() => {
     fetchPaymentTerms()
