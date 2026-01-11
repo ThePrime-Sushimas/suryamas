@@ -9,6 +9,7 @@ import { memo, useCallback } from 'react'
 import type { PricelistWithRelations, SortField, SortOrder } from '../types/pricelist.types'
 import { formatPrice, formatDate, formatStatus, getValidityStatus } from '../utils/format'
 import { getStatusColor, isEditable } from '../constants/pricelist.constants'
+import { TableSkeleton } from '@/components/ui/Skeleton'
 
 // Static class mapping for Tailwind purging safety - moved outside component
 const STATUS_CLASSES: Record<string, string> = {
@@ -143,9 +144,8 @@ export const PricelistTable = memo(function PricelistTable({
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow p-8 text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="mt-4 text-gray-600">Loading pricelists...</p>
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <TableSkeleton rows={5} columns={9} />
       </div>
     )
   }

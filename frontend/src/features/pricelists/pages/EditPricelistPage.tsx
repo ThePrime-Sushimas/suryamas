@@ -14,6 +14,7 @@ import { pricelistsApi } from '../api/pricelists.api'
 import { PricelistFormContextual } from '../components/PricelistFormContextual'
 import { isEditable } from '../constants/pricelist.constants'
 import type { CreatePricelistDto, UpdatePricelistDto, PricelistWithRelations } from '../types/pricelist.types'
+import { CardSkeleton } from '@/components/ui/Skeleton'
 
 export const EditPricelistPage = memo(function EditPricelistPage() {
   const { supplierProductId, pricelistId } = useParams<{ 
@@ -115,7 +116,7 @@ export const EditPricelistPage = memo(function EditPricelistPage() {
   if (contextLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <CardSkeleton />
       </div>
     )
   }

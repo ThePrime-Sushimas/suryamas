@@ -2,6 +2,7 @@ import { Edit2, Trash2, RotateCcw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { PaymentTerm, CalculationType } from '../types'
 import { PaymentTermStatusBadge } from './PaymentTermStatusBadge'
+import { TableSkeleton } from '@/components/ui/Skeleton'
 
 interface PaymentTermTableProps {
   paymentTerms: PaymentTerm[]
@@ -50,9 +51,8 @@ export const PaymentTermTable = ({
   
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <p className="mt-2 text-gray-600">Loading payment terms...</p>
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <TableSkeleton rows={5} columns={6} />
       </div>
     )
   }

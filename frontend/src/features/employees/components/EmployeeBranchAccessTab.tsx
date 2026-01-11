@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Building2, Shield, DollarSign } from 'lucide-react'
 import api from '@/lib/axios'
+import { CardSkeleton } from '@/components/ui/Skeleton'
 
 interface BranchAssignment {
   id: string
@@ -39,7 +40,7 @@ export function EmployeeBranchAccessTab({ employeeId }: Props) {
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <CardSkeleton />
       </div>
     )
   }

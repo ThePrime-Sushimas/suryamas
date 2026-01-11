@@ -7,6 +7,7 @@ import { ProductUomTable } from '@/features/product-uoms/components/ProductUomTa
 import { ProductUomForm } from '@/features/product-uoms/components/ProductUomForm'
 import type { ProductUom, CreateProductUomDto, UpdateProductUomDto } from '@/features/product-uoms/types'
 import api from '@/lib/axios'
+import { CardSkeleton } from '@/components/ui/Skeleton'
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -141,7 +142,7 @@ export default function ProductDetailPage() {
       <div className="max-w-4xl mx-auto p-6">
         <div className="bg-white rounded-lg shadow p-12">
           <div className="flex flex-col items-center justify-center space-y-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <CardSkeleton />
             <p className="text-gray-500">Loading product...</p>
           </div>
         </div>

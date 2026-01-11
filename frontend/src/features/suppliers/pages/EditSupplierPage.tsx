@@ -43,7 +43,7 @@ export function EditSupplierPage() {
       await updateSupplier(id!, data)
       toast.success('Supplier updated successfully')
       navigate('/suppliers')
-    } catch (error) {
+    } catch {
       toast.error('Failed to update supplier')
     }
   }

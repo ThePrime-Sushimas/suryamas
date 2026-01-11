@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { Product, ProductStatus, ProductType, CreateProductDto, UpdateProductDto } from '../types'
 import api from '@/lib/axios'
+import { CardSkeleton } from '@/components/ui/Skeleton'
 
 interface ProductFormProps {
   initialData?: Product
@@ -72,7 +73,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target
-    let newValue: any = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+    let newValue: string | number | boolean = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
     
     // Convert average_cost to number
     if (name === 'average_cost') {
@@ -136,7 +137,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
   if (loadingCategories) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <CardSkeleton />
       </div>
     )
   }

@@ -14,7 +14,7 @@ export function CreateSupplierPage() {
       await createSupplier(data as CreateSupplierDto)
       toast.success('Supplier created successfully')
       navigate('/suppliers')
-    } catch (error) {
+    } catch {
       toast.error('Failed to create supplier')
     }
   }

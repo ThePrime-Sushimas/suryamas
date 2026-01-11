@@ -5,6 +5,7 @@ import { MetricUnitForm } from '../components/MetricUnitForm'
 import { useToast } from '@/contexts/ToastContext'
 import type { CreateMetricUnitDto } from '../types'
 import { getErrorMessage } from '../utils/errors'
+import { CardSkeleton } from '@/components/ui/Skeleton'
 
 export default function EditMetricUnitPage() {
   const { id } = useParams<{ id: string }>()
@@ -47,7 +48,7 @@ export default function EditMetricUnitPage() {
     return (
       <div className="max-w-2xl mx-auto p-6">
         <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <CardSkeleton />
           <p className="mt-2 text-gray-600">Loading...</p>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { ProductForm } from '../components/ProductForm'
 import type { UpdateProductDto } from '../types'
 import { useToast } from '@/contexts/ToastContext'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { CardSkeleton } from '@/components/ui/Skeleton'
 
 export default function EditProductPage() {
   const { id } = useParams<{ id: string }>()
@@ -62,7 +63,7 @@ export default function EditProductPage() {
       <div className="max-w-2xl mx-auto p-6">
         <div className="bg-white rounded-lg shadow p-12">
           <div className="flex flex-col items-center justify-center space-y-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <CardSkeleton />
             <p className="text-gray-500">Loading product...</p>
           </div>
         </div>

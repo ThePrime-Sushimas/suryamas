@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { User, Mail, CreditCard, Briefcase, Settings, ArrowLeft, Edit, Building2 } from 'lucide-react'
 import api from '@/lib/axios'
 import { EmployeeBranchAccessTab } from '../components/EmployeeBranchAccessTab'
+import { CardSkeleton } from '@/components/ui/Skeleton'
 
 interface Employee {
   id: string
@@ -123,10 +124,11 @@ export default function EmployeeDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading employee...</p>
+      <div className="container mx-auto px-4 py-8">
+        <div className="space-y-6">
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
         </div>
       </div>
     )

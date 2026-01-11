@@ -7,6 +7,7 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useToast } from '@/contexts/ToastContext'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { Package, Plus, Search, Filter, X } from 'lucide-react'
+import { CardSkeleton } from '@/components/ui/Skeleton'
 
 export default function ProductsPage() {
   const navigate = useNavigate()
@@ -299,7 +300,7 @@ export default function ProductsPage() {
         {fetchLoading ? (
           <div className="bg-white rounded-lg shadow p-8">
             <div className="flex flex-col items-center justify-center space-y-4">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              <CardSkeleton />
               <p className="text-gray-500">Loading products...</p>
             </div>
           </div>

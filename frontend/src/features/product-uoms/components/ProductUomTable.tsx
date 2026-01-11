@@ -1,5 +1,6 @@
 import { Edit2, Trash2, RotateCcw } from 'lucide-react'
 import type { ProductUom } from '../types'
+import { TableSkeleton } from '@/components/ui/Skeleton'
 
 interface ProductUomTableProps {
   uoms: ProductUom[]
@@ -15,9 +16,8 @@ export function ProductUomTable({ uoms, onEdit, onDelete, onRestore, loading }: 
 
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
-        <p className="text-gray-500 mt-4">Loading units of measure...</p>
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <TableSkeleton rows={5} columns={6} />
       </div>
     )
   }

@@ -21,6 +21,7 @@ import { pricelistsApi } from '../api/pricelists.api'
 import { PricelistTable } from '../components/PricelistTable'
 import { DEFAULT_VALUES } from '../constants/pricelist.constants'
 import type { PricelistListQuery, SortField } from '../types/pricelist.types'
+import { CardSkeleton } from '@/components/ui/Skeleton'
 
 interface SupplierProductContext {
   id: string
@@ -220,7 +221,7 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
   if (contextLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <CardSkeleton />
       </div>
     )
   }

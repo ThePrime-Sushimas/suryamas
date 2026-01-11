@@ -5,6 +5,7 @@ import { PaymentTermForm } from '../components/PaymentTermForm'
 import { useToast } from '@/contexts/ToastContext'
 import type { UpdatePaymentTermDto } from '../types'
 import { ArrowLeft } from 'lucide-react'
+import { CardSkeleton } from '@/components/ui/Skeleton'
 
 export default function EditPaymentTermPage() {
   const { id } = useParams<{ id: string }>()
@@ -45,7 +46,7 @@ export default function EditPaymentTermPage() {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <CardSkeleton />
           <p className="mt-2 text-gray-600">Loading payment term...</p>
         </div>
       </div>

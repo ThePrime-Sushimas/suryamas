@@ -1,4 +1,5 @@
 import type { MetricUnit } from '../types'
+import { TableSkeleton } from '@/components/ui/Skeleton'
 
 interface MetricUnitTableProps {
   metricUnits: MetricUnit[]
@@ -23,9 +24,8 @@ export const MetricUnitTable = ({ metricUnits, onEdit, onDelete, onRestore, load
 
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <p className="mt-2 text-gray-600">Loading...</p>
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <TableSkeleton rows={5} columns={5} />
       </div>
     )
   }
