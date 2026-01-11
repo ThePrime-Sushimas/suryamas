@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useLocation, Link, Outlet, useNavigate } from 'react-router-dom'
-import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, Key, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User, ShoppingCart, Building2, UserCog, Shield } from 'lucide-react'
+import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, Key, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User, ShoppingCart, Building2, UserCog, Shield, DollarSign } from 'lucide-react'
 import { useAuthStore } from '@/features/auth'
 import { BranchSwitcher, usePermissionStore } from '@/features/branch_context'
 
@@ -56,6 +56,7 @@ export default function Layout() {
         { id: 'products', name: 'Products', href: '/products', icon: <Package size={16} />, module: 'products' },
         { id: 'suppliers', name: 'Suppliers', href: '/suppliers', icon: <Building2 size={16} />, module: 'suppliers' },
         { id: 'supplier-products', name: 'Supplier Products', href: '/supplier-products', icon: <ShoppingCart size={16} />, module: 'supplier_products' },
+        { id: 'pricelists', name: 'Pricelists', href: '/pricelists', icon: <DollarSign size={16} />, module: 'pricelists' },
       ]
     },
     {

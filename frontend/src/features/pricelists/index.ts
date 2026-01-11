@@ -25,6 +25,7 @@ export { PricelistTable } from './components/PricelistTable'
 export { PricelistFormContextual } from './components/PricelistFormContextual'
 
 // Pages
+export { default as PricelistsPage } from './pages/PricelistsPage'
 export { SupplierProductPricelistsPage } from './pages/SupplierProductPricelistsPage'
 export { CreatePricelistFromSupplierProductPage } from './pages/CreatePricelistFromSupplierProductPage'
 export { EditPricelistPage } from './pages/EditPricelistPage'

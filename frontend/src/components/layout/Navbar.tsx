@@ -49,6 +49,12 @@ export default function Navbar() {
                   <Link to="/products" className="text-gray-700 hover:text-gray-900">
                     Products
                   </Link>
+                  <Link to="/pricelists" className="text-gray-700 hover:text-gray-900">
+                    Pricelists
+                  </Link>
+                  <Link to="/payment-terms" className="text-gray-700 hover:text-gray-900">
+                    Payment Terms
+                  </Link>
                   <Link to="/suppliers" className="text-gray-700 hover:text-gray-900">
                     Suppliers
                   </Link>
