@@ -15,7 +15,7 @@ export default function UsersPage() {
   const [collapsedBranches, setCollapsedBranches] = useState<Set<string>>(() => new Set())
   const itemsPerPage = 10
   const navigate = useNavigate()
-  const { error: showError } = useToast()
+  const { error: showError, success } = useToast()
 
   const loadData = useCallback(async () => {
     try {
@@ -74,6 +74,7 @@ export default function UsersPage() {
     
     try {
       await usersApi.removeRole(employeeId)
+      success('Role removed successfully')
       await loadData()
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to remove role'
