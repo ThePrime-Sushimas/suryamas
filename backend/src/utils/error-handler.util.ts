@@ -3,7 +3,7 @@ import { ZodError } from '@/lib/openapi'
 import { sendError } from './response.util'
 import { logError } from '../config/logger'
 import { SupplierProductError } from '../modules/supplier-products/supplier-products.errors'
-import { ChartOfAccountError } from '../modules/chart-of-accounts/chart-of-accounts.errors'
+import { ChartOfAccountError } from '../modules/accounting/chart-of-accounts/chart-of-accounts.errors'
 import { CompanyError } from '../modules/companies/companies.errors'
 import { 
   PricelistNotFoundError, 
