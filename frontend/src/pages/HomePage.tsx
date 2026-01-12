@@ -55,9 +55,9 @@ export default function HomePage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 flex flex-col">
       {/* Container */}
-      <div className="flex-grow max-w-7xl mx-auto w-full px-6 py-12">
+      <div className="grow max-w-7xl mx-auto w-full px-6 py-12">
         
         {/* Header */}
         <div className="text-center mb-16">
