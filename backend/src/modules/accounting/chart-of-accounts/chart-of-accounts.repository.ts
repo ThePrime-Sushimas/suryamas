@@ -1,6 +1,6 @@
-import { supabase } from '../../config/supabase'
+import { supabase } from '../../../config/supabase'
 import { ChartOfAccount, CreateChartOfAccountDTO, UpdateChartOfAccountDTO, ChartOfAccountTreeNode } from './chart-of-accounts.types'
-import { logError, logInfo } from '../../config/logger'
+import { logError, logInfo } from '../../../config/logger'
 
 interface TransactionContext {
   client: any // Supabase transaction client

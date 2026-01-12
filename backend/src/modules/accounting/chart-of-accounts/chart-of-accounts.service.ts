@@ -1,12 +1,12 @@
 import { chartOfAccountsRepository, ChartOfAccountsRepository } from './chart-of-accounts.repository'
 import { ChartOfAccount, CreateChartOfAccountDTO, UpdateChartOfAccountDTO, ChartOfAccountTreeNode } from './chart-of-accounts.types'
-import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
-import { ExportService } from '../../services/export.service'
-import { ImportService } from '../../services/import.service'
-import { AuditService } from '../../services/audit.service'
+import { PaginatedResponse, createPaginatedResponse } from '../../../utils/pagination.util'
+import { ExportService } from '../../../services/export.service'
+import { ImportService } from '../../../services/import.service'
+import { AuditService } from '../../../services/audit.service'
 import { ChartOfAccountErrors } from './chart-of-accounts.errors'
 import { ChartOfAccountConfig } from './chart-of-accounts.constants'
-import { logInfo, logError } from '../../config/logger'
+import { logInfo, logError } from '../../../config/logger'
 
 export class ChartOfAccountsService {
   constructor(private repository: ChartOfAccountsRepository = chartOfAccountsRepository) {}

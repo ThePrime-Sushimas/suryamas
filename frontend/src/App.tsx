@@ -68,10 +68,10 @@ const PricelistDetailPage = lazy(() => import('./features/pricelists').then(m =>
 const BanksListPage = lazy(() => import('./features/banks').then(m => ({ default: m.BanksListPage })))
 const CreateBankPage = lazy(() => import('./features/banks').then(m => ({ default: m.CreateBankPage })))
 const EditBankPage = lazy(() => import('./features/banks').then(m => ({ default: m.EditBankPage })))
-const ChartOfAccountsPage = lazy(() => import('./features/chart-of-accounts/pages/ChartOfAccountsPage'))
-const CreateChartOfAccountPage = lazy(() => import('./features/chart-of-accounts/pages/CreateChartOfAccountPage'))
-const EditChartOfAccountPage = lazy(() => import('./features/chart-of-accounts/pages/EditChartOfAccountPage'))
-const ChartOfAccountDetailPage = lazy(() => import('./features/chart-of-accounts/pages/ChartOfAccountDetailPage'))
+const ChartOfAccountsPage = lazy(() => import('./features/accounting/chart-of-accounts/pages/ChartOfAccountsPage'))
+const CreateChartOfAccountPage = lazy(() => import('./features/accounting/chart-of-accounts/pages/CreateChartOfAccountPage'))
+const EditChartOfAccountPage = lazy(() => import('./features/accounting/chart-of-accounts/pages/EditChartOfAccountPage'))
+const ChartOfAccountDetailPage = lazy(() => import('./features/accounting/chart-of-accounts/pages/ChartOfAccountDetailPage'))
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">

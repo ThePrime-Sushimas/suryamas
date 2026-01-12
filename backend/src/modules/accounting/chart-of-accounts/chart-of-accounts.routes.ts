@@ -1,12 +1,12 @@
 import { Router } from 'express'
 import { chartOfAccountsController } from './chart-of-accounts.controller'
-import { authenticate } from '../../middleware/auth.middleware'
-import { resolveBranchContext } from '../../middleware/branch-context.middleware'
-import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
-import { queryMiddleware } from '../../middleware/query.middleware'
-import { exportLimiter } from '../../middleware/rateLimiter.middleware'
-import { validateSchema, ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import { PermissionService } from '../../services/permission.service'
+import { authenticate } from '../../../middleware/auth.middleware'
+import { resolveBranchContext } from '../../../middleware/branch-context.middleware'
+import { canView, canInsert, canUpdate, canDelete } from '../../../middleware/permission.middleware'
+import { queryMiddleware } from '../../../middleware/query.middleware'
+import { exportLimiter } from '../../../middleware/rateLimiter.middleware'
+import { validateSchema, ValidatedAuthRequest } from '../../../middleware/validation.middleware'
+import { PermissionService } from '../../../services/permission.service'
 import { 
   createChartOfAccountSchema, 
   updateChartOfAccountSchema, 
@@ -14,7 +14,7 @@ import {
   bulkUpdateStatusSchema, 
   bulkDeleteSchema 
 } from './chart-of-accounts.schema'
-import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
+import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../../types/request.types'
 import rateLimit from 'express-rate-limit'
 
 // Register module permissions
