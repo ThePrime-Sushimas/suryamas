@@ -114,7 +114,7 @@ export class ChartOfAccountsService {
           is_postable: data.is_postable !== undefined ? data.is_postable : true
         }
 
-        const account = await this.repository.create(trimmedData, trx)
+        const account = await this.repository.create(trimmedData, userId, trx)
 
         if (!account) {
           throw ChartOfAccountErrors.CREATE_FAILED()
@@ -386,7 +386,7 @@ export class ChartOfAccountsService {
           currency_code: row.currency_code || ChartOfAccountConfig.DEFAULT_CURRENCY,
           is_header: row.is_header === 'true' || row.is_header === true,
           is_postable: row.is_postable !== 'false' && row.is_postable !== false
-        })
+        }, userId)
       },
       skipDuplicates
     )

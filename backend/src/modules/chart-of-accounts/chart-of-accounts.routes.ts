@@ -47,13 +47,11 @@ router.use(authenticate, resolveBranchContext)
 // List and search routes
 router.get('/', canView('chart-of-accounts'), queryMiddleware({
   allowedSortFields: ['account_code', 'account_name', 'account_type', 'level', 'created_at', 'updated_at', 'id'],
-  maxPageSize: 1000
 }), (req, res) => 
   chartOfAccountsController.list(req as AuthenticatedQueryRequest, res))
 
 router.get('/search', canView('chart-of-accounts'), queryMiddleware({
   allowedSortFields: ['account_code', 'account_name', 'account_type', 'level', 'created_at', 'updated_at', 'id'],
-  maxPageSize: 500
 }), (req, res) => 
   chartOfAccountsController.search(req as AuthenticatedQueryRequest, res))
 

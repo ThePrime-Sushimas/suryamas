@@ -261,12 +261,14 @@ export class ChartOfAccountsRepository {
     )
   }
 
-  async create(data: CreateChartOfAccountDTO, trx?: TransactionContext): Promise<ChartOfAccount | null> {
+  async create(data: CreateChartOfAccountDTO, userId: string, trx?: TransactionContext): Promise<ChartOfAccount | null> {
     const client = trx?.client || supabase
     const { data: account, error } = await client
       .from('chart_of_accounts')
       .insert({
         ...data,
+        created_by: userId,
+        updated_by: userId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })

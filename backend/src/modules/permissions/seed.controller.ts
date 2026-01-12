@@ -40,6 +40,18 @@ export class SeedController {
       const defaultModules = [
         { name: 'employees', description: 'Employee Management' },
         { name: 'permissions', description: 'Permission Management' },
+        { name: 'companies', description: 'Company Management' },
+        { name: 'branches', description: 'Branch Management' },
+        { name: 'categories', description: 'Category Management' },
+        { name: 'sub_categories', description: 'Sub Category Management' },
+        { name: 'metric-units', description: 'Metric Units Management' },
+        { name: 'payment_terms', description: 'Payment Terms Management' },
+        { name: 'products', description: 'Product Management' },
+        { name: 'suppliers', description: 'Supplier Management' },
+        { name: 'supplier_products', description: 'Supplier Product Management' },
+        { name: 'pricelists', description: 'Pricelist Management' },
+        { name: 'users', description: 'User Management' },
+        { name: 'chart-of-accounts', description: 'Chart of Accounts Management' },
       ]
 
       for (const moduleData of defaultModules) {
