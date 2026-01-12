@@ -1,21 +1,24 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '@/features/auth'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [employeeId, setEmployeeId] = useState('')
   const { register, isLoading } = useAuthStore()
+  const { success, error } = useToast()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
       await register(email, password, employeeId)
+      success('Registration successful')
       setTimeout(() => navigate('/login'), 2000)
-    } catch {
-      // Error already handled by auth store
+    } catch (err) {
+      error(err instanceof Error ? err.message : 'Registration failed')
     }
   }
 

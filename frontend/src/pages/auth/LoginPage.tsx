@@ -1,20 +1,23 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '@/features/auth'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const { login, isLoading } = useAuthStore()
+  const { success, error } = useToast()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
       await login(email, password)
+      success('Login successful')
       navigate('/')
-    } catch {
-      // Error already handled by auth store
+    } catch (err) {
+      error(err instanceof Error ? err.message : 'Login failed')
     }
   }
 

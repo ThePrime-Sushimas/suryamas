@@ -1,8 +1,6 @@
 import { create } from 'zustand'
 import api from '@/lib/axios'
 
-import { useToast } from '@/contexts/ToastContext'
-
 interface User {
   id: string
   email: string
@@ -28,83 +26,72 @@ interface AuthState {
   checkAuth: () => Promise<void>
 }
 
-export const useAuthStore = create<AuthState>((set) => {
-  const { success, error } = useToast()
-  
-  return {
-    user: null,
-    token: localStorage.getItem('token'),
-    isLoading: false,
-    isInitialized: false,
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  token: localStorage.getItem('token'),
+  isLoading: false,
+  isInitialized: false,
 
-    login: async (email, password) => {
-      set({ isLoading: true })
-      try {
-        const { data } = await api.post<ApiResponse<{ access_token: string; user: User }>>('/auth/login', {
-          email,
-          password,
-        })
-        localStorage.setItem('token', data.data.access_token)
-        set({ token: data.data.access_token })
-        
-        // Fetch full profile data
-        const { data: profileData } = await api.get<ApiResponse<User>>('/employees/profile')
-        set({ user: profileData.data, isInitialized: true })
-        success('Login successful')
-      } catch (err) {
-        error(err instanceof Error ? err.message : 'Login failed')
-        throw err
-      } finally {
-        set({ isLoading: false })
-      }
-    },
-    
-
-    register: async (email, password, employee_id) => {
-      set({ isLoading: true })
-      try {
-        await api.post('/auth/register', { email, password, employee_id })
-        success('Registration successful')
-      } catch (err) {
-        error(err instanceof Error ? err.message : 'Registration failed')
-        throw err
-      } finally {
-        set({ isLoading: false })
-      }
-    },
-
-    logout: async () => {
-      try {
-        await api.post('/auth/logout')
-        success('Logged out successfully')
-      } catch {
-        error('Logout failed')
-      } finally {
-        localStorage.removeItem('token')
-        set({ user: null, token: null })
-        
-        // Clear branch context and permissions
-        const { useBranchContextStore } = await import('@/features/branch_context/store/branchContext.store')
-        const { usePermissionStore } = await import('@/features/branch_context/store/permission.store')
-        useBranchContextStore.getState().clear()
-        usePermissionStore.getState().clear()
-      }
-    },
-
-    checkAuth: async () => {
-      const token = localStorage.getItem('token')
-      if (!token) {
-        set({ user: null, token: null, isInitialized: true })
-        return
-      }
+  login: async (email, password) => {
+    set({ isLoading: true })
+    try {
+      const { data } = await api.post<ApiResponse<{ access_token: string; user: User }>>('/auth/login', {
+        email,
+        password,
+      })
+      localStorage.setItem('token', data.data.access_token)
+      set({ token: data.data.access_token })
       
-      try {
-        const { data } = await api.get<ApiResponse<User>>('/employees/profile')
-        set({ user: data.data, token, isInitialized: true })
-      } catch {
-        localStorage.removeItem('token')
-        set({ user: null, token: null, isInitialized: true })
-      }
-    },
-  }
-})
+      // Fetch full profile data
+      const { data: profileData } = await api.get<ApiResponse<User>>('/employees/profile')
+      set({ user: profileData.data, isInitialized: true })
+    } catch (err) {
+      throw err
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+  
+
+  register: async (email, password, employee_id) => {
+    set({ isLoading: true })
+    try {
+      await api.post('/auth/register', { email, password, employee_id })
+    } catch (err) {
+      throw err
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  logout: async () => {
+    try {
+      await api.post('/auth/logout')
+    } finally {
+      localStorage.removeItem('token')
+      set({ user: null, token: null })
+      
+      // Clear branch context and permissions
+      const { useBranchContextStore } = await import('@/features/branch_context/store/branchContext.store')
+      const { usePermissionStore } = await import('@/features/branch_context/store/permission.store')
+      useBranchContextStore.getState().clear()
+      usePermissionStore.getState().clear()
+    }
+  },
+
+  checkAuth: async () => {
+    const token = localStorage.getItem('token')
+    if (!token) {
+      set({ user: null, token: null, isInitialized: true })
+      return
+    }
+    
+    try {
+      const { data } = await api.get<ApiResponse<User>>('/employees/profile')
+      set({ user: data.data, token, isInitialized: true })
+    } catch {
+      localStorage.removeItem('token')
+      set({ user: null, token: null, isInitialized: true })
+    }
+  },
+}))
