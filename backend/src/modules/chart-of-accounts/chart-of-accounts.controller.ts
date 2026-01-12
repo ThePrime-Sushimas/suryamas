@@ -176,7 +176,8 @@ export class ChartOfAccountsController {
       if (error instanceof ChartOfAccountError) {
         logError('Failed to create chart of account', { 
           correlation_id: correlationId,
-          code: error.code, 
+          code: error.code,
+          message: error.message,
           user: req.user?.id 
         })
         return sendError(res, error.message, error.statusCode)

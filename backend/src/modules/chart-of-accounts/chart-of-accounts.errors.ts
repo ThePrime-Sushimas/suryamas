@@ -33,7 +33,7 @@ export const ChartOfAccountErrors = {
   ),
   
   PARENT_COMPANY_MISMATCH: (parentCompany: string, childCompany: string) => new ChartOfAccountError(
-    'Parent account must belong to the same company',
+    'The selected parent account belongs to a different company. Please choose a parent account from the same company.',
     'PARENT_COMPANY_MISMATCH',
     400
   ),

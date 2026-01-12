@@ -64,8 +64,9 @@ export default function CreateChartOfAccountPage() {
       await createAccount(data as CreateChartOfAccountDto)
       success('Account created successfully')
       navigate('/chart-of-accounts')
-    } catch {
-      error('Failed to create account')
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create account'
+      error(errorMessage)
     }
   }
 

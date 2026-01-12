@@ -130,7 +130,13 @@ export class ChartOfAccountsService {
             throw ChartOfAccountErrors.CODE_EXISTS(data.account_code, data.company_id)
           }
         }
-        logError('Failed to create chart of account', { error: error.message, user: userId })
+        logError('Failed to create chart of account', { 
+          error: error.message, 
+          code: error.code,
+          account_code: data.account_code,
+          parent_account_id: data.parent_account_id,
+          user: userId 
+        })
         throw error
       }
     })
