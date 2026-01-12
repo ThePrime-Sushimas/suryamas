@@ -13,6 +13,7 @@ export interface BranchSort {
 }
 
 export interface BranchFilter {
+  company_id?: string
   status?: BranchStatus
   city?: string
   search?: string
