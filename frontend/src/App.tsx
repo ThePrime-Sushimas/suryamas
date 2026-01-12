@@ -68,6 +68,10 @@ const PricelistDetailPage = lazy(() => import('./features/pricelists').then(m =>
 const BanksListPage = lazy(() => import('./features/banks').then(m => ({ default: m.BanksListPage })))
 const CreateBankPage = lazy(() => import('./features/banks').then(m => ({ default: m.CreateBankPage })))
 const EditBankPage = lazy(() => import('./features/banks').then(m => ({ default: m.EditBankPage })))
+const ChartOfAccountsPage = lazy(() => import('./features/chart-of-accounts/pages/ChartOfAccountsPage'))
+const CreateChartOfAccountPage = lazy(() => import('./features/chart-of-accounts/pages/CreateChartOfAccountPage'))
+const EditChartOfAccountPage = lazy(() => import('./features/chart-of-accounts/pages/EditChartOfAccountPage'))
+const ChartOfAccountDetailPage = lazy(() => import('./features/chart-of-accounts/pages/ChartOfAccountDetailPage'))
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -175,6 +179,10 @@ function App() {
           <Route path="settings/banks" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><BanksListPage /></Suspense></ProtectedRoute>} />
           <Route path="settings/banks/create" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateBankPage /></Suspense></ProtectedRoute>} />
           <Route path="settings/banks/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditBankPage /></Suspense></ProtectedRoute>} />
+          <Route path="chart-of-accounts" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><ChartOfAccountsPage /></Suspense></ProtectedRoute>} />
+          <Route path="chart-of-accounts/new" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateChartOfAccountPage /></Suspense></ProtectedRoute>} />
+          <Route path="chart-of-accounts/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><ChartOfAccountDetailPage /></Suspense></ProtectedRoute>} />
+          <Route path="chart-of-accounts/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditChartOfAccountPage /></Suspense></ProtectedRoute>} />
               </Route>
             </Routes>
           </BrowserRouter>

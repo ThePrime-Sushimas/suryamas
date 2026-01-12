@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useLocation, Link, Outlet, useNavigate } from 'react-router-dom'
-import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, Key, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User, ShoppingCart, Building2, UserCog, Shield, DollarSign } from 'lucide-react'
+import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, Key, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User, ShoppingCart, Building2, UserCog, Shield, DollarSign, Calculator } from 'lucide-react'
 import { useAuthStore } from '@/features/auth'
 import { BranchSwitcher, usePermissionStore } from '@/features/branch_context'
 
@@ -57,6 +57,14 @@ export default function Layout() {
         { id: 'suppliers', name: 'Suppliers', href: '/suppliers', icon: <Building2 size={16} />, module: 'suppliers' },
         { id: 'supplier-products', name: 'Supplier Products', href: '/supplier-products', icon: <ShoppingCart size={16} />, module: 'supplier_products' },
         { id: 'pricelists', name: 'Pricelists', href: '/pricelists', icon: <DollarSign size={16} />, module: 'pricelists' },
+      ]
+    },
+    {
+      id: 'accounting',
+      name: 'Accounting',
+      icon: <Calculator size={18} />,
+      submenu: [
+        { id: 'chart-of-accounts', name: 'Chart of Accounts', href: '/chart-of-accounts', icon: <Calculator size={16} />, module: 'chart-of-accounts' },
       ]
     },
     {
