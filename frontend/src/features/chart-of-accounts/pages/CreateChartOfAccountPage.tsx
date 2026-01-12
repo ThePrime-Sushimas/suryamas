@@ -1,37 +1,63 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useBranchContext } from '@/features/branch_context'
 import { useChartOfAccountsStore } from '../store/chartOfAccounts.store'
 import { ChartOfAccountForm } from '../components/ChartOfAccountForm'
 import { useToast } from '@/contexts/ToastContext'
 import { ArrowLeft, Building2 } from 'lucide-react'
-import type { CreateChartOfAccountDto, UpdateChartOfAccountDto } from '../types/chart-of-account.types'
+import type { CreateChartOfAccountDto, UpdateChartOfAccountDto, ChartOfAccount, ChartOfAccountTreeNode } from '../types/chart-of-account.types'
+
+// Helper function to flatten tree data for parent selection
+const flattenTree = (tree: ChartOfAccountTreeNode[]): ChartOfAccount[] => {
+  const result: ChartOfAccount[] = []
+  
+  const traverse = (nodes: ChartOfAccountTreeNode[]) => {
+    for (const node of nodes) {
+      result.push(node)
+      if (node.children && node.children.length > 0) {
+        traverse(node.children)
+      }
+    }
+  }
+  
+  traverse(tree)
+  return result
+}
 
 export default function CreateChartOfAccountPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { accounts, loading, createAccount } = useChartOfAccountsStore()
+  const currentBranch = useBranchContext()
+  const { tree, loading, createAccount, fetchTree } = useChartOfAccountsStore()
   const { success, error } = useToast()
   
-  const [parentAccounts, setParentAccounts] = useState(accounts)
+  const [parentAccounts, setParentAccounts] = useState<ChartOfAccount[]>([])
   const [defaultParentId, setDefaultParentId] = useState<string | undefined>()
+  const [selectedParent, setSelectedParent] = useState<ChartOfAccount | undefined>()
 
   const parentId = searchParams.get('parent')
 
   useEffect(() => {
-    // Load all accounts for parent selection - need company_id
-    // This will be handled by the form component when company is selected
-  }, [])
-
-  useEffect(() => {
-    setParentAccounts(accounts)
-  }, [accounts])
-
-  useEffect(() => {
-    // If parent ID is provided in URL, set it as default
-    if (parentId) {
-      setDefaultParentId(parentId)
+    // Load tree data for parent selection
+    if (currentBranch?.company_id) {
+      fetchTree(currentBranch.company_id)
     }
-  }, [parentId])
+  }, [currentBranch?.company_id, fetchTree])
+
+  useEffect(() => {
+    // Convert tree to flat array for parent selection
+    setParentAccounts(flattenTree(tree))
+  }, [tree])
+
+  useEffect(() => {
+    // If parent ID is provided in URL, set it as default and find parent account
+    if (parentId && parentAccounts.length > 0) {
+      console.log('Setting default parent ID:', parentId)
+      setDefaultParentId(parentId)
+      const parent = parentAccounts.find(p => p.id === parentId)
+      setSelectedParent(parent)
+    }
+  }, [parentId, parentAccounts])
 
   const handleSubmit = async (data: CreateChartOfAccountDto | UpdateChartOfAccountDto) => {
     try {
@@ -73,6 +99,7 @@ export default function CreateChartOfAccountPage() {
               isLoading={loading.submit}
               parentAccounts={parentAccounts}
               defaultParentId={defaultParentId}
+              lockedAccountType={selectedParent?.account_type}
             />
           </div>
         </div>

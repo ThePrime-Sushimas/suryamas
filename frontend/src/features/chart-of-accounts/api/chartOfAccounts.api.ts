@@ -35,6 +35,8 @@ export const chartOfAccountsApi = {
     params.append('q', q)
     params.append('page', String(page))
     params.append('limit', String(limit))
+    params.append('sort.field', 'level')
+    params.append('sort.order', 'asc')
     appendFilterParams(params, filter)
     const res = await api.get<PaginatedResponse<ChartOfAccount>>(`/chart-of-accounts/search?${params}`)
     return res.data

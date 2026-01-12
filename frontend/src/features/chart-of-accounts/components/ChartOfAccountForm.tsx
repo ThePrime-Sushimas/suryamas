@@ -5,7 +5,7 @@ import { useCompaniesStore } from '@/features/companies'
 import type { ChartOfAccount, CreateChartOfAccountDto, UpdateChartOfAccountDto, AccountType } from '../types/chart-of-account.types'
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS, CURRENCY_CODES, DEFAULT_CURRENCY, NORMAL_BALANCE_MAP } from '../constants/chart-of-account.constants'
 import { validateAccountCode, validateAccountName, validateCurrencyCode, validateParentAccount, validateHeaderAccount, validateSortOrder } from '../utils/validation'
-import { formatAccountCode, formatAccountName, formatCurrency } from '../utils/format'
+import { formatCode } from '../utils/format'
 
 interface ChartOfAccountFormProps {
   initialData?: ChartOfAccount
@@ -14,6 +14,7 @@ interface ChartOfAccountFormProps {
   isLoading?: boolean
   parentAccounts?: ChartOfAccount[]
   defaultParentId?: string
+  lockedAccountType?: AccountType
 }
 
 export const ChartOfAccountForm = ({ 
@@ -22,25 +23,29 @@ export const ChartOfAccountForm = ({
   onSubmit, 
   isLoading, 
   parentAccounts = [],
-  defaultParentId
+  defaultParentId,
+  lockedAccountType
 }: ChartOfAccountFormProps) => {
   const currentBranch = useBranchContext()
   const { branches, fetchBranches } = useBranchesStore()
   const { companies, fetchCompanies } = useCompaniesStore()
-  const initialFormData = useMemo(() => ({
-    company_id: initialData?.company_id || currentBranch?.company_id || '',
-    account_code: initialData?.account_code || '',
-    account_name: initialData?.account_name || '',
-    account_type: (initialData?.account_type || 'ASSET') as AccountType,
-    account_subtype: initialData?.account_subtype || '',
-    parent_account_id: initialData?.parent_account_id || defaultParentId || '',
-    branch_id: initialData?.branch_id || currentBranch?.branch_id || '',
-    is_header: initialData?.is_header || false,
-    is_postable: initialData?.is_postable !== undefined ? initialData.is_postable : true,
-    currency_code: initialData?.currency_code || DEFAULT_CURRENCY,
-    sort_order: initialData?.sort_order?.toString() || '',
-    is_active: initialData?.is_active !== undefined ? initialData.is_active : true
-  }), [initialData, defaultParentId, currentBranch?.company_id, currentBranch?.branch_id])
+  const initialFormData = useMemo(() => {
+    console.log('Form initializing with defaultParentId:', defaultParentId)
+    return {
+      company_id: initialData?.company_id || currentBranch?.company_id || '',
+      account_code: initialData?.account_code || '',
+      account_name: initialData?.account_name || '',
+      account_type: (initialData?.account_type || lockedAccountType || 'ASSET') as AccountType,
+      account_subtype: initialData?.account_subtype || '',
+      parent_account_id: initialData?.parent_account_id || defaultParentId || '',
+      branch_id: initialData?.branch_id || currentBranch?.branch_id || '',
+      is_header: initialData?.is_header || false,
+      is_postable: initialData?.is_postable !== undefined ? initialData.is_postable : true,
+      currency_code: initialData?.currency_code || DEFAULT_CURRENCY,
+      sort_order: initialData?.sort_order?.toString() || '',
+      is_active: initialData?.is_active !== undefined ? initialData.is_active : true
+    }
+  }, [initialData, defaultParentId, lockedAccountType, currentBranch?.company_id, currentBranch?.branch_id])
 
   const [formData, setFormData] = useState(initialFormData)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -70,11 +75,14 @@ export const ChartOfAccountForm = ({
 
   // Filter parent accounts by same type and header only
   const availableParents = useMemo(() => {
-    return parentAccounts.filter(account => 
+    const filtered = parentAccounts.filter(account => 
       account.account_type === formData.account_type && 
       account.is_header &&
       account.id !== initialData?.id // Prevent self-selection
     )
+    console.log('Available parents for type', formData.account_type, ':', filtered)
+    console.log('Looking for parent ID:', formData.parent_account_id)
+    return filtered
   }, [parentAccounts, formData.account_type, initialData?.id])
 
   // Get selected parent account details
@@ -142,11 +150,9 @@ export const ChartOfAccountForm = ({
 
     // Format specific fields
     if (name === 'account_code') {
-      fieldValue = formatAccountCode(value)
-    } else if (name === 'account_name') {
-      fieldValue = formatAccountName(value)
+      fieldValue = formatCode(value)
     } else if (name === 'currency_code') {
-      fieldValue = formatCurrency(value)
+      fieldValue = formatCode(value)
     }
 
     setFormData(prev => ({ ...prev, [name]: fieldValue }))
@@ -244,13 +250,16 @@ export const ChartOfAccountForm = ({
             name="account_type" 
             value={formData.account_type} 
             onChange={handleChange}
-            disabled={isEdit}
+            disabled={isEdit || !!lockedAccountType}
             className="w-full px-3 py-2 border rounded-md disabled:bg-gray-100"
           >
             {ACCOUNT_TYPES.map(type => (
               <option key={type} value={type}>{ACCOUNT_TYPE_LABELS[type]}</option>
             ))}
           </select>
+          {lockedAccountType && (
+            <p className="text-xs text-blue-600 mt-1">Account type locked to match parent account</p>
+          )}
           {errors.account_type && <p className="text-red-500 text-xs mt-1">{errors.account_type}</p>}
         </div>
       </div>

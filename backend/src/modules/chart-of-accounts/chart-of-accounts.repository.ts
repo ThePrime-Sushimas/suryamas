@@ -105,12 +105,12 @@ export class ChartOfAccountsRepository {
     }
     
     if (sort) {
-      const validFields = ['account_code', 'account_name', 'account_type', 'level', 'created_at', 'updated_at']
+      const validFields = ['account_code', 'account_name', 'account_type', 'level', 'sort_order', 'created_at', 'updated_at']
       if (validFields.includes(sort.field)) {
         query = query.order(sort.field, { ascending: sort.order === 'asc' })
       }
     } else {
-      query = query.order('account_path', { ascending: true })
+      query = query.order('level', { ascending: true }).order('sort_order', { ascending: true }).order('account_code', { ascending: true })
     }
     
     const [{ data, error }, { count, error: countError }] = await Promise.all([
@@ -167,10 +167,12 @@ export class ChartOfAccountsRepository {
     }
     
     if (sort) {
-      const validFields = ['account_code', 'account_name', 'account_type', 'level', 'created_at']
+      const validFields = ['account_code', 'account_name', 'account_type', 'level', 'sort_order', 'created_at']
       if (validFields.includes(sort.field)) {
         query = query.order(sort.field, { ascending: sort.order === 'asc' })
       }
+    } else {
+      query = query.order('level', { ascending: true }).order('sort_order', { ascending: true }).order('account_code', { ascending: true })
     }
     
     const [{ data, error }, { count, error: countError }] = await Promise.all([
@@ -209,7 +211,7 @@ export class ChartOfAccountsRepository {
       query = query.lte('level', maxDepth)
     }
 
-    const { data, error } = await query.order('account_path', { ascending: true })
+    const { data, error } = await query.order('level', { ascending: true }).order('sort_order', { ascending: true }).order('account_code', { ascending: true })
 
     if (error) {
       logError('Failed to fetch tree data', { error: error.message, companyId })
@@ -227,38 +229,45 @@ export class ChartOfAccountsRepository {
     // Use Map for O(1) lookups instead of O(n)
     const accountMap = new Map<string, ChartOfAccountTreeNode>()
     const rootAccounts: ChartOfAccountTreeNode[] = []
-    const childrenMap = new Map<string, ChartOfAccountTreeNode[]>()
 
     // First pass: create all nodes
     for (const account of accounts) {
       const node: ChartOfAccountTreeNode = { ...account, children: [] }
       accountMap.set(account.id, node)
+    }
+
+    // Second pass: build hierarchy
+    for (const account of accounts) {
+      const node = accountMap.get(account.id)!
       
       if (account.parent_account_id) {
-        if (!childrenMap.has(account.parent_account_id)) {
-          childrenMap.set(account.parent_account_id, [])
+        const parent = accountMap.get(account.parent_account_id)
+        if (parent && parent.children) {
+          parent.children.push(node)
         }
-        childrenMap.get(account.parent_account_id)!.push(node)
       } else {
         rootAccounts.push(node)
       }
     }
 
-    // Second pass: assign children
-    for (const [parentId, children] of childrenMap) {
-      const parent = accountMap.get(parentId)
-      if (parent) {
-        parent.children = children.sort((a, b) => 
-          (a.sort_order || 0) - (b.sort_order || 0) || 
-          a.account_code.localeCompare(b.account_code)
-        )
-      }
+    // Sort children recursively
+    const sortNodes = (nodes: ChartOfAccountTreeNode[]) => {
+      nodes.sort((a, b) => {
+        // Sort by sort_order first, then by account_code
+        if (a.sort_order !== b.sort_order) {
+          return (a.sort_order || 0) - (b.sort_order || 0)
+        }
+        return a.account_code.localeCompare(b.account_code)
+      })
+      nodes.forEach(node => {
+        if (node.children && node.children.length > 0) {
+          sortNodes(node.children)
+        }
+      })
     }
 
-    return rootAccounts.sort((a, b) => 
-      (a.sort_order || 0) - (b.sort_order || 0) || 
-      a.account_code.localeCompare(b.account_code)
-    )
+    sortNodes(rootAccounts)
+    return rootAccounts
   }
 
   async create(data: CreateChartOfAccountDTO, userId: string, trx?: TransactionContext): Promise<ChartOfAccount | null> {
@@ -451,7 +460,7 @@ export class ChartOfAccountsRepository {
       if (filter.is_active !== undefined) query = query.eq('is_active', filter.is_active)
     }
     
-    const { data, error } = await query.order('account_path', { ascending: true })
+    const { data, error } = await query.order('level', { ascending: true }).order('account_code', { ascending: true })
     if (error) {
       logError('Repository export error', { error: error.message })
       throw new Error(error.message)

@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, ChevronDown, Eye, Edit, Trash2, Plus, MoreVertical } from 'lucide-react'
+import { ChevronRight, ChevronDown, Eye, Edit, Trash2, Plus, MoreVertical, Expand, Minimize } from 'lucide-react'
 import type { ChartOfAccountTreeNode } from '../types/chart-of-account.types'
 import { AccountTypeBadge } from './AccountTypeBadge'
 import { buildAccountDisplayName } from '../utils/format'
@@ -136,6 +136,8 @@ interface TreeNodeProps {
   canEdit?: boolean
   canDelete?: boolean
   level?: number
+  expandedNodes: Set<string>
+  onToggleExpand: (nodeId: string) => void
 }
 
 const TreeNode = ({ 
@@ -146,11 +148,13 @@ const TreeNode = ({
   onAddChild, 
   canEdit = true, 
   canDelete = true,
-  level = 0 
+  level = 0,
+  expandedNodes,
+  onToggleExpand
 }: TreeNodeProps) => {
-  const [isExpanded, setIsExpanded] = useState(true)
   const [openDropdown, setOpenDropdown] = useState(false)
   const hasChildren = node.children && node.children.length > 0
+  const isExpanded = expandedNodes.has(node.id)
 
   const handleToggleDropdown = useCallback(() => {
     setOpenDropdown(prev => !prev)
@@ -164,7 +168,7 @@ const TreeNode = ({
       >
         {/* Expand/Collapse Button */}
         <button
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={() => onToggleExpand(node.id)}
           className="shrink-0 w-4 h-4 flex items-center justify-center"
         >
           {hasChildren ? (
@@ -235,6 +239,8 @@ const TreeNode = ({
               canEdit={canEdit}
               canDelete={canDelete}
               level={level + 1}
+              expandedNodes={expandedNodes}
+              onToggleExpand={onToggleExpand}
             />
           ))}
         </div>
@@ -252,6 +258,47 @@ export const ChartOfAccountTree = ({
   canEdit = true, 
   canDelete = true 
 }: ChartOfAccountTreeProps) => {
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
+    // Initially expand all nodes
+    const allNodeIds = new Set<string>()
+    const collectIds = (nodes: ChartOfAccountTreeNode[]) => {
+      nodes.forEach(node => {
+        allNodeIds.add(node.id)
+        if (node.children) collectIds(node.children)
+      })
+    }
+    collectIds(tree)
+    return allNodeIds
+  })
+
+  const handleToggleExpand = (nodeId: string) => {
+    setExpandedNodes(prev => {
+      const next = new Set(prev)
+      if (next.has(nodeId)) {
+        next.delete(nodeId)
+      } else {
+        next.add(nodeId)
+      }
+      return next
+    })
+  }
+
+  const handleExpandAll = () => {
+    const allNodeIds = new Set<string>()
+    const collectIds = (nodes: ChartOfAccountTreeNode[]) => {
+      nodes.forEach(node => {
+        allNodeIds.add(node.id)
+        if (node.children) collectIds(node.children)
+      })
+    }
+    collectIds(tree)
+    setExpandedNodes(allNodeIds)
+  }
+
+  const handleCollapseAll = () => {
+    setExpandedNodes(new Set())
+  }
+
   if (tree.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-sm border p-8 text-center text-gray-500">
@@ -262,6 +309,25 @@ export const ChartOfAccountTree = ({
 
   return (
     <div className="bg-white rounded-lg shadow-sm border">
+      <div className="flex items-center justify-between p-4 border-b">
+        <h3 className="text-sm font-medium text-gray-900">Chart of Accounts Tree</h3>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExpandAll}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100"
+          >
+            <Expand className="w-3 h-3" />
+            Expand All
+          </button>
+          <button
+            onClick={handleCollapseAll}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100"
+          >
+            <Minimize className="w-3 h-3" />
+            Collapse All
+          </button>
+        </div>
+      </div>
       <div className="p-4">
         {tree.map(node => (
           <TreeNode
@@ -273,6 +339,8 @@ export const ChartOfAccountTree = ({
             onAddChild={onAddChild}
             canEdit={canEdit}
             canDelete={canDelete}
+            expandedNodes={expandedNodes}
+            onToggleExpand={handleToggleExpand}
           />
         ))}
       </div>

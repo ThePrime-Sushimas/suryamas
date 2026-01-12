@@ -9,23 +9,63 @@ import { ChartOfAccountFilters } from '../components/ChartOfAccountFilters'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { useToast } from '@/contexts/ToastContext'
 import { Building2, Plus, Search, Filter, X, Table, TreePine, Trash2 } from 'lucide-react'
-import type { ChartOfAccountFilter } from '../types/chart-of-account.types'
+import type { ChartOfAccountFilter, ChartOfAccountTreeNode, ChartOfAccount } from '../types/chart-of-account.types'
 
-const LIMIT = 25
+// Helper function to flatten tree data for table view
+const flattenTree = (tree: ChartOfAccountTreeNode[]): ChartOfAccount[] => {
+  const result: ChartOfAccount[] = []
+  
+  const traverse = (nodes: ChartOfAccountTreeNode[]) => {
+    for (const node of nodes) {
+      result.push(node)
+      if (node.children && node.children.length > 0) {
+        traverse(node.children)
+      }
+    }
+  }
+  
+  traverse(tree)
+  return result
+}
+
+// Helper function to filter tree data based on search
+const filterTree = (tree: ChartOfAccountTreeNode[], searchTerm: string): ChartOfAccount[] => {
+  if (!searchTerm.trim()) return flattenTree(tree)
+  
+  const result: ChartOfAccount[] = []
+  const searchLower = searchTerm.toLowerCase()
+  
+  const traverse = (nodes: ChartOfAccountTreeNode[]) => {
+    for (const node of nodes) {
+      const matchesSearch = 
+        node.account_code.toLowerCase().includes(searchLower) ||
+        node.account_name.toLowerCase().includes(searchLower)
+      
+      if (matchesSearch) {
+        result.push(node)
+      }
+      
+      if (node.children && node.children.length > 0) {
+        traverse(node.children)
+      }
+    }
+  }
+  
+  traverse(tree)
+  return result
+}
+
+
 
 export default function ChartOfAccountsPage() {
   const navigate = useNavigate()
   const currentBranch = useBranchContext()
   const { companies, fetchCompanies } = useCompaniesStore()
   const { 
-    accounts, 
     tree, 
     loading, 
     error,
-    pagination, 
     viewMode,
-    fetchAccounts, 
-    searchAccounts, 
     fetchTree,
     deleteAccount, 
     bulkDelete,
@@ -35,26 +75,23 @@ export default function ChartOfAccountsPage() {
     resetTree
   } = useChartOfAccountsStore()
   
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('')
+  const [manualCompanyId, setManualCompanyId] = useState<string>('')
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<ChartOfAccountFilter>({})
-  const [page, setPage] = useState(1)
   const [showFilter, setShowFilter] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   
   useEffect(() => {
-    fetchCompanies()
+    fetchCompanies(1, 100)
   }, [fetchCompanies])
 
-  useEffect(() => {
-    if (companies.length > 0 && !selectedCompanyId) {
-      // Default to current branch's company or first company
-      const defaultCompanyId = currentBranch?.company_id || companies[0]?.id
-      if (defaultCompanyId) {
-        setSelectedCompanyId(String(defaultCompanyId))
-      }
-    }
-  }, [companies, currentBranch?.company_id, selectedCompanyId])
+  // Compute selected company ID based on available options
+  const selectedCompanyId = useMemo(() => {
+    if (manualCompanyId) return manualCompanyId
+    if (currentBranch?.company_id) return String(currentBranch.company_id)
+    if (companies.length > 0) return String(companies[0].id)
+    return ''
+  }, [manualCompanyId, currentBranch?.company_id, companies])
 
   const selectedCompany = useMemo(() => {
     return companies.find(c => c.id === selectedCompanyId)
@@ -74,17 +111,7 @@ export default function ChartOfAccountsPage() {
     return count
   }, [filter])
   
-  // Create a key that changes when search or filter changes
-  const searchFilterKey = useMemo(() => 
-    `${debouncedSearch}-${JSON.stringify(filter)}`, 
-    [debouncedSearch, filter]
-  )
-  
-  // Track the current key to detect changes
-  const [currentKey, setCurrentKey] = useState(searchFilterKey)
-  
-  // Calculate effective page - reset to 1 when search/filter changes
-  const effectivePage = currentKey === searchFilterKey ? page : 1
+
 
   const loadData = useCallback(() => {
     if (!selectedCompanyId) {
@@ -100,26 +127,11 @@ export default function ChartOfAccountsPage() {
       return
     }
     
-    if (viewMode === 'tree') {
-      return fetchTree(selectedCompanyId)
-    }
-    
-    if (debouncedSearch) {
-      return searchAccounts(selectedCompanyId, debouncedSearch, effectivePage, LIMIT, filter)
-    }
-    return fetchAccounts(selectedCompanyId, effectivePage, LIMIT, undefined, filter)
-  }, [selectedCompanyId, viewMode, debouncedSearch, effectivePage, filter, searchAccounts, fetchAccounts, fetchTree, showError])
+    // Always load tree data for proper sorting
+    return fetchTree(selectedCompanyId)
+  }, [selectedCompanyId, fetchTree, showError])
 
-  // Update current key and page when search/filter changes
-  useEffect(() => {
-    setCurrentKey(searchFilterKey)
-  }, [searchFilterKey])
-  
-  useEffect(() => {
-    if (effectivePage === 1 && page !== 1) {
-      setPage(1)
-    }
-  }, [effectivePage, page])
+
 
   useEffect(() => {
     return () => {
@@ -216,7 +228,7 @@ export default function ChartOfAccountsPage() {
                     <span className="mx-2">•</span>
                   </>
                 )}
-                {viewMode === 'tree' ? `${tree.length} root accounts` : `${pagination.total} total accounts`}
+                {viewMode === 'tree' ? `${tree.length} root accounts` : `${debouncedSearch ? filterTree(tree, debouncedSearch).length : flattenTree(tree).length} accounts`}
               </p>
             </div>
           </div>
@@ -227,7 +239,7 @@ export default function ChartOfAccountsPage() {
               {companies.map(company => (
                 <button
                   key={company.id}
-                  onClick={() => setSelectedCompanyId(company.id)}
+                  onClick={() => setManualCompanyId(company.id)}
                   className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
                     selectedCompanyId === company.id
                       ? 'bg-white text-blue-600 shadow-sm font-medium'
@@ -355,13 +367,13 @@ export default function ChartOfAccountsPage() {
           <div className="text-center py-8">
             <p className="text-gray-500 mb-4">Please select a company to view chart of accounts</p>
           </div>
-        ) : (viewMode === 'table' ? loading.list : loading.tree) ? (
+        ) : (viewMode === 'table' ? loading.tree : loading.tree) ? (
           <div className="text-center py-8 text-gray-500">Loading...</div>
         ) : (
           <>
             {viewMode === 'table' ? (
               <ChartOfAccountTable
-                accounts={accounts}
+                accounts={debouncedSearch ? filterTree(tree, debouncedSearch) : flattenTree(tree)}
                 onView={id => navigate(`/chart-of-accounts/${id}`)}
                 onEdit={id => navigate(`/chart-of-accounts/${id}/edit`)}
                 onDelete={handleDelete}
@@ -383,32 +395,7 @@ export default function ChartOfAccountsPage() {
               />
             )}
             
-            {viewMode === 'table' && pagination.total > 0 && (
-              <div className="mt-6 flex items-center justify-between bg-white rounded-lg shadow-sm px-4 py-3">
-                <div className="text-sm text-gray-600">
-                  Showing {((effectivePage - 1) * LIMIT) + 1} to {Math.min(effectivePage * LIMIT, pagination.total)} of {pagination.total} accounts
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={effectivePage === 1}
-                    className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                  >
-                    Previous
-                  </button>
-                  <span className="px-4 py-2 border rounded-md bg-gray-50">
-                    Page {effectivePage} of {pagination.totalPages || 1}
-                  </span>
-                  <button
-                    onClick={() => setPage(p => Math.min((pagination.totalPages || 1), p + 1))}
-                    disabled={effectivePage >= (pagination.totalPages || 1)}
-                    className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
+
           </>
         )}
       </div>
