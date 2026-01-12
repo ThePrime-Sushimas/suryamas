@@ -1,12 +1,12 @@
 import { Response } from 'express'
 import { employeesService } from './employees.service'
-import { sendSuccess, sendError } from '../../utils/response.util'
-import { logInfo, logError } from '../../config/logger'
+import { sendSuccess } from '../../utils/response.util'
+import { handleError } from '../../utils/error-handler.util'
+import { logInfo } from '../../config/logger'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
 import type { AuthenticatedPaginatedRequest, AuthenticatedRequest } from '../../types/request.types'
 import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, EmployeeSearchSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
 import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import { ZodError } from '@/lib/openapi'
 
 export class EmployeesController {
   async list(req: AuthenticatedPaginatedRequest, res: Response) {
@@ -18,7 +18,7 @@ export class EmployeesController {
       })
       res.json({ success: true, data: result.data, pagination: result.pagination })
     } catch (error) {
-      this.handleError(res, error, 'list employees', req.user.id)
+      handleError(res, error)
     }
   }
 
@@ -27,7 +27,7 @@ export class EmployeesController {
       const result = await employeesService.getUnassigned(req.pagination)
       res.json({ success: true, data: result.data, pagination: result.pagination })
     } catch (error) {
-      this.handleError(res, error, 'get unassigned employees', req.user.id)
+      handleError(res, error)
     }
   }
   
@@ -37,7 +37,7 @@ export class EmployeesController {
       logInfo('Employee created', { employee_id: employee.employee_id, user: req.user!.id })
       sendSuccess(res, employee, 'Employee created', 201)
     } catch (error) {
-      this.handleError(res, error, 'create employee', req.user!.id, req.validated)
+      handleError(res, error)
     }
   }
 
@@ -60,7 +60,7 @@ export class EmployeesController {
       
       res.json({ success: true, data: result.data, pagination: result.pagination })
     } catch (error) {
-      this.handleError(res, error, 'search employees', req.user.id)
+      handleError(res, error)
     }
   }
 
@@ -69,7 +69,7 @@ export class EmployeesController {
       const options = await employeesService.getFilterOptions()
       sendSuccess(res, options)
     } catch (error) {
-      this.handleError(res, error, 'get filter options', req.user.id)
+      handleError(res, error)
     }
   }
 
@@ -78,7 +78,7 @@ export class EmployeesController {
       const employees = await employeesService.autocomplete(req.query.q as string || '')
       sendSuccess(res, employees)
     } catch (error) {
-      this.handleError(res, error, 'autocomplete employees', req.user.id)
+      handleError(res, error)
     }
   }
 
@@ -87,7 +87,7 @@ export class EmployeesController {
       const employee = await employeesService.getProfile(req.user.id)
       sendSuccess(res, employee)
     } catch (error) {
-      this.handleError(res, error, 'get profile', req.user.id, undefined, 404)
+      handleError(res, error)
     }
   }
 
@@ -97,7 +97,7 @@ export class EmployeesController {
       logInfo('Profile updated', { user: req.user!.id })
       sendSuccess(res, employee, 'Profile updated')
     } catch (error) {
-      this.handleError(res, error, 'update profile', req.user!.id, req.validated)
+      handleError(res, error)
     }
   }
 
@@ -106,7 +106,7 @@ export class EmployeesController {
       const employee = await employeesService.getById(req.params.id)
       sendSuccess(res, employee)
     } catch (error) {
-      this.handleError(res, error, 'get employee', req.user.id, { id: req.params.id }, 404)
+      handleError(res, error)
     }
   }
 
@@ -117,7 +117,7 @@ export class EmployeesController {
       logInfo('Employee updated', { id: params.id, user: req.user!.id })
       sendSuccess(res, employee, 'Employee updated')
     } catch (error) {
-      this.handleError(res, error, 'update employee', req.user!.id, { id: req.validated.params.id })
+      handleError(res, error)
     }
   }
 
@@ -127,7 +127,7 @@ export class EmployeesController {
       logInfo('Employee deleted', { id: req.params.id, user: req.user.id })
       sendSuccess(res, null, 'Employee deleted')
     } catch (error) {
-      this.handleError(res, error, 'delete employee', req.user.id, { id: req.params.id })
+      handleError(res, error)
     }
   }
 
@@ -137,19 +137,19 @@ export class EmployeesController {
       logInfo('Employee restored', { id: req.params.id, user: req.user.id })
       sendSuccess(res, null, 'Employee restored')
     } catch (error) {
-      this.handleError(res, error, 'restore employee', req.user.id, { id: req.params.id })
+      handleError(res, error)
     }
   }
 
   async uploadProfilePicture(req: AuthenticatedRequest, res: Response) {
     try {
-      if (!req.file) return sendError(res, 'No file uploaded', 400)
+      if (!req.file) throw new Error('No file uploaded')
       
       const url = await employeesService.uploadProfilePicture(req.user.id, req.file)
       logInfo('Profile picture uploaded', { url, user: req.user.id })
       sendSuccess(res, { profile_picture: url }, 'Profile picture uploaded')
     } catch (error) {
-      this.handleError(res, error, 'upload profile picture', req.user.id)
+      handleError(res, error)
     }
   }
 
@@ -176,7 +176,7 @@ export class EmployeesController {
       logInfo('Bulk update active', { count: ids.length, user: req.user!.id })
       sendSuccess(res, null, 'Employees updated')
     } catch (error) {
-      this.handleError(res, error, 'bulk update active', req.user!.id)
+      handleError(res, error)
     }
   }
 
@@ -188,7 +188,7 @@ export class EmployeesController {
       logInfo('Update active', { id, is_active, user: req.user!.id })
       sendSuccess(res, null, `Employee ${is_active ? 'activated' : 'deactivated'}`)
     } catch (error) {
-      this.handleError(res, error, 'update active', req.user!.id, { id: req.validated.params.id })
+      handleError(res, error)
     }
   }
 
@@ -199,7 +199,7 @@ export class EmployeesController {
       logInfo('Bulk delete', { count: ids.length, user: req.user!.id })
       sendSuccess(res, null, 'Employees deleted')
     } catch (error) {
-      this.handleError(res, error, 'bulk delete', req.user!.id)
+      handleError(res, error)
     }
   }
 
@@ -210,26 +210,8 @@ export class EmployeesController {
       logInfo('Bulk restore', { count: ids.length, user: req.user!.id })
       sendSuccess(res, null, 'Employees restored')
     } catch (error) {
-      this.handleError(res, error, 'bulk restore', req.user!.id)
+      handleError(res, error)
     }
-  }
-
-  private handleError(res: Response, error: unknown, action: string, userId: string, context?: any, defaultStatus: number = 400) {
-    if (error instanceof ZodError) {
-      logError(`Validation failed: ${action}`, { errors: error.issues, user: userId, context })
-      return sendError(res, error.issues[0]?.message || 'Validation failed', 400)
-    }
-
-    const err = error as Error
-    const message = err.message
-
-    let status = defaultStatus
-    if (message.includes('already exists')) status = 409
-    if (message.includes('not found')) status = 404
-    if (message.includes('No valid fields')) status = 400
-
-    logError(`Failed to ${action}`, { error: message, user: userId, context })
-    sendError(res, message, status)
   }
 }
 

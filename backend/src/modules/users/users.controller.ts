@@ -1,8 +1,8 @@
 import { Response, Request } from 'express'
 import { AuthRequest } from '../../types/common.types'
 import { UsersService } from './users.service'
-import { sendSuccess, sendError } from '../../utils/response.util'
-import { logError } from '../../config/logger'
+import { sendSuccess } from '../../utils/response.util'
+import { handleError } from '../../utils/error-handler.util'
 import { withValidated } from '../../utils/handler'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
@@ -28,8 +28,7 @@ export class UsersController {
       const users = await this.service.getAllUsers()
       sendSuccess(res, users, 'Users retrieved successfully')
     } catch (error: any) {
-      logError('Get users failed', { error: error.message })
-      sendError(res, 'Failed to retrieve users', 500)
+      handleError(res, error)
     }
   }
 
@@ -39,14 +38,12 @@ export class UsersController {
       const user = await this.service.getUserByEmployeeId(userId)
 
       if (!user) {
-        sendError(res, 'User not found', 404)
-        return
+        throw new Error('User not found')
       }
 
       sendSuccess(res, user, 'User retrieved successfully')
     } catch (error: any) {
-      logError('Get user failed', { error: error.message })
-      sendError(res, 'Failed to retrieve user', 500)
+      handleError(res, error)
     }
   }
 
@@ -56,14 +53,12 @@ export class UsersController {
       const userRole = await this.service.getUserRoleByEmployeeId(userId)
 
       if (!userRole) {
-        sendError(res, 'User not found', 404)
-        return
+        throw new Error('User not found')
       }
 
       sendSuccess(res, userRole, 'User role retrieved successfully')
     } catch (error: any) {
-      logError('Get user role failed', { error: error.message })
-      sendError(res, 'Failed to retrieve user role', 500)
+      handleError(res, error)
     }
   }
 
@@ -73,8 +68,7 @@ export class UsersController {
       const result = await this.service.assignRoleByEmployeeId(params.userId, body.role_id, req.user?.id)
       sendSuccess(res, result, 'Role assigned successfully')
     } catch (error: any) {
-      logError('Assign role failed', { error: error.message })
-      sendError(res, 'Failed to assign role', 500)
+      handleError(res, error)
     }
   })
 
@@ -84,8 +78,7 @@ export class UsersController {
       await this.service.removeRoleByEmployeeId(userId, req.user?.id)
       sendSuccess(res, null, 'Role removed successfully')
     } catch (error: any) {
-      logError('Remove role failed', { error: error.message })
-      sendError(res, 'Failed to remove role', 500)
+      handleError(res, error)
     }
   }
 }

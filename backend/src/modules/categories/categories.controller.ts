@@ -1,7 +1,7 @@
 import { Response } from 'express'
 import { categoriesService } from './categories.service'
-import { sendSuccess, sendError } from '../../utils/response.util'
-import { logError } from '../../config/logger'
+import { sendSuccess } from '../../utils/response.util'
+import { handleError } from '../../utils/error-handler.util'
 import { withValidated } from '../../utils/handler'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type { AuthRequest } from '../../types/common.types'
@@ -33,8 +33,7 @@ export class CategoriesController {
         message: 'Categories retrieved successfully',
       })
     } catch (error: any) {
-      logError('List categories failed', { error: error.message })
-      sendError(res, 'Failed to retrieve categories', 500)
+      handleError(res, error)
     }
   }
 
@@ -50,8 +49,7 @@ export class CategoriesController {
         message: 'Trash retrieved successfully',
       })
     } catch (error: any) {
-      logError('List trash failed', { error: error.message })
-      sendError(res, 'Failed to retrieve trash', 500)
+      handleError(res, error)
     }
   }
 
@@ -68,8 +66,7 @@ export class CategoriesController {
         message: 'Search completed',
       })
     } catch (error: any) {
-      logError('Search categories failed', { error: error.message })
-      sendError(res, 'Search failed', 500)
+      handleError(res, error)
     }
   }
 
@@ -79,8 +76,7 @@ export class CategoriesController {
       const category = await categoriesService.getById(id)
       sendSuccess(res, category, 'Category retrieved successfully')
     } catch (error: any) {
-      logError('Get category failed', { error: error.message })
-      sendError(res, error.message || 'Failed to retrieve category', error.statusCode || 500)
+      handleError(res, error)
     }
   }
 
@@ -89,8 +85,7 @@ export class CategoriesController {
       const category = await categoriesService.create(req.validated.body, req.user?.id)
       sendSuccess(res, category, 'Category created successfully', 201)
     } catch (error: any) {
-      logError('Create category failed', { error: error.message })
-      sendError(res, error.message || 'Failed to create category', error.statusCode || 400)
+      handleError(res, error)
     }
   })
 
@@ -100,8 +95,7 @@ export class CategoriesController {
       const category = await categoriesService.update(params.id, body, req.user?.id)
       sendSuccess(res, category, 'Category updated successfully')
     } catch (error: any) {
-      logError('Update category failed', { error: error.message })
-      sendError(res, error.message || 'Failed to update category', error.statusCode || 400)
+      handleError(res, error)
     }
   })
 
@@ -111,8 +105,7 @@ export class CategoriesController {
       await categoriesService.delete(id, req.user?.id)
       sendSuccess(res, null, 'Category deleted successfully')
     } catch (error: any) {
-      logError('Delete category failed', { error: error.message })
-      sendError(res, error.message || 'Failed to delete category', 400)
+      handleError(res, error)
     }
   }
 
@@ -123,8 +116,7 @@ export class CategoriesController {
       const category = await categoriesService.getById(id)
       sendSuccess(res, category, 'Category restored successfully')
     } catch (error: any) {
-      logError('Restore category failed', { error: error.message })
-      sendError(res, error.message || 'Failed to restore category', 400)
+      handleError(res, error)
     }
   }
 
@@ -134,8 +126,7 @@ export class CategoriesController {
       await categoriesService.bulkDelete(ids, req.user?.id)
       sendSuccess(res, null, 'Categories deleted successfully')
     } catch (error: any) {
-      logError('Bulk delete failed', { error: error.message })
-      sendError(res, error.message || 'Failed to delete categories', 400)
+      handleError(res, error)
     }
   })
 
@@ -145,8 +136,7 @@ export class CategoriesController {
       const category = await categoriesService.updateStatus(params.id, body.is_active, req.user?.id)
       sendSuccess(res, category, 'Category status updated successfully')
     } catch (error: any) {
-      logError('Update status failed', { error: error.message })
-      sendError(res, error.message || 'Failed to update status', 400)
+      handleError(res, error)
     }
   })
 }

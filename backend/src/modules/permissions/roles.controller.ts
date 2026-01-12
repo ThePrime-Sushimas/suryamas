@@ -6,8 +6,8 @@
 import { Response, Request } from 'express'
 import { AuthRequest } from '../../types/common.types'
 import { RolesService } from './roles.service'
-import { sendSuccess, sendError } from '../../utils/response.util'
-import { logError } from '../../config/logger'
+import { sendSuccess } from '../../utils/response.util'
+import { handleError } from '../../utils/error-handler.util'
 import { withValidated } from '../../utils/handler'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
@@ -30,8 +30,7 @@ export class RolesController {
       const roles = await this.service.getAll()
       sendSuccess(res, roles, 'Roles retrieved successfully')
     } catch (error: any) {
-      logError('Get roles failed', { error: error.message })
-      sendError(res, 'Failed to retrieve roles', 500)
+      handleError(res, error)
     }
   }
 
@@ -41,14 +40,12 @@ export class RolesController {
       const role = await this.service.findById(id)
 
       if (!role) {
-        sendError(res, 'Role not found', 404)
-        return
+        throw new Error('Role not found')
       }
 
       sendSuccess(res, role, 'Role retrieved successfully')
     } catch (error: any) {
-      logError('Get role failed', { error: error.message })
-      sendError(res, 'Failed to retrieve role', 500)
+      handleError(res, error)
     }
   }
 
@@ -60,10 +57,7 @@ export class RolesController {
       }, req.user?.id)
       sendSuccess(res, role, 'Role created successfully', 201)
     } catch (error: any) {
-      logError('Create role failed', { error: error.message })
-      const statusCode = error.statusCode || 500
-      const message = error.isOperational ? error.message : 'Failed to create role'
-      sendError(res, message, statusCode)
+      handleError(res, error)
     }
   })
 
@@ -76,8 +70,7 @@ export class RolesController {
       })
       sendSuccess(res, role, 'Role updated successfully')
     } catch (error: any) {
-      logError('Update role failed', { error: error.message })
-      sendError(res, 'Failed to update role', 500)
+      handleError(res, error)
     }
   })
 
@@ -87,14 +80,12 @@ export class RolesController {
       const success = await this.service.delete(id, req.user?.id)
 
       if (!success) {
-        sendError(res, 'Failed to delete role', 400)
-        return
+        throw new Error('Failed to delete role')
       }
 
       sendSuccess(res, null, 'Role deleted successfully')
     } catch (error: any) {
-      logError('Delete role failed', { error: error.message })
-      sendError(res, error.message || 'Failed to delete role', 500)
+      handleError(res, error)
     }
   }
 }

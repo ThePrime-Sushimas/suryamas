@@ -1,10 +1,10 @@
 import { Response } from 'express'
 import { chartOfAccountsService } from './chart-of-accounts.service'
-import { sendSuccess, sendError } from '../../utils/response.util'
-import { logInfo, logError } from '../../config/logger'
+import { sendSuccess } from '../../utils/response.util'
+import { handleError } from '../../utils/error-handler.util'
+import { logInfo } from '../../config/logger'
 import { getPaginationParams } from '../../utils/pagination.util'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
-import { ChartOfAccountError } from './chart-of-accounts.errors'
 import { 
   createChartOfAccountSchema, 
   updateChartOfAccountSchema, 
@@ -56,7 +56,7 @@ export class ChartOfAccountsController {
       
       // Validate pagination limits
       if (req.pagination.limit > 1000) {
-        return sendError(res, 'Page size cannot exceed 1000', 400)
+        throw new Error('Page size cannot exceed 1000')
       }
 
       const result = await chartOfAccountsService.list(
@@ -70,16 +70,7 @@ export class ChartOfAccountsController {
       sendSuccess(res, result.data, 'Chart of accounts retrieved', 200, result.pagination)
     } catch (error) {
       this.logResponse('LIST', correlationId, false, Date.now() - startTime)
-      logError('Failed to list chart of accounts', {
-        correlation_id: correlationId,
-        error: (error as Error).message,
-        user: req.user?.id
-      })
-      
-      if ((error as Error).message === 'Company ID is required') {
-        return sendError(res, 'Company ID is required', 400)
-      }
-      sendError(res, 'Failed to retrieve chart of accounts', 500)
+      handleError(res, error)
     }
   }
 
@@ -96,7 +87,7 @@ export class ChartOfAccountsController {
       
       // Validate search term
       if (q && typeof q === 'string' && q.length > 100) {
-        return sendError(res, 'Search term too long', 400)
+        throw new Error('Search term too long')
       }
 
       const result = await chartOfAccountsService.search(
@@ -111,13 +102,7 @@ export class ChartOfAccountsController {
       sendSuccess(res, result.data, 'Chart of accounts retrieved', 200, result.pagination)
     } catch (error) {
       this.logResponse('SEARCH', correlationId, false, Date.now() - startTime)
-      logError('Failed to search chart of accounts', {
-        correlation_id: correlationId,
-        error: (error as Error).message,
-        query: req.query.q,
-        user: req.user?.id
-      })
-      sendError(res, 'Failed to search chart of accounts', 500)
+      handleError(res, error)
     }
   }
 
@@ -133,7 +118,7 @@ export class ChartOfAccountsController {
       
       // Validate max depth
       if (maxDepth && (maxDepth < 1 || maxDepth > 10)) {
-        return sendError(res, 'Max depth must be between 1 and 10', 400)
+        throw new Error('Max depth must be between 1 and 10')
       }
 
       const tree = await chartOfAccountsService.getTree(companyId, maxDepth)
@@ -142,12 +127,7 @@ export class ChartOfAccountsController {
       sendSuccess(res, tree, 'Chart of accounts tree retrieved')
     } catch (error) {
       this.logResponse('GET_TREE', correlationId, false, Date.now() - startTime)
-      logError('Failed to get chart of accounts tree', {
-        correlation_id: correlationId,
-        error: (error as Error).message,
-        user: req.user?.id
-      })
-      sendError(res, 'Failed to retrieve chart of accounts tree', 500)
+      handleError(res, error)
     }
   }
 
@@ -173,21 +153,7 @@ export class ChartOfAccountsController {
       sendSuccess(res, account, 'Chart of account created', 201)
     } catch (error) {
       this.logResponse('CREATE', correlationId, false, Date.now() - startTime)
-      if (error instanceof ChartOfAccountError) {
-        logError('Failed to create chart of account', { 
-          correlation_id: correlationId,
-          code: error.code,
-          message: error.message,
-          user: req.user?.id 
-        })
-        return sendError(res, error.message, error.statusCode)
-      }
-      logError('Unexpected error creating chart of account', {
-        correlation_id: correlationId,
-        error: (error as Error).message,
-        user: req.user?.id
-      })
-      sendError(res, 'Failed to create chart of account', 500)
+      handleError(res, error)
     }
   }
 
@@ -208,21 +174,7 @@ export class ChartOfAccountsController {
       sendSuccess(res, account)
     } catch (error) {
       this.logResponse('GET_BY_ID', correlationId, false, Date.now() - startTime)
-      if (error instanceof ChartOfAccountError) {
-        logError('Failed to get chart of account', { 
-          correlation_id: correlationId,
-          code: error.code, 
-          id: req.params.id 
-        })
-        return sendError(res, error.message, error.statusCode)
-      }
-      logError('Failed to get chart of account', {
-        correlation_id: correlationId,
-        error: (error as Error).message,
-        id: req.params.id,
-        user: req.user?.id
-      })
-      sendError(res, 'Failed to retrieve chart of account', 500)
+      handleError(res, error)
     }
   }
 
@@ -233,7 +185,7 @@ export class ChartOfAccountsController {
     try {
       const companyId = req.query.company_id as string
       if (!companyId) {
-        return sendError(res, 'Company ID is required', 400)
+        throw new Error('Company ID is required')
       }
       
       const { body, params } = req.validated
@@ -254,21 +206,7 @@ export class ChartOfAccountsController {
       sendSuccess(res, account, 'Chart of account updated')
     } catch (error) {
       this.logResponse('UPDATE', correlationId, false, Date.now() - startTime)
-      if (error instanceof ChartOfAccountError) {
-        logError('Failed to update chart of account', { 
-          correlation_id: correlationId,
-          code: error.code, 
-          id: req.params.id 
-        })
-        return sendError(res, error.message, error.statusCode)
-      }
-      logError('Unexpected error updating chart of account', {
-        correlation_id: correlationId,
-        error: (error as Error).message,
-        id: req.params.id,
-        user: req.user?.id
-      })
-      sendError(res, 'Failed to update chart of account', 500)
+      handleError(res, error)
     }
   }
 
@@ -294,21 +232,7 @@ export class ChartOfAccountsController {
       sendSuccess(res, null, 'Chart of account deleted')
     } catch (error) {
       this.logResponse('DELETE', correlationId, false, Date.now() - startTime)
-      if (error instanceof ChartOfAccountError) {
-        logError('Failed to delete chart of account', { 
-          correlation_id: correlationId,
-          code: error.code, 
-          id: req.params.id 
-        })
-        return sendError(res, error.message, error.statusCode)
-      }
-      logError('Unexpected error deleting chart of account', {
-        correlation_id: correlationId,
-        error: (error as Error).message,
-        id: req.params.id,
-        user: req.user?.id
-      })
-      sendError(res, 'Failed to delete chart of account', 500)
+      handleError(res, error)
     }
   }
 
@@ -322,12 +246,7 @@ export class ChartOfAccountsController {
       const options = await chartOfAccountsService.getFilterOptions(companyId)
       sendSuccess(res, options)
     } catch (error) {
-      logError('Failed to get filter options', {
-        correlation_id: correlationId,
-        error: (error as Error).message,
-        user: req.user?.id
-      })
-      sendError(res, 'Failed to retrieve filter options', 500)
+      handleError(res, error)
     }
   }
 
@@ -349,12 +268,7 @@ export class ChartOfAccountsController {
         'chart-of-accounts'
       )
     } catch (error) {
-      logError('Failed to export chart of accounts', {
-        correlation_id: correlationId,
-        error: (error as Error).message,
-        user: req.user?.id
-      })
-      return sendError(res, 'Failed to export data', 500)
+      handleError(res, error)
     }
   }
 
@@ -367,17 +281,12 @@ export class ChartOfAccountsController {
       // Validate file size (e.g., max 10MB)
       const maxSize = 10 * 1024 * 1024 // 10MB
       if (req.body && Buffer.byteLength(JSON.stringify(req.body)) > maxSize) {
-        return sendError(res, 'File too large', 413)
+        throw new Error('File too large')
       }
       
       return handleImportPreview(req, res, (buffer) => chartOfAccountsService.previewImport(buffer))
     } catch (error) {
-      logError('Failed to preview import', {
-        correlation_id: correlationId,
-        error: (error as Error).message,
-        user: req.user?.id
-      })
-      return sendError(res, 'Failed to preview import', 500)
+      handleError(res, error)
     }
   }
 
@@ -394,12 +303,7 @@ export class ChartOfAccountsController {
         (buffer, skip) => chartOfAccountsService.importFromExcel(buffer, skip, companyId, req.user!.id)
       )
     } catch (error) {
-      logError('Failed to import chart of accounts', {
-        correlation_id: correlationId,
-        error: (error as Error).message,
-        user: req.user?.id
-      })
-      return sendError(res, 'Failed to import data', 500)
+      handleError(res, error)
     }
   }
 
@@ -409,7 +313,7 @@ export class ChartOfAccountsController {
     try {
       const companyId = req.query.company_id as string
       if (!companyId) {
-        return sendError(res, 'Company ID is required', 400)
+        throw new Error('Company ID is required')
       }
       
       const { ids, is_active } = req.validated.body
@@ -422,21 +326,13 @@ export class ChartOfAccountsController {
       
       // Validate bulk operation size
       if (ids.length > 1000) {
-        return sendError(res, 'Cannot update more than 1000 records at once', 400)
+        throw new Error('Cannot update more than 1000 records at once')
       }
       
       await chartOfAccountsService.bulkUpdateStatus(ids, is_active, req.user!.id, companyId)
       sendSuccess(res, null, 'Bulk status update completed')
     } catch (error) {
-      if (error instanceof ChartOfAccountError) {
-        return sendError(res, error.message, error.statusCode)
-      }
-      logError('Failed to bulk update status', {
-        correlation_id: correlationId,
-        error: (error as Error).message,
-        user: req.user?.id
-      })
-      sendError(res, 'Failed to update status', 500)
+      handleError(res, error)
     }
   }
 
@@ -446,7 +342,7 @@ export class ChartOfAccountsController {
     try {
       const companyId = req.query.company_id as string
       if (!companyId) {
-        return sendError(res, 'Company ID is required', 400)
+        throw new Error('Company ID is required')
       }
       
       const { ids } = req.validated.body
@@ -458,21 +354,13 @@ export class ChartOfAccountsController {
       
       // Validate bulk operation size
       if (ids.length > 100) {
-        return sendError(res, 'Cannot delete more than 100 records at once', 400)
+        throw new Error('Cannot delete more than 100 records at once')
       }
       
       await chartOfAccountsService.bulkDelete(ids, req.user!.id, companyId)
       sendSuccess(res, null, 'Bulk delete completed')
     } catch (error) {
-      if (error instanceof ChartOfAccountError) {
-        return sendError(res, error.message, error.statusCode)
-      }
-      logError('Failed to bulk delete', {
-        correlation_id: correlationId,
-        error: (error as Error).message,
-        user: req.user?.id
-      })
-      sendError(res, 'Failed to delete records', 500)
+      handleError(res, error)
     }
   }
 }

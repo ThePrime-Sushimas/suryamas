@@ -1,14 +1,12 @@
 import { Response } from 'express'
 import { companiesService } from './companies.service'
-import { sendSuccess, sendError } from '../../utils/response.util'
-import { logInfo, logError } from '../../config/logger'
+import { sendSuccess } from '../../utils/response.util'
+import { handleError } from '../../utils/error-handler.util'
+import { logInfo } from '../../config/logger'
 import { getPaginationParams } from '../../utils/pagination.util'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
-import { handleBulkUpdate, handleBulkDelete } from '../../utils/bulk.util'
-import { CompanyError } from './companies.errors'
 import { createCompanySchema, updateCompanySchema, bulkUpdateStatusSchema, bulkDeleteSchema } from './companies.schema'
 import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import { ZodError } from '@/lib/openapi'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 
 export class CompaniesController {
@@ -18,11 +16,7 @@ export class CompaniesController {
       const result = await companiesService.list({ ...req.pagination, offset }, req.sort, req.filterParams)
       sendSuccess(res, result.data, 'Companies retrieved', 200, result.pagination)
     } catch (error) {
-      logError('Failed to list companies', {
-        error: (error as Error).message,
-        user: req.user?.id
-      })
-      sendError(res, (error as Error).message, 500)
+      handleError(res, error)
     }
   }
 
@@ -33,12 +27,7 @@ export class CompaniesController {
       const result = await companiesService.search(q as string, { ...req.pagination, offset }, req.sort, req.filterParams)
       sendSuccess(res, result.data, 'Companies retrieved', 200, result.pagination)
     } catch (error) {
-      logError('Failed to search companies', {
-        error: (error as Error).message,
-        query: req.query.q,
-        user: req.user?.id
-      })
-      sendError(res, (error as Error).message, 500)
+      handleError(res, error)
     }
   }
 
@@ -52,15 +41,7 @@ export class CompaniesController {
       })
       sendSuccess(res, company, 'Company created', 201)
     } catch (error) {
-      if (error instanceof CompanyError) {
-        logError('Failed to create company', { code: error.code, user: req.user?.id })
-        return sendError(res, error.message, error.statusCode)
-      }
-      logError('Unexpected error creating company', {
-        error: (error as Error).message,
-        user: req.user?.id
-      })
-      sendError(res, 'Internal server error', 500)
+      handleError(res, error)
     }
   }
 
@@ -69,16 +50,7 @@ export class CompaniesController {
       const company = await companiesService.getById(req.params.id)
       sendSuccess(res, company)
     } catch (error) {
-      if (error instanceof CompanyError) {
-        logError('Failed to get company', { code: error.code, id: req.params.id })
-        return sendError(res, error.message, error.statusCode)
-      }
-      logError('Failed to get company', {
-        error: (error as Error).message,
-        id: req.params.id,
-        user: req.user?.id
-      })
-      sendError(res, (error as Error).message, 500)
+      handleError(res, error)
     }
   }
 
@@ -92,16 +64,7 @@ export class CompaniesController {
       })
       sendSuccess(res, company, 'Company updated')
     } catch (error) {
-      if (error instanceof CompanyError) {
-        logError('Failed to update company', { code: error.code, id: req.params.id })
-        return sendError(res, error.message, error.statusCode)
-      }
-      logError('Unexpected error updating company', {
-        error: (error as Error).message,
-        id: req.params.id,
-        user: req.user?.id
-      })
-      sendError(res, 'Internal server error', 500)
+      handleError(res, error)
     }
   }
 
@@ -114,16 +77,7 @@ export class CompaniesController {
       })
       sendSuccess(res, null, 'Company deleted')
     } catch (error) {
-      if (error instanceof CompanyError) {
-        logError('Failed to delete company', { code: error.code, id: req.params.id })
-        return sendError(res, error.message, error.statusCode)
-      }
-      logError('Unexpected error deleting company', {
-        error: (error as Error).message,
-        id: req.params.id,
-        user: req.user?.id
-      })
-      sendError(res, 'Internal server error', 500)
+      handleError(res, error)
     }
   }
 
@@ -132,11 +86,7 @@ export class CompaniesController {
       const options = await companiesService.getFilterOptions()
       sendSuccess(res, options)
     } catch (error) {
-      logError('Failed to get filter options', {
-        error: (error as Error).message,
-        user: req.user?.id
-      })
-      sendError(res, (error as Error).message, 500)
+      handleError(res, error)
     }
   }
 
@@ -162,10 +112,7 @@ export class CompaniesController {
       await companiesService.bulkUpdateStatus(ids, status, req.user!.id)
       sendSuccess(res, null, 'Bulk status update completed')
     } catch (error) {
-      if (error instanceof CompanyError) {
-        return sendError(res, error.message, error.statusCode)
-      }
-      sendError(res, (error as Error).message, 500)
+      handleError(res, error)
     }
   }
 
@@ -175,10 +122,7 @@ export class CompaniesController {
       await companiesService.bulkDelete(ids, req.user!.id)
       sendSuccess(res, null, 'Bulk delete completed')
     } catch (error) {
-      if (error instanceof CompanyError) {
-        return sendError(res, error.message, error.statusCode)
-      }
-      sendError(res, (error as Error).message, 500)
+      handleError(res, error)
     }
   }
 }

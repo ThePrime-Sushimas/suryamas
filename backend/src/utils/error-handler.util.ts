@@ -3,6 +3,8 @@ import { ZodError } from '@/lib/openapi'
 import { sendError } from './response.util'
 import { logError } from '../config/logger'
 import { SupplierProductError } from '../modules/supplier-products/supplier-products.errors'
+import { ChartOfAccountError } from '../modules/chart-of-accounts/chart-of-accounts.errors'
+import { CompanyError } from '../modules/companies/companies.errors'
 import { 
   PricelistNotFoundError, 
   DuplicateActivePricelistError, 
@@ -56,6 +58,20 @@ export class BusinessRuleError extends AppError {
 }
 
 export const handleError = (res: Response, error: unknown): void => {
+  // Chart of Accounts custom errors
+  if (error instanceof ChartOfAccountError) {
+    logError(error.code, { message: error.message })
+    sendError(res, error.message, error.statusCode)
+    return
+  }
+
+  // Company custom errors
+  if (error instanceof CompanyError) {
+    logError(error.code, { message: error.message })
+    sendError(res, error.message, error.statusCode)
+    return
+  }
+
   // Pricelist custom errors
   if (error instanceof PricelistNotFoundError || 
       error instanceof DuplicateActivePricelistError ||
