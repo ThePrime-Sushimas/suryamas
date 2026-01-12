@@ -1,0 +1,52 @@
+export const ChartOfAccountConfig = {
+  ACCOUNT_TYPES: ['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'] as const,
+  NORMAL_BALANCES: ['DEBIT', 'CREDIT'] as const,
+  DEFAULT_CURRENCY: 'IDR',
+  
+  // Normal balance rules
+  DEBIT_ACCOUNTS: ['ASSET', 'EXPENSE'],
+  CREDIT_ACCOUNTS: ['LIABILITY', 'EQUITY', 'REVENUE'],
+  
+  // Export configuration
+  EXPORT: {
+    MAX_ROWS: 50000,
+    FILENAME_PREFIX: 'chart-of-accounts'
+  },
+  
+  // Validation rules
+  VALIDATION: {
+    ACCOUNT_CODE_MAX_LENGTH: 30,
+    ACCOUNT_NAME_MAX_LENGTH: 255,
+    MAX_HIERARCHY_LEVEL: 10
+  }
+}
+
+export const ACCOUNT_SUBTYPES = {
+  ASSET: [
+    'CURRENT_ASSET',
+    'FIXED_ASSET',
+    'INTANGIBLE_ASSET',
+    'INVESTMENT'
+  ],
+  LIABILITY: [
+    'CURRENT_LIABILITY',
+    'LONG_TERM_LIABILITY',
+    'ACCRUED_LIABILITY'
+  ],
+  EQUITY: [
+    'CAPITAL',
+    'RETAINED_EARNINGS',
+    'ADDITIONAL_PAID_IN_CAPITAL'
+  ],
+  REVENUE: [
+    'OPERATING_REVENUE',
+    'NON_OPERATING_REVENUE',
+    'OTHER_INCOME'
+  ],
+  EXPENSE: [
+    'OPERATING_EXPENSE',
+    'COST_OF_GOODS_SOLD',
+    'ADMINISTRATIVE_EXPENSE',
+    'SELLING_EXPENSE'
+  ]
+} as const
