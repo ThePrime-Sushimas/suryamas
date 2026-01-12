@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usersApi } from '@/features/users'
+import { useToast } from '@/contexts/ToastContext'
 import type { User } from '@/features/users'
 import UserTable from '../components/UserTable'
 
@@ -14,6 +15,18 @@ export default function UsersPage() {
   const [collapsedBranches, setCollapsedBranches] = useState<Set<string>>(() => new Set())
   const itemsPerPage = 10
   const navigate = useNavigate()
+  const { error: showError } = useToast()
+
+  const loadData = useCallback(async () => {
+    try {
+      const usersData = await usersApi.getAll()
+      setUsers(usersData)
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Failed to load data')
+    } finally {
+      setLoading(false)
+    }
+  }, [showError])
 
   const toggleBranch = (branch: string) => {
     setCollapsedBranches(prev => {
@@ -29,7 +42,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [loadData])
 
   useEffect(() => {
     let filtered = users
@@ -56,17 +69,6 @@ export default function UsersPage() {
     setCollapsedBranches(new Set(branches))
   }, [users])
 
-  const loadData = async () => {
-    try {
-      const usersData = await usersApi.getAll()
-      setUsers(usersData)
-    } catch {
-      console.error('Failed to load data')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleDelete = async (employeeId: string) => {
     if (!confirm('Remove role from this employee?')) return
     
@@ -75,7 +77,7 @@ export default function UsersPage() {
       await loadData()
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to remove role'
-      console.error(message)
+      showError(message)
     }
   }
 

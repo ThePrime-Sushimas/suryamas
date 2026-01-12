@@ -1,23 +1,20 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '@/features/auth'
-import { parseApiError } from '@/lib/errorParser'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
   const { login, isLoading } = useAuthStore()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
     try {
       await login(email, password)
       navigate('/')
-    } catch (err) {
-      setError(parseApiError(err, 'Login failed'))
+    } catch {
+      // Error already handled by auth store
     }
   }
 
@@ -29,9 +26,6 @@ export default function LoginPage() {
           <p className="mt-2 text-center text-sm md:text-base text-gray-600">Suryamas Finance Management</p>
         </div>
         <form className="mt-6 md:mt-8 space-y-4 md:space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded text-sm md:text-base">{error}</div>
-          )}
           <div className="space-y-3 md:space-y-4">
             <div>
               <label htmlFor="email" className="block text-xs md:text-sm font-medium text-gray-700">

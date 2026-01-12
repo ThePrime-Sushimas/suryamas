@@ -1,26 +1,21 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '@/features/auth'
-import { parseApiError } from '@/lib/errorParser'
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [employeeId, setEmployeeId] = useState('')
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
   const { register, isLoading } = useAuthStore()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
     try {
       await register(email, password, employeeId)
-      setSuccess(true)
       setTimeout(() => navigate('/login'), 2000)
-    } catch (err) {
-      setError(parseApiError(err, 'Registration failed'))
+    } catch {
+      // Error already handled by auth store
     }
   }
 
@@ -32,14 +27,6 @@ export default function RegisterPage() {
           <p className="mt-2 text-center text-gray-600">Create your account</p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded">{error}</div>
-          )}
-          {success && (
-            <div className="bg-green-50 text-green-600 p-3 rounded">
-              Registration successful! Redirecting to login...
-            </div>
-          )}
           <div className="space-y-4">
             <div>
               <label htmlFor="employeeId" className="block text-sm font-medium text-gray-700">
