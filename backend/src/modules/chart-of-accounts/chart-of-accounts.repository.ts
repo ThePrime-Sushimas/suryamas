@@ -118,8 +118,18 @@ export class ChartOfAccountsRepository {
       countQuery
     ])
 
-    if (error) throw new Error(error.message)
-    if (countError) throw new Error(countError.message)
+    if (error) {
+      if (error.code === 'PGRST116') {
+        throw new Error('No accounts found for this company')
+      } else if (error.code === '42501') {
+        throw new Error('Access denied to chart of accounts')
+      } else {
+        throw new Error('Failed to load chart of accounts')
+      }
+    }
+    if (countError) {
+      throw new Error('Failed to count chart of accounts')
+    }
     
     return { data: data || [], total: count || 0 }
   }
@@ -182,11 +192,17 @@ export class ChartOfAccountsRepository {
   
     if (error) {
       logError('Repository search error', { error: error.message })
-      throw new Error(error.message)
+      if (error.code === 'PGRST116') {
+        throw new Error('No accounts found matching your search')
+      } else if (error.code === '42501') {
+        throw new Error('Access denied to search accounts')
+      } else {
+        throw new Error('Search failed. Please try again')
+      }
     }
     if (countError) {
       logError('Repository count error', { error: countError.message })
-      throw new Error(countError.message)
+      throw new Error('Failed to count search results')
     }
     
     return { data: data || [], total: count || 0 }
@@ -215,7 +231,13 @@ export class ChartOfAccountsRepository {
 
     if (error) {
       logError('Failed to fetch tree data', { error: error.message, companyId })
-      throw new Error(error.message)
+      if (error.code === 'PGRST116') {
+        throw new Error('No chart of accounts found for this company')
+      } else if (error.code === '42501') {
+        throw new Error('Access denied to view chart of accounts')
+      } else {
+        throw new Error('Failed to load chart of accounts tree')
+      }
     }
     
     const tree = this.buildTreeOptimized(data || [])
