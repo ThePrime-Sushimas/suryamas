@@ -64,9 +64,12 @@ export const AccountingPurposeAccountFormPage = () => {
         success('Account mapping created successfully')
       }
       navigate('/accounting-purpose-accounts')
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Handle specific error messages from backend
-      const errorMessage = err?.response?.data?.error || err?.message || `Failed to ${isEdit ? 'update' : 'create'} account mapping`
+      const errorMessage = err instanceof Error 
+        ? err.message 
+        : (err as { response?: { data?: { error?: string } } })?.response?.data?.error 
+        || `Failed to ${isEdit ? 'update' : 'create'} account mapping`
       error(errorMessage)
     }
   }

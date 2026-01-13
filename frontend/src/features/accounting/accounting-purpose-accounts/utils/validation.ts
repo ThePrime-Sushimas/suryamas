@@ -4,7 +4,7 @@ import { MAX_PRIORITY, MAX_BULK_OPERATIONS, PRIORITY_THRESHOLDS } from '../const
 
 export const createAccountingPurposeAccountSchema = z.object({
   purpose_id: z.string().uuid('Invalid purpose'),
-  chart_account_id: z.string().uuid('Invalid account'),
+  account_id: z.string().uuid('Invalid account'),
   side: z.enum(['DEBIT', 'CREDIT'] as const, { required_error: 'Side is required' }),
   priority: z.number().int().min(1).max(MAX_PRIORITY).optional()
 })
@@ -18,7 +18,7 @@ export const updateAccountingPurposeAccountSchema = z.object({
 export const bulkCreateAccountingPurposeAccountSchema = z.object({
   purpose_id: z.string().uuid('Invalid purpose'),
   accounts: z.array(z.object({
-    chart_account_id: z.string().uuid('Invalid account'),
+    account_id: z.string().uuid('Invalid account'),
     side: z.enum(['DEBIT', 'CREDIT'] as const),
     priority: z.number().int().min(1).max(MAX_PRIORITY).optional()
   })).min(1, 'At least one account required').max(MAX_BULK_OPERATIONS, `Maximum ${MAX_BULK_OPERATIONS} accounts allowed`)

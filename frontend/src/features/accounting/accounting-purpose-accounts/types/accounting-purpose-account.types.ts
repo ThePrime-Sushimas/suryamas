@@ -5,7 +5,7 @@ export interface AccountingPurposeAccount {
   id: string
   company_id: string
   purpose_id: string
-  chart_account_id: string
+  account_id: string
   side: Side
   priority: number
   is_active: boolean
@@ -40,7 +40,7 @@ export interface UpdateAccountingPurposeAccountDto {
 export interface BulkCreateAccountingPurposeAccountDto {
   purpose_id: string
   accounts: Array<{
-    chart_account_id: string
+    account_id: string
     side: Side
     priority?: number
   }>

@@ -1,4 +1,4 @@
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { useMemo, useEffect } from 'react'
 import type { CreateAccountingPurposeAccountDto, UpdateAccountingPurposeAccountDto } from '../types/accounting-purpose-account.types'
 import { useAccountingPurposeAccountsStore } from '../store/accountingPurposeAccounts.store'
@@ -22,7 +22,7 @@ export const AccountingPurposeAccountForm = ({
   const { postableAccounts, activePurposes, loading } = useAccountingPurposeAccountsStore()
   const branchContext = useBranchContext()
   
-  const { register, handleSubmit, watch, reset, formState: { errors, isSubmitting } } = useForm({
+  const { register, handleSubmit, reset, control, formState: { errors, isSubmitting } } = useForm({
     defaultValues: initialData
   })
 
@@ -32,15 +32,22 @@ export const AccountingPurposeAccountForm = ({
       reset({
         purpose_id: '',
         account_id: '',
-        side: '',
+        side: undefined,
         priority: undefined,
         is_active: true
       })
     }
   }, [branchContext?.company_id, isEdit, reset])
 
-  const selectedAccountId = watch('account_id')
-  const selectedSide = watch('side')
+  const selectedAccountId = useWatch({
+    control,
+    name: 'account_id'
+  })
+  
+  const selectedSide = useWatch({
+    control,
+    name: 'side'
+  })
   const selectedAccount = useMemo(() => 
     postableAccounts.find(a => a.id === selectedAccountId),
     [postableAccounts, selectedAccountId]

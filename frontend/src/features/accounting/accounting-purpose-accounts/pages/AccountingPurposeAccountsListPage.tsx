@@ -6,7 +6,7 @@ import { AccountingPurposeAccountFilters } from '../components/AccountingPurpose
 import ExportButton from '@/components/ExportButton'
 import { useToast } from '@/contexts/ToastContext'
 import { useBranchContext } from '@/features/branch_context/hooks/useBranchContext'
-import type { AccountingPurposeAccountFilter } from '../types/accounting-purpose-account.types'
+import type { AccountingPurposeAccountFilter, AccountingPurposeAccountWithDetails } from '../types/accounting-purpose-account.types'
 import { DEFAULT_PAGE_SIZE } from '../constants/accounting-purpose-account.constants'
 
 export const AccountingPurposeAccountsListPage = () => {
@@ -62,11 +62,11 @@ export const AccountingPurposeAccountsListPage = () => {
     fetchAccounts(1, pagination.limit, sort, newFilter)
   }, [fetchAccounts, pagination.limit, sort])
 
-  const handleEdit = useCallback((account: any) => {
+  const handleEdit = useCallback((account: AccountingPurposeAccountWithDetails) => {
     navigate(`/accounting-purpose-accounts/${account.id}/edit`)
   }, [navigate])
 
-  const handleDelete = useCallback(async (account: any) => {
+  const handleDelete = useCallback(async (account: AccountingPurposeAccountWithDetails) => {
     if (confirm(`Delete mapping for ${account.account_code}?`)) {
       try {
         await deleteAccount(account.id)
