@@ -29,16 +29,25 @@ export class AccountingPurposesController {
   }
 
   /**
-   * Extracts and validates company ID from request
+   * Extracts and validates company ID from branch context
    * @param req Request object
    * @returns Company ID
    */
-  private getCompanyId(req: { query: { company_id?: string } }): string {
-    const companyId = req.query.company_id as string
+  private getCompanyId(req: AuthenticatedRequest | AuthenticatedQueryRequest): string {
+    // Use company_id from branch context instead of query parameter for security
+    const companyId = (req as any).context?.company_id
     if (!companyId) {
-      throw AccountingPurposeErrors.VALIDATION_ERROR('company_id', 'Company ID is required')
+      throw AccountingPurposeErrors.VALIDATION_ERROR('company_id', 'Branch context required - no company access')
     }
     return companyId
+  }
+
+  private validateCompanyAccess(userId: string, companyId: string): void {
+    // Company access is already validated by branch context middleware
+    // This is just an additional safety check
+    if (!companyId) {
+      throw AccountingPurposeErrors.VALIDATION_ERROR('company_id', 'No company context available')
+    }
   }
 
   private logRequest(method: string, correlationId: string, userId?: string, extra?: any): void {
@@ -63,6 +72,7 @@ export class AccountingPurposesController {
     
     try {
       const companyId = this.getCompanyId(req)
+      this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('LIST', correlationId, req.user?.id, { company_id: companyId })
       
       const { offset } = getPaginationParams(req.query)
@@ -94,6 +104,7 @@ export class AccountingPurposesController {
     try {
       const { q } = req.query
       const companyId = this.getCompanyId(req)
+      this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('SEARCH', correlationId, req.user?.id, { query: q, company_id: companyId })
       
       const { offset } = getPaginationParams(req.query)
@@ -124,12 +135,21 @@ export class AccountingPurposesController {
     const startTime = Date.now()
     
     try {
+      // Override company_id from context for security
+      const companyId = this.getCompanyId(req as any)
+      this.validateCompanyAccess(req.user!.id, companyId)
+      
+      const createData = {
+        ...req.validated.body,
+        company_id: companyId // Force use context company_id
+      }
+      
       this.logRequest('CREATE', correlationId, req.user!.id, { 
-        purpose_code: req.validated.body.purpose_code,
-        company_id: req.validated.body.company_id
+        purpose_code: createData.purpose_code,
+        company_id: createData.company_id
       })
       
-      const purpose = await accountingPurposesService.create(req.validated.body, req.user!.id, correlationId)
+      const purpose = await accountingPurposesService.create(createData, req.user!.id, correlationId)
       
       this.logResponse('CREATE', correlationId, true, Date.now() - startTime)
       logInfo('Accounting purpose created', {
@@ -151,6 +171,7 @@ export class AccountingPurposesController {
     
     try {
       const companyId = this.getCompanyId(req)
+      this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('GET_BY_ID', correlationId, req.user?.id, { 
         purpose_id: req.params.id,
         company_id: companyId
@@ -171,7 +192,8 @@ export class AccountingPurposesController {
     const startTime = Date.now()
     
     try {
-      const companyId = this.getCompanyId(req)
+      const companyId = this.getCompanyId(req as any)
+      this.validateCompanyAccess(req.user!.id, companyId)
       
       const { body, params } = req.validated
       
@@ -201,6 +223,7 @@ export class AccountingPurposesController {
     
     try {
       const companyId = this.getCompanyId(req)
+      this.validateCompanyAccess(req.user!.id, companyId)
       
       if (!req.user?.id) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('user', 'User authentication required')
@@ -231,6 +254,7 @@ export class AccountingPurposesController {
     
     try {
       const companyId = this.getCompanyId(req)
+      this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('GET_FILTER_OPTIONS', correlationId, req.user?.id, { company_id: companyId })
       
       const options = await accountingPurposesService.getFilterOptions(companyId, correlationId)
@@ -249,6 +273,7 @@ export class AccountingPurposesController {
     
     try {
       const companyId = this.getCompanyId(req)
+      this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('EXPORT', correlationId, req.user?.id, { company_id: companyId })
       
       return handleExport(
@@ -284,6 +309,7 @@ export class AccountingPurposesController {
     
     try {
       const companyId = this.getCompanyId(req)
+      this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('IMPORT', correlationId, req.user!.id, { company_id: companyId })
       
       return handleImport(
@@ -300,7 +326,8 @@ export class AccountingPurposesController {
     const correlationId = this.generateCorrelationId()
     
     try {
-      const companyId = this.getCompanyId(req)
+      const companyId = this.getCompanyId(req as any)
+      this.validateCompanyAccess(req.user!.id, companyId)
       
       const { ids, is_active } = req.validated.body
       
@@ -325,7 +352,8 @@ export class AccountingPurposesController {
     const correlationId = this.generateCorrelationId()
     
     try {
-      const companyId = this.getCompanyId(req)
+      const companyId = this.getCompanyId(req as any)
+      this.validateCompanyAccess(req.user!.id, companyId)
       
       const { ids } = req.validated.body
       

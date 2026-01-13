@@ -66,15 +66,11 @@ class RequestManager {
 const requestManager = new RequestManager()
 
 export const accountingPurposesApi = {
-  list: async (page = 1, limit = 25, sort?: SortParams | null, filter?: FilterParams | null, companyId?: string) => {
-    if (!companyId) {
-      throw new Error('Company ID is required')
-    }
-    
+  list: async (page = 1, limit = 25, sort?: SortParams | null, filter?: FilterParams | null) => {
     return handleApiCall(async () => {
       const signal = requestManager.getSignal('accounting-purposes:list')
       
-      const params: ListParams = { page, limit, company_id: companyId }
+      const params: Omit<ListParams, 'company_id'> = { page, limit }
       if (sort) {
         params.sort = sort.field
         params.order = sort.order
@@ -92,11 +88,9 @@ export const accountingPurposesApi = {
     }, 'Failed to fetch accounting purposes')
   },
 
-  getById: async (id: string, companyId?: string) => {
+  getById: async (id: string) => {
     return handleApiCall(async () => {
-      const res = await api.get<ApiResponse<AccountingPurpose>>(`/accounting-purposes/${id}`, {
-        params: { company_id: companyId }
-      })
+      const res = await api.get<ApiResponse<AccountingPurpose>>(`/accounting-purposes/${id}`)
       return res.data.data
     }, 'Failed to fetch accounting purpose')
   },
@@ -108,27 +102,23 @@ export const accountingPurposesApi = {
     }, 'Failed to create accounting purpose')
   },
 
-  update: async (id: string, data: UpdateAccountingPurposeDto, companyId?: string) => {
+  update: async (id: string, data: UpdateAccountingPurposeDto) => {
     return handleApiCall(async () => {
-      const res = await api.put<ApiResponse<AccountingPurpose>>(`/accounting-purposes/${id}`, data, {
-        params: { company_id: companyId }
-      })
+      const res = await api.put<ApiResponse<AccountingPurpose>>(`/accounting-purposes/${id}`, data)
       return res.data.data
     }, 'Failed to update accounting purpose')
   },
 
-  delete: async (id: string, companyId?: string) => {
+  delete: async (id: string) => {
     return handleApiCall(async () => {
-      await api.delete(`/accounting-purposes/${id}`, {
-        params: { company_id: companyId }
-      })
+      await api.delete(`/accounting-purposes/${id}`)
     }, 'Failed to delete accounting purpose')
   },
 
-  search: async (q: string, companyId?: string) => {
+  search: async (q: string) => {
     return handleApiCall(async () => {
       const res = await api.get<PaginatedResponse<AccountingPurpose>>('/accounting-purposes/search', {
-        params: { q, company_id: companyId }
+        params: { q }
       })
       return res.data
     }, 'Failed to search accounting purposes')

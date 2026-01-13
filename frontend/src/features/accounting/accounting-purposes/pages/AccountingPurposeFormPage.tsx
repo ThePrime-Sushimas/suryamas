@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
+import { useBranchContext } from '@/features/branch_context'
 import { useAccountingPurposesStore } from '../store/accountingPurposes.store'
 import { AccountingPurposeForm } from '../components/AccountingPurposeForm'
 import type { CreateAccountingPurposeDto, UpdateAccountingPurposeDto, AccountingPurpose } from '../types/accounting-purpose.types'
 
 interface AccountingPurposeFormPageProps {
-  companyId: string
-  branchId?: string
   purposeId?: string
   initialData?: AccountingPurpose
   isEdit?: boolean
@@ -15,16 +14,26 @@ interface AccountingPurposeFormPageProps {
 }
 
 export const AccountingPurposeFormPage = ({
-  companyId,
-  branchId,
   purposeId,
   initialData,
   isEdit = false,
   onBack,
   onSuccess
 }: AccountingPurposeFormPageProps) => {
+  const currentBranch = useBranchContext()
   const { createPurpose, updatePurpose, loading, error, clearError } = useAccountingPurposesStore()
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  if (!currentBranch?.company_id) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Company Selected</h2>
+          <p className="text-gray-600">Please select a branch to continue.</p>
+        </div>
+      </div>
+    )
+  }
 
   const handleSubmit = async (data: CreateAccountingPurposeDto | UpdateAccountingPurposeDto) => {
     try {
@@ -32,7 +41,7 @@ export const AccountingPurposeFormPage = ({
       clearError()
 
       if (isEdit && purposeId) {
-        await updatePurpose(purposeId, data as UpdateAccountingPurposeDto, companyId)
+        await updatePurpose(purposeId, data as UpdateAccountingPurposeDto)
       } else {
         await createPurpose(data as CreateAccountingPurposeDto)
       }
@@ -84,8 +93,6 @@ export const AccountingPurposeFormPage = ({
           onSubmit={handleSubmit}
           isLoading={loading}
           onCancel={onBack}
-          companyId={companyId}
-          branchId={branchId}
         />
       </div>
     </div>

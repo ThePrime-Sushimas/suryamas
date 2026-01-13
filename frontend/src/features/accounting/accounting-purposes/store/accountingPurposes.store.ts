@@ -13,12 +13,12 @@ interface AccountingPurposesState {
   currentRequestId: number
   lastFetchedAt: Date | null
   
-  fetchPurposes: (page?: number, limit?: number, companyId?: string) => Promise<void>
-  fetchPurposeById: (id: string, companyId?: string) => Promise<AccountingPurpose>
-  searchPurposes: (q: string, companyId?: string) => Promise<void>
+  fetchPurposes: (page?: number, limit?: number) => Promise<void>
+  fetchPurposeById: (id: string) => Promise<AccountingPurpose>
+  searchPurposes: (q: string) => Promise<void>
   createPurpose: (data: CreateAccountingPurposeDto) => Promise<AccountingPurpose>
-  updatePurpose: (id: string, data: UpdateAccountingPurposeDto, companyId?: string) => Promise<AccountingPurpose>
-  deletePurpose: (id: string, companyId?: string) => Promise<void>
+  updatePurpose: (id: string, data: UpdateAccountingPurposeDto) => Promise<AccountingPurpose>
+  deletePurpose: (id: string) => Promise<void>
   setPage: (page: number) => void
   setSort: (sort: SortParams | null) => void
   setFilter: (filter: FilterParams | null) => void
@@ -41,7 +41,7 @@ const initialState = {
 export const useAccountingPurposesStore = create<AccountingPurposesState>((set, get) => ({
   ...initialState,
 
-  fetchPurposes: async (page, limit, companyId) => {
+  fetchPurposes: async (page, limit) => {
     const requestId = get().currentRequestId + 1
     set({ currentRequestId: requestId, loading: true, error: null })
     
@@ -50,7 +50,7 @@ export const useAccountingPurposesStore = create<AccountingPurposesState>((set, 
     const currentLimit = limit ?? state.pagination.limit
     
     try {
-      const res = await accountingPurposesApi.list(currentPage, currentLimit, state.sort, state.filter, companyId)
+      const res = await accountingPurposesApi.list(currentPage, currentLimit, state.sort, state.filter)
       
       if (get().currentRequestId === requestId) {
         set({ purposes: res.data, pagination: res.pagination, loading: false, lastFetchedAt: new Date() })
@@ -63,10 +63,10 @@ export const useAccountingPurposesStore = create<AccountingPurposesState>((set, 
     }
   },
 
-  fetchPurposeById: async (id, companyId) => {
+  fetchPurposeById: async (id) => {
     set({ loading: true, error: null })
     try {
-      const purpose = await accountingPurposesApi.getById(id, companyId)
+      const purpose = await accountingPurposesApi.getById(id)
       set({ selectedPurpose: purpose, loading: false })
       return purpose
     } catch (error: unknown) {
@@ -76,13 +76,13 @@ export const useAccountingPurposesStore = create<AccountingPurposesState>((set, 
     }
   },
 
-  searchPurposes: async (q, companyId) => {
+  searchPurposes: async (q) => {
     const currentPagination = get().pagination
     set({ 
       filter: { q }, 
       pagination: { ...currentPagination, page: 1 } 
     })
-    await get().fetchPurposes(1, undefined, companyId)
+    await get().fetchPurposes(1)
   },
 
   createPurpose: async (data) => {
@@ -102,10 +102,10 @@ export const useAccountingPurposesStore = create<AccountingPurposesState>((set, 
     }
   },
 
-  updatePurpose: async (id, data, companyId) => {
+  updatePurpose: async (id, data) => {
     set({ loading: true, error: null })
     try {
-      const purpose = await accountingPurposesApi.update(id, data, companyId)
+      const purpose = await accountingPurposesApi.update(id, data)
       set(state => ({
         purposes: state.purposes.map(p => p.id === id ? purpose : p),
         selectedPurpose: state.selectedPurpose?.id === id ? purpose : state.selectedPurpose,
@@ -119,10 +119,10 @@ export const useAccountingPurposesStore = create<AccountingPurposesState>((set, 
     }
   },
 
-  deletePurpose: async (id, companyId) => {
+  deletePurpose: async (id) => {
     set({ loading: true, error: null })
     try {
-      await accountingPurposesApi.delete(id, companyId)
+      await accountingPurposesApi.delete(id)
       set(state => ({
         purposes: state.purposes.filter(p => p.id !== id),
         pagination: { ...state.pagination, total: state.pagination.total - 1 },

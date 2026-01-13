@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react'
-import { z } from 'zod'
 import type { AccountingPurpose, CreateAccountingPurposeDto, UpdateAccountingPurposeDto, AppliedToType } from '../types/accounting-purpose.types'
 import { APPLIED_TO_OPTIONS } from '../constants/accounting-purpose.constants'
 import { accountingPurposeSchema, updateAccountingPurposeSchema } from '../utils/validation'
@@ -10,8 +9,6 @@ interface AccountingPurposeFormProps {
   onSubmit: (data: CreateAccountingPurposeDto | UpdateAccountingPurposeDto) => Promise<void>
   isLoading?: boolean
   onCancel?: () => void
-  companyId: string
-  branchId?: string
 }
 
 export const AccountingPurposeForm = ({ 
@@ -19,18 +16,14 @@ export const AccountingPurposeForm = ({
   isEdit, 
   onSubmit, 
   isLoading, 
-  onCancel,
-  companyId,
-  branchId
+  onCancel
 }: AccountingPurposeFormProps) => {
   const [formData, setFormData] = useState({
     purpose_code: initialData?.purpose_code || '',
     purpose_name: initialData?.purpose_name || '',
     applied_to: (initialData?.applied_to || 'SALES') as AppliedToType,
     description: initialData?.description || '',
-    is_active: initialData?.is_active ?? true,
-    company_id: companyId,
-    branch_id: branchId || null
+    is_active: initialData?.is_active ?? true
   })
   const [touched, setTouched] = useState<Record<string, boolean>>({})
 
@@ -81,10 +74,7 @@ export const AccountingPurposeForm = ({
     }
 
     const submitData = isEdit 
-      ? (() => {
-          const { purpose_code, company_id, ...rest } = result.data
-          return rest as UpdateAccountingPurposeDto
-        })()
+      ? result.data as UpdateAccountingPurposeDto
       : result.data as CreateAccountingPurposeDto
 
     await onSubmit(submitData)

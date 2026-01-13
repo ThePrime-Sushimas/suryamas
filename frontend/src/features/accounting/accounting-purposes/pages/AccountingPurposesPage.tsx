@@ -13,13 +13,10 @@ interface AccountingPurposesPageProps {
   branchId?: string
 }
 
-export const AccountingPurposesPage = ({ companyId, branchId }: { companyId?: string; branchId?: string }) => {
+export const AccountingPurposesPage = () => {
   const currentBranch = useBranchContext()
   
-  const effectiveCompanyId = companyId || currentBranch?.company_id
-  const effectiveBranchId = branchId || currentBranch?.branch_id
-  
-  if (!effectiveCompanyId) {
+  if (!currentBranch?.company_id) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -29,6 +26,7 @@ export const AccountingPurposesPage = ({ companyId, branchId }: { companyId?: st
       </div>
     )
   }
+  
   const [currentView, setCurrentView] = useState<PageView>('list')
   const [selectedPurposeId, setSelectedPurposeId] = useState<string | null>(null)
   const [selectedPurpose, setSelectedPurpose] = useState<AccountingPurpose | null>(null)
@@ -47,7 +45,7 @@ export const AccountingPurposesPage = ({ companyId, branchId }: { companyId?: st
 
   const handleEdit = async (id: string) => {
     try {
-      const purpose = await fetchPurposeById(id, effectiveCompanyId)
+      const purpose = await fetchPurposeById(id)
       setSelectedPurposeId(id)
       setSelectedPurpose(purpose)
       setCurrentView('edit')
@@ -59,7 +57,7 @@ export const AccountingPurposesPage = ({ companyId, branchId }: { companyId?: st
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this accounting purpose?')) {
       try {
-        await deletePurpose(id, effectiveCompanyId)
+        await deletePurpose(id)
         setCurrentView('list')
       } catch (error) {
         console.error('Failed to delete purpose:', error)
@@ -83,8 +81,6 @@ export const AccountingPurposesPage = ({ companyId, branchId }: { companyId?: st
     case 'create':
       return (
         <AccountingPurposeFormPage
-          companyId={effectiveCompanyId}
-          branchId={effectiveBranchId}
           isEdit={false}
           onBack={handleBack}
           onSuccess={handleSuccess}
@@ -94,8 +90,6 @@ export const AccountingPurposesPage = ({ companyId, branchId }: { companyId?: st
     case 'edit':
       return (
         <AccountingPurposeFormPage
-          companyId={effectiveCompanyId}
-          branchId={effectiveBranchId}
           purposeId={selectedPurposeId!}
           initialData={selectedPurpose!}
           isEdit={true}
@@ -108,7 +102,6 @@ export const AccountingPurposesPage = ({ companyId, branchId }: { companyId?: st
       return (
         <AccountingPurposeDetailPage
           purposeId={selectedPurposeId!}
-          companyId={effectiveCompanyId}
           onBack={handleBack}
           onEdit={handleEdit}
           onDelete={handleDelete}
@@ -118,7 +111,6 @@ export const AccountingPurposesPage = ({ companyId, branchId }: { companyId?: st
     default:
       return (
         <AccountingPurposesListPage
-          companyId={effectiveCompanyId}
           onCreateNew={handleCreateNew}
           onView={handleView}
           onEdit={handleEdit}
