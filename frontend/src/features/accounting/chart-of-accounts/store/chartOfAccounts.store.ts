@@ -41,13 +41,15 @@ interface ChartOfAccountsState {
   
   fetchAccounts: (page: number, limit: number, sort?: { field: string; order: string }, filter?: ChartOfAccountFilter) => Promise<void>
   searchAccounts: (q: string, page: number, limit: number, filter?: ChartOfAccountFilter) => Promise<void>
-  fetchTree: (maxDepth?: number) => Promise<void>
+  fetchTree: (maxDepth?: number, filter?: ChartOfAccountFilter) => Promise<void>
   getAccountById: (id: string) => Promise<ChartOfAccount>
   createAccount: (data: CreateChartOfAccountDto) => Promise<ChartOfAccount>
   updateAccount: (id: string, data: UpdateChartOfAccountDto) => Promise<ChartOfAccount>
   deleteAccount: (id: string) => Promise<void>
   bulkDelete: (ids: string[]) => Promise<void>
   bulkUpdateStatus: (ids: string[], is_active: boolean) => Promise<void>
+  restoreAccount: (id: string) => Promise<void>
+  bulkRestore: (ids: string[]) => Promise<void>
   refreshCurrentState: () => Promise<void>
   setViewMode: (mode: 'table' | 'tree') => void
   setError: (scope: ErrorState['scope'], message: string) => void
@@ -65,7 +67,7 @@ const initialState = {
   error: null,
   pagination: { page: 1, limit: 25, total: 0, totalPages: 0 },
   listParams: { page: 1, limit: 25 },
-  viewMode: 'table' as const
+  viewMode: 'tree' as const
 }
 
 // Helper function to calculate total pages
@@ -124,10 +126,10 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
     }
   },
 
-  fetchTree: async (maxDepth) => {
+  fetchTree: async (maxDepth, filter) => {
     set(state => ({ loading: { ...state.loading, tree: true }, error: null }))
     try {
-      const tree = await chartOfAccountsApi.getTree(maxDepth)
+      const tree = await chartOfAccountsApi.getTree(maxDepth, filter)
       set(state => ({ tree, loading: { ...state.loading, tree: false } }))
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to fetch tree'
@@ -167,7 +169,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       } else {
         get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter)
       }
-      get().fetchTree()
+      get().fetchTree(undefined, listParams.filter)
       
       return account
     } catch (error: unknown) {
@@ -191,7 +193,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       }))
       
       // Refresh tree after update
-      get().fetchTree()
+      get().fetchTree(undefined, get().listParams.filter)
       
       return account
     } catch (error: unknown) {
@@ -217,7 +219,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       } else {
         get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter)
       }
-      get().fetchTree()
+      get().fetchTree(undefined, listParams.filter)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to delete account'
       set(state => ({ 
@@ -241,7 +243,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       } else {
         get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter)
       }
-      get().fetchTree()
+      get().fetchTree(undefined, listParams.filter)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to delete accounts'
       set(state => ({ 
@@ -265,9 +267,57 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       } else {
         get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter)
       }
-      get().fetchTree()
+      get().fetchTree(undefined, listParams.filter)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to update account status'
+      set(state => ({ 
+        loading: { ...state.loading, submit: false },
+        error: { scope: 'submit', message }
+      }))
+      throw error
+    }
+  },
+
+  restoreAccount: async (id) => {
+    set(state => ({ loading: { ...state.loading, submit: true }, error: null }))
+    try {
+      await chartOfAccountsApi.restore(id)
+      set(state => ({ loading: { ...state.loading, submit: false } }))
+      
+      // Refresh data after restore
+      const { listParams } = get()
+      if (listParams.search) {
+        get().searchAccounts(listParams.search, listParams.page, listParams.limit, listParams.filter)
+      } else {
+        get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter)
+      }
+      get().fetchTree(undefined, listParams.filter)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to restore account'
+      set(state => ({ 
+        loading: { ...state.loading, submit: false },
+        error: { scope: 'submit', message }
+      }))
+      throw error
+    }
+  },
+
+  bulkRestore: async (ids) => {
+    set(state => ({ loading: { ...state.loading, submit: true }, error: null }))
+    try {
+      await chartOfAccountsApi.bulkRestore(ids)
+      set(state => ({ loading: { ...state.loading, submit: false } }))
+      
+      // Refresh data after bulk restore
+      const { listParams } = get()
+      if (listParams.search) {
+        get().searchAccounts(listParams.search, listParams.page, listParams.limit, listParams.filter)
+      } else {
+        get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter)
+      }
+      get().fetchTree(undefined, listParams.filter)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to restore accounts'
       set(state => ({ 
         loading: { ...state.loading, submit: false },
         error: { scope: 'submit', message }
@@ -286,7 +336,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       promises.push(get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter))
     }
     
-    promises.push(get().fetchTree())
+    promises.push(get().fetchTree(undefined, listParams.filter))
     
     await Promise.all(promises)
   },

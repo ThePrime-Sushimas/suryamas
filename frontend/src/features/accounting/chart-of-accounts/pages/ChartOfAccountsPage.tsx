@@ -70,6 +70,8 @@ export default function ChartOfAccountsPage() {
     deleteAccount, 
     bulkDelete,
     bulkUpdateStatus,
+    restoreAccount,
+    bulkRestore,
     setViewMode,
     resetList,
     resetTree
@@ -113,8 +115,8 @@ export default function ChartOfAccountsPage() {
     }
     
     // Always load tree data for proper sorting
-    return fetchTree()
-  }, [selectedCompanyId, fetchTree])
+    return fetchTree(undefined, filter)
+  }, [selectedCompanyId, fetchTree, filter])
 
 
 
@@ -166,6 +168,40 @@ export default function ChartOfAccountsPage() {
       }
     }
   }, [selectedCompanyId, selectedIds, bulkDelete, error, success, showError])
+
+  const handleRestore = useCallback(async (id: string) => {
+    if (!selectedCompanyId) return
+    if (!confirm('Are you sure you want to restore this account?')) return
+    
+    try {
+      await restoreAccount(id)
+      success('Account restored successfully')
+    } catch {
+      if (error?.scope === 'submit') {
+        showError(error.message)
+      } else {
+        showError('Failed to restore account')
+      }
+    }
+  }, [selectedCompanyId, restoreAccount, error, success, showError])
+
+  const handleBulkRestore = useCallback(async () => {
+    if (!selectedCompanyId) return
+    if (selectedIds.length === 0) return
+    if (!confirm(`Are you sure you want to restore ${selectedIds.length} accounts?`)) return
+    
+    try {
+      await bulkRestore(selectedIds)
+      setSelectedIds([])
+      success(`${selectedIds.length} accounts restored successfully`)
+    } catch {
+      if (error?.scope === 'submit') {
+        showError(error.message)
+      } else {
+        showError('Failed to restore accounts')
+      }
+    }
+  }, [selectedCompanyId, selectedIds, bulkRestore, error, success, showError])
 
   const handleBulkStatusUpdate = useCallback(async (is_active: boolean) => {
     if (!selectedCompanyId) return
@@ -270,17 +306,6 @@ export default function ChartOfAccountsPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button
-              onClick={() => handleViewModeChange('table')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
-                viewMode === 'table' 
-                  ? 'bg-blue-100 text-blue-700' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <Table className="w-4 h-4" />
-              Table
-            </button>
-            <button
               onClick={() => handleViewModeChange('tree')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
                 viewMode === 'tree' 
@@ -291,31 +316,64 @@ export default function ChartOfAccountsPage() {
               <TreePine className="w-4 h-4" />
               Tree
             </button>
+            <button
+              onClick={() => handleViewModeChange('table')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                viewMode === 'table' 
+                  ? 'bg-blue-100 text-blue-700' 
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Table className="w-4 h-4" />
+              Table
+            </button>
+            
+            {/* Show Deleted Toggle */}
+            <label className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={filter.show_deleted || false}
+                onChange={(e) => setFilterKey('show_deleted', e.target.checked || undefined)}
+                className="rounded border-gray-300"
+              />
+              Show Deleted
+            </label>
           </div>
 
           {/* Bulk Actions */}
           {selectedIds.length > 0 && viewMode === 'table' && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">{selectedIds.length} selected</span>
-              <button
-                onClick={() => handleBulkStatusUpdate(true)}
-                className="px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200"
-              >
-                Activate
-              </button>
-              <button
-                onClick={() => handleBulkStatusUpdate(false)}
-                className="px-3 py-1.5 text-sm bg-yellow-100 text-yellow-700 rounded-md hover:bg-yellow-200"
-              >
-                Deactivate
-              </button>
-              <button
-                onClick={handleBulkDelete}
-                className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 flex items-center gap-1"
-              >
-                <Trash2 className="w-3 h-3" />
-                Delete
-              </button>
+              {filter.show_deleted ? (
+                <button
+                  onClick={handleBulkRestore}
+                  className="px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200"
+                >
+                  Restore
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => handleBulkStatusUpdate(true)}
+                    className="px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200"
+                  >
+                    Activate
+                  </button>
+                  <button
+                    onClick={() => handleBulkStatusUpdate(false)}
+                    className="px-3 py-1.5 text-sm bg-yellow-100 text-yellow-700 rounded-md hover:bg-yellow-200"
+                  >
+                    Deactivate
+                  </button>
+                  <button
+                    onClick={handleBulkDelete}
+                    className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Delete
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -338,19 +396,7 @@ export default function ChartOfAccountsPage() {
           <div className="text-center py-8 text-gray-500">Loading...</div>
         ) : (
           <>
-            {viewMode === 'table' ? (
-              <ChartOfAccountTable
-                accounts={debouncedSearch ? filterTree(tree, debouncedSearch) : flattenTree(tree)}
-                onView={id => navigate(`/chart-of-accounts/${id}`)}
-                onEdit={id => navigate(`/chart-of-accounts/${id}/edit`)}
-                onDelete={handleDelete}
-                onAddChild={parentId => navigate(`/chart-of-accounts/new?parent=${parentId}`)}
-                canEdit={true}
-                canDelete={true}
-                selectedIds={selectedIds}
-                onSelectionChange={setSelectedIds}
-              />
-            ) : (
+            {viewMode === 'tree' ? (
               <ChartOfAccountTree
                 tree={tree}
                 onView={id => navigate(`/chart-of-accounts/${id}`)}
@@ -359,6 +405,19 @@ export default function ChartOfAccountsPage() {
                 onAddChild={parentId => navigate(`/chart-of-accounts/new?parent=${parentId}`)}
                 canEdit={true}
                 canDelete={true}
+              />
+            ) : (
+              <ChartOfAccountTable
+                accounts={debouncedSearch ? filterTree(tree, debouncedSearch) : flattenTree(tree)}
+                onView={id => navigate(`/chart-of-accounts/${id}`)}
+                onEdit={id => navigate(`/chart-of-accounts/${id}/edit`)}
+                onDelete={handleDelete}
+                onRestore={handleRestore}
+                onAddChild={parentId => navigate(`/chart-of-accounts/new?parent=${parentId}`)}
+                canEdit={true}
+                canDelete={true}
+                selectedIds={selectedIds}
+                onSelectionChange={setSelectedIds}
               />
             )}
             

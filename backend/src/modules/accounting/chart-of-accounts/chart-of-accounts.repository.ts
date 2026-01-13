@@ -69,13 +69,20 @@ export class ChartOfAccountsRepository {
       .from('chart_of_accounts')
       .select('*')
       .eq('company_id', companyId)
-      .is('deleted_at', null)
     
     let countQuery = client
       .from('chart_of_accounts')
       .select('*', { count: 'exact', head: true })
       .eq('company_id', companyId)
-      .is('deleted_at', null)
+    
+    // Handle deleted records filter
+    if (filter?.show_deleted) {
+      query = query.not('deleted_at', 'is', null)
+      countQuery = countQuery.not('deleted_at', 'is', null)
+    } else {
+      query = query.is('deleted_at', null)
+      countQuery = countQuery.is('deleted_at', null)
+    }
     
     if (filter) {
       if (filter.account_type) {
@@ -208,8 +215,8 @@ export class ChartOfAccountsRepository {
     return { data: data || [], total: count || 0 }
   }
 
-  async findTree(companyId: string, maxDepth?: number, trx?: TransactionContext): Promise<ChartOfAccountTreeNode[]> {
-    const cacheKey = this.getCacheKey('tree', companyId, String(maxDepth || 'all'))
+  async findTree(companyId: string, maxDepth?: number, filter?: any, trx?: TransactionContext): Promise<ChartOfAccountTreeNode[]> {
+    const cacheKey = this.getCacheKey('tree', companyId, String(maxDepth || 'all'), JSON.stringify(filter || {}))
     const cached = this.getFromCache<ChartOfAccountTreeNode[]>(cacheKey)
     if (cached) {
       return cached
@@ -220,8 +227,18 @@ export class ChartOfAccountsRepository {
       .from('chart_of_accounts')
       .select('*')
       .eq('company_id', companyId)
-      .is('deleted_at', null)
-      .eq('is_active', true)
+
+    // Handle deleted records filter
+    if (filter?.show_deleted) {
+      query = query.not('deleted_at', 'is', null)
+    } else {
+      query = query.is('deleted_at', null)
+    }
+
+    // Only show active accounts if not showing deleted
+    if (!filter?.show_deleted) {
+      query = query.eq('is_active', true)
+    }
 
     if (maxDepth && maxDepth > 0) {
       query = query.lte('level', maxDepth)
@@ -461,7 +478,40 @@ export class ChartOfAccountsRepository {
       .from('chart_of_accounts')
       .update({ 
         deleted_at: new Date().toISOString(),
-        deleted_by: userId
+        deleted_by: userId,
+        updated_at: new Date().toISOString()
+      })
+      .in('id', ids)
+
+    if (error) throw new Error(error.message)
+    this.invalidateCache()
+  }
+
+  async restore(id: string, userId: string, trx?: TransactionContext): Promise<void> {
+    const client = trx?.client || supabase
+    const { error } = await client
+      .from('chart_of_accounts')
+      .update({ 
+        deleted_at: null,
+        deleted_by: null,
+        updated_at: new Date().toISOString(),
+        updated_by: userId
+      })
+      .eq('id', id)
+
+    if (error) throw new Error(error.message)
+    this.invalidateCache()
+  }
+
+  async bulkRestore(ids: string[], userId: string, trx?: TransactionContext): Promise<void> {
+    const client = trx?.client || supabase
+    const { error } = await client
+      .from('chart_of_accounts')
+      .update({ 
+        deleted_at: null,
+        deleted_by: null,
+        updated_at: new Date().toISOString(),
+        updated_by: userId
       })
       .in('id', ids)
 

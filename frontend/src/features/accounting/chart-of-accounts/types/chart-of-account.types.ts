@@ -18,6 +18,8 @@ export interface ChartOfAccount {
   currency_code: string
   sort_order: number | null
   is_active: boolean
+  deleted_at: string | null
+  deleted_by: string | null
   created_at: string
   updated_at: string
 }
@@ -40,4 +42,5 @@ export interface ChartOfAccountFilter {
   is_postable?: boolean
   is_active?: boolean
   parent_account_id?: string
+  show_deleted?: boolean
 }

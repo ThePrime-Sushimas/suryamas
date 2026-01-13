@@ -32,9 +32,9 @@ export class ChartOfAccountsService {
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
-  async getTree(companyId: string, maxDepth?: number): Promise<ChartOfAccountTreeNode[]> {
-    logInfo('Getting chart of accounts tree', { company_id: companyId, max_depth: maxDepth })
-    return await this.repository.findTree(companyId, maxDepth)
+  async getTree(companyId: string, maxDepth?: number, filter?: any): Promise<ChartOfAccountTreeNode[]> {
+    logInfo('Getting chart of accounts tree', { company_id: companyId, max_depth: maxDepth, filter })
+    return await this.repository.findTree(companyId, maxDepth, filter)
   }
 
   async create(data: CreateChartOfAccountDTO, userId: string): Promise<ChartOfAccount> {
@@ -298,24 +298,61 @@ export class ChartOfAccountsService {
     this.validateUUIDs(ids)
 
     return await this.repository.withTransaction(async (trx) => {
-      // Validate company access and business rules for all accounts
-      for (const id of ids) {
-        const account = await this.repository.findById(id, trx)
-        if (!account) continue
-
-        if (companyId && account.company_id !== companyId) {
-          throw ChartOfAccountErrors.COMPANY_ACCESS_DENIED(companyId)
-        }
-
-        const hasChildren = await this.repository.hasChildren(id, trx)
-        if (hasChildren) {
-          throw ChartOfAccountErrors.CANNOT_DELETE_WITH_CHILDREN()
+      // Validate company access for all accounts if companyId provided
+      if (companyId) {
+        for (const id of ids) {
+          const account = await this.repository.findById(id, trx)
+          if (account && account.company_id !== companyId) {
+            throw ChartOfAccountErrors.COMPANY_ACCESS_DENIED(companyId)
+          }
         }
       }
 
       await this.repository.bulkDelete(ids, userId, trx)
       await AuditService.log('BULK_DELETE', 'chart_of_account', ids.join(','), userId, null, null)
       logInfo('Bulk delete completed', { count: ids.length })
+    })
+  }
+
+  async restore(id: string, userId: string, companyId?: string): Promise<void> {
+    logInfo('Restoring chart of account', { account_id: id, user: userId })
+    
+    return await this.repository.withTransaction(async (trx) => {
+      const account = await this.repository.findById(id, trx)
+      if (!account) {
+        throw ChartOfAccountErrors.NOT_FOUND(id)
+      }
+
+      // Validate company access
+      if (companyId && account.company_id !== companyId) {
+        throw ChartOfAccountErrors.COMPANY_ACCESS_DENIED(companyId)
+      }
+
+      await this.repository.restore(id, userId, trx)
+      await AuditService.log('RESTORE', 'chart_of_account', id, userId, null, account)
+      logInfo('Chart of account restored successfully', { account_id: id })
+    })
+  }
+
+  async bulkRestore(ids: string[], userId: string, companyId?: string): Promise<void> {
+    logInfo('Bulk restoring chart of accounts', { count: ids.length, user: userId })
+    
+    this.validateUUIDs(ids)
+
+    return await this.repository.withTransaction(async (trx) => {
+      // Validate company access for all accounts if companyId provided
+      if (companyId) {
+        for (const id of ids) {
+          const account = await this.repository.findById(id, trx)
+          if (account && account.company_id !== companyId) {
+            throw ChartOfAccountErrors.COMPANY_ACCESS_DENIED(companyId)
+          }
+        }
+      }
+
+      await this.repository.bulkRestore(ids, userId, trx)
+      await AuditService.log('BULK_RESTORE', 'chart_of_account', ids.join(','), userId, null, null)
+      logInfo('Bulk restore completed', { count: ids.length })
     })
   }
 

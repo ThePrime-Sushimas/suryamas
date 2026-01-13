@@ -118,23 +118,27 @@ export class ChartOfAccountsController {
     }
   }
 
-  async getTree(req: AuthenticatedRequest, res: Response) {
+  async getTree(req: AuthenticatedQueryRequest, res: Response) {
     const correlationId = this.generateCorrelationId()
     const startTime = Date.now()
     
     try {
       const companyId = this.getCompanyId(req)
       this.validateCompanyAccess(req.user!.id, companyId)
-      const maxDepth = req.query.max_depth ? parseInt(req.query.max_depth as string) : undefined
+      const maxDepth = req.query.maxDepth ? parseInt(req.query.maxDepth as string) : undefined
       
-      this.logRequest('GET_TREE', correlationId, req.user?.id, { company_id: companyId, max_depth: maxDepth })
+      this.logRequest('GET_TREE', correlationId, req.user?.id, { 
+        company_id: companyId, 
+        max_depth: maxDepth,
+        filters: req.filterParams
+      })
       
       // Validate max depth
       if (maxDepth && (maxDepth < 1 || maxDepth > 10)) {
         throw new Error('Max depth must be between 1 and 10')
       }
 
-      const tree = await chartOfAccountsService.getTree(companyId, maxDepth)
+      const tree = await chartOfAccountsService.getTree(companyId, maxDepth, req.filterParams)
       
       this.logResponse('GET_TREE', correlationId, true, Date.now() - startTime)
       sendSuccess(res, tree, 'Chart of accounts tree retrieved')
@@ -380,6 +384,59 @@ export class ChartOfAccountsController {
       
       await chartOfAccountsService.bulkDelete(ids, req.user!.id, companyId)
       sendSuccess(res, null, 'Bulk delete completed')
+    } catch (error) {
+      handleError(res, error)
+    }
+  }
+
+  async restore(req: AuthenticatedRequest, res: Response) {
+    const correlationId = this.generateCorrelationId()
+    const startTime = Date.now()
+    
+    try {
+      const companyId = this.getCompanyId(req)
+      this.validateCompanyAccess(req.user!.id, companyId)
+      this.logRequest('RESTORE', correlationId, req.user!.id, { 
+        account_id: req.params.id,
+        company_id: companyId
+      })
+      
+      await chartOfAccountsService.restore(req.params.id, req.user!.id, companyId)
+      
+      this.logResponse('RESTORE', correlationId, true, Date.now() - startTime)
+      logInfo('Chart of account restored', {
+        correlation_id: correlationId,
+        account_id: req.params.id,
+        user: req.user!.id
+      })
+      sendSuccess(res, null, 'Chart of account restored')
+    } catch (error) {
+      this.logResponse('RESTORE', correlationId, false, Date.now() - startTime)
+      handleError(res, error)
+    }
+  }
+
+  async bulkRestore(req: ValidatedAuthRequest<typeof bulkDeleteSchema>, res: Response) {
+    const correlationId = this.generateCorrelationId()
+    
+    try {
+      const companyId = this.getCompanyId(req as any)
+      this.validateCompanyAccess(req.user!.id, companyId)
+      
+      const { ids } = req.validated.body
+      
+      this.logRequest('BULK_RESTORE', correlationId, req.user!.id, { 
+        count: ids.length,
+        company_id: companyId
+      })
+      
+      // Validate bulk operation size
+      if (ids.length > 100) {
+        throw new Error('Cannot restore more than 100 records at once')
+      }
+      
+      await chartOfAccountsService.bulkRestore(ids, req.user!.id, companyId)
+      sendSuccess(res, null, 'Bulk restore completed')
     } catch (error) {
       handleError(res, error)
     }

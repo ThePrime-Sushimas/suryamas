@@ -56,8 +56,10 @@ router.get('/search', canView('chart-of-accounts'), queryMiddleware({
   chartOfAccountsController.search(req as AuthenticatedQueryRequest, res))
 
 // Tree view with rate limiting
-router.get('/tree', canView('chart-of-accounts'), treeRateLimit, (req, res) => 
-  chartOfAccountsController.getTree(req as AuthenticatedRequest, res))
+router.get('/tree', canView('chart-of-accounts'), treeRateLimit, queryMiddleware({
+  allowedSortFields: ['account_code', 'account_name', 'account_type', 'level', 'created_at', 'updated_at', 'id'],
+}), (req, res) => 
+  chartOfAccountsController.getTree(req as AuthenticatedQueryRequest, res))
 
 // Filter options
 router.get('/filter-options', canView('chart-of-accounts'), (req, res) => 
@@ -84,6 +86,9 @@ router.post('/bulk/status', canUpdate('chart-of-accounts'), bulkOperationLimit, 
 router.post('/bulk/delete', canDelete('chart-of-accounts'), bulkOperationLimit, validateSchema(bulkDeleteSchema), (req, res) => 
   chartOfAccountsController.bulkDelete(req as ValidatedAuthRequest<typeof bulkDeleteSchema>, res))
 
+router.post('/bulk/restore', canUpdate('chart-of-accounts'), bulkOperationLimit, validateSchema(bulkDeleteSchema), (req, res) => 
+  chartOfAccountsController.bulkRestore(req as ValidatedAuthRequest<typeof bulkDeleteSchema>, res))
+
 // CRUD operations
 router.post('/', canInsert('chart-of-accounts'), validateSchema(createChartOfAccountSchema), (req, res) => 
   chartOfAccountsController.create(req as ValidatedAuthRequest<typeof createChartOfAccountSchema>, res))
@@ -96,5 +101,8 @@ router.put('/:id', canUpdate('chart-of-accounts'), validateSchema(updateChartOfA
 
 router.delete('/:id', canDelete('chart-of-accounts'), validateSchema(chartOfAccountIdSchema), (req, res) => 
   chartOfAccountsController.delete(req as AuthenticatedRequest, res))
+
+router.post('/:id/restore', canUpdate('chart-of-accounts'), validateSchema(chartOfAccountIdSchema), (req, res) => 
+  chartOfAccountsController.restore(req as AuthenticatedRequest, res))
 
 export default router

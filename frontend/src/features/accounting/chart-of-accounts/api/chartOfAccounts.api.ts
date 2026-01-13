@@ -40,9 +40,10 @@ export const chartOfAccountsApi = {
     return res.data
   },
 
-  getTree: async (maxDepth?: number) => {
+  getTree: async (maxDepth?: number, filter?: ChartOfAccountFilter) => {
     const params = new URLSearchParams()
     if (maxDepth !== undefined) params.append('maxDepth', String(maxDepth))
+    appendFilterParams(params, filter)
     const res = await api.get<ApiResponse<ChartOfAccountTreeNode[]>>(`/chart-of-accounts/tree?${params}`)
     return res.data.data
   },
@@ -72,6 +73,14 @@ export const chartOfAccountsApi = {
 
   bulkUpdateStatus: async (ids: string[], is_active: boolean) => {
     await api.post(`/chart-of-accounts/bulk/status`, { ids, is_active })
+  },
+
+  restore: async (id: string) => {
+    await api.post(`/chart-of-accounts/${id}/restore`)
+  },
+
+  bulkRestore: async (ids: string[]) => {
+    await api.post(`/chart-of-accounts/bulk/restore`, { ids })
   },
 
   export: async (format: 'csv' | 'excel' = 'csv') => {
