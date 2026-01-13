@@ -36,7 +36,7 @@ export default function ChartOfAccountDetailPage() {
       return
     }
 
-    getAccountById(companyId, id).catch(() => {
+    getAccountById(id).catch(() => {
       error('Account not found')
       navigate('/chart-of-accounts')
     })
@@ -47,8 +47,7 @@ export default function ChartOfAccountDetailPage() {
     if (!confirm('Are you sure you want to delete this account?')) return
 
     try {
-      const companyId = String(currentBranch.company_id)
-      await deleteAccount(companyId, selectedAccount.id)
+      await deleteAccount(selectedAccount.id)
       success('Account deleted successfully')
       navigate('/chart-of-accounts')
     } catch {

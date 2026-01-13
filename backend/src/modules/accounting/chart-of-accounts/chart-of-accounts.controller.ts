@@ -13,6 +13,7 @@ import {
 } from './chart-of-accounts.schema'
 import { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../../types/request.types'
+import { CompanyAccessService } from '../../../services/company-access.service'
 import { randomUUID } from 'crypto'
 
 export class ChartOfAccountsController {
@@ -21,11 +22,19 @@ export class ChartOfAccountsController {
   }
 
   private getCompanyId(req: AuthenticatedRequest | AuthenticatedQueryRequest): string {
-    const companyId = req.query.company_id as string
+    // Use company_id from branch context instead of query parameter for security
+    const companyId = (req as any).context?.company_id
     if (!companyId) {
-      throw new Error('Company ID is required')
+      throw new Error('Branch context required - no company access')
     }
     return companyId
+  }
+
+  private async validateCompanyAccess(userId: string, companyId: string): Promise<void> {
+    const hasAccess = await CompanyAccessService.validateUserCompanyAccess(userId, companyId)
+    if (!hasAccess) {
+      throw new Error('Access denied to this company')
+    }
   }
 
   private logRequest(method: string, correlationId: string, userId?: string, extra?: any): void {
@@ -50,6 +59,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req)
+      await this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('LIST', correlationId, req.user?.id, { company_id: companyId })
       
       const { offset } = getPaginationParams(req.query)
@@ -81,6 +91,7 @@ export class ChartOfAccountsController {
     try {
       const { q } = req.query
       const companyId = this.getCompanyId(req)
+      await this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('SEARCH', correlationId, req.user?.id, { query: q, company_id: companyId })
       
       const { offset } = getPaginationParams(req.query)
@@ -112,6 +123,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req)
+      await this.validateCompanyAccess(req.user!.id, companyId)
       const maxDepth = req.query.max_depth ? parseInt(req.query.max_depth as string) : undefined
       
       this.logRequest('GET_TREE', correlationId, req.user?.id, { company_id: companyId, max_depth: maxDepth })
@@ -136,12 +148,21 @@ export class ChartOfAccountsController {
     const startTime = Date.now()
     
     try {
+      // Override company_id from context for security
+      const companyId = this.getCompanyId(req as any)
+      await this.validateCompanyAccess(req.user!.id, companyId)
+      
+      const createData = {
+        ...req.validated.body,
+        company_id: companyId // Force use context company_id
+      }
+      
       this.logRequest('CREATE', correlationId, req.user!.id, { 
-        account_code: req.validated.body.account_code,
-        company_id: req.validated.body.company_id
+        account_code: createData.account_code,
+        company_id: createData.company_id
       })
       
-      const account = await chartOfAccountsService.create(req.validated.body, req.user!.id)
+      const account = await chartOfAccountsService.create(createData, req.user!.id)
       
       this.logResponse('CREATE', correlationId, true, Date.now() - startTime)
       logInfo('Chart of account created', {
@@ -163,6 +184,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req)
+      await this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('GET_BY_ID', correlationId, req.user?.id, { 
         account_id: req.params.id,
         company_id: companyId
@@ -183,10 +205,8 @@ export class ChartOfAccountsController {
     const startTime = Date.now()
     
     try {
-      const companyId = req.query.company_id as string
-      if (!companyId) {
-        throw new Error('Company ID is required')
-      }
+      const companyId = this.getCompanyId(req as any)
+      await this.validateCompanyAccess(req.user!.id, companyId)
       
       const { body, params } = req.validated
       
@@ -216,6 +236,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req)
+      await this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('DELETE', correlationId, req.user.id, { 
         account_id: req.params.id,
         company_id: companyId
@@ -241,6 +262,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req)
+      await this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('GET_FILTER_OPTIONS', correlationId, req.user?.id, { company_id: companyId })
       
       const options = await chartOfAccountsService.getFilterOptions(companyId)
@@ -259,6 +281,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req)
+      await this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('EXPORT', correlationId, req.user?.id, { company_id: companyId })
       
       return handleExport(
@@ -295,6 +318,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req)
+      await this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('IMPORT', correlationId, req.user!.id, { company_id: companyId })
       
       return handleImport(
@@ -311,10 +335,8 @@ export class ChartOfAccountsController {
     const correlationId = this.generateCorrelationId()
     
     try {
-      const companyId = req.query.company_id as string
-      if (!companyId) {
-        throw new Error('Company ID is required')
-      }
+      const companyId = this.getCompanyId(req as any)
+      await this.validateCompanyAccess(req.user!.id, companyId)
       
       const { ids, is_active } = req.validated.body
       
@@ -340,10 +362,8 @@ export class ChartOfAccountsController {
     const correlationId = this.generateCorrelationId()
     
     try {
-      const companyId = req.query.company_id as string
-      if (!companyId) {
-        throw new Error('Company ID is required')
-      }
+      const companyId = this.getCompanyId(req as any)
+      await this.validateCompanyAccess(req.user!.id, companyId)
       
       const { ids } = req.validated.body
       

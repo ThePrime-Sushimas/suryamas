@@ -39,16 +39,16 @@ interface ChartOfAccountsState {
   listParams: ListParams
   viewMode: 'table' | 'tree'
   
-  fetchAccounts: (companyId: string, page: number, limit: number, sort?: { field: string; order: string }, filter?: ChartOfAccountFilter) => Promise<void>
-  searchAccounts: (companyId: string, q: string, page: number, limit: number, filter?: ChartOfAccountFilter) => Promise<void>
-  fetchTree: (companyId: string, maxDepth?: number) => Promise<void>
-  getAccountById: (companyId: string, id: string) => Promise<ChartOfAccount>
+  fetchAccounts: (page: number, limit: number, sort?: { field: string; order: string }, filter?: ChartOfAccountFilter) => Promise<void>
+  searchAccounts: (q: string, page: number, limit: number, filter?: ChartOfAccountFilter) => Promise<void>
+  fetchTree: (maxDepth?: number) => Promise<void>
+  getAccountById: (id: string) => Promise<ChartOfAccount>
   createAccount: (data: CreateChartOfAccountDto) => Promise<ChartOfAccount>
-  updateAccount: (companyId: string, id: string, data: UpdateChartOfAccountDto) => Promise<ChartOfAccount>
-  deleteAccount: (companyId: string, id: string) => Promise<void>
-  bulkDelete: (companyId: string, ids: string[]) => Promise<void>
-  bulkUpdateStatus: (companyId: string, ids: string[], is_active: boolean) => Promise<void>
-  refreshCurrentState: (companyId: string) => Promise<void>
+  updateAccount: (id: string, data: UpdateChartOfAccountDto) => Promise<ChartOfAccount>
+  deleteAccount: (id: string) => Promise<void>
+  bulkDelete: (ids: string[]) => Promise<void>
+  bulkUpdateStatus: (ids: string[], is_active: boolean) => Promise<void>
+  refreshCurrentState: () => Promise<void>
   setViewMode: (mode: 'table' | 'tree') => void
   setError: (scope: ErrorState['scope'], message: string) => void
   clearError: () => void
@@ -74,14 +74,14 @@ const calculateTotalPages = (total: number, limit: number) => Math.ceil(total / 
 export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) => ({
   ...initialState,
 
-  fetchAccounts: async (companyId, page, limit, sort, filter) => {
+  fetchAccounts: async (page, limit, sort, filter) => {
     set(state => ({ 
       loading: { ...state.loading, list: true }, 
       error: null,
       listParams: { page, limit, sort, filter }
     }))
     try {
-      const res = await chartOfAccountsApi.list(companyId, page, limit, sort, filter)
+      const res = await chartOfAccountsApi.list(page, limit, sort, filter)
       set(state => ({ 
         accounts: res.data, 
         loading: { ...state.loading, list: false },
@@ -99,14 +99,14 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
     }
   },
 
-  searchAccounts: async (companyId, q, page, limit, filter) => {
+  searchAccounts: async (q, page, limit, filter) => {
     set(state => ({ 
       loading: { ...state.loading, list: true }, 
       error: null,
       listParams: { page, limit, filter, search: q }
     }))
     try {
-      const res = await chartOfAccountsApi.search(companyId, q, page, limit, filter)
+      const res = await chartOfAccountsApi.search(q, page, limit, filter)
       set(state => ({ 
         accounts: res.data, 
         loading: { ...state.loading, list: false },
@@ -124,10 +124,10 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
     }
   },
 
-  fetchTree: async (companyId, maxDepth) => {
+  fetchTree: async (maxDepth) => {
     set(state => ({ loading: { ...state.loading, tree: true }, error: null }))
     try {
-      const tree = await chartOfAccountsApi.getTree(companyId, maxDepth)
+      const tree = await chartOfAccountsApi.getTree(maxDepth)
       set(state => ({ tree, loading: { ...state.loading, tree: false } }))
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to fetch tree'
@@ -138,10 +138,10 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
     }
   },
 
-  getAccountById: async (companyId, id) => {
+  getAccountById: async (id) => {
     set(state => ({ loading: { ...state.loading, detail: true }, error: null }))
     try {
-      const account = await chartOfAccountsApi.getById(companyId, id)
+      const account = await chartOfAccountsApi.getById(id)
       set(state => ({ selectedAccount: account, loading: { ...state.loading, detail: false } }))
       return account
     } catch (error: unknown) {
@@ -160,15 +160,14 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       const account = await chartOfAccountsApi.create(data)
       set(state => ({ loading: { ...state.loading, submit: false } }))
       
-      // Refresh both list and tree after create - need companyId from data
-      const companyId = data.company_id
+      // Refresh both list and tree after create
       const { listParams } = get()
       if (listParams.search) {
-        get().searchAccounts(companyId, listParams.search, listParams.page, listParams.limit, listParams.filter)
+        get().searchAccounts(listParams.search, listParams.page, listParams.limit, listParams.filter)
       } else {
-        get().fetchAccounts(companyId, listParams.page, listParams.limit, listParams.sort, listParams.filter)
+        get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter)
       }
-      get().fetchTree(companyId)
+      get().fetchTree()
       
       return account
     } catch (error: unknown) {
@@ -181,10 +180,10 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
     }
   },
 
-  updateAccount: async (companyId, id, data) => {
+  updateAccount: async (id, data) => {
     set(state => ({ loading: { ...state.loading, submit: true }, error: null }))
     try {
-      const account = await chartOfAccountsApi.update(companyId, id, data)
+      const account = await chartOfAccountsApi.update(id, data)
       set(state => ({
         accounts: state.accounts.map(a => a.id === id ? account : a),
         selectedAccount: state.selectedAccount?.id === id ? account : state.selectedAccount,
@@ -192,7 +191,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       }))
       
       // Refresh tree after update
-      get().fetchTree(companyId)
+      get().fetchTree()
       
       return account
     } catch (error: unknown) {
@@ -205,20 +204,20 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
     }
   },
 
-  deleteAccount: async (companyId, id) => {
+  deleteAccount: async (id) => {
     set(state => ({ loading: { ...state.loading, submit: true }, error: null }))
     try {
-      await chartOfAccountsApi.delete(companyId, id)
+      await chartOfAccountsApi.delete(id)
       set(state => ({ loading: { ...state.loading, submit: false } }))
       
       // Refresh both list and tree after delete
       const { listParams } = get()
       if (listParams.search) {
-        get().searchAccounts(companyId, listParams.search, listParams.page, listParams.limit, listParams.filter)
+        get().searchAccounts(listParams.search, listParams.page, listParams.limit, listParams.filter)
       } else {
-        get().fetchAccounts(companyId, listParams.page, listParams.limit, listParams.sort, listParams.filter)
+        get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter)
       }
-      get().fetchTree(companyId)
+      get().fetchTree()
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to delete account'
       set(state => ({ 
@@ -229,20 +228,20 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
     }
   },
 
-  bulkDelete: async (companyId, ids) => {
+  bulkDelete: async (ids) => {
     set(state => ({ loading: { ...state.loading, submit: true }, error: null }))
     try {
-      await chartOfAccountsApi.bulkDelete(companyId, ids)
+      await chartOfAccountsApi.bulkDelete(ids)
       set(state => ({ loading: { ...state.loading, submit: false } }))
       
       // Refresh both list and tree after bulk delete
       const { listParams } = get()
       if (listParams.search) {
-        get().searchAccounts(companyId, listParams.search, listParams.page, listParams.limit, listParams.filter)
+        get().searchAccounts(listParams.search, listParams.page, listParams.limit, listParams.filter)
       } else {
-        get().fetchAccounts(companyId, listParams.page, listParams.limit, listParams.sort, listParams.filter)
+        get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter)
       }
-      get().fetchTree(companyId)
+      get().fetchTree()
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to delete accounts'
       set(state => ({ 
@@ -253,20 +252,20 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
     }
   },
 
-  bulkUpdateStatus: async (companyId, ids, is_active) => {
+  bulkUpdateStatus: async (ids, is_active) => {
     set(state => ({ loading: { ...state.loading, submit: true }, error: null }))
     try {
-      await chartOfAccountsApi.bulkUpdateStatus(companyId, ids, is_active)
+      await chartOfAccountsApi.bulkUpdateStatus(ids, is_active)
       set(state => ({ loading: { ...state.loading, submit: false } }))
       
       // Refresh both list and tree after bulk status update
       const { listParams } = get()
       if (listParams.search) {
-        get().searchAccounts(companyId, listParams.search, listParams.page, listParams.limit, listParams.filter)
+        get().searchAccounts(listParams.search, listParams.page, listParams.limit, listParams.filter)
       } else {
-        get().fetchAccounts(companyId, listParams.page, listParams.limit, listParams.sort, listParams.filter)
+        get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter)
       }
-      get().fetchTree(companyId)
+      get().fetchTree()
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to update account status'
       set(state => ({ 
@@ -277,17 +276,17 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
     }
   },
 
-  refreshCurrentState: async (companyId) => {
+  refreshCurrentState: async () => {
     const { listParams } = get()
     const promises = []
     
     if (listParams.search) {
-      promises.push(get().searchAccounts(companyId, listParams.search, listParams.page, listParams.limit, listParams.filter))
+      promises.push(get().searchAccounts(listParams.search, listParams.page, listParams.limit, listParams.filter))
     } else {
-      promises.push(get().fetchAccounts(companyId, listParams.page, listParams.limit, listParams.sort, listParams.filter))
+      promises.push(get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter))
     }
     
-    promises.push(get().fetchTree(companyId))
+    promises.push(get().fetchTree())
     
     await Promise.all(promises)
   },

@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useBranchContext } from '@/features/branch_context'
 import { useBranchesStore } from '@/features/branches'
-import { useCompaniesStore } from '@/features/companies'
 import type { ChartOfAccount, CreateChartOfAccountDto, UpdateChartOfAccountDto, AccountType } from '../types/chart-of-account.types'
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS, CURRENCY_CODES, DEFAULT_CURRENCY, NORMAL_BALANCE_MAP } from '../constants/chart-of-account.constants'
 import { validateAccountCode, validateAccountName, validateCurrencyCode, validateParentAccount, validateHeaderAccount, validateSortOrder } from '../utils/validation'
@@ -28,11 +27,10 @@ export const ChartOfAccountForm = ({
 }: ChartOfAccountFormProps) => {
   const currentBranch = useBranchContext()
   const { branches, fetchBranches } = useBranchesStore()
-  const { companies, fetchCompanies } = useCompaniesStore()
   const initialFormData = useMemo(() => {
     console.log('Form initializing with defaultParentId:', defaultParentId)
     return {
-      company_id: initialData?.company_id || currentBranch?.company_id || '',
+      company_id: currentBranch?.company_id || '', // Always use context company_id
       account_code: initialData?.account_code || '',
       account_name: initialData?.account_name || '',
       account_type: (initialData?.account_type || lockedAccountType || 'ASSET') as AccountType,
@@ -54,10 +52,6 @@ export const ChartOfAccountForm = ({
   useEffect(() => {
     setFormData(initialFormData)
   }, [initialFormData])
-
-  useEffect(() => {
-    fetchCompanies(1, 100) // Get all companies with pagination
-  }, [fetchCompanies])
 
   useEffect(() => {
     if (formData.company_id) {
@@ -83,7 +77,7 @@ export const ChartOfAccountForm = ({
     console.log('Available parents for type', formData.account_type, ':', filtered)
     console.log('Looking for parent ID:', formData.parent_account_id)
     return filtered
-  }, [parentAccounts, formData.account_type, initialData?.id])
+  }, [parentAccounts, formData.account_type, formData.parent_account_id, initialData?.id])
 
   // Get selected parent account details
   const selectedParent = useMemo(() => {
@@ -158,13 +152,7 @@ export const ChartOfAccountForm = ({
     setFormData(prev => ({ ...prev, [name]: fieldValue }))
 
     // Auto-adjust related fields
-    if (name === 'company_id') {
-      setFormData(prev => ({ 
-        ...prev, 
-        company_id: fieldValue as string,
-        branch_id: '' // Reset branch when company changes
-      }))
-    } else if (name === 'account_type') {
+    if (name === 'account_type') {
       setFormData(prev => ({ 
         ...prev, 
         account_type: fieldValue as AccountType,
@@ -279,46 +267,24 @@ export const ChartOfAccountForm = ({
         {errors.account_name && <p className="text-red-500 text-xs mt-1">{errors.account_name}</p>}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Company *</label>
-          <select
-            name="company_id"
-            value={formData.company_id}
-            onChange={handleChange}
-            onBlur={handleBlur}
-            disabled={isEdit}
-            className="w-full px-3 py-2 border rounded-md disabled:bg-gray-100"
-          >
-            <option value="">Select Company</option>
-            {companies.map(company => (
-              <option key={company.id} value={company.id}>
-                {company.company_code} - {company.company_name}
-              </option>
-            ))}
-          </select>
-          {errors.company_id && <p className="text-red-500 text-xs mt-1">{errors.company_id}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Branch</label>
-          <select
-            name="branch_id"
-            value={formData.branch_id}
-            onChange={handleChange}
-            onBlur={handleBlur}
-            disabled={!formData.company_id}
-            className="w-full px-3 py-2 border rounded-md disabled:bg-gray-100"
-          >
-            <option value="">All Branches</option>
-            {availableBranches.map(branch => (
-              <option key={branch.id} value={branch.id}>
-                {branch.branch_code} - {branch.branch_name}
-              </option>
-            ))}
-          </select>
-          {errors.branch_id && <p className="text-red-500 text-xs mt-1">{errors.branch_id}</p>}
-        </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Branch</label>
+        <select
+          name="branch_id"
+          value={formData.branch_id}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          disabled={!formData.company_id}
+          className="w-full px-3 py-2 border rounded-md disabled:bg-gray-100"
+        >
+          <option value="">All Branches</option>
+          {availableBranches.map(branch => (
+            <option key={branch.id} value={branch.id}>
+              {branch.branch_code} - {branch.branch_name}
+            </option>
+          ))}
+        </select>
+        {errors.branch_id && <p className="text-red-500 text-xs mt-1">{errors.branch_id}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-4">

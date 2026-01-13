@@ -40,8 +40,8 @@ export default function EditChartOfAccountPage() {
 
     // Load the account and all accounts for parent selection
     Promise.all([
-      getAccountById(companyId, id),
-      fetchAccounts(companyId, 1, 1000) // Load more accounts for parent selection
+      getAccountById(id),
+      fetchAccounts(1, 1000) // Load more accounts for parent selection
     ]).catch(() => {
       error('Account not found')
       navigate('/chart-of-accounts')
@@ -56,8 +56,7 @@ export default function EditChartOfAccountPage() {
     if (!id || !currentBranch?.company_id) return
 
     try {
-      const companyId = String(currentBranch.company_id)
-      await updateAccount(companyId, id, data)
+      await updateAccount(id, data)
       success('Account updated successfully')
       navigate('/chart-of-accounts')
     } catch (err) {

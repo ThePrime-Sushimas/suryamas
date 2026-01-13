@@ -75,27 +75,20 @@ export default function ChartOfAccountsPage() {
     resetTree
   } = useChartOfAccountsStore()
   
-  const [manualCompanyId, setManualCompanyId] = useState<string>('')
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<ChartOfAccountFilter>({})
   const [showFilter, setShowFilter] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   
-  useEffect(() => {
-    fetchCompanies(1, 100)
-  }, [fetchCompanies])
-
-  // Compute selected company ID based on available options
-  const selectedCompanyId = useMemo(() => {
-    if (manualCompanyId) return manualCompanyId
-    if (currentBranch?.company_id) return String(currentBranch.company_id)
-    if (companies.length > 0) return String(companies[0].id)
-    return ''
-  }, [manualCompanyId, currentBranch?.company_id, companies])
-
-  const selectedCompany = useMemo(() => {
+  // Use company from branch context only
+  const selectedCompanyId = currentBranch?.company_id || ''
+  
+  // Get company name from companies store
+  const currentCompany = useMemo(() => {
     return companies.find(c => c.id === selectedCompanyId)
   }, [companies, selectedCompanyId])
+  
+  const companyName = currentCompany?.company_name || currentBranch?.branch_name || 'Loading...'
 
   const { error: showError, success } = useToast()
   const debouncedSearch = useDebounce(search, 500)
@@ -115,23 +108,19 @@ export default function ChartOfAccountsPage() {
 
   const loadData = useCallback(() => {
     if (!selectedCompanyId) {
-      console.log('No company selected')
-      return
-    }
-    
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(selectedCompanyId)) {
-      console.error('Invalid company_id format:', selectedCompanyId)
-      showError('Invalid company selected.')
+      console.log('No company from branch context')
       return
     }
     
     // Always load tree data for proper sorting
-    return fetchTree(selectedCompanyId)
-  }, [selectedCompanyId, fetchTree, showError])
+    return fetchTree()
+  }, [selectedCompanyId, fetchTree])
 
 
+
+  useEffect(() => {
+    fetchCompanies(1, 100) // Load companies to get company name
+  }, [fetchCompanies])
 
   useEffect(() => {
     return () => {
@@ -149,7 +138,7 @@ export default function ChartOfAccountsPage() {
     if (!confirm('Are you sure you want to delete this account?')) return
     
     try {
-      await deleteAccount(selectedCompanyId, id)
+      await deleteAccount(id)
       success('Account deleted successfully')
     } catch {
       if (error?.scope === 'submit') {
@@ -166,7 +155,7 @@ export default function ChartOfAccountsPage() {
     if (!confirm(`Are you sure you want to delete ${selectedIds.length} accounts?`)) return
     
     try {
-      await bulkDelete(selectedCompanyId, selectedIds)
+      await bulkDelete(selectedIds)
       setSelectedIds([])
       success(`${selectedIds.length} accounts deleted successfully`)
     } catch {
@@ -183,7 +172,7 @@ export default function ChartOfAccountsPage() {
     if (selectedIds.length === 0) return
     
     try {
-      await bulkUpdateStatus(selectedCompanyId, selectedIds, is_active)
+      await bulkUpdateStatus(selectedIds, is_active)
       setSelectedIds([])
       success(`${selectedIds.length} accounts ${is_active ? 'activated' : 'deactivated'} successfully`)
     } catch {
@@ -222,35 +211,13 @@ export default function ChartOfAccountsPage() {
             <div>
               <h1 className="text-xl font-bold text-gray-900">Chart of Accounts</h1>
               <p className="text-sm text-gray-500">
-                {selectedCompany && (
-                  <>
-                    <span className="font-medium">{selectedCompany.company_name}</span>
-                    <span className="mx-2">•</span>
-                  </>
-                )}
+                <span className="font-medium">{companyName}</span>
+                <span className="mx-2">•</span>
                 {viewMode === 'tree' ? `${tree.length} root accounts` : `${debouncedSearch ? filterTree(tree, debouncedSearch).length : flattenTree(tree).length} accounts`}
               </p>
             </div>
           </div>
           
-          {/* Company Tabs */}
-          {companies.length > 1 && (
-            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
-              {companies.map(company => (
-                <button
-                  key={company.id}
-                  onClick={() => setManualCompanyId(company.id)}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                    selectedCompanyId === company.id
-                      ? 'bg-white text-blue-600 shadow-sm font-medium'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  {company.company_code}
-                </button>
-              ))}
-            </div>
-          )}
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate('/chart-of-accounts/new')}
@@ -365,7 +332,7 @@ export default function ChartOfAccountsPage() {
       <div className="flex-1 overflow-auto p-6">
         {!selectedCompanyId ? (
           <div className="text-center py-8">
-            <p className="text-gray-500 mb-4">Please select a company to view chart of accounts</p>
+            <p className="text-gray-500 mb-4">No branch context available</p>
           </div>
         ) : (viewMode === 'table' ? loading.tree : loading.tree) ? (
           <div className="text-center py-8 text-gray-500">Loading...</div>

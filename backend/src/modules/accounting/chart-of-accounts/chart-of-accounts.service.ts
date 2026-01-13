@@ -17,7 +17,6 @@ export class ChartOfAccountsService {
     sort?: { field: string; order: 'asc' | 'desc' },
     filter?: any
   ): Promise<PaginatedResponse<ChartOfAccount>> {
-    this.validateCompanyAccess(companyId)
     const { data, total } = await this.repository.findAll(companyId, pagination, sort, filter)
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
@@ -29,20 +28,16 @@ export class ChartOfAccountsService {
     sort?: { field: string; order: 'asc' | 'desc' },
     filter?: any
   ): Promise<PaginatedResponse<ChartOfAccount>> {
-    this.validateCompanyAccess(companyId)
     const { data, total } = await this.repository.search(companyId, searchTerm, pagination, sort, filter)
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
   async getTree(companyId: string, maxDepth?: number): Promise<ChartOfAccountTreeNode[]> {
-    this.validateCompanyAccess(companyId)
     logInfo('Getting chart of accounts tree', { company_id: companyId, max_depth: maxDepth })
     return await this.repository.findTree(companyId, maxDepth)
   }
 
   async create(data: CreateChartOfAccountDTO, userId: string): Promise<ChartOfAccount> {
-    this.validateCompanyAccess(data.company_id)
-    
     logInfo('Creating chart of account', { 
       account_code: data.account_code, 
       company_id: data.company_id,
@@ -325,12 +320,10 @@ export class ChartOfAccountsService {
   }
 
   async getFilterOptions(companyId: string) {
-    this.validateCompanyAccess(companyId)
     return await this.repository.getFilterOptions(companyId)
   }
 
   async exportToExcel(companyId: string, filter?: any): Promise<Buffer> {
-    this.validateCompanyAccess(companyId)
     logInfo('Exporting chart of accounts to Excel', { company_id: companyId, filter })
     const data = await this.repository.exportData(companyId, filter, ChartOfAccountConfig.EXPORT.MAX_ROWS)
     const columns = [
@@ -355,7 +348,6 @@ export class ChartOfAccountsService {
   }
 
   async importFromExcel(buffer: Buffer, skipDuplicates: boolean, companyId: string, userId: string): Promise<any> {
-    this.validateCompanyAccess(companyId)
     logInfo('Importing chart of accounts from Excel', { company_id: companyId, skipDuplicates })
     const rows = await ImportService.parseExcel(buffer)
     const requiredFields = ['account_code', 'account_name', 'account_type', 'normal_balance']
@@ -396,12 +388,6 @@ export class ChartOfAccountsService {
       },
       skipDuplicates
     )
-  }
-
-  private validateCompanyAccess(companyId: string): void {
-    if (!companyId || typeof companyId !== 'string') {
-      throw ChartOfAccountErrors.COMPANY_ACCESS_DENIED(companyId || 'undefined')
-    }
   }
 
   private validateUUIDs(ids: string[]): void {

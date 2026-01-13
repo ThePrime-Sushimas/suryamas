@@ -40,7 +40,7 @@ export default function CreateChartOfAccountPage() {
   useEffect(() => {
     // Load tree data for parent selection
     if (currentBranch?.company_id) {
-      fetchTree(currentBranch.company_id)
+      fetchTree()
     }
   }, [currentBranch?.company_id, fetchTree])
 
