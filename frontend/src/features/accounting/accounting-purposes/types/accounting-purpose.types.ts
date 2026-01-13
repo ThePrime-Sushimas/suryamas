@@ -25,8 +25,6 @@ export interface AccountingPurpose {
 }
 
 export interface CreateAccountingPurposeDto {
-  company_id: string
-  branch_id?: string
   purpose_code: string
   purpose_name: string
   applied_to: AppliedToType

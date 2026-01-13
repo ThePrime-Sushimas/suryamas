@@ -29,8 +29,6 @@ export const accountingPurposeIdSchema = z.object({
 
 export const createAccountingPurposeSchema = z.object({
   body: z.object({
-    company_id: uuidSchema,
-    branch_id: uuidSchema.optional().nullable(),
     purpose_code: purposeCodeSchema,
     purpose_name: purposeNameSchema,
     applied_to: z.enum(APPLIED_TO_TYPES, {

@@ -19,16 +19,11 @@ export const accountingPurposeSchema = z.object({
     .optional()
     .nullable(),
   
-  is_active: z.boolean().default(true),
-  
-  company_id: z.string().uuid('Invalid company ID'),
-  
-  branch_id: z.string().uuid('Invalid branch ID').optional().nullable()
+  is_active: z.boolean().default(true)
 })
 
 export const updateAccountingPurposeSchema = accountingPurposeSchema.omit({ 
-  purpose_code: true, 
-  company_id: true 
+  purpose_code: true
 }).partial()
 
 export const validatePurposeCode = (code: string): boolean => {
