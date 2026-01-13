@@ -19,7 +19,9 @@ export const accountingPurposeSchema = z.object({
     .optional()
     .nullable(),
   
-  is_active: z.boolean().default(true)
+  is_active: z.boolean().default(true),
+  
+  branch_id: z.string().uuid().optional().nullable()
 })
 
 export const updateAccountingPurposeSchema = accountingPurposeSchema.omit({ 

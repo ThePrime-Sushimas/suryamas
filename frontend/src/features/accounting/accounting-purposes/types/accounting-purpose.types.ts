@@ -30,6 +30,7 @@ export interface CreateAccountingPurposeDto {
   applied_to: AppliedToType
   description?: string
   is_active?: boolean
+  branch_id?: string | null
 }
 
 export interface UpdateAccountingPurposeDto {

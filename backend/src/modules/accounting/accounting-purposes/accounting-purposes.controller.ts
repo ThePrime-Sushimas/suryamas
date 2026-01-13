@@ -141,7 +141,8 @@ export class AccountingPurposesController {
       
       const createData = {
         ...req.validated.body,
-        company_id: companyId // Force use context company_id
+        company_id: companyId, // Force use context company_id
+        branch_id: req.validated.body.branch_id || null // Allow branch selection
       }
       
       this.logRequest('CREATE', correlationId, req.user!.id, { 

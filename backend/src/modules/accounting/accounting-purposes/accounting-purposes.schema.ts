@@ -36,6 +36,7 @@ export const createAccountingPurposeSchema = z.object({
     }),
     description: descriptionSchema,
     is_active: z.boolean().default(true),
+    branch_id: uuidSchema.optional().nullable(),
   }).strict(),
 })
 

@@ -1,7 +1,14 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useBranchContext } from '@/features/branch_context'
+import { branchesApi } from '@/features/branches/api/branches.api'
 import type { AccountingPurpose, CreateAccountingPurposeDto, UpdateAccountingPurposeDto, AppliedToType } from '../types/accounting-purpose.types'
 import { APPLIED_TO_OPTIONS } from '../constants/accounting-purpose.constants'
 import { accountingPurposeSchema, updateAccountingPurposeSchema } from '../utils/validation'
+
+interface Branch {
+  id: string
+  name: string
+}
 
 interface AccountingPurposeFormProps {
   initialData?: AccountingPurpose
@@ -18,14 +25,37 @@ export const AccountingPurposeForm = ({
   isLoading, 
   onCancel
 }: AccountingPurposeFormProps) => {
+  const currentBranch = useBranchContext()
+  const [branches, setBranches] = useState<Branch[]>([])
+  const [loadingBranches, setLoadingBranches] = useState(false)
   const [formData, setFormData] = useState({
     purpose_code: initialData?.purpose_code || '',
     purpose_name: initialData?.purpose_name || '',
     applied_to: (initialData?.applied_to || 'SALES') as AppliedToType,
     description: initialData?.description || '',
-    is_active: initialData?.is_active ?? true
+    is_active: initialData?.is_active ?? true,
+    branch_id: initialData?.branch_id || ''
   })
   const [touched, setTouched] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    const fetchBranches = async () => {
+      if (!currentBranch?.company_id) return
+      
+      setLoadingBranches(true)
+      try {
+        const response = await branchesApi.list(currentBranch.company_id)
+        setBranches(response.data || [])
+      } catch (error) {
+        console.error('Failed to fetch branches:', error)
+        setBranches([])
+      } finally {
+        setLoadingBranches(false)
+      }
+    }
+    
+    fetchBranches()
+  }, [currentBranch?.company_id])
 
   const schema = isEdit ? updateAccountingPurposeSchema : accountingPurposeSchema
   const isSystemPurpose = initialData?.is_system || false
@@ -73,11 +103,12 @@ export const AccountingPurposeForm = ({
       return
     }
 
-    const submitData = isEdit 
-      ? result.data as UpdateAccountingPurposeDto
-      : result.data as CreateAccountingPurposeDto
+    const submitData = {
+      ...result.data,
+      branch_id: result.data.branch_id || null
+    }
 
-    await onSubmit(submitData)
+    await onSubmit(isEdit ? submitData as UpdateAccountingPurposeDto : submitData as CreateAccountingPurposeDto)
   }
 
   if (isSystemPurpose && isEdit) {
@@ -158,7 +189,7 @@ export const AccountingPurposeForm = ({
         </div>
       </div>
 
-      <div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <label htmlFor="applied_to" className="block text-sm font-medium text-gray-700 mb-1">
           Applied To *
         </label>
@@ -183,6 +214,35 @@ export const AccountingPurposeForm = ({
         </p>
         {errors.applied_to && (
           <p className="text-red-600 text-sm mt-1">{errors.applied_to}</p>
+        )}
+      </div>
+
+      <div>
+        <label htmlFor="branch_id" className="block text-sm font-medium text-gray-700 mb-1">
+          Branch
+        </label>
+        <select
+          id="branch_id"
+          name="branch_id"
+          value={formData.branch_id}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          disabled={isLoading || loadingBranches}
+          aria-invalid={!!errors.branch_id}
+        >
+          <option value="">All Branches</option>
+          {branches.map(branch => (
+            <option key={branch.id} value={branch.id}>
+              {branch.name}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-gray-500 mt-1">
+          Leave empty to apply to all branches, or select a specific branch
+        </p>
+        {errors.branch_id && (
+          <p className="text-red-600 text-sm mt-1">{errors.branch_id}</p>
         )}
       </div>
 
