@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import type { AppliedToType } from '../types/accounting-purpose.types'
 
 export const accountingPurposeSchema = z.object({
   purpose_code: z.string()

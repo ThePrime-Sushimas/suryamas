@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { Plus } from 'lucide-react'
 import { useAccountingPurposesStore } from '../store/accountingPurposes.store'
 import { AccountingPurposeTable } from '../components/AccountingPurposeTable'
@@ -6,7 +6,6 @@ import { AccountingPurposeFilters } from '../components/AccountingPurposeFilters
 import type { FilterParams } from '../types/accounting-purpose.types'
 
 interface AccountingPurposesListPageProps {
-  companyId: string
   onCreateNew: () => void
   onView: (id: string) => void
   onEdit: (id: string) => void
@@ -14,7 +13,6 @@ interface AccountingPurposesListPageProps {
 }
 
 export const AccountingPurposesListPage = ({
-  companyId,
   onCreateNew,
   onView,
   onEdit,
@@ -32,14 +30,14 @@ export const AccountingPurposesListPage = ({
   } = useAccountingPurposesStore()
 
   useEffect(() => {
-    fetchPurposes(1, 25, companyId)
-  }, [companyId])
+    fetchPurposes(1, 25)
+  }, [])
 
   const handleSearch = (query: string) => {
     if (query.trim()) {
-      searchPurposes(query, companyId)
+      searchPurposes(query)
     } else {
-      fetchPurposes(1, 25, companyId)
+      fetchPurposes(1, 25)
     }
   }
 
@@ -48,7 +46,7 @@ export const AccountingPurposesListPage = ({
   }
 
   const handlePageChange = (page: number) => {
-    fetchPurposes(page, pagination.limit, companyId)
+    fetchPurposes(page, pagination.limit)
   }
 
   return (

@@ -6,7 +6,6 @@ import { SystemLockBadge } from '../components/SystemLockBadge'
 
 interface AccountingPurposeDetailPageProps {
   purposeId: string
-  companyId: string
   onBack: () => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
@@ -14,7 +13,6 @@ interface AccountingPurposeDetailPageProps {
 
 export const AccountingPurposeDetailPage = ({
   purposeId,
-  companyId,
   onBack,
   onEdit,
   onDelete
@@ -26,9 +24,9 @@ export const AccountingPurposeDetailPage = ({
 
   useEffect(() => {
     if (!selectedPurpose || selectedPurpose.id !== purposeId) {
-      fetchPurposeById(purposeId, companyId)
+      fetchPurposeById(purposeId)
     }
-  }, [purposeId, companyId, selectedPurpose, fetchPurposeById])
+  }, [purposeId, selectedPurpose, fetchPurposeById])
 
   if (loading) {
     return (

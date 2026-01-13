@@ -8,13 +8,12 @@ import type { AccountingPurpose } from '../types/accounting-purpose.types'
 
 type PageView = 'list' | 'create' | 'edit' | 'detail'
 
-interface AccountingPurposesPageProps {
-  companyId: string
-  branchId?: string
-}
-
 export const AccountingPurposesPage = () => {
   const currentBranch = useBranchContext()
+  const [currentView, setCurrentView] = useState<PageView>('list')
+  const [selectedPurposeId, setSelectedPurposeId] = useState<string | null>(null)
+  const [selectedPurpose, setSelectedPurpose] = useState<AccountingPurpose | null>(null)
+  const { deletePurpose, fetchPurposeById } = useAccountingPurposesStore()
   
   if (!currentBranch?.company_id) {
     return (
@@ -26,11 +25,6 @@ export const AccountingPurposesPage = () => {
       </div>
     )
   }
-  
-  const [currentView, setCurrentView] = useState<PageView>('list')
-  const [selectedPurposeId, setSelectedPurposeId] = useState<string | null>(null)
-  const [selectedPurpose, setSelectedPurpose] = useState<AccountingPurpose | null>(null)
-  const { deletePurpose, fetchPurposeById } = useAccountingPurposesStore()
 
   const handleCreateNew = () => {
     setSelectedPurposeId(null)

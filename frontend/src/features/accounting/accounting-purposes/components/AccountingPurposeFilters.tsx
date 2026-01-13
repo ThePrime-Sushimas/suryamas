@@ -102,7 +102,7 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
                 Status
               </label>
               <select
-                value={isActive}
+                value={isActive === '' ? '' : isActive.toString()}
                 onChange={(e) => {
                   setIsActive(e.target.value === '' ? '' : e.target.value === 'true')
                   setTimeout(handleFilterChange, 0)
