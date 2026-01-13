@@ -1,14 +1,10 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useBranchContext } from '@/features/branch_context'
 import { branchesApi } from '@/features/branches/api/branches.api'
+import type { Branch } from '@/features/branches/types'
 import type { AccountingPurpose, CreateAccountingPurposeDto, UpdateAccountingPurposeDto, AppliedToType } from '../types/accounting-purpose.types'
 import { APPLIED_TO_OPTIONS } from '../constants/accounting-purpose.constants'
 import { accountingPurposeSchema, updateAccountingPurposeSchema } from '../utils/validation'
-
-interface Branch {
-  id: string
-  name: string
-}
 
 interface AccountingPurposeFormProps {
   initialData?: AccountingPurpose
@@ -44,7 +40,7 @@ export const AccountingPurposeForm = ({
       
       setLoadingBranches(true)
       try {
-        const response = await branchesApi.list(currentBranch.company_id)
+        const response = await branchesApi.list(1, 100, null, { company_id: currentBranch.company_id })
         setBranches(response.data || [])
       } catch (error) {
         console.error('Failed to fetch branches:', error)
@@ -105,7 +101,7 @@ export const AccountingPurposeForm = ({
 
     const submitData = {
       ...result.data,
-      branch_id: result.data.branch_id || null
+      branch_id: result.data.branch_id === '' ? null : result.data.branch_id
     }
 
     await onSubmit(isEdit ? submitData as UpdateAccountingPurposeDto : submitData as CreateAccountingPurposeDto)
@@ -234,7 +230,7 @@ export const AccountingPurposeForm = ({
           <option value="">All Branches</option>
           {branches.map(branch => (
             <option key={branch.id} value={branch.id}>
-              {branch.name}
+              {branch.branch_name}
             </option>
           ))}
         </select>

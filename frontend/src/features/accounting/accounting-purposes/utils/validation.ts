@@ -21,7 +21,7 @@ export const accountingPurposeSchema = z.object({
   
   is_active: z.boolean().default(true),
   
-  branch_id: z.string().uuid().optional().nullable()
+  branch_id: z.string().uuid().optional().nullable().or(z.literal('')).transform(val => val === '' ? null : val)
 })
 
 export const updateAccountingPurposeSchema = accountingPurposeSchema.omit({ 
