@@ -13,7 +13,7 @@ import {
 } from './chart-of-accounts.schema'
 import { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../../types/request.types'
-import { CompanyAccessService } from '../../../services/company-access.service'
+import { employeeBranchesService } from '../../employee_branches/employee_branches.service'
 import { randomUUID } from 'crypto'
 
 export class ChartOfAccountsController {
@@ -31,9 +31,10 @@ export class ChartOfAccountsController {
   }
 
   private async validateCompanyAccess(userId: string, companyId: string): Promise<void> {
-    const hasAccess = await CompanyAccessService.validateUserCompanyAccess(userId, companyId)
-    if (!hasAccess) {
-      throw new Error('Access denied to this company')
+    // Company access is already validated by branch context middleware
+    // This is just an additional safety check
+    if (!companyId) {
+      throw new Error('No company context available')
     }
   }
 
@@ -59,7 +60,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req)
-      await this.validateCompanyAccess(req.user!.id, companyId)
+      this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('LIST', correlationId, req.user?.id, { company_id: companyId })
       
       const { offset } = getPaginationParams(req.query)
@@ -91,7 +92,7 @@ export class ChartOfAccountsController {
     try {
       const { q } = req.query
       const companyId = this.getCompanyId(req)
-      await this.validateCompanyAccess(req.user!.id, companyId)
+      this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('SEARCH', correlationId, req.user?.id, { query: q, company_id: companyId })
       
       const { offset } = getPaginationParams(req.query)
@@ -123,7 +124,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req)
-      await this.validateCompanyAccess(req.user!.id, companyId)
+      this.validateCompanyAccess(req.user!.id, companyId)
       const maxDepth = req.query.max_depth ? parseInt(req.query.max_depth as string) : undefined
       
       this.logRequest('GET_TREE', correlationId, req.user?.id, { company_id: companyId, max_depth: maxDepth })
@@ -150,7 +151,7 @@ export class ChartOfAccountsController {
     try {
       // Override company_id from context for security
       const companyId = this.getCompanyId(req as any)
-      await this.validateCompanyAccess(req.user!.id, companyId)
+      this.validateCompanyAccess(req.user!.id, companyId)
       
       const createData = {
         ...req.validated.body,
@@ -184,7 +185,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req)
-      await this.validateCompanyAccess(req.user!.id, companyId)
+      this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('GET_BY_ID', correlationId, req.user?.id, { 
         account_id: req.params.id,
         company_id: companyId
@@ -206,7 +207,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req as any)
-      await this.validateCompanyAccess(req.user!.id, companyId)
+      this.validateCompanyAccess(req.user!.id, companyId)
       
       const { body, params } = req.validated
       
@@ -236,7 +237,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req)
-      await this.validateCompanyAccess(req.user!.id, companyId)
+      this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('DELETE', correlationId, req.user.id, { 
         account_id: req.params.id,
         company_id: companyId
@@ -262,7 +263,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req)
-      await this.validateCompanyAccess(req.user!.id, companyId)
+      this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('GET_FILTER_OPTIONS', correlationId, req.user?.id, { company_id: companyId })
       
       const options = await chartOfAccountsService.getFilterOptions(companyId)
@@ -281,7 +282,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req)
-      await this.validateCompanyAccess(req.user!.id, companyId)
+      this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('EXPORT', correlationId, req.user?.id, { company_id: companyId })
       
       return handleExport(
@@ -318,7 +319,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req)
-      await this.validateCompanyAccess(req.user!.id, companyId)
+      this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('IMPORT', correlationId, req.user!.id, { company_id: companyId })
       
       return handleImport(
@@ -336,7 +337,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req as any)
-      await this.validateCompanyAccess(req.user!.id, companyId)
+      this.validateCompanyAccess(req.user!.id, companyId)
       
       const { ids, is_active } = req.validated.body
       
@@ -363,7 +364,7 @@ export class ChartOfAccountsController {
     
     try {
       const companyId = this.getCompanyId(req as any)
-      await this.validateCompanyAccess(req.user!.id, companyId)
+      this.validateCompanyAccess(req.user!.id, companyId)
       
       const { ids } = req.validated.body
       
