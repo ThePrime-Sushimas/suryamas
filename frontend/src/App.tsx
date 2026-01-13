@@ -73,6 +73,7 @@ const CreateChartOfAccountPage = lazy(() => import('./features/accounting/chart-
 const EditChartOfAccountPage = lazy(() => import('./features/accounting/chart-of-accounts/pages/EditChartOfAccountPage'))
 const ChartOfAccountDetailPage = lazy(() => import('./features/accounting/chart-of-accounts/pages/ChartOfAccountDetailPage'))
 const AccountingPurposesPage = lazy(() => import('./features/accounting/accounting-purposes').then(m => ({ default: m.AccountingPurposesPage })))
+const AccountingPurposeAccountsPage = lazy(() => import('./features/accounting/accounting-purpose-accounts').then(m => ({ default: m.AccountingPurposeAccountsPage })))
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -185,6 +186,7 @@ function App() {
           <Route path="chart-of-accounts/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><ChartOfAccountDetailPage /></Suspense></ProtectedRoute>} />
           <Route path="chart-of-accounts/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditChartOfAccountPage /></Suspense></ProtectedRoute>} />
           <Route path="accounting-purposes" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><AccountingPurposesPage /></Suspense></ProtectedRoute>} />
+          <Route path="accounting-purpose-accounts/*" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><AccountingPurposeAccountsPage /></Suspense></ProtectedRoute>} />
               </Route>
             </Routes>
           </BrowserRouter>
