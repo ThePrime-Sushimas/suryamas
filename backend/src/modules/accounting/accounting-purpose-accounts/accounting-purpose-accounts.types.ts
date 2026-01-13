@@ -6,8 +6,10 @@ export interface AccountingPurposeAccount {
   id: string
   company_id: string
   purpose_id: string
-  chart_account_id: string
+  account_id: string
   side: Side
+  is_required: boolean
+  is_auto: boolean
   priority: number
   is_active: boolean
   created_at: string
@@ -20,13 +22,17 @@ export interface AccountingPurposeAccount {
 
 export interface CreateAccountingPurposeAccountDTO {
   purpose_id: string
-  chart_account_id: string
+  account_id: string
   side: Side
+  is_required?: boolean
+  is_auto?: boolean
   priority?: number
 }
 
 export interface UpdateAccountingPurposeAccountDTO {
   side?: Side
+  is_required?: boolean
+  is_auto?: boolean
   priority?: number
   is_active?: boolean
 }
@@ -43,8 +49,10 @@ export interface AccountingPurposeAccountWithDetails extends AccountingPurposeAc
 export interface BulkCreateAccountingPurposeAccountDTO {
   purpose_id: string
   accounts: Array<{
-    chart_account_id: string
+    account_id: string
     side: Side
+    is_required?: boolean
+    is_auto?: boolean
     priority?: number
   }>
 }

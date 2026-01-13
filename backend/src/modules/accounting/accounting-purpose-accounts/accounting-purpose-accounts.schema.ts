@@ -15,8 +15,10 @@ export const accountingPurposeAccountIdSchema = z.object({
 export const createAccountingPurposeAccountSchema = z.object({
   body: z.object({
     purpose_id: uuidSchema,
-    chart_account_id: uuidSchema,
+    account_id: uuidSchema,
     side: z.enum(sides),
+    is_required: z.boolean().optional().default(true),
+    is_auto: z.boolean().optional().default(true),
     priority: z.number().int().min(AccountingPurposeAccountsConfig.VALIDATION.MIN_PRIORITY)
                     .max(AccountingPurposeAccountsConfig.VALIDATION.MAX_PRIORITY)
                     .optional(),
@@ -29,10 +31,12 @@ export const updateAccountingPurposeAccountSchema = z.object({
   }),
   body: z.object({
     side: z.enum(sides).optional(),
+    is_required: z.boolean().optional(),
+    is_auto: z.boolean().optional(),
+    is_active: z.boolean().optional(),
     priority: z.number().int().min(AccountingPurposeAccountsConfig.VALIDATION.MIN_PRIORITY)
                     .max(AccountingPurposeAccountsConfig.VALIDATION.MAX_PRIORITY)
                     .optional(),
-    is_active: z.boolean().optional(),
   }),
 })
 
@@ -40,8 +44,10 @@ export const bulkCreateAccountingPurposeAccountSchema = z.object({
   body: z.object({
     purpose_id: uuidSchema,
     accounts: z.array(z.object({
-      chart_account_id: uuidSchema,
+      account_id: uuidSchema,
       side: z.enum(sides),
+      is_required: z.boolean().optional().default(true),
+      is_auto: z.boolean().optional().default(true),
       priority: z.number().int().min(AccountingPurposeAccountsConfig.VALIDATION.MIN_PRIORITY)
                       .max(AccountingPurposeAccountsConfig.VALIDATION.MAX_PRIORITY)
                       .optional(),

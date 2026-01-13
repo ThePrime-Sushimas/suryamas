@@ -1,5 +1,6 @@
 import { Response } from 'express'
 import { accountingPurposeAccountsService } from './accounting-purpose-accounts.service'
+import { AccountingPurposeAccountError } from './accounting-purpose-accounts.errors'
 import { sendSuccess } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
 import { logInfo } from '../../../config/logger'
@@ -91,13 +92,13 @@ export class AccountingPurposeAccountsController {
       
       this.logRequest('CREATE', correlationId, req.user!.id, { 
         purpose_id: req.validated.body.purpose_id,
-        chart_account_id: req.validated.body.chart_account_id,
+        account_id: req.validated.body.account_id,
         company_id: companyId
       })
       
       const purposeAccount = await accountingPurposeAccountsService.create(
-        req.validated.body, 
-        companyId, 
+        req.validated.body,
+        companyId,
         req.user!.id
       )
       
@@ -108,8 +109,15 @@ export class AccountingPurposeAccountsController {
         user: req.user!.id
       })
       sendSuccess(res, purposeAccount, 'Purpose account mapping created', 201)
-    } catch (error) {
+    } catch (error: any) {
       this.logResponse('CREATE', correlationId, false, Date.now() - startTime)
+      if (error instanceof AccountingPurposeAccountError) {
+        return res.status(error.statusCode).json({
+          success: false,
+          error: error.message,
+          code: error.code
+        })
+      }
       handleError(res, error)
     }
   }

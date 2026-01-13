@@ -31,60 +31,23 @@ export class AccountingPurposeAccountsService {
   async create(data: CreateAccountingPurposeAccountDTO, companyId: string, userId: string): Promise<AccountingPurposeAccount> {
     logInfo('Creating purpose account mapping', { 
       purpose_id: data.purpose_id,
-      chart_account_id: data.chart_account_id,
-      side: data.side,
-      company_id: companyId,
-      user: userId 
+      account_id: data.account_id,
+      side: data.side
     })
     
     return await this.repository.withTransaction(async (trx) => {
       try {
-        // Validate purpose exists
-        const { data: purpose, error: purposeError } = await supabase
-          .from('accounting_purposes')
-          .select('id')
-          .eq('id', data.purpose_id)
-          .eq('company_id', companyId)
-          .is('deleted_at', null)
-          .maybeSingle()
-
-        if (purposeError) throw new Error(purposeError.message)
-        if (!purpose) {
-          throw AccountingPurposeAccountErrors.PURPOSE_NOT_FOUND(data.purpose_id)
-        }
-
-        // Validate account exists and is postable
-        const { data: account, error: accountError } = await supabase
-          .from('chart_of_accounts')
-          .select('id, account_code, account_type, normal_balance, is_postable')
-          .eq('id', data.chart_account_id)
-          .eq('company_id', companyId)
-          .is('deleted_at', null)
-          .maybeSingle()
-
-        if (accountError) throw new Error(accountError.message)
-        if (!account) {
-          throw AccountingPurposeAccountErrors.ACCOUNT_NOT_FOUND(data.chart_account_id)
-        }
-
-        if (!account.is_postable) {
-          throw AccountingPurposeAccountErrors.ACCOUNT_NOT_POSTABLE(account.account_code)
-        }
-
-        // Validate DEBIT/CREDIT balance rules
-        this.validateBalanceSide(account.account_type, account.normal_balance, data.side)
-
         // Check for duplicate mapping
         const existing = await this.repository.findByPurposeAndAccount(
           data.purpose_id, 
-          data.chart_account_id, 
+          data.account_id, 
           data.side,
           trx
         )
         if (existing) {
           throw AccountingPurposeAccountErrors.DUPLICATE_MAPPING(
             data.purpose_id, 
-            data.chart_account_id, 
+            data.account_id, 
             data.side
           )
         }
@@ -95,15 +58,13 @@ export class AccountingPurposeAccountsService {
           throw AccountingPurposeAccountErrors.CREATE_FAILED()
         }
 
-        await AuditService.log('CREATE', 'accounting_purpose_account', purposeAccount.id, userId, null, purposeAccount)
         logInfo('Purpose account mapping created successfully', { id: purposeAccount.id })
         return purposeAccount
       } catch (error: any) {
         logError('Failed to create purpose account mapping', { 
           error: error.message, 
           purpose_id: data.purpose_id,
-          chart_account_id: data.chart_account_id,
-          user: userId 
+          account_id: data.account_id
         })
         throw error
       }
@@ -142,7 +103,7 @@ export class AccountingPurposeAccountsService {
           const { data: account, error } = await supabase
             .from('chart_of_accounts')
             .select('account_type, normal_balance')
-            .eq('id', existing.chart_account_id)
+            .eq('id', existing.account_id)
             .maybeSingle()
 
           if (error) throw new Error(error.message)
@@ -218,14 +179,14 @@ export class AccountingPurposeAccountsService {
           const { data: account, error } = await supabase
             .from('chart_of_accounts')
             .select('id, account_code, account_type, normal_balance, is_postable')
-            .eq('id', accountData.chart_account_id)
+            .eq('id', accountData.account_id)
             .eq('company_id', companyId)
             .is('deleted_at', null)
             .maybeSingle()
 
           if (error) throw new Error(error.message)
           if (!account) {
-            throw AccountingPurposeAccountErrors.ACCOUNT_NOT_FOUND(accountData.chart_account_id)
+            throw AccountingPurposeAccountErrors.ACCOUNT_NOT_FOUND(accountData.account_id)
           }
 
           if (!account.is_postable) {
@@ -237,14 +198,14 @@ export class AccountingPurposeAccountsService {
           // Check for duplicate mapping
           const existing = await this.repository.findByPurposeAndAccount(
             data.purpose_id, 
-            accountData.chart_account_id, 
+            accountData.account_id, 
             accountData.side,
             trx
           )
           if (existing) {
             throw AccountingPurposeAccountErrors.DUPLICATE_MAPPING(
               data.purpose_id, 
-              accountData.chart_account_id, 
+              accountData.account_id, 
               accountData.side
             )
           }

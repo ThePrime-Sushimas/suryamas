@@ -88,23 +88,23 @@ export class AccountingPurposeAccountsRepository {
         query = query.eq('side', filter.side)
         countQuery = countQuery.eq('side', filter.side)
       }
-      if (filter.is_active !== undefined) {
-        query = query.eq('is_active', filter.is_active)
-        countQuery = countQuery.eq('is_active', filter.is_active)
+      if (filter.is_required !== undefined) {
+        query = query.eq('is_required', filter.is_required)
+        countQuery = countQuery.eq('is_required', filter.is_required)
       }
-      if (filter.account_type) {
-        query = query.eq('chart_of_accounts.account_type', filter.account_type)
-        countQuery = countQuery.eq('chart_of_accounts.account_type', filter.account_type)
-      }
+      // Remove account_type filter since it's not in this table
+      // if (filter.account_type) {
+      //   query = query.eq('chart_of_accounts.account_type', filter.account_type)
+      //   countQuery = countQuery.eq('chart_of_accounts.account_type', filter.account_type)
+      // }
     }
     
     if (sort) {
       const validFields = ['priority', 'side', 'created_at', 'updated_at']
       if (validFields.includes(sort.field)) {
         query = query.order(sort.field, { ascending: sort.order === 'asc' })
-      } else if (sort.field === 'account_name') {
-        query = query.order('chart_of_accounts.account_name', { ascending: sort.order === 'asc' })
       }
+      // Remove account_name sort since it's not in this table
     } else {
       query = query.order('priority', { ascending: true }).order('side', { ascending: true })
     }
@@ -136,7 +136,6 @@ export class AccountingPurposeAccountsRepository {
       .from('accounting_purpose_accounts')
       .select('*')
       .eq('id', id)
-      .is('deleted_at', null)
       .maybeSingle()
 
     if (error) throw new Error(error.message)
@@ -154,9 +153,8 @@ export class AccountingPurposeAccountsRepository {
       .from('accounting_purpose_accounts')
       .select('*')
       .eq('purpose_id', purposeId)
-      .eq('chart_account_id', accountId)
+      .eq('account_id', accountId)
       .eq('side', side)
-      .is('deleted_at', null)
       .maybeSingle()
 
     if (error) throw new Error(error.message)
@@ -170,7 +168,6 @@ export class AccountingPurposeAccountsRepository {
       .select('priority')
       .eq('purpose_id', purposeId)
       .eq('side', side)
-      .is('deleted_at', null)
       .order('priority', { ascending: false })
       .limit(1)
 
@@ -181,7 +178,6 @@ export class AccountingPurposeAccountsRepository {
   async create(data: CreateAccountingPurposeAccountDTO, companyId: string, userId: string, trx?: TransactionContext): Promise<AccountingPurposeAccount | null> {
     const client = trx?.client || supabase
     
-    // Auto-assign priority if not provided
     const priority = data.priority || await this.getNextPriority(data.purpose_id, data.side, trx)
     
     const { data: account, error } = await client
@@ -190,8 +186,9 @@ export class AccountingPurposeAccountsRepository {
         ...data,
         company_id: companyId,
         priority,
+        is_required: data.is_required ?? true,
+        is_auto: data.is_auto ?? true,
         created_by: userId,
-        updated_by: userId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -203,7 +200,7 @@ export class AccountingPurposeAccountsRepository {
       throw error
     }
     
-    this.invalidateCache(companyId)
+    this.invalidateCache()
     return account
   }
 
@@ -243,7 +240,7 @@ export class AccountingPurposeAccountsRepository {
 
   async bulkCreate(
     purposeId: string,
-    accounts: Array<{ chart_account_id: string; side: 'DEBIT' | 'CREDIT'; priority?: number }>,
+    accounts: Array<{ account_id: string; side: 'DEBIT' | 'CREDIT'; is_required?: boolean; is_auto?: boolean; priority?: number }>,
     companyId: string,
     userId: string,
     trx?: TransactionContext
@@ -256,6 +253,8 @@ export class AccountingPurposeAccountsRepository {
         ...account,
         purpose_id: purposeId,
         company_id: companyId,
+        is_required: account.is_required ?? true,
+        is_auto: account.is_auto ?? true,
         priority: account.priority || await this.getNextPriority(purposeId, account.side, trx),
         created_by: userId,
         updated_by: userId,
@@ -287,7 +286,7 @@ export class AccountingPurposeAccountsRepository {
         deleted_by: userId
       })
       .eq('purpose_id', purposeId)
-      .in('chart_account_id', accountIds)
+      .in('account_id', accountIds)
 
     if (error) throw new Error(error.message)
     this.invalidateCache()
