@@ -402,6 +402,7 @@ export default function ChartOfAccountsPage() {
                 onView={id => navigate(`/chart-of-accounts/${id}`)}
                 onEdit={id => navigate(`/chart-of-accounts/${id}/edit`)}
                 onDelete={handleDelete}
+                onRestore={handleRestore}
                 onAddChild={parentId => navigate(`/chart-of-accounts/new?parent=${parentId}`)}
                 canEdit={true}
                 canDelete={true}

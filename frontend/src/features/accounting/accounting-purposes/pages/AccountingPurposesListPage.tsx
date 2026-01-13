@@ -31,7 +31,7 @@ export const AccountingPurposesListPage = ({
 
   useEffect(() => {
     fetchPurposes(1, 25)
-  }, [])
+  }, [fetchPurposes])
 
   const handleSearch = (query: string) => {
     if (query.trim()) {

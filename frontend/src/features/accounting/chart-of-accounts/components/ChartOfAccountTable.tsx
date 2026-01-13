@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Eye, Edit, Trash2, MoreVertical, Plus } from 'lucide-react'
+import { Eye, Edit, Trash2, MoreVertical, Plus, RotateCcw } from 'lucide-react'
 import type { ChartOfAccount } from '../types/chart-of-account.types'
 import { AccountTypeBadge } from './AccountTypeBadge'
 import { buildAccountDisplayName } from '../utils/format'
@@ -10,6 +10,7 @@ interface ChartOfAccountTableProps {
   onView: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onRestore?: (id: string) => void
   onAddChild?: (parentId: string) => void
   canEdit?: boolean
   canDelete?: boolean
@@ -22,6 +23,7 @@ export const ChartOfAccountTable = ({
   onView,
   onEdit,
   onDelete,
+  onRestore,
   onAddChild,
   canEdit = true,
   canDelete = true,
@@ -98,17 +100,30 @@ export const ChartOfAccountTable = ({
               Add Child Account
             </button>
           )}
-          {canDelete && (
+          {account.deleted_at && onRestore ? (
             <button
               onClick={() => {
-                onDelete(account.id)
+                onRestore(account.id)
                 setOpenDropdown(null)
               }}
-              className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+              className="flex items-center gap-2 w-full px-4 py-2 text-sm text-green-600 hover:bg-green-50"
             >
-              <Trash2 className="w-4 h-4" />
-              Delete
+              <RotateCcw className="w-4 h-4" />
+              Restore
             </button>
+          ) : (
+            canDelete && (
+              <button
+                onClick={() => {
+                  onDelete(account.id)
+                  setOpenDropdown(null)
+                }}
+                className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+            )
           )}
         </div>
       </div>
@@ -163,7 +178,7 @@ export const ChartOfAccountTable = ({
           </thead>
           <tbody className="divide-y divide-gray-200">
             {accounts.map(account => (
-              <tr key={account.id} className="hover:bg-gray-50">
+              <tr key={account.id} className={`hover:bg-gray-50 ${account.deleted_at ? 'bg-gray-50 opacity-75' : ''}`}>
                 {onSelectionChange && (
                   <td className="px-4 py-3">
                     <input
@@ -209,13 +224,19 @@ export const ChartOfAccountTable = ({
                   {account.currency_code}
                 </td>
                 <td className="px-4 py-3 text-center">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    account.is_active 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {account.is_active ? 'Active' : 'Inactive'}
-                  </span>
+                  {account.deleted_at ? (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      Deleted
+                    </span>
+                  ) : (
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      account.is_active 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {account.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <ActionDropdown account={account} />

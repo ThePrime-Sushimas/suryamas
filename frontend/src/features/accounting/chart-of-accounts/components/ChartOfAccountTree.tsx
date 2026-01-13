@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, ChevronDown, Eye, Edit, Trash2, Plus, MoreVertical, Expand, Minimize } from 'lucide-react'
+import { ChevronRight, ChevronDown, Eye, Edit, Trash2, Plus, MoreVertical, Expand, Minimize, RotateCcw } from 'lucide-react'
 import type { ChartOfAccountTreeNode } from '../types/chart-of-account.types'
 import { AccountTypeBadge } from './AccountTypeBadge'
 import { buildAccountDisplayName } from '../utils/format'
@@ -10,6 +10,7 @@ interface ActionDropdownProps {
   onView: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onRestore?: (id: string) => void
   onAddChild?: (parentId: string) => void
   canEdit: boolean
   canDelete: boolean
@@ -22,6 +23,7 @@ const ActionDropdown = ({
   onView, 
   onEdit, 
   onDelete, 
+  onRestore,
   onAddChild, 
   canEdit, 
   canDelete, 
@@ -81,17 +83,30 @@ const ActionDropdown = ({
             Add Child Account
           </button>
         )}
-        {canDelete && (
+        {node.deleted_at && onRestore ? (
           <button
             onClick={() => {
-              onDelete(node.id)
+              onRestore(node.id)
               onToggle()
             }}
-            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-green-600 hover:bg-green-50"
           >
-            <Trash2 className="w-4 h-4" />
-            Delete
+            <RotateCcw className="w-4 h-4" />
+            Restore
           </button>
+        ) : (
+          canDelete && (
+            <button
+              onClick={() => {
+                onDelete(node.id)
+                onToggle()
+              }}
+              className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </button>
+          )
         )}
       </div>
     </div>
@@ -122,6 +137,7 @@ interface ChartOfAccountTreeProps {
   onView: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onRestore?: (id: string) => void
   onAddChild?: (parentId: string) => void
   canEdit?: boolean
   canDelete?: boolean
@@ -132,6 +148,7 @@ interface TreeNodeProps {
   onView: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onRestore?: (id: string) => void
   onAddChild?: (parentId: string) => void
   canEdit?: boolean
   canDelete?: boolean
@@ -145,6 +162,7 @@ const TreeNode = ({
   onView, 
   onEdit, 
   onDelete, 
+  onRestore,
   onAddChild, 
   canEdit = true, 
   canDelete = true,
@@ -163,7 +181,7 @@ const TreeNode = ({
   return (
     <div>
       <div 
-        className="group flex items-center gap-2 py-2 px-3 hover:bg-gray-50 rounded-lg"
+        className={`group flex items-center gap-2 py-2 px-3 hover:bg-gray-50 rounded-lg ${node.deleted_at ? 'bg-gray-50 opacity-75' : ''}`}
         style={{ paddingLeft: `${level * 20 + 12}px` }}
       >
         {/* Expand/Collapse Button */}
@@ -203,11 +221,15 @@ const TreeNode = ({
               <span className="text-xs text-green-600 font-medium">Postable</span>
             )}
             <span className="text-xs text-gray-500">{node.currency_code}</span>
-            <span className={`text-xs font-medium ${
-              node.is_active ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {node.is_active ? 'Active' : 'Inactive'}
-            </span>
+            {node.deleted_at ? (
+              <span className="text-xs font-medium text-gray-600">Deleted</span>
+            ) : (
+              <span className={`text-xs font-medium ${
+                node.is_active ? 'text-green-600' : 'text-red-600'
+              }`}>
+                {node.is_active ? 'Active' : 'Inactive'}
+              </span>
+            )}
           </div>
         </div>
 
@@ -217,6 +239,7 @@ const TreeNode = ({
           onView={onView}
           onEdit={onEdit}
           onDelete={onDelete}
+          onRestore={onRestore}
           onAddChild={onAddChild}
           canEdit={canEdit}
           canDelete={canDelete}
@@ -235,6 +258,7 @@ const TreeNode = ({
               onView={onView}
               onEdit={onEdit}
               onDelete={onDelete}
+              onRestore={onRestore}
               onAddChild={onAddChild}
               canEdit={canEdit}
               canDelete={canDelete}
@@ -254,6 +278,7 @@ export const ChartOfAccountTree = ({
   onView, 
   onEdit, 
   onDelete, 
+  onRestore,
   onAddChild, 
   canEdit = true, 
   canDelete = true 
@@ -336,6 +361,7 @@ export const ChartOfAccountTree = ({
             onView={onView}
             onEdit={onEdit}
             onDelete={onDelete}
+            onRestore={onRestore}
             onAddChild={onAddChild}
             canEdit={canEdit}
             canDelete={canDelete}

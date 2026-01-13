@@ -345,7 +345,6 @@ export class ChartOfAccountsRepository {
       .from('chart_of_accounts')
       .select('*')
       .eq('id', id)
-      .is('deleted_at', null)
       .maybeSingle()
 
     if (error) throw new Error(error.message)
