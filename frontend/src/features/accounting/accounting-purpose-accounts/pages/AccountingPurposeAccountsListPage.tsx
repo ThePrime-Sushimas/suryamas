@@ -5,12 +5,14 @@ import { AccountingPurposeAccountTable } from '../components/AccountingPurposeAc
 import { AccountingPurposeAccountFilters } from '../components/AccountingPurposeAccountFilters'
 import ExportButton from '@/components/ExportButton'
 import { useToast } from '@/contexts/ToastContext'
+import { useBranchContext } from '@/features/branch_context/hooks/useBranchContext'
 import type { AccountingPurposeAccountFilter } from '../types/accounting-purpose-account.types'
 import { DEFAULT_PAGE_SIZE } from '../constants/accounting-purpose-account.constants'
 
 export const AccountingPurposeAccountsListPage = () => {
   const navigate = useNavigate()
   const { success, error } = useToast()
+  const branchContext = useBranchContext()
   
   const {
     accounts,
@@ -28,11 +30,14 @@ export const AccountingPurposeAccountsListPage = () => {
   const [filter, setFilter] = useState<AccountingPurposeAccountFilter>({})
   const [sort, setSort] = useState<{ field: string; order: 'asc' | 'desc' }>({ field: 'priority', order: 'asc' })
 
+  // Reload data when company changes
   useEffect(() => {
-    fetchPostableAccounts()
-    fetchActivePurposes()
-    fetchAccounts(1, DEFAULT_PAGE_SIZE, sort, filter)
-  }, [fetchPostableAccounts, fetchActivePurposes, fetchAccounts, sort, filter])
+    if (branchContext?.company_id) {
+      fetchPostableAccounts()
+      fetchActivePurposes()
+      fetchAccounts(1, DEFAULT_PAGE_SIZE, sort, filter)
+    }
+  }, [branchContext?.company_id, fetchPostableAccounts, fetchActivePurposes, fetchAccounts, sort, filter])
 
   useEffect(() => {
     if (storeError) {
