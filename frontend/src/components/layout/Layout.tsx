@@ -65,6 +65,7 @@ export default function Layout() {
       icon: <Calculator size={18} />,
       submenu: [
         { id: 'chart-of-accounts', name: 'Chart of Accounts', href: '/chart-of-accounts', icon: <Calculator size={16} />, module: 'chart-of-accounts' },
+        { id: 'accounting-purposes', name: 'Accounting Purposes', href: '/accounting-purposes', icon: <Calculator size={16} />, module: 'accounting-purposes' },
       ]
     },
     {

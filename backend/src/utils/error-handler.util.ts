@@ -4,6 +4,7 @@ import { sendError } from './response.util'
 import { logError } from '../config/logger'
 import { SupplierProductError } from '../modules/supplier-products/supplier-products.errors'
 import { ChartOfAccountError } from '../modules/accounting/chart-of-accounts/chart-of-accounts.errors'
+import { AccountingPurposeError } from '../modules/accounting/accounting-purposes/accounting-purposes.errors'
 import { CompanyError } from '../modules/companies/companies.errors'
 import { 
   PricelistNotFoundError, 
@@ -58,6 +59,13 @@ export class BusinessRuleError extends AppError {
 }
 
 export const handleError = (res: Response, error: unknown): void => {
+  // Accounting Purposes custom errors
+  if (error instanceof AccountingPurposeError) {
+    logError(error.code, { message: error.message })
+    sendError(res, error.message, error.statusCode)
+    return
+  }
+
   // Chart of Accounts custom errors
   if (error instanceof ChartOfAccountError) {
     logError(error.code, { message: error.message })
