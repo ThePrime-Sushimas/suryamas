@@ -17,10 +17,12 @@ export const AccountingPurposesPage = () => {
   
   if (!currentBranch?.company_id) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Company Selected</h2>
-          <p className="text-gray-600">Please select a branch to continue.</p>
+      <div className="h-screen flex flex-col bg-gray-50">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">No Company Selected</h2>
+            <p className="text-gray-600">Please select a branch to continue.</p>
+          </div>
         </div>
       </div>
     )
@@ -73,33 +75,37 @@ export const AccountingPurposesPage = () => {
 
   switch (currentView) {
     case 'create':
-      return (
-        <AccountingPurposeFormPage
-          isEdit={false}
-          onBack={handleBack}
-          onSuccess={handleSuccess}
-        />
-      )
-
     case 'edit':
-      return (
-        <AccountingPurposeFormPage
-          purposeId={selectedPurposeId!}
-          initialData={selectedPurpose!}
-          isEdit={true}
-          onBack={handleBack}
-          onSuccess={handleSuccess}
-        />
-      )
-
     case 'detail':
       return (
-        <AccountingPurposeDetailPage
-          purposeId={selectedPurposeId!}
-          onBack={handleBack}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
+        <div className="h-screen flex flex-col bg-gray-50">
+          <div className="flex-1 overflow-auto p-6">
+            {currentView === 'create' && (
+              <AccountingPurposeFormPage
+                isEdit={false}
+                onBack={handleBack}
+                onSuccess={handleSuccess}
+              />
+            )}
+            {currentView === 'edit' && (
+              <AccountingPurposeFormPage
+                purposeId={selectedPurposeId!}
+                initialData={selectedPurpose!}
+                isEdit={true}
+                onBack={handleBack}
+                onSuccess={handleSuccess}
+              />
+            )}
+            {currentView === 'detail' && (
+              <AccountingPurposeDetailPage
+                purposeId={selectedPurposeId!}
+                onBack={handleBack}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            )}
+          </div>
+        </div>
       )
 
     default:
