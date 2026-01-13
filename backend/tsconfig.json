@@ -4,7 +4,7 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "lib": ["ES2020"],
-    "types": ["node", "jest"],
+    "types": ["node"],
     "outDir": "./dist",
     "rootDir": "./src",
     "baseUrl": ".",
@@ -17,7 +17,8 @@
     "downlevelIteration": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "ignoreDeprecations": "6.0"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/__tests__", "**/*.test.ts"]
