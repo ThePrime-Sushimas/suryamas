@@ -10,6 +10,7 @@
     "build": "tsc",
     "start": "node -r module-alias/register dist/server.js",
     "railway:start": "npm run build && npm start",
+    "seed": "ts-node -r tsconfig-paths/register src/seeds/run-seeds.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
