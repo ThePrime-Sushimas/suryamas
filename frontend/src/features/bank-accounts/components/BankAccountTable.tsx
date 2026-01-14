@@ -1,3 +1,5 @@
+import { TableSkeleton } from '@/components/ui/Skeleton'
+
 import { useEffect, useState } from 'react'
 import { Edit2, Trash2 } from 'lucide-react'
 import { useBankAccountsStore } from '../store/useBankAccounts'
@@ -9,9 +11,10 @@ interface BankAccountTableProps {
   ownerType: 'company' | 'supplier'
   ownerId: string
   onEdit: (id: number) => void
+  loading?: boolean
 }
 
-export const BankAccountTable = ({ ownerType, ownerId, onEdit }: BankAccountTableProps) => {
+export const BankAccountTable = ({ ownerType, ownerId, onEdit, loading }: BankAccountTableProps) => {
   const toast = useToast()
   const { accounts, fetchLoading, mutationLoading, fetchByOwner, delete: deleteAccount } = useBankAccountsStore()
   const [deleteId, setDeleteId] = useState<number | null>(null)
@@ -35,8 +38,12 @@ export const BankAccountTable = ({ ownerType, ownerId, onEdit }: BankAccountTabl
 
   const primaryAccount = accounts.find(a => a.is_primary)
 
-  if (fetchLoading) {
-    return <div className="text-center py-8 text-gray-500">Loading...</div>
+  if (loading) {
+    return <TableSkeleton rows={6} columns={6} />
+  }
+
+  if (loading || fetchLoading) {
+    return <TableSkeleton rows={6} columns={6} />
   }
 
   if (accounts.length === 0) {

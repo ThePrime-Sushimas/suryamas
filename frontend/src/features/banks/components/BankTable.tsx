@@ -1,3 +1,5 @@
+import { TableSkeleton } from '@/components/ui/Skeleton'
+
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Edit2, Trash2, Search } from 'lucide-react'
@@ -94,8 +96,8 @@ export const BankTable = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {fetchLoading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
-                    Loading...
+                  <td colSpan={4}>
+                    <TableSkeleton rows={5} columns={4} />
                   </td>
                 </tr>
               ) : banks.length === 0 ? (

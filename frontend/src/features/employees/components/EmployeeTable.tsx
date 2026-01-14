@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { MoreVertical, Eye, Edit, Trash2, Building2 } from 'lucide-react'
 import type { EmployeeResponse } from '../types'
+import { TableSkeleton } from '@/components/ui/Skeleton'
 
 const SortIcon = ({ field, sortField, sortOrder }: { field: string; sortField?: string; sortOrder?: 'asc' | 'desc' }) => {
   if (sortField !== field) return <span className="text-gray-400">⇅</span>
@@ -19,6 +20,7 @@ interface EmployeeTableProps {
   selectedIds?: string[]
   onSelect?: (id: string, checked: boolean) => void
   onSelectAll?: (checked: boolean) => void
+  loading?: boolean
 }
 
 export default function EmployeeTable({
@@ -32,11 +34,16 @@ export default function EmployeeTable({
   sortOrder,
   selectedIds = [],
   onSelect,
-  onSelectAll
+  onSelectAll,
+  loading
 }: EmployeeTableProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const isSelected = (id: string) => selectedIds.includes(id)
   const isAllSelected = employees.length > 0 && employees.every(e => isSelected(e.id))
+
+  if (loading) {
+    return <TableSkeleton rows={8} columns={11} />
+  }
 
   return (
     <div className="bg-white shadow rounded-lg overflow-x-auto">

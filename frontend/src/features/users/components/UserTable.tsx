@@ -1,3 +1,5 @@
+import { TableSkeleton } from '@/components/ui/Skeleton'
+
 import type { User } from '../types'
 
 interface UserTableProps {
@@ -5,9 +7,14 @@ interface UserTableProps {
   onView: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  loading?: boolean
 }
 
-export default function UserTable({ users, onView, onEdit, onDelete }: UserTableProps) {
+export default function UserTable({ users, onView, onEdit, onDelete, loading }: UserTableProps) {
+  if (loading) {
+    return <TableSkeleton rows={6} columns={6} />
+  }
+  
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
       <table className="w-full">

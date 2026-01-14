@@ -31,6 +31,7 @@ export const ChartOfAccountTable = ({
   onSelectionChange
 }: ChartOfAccountTableProps) => {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
+  const loading = false
 
   const handleSelectAll = (checked: boolean) => {
     if (!onSelectionChange) return
@@ -44,6 +45,19 @@ export const ChartOfAccountTable = ({
     } else {
       onSelectionChange(selectedIds.filter(selectedId => selectedId !== id))
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border">
+        <div className="animate-pulse">
+          <div className="h-12 bg-gray-100 rounded-t-lg"></div>
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="h-16 bg-gray-50 border-t border-gray-100"></div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   const ActionDropdown = ({ account }: { account: ChartOfAccount }) => {

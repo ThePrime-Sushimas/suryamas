@@ -1,3 +1,5 @@
+import { TableSkeleton } from '@/components/ui/Skeleton'
+
 import type { Branch, BranchStatus } from '../types'
 
 const statusColors: Record<BranchStatus, string> = {
@@ -12,9 +14,14 @@ interface BranchTableProps {
   onDelete: (id: string) => void
   canEdit: boolean
   canDelete: boolean
+  loading?: boolean
 }
 
-export const BranchTable = ({ branches, onView, onEdit, onDelete, canEdit, canDelete }: BranchTableProps) => {
+export const BranchTable = ({ branches, onView, onEdit, onDelete, canEdit, canDelete , loading}: BranchTableProps) => {
+  if (loading) {
+    return <TableSkeleton rows={6} columns={6} />
+  }
+
   if (branches.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-12">

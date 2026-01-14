@@ -1,3 +1,5 @@
+import { TableSkeleton } from '@/components/ui/Skeleton'
+
 import { useMemo, useState } from 'react'
 import { Edit, Trash2, Pause, Star, Building2, AlertCircle } from 'lucide-react'
 import type { EmployeeBranch } from '../api/types'
@@ -8,9 +10,10 @@ interface Props {
   onDelete: (branch: EmployeeBranch) => void
   onSuspend: (branch: EmployeeBranch) => void
   onActivate: (branch: EmployeeBranch) => void
+  loading?: boolean
 }
 
-export const EmployeeBranchDetailTable = ({ branches, onEdit, onDelete, onSuspend, onActivate }: Props) => {
+export const EmployeeBranchDetailTable = ({ branches, onEdit, onDelete, onSuspend, onActivate, loading }: Props) => {
   const [confirmAction, setConfirmAction] = useState<{ type: 'delete' | 'suspend' | 'activate', branch: EmployeeBranch } | null>(null)
 
   const sortedBranches = useMemo(() => {
@@ -48,6 +51,10 @@ export const EmployeeBranchDetailTable = ({ branches, onEdit, onDelete, onSuspen
       onActivate(confirmAction.branch)
     }
     setConfirmAction(null)
+  }
+
+  if (loading) {
+    return <TableSkeleton rows={5} columns={6} />
   }
 
   if (branches.length === 0) {

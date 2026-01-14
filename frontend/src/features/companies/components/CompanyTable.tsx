@@ -1,3 +1,5 @@
+import { TableSkeleton } from '@/components/ui/Skeleton'
+
 import { useMemo } from 'react'
 import type { Company, CompanyStatus } from '../types'
 
@@ -15,6 +17,7 @@ interface CompanyTableProps {
   onDelete: (id: string) => void
   canEdit: boolean
   canDelete: boolean
+  loading?: boolean
 }
 
 export const CompanyTable = ({
@@ -23,9 +26,14 @@ export const CompanyTable = ({
   onEdit,
   onDelete,
   canEdit,
-  canDelete
+  canDelete,
+  loading
 }: CompanyTableProps) => {
   const isEmpty = useMemo(() => companies.length === 0, [companies.length])
+  
+  if (loading) {
+    return <TableSkeleton rows={6} columns={6} />
+  }
   
   if (isEmpty) {
     return (

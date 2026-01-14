@@ -1,3 +1,5 @@
+import { TableSkeleton } from '@/components/ui/Skeleton'
+
 import type { Product, ProductStatus, ProductType } from '../types'
 
 const statusColors: Record<ProductStatus, string> = {
@@ -29,6 +31,7 @@ interface ProductTableProps {
   onManageUoms: (id: string) => void
   onToggleSelect: (id: string) => void
   onToggleSelectAll: () => void
+  loading?: boolean
 }
 
 export const ProductTable = ({
@@ -42,7 +45,11 @@ export const ProductTable = ({
   onManageUoms,
   onToggleSelect,
   onToggleSelectAll
-}: ProductTableProps) => {
+, loading}: ProductTableProps) => {
+  if (loading) {
+    return <TableSkeleton rows={6} columns={6} />
+  }
+
   if (products.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-12">

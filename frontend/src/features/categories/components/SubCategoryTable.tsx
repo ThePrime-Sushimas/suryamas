@@ -1,3 +1,5 @@
+import { TableSkeleton } from '@/components/ui/Skeleton'
+
 import type { SubCategoryWithCategory } from '../types'
 
 interface SubCategoryTableProps {
@@ -11,6 +13,7 @@ interface SubCategoryTableProps {
   isAllSelected: boolean
   onSelectAll: (checked: boolean) => void
   showDeleted: boolean
+  loading?: boolean
 }
 
 export const SubCategoryTable = ({ 
@@ -24,7 +27,11 @@ export const SubCategoryTable = ({
   isAllSelected,
   onSelectAll,
   showDeleted
-}: SubCategoryTableProps) => {
+, loading}: SubCategoryTableProps) => {
+  if (loading) {
+    return <TableSkeleton rows={6} columns={6} />
+  }
+
   if (subCategories.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-12">

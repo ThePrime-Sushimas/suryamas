@@ -1,3 +1,5 @@
+import { TableSkeleton } from '@/components/ui/Skeleton'
+
 import type { Category } from '../types'
 
 interface CategoryTableProps {
@@ -11,6 +13,7 @@ interface CategoryTableProps {
   isAllSelected: boolean
   onSelectAll: (checked: boolean) => void
   showDeleted: boolean
+  loading?: boolean
 }
 
 export const CategoryTable = ({ 
@@ -24,7 +27,11 @@ export const CategoryTable = ({
   isAllSelected,
   onSelectAll,
   showDeleted
-}: CategoryTableProps) => {
+, loading}: CategoryTableProps) => {
+  if (loading) {
+    return <TableSkeleton rows={6} columns={6} />
+  }
+
   if (categories.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-12">
