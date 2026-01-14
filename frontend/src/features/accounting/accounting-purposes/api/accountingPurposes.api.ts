@@ -20,6 +20,7 @@ interface ListParams {
   order?: 'asc' | 'desc'
   applied_to?: string
   is_active?: boolean
+  show_deleted?: boolean
   q?: string
   company_id: string
 }
@@ -79,6 +80,8 @@ export const accountingPurposesApi = {
         Object.assign(params, filter)
       }
       
+      console.log('API request params:', params)
+      
       const res = await api.get<PaginatedResponse<AccountingPurpose>>('/accounting-purposes', { 
         params,
         signal
@@ -113,6 +116,24 @@ export const accountingPurposesApi = {
     return handleApiCall(async () => {
       await api.delete(`/accounting-purposes/${id}`)
     }, 'Failed to delete accounting purpose')
+  },
+
+  restore: async (id: string) => {
+    return handleApiCall(async () => {
+      await api.post(`/accounting-purposes/${id}/restore`)
+    }, 'Failed to restore accounting purpose')
+  },
+
+  bulkDelete: async (ids: string[]) => {
+    return handleApiCall(async () => {
+      await api.post('/accounting-purposes/bulk/delete', { ids })
+    }, 'Failed to bulk delete accounting purposes')
+  },
+
+  bulkRestore: async (ids: string[]) => {
+    return handleApiCall(async () => {
+      await api.post('/accounting-purposes/bulk/restore', { ids })
+    }, 'Failed to bulk restore accounting purposes')
   },
 
   search: async (q: string) => {

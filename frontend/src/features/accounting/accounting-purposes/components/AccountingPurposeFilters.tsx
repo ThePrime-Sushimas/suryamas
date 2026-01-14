@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Search, Filter, X } from 'lucide-react'
 import type { FilterParams, AppliedToType } from '../types/accounting-purpose.types'
 import { APPLIED_TO_OPTIONS } from '../constants/accounting-purpose.constants'
@@ -13,6 +13,7 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
   const [searchQuery, setSearchQuery] = useState('')
   const [appliedTo, setAppliedTo] = useState<AppliedToType | ''>('')
   const [isActive, setIsActive] = useState<boolean | ''>('')
+  const [deletedFilter, setDeletedFilter] = useState<'active' | 'deleted'>('active')
   const [showFilters, setShowFilters] = useState(false)
 
   const handleSearch = (e: React.FormEvent) => {
@@ -20,20 +21,24 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
     onSearch(searchQuery)
   }
 
-  const handleFilterChange = () => {
-    const filters: FilterParams = {}
+  // Reactive filter trigger - no race condition
+  useEffect(() => {
+    const filters: FilterParams = {
+      show_deleted: deletedFilter === 'deleted'
+    }
     if (appliedTo) filters.applied_to = appliedTo
     if (isActive !== '') filters.is_active = isActive
+    console.log('Filter changed:', { deletedFilter, show_deleted: filters.show_deleted })
     onFilter(filters)
-  }
+  }, [appliedTo, isActive, deletedFilter, onFilter])
 
   const clearFilters = () => {
     setAppliedTo('')
     setIsActive('')
-    onFilter({})
+    setDeletedFilter('active')
   }
 
-  const hasActiveFilters = appliedTo || isActive !== ''
+  const hasActiveFilters = appliedTo || isActive !== '' || deletedFilter !== 'active'
 
   return (
     <div className="space-y-4">
@@ -66,7 +71,7 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
           Filters
           {hasActiveFilters && (
             <span className="bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-              {(appliedTo ? 1 : 0) + (isActive !== '' ? 1 : 0)}
+              {(appliedTo ? 1 : 0) + (isActive !== '' ? 1 : 0) + (deletedFilter !== 'active' ? 1 : 0)}
             </span>
           )}
         </button>
@@ -81,10 +86,7 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
               </label>
               <select
                 value={appliedTo}
-                onChange={(e) => {
-                  setAppliedTo(e.target.value as AppliedToType | '')
-                  setTimeout(handleFilterChange, 0)
-                }}
+                onChange={(e) => setAppliedTo(e.target.value as AppliedToType | '')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 disabled={loading}
               >
@@ -103,16 +105,28 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
               </label>
               <select
                 value={isActive === '' ? '' : isActive.toString()}
-                onChange={(e) => {
-                  setIsActive(e.target.value === '' ? '' : e.target.value === 'true')
-                  setTimeout(handleFilterChange, 0)
-                }}
+                onChange={(e) => setIsActive(e.target.value === '' ? '' : e.target.value === 'true')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 disabled={loading}
               >
                 <option value="">All Status</option>
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Deleted Status
+              </label>
+              <select
+                value={deletedFilter}
+                onChange={(e) => setDeletedFilter(e.target.value as 'active' | 'deleted')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                disabled={loading}
+              >
+                <option value="active">Active Only</option>
+                <option value="deleted">Deleted Only</option>
               </select>
             </div>
 

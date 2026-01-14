@@ -1,23 +1,31 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { MoreVertical, Edit, Trash2, Eye, Lock } from 'lucide-react'
+import { MoreVertical, Edit, Trash2, Eye, Lock, RotateCcw } from 'lucide-react'
 import type { AccountingPurpose } from '../types/accounting-purpose.types'
 import { AppliedToBadge } from './AppliedToBadge'
 import { SystemLockBadge } from './SystemLockBadge'
 
 interface AccountingPurposeTableProps {
   purposes: AccountingPurpose[]
+  selectedIds: string[]
   onView: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onRestore: (id: string) => void
+  onToggleSelect: (id: string) => void
+  onToggleSelectAll: () => void
   loading?: boolean
 }
 
 export const AccountingPurposeTable = ({ 
   purposes, 
+  selectedIds,
   onView, 
   onEdit, 
-  onDelete, 
+  onDelete,
+  onRestore,
+  onToggleSelect,
+  onToggleSelectAll,
   loading 
 }: AccountingPurposeTableProps) => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
@@ -30,6 +38,7 @@ export const AccountingPurposeTable = ({
     if (activeDropdown !== purpose.id) return null
 
     const canModify = !purpose.is_system
+    const isDeleted = purpose.is_deleted
 
     // Get dropdown element position safely
     const getDropdownPosition = () => {
@@ -49,7 +58,7 @@ export const AccountingPurposeTable = ({
     return createPortal(
       <div className="fixed inset-0 z-50" onClick={() => setActiveDropdown(null)}>
         <div 
-          className="absolute bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[160px]"
+          className="absolute bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-40"
           style={{
             top: `${position.top}px`,
             left: `${position.left}px`
@@ -67,39 +76,54 @@ export const AccountingPurposeTable = ({
             View Details
           </button>
           
-          <button
-            onClick={() => {
-              onEdit(purpose.id)
-              setActiveDropdown(null)
-            }}
-            disabled={!canModify}
-            className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
-              canModify 
-                ? 'text-gray-700 hover:bg-gray-100' 
-                : 'text-gray-400 cursor-not-allowed'
-            }`}
-            title={!canModify ? 'System purposes cannot be edited' : ''}
-          >
-            {canModify ? <Edit size={16} /> : <Lock size={16} />}
-            Edit
-          </button>
-          
-          <button
-            onClick={() => {
-              onDelete(purpose.id)
-              setActiveDropdown(null)
-            }}
-            disabled={!canModify}
-            className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
-              canModify 
-                ? 'text-red-600 hover:bg-red-50' 
-                : 'text-gray-400 cursor-not-allowed'
-            }`}
-            title={!canModify ? 'System purposes cannot be deleted' : ''}
-          >
-            {canModify ? <Trash2 size={16} /> : <Lock size={16} />}
-            Delete
-          </button>
+          {isDeleted ? (
+            <button
+              onClick={() => {
+                onRestore(purpose.id)
+                setActiveDropdown(null)
+              }}
+              className="w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+            >
+              <RotateCcw size={16} />
+              Restore
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => {
+                  onEdit(purpose.id)
+                  setActiveDropdown(null)
+                }}
+                disabled={!canModify}
+                className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
+                  canModify 
+                    ? 'text-gray-700 hover:bg-gray-100' 
+                    : 'text-gray-400 cursor-not-allowed'
+                }`}
+                title={!canModify ? 'System purposes cannot be edited' : ''}
+              >
+                {canModify ? <Edit size={16} /> : <Lock size={16} />}
+                Edit
+              </button>
+              
+              <button
+                onClick={() => {
+                  onDelete(purpose.id)
+                  setActiveDropdown(null)
+                }}
+                disabled={!canModify}
+                className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
+                  canModify 
+                    ? 'text-red-600 hover:bg-red-50' 
+                    : 'text-gray-400 cursor-not-allowed'
+                }`}
+                title={!canModify ? 'System purposes cannot be deleted' : ''}
+              >
+                {canModify ? <Trash2 size={16} /> : <Lock size={16} />}
+                Delete
+              </button>
+            </>
+          )}
         </div>
       </div>,
       document.body
@@ -139,6 +163,14 @@ export const AccountingPurposeTable = ({
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
+              <th className="px-6 py-3 text-left">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.length === purposes.length && purposes.length > 0}
+                  onChange={onToggleSelectAll}
+                  className="rounded border-gray-300"
+                />
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Purpose
               </th>
@@ -161,7 +193,22 @@ export const AccountingPurposeTable = ({
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {purposes.map((purpose) => (
-              <tr key={purpose.id} className="hover:bg-gray-50">
+              <tr 
+                key={purpose.id} 
+                className={`hover:bg-gray-50 ${
+                  selectedIds.includes(purpose.id) ? 'bg-blue-50' : ''
+                } ${
+                  purpose.is_deleted ? 'bg-red-50' : ''
+                }`}
+              >
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(purpose.id)}
+                    onChange={() => onToggleSelect(purpose.id)}
+                    className="rounded border-gray-300"
+                  />
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div>
                     <div className="text-sm font-medium text-gray-900">
@@ -176,13 +223,20 @@ export const AccountingPurposeTable = ({
                   <AppliedToBadge appliedTo={purpose.applied_to} />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    purpose.is_active 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {purpose.is_active ? 'Active' : 'Inactive'}
-                  </span>
+                  <div className="flex flex-col gap-1">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      purpose.is_active 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {purpose.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                    {purpose.is_deleted && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        Deleted
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <SystemLockBadge isSystem={purpose.is_system} />

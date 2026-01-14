@@ -17,6 +17,9 @@ export interface AccountingPurpose {
   description?: string
   is_active: boolean
   is_system: boolean
+  is_deleted?: boolean
+  deleted_at?: string | null
+  deleted_by?: string | null
 
   created_at: string
   updated_at: string
@@ -57,5 +60,6 @@ export interface SortParams {
 export interface FilterParams {
   applied_to?: AppliedToType
   is_active?: boolean
+  show_deleted?: boolean
   q?: string
 }

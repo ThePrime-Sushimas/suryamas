@@ -72,6 +72,9 @@ router.post('/bulk/status', canUpdate('accounting-purposes'), bulkOperationLimit
 router.post('/bulk/delete', canDelete('accounting-purposes'), bulkOperationLimit, validateSchema(bulkDeleteSchema), (req, res) => 
   accountingPurposesController.bulkDelete(req as ValidatedAuthRequest<typeof bulkDeleteSchema>, res))
 
+router.post('/bulk/restore', canUpdate('accounting-purposes'), bulkOperationLimit, validateSchema(bulkDeleteSchema), (req, res) => 
+  accountingPurposesController.bulkRestore(req as ValidatedAuthRequest<typeof bulkDeleteSchema>, res))
+
 // CRUD operations
 router.post('/', canInsert('accounting-purposes'), validateSchema(createAccountingPurposeSchema), (req, res) => 
   accountingPurposesController.create(req as ValidatedAuthRequest<typeof createAccountingPurposeSchema>, res))
@@ -84,5 +87,8 @@ router.put('/:id', canUpdate('accounting-purposes'), validateSchema(updateAccoun
 
 router.delete('/:id', canDelete('accounting-purposes'), validateSchema(accountingPurposeIdSchema), (req, res) => 
   accountingPurposesController.delete(req as AuthenticatedRequest, res))
+
+router.post('/:id/restore', canUpdate('accounting-purposes'), validateSchema(accountingPurposeIdSchema), (req, res) => 
+  accountingPurposesController.restore(req as AuthenticatedRequest, res))
 
 export default router

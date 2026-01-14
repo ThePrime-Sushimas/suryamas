@@ -51,6 +51,7 @@ export const updateAccountingPurposeSchema = z.object({
     }).optional(),
     description: descriptionSchema,
     is_active: z.boolean().optional(),
+    branch_id: uuidSchema.optional().nullable(),
   }).strict(),
 })
 

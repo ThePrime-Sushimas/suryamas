@@ -79,6 +79,10 @@ export class AccountingPurposesService {
       validatedFilter.is_active = filter.is_active
     }
     
+    if (filter.show_deleted !== undefined && typeof filter.show_deleted === 'boolean') {
+      validatedFilter.show_deleted = filter.show_deleted
+    }
+    
     if (filter.q && typeof filter.q === 'string' && filter.q.trim().length > 0) {
       // Sanitize search query to prevent injection
       const sanitized = filter.q.trim().replace(/[%_\\]/g, '\\$&')
@@ -632,6 +636,93 @@ export class AccountingPurposesService {
       })
     } catch (error) {
       logError('Service bulkDelete failed', { 
+        correlation_id: correlationId,
+        count: ids.length,
+        company_id: companyId,
+        user_id: userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
+    }
+  }
+
+  async restore(id: string, userId: string, companyId: string, correlationId?: string): Promise<void> {
+    try {
+      this.validateCompanyAccess(companyId)
+      
+      if (!id?.trim() || !userId?.trim()) {
+        throw AccountingPurposeErrors.VALIDATION_ERROR('required_fields', 'Purpose ID and User ID are required')
+      }
+      
+      logInfo('Service restore started', { 
+        correlation_id: correlationId,
+        purpose_id: id, 
+        user_id: userId,
+        company_id: companyId
+      })
+      
+      await this.repository.restore(id.trim(), companyId)
+      
+      try {
+        await this.auditService.log('RESTORE', 'accounting_purpose', id, userId, null, null)
+      } catch (auditError) {
+        logWarn('Audit logging failed for restore operation', {
+          correlation_id: correlationId,
+          purpose_id: id,
+          error: auditError instanceof Error ? auditError.message : 'Unknown audit error'
+        })
+      }
+      
+      logInfo('Service restore completed', { 
+        correlation_id: correlationId,
+        purpose_id: id
+      })
+    } catch (error) {
+      logError('Service restore failed', { 
+        correlation_id: correlationId,
+        purpose_id: id,
+        company_id: companyId,
+        user_id: userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
+    }
+  }
+
+  async bulkRestore(ids: string[], userId: string, companyId: string, correlationId?: string): Promise<void> {
+    try {
+      this.validateCompanyAccess(companyId)
+      this.validateUUIDs(ids)
+      
+      if (!userId?.trim()) {
+        throw AccountingPurposeErrors.VALIDATION_ERROR('userId', 'User ID is required')
+      }
+      
+      logInfo('Service bulkRestore started', { 
+        correlation_id: correlationId,
+        count: ids.length, 
+        user_id: userId,
+        company_id: companyId
+      })
+      
+      await this.repository.bulkRestore(companyId, ids.map(id => id.trim()))
+      
+      try {
+        await this.auditService.log('BULK_RESTORE', 'accounting_purpose', ids.join(','), userId, null, null)
+      } catch (auditError) {
+        logWarn('Audit logging failed for bulk restore operation', {
+          correlation_id: correlationId,
+          ids_count: ids.length,
+          error: auditError instanceof Error ? auditError.message : 'Unknown audit error'
+        })
+      }
+      
+      logInfo('Service bulkRestore completed', { 
+        correlation_id: correlationId,
+        restored_count: ids.length
+      })
+    } catch (error) {
+      logError('Service bulkRestore failed', { 
         correlation_id: correlationId,
         count: ids.length,
         company_id: companyId,

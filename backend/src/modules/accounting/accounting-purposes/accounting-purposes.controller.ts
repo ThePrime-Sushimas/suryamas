@@ -373,6 +373,54 @@ export class AccountingPurposesController {
       handleError(res, error)
     }
   }
+
+  async restore(req: AuthenticatedRequest, res: Response) {
+    const correlationId = this.generateCorrelationId()
+    const startTime = Date.now()
+    
+    try {
+      const companyId = this.getCompanyId(req)
+      this.validateCompanyAccess(req.user!.id, companyId)
+      
+      if (!req.user?.id) {
+        throw AccountingPurposeErrors.VALIDATION_ERROR('user', 'User authentication required')
+      }
+      
+      this.logRequest('RESTORE', correlationId, req.user.id, { 
+        purpose_id: req.params.id,
+        company_id: companyId
+      })
+      
+      await accountingPurposesService.restore(req.params.id, req.user.id, companyId, correlationId)
+      
+      this.logResponse('RESTORE', correlationId, true, Date.now() - startTime)
+      sendSuccess(res, null, 'Accounting purpose restored')
+    } catch (error) {
+      this.logResponse('RESTORE', correlationId, false, Date.now() - startTime)
+      handleError(res, error)
+    }
+  }
+
+  async bulkRestore(req: ValidatedAuthRequest<typeof bulkDeleteSchema>, res: Response) {
+    const correlationId = this.generateCorrelationId()
+    
+    try {
+      const companyId = this.getCompanyId(req as any)
+      this.validateCompanyAccess(req.user!.id, companyId)
+      
+      const { ids } = req.validated.body
+      
+      this.logRequest('BULK_RESTORE', correlationId, req.user!.id, { 
+        count: ids.length,
+        company_id: companyId
+      })
+      
+      await accountingPurposesService.bulkRestore(ids, req.user!.id, companyId, correlationId)
+      sendSuccess(res, null, 'Bulk restore completed')
+    } catch (error) {
+      handleError(res, error)
+    }
+  }
 }
 
 export const accountingPurposesController = new AccountingPurposesController()

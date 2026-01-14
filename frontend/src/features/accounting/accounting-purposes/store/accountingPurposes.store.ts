@@ -5,6 +5,7 @@ import type { AccountingPurpose, CreateAccountingPurposeDto, UpdateAccountingPur
 interface AccountingPurposesState {
   purposes: AccountingPurpose[]
   selectedPurpose: AccountingPurpose | null
+  selectedIds: string[]
   loading: boolean
   error: string | null
   pagination: PaginationParams
@@ -19,6 +20,12 @@ interface AccountingPurposesState {
   createPurpose: (data: CreateAccountingPurposeDto) => Promise<AccountingPurpose>
   updatePurpose: (id: string, data: UpdateAccountingPurposeDto) => Promise<AccountingPurpose>
   deletePurpose: (id: string) => Promise<void>
+  restorePurpose: (id: string) => Promise<void>
+  bulkDelete: (ids: string[]) => Promise<void>
+  bulkRestore: (ids: string[]) => Promise<void>
+  toggleSelect: (id: string) => void
+  toggleSelectAll: () => void
+  clearSelection: () => void
   setPage: (page: number) => void
   setSort: (sort: SortParams | null) => void
   setFilter: (filter: FilterParams | null) => void
@@ -29,6 +36,7 @@ interface AccountingPurposesState {
 const initialState = {
   purposes: [],
   selectedPurpose: null,
+  selectedIds: [],
   loading: false,
   error: null,
   pagination: { page: 1, limit: 25, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
@@ -123,16 +131,68 @@ export const useAccountingPurposesStore = create<AccountingPurposesState>((set, 
     set({ loading: true, error: null })
     try {
       await accountingPurposesApi.delete(id)
-      set(state => ({
-        purposes: state.purposes.filter(p => p.id !== id),
-        pagination: { ...state.pagination, total: state.pagination.total - 1 },
-        loading: false
-      }))
+      await get().fetchPurposes()
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to delete accounting purpose'
       set({ error: message, loading: false })
       throw error
     }
+  },
+
+  restorePurpose: async (id) => {
+    set({ loading: true, error: null })
+    try {
+      await accountingPurposesApi.restore(id)
+      await get().fetchPurposes()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to restore accounting purpose'
+      set({ error: message, loading: false })
+      throw error
+    }
+  },
+
+  bulkDelete: async (ids) => {
+    set({ loading: true, error: null })
+    try {
+      await accountingPurposesApi.bulkDelete(ids)
+      set({ selectedIds: [] })
+      await get().fetchPurposes()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to bulk delete accounting purposes'
+      set({ error: message, loading: false })
+      throw error
+    }
+  },
+
+  bulkRestore: async (ids) => {
+    set({ loading: true, error: null })
+    try {
+      await accountingPurposesApi.bulkRestore(ids)
+      set({ selectedIds: [] })
+      await get().fetchPurposes()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to bulk restore accounting purposes'
+      set({ error: message, loading: false })
+      throw error
+    }
+  },
+
+  toggleSelect: (id) => {
+    set(state => ({
+      selectedIds: state.selectedIds.includes(id)
+        ? state.selectedIds.filter(selectedId => selectedId !== id)
+        : [...state.selectedIds, id]
+    }))
+  },
+
+  toggleSelectAll: () => {
+    set(state => ({
+      selectedIds: state.selectedIds.length === state.purposes.length ? [] : state.purposes.map(p => p.id)
+    }))
+  },
+
+  clearSelection: () => {
+    set({ selectedIds: [] })
   },
 
   setPage: (page) => {
@@ -145,11 +205,8 @@ export const useAccountingPurposesStore = create<AccountingPurposesState>((set, 
 
   setFilter: (filter) => {
     const state = get()
-    set({ filter, pagination: { ...state.pagination, page: 1 } })
-    // Auto-fetch with new filter if we have data loaded
-    if (state.lastFetchedAt) {
-      state.fetchPurposes(1, state.pagination.limit)
-    }
+    set({ filter, pagination: { ...state.pagination, page: 1 }, selectedIds: [] })
+    state.fetchPurposes(1, state.pagination.limit)
   },
 
   clearError: () => set({ error: null }),

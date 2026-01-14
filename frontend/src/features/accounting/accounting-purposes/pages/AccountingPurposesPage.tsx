@@ -13,7 +13,7 @@ export const AccountingPurposesPage = () => {
   const [currentView, setCurrentView] = useState<PageView>('list')
   const [selectedPurposeId, setSelectedPurposeId] = useState<string | null>(null)
   const [selectedPurpose, setSelectedPurpose] = useState<AccountingPurpose | null>(null)
-  const { deletePurpose, fetchPurposeById } = useAccountingPurposesStore()
+  const { deletePurpose, restorePurpose, fetchPurposeById } = useAccountingPurposesStore()
   
   if (!currentBranch?.company_id) {
     return (
@@ -57,6 +57,17 @@ export const AccountingPurposesPage = () => {
         setCurrentView('list')
       } catch (error) {
         console.error('Failed to delete purpose:', error)
+      }
+    }
+  }
+
+  const handleRestore = async (id: string) => {
+    if (window.confirm('Are you sure you want to restore this accounting purpose?')) {
+      try {
+        await restorePurpose(id)
+        setCurrentView('list')
+      } catch (error) {
+        console.error('Failed to restore purpose:', error)
       }
     }
   }
@@ -115,6 +126,7 @@ export const AccountingPurposesPage = () => {
           onView={handleView}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onRestore={handleRestore}
         />
       )
   }

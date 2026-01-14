@@ -157,6 +157,18 @@ export class AccountingPurposesRepository {
         query = query.eq('is_active', filter.is_active)
         countQuery = countQuery.eq('is_active', filter.is_active)
       }
+      
+      // Handle deleted filter
+      if (filter?.show_deleted === true) {
+        query = query.eq('is_deleted', true)
+        countQuery = countQuery.eq('is_deleted', true)
+        logInfo('Filtering for deleted items', { show_deleted: true })
+      } else {
+        query = query.not('is_deleted', 'eq', true)
+        countQuery = countQuery.not('is_deleted', 'eq', true)
+        logInfo('Filtering for non-deleted items', { show_deleted: false })
+      }
+      
       if (filter?.q) {
         const searchPattern = `%${filter.q}%`
         const searchCondition = `purpose_name.ilike.${searchPattern},purpose_code.ilike.${searchPattern}`
@@ -472,7 +484,11 @@ export class AccountingPurposesRepository {
     try {
       const { error } = await supabase
         .from('accounting_purposes')
-        .delete()
+        .update({
+          is_deleted: true,
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
         .eq('id', id)
         .eq('company_id', companyId)
         .eq('is_system', false)
@@ -563,7 +579,11 @@ export class AccountingPurposesRepository {
     try {
       const { error } = await supabase
         .from('accounting_purposes')
-        .delete()
+        .update({
+          is_deleted: true,
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
         .eq('company_id', companyId)
         .eq('is_system', false)
         .in('id', ids)
@@ -588,6 +608,87 @@ export class AccountingPurposesRepository {
         throw error
       }
       throw AccountingPurposeErrors.REPOSITORY_ERROR('bulkDelete', error as Error)
+    }
+  }
+
+  async restore(id: string, companyId: string): Promise<void> {
+    if (!id?.trim() || !companyId?.trim()) {
+      throw AccountingPurposeErrors.VALIDATION_ERROR('required_fields', 'ID and Company ID are required')
+    }
+
+    try {
+      const { error } = await supabase
+        .from('accounting_purposes')
+        .update({
+          is_deleted: false,
+          deleted_at: null,
+          deleted_by: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .eq('company_id', companyId)
+        .eq('is_deleted', true)
+
+      if (error) {
+        logError('Repository restore error', { 
+          error: error.message, 
+          id, 
+          company_id: companyId 
+        })
+        throw AccountingPurposeErrors.REPOSITORY_ERROR('restore', error)
+      }
+      
+      this.invalidateCache('list:')
+      this.invalidateCache('code:')
+      this.invalidateCache('detail:')
+      this.invalidateCache('filter-options:')
+      logInfo('Repository restore success', { purpose_id: id, company_id: companyId })
+    } catch (error) {
+      if (error instanceof AccountingPurposeError) {
+        throw error
+      }
+      throw AccountingPurposeErrors.REPOSITORY_ERROR('restore', error as Error)
+    }
+  }
+
+  async bulkRestore(companyId: string, ids: string[]): Promise<void> {
+    if (!companyId?.trim() || !Array.isArray(ids) || ids.length === 0) {
+      throw AccountingPurposeErrors.VALIDATION_ERROR('required_fields', 'Company ID and IDs array are required')
+    }
+
+    try {
+      const { error } = await supabase
+        .from('accounting_purposes')
+        .update({
+          is_deleted: false,
+          deleted_at: null,
+          deleted_by: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('company_id', companyId)
+        .eq('is_deleted', true)
+        .in('id', ids)
+
+      if (error) {
+        logError('Repository bulkRestore error', { 
+          error: error.message, 
+          company_id: companyId,
+          ids_count: ids.length
+        })
+        throw AccountingPurposeErrors.REPOSITORY_ERROR('bulkRestore', error)
+      }
+      
+      this.invalidateCache('list:')
+      this.invalidateCache('code:')
+      logInfo('Repository bulkRestore success', { 
+        company_id: companyId, 
+        restored_count: ids.length 
+      })
+    } catch (error) {
+      if (error instanceof AccountingPurposeError) {
+        throw error
+      }
+      throw AccountingPurposeErrors.REPOSITORY_ERROR('bulkRestore', error as Error)
     }
   }
 
