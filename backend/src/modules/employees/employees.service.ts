@@ -31,7 +31,7 @@ export class EmployeesService {
     await AuditService.log('CREATE', 'employee', employee.id, userId || null, null, employee)
 
     const fullEmployee = await employeesRepository.findById(employee.id)
-    if (!fullEmployee) throw new Error('Failed to retrieve created employee')
+    if (!fullEmployee) throw new Error('Unable to retrieve employee data')
     
     return this.enrichWithComputed([fullEmployee])[0]
   }
@@ -57,11 +57,11 @@ export class EmployeesService {
 
   async updateProfile(userId: string, payload: EmployeeProfileUpdatePayload): Promise<EmployeeResponse> {
     const cleanedUpdates = this.cleanEmptyStrings(payload)
-    if (Object.keys(cleanedUpdates).length === 0) throw new Error('No valid fields to update')
+    if (Object.keys(cleanedUpdates).length === 0) throw new Error('No changes to update')
 
     const employee = await employeesRepository.update(userId, cleanedUpdates)
     const fullEmployee = await employeesRepository.findByUserId(userId)
-    if (!fullEmployee) throw new Error('Failed to retrieve updated profile')
+    if (!fullEmployee) throw new Error('Unable to retrieve updated profile')
     
     return this.enrichWithComputed([fullEmployee])[0]
   }
@@ -86,7 +86,7 @@ export class EmployeesService {
       cleanedUpdates.profile_picture = profilePictureUrl
     }
     
-    if (Object.keys(cleanedUpdates).length === 0) throw new Error('No valid fields to update')
+    if (Object.keys(cleanedUpdates).length === 0) throw new Error('No changes to update')
 
     const oldEmployee = await employeesRepository.findById(id)
     const employee = await employeesRepository.updateById(id, cleanedUpdates)
@@ -94,7 +94,7 @@ export class EmployeesService {
     await AuditService.log('UPDATE', 'employee', id, userId || null, oldEmployee, employee)
 
     const fullEmployee = await employeesRepository.findById(id)
-    if (!fullEmployee) throw new Error('Failed to retrieve updated employee')
+    if (!fullEmployee) throw new Error('Unable to retrieve updated employee')
     
     return this.enrichWithComputed([fullEmployee])[0]
   }
@@ -116,17 +116,17 @@ export class EmployeesService {
   }
 
   async bulkUpdateActive(ids: string[], isActive: boolean): Promise<void> {
-    if (ids.length === 0) throw new Error('No IDs provided')
+    if (ids.length === 0) throw new Error('Please select at least one employee')
     await employeesRepository.bulkUpdateActive(ids, isActive)
   }
 
   async bulkDelete(ids: string[]): Promise<void> {
-    if (ids.length === 0) throw new Error('No IDs provided')
+    if (ids.length === 0) throw new Error('Please select at least one employee')
     await employeesRepository.bulkDelete(ids)
   }
 
   async bulkRestore(ids: string[]): Promise<void> {
-    if (ids.length === 0) throw new Error('No IDs provided')
+    if (ids.length === 0) throw new Error('Please select at least one employee')
     await employeesRepository.bulkRestore(ids)
   }
 

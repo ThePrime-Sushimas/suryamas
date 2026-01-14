@@ -153,7 +153,7 @@ export class CategoriesService {
 
   async bulkDelete(ids: string[], userId?: string): Promise<void> {
     if (!ids || ids.length === 0) {
-      throw new Error('No IDs provided for bulk delete')
+      throw new Error('Please select at least one category')
     }
 
     try {

@@ -128,7 +128,7 @@ export class UsersService {
 
   async removeRoleByEmployeeId(employeeId: string, changedBy?: string) {
     const { data: employee } = await supabase.from('employees').select('user_id').eq('employee_id', employeeId).single()
-    if (!employee?.user_id) throw new Error('Employee has no user account')
+    if (!employee?.user_id) throw new Error('This employee does not have a user account')
     return this.removeRole(employee.user_id, changedBy)
   }
 }
