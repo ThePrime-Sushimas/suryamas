@@ -324,6 +324,39 @@ export class AccountingPurposeAccountsService {
     // For now, we'll be permissive and not throw errors for balance side mismatches
     // as there are legitimate business cases for contra accounts
   }
+
+  async listDeleted(
+    companyId: string,
+    pagination: { page: number; limit: number; offset: number },
+    sort?: { field: string; order: 'asc' | 'desc' },
+    filter?: any
+  ): Promise<PaginatedResponse<AccountingPurposeAccountWithDetails>> {
+    const { data, total } = await this.repository.findDeleted(companyId, pagination, sort, filter)
+    return createPaginatedResponse(data, total, pagination.page, pagination.limit)
+  }
+
+  async restore(id: string, userId: string, companyId?: string): Promise<void> {
+    logInfo('Restoring purpose account mapping', { id, user: userId })
+    
+    return await this.repository.withTransaction(async (trx) => {
+      const purposeAccount = await this.repository.findById(id, trx)
+      if (!purposeAccount) {
+        throw AccountingPurposeAccountErrors.NOT_FOUND(id)
+      }
+
+      if (companyId && purposeAccount.company_id !== companyId) {
+        throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
+      }
+
+      if (!purposeAccount.deleted_at) {
+        throw new Error('Record is not deleted')
+      }
+
+      await this.repository.restore(id, userId, trx)
+      await AuditService.log('RESTORE', 'accounting_purpose_account', id, userId, purposeAccount, null)
+      logInfo('Purpose account mapping restored successfully', { id })
+    })
+  }
 }
 
 export const accountingPurposeAccountsService = new AccountingPurposeAccountsService()

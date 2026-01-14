@@ -33,6 +33,11 @@ router.get('/', canView('accounting-purpose-accounts'), queryMiddleware({
 }), (req, res) => 
   accountingPurposeAccountsController.list(req as AuthenticatedQueryRequest, res))
 
+router.get('/deleted', canView('accounting-purpose-accounts'), queryMiddleware({
+  allowedSortFields: ['deleted_at', 'priority', 'side', 'created_at'],
+}), (req, res) => 
+  accountingPurposeAccountsController.listDeleted(req as AuthenticatedQueryRequest, res))
+
 // Export routes with rate limiting
 router.get('/export/token', canView('accounting-purpose-accounts'), exportLimiter, (req, res) => 
   accountingPurposeAccountsController.generateExportToken(req as AuthenticatedRequest, res))
@@ -62,5 +67,8 @@ router.put('/:id', canUpdate('accounting-purpose-accounts'), validateSchema(upda
 
 router.delete('/:id', canDelete('accounting-purpose-accounts'), validateSchema(accountingPurposeAccountIdSchema), (req, res) => 
   accountingPurposeAccountsController.delete(req as AuthenticatedRequest, res))
+
+router.post('/:id/restore', canUpdate('accounting-purpose-accounts'), validateSchema(accountingPurposeAccountIdSchema), (req, res) => 
+  accountingPurposeAccountsController.restore(req as AuthenticatedRequest, res))
 
 export default router

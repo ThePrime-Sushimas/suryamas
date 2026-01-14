@@ -340,6 +340,88 @@ export class AccountingPurposeAccountsRepository {
       normal_balance: item.chart_of_accounts?.normal_balance,
     }))
   }
+
+  async findDeleted(
+    companyId: string,
+    pagination: { limit: number; offset: number },
+    sort?: { field: string; order: 'asc' | 'desc' },
+    filter?: any,
+    trx?: TransactionContext
+  ): Promise<{ data: AccountingPurposeAccountWithDetails[]; total: number }> {
+    const client = trx?.client || supabase
+    
+    let query = client
+      .from('accounting_purpose_accounts')
+      .select(`
+        *,
+        accounting_purposes!inner(purpose_name, purpose_code),
+        chart_of_accounts!inner(account_code, account_name, account_type, normal_balance)
+      `)
+      .eq('company_id', companyId)
+      .not('deleted_at', 'is', null)
+    
+    let countQuery = client
+      .from('accounting_purpose_accounts')
+      .select('*', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .not('deleted_at', 'is', null)
+    
+    if (filter) {
+      if (filter.purpose_id) {
+        query = query.eq('purpose_id', filter.purpose_id)
+        countQuery = countQuery.eq('purpose_id', filter.purpose_id)
+      }
+      if (filter.side) {
+        query = query.eq('side', filter.side)
+        countQuery = countQuery.eq('side', filter.side)
+      }
+    }
+    
+    if (sort) {
+      const validFields = ['deleted_at', 'priority', 'side', 'created_at']
+      if (validFields.includes(sort.field)) {
+        query = query.order(sort.field, { ascending: sort.order === 'asc' })
+      }
+    } else {
+      query = query.order('deleted_at', { ascending: false })
+    }
+    
+    const [{ data, error }, { count, error: countError }] = await Promise.all([
+      query.range(pagination.offset, pagination.offset + pagination.limit - 1),
+      countQuery
+    ])
+
+    if (error) throw new Error(error.message)
+    if (countError) throw new Error(countError.message)
+    
+    const mappedData = (data || []).map((item: any) => ({
+      ...item,
+      purpose_name: item.accounting_purposes?.purpose_name,
+      purpose_code: item.accounting_purposes?.purpose_code,
+      account_code: item.chart_of_accounts?.account_code,
+      account_name: item.chart_of_accounts?.account_name,
+      account_type: item.chart_of_accounts?.account_type,
+      normal_balance: item.chart_of_accounts?.normal_balance,
+    }))
+    
+    return { data: mappedData, total: count || 0 }
+  }
+
+  async restore(id: string, userId: string, trx?: TransactionContext): Promise<void> {
+    const client = trx?.client || supabase
+    const { error } = await client
+      .from('accounting_purpose_accounts')
+      .update({ 
+        deleted_at: null,
+        deleted_by: null,
+        updated_by: userId,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+
+    if (error) throw new Error(error.message)
+    this.invalidateCache()
+  }
 }
 
 export const accountingPurposeAccountsRepository = new AccountingPurposeAccountsRepository()

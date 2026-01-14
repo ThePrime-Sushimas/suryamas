@@ -90,5 +90,22 @@ export const accountingPurposeAccountsApi = {
   getActivePurposes: async (limit: number = 1000) => {
     const res = await api.get<PaginatedResponse<AccountingPurpose>>(`/accounting-purposes?is_active=true&limit=${limit}`)
     return res.data.data
+  },
+
+  listDeleted: async (page: number, limit: number, sort?: { field: string; order: string }, filter?: AccountingPurposeAccountFilter) => {
+    const params = new URLSearchParams()
+    params.append('page', String(page))
+    params.append('limit', String(limit))
+    if (sort?.field && sort?.order) {
+      params.append('sort', sort.field)
+      params.append('order', sort.order)
+    }
+    appendFilterParams(params, filter)
+    const res = await api.get<PaginatedResponse<AccountingPurposeAccountWithDetails>>(`/accounting-purpose-accounts/deleted?${params}`)
+    return res.data
+  },
+
+  restore: async (id: string) => {
+    await api.post(`/accounting-purpose-accounts/${id}/restore`)
   }
 }

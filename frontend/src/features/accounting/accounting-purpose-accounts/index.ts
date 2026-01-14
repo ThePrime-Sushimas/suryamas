@@ -1,5 +1,6 @@
 export { AccountingPurposeAccountsPage } from './pages/AccountingPurposeAccountsPage'
 export { AccountingPurposeAccountsListPage } from './pages/AccountingPurposeAccountsListPage'
+export { AccountingPurposeAccountsDeletedPage } from './pages/AccountingPurposeAccountsDeletedPage'
 export { AccountingPurposeAccountFormPage } from './pages/AccountingPurposeAccountFormPage'
 export { AccountingPurposeAccountForm } from './components/AccountingPurposeAccountForm'
 export { AccountingPurposeAccountTable } from './components/AccountingPurposeAccountTable'

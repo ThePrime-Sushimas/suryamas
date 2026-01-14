@@ -13,6 +13,8 @@ export interface AccountingPurposeAccount {
   updated_at: string
   created_by: string
   updated_by: string | null
+  deleted_at?: string | null
+  deleted_by?: string | null
 }
 
 export interface AccountingPurposeAccountWithDetails extends AccountingPurposeAccount {

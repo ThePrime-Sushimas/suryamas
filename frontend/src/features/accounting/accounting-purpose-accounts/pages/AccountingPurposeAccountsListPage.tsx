@@ -111,6 +111,12 @@ export const AccountingPurposeAccountsListPage = () => {
           </div>
 
           <div className="flex gap-2 mt-4 sm:mt-0">
+            <button
+              onClick={() => navigate('/accounting-purpose-accounts/deleted')}
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              Show Deleted
+            </button>
             <ExportButton
               endpoint="/accounting-purpose-accounts"
               filename="accounting-purpose-accounts"

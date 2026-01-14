@@ -308,6 +308,59 @@ export class AccountingPurposeAccountsController {
       handleError(res, error)
     }
   }
+
+  async listDeleted(req: AuthenticatedQueryRequest, res: Response) {
+    const correlationId = this.generateCorrelationId()
+    const startTime = Date.now()
+    
+    try {
+      const companyId = this.getCompanyId(req)
+      await this.validateCompanyAccess(req.user!.id, companyId)
+      this.logRequest('LIST_DELETED', correlationId, req.user?.id, { company_id: companyId })
+      
+      const { offset } = getPaginationParams(req.query)
+      
+      const result = await accountingPurposeAccountsService.listDeleted(
+        companyId,
+        { ...req.pagination, offset }, 
+        req.sort, 
+        req.filterParams
+      )
+      
+      this.logResponse('LIST_DELETED', correlationId, true, Date.now() - startTime)
+      sendSuccess(res, result.data, 'Deleted purpose account mappings retrieved', 200, result.pagination)
+    } catch (error) {
+      this.logResponse('LIST_DELETED', correlationId, false, Date.now() - startTime)
+      handleError(res, error)
+    }
+  }
+
+  async restore(req: AuthenticatedRequest, res: Response) {
+    const correlationId = this.generateCorrelationId()
+    const startTime = Date.now()
+    
+    try {
+      const companyId = this.getCompanyId(req)
+      await this.validateCompanyAccess(req.user!.id, companyId)
+      this.logRequest('RESTORE', correlationId, req.user.id, { 
+        id: req.params.id,
+        company_id: companyId
+      })
+      
+      await accountingPurposeAccountsService.restore(req.params.id, req.user.id, companyId)
+      
+      this.logResponse('RESTORE', correlationId, true, Date.now() - startTime)
+      logInfo('Purpose account mapping restored', {
+        correlation_id: correlationId,
+        id: req.params.id,
+        user: req.user.id
+      })
+      sendSuccess(res, null, 'Purpose account mapping restored')
+    } catch (error) {
+      this.logResponse('RESTORE', correlationId, false, Date.now() - startTime)
+      handleError(res, error)
+    }
+  }
 }
 
 export const accountingPurposeAccountsController = new AccountingPurposeAccountsController()

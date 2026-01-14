@@ -40,19 +40,23 @@ interface Pagination {
 
 interface AccountingPurposeAccountsState {
   accounts: AccountingPurposeAccountWithDetails[]
+  deletedAccounts: AccountingPurposeAccountWithDetails[]
   selectedAccount: AccountingPurposeAccountWithDetails | null
   postableAccounts: ChartOfAccount[]
   activePurposes: AccountingPurpose[]
   loading: LoadingState
   error: ErrorState | null
   pagination: Pagination
+  deletedPagination: Pagination
   listParams: ListParams
   
   fetchAccounts: (page: number, limit: number, sort?: { field: string; order: string }, filter?: AccountingPurposeAccountFilter) => Promise<void>
+  fetchDeletedAccounts: (page: number, limit: number, sort?: { field: string; order: string }, filter?: AccountingPurposeAccountFilter) => Promise<void>
   getAccountById: (id: string) => Promise<AccountingPurposeAccountWithDetails>
   createAccount: (data: CreateAccountingPurposeAccountDto) => Promise<AccountingPurposeAccountWithDetails>
   updateAccount: (id: string, data: UpdateAccountingPurposeAccountDto) => Promise<AccountingPurposeAccountWithDetails>
   deleteAccount: (id: string) => Promise<void>
+  restoreAccount: (id: string) => Promise<void>
   bulkCreate: (data: BulkCreateAccountingPurposeAccountDto) => Promise<AccountingPurposeAccountWithDetails[]>
   bulkRemove: (data: BulkRemoveAccountingPurposeAccountDto) => Promise<void>
   bulkUpdateStatus: (ids: string[], is_active: boolean) => Promise<void>
@@ -67,12 +71,14 @@ interface AccountingPurposeAccountsState {
 
 const initialState = {
   accounts: [],
+  deletedAccounts: [],
   selectedAccount: null,
   postableAccounts: [],
   activePurposes: [],
   loading: { list: false, detail: false, submit: false, bulk: false, export: false },
   error: null,
   pagination: { page: 1, limit: 25, total: 0, totalPages: 0 },
+  deletedPagination: { page: 1, limit: 25, total: 0, totalPages: 0 },
   listParams: { page: 1, limit: 25 }
 }
 
@@ -175,6 +181,42 @@ export const useAccountingPurposeAccountsStore = create<AccountingPurposeAccount
       await get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to delete account'
+      set(state => ({ 
+        loading: { ...state.loading, submit: false },
+        error: { scope: 'submit', message }
+      }))
+      throw error
+    }
+  },
+
+  fetchDeletedAccounts: async (page, limit, sort, filter) => {
+    set(state => ({ loading: { ...state.loading, list: true }, error: null }))
+    try {
+      const res = await accountingPurposeAccountsApi.listDeleted(page, limit, sort, filter)
+      set(state => ({ 
+        deletedAccounts: res.data, 
+        loading: { ...state.loading, list: false },
+        deletedPagination: {
+          ...res.pagination,
+          totalPages: calculateTotalPages(res.pagination.total, res.pagination.limit)
+        }
+      }))
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch deleted accounts'
+      set(state => ({ 
+        loading: { ...state.loading, list: false },
+        error: { scope: 'list', message }
+      }))
+    }
+  },
+
+  restoreAccount: async (id) => {
+    set(state => ({ loading: { ...state.loading, submit: true }, error: null }))
+    try {
+      await accountingPurposeAccountsApi.restore(id)
+      set(state => ({ loading: { ...state.loading, submit: false } }))
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to restore account'
       set(state => ({ 
         loading: { ...state.loading, submit: false },
         error: { scope: 'submit', message }
