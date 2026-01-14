@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useToast } from '@/contexts/ToastContext'
 import type { ProductUom, CreateProductUomDto, UpdateProductUomDto, UomStatus } from '../types'
 import { metricUnitsApi } from '@/features/metric_units/api/metricUnits.api'
 
@@ -16,6 +17,7 @@ interface ProductUomFormProps {
 }
 
 export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loading }: ProductUomFormProps) {
+  const toast = useToast()
   const [formData, setFormData] = useState({
     metric_unit_id: uom?.metric_unit_id || '',
     conversion_factor: uom?.conversion_factor || 1,
@@ -45,7 +47,7 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
         const response = await metricUnitsApi.listActive(1, 100)
         setMetricUnits(response.data)
       } catch (error) {
-        console.error('Failed to fetch metric units:', error)
+        toast.error('Failed to fetch metric units')
       } finally {
         setIsLoadingUnits(false)
       }

@@ -1,6 +1,7 @@
 // Supplier Product Form - Create/Edit form component
 
 import { useState, useEffect } from 'react'
+import { useToast } from '@/contexts/ToastContext'
 import { supplierProductsApi } from '../api/supplierProducts.api'
 import { useSupplierSearch } from '../hooks/useSupplierSearch'
 import { useProductSearch } from '../hooks/useProductSearch'
@@ -24,6 +25,7 @@ export function SupplierProductForm({
   isEdit,
   loading
 }: SupplierProductFormProps) {
+  const toast = useToast()
   const supplierSearch = useSupplierSearch()
   const productSearch = useProductSearch()
   const [submitting, setSubmitting] = useState(false)
@@ -55,6 +57,7 @@ export function SupplierProductForm({
         setPreferredCount(count)
       } catch (err) {
         if (err instanceof Error && err.name !== 'AbortError' && err.name !== 'CanceledError') {
+          toast.error('Failed to check preferred suppliers')
           setPreferredCount(0)
         }
       }

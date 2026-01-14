@@ -31,11 +31,11 @@ export class BankAccountsService {
     // Check if owner is deleted/inactive
     if (ownerType === 'company') {
       if ((data as any).status === 'closed') {
-        throw new Error('Company is closed and cannot have bank accounts')
+        throw new Error('This company is closed and cannot have bank accounts')
       }
     } else {
       if ((data as any).deleted_at) {
-        throw new Error(`${ownerType} has been deleted and cannot have bank accounts`)
+        throw new Error('This supplier has been deleted and cannot have bank accounts')
       }
     }
   }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useToast } from '@/contexts/ToastContext'
 import type { Product, ProductStatus, ProductType, CreateProductDto, UpdateProductDto } from '../types'
 import api from '@/lib/axios'
 import { CardSkeleton } from '@/components/ui/Skeleton'
@@ -23,6 +24,7 @@ interface SubCategory {
 }
 
 export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading }: ProductFormProps) => {
+  const toast = useToast()
   const [formData, setFormData] = useState({
     product_code: initialData?.product_code || '',
     product_name: initialData?.product_name || '',
@@ -53,7 +55,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
         setCategories(catRes.data.data || [])
         setSubCategories(subCatRes.data.data || [])
       } catch (error) {
-        console.error('Failed to load categories', error)
+        toast.error('Failed to load categories')
       } finally {
         setLoadingCategories(false)
       }

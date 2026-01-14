@@ -61,15 +61,15 @@ export class SubCategoriesService {
 
   async create(dto: CreateSubCategoryDto, userId?: string): Promise<SubCategory> {
     if (!dto.category_id || !dto.sub_category_code || !dto.sub_category_name) {
-      throw new Error('category_id, sub_category_code, and sub_category_name are required')
+      throw new Error('Category, code, and name are required')
     }
 
     if (dto.sub_category_code.length > 50) {
-      throw new Error('sub_category_code must not exceed 50 characters')
+      throw new Error('Sub-category code cannot exceed 50 characters')
     }
 
     if (dto.sub_category_name.length > 255) {
-      throw new Error('sub_category_name must not exceed 255 characters')
+      throw new Error('Sub-category name cannot exceed 255 characters')
     }
 
     const category = await categoriesRepository.findById(dto.category_id)
@@ -79,7 +79,7 @@ export class SubCategoriesService {
 
     const existing = await subCategoriesRepository.findByCode(dto.sub_category_code, dto.category_id)
     if (existing) {
-      throw new Error('sub_category_code already exists for this category')
+      throw new Error('This sub-category code already exists for this category')
     }
 
     const subCategory = await subCategoriesRepository.create({
@@ -98,7 +98,7 @@ export class SubCategoriesService {
 
   async update(id: string, dto: UpdateSubCategoryDto, userId?: string): Promise<SubCategory | null> {
     if (dto.sub_category_name && dto.sub_category_name.length > 255) {
-      throw new Error('sub_category_name must not exceed 255 characters')
+      throw new Error('Sub-category name cannot exceed 255 characters')
     }
 
     const subCategory = await subCategoriesRepository.updateById(id, {

@@ -349,7 +349,7 @@ export class AccountingPurposeAccountsService {
       }
 
       if (!purposeAccount.deleted_at) {
-        throw new Error('Record is not deleted')
+        throw new Error('This record has not been deleted and cannot be restored')
       }
 
       await this.repository.restore(id, userId, trx)

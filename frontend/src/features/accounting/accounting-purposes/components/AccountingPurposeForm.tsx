@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useBranchContext } from '@/features/branch_context'
 import { branchesApi } from '@/features/branches/api/branches.api'
+import { useToast } from '@/contexts/ToastContext'
 import type { Branch } from '@/features/branches/types'
 import type { AccountingPurpose, CreateAccountingPurposeDto, UpdateAccountingPurposeDto, AppliedToType } from '../types/accounting-purpose.types'
 import { APPLIED_TO_OPTIONS } from '../constants/accounting-purpose.constants'
@@ -22,6 +23,7 @@ export const AccountingPurposeForm = ({
   onCancel
 }: AccountingPurposeFormProps) => {
   const currentBranch = useBranchContext()
+  const toast = useToast()
   const [branches, setBranches] = useState<Branch[]>([])
   const [loadingBranches, setLoadingBranches] = useState(false)
   const [formData, setFormData] = useState({
@@ -43,7 +45,7 @@ export const AccountingPurposeForm = ({
         const response = await branchesApi.list(1, 100, null, { company_id: currentBranch.company_id })
         setBranches(response.data || [])
       } catch (error) {
-        console.error('Failed to fetch branches:', error)
+        toast.error('Failed to fetch branches')
         setBranches([])
       } finally {
         setLoadingBranches(false)

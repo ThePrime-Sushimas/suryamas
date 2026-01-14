@@ -12,6 +12,7 @@
  */
 
 import { useState, useCallback, useMemo, useRef, useEffect, memo } from 'react'
+import { useToast } from '@/contexts/ToastContext'
 import { useUomSearch } from '@/hooks/_shared/useUomSearch'
 import { CURRENCY_OPTIONS } from '../constants/pricelist.constants'
 import { validateCreatePricelist, validateUpdatePricelist, hasErrors } from '../utils/validation'
@@ -55,6 +56,7 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
   supplierName,
   productName
 }: PricelistFormContextualProps) {
+  const toast = useToast()
   const uomSearch = useUomSearch(productId)
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -138,10 +140,11 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
       } else {
         await onSubmit(submitData)
       }
-    } catch {
-      // Error handled by parent component
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to save pricelist'
+      toast.error(errorMsg)
     }
-  }, [formData, validationErrors, isEdit, onSubmit])
+  }, [formData, validationErrors, isEdit, onSubmit, toast])
 
   // Field change handler with validation
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {

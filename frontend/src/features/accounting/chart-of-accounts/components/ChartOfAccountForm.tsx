@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useBranchContext } from '@/features/branch_context'
 import { useBranchesStore } from '@/features/branches'
+import { useToast } from '@/contexts/ToastContext'
 import type { ChartOfAccount, CreateChartOfAccountDto, UpdateChartOfAccountDto, AccountType } from '../types/chart-of-account.types'
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS, CURRENCY_CODES, DEFAULT_CURRENCY, NORMAL_BALANCE_MAP } from '../constants/chart-of-account.constants'
 import { validateAccountCode, validateAccountName, validateCurrencyCode, validateParentAccount, validateHeaderAccount, validateSortOrder } from '../utils/validation'
@@ -27,6 +28,7 @@ export const ChartOfAccountForm = ({
 }: ChartOfAccountFormProps) => {
   const currentBranch = useBranchContext()
   const { branches, fetchBranches } = useBranchesStore()
+  const toast = useToast()
   const initialFormData = useMemo(() => {
     return {
       company_id: currentBranch?.company_id || '', // Always use context company_id
@@ -204,6 +206,7 @@ export const ChartOfAccountForm = ({
       await onSubmit(submitData)
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to save account'
+      toast.error(errorMsg)
       setErrors({ submit: errorMsg })
     }
   }
