@@ -20,7 +20,7 @@ CREATE TYPE journal_type_enum AS ENUM (
 );
 
 CREATE TYPE journal_status_enum AS ENUM (
-  'DRAFT', 'SUBMITTED', 'APPROVED', 'POSTED', 'REVERSED', 'REJECTED'
+  'DRAFT', 'SUBMITTED', 'APPROVED', 'POSTED', 'REVERSED'
 );
 
 CREATE TABLE journal_headers (

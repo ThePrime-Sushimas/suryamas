@@ -4,6 +4,8 @@ import { AuthRequest } from '../types/common.types'
 import { sendError } from '../utils/response.util'
 import { logWarn } from '../config/logger'
 import { PermissionService } from '../services/permission.service'
+import { employeesRepository } from '../modules/employees/employees.repository'
+import { AuthenticatedRequest } from '../types/request.types'
 
 const resignedCache = new Map<string, { isResigned: boolean; expiresAt: number }>()
 const RESIGNED_CACHE_TTL = 30 * 60 * 1000 // 30 minutes
@@ -67,6 +69,20 @@ export const authenticate = async (
   }
 
   req.user = user as any
+  
+  // Attach employee data (for journal entries and audit trail)
+  try {
+    const employee = await employeesRepository.findByUserId(user.id)
+    if (employee) {
+      (req as AuthenticatedRequest).employee = employee
+    }
+  } catch (error) {
+    // Log but don't fail authentication if employee lookup fails
+    logWarn('Failed to load employee data', {
+      user_id: user.id,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
   
   next()
 }

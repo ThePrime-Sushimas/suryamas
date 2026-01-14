@@ -1,10 +1,15 @@
 import { Request } from 'express'
+import { EmployeeWithBranch } from '../modules/employees/employees.types'
 
 export interface AuthUser {
   id: string
   email: string
-  employee_id: string
+  employee_id?: string
   role?: string
+}
+
+export interface AuthEmployee extends EmployeeWithBranch {
+  // Employee data from database
 }
 
 export interface PaginationParams {
@@ -24,6 +29,7 @@ export interface QueryFilter {
 // Base authenticated request
 export interface AuthenticatedRequest extends Request {
   user: AuthUser
+  employee?: AuthEmployee // Optional: populated by authenticate middleware
 }
 
 // Authenticated request with pagination
