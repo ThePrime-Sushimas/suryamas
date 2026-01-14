@@ -22,8 +22,10 @@ export const createJournalSchema = z.object({
     reference_id: z.string().uuid().optional(),
     reference_number: z.string().optional(),
     source_module: z.string().optional(),
-    tags: z.record(z.any()).optional(),
-    lines: z.array(journalLineSchema).min(2, 'Journal must have at least 2 lines')
+    tags: z.record(z.string(), z.any()).optional(),
+    lines: z.array(journalLineSchema).refine(lines => lines.length >= 2, {
+      message: 'Journal must have at least 2 lines'
+    })
   })
 })
 
@@ -34,7 +36,9 @@ export const updateJournalSchema = z.object({
   body: z.object({
     journal_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     description: z.string().min(1).max(500).optional(),
-    lines: z.array(journalLineSchema).min(2, 'Journal must have at least 2 lines').optional()
+    lines: z.array(journalLineSchema).refine(lines => lines.length >= 2, {
+      message: 'Journal must have at least 2 lines'
+    }).optional()
   })
 })
 
