@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { validatePeriodFormat, validateDateRange } from '../utils/validation'
-import type { CreateFiscalPeriodDto } from '../types/fiscal-period.types'
+import type { CreateFiscalPeriodDto, FiscalPeriod } from '../types/fiscal-period.types'
 
 interface FiscalPeriodFormProps {
+  initialData?: FiscalPeriod
   onSubmit: (dto: CreateFiscalPeriodDto) => Promise<void>
   onCancel: () => void
 }
 
-export function FiscalPeriodForm({ onSubmit, onCancel }: FiscalPeriodFormProps) {
+export function FiscalPeriodForm({ initialData, onSubmit, onCancel }: FiscalPeriodFormProps) {
   const [formData, setFormData] = useState<CreateFiscalPeriodDto>({
     period: '',
     period_start: '',
@@ -17,6 +18,18 @@ export function FiscalPeriodForm({ onSubmit, onCancel }: FiscalPeriodFormProps) 
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        period: initialData.period,
+        period_start: initialData.period_start,
+        period_end: initialData.period_end,
+        is_adjustment_allowed: initialData.is_adjustment_allowed,
+        is_year_end: initialData.is_year_end,
+      })
+    }
+  }, [initialData])
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {}
@@ -170,7 +183,7 @@ export function FiscalPeriodForm({ onSubmit, onCancel }: FiscalPeriodFormProps) 
           disabled={loading}
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? 'Creating...' : 'Create Period'}
+          {loading ? (initialData ? 'Updating...' : 'Creating...') : (initialData ? 'Update Period' : 'Create Period')}
         </button>
       </div>
     </form>
