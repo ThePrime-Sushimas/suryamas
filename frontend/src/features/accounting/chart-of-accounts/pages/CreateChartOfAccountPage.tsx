@@ -52,7 +52,6 @@ export default function CreateChartOfAccountPage() {
   useEffect(() => {
     // If parent ID is provided in URL, set it as default and find parent account
     if (parentId && parentAccounts.length > 0) {
-      console.log('Setting default parent ID:', parentId)
       setDefaultParentId(parentId)
       const parent = parentAccounts.find(p => p.id === parentId)
       setSelectedParent(parent)

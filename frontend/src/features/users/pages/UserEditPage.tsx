@@ -16,14 +16,11 @@ export default function UserEditPage() {
 
   const loadData = useCallback(async () => {
     if (!id) return
-    console.log('Loading data for user ID:', id)
     try {
       const [userData, rolesData] = await Promise.all([
         usersApi.getById(id),
         permissionsApi.getRoles(),
       ])
-      console.log('User data loaded:', userData)
-      console.log('Roles data loaded:', rolesData)
       setUser(userData)
       setSelectedRole(userData.role_id || '')
       setRoles(rolesData)

@@ -38,10 +38,6 @@ export const BankAccountTable = ({ ownerType, ownerId, onEdit, loading }: BankAc
 
   const primaryAccount = accounts.find(a => a.is_primary)
 
-  if (loading) {
-    return <TableSkeleton rows={6} columns={6} />
-  }
-
   if (loading || fetchLoading) {
     return <TableSkeleton rows={6} columns={6} />
   }

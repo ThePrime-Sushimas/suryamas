@@ -110,7 +110,6 @@ export default function ChartOfAccountsPage() {
 
   const loadData = useCallback(() => {
     if (!selectedCompanyId) {
-      console.log('No company from branch context')
       return
     }
     

@@ -28,7 +28,6 @@ export const ChartOfAccountForm = ({
   const currentBranch = useBranchContext()
   const { branches, fetchBranches } = useBranchesStore()
   const initialFormData = useMemo(() => {
-    console.log('Form initializing with defaultParentId:', defaultParentId)
     return {
       company_id: currentBranch?.company_id || '', // Always use context company_id
       account_code: initialData?.account_code || '',
@@ -74,8 +73,6 @@ export const ChartOfAccountForm = ({
       account.is_header &&
       account.id !== initialData?.id // Prevent self-selection
     )
-    console.log('Available parents for type', formData.account_type, ':', filtered)
-    console.log('Looking for parent ID:', formData.parent_account_id)
     return filtered
   }, [parentAccounts, formData.account_type, formData.parent_account_id, initialData?.id])
 

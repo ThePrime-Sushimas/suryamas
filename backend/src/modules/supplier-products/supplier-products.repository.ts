@@ -358,8 +358,6 @@ export class SupplierProductsRepository {
       return supplierProducts
     }
 
-    console.log(`Found ${pricelists?.length || 0} active pricelists for ${supplierProducts.length} supplier products`)
-
     // Create a map for quick lookup (using supplier_id + product_id for now)
     const priceMap = new Map<string, { price: number; currency: string; unit: string }>()
     pricelists?.forEach((p: any) => {

@@ -80,8 +80,6 @@ export const accountingPurposesApi = {
         Object.assign(params, filter)
       }
       
-      console.log('API request params:', params)
-      
       const res = await api.get<PaginatedResponse<AccountingPurpose>>('/accounting-purposes', { 
         params,
         signal

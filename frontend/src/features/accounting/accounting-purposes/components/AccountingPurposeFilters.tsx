@@ -28,7 +28,6 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
     }
     if (appliedTo) filters.applied_to = appliedTo
     if (isActive !== '') filters.is_active = isActive
-    console.log('Filter changed:', { deletedFilter, show_deleted: filters.show_deleted })
     onFilter(filters)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appliedTo, isActive, deletedFilter])

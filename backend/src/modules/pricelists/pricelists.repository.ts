@@ -53,8 +53,6 @@ export class PricelistsRepository {
     )
 
     if (error) throw new Error(error.message)
-
-    console.log('Raw query result:', { dataLength: data?.length, count, query })
     
     const mapped = (data || []).map(item => {
       return {
@@ -93,8 +91,6 @@ export class PricelistsRepository {
 
     if (error) throw new Error(error.message)
     if (!data) return null
-
-    console.log('findById raw data:', JSON.stringify(data, null, 2))
 
     return {
       ...data,
