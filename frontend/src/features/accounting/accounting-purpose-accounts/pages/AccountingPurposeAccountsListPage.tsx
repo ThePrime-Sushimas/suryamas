@@ -98,63 +98,81 @@ export const AccountingPurposeAccountsListPage = () => {
 
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Purpose Account Mappings</h1>
-          <p className="text-sm text-gray-600">Manage accounting purpose to account mappings</p>
-        </div>
-        <div className="flex space-x-3">
-          <ExportButton 
-            endpoint="/accounting-purpose-accounts" 
-            filename="accounting-purpose-accounts" 
-            filter={filter as Record<string, string | number | boolean>} 
-          />
-          <button
-            onClick={() => navigate('/accounting-purpose-accounts/create')}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
-          >
-            Add Mapping
-          </button>
+    <div className="p-6 space-y-6 bg-gray-50 min-h-full">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">
+              Purpose Account Mappings
+            </h1>
+            <p className="text-sm text-gray-500">
+              Manage accounting purpose to account mappings
+            </p>
+          </div>
+
+          <div className="flex gap-2 mt-4 sm:mt-0">
+            <ExportButton
+              endpoint="/accounting-purpose-accounts"
+              filename="accounting-purpose-accounts"
+              filter={filter as Record<string, string | number | boolean>}
+            />
+            <button
+              onClick={() => navigate('/accounting-purpose-accounts/create')}
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+            >
+              Add Mapping
+            </button>
+          </div>
         </div>
       </div>
 
-      <AccountingPurposeAccountFilters
-        filter={filter}
-        onFilterChange={handleFilterChange}
-      />
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <AccountingPurposeAccountFilters
+          filter={filter}
+          onFilterChange={handleFilterChange}
+        />
+      </div>
 
-      <AccountingPurposeAccountTable
-        accounts={accounts}
-        loading={loading.list}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onSort={handleSort}
-        sortField={sort.field}
-        sortOrder={sort.order}
-        onBulkAction={handleBulkAction}
-      />
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <AccountingPurposeAccountTable
+          accounts={accounts}
+          loading={loading.list}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onSort={handleSort}
+          sortField={sort.field}
+          sortOrder={sort.order}
+          onBulkAction={handleBulkAction}
+        />
+      </div>
 
       {pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-700">
-            Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} results
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white rounded-lg border border-gray-200 px-4 py-3">
+          <div className="text-sm text-gray-600">
+            Showing {((pagination.page - 1) * pagination.limit) + 1}
+            {' '}to{' '}
+            {Math.min(pagination.page * pagination.limit, pagination.total)}
+            {' '}of{' '}
+            {pagination.total} results
           </div>
-          <div className="flex space-x-2">
+
+          <div className="flex gap-2">
             <button
               onClick={() => handlePageChange(pagination.page - 1)}
               disabled={pagination.page === 1}
-              className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+              className="px-3 py-1.5 text-sm border rounded-md disabled:opacity-50 hover:bg-gray-50"
             >
               Previous
             </button>
-            <span className="px-3 py-2 text-sm font-medium text-gray-700">
+
+            <span className="px-3 py-1.5 text-sm text-gray-700">
               Page {pagination.page} of {pagination.totalPages}
             </span>
+
             <button
               onClick={() => handlePageChange(pagination.page + 1)}
               disabled={pagination.page === pagination.totalPages}
-              className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+              className="px-3 py-1.5 text-sm border rounded-md disabled:opacity-50 hover:bg-gray-50"
             >
               Next
             </button>
