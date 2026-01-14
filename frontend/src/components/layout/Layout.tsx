@@ -67,6 +67,7 @@ export default function Layout() {
         { id: 'chart-of-accounts', name: 'Chart of Accounts', href: '/chart-of-accounts', icon: <Calculator size={16} />, module: 'chart-of-accounts' },
         { id: 'accounting-purposes', name: 'Accounting Purposes', href: '/accounting-purposes', icon: <Calculator size={16} />, module: 'accounting-purposes' },
         { id: 'accounting-purpose-accounts', name: 'Purpose Accounts', href: '/accounting-purpose-accounts', icon: <Calculator size={16} />, module: 'accounting-purpose-accounts' },
+        { id: 'fiscal-periods', name: 'Fiscal Periods', href: '/accounting/fiscal-periods', icon: <Calculator size={16} />, module: 'fiscal-periods' },
       ]
     },
     {

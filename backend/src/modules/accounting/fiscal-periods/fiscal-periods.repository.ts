@@ -367,9 +367,12 @@ export class FiscalPeriodsRepository {
         logError('Repository create error', { 
           error: error.message, 
           code: error.code,
+          details: error.details,
+          hint: error.hint,
           period: data.period,
           company_id: data.company_id,
-          user_id: userId
+          user_id: userId,
+          full_error: JSON.stringify(error)
         })
         
         if (error.code === '23505') {
