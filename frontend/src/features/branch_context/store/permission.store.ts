@@ -12,6 +12,7 @@ interface PermissionState {
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   clear: () => void
+  reload: () => Promise<void>  // Add reload method
 }
 
 export const usePermissionStore = create<PermissionState>((set, get) => ({
@@ -40,5 +41,11 @@ export const usePermissionStore = create<PermissionState>((set, get) => ({
 
   clear: () => {
     set({ permissions: {}, isLoaded: false, isLoading: false, error: null })
+  },
+
+  reload: async () => {
+    // Trigger permission reload by clearing and letting PermissionProvider refetch
+    set({ isLoaded: false })
+    // The PermissionProvider will detect isLoaded=false and refetch
   },
 }))

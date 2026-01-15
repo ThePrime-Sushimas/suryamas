@@ -67,6 +67,8 @@ export const updateRolePermissionSchema = z.object({
     can_insert: z.boolean().optional(),
     can_update: z.boolean().optional(),
     can_delete: z.boolean().optional(),
+    can_approve: z.boolean().optional(),
+    can_release: z.boolean().optional(),
   }),
 })
 
@@ -80,5 +82,7 @@ export const bulkUpdateRolePermissionsSchema = z.object({
     can_insert: z.boolean().optional(),
     can_update: z.boolean().optional(),
     can_delete: z.boolean().optional(),
+    can_approve: z.boolean().optional(),
+    can_release: z.boolean().optional(),
   })),
 })

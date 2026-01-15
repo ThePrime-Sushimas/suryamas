@@ -364,7 +364,17 @@ export class PermissionService {
         // Auto-create permission if not found
         const { data: created, error: createError } = await supabase
           .from('perm_role_permissions')
-          .insert({ role_id: roleId, module_id: moduleId, ...permissions })
+          .insert({ 
+            role_id: roleId, 
+            module_id: moduleId, 
+            can_view: false,
+            can_insert: false,
+            can_update: false,
+            can_delete: false,
+            can_approve: false,
+            can_release: false,
+            ...permissions 
+          })
           .select()
 
         if (createError) throw createError
@@ -379,15 +389,16 @@ export class PermissionService {
 
         if (updateError) throw updateError
         
-        // Fetch updated record
+        // Fetch updated record with ALL fields
         const { data: fetchedData, error: fetchError } = await supabase
           .from('perm_role_permissions')
           .select('*')
           .eq('role_id', roleId)
           .eq('module_id', moduleId)
+          .single()
         
         if (fetchError) throw fetchError
-        updated = fetchedData
+        updated = [fetchedData]
       }
 
       if (!updated || updated.length === 0) {

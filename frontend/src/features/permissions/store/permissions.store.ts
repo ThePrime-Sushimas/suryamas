@@ -6,7 +6,9 @@ interface PermissionsState {
   modules: Module[]
   roles: Role[]
   permissions: Permission[]
+  pendingChanges: Map<string, Partial<Permission>>
   loading: boolean
+  saving: boolean
   error: string | null
   
   fetchModules: () => Promise<void>
@@ -15,15 +17,19 @@ interface PermissionsState {
   createRole: (data: { name: string; description?: string }) => Promise<Role>
   updateRole: (id: string, data: { name?: string; description?: string }) => Promise<Role>
   deleteRole: (id: string) => Promise<void>
-  updatePermission: (roleId: string, moduleId: string, data: Partial<Permission>) => Promise<void>
+  updatePermissionLocal: (moduleId: string, field: string, value: boolean) => void
+  savePermissions: (roleId: string) => Promise<void>
+  discardChanges: () => void
   clearError: () => void
 }
 
-export const usePermissionsStore = create<PermissionsState>((set) => ({
+export const usePermissionsStore = create<PermissionsState>((set, get) => ({
   modules: [],
   roles: [],
   permissions: [],
+  pendingChanges: new Map(),
   loading: false,
+  saving: false,
   error: null,
 
   fetchModules: async () => {
@@ -49,7 +55,7 @@ export const usePermissionsStore = create<PermissionsState>((set) => ({
   },
 
   fetchRolePermissions: async (roleId) => {
-    set({ loading: true, error: null })
+    set({ loading: true, error: null, pendingChanges: new Map() })
     try {
       const permissions = await permissionsApi.getRolePermissions(roleId)
       set({ permissions, loading: false })
@@ -99,19 +105,37 @@ export const usePermissionsStore = create<PermissionsState>((set) => ({
     }
   },
 
-  updatePermission: async (roleId, moduleId, data) => {
+  updatePermissionLocal: (moduleId, field, value) => {
+    set(state => {
+      const key = moduleId
+      const existing = state.pendingChanges.get(key) || {}
+      const updated = new Map(state.pendingChanges)
+      updated.set(key, { ...existing, [field]: value })
+      return { pendingChanges: updated }
+    })
+  },
+
+  savePermissions: async (roleId) => {
+    const { pendingChanges } = get()
+    if (pendingChanges.size === 0) return
+
+    set({ saving: true, error: null })
     try {
-      await permissionsApi.updateRolePermission(roleId, moduleId, data)
-      set(state => ({
-        permissions: state.permissions.map(p => 
-          p.role_id === roleId && p.module_id === moduleId ? { ...p, ...data } : p
-        )
-      }))
+      for (const [moduleId, changes] of pendingChanges.entries()) {
+        await permissionsApi.updateRolePermission(roleId, moduleId, changes)
+      }
+      
+      const updatedPermissions = await permissionsApi.getRolePermissions(roleId)
+      set({ permissions: updatedPermissions, pendingChanges: new Map(), saving: false })
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update permission'
-      set({ error: message })
+      const message = error instanceof Error ? error.message : 'Failed to save permissions'
+      set({ error: message, saving: false })
       throw error
     }
+  },
+
+  discardChanges: () => {
+    set({ pendingChanges: new Map() })
   },
 
   clearError: () => set({ error: null })

@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react'
 import { usePermissionsStore } from '../store/permissions.store'
+import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import { useToast } from '@/contexts/ToastContext'
 import api from '@/lib/axios'
 
 export default function PermissionsPage() {
-  const { modules, roles, permissions, loading, error: storeError, fetchModules, fetchRoles, fetchRolePermissions, updatePermission } = usePermissionsStore()
+  const { modules, roles, permissions, pendingChanges, loading, saving, error: storeError, fetchModules, fetchRoles, fetchRolePermissions, updatePermissionLocal, savePermissions, discardChanges } = usePermissionsStore()
+  const { reload: reloadUserPermissions } = usePermissionStore()
   const [selectedRole, setSelectedRole] = useState<string>('')
+  const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editModal, setEditModal] = useState(false)
   const [newRole, setNewRole] = useState({ name: '', description: '' })
   const [editRole, setEditRole] = useState({ id: '', name: '', description: '' })
-  const [saving, setSaving] = useState(false)
+  const [createSaving, setCreateSaving] = useState(false)
   const { success, error: showError } = useToast()
 
   useEffect(() => {
@@ -24,15 +27,24 @@ export default function PermissionsPage() {
     }
   }, [selectedRole, fetchRolePermissions])
 
-  const handlePermissionChange = async (moduleId: string, field: string, value: boolean) => {
+  const handlePermissionChange = (moduleId: string, field: string, value: boolean) => {
+    updatePermissionLocal(moduleId, field, value)
+  }
+
+  const handleSave = async () => {
     if (!selectedRole) return
     try {
-      await updatePermission(selectedRole, moduleId, { [field]: value })
-      success('Permission updated')
+      await savePermissions(selectedRole)
+      await reloadUserPermissions()
+      success('Permissions saved successfully')
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to update permission'
+      const message = err instanceof Error ? err.message : 'Failed to save permissions'
       showError(message)
     }
+  }
+
+  const handleDiscard = () => {
+    discardChanges()
   }
 
   const handleCreateRole = async () => {
@@ -41,7 +53,7 @@ export default function PermissionsPage() {
       return
     }
     
-    setSaving(true)
+    setCreateSaving(true)
     try {
       await api.post('/permissions/roles', newRole)
       setShowModal(false)
@@ -49,10 +61,10 @@ export default function PermissionsPage() {
       await fetchRoles()
       success('Role created successfully')
     } catch (err: unknown) {
-      const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to update role'
+      const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to create role'
       showError(message)
     } finally {
-      setSaving(false)
+      setCreateSaving(false)
     }
   }
 
@@ -62,7 +74,7 @@ export default function PermissionsPage() {
       return
     }
     
-    setSaving(true)
+    setCreateSaving(true)
     try {
       await api.put(`/permissions/roles/${editRole.id}`, {
         name: editRole.name,
@@ -75,7 +87,7 @@ export default function PermissionsPage() {
       const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to update role'
       showError(message)
     } finally {
-      setSaving(false)
+      setCreateSaving(false)
     }
   }
 
@@ -94,13 +106,33 @@ export default function PermissionsPage() {
   }
 
   const getPermission = (moduleId: string) => {
-    return permissions.find(p => p.module_id === moduleId)
+    const perm = permissions.find(p => p.module_id === moduleId)
+    const pending = pendingChanges.get(moduleId)
+    return perm ? { ...perm, ...pending } : null
+  }
+
+  const filteredModules = modules.filter(module =>
+    module.name.toLowerCase().includes(search.toLowerCase()) ||
+    module.description?.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const handleBulkChange = (field: string, value: boolean) => {
+    filteredModules.forEach(module => {
+      updatePermissionLocal(module.id, field, value)
+    })
   }
 
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Permissions Management</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Permissions Management</h1>
+          {pendingChanges.size > 0 && (
+            <p className="text-sm text-orange-600 mt-1">
+              {pendingChanges.size} unsaved change{pendingChanges.size > 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
         <button
           onClick={() => setShowModal(true)}
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -171,82 +203,233 @@ export default function PermissionsPage() {
               <p className="mt-4 text-gray-600">Loading...</p>
             </div>
           ) : selectedRole ? (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Module</th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">View</th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Insert</th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Update</th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Delete</th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Approve</th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Release</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {modules.map(module => {
-                      const perm = getPermission(module.id)
+            <div className="space-y-4">
+              {pendingChanges.size > 0 && (
+                <div className="bg-white rounded-lg shadow p-4 flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    {pendingChanges.size} unsaved change{pendingChanges.size > 1 ? 's' : ''}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleDiscard}
+                      disabled={saving}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50"
+                    >
+                      Discard
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {saving ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        '💾 Save Changes'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-white rounded-lg shadow p-4">
+                <input
+                  type="text"
+                  placeholder="🔍 Search modules..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              {filteredModules.some(m => m.name === 'journals') && (
+                <div className="bg-linear-to-r from-blue-50 to-indigo-50 rounded-lg shadow p-6 border border-blue-200">
+                  <h3 className="font-semibold mb-4 text-blue-900">📊 Journal Workflow Permissions</h3>
+                  <div className="flex items-center justify-between text-sm">
+                    {(() => {
+                      const journalModule = modules.find(m => m.name === 'journals')
+                      const perm = journalModule ? getPermission(journalModule.id) : null
                       return (
-                        <tr key={module.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4">
-                            <div className="font-medium">{module.name}</div>
-                            <div className="text-sm text-gray-500">{module.description}</div>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <input
-                              type="checkbox"
-                              checked={perm?.can_view || false}
-                              onChange={e => handlePermissionChange(module.id, 'can_view', e.target.checked)}
-                              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                            />
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <input
-                              type="checkbox"
-                              checked={perm?.can_insert || false}
-                              onChange={e => handlePermissionChange(module.id, 'can_insert', e.target.checked)}
-                              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                            />
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <input
-                              type="checkbox"
-                              checked={perm?.can_update || false}
-                              onChange={e => handlePermissionChange(module.id, 'can_update', e.target.checked)}
-                              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                            />
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <input
-                              type="checkbox"
-                              checked={perm?.can_delete || false}
-                              onChange={e => handlePermissionChange(module.id, 'can_delete', e.target.checked)}
-                              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                            />
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <input
-                              type="checkbox"
-                              checked={perm?.can_approve || false}
-                              onChange={e => handlePermissionChange(module.id, 'can_approve', e.target.checked)}
-                              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                            />
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <input
-                              type="checkbox"
-                              checked={perm?.can_release || false}
-                              onChange={e => handlePermissionChange(module.id, 'can_release', e.target.checked)}
-                              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                            />
-                          </td>
-                        </tr>
+                        <>
+                          <div className="text-center">
+                            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-2xl ${
+                              perm?.can_update ? 'bg-green-100 border-2 border-green-400' : 'bg-gray-100 border-2 border-gray-300'
+                            }`}>📝</div>
+                            <div className="font-medium">Create/Edit</div>
+                            <div className="text-xs text-gray-600 mt-1">can_update</div>
+                            <div className="text-xs">{perm?.can_update ? '✅' : '❌'}</div>
+                          </div>
+                          <div className="flex-1 border-t-2 border-dashed border-gray-400 mx-2"></div>
+                          <div className="text-center">
+                            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-2xl ${
+                              perm?.can_update ? 'bg-green-100 border-2 border-green-400' : 'bg-gray-100 border-2 border-gray-300'
+                            }`}>📤</div>
+                            <div className="font-medium">Submit</div>
+                            <div className="text-xs text-gray-600 mt-1">can_update</div>
+                            <div className="text-xs">{perm?.can_update ? '✅' : '❌'}</div>
+                          </div>
+                          <div className="flex-1 border-t-2 border-dashed border-gray-400 mx-2"></div>
+                          <div className="text-center">
+                            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-2xl ${
+                              perm?.can_approve ? 'bg-green-100 border-2 border-green-400' : 'bg-gray-100 border-2 border-gray-300'
+                            }`}>👍</div>
+                            <div className="font-medium">Approve</div>
+                            <div className="text-xs text-gray-600 mt-1">can_approve</div>
+                            <div className="text-xs">{perm?.can_approve ? '✅' : '❌'}</div>
+                          </div>
+                          <div className="flex-1 border-t-2 border-dashed border-gray-400 mx-2"></div>
+                          <div className="text-center">
+                            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-2xl ${
+                              perm?.can_release ? 'bg-green-100 border-2 border-green-400' : 'bg-gray-100 border-2 border-gray-300'
+                            }`}>📥</div>
+                            <div className="font-medium">Post to GL</div>
+                            <div className="text-xs text-gray-600 mt-1">can_release</div>
+                            <div className="text-xs">{perm?.can_release ? '✅' : '❌'}</div>
+                          </div>
+                          <div className="flex-1 border-t-2 border-dashed border-gray-400 mx-2"></div>
+                          <div className="text-center">
+                            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-2xl ${
+                              perm?.can_release ? 'bg-green-100 border-2 border-green-400' : 'bg-gray-100 border-2 border-gray-300'
+                            }`}>↩️</div>
+                            <div className="font-medium">Reverse</div>
+                            <div className="text-xs text-gray-600 mt-1">can_release</div>
+                            <div className="text-xs">{perm?.can_release ? '✅' : '❌'}</div>
+                          </div>
+                        </>
                       )
-                    })}
-                  </tbody>
-                </table>
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Module</th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                          <div>View</div>
+                          <div className="flex gap-1 justify-center mt-1">
+                            <button onClick={() => handleBulkChange('can_view', true)} className="text-xs text-blue-600 hover:underline">All</button>
+                            <span className="text-gray-400">|</span>
+                            <button onClick={() => handleBulkChange('can_view', false)} className="text-xs text-red-600 hover:underline">None</button>
+                          </div>
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                          <div>Insert</div>
+                          <div className="flex gap-1 justify-center mt-1">
+                            <button onClick={() => handleBulkChange('can_insert', true)} className="text-xs text-blue-600 hover:underline">All</button>
+                            <span className="text-gray-400">|</span>
+                            <button onClick={() => handleBulkChange('can_insert', false)} className="text-xs text-red-600 hover:underline">None</button>
+                          </div>
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                          <div>Update</div>
+                          <div className="flex gap-1 justify-center mt-1">
+                            <button onClick={() => handleBulkChange('can_update', true)} className="text-xs text-blue-600 hover:underline">All</button>
+                            <span className="text-gray-400">|</span>
+                            <button onClick={() => handleBulkChange('can_update', false)} className="text-xs text-red-600 hover:underline">None</button>
+                          </div>
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                          <div>Delete</div>
+                          <div className="flex gap-1 justify-center mt-1">
+                            <button onClick={() => handleBulkChange('can_delete', true)} className="text-xs text-blue-600 hover:underline">All</button>
+                            <span className="text-gray-400">|</span>
+                            <button onClick={() => handleBulkChange('can_delete', false)} className="text-xs text-red-600 hover:underline">None</button>
+                          </div>
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                          <div>Approve</div>
+                          <div className="flex gap-1 justify-center mt-1">
+                            <button onClick={() => handleBulkChange('can_approve', true)} className="text-xs text-blue-600 hover:underline">All</button>
+                            <span className="text-gray-400">|</span>
+                            <button onClick={() => handleBulkChange('can_approve', false)} className="text-xs text-red-600 hover:underline">None</button>
+                          </div>
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                          <div>Release</div>
+                          <div className="flex gap-1 justify-center mt-1">
+                            <button onClick={() => handleBulkChange('can_release', true)} className="text-xs text-blue-600 hover:underline">All</button>
+                            <span className="text-gray-400">|</span>
+                            <button onClick={() => handleBulkChange('can_release', false)} className="text-xs text-red-600 hover:underline">None</button>
+                          </div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {filteredModules.map(module => {
+                        const perm = getPermission(module.id)
+                        return (
+                          <tr key={module.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4">
+                              <div className="font-medium">{module.name}</div>
+                              <div className="text-sm text-gray-500">{module.description}</div>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <input
+                                type="checkbox"
+                                checked={perm?.can_view || false}
+                                onChange={e => handlePermissionChange(module.id, 'can_view', e.target.checked)}
+                                disabled={saving}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
+                              />
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <input
+                                type="checkbox"
+                                checked={perm?.can_insert || false}
+                                onChange={e => handlePermissionChange(module.id, 'can_insert', e.target.checked)}
+                                disabled={saving}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
+                              />
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <input
+                                type="checkbox"
+                                checked={perm?.can_update || false}
+                                onChange={e => handlePermissionChange(module.id, 'can_update', e.target.checked)}
+                                disabled={saving}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
+                              />
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <input
+                                type="checkbox"
+                                checked={perm?.can_delete || false}
+                                onChange={e => handlePermissionChange(module.id, 'can_delete', e.target.checked)}
+                                disabled={saving}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
+                              />
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <input
+                                type="checkbox"
+                                checked={perm?.can_approve || false}
+                                onChange={e => handlePermissionChange(module.id, 'can_approve', e.target.checked)}
+                                disabled={saving}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
+                              />
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <input
+                                type="checkbox"
+                                checked={perm?.can_release || false}
+                                onChange={e => handlePermissionChange(module.id, 'can_release', e.target.checked)}
+                                disabled={saving}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
+                              />
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           ) : (
@@ -257,7 +440,6 @@ export default function PermissionsPage() {
         </div>
       </div>
 
-      {/* Add Role Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
@@ -290,17 +472,17 @@ export default function PermissionsPage() {
             <div className="flex gap-2 mt-6">
               <button
                 onClick={handleCreateRole}
-                disabled={saving}
+                disabled={createSaving}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
               >
-                {saving ? 'Creating...' : 'Create'}
+                {createSaving ? 'Creating...' : 'Create'}
               </button>
               <button
                 onClick={() => {
                   setShowModal(false)
                   setNewRole({ name: '', description: '' })
                 }}
-                disabled={saving}
+                disabled={createSaving}
                 className="flex-1 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
               >
                 Cancel
@@ -310,7 +492,6 @@ export default function PermissionsPage() {
         </div>
       )}
 
-      {/* Edit Role Modal */}
       {editModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
@@ -341,14 +522,14 @@ export default function PermissionsPage() {
             <div className="flex gap-2 mt-6">
               <button
                 onClick={handleEditRole}
-                disabled={saving}
+                disabled={createSaving}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
               >
-                {saving ? 'Updating...' : 'Update'}
+                {createSaving ? 'Updating...' : 'Update'}
               </button>
               <button
                 onClick={() => setEditModal(false)}
-                disabled={saving}
+                disabled={createSaving}
                 className="flex-1 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
               >
                 Cancel
