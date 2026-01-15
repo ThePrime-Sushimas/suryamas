@@ -18,6 +18,7 @@ export const createBankAccountSchema = z.object({
     owner_id: z.string().min(1, 'Owner ID is required').max(50),
     is_primary: z.boolean().optional(),
     is_active: z.boolean().optional(),
+    coa_account_id: z.string().uuid('Invalid COA account ID').optional().nullable(),
   }),
 })
 
@@ -36,6 +37,7 @@ export const updateBankAccountSchema = z.object({
       .optional(),
     is_primary: z.boolean().optional(),
     is_active: z.boolean().optional(),
+    coa_account_id: z.string().uuid('Invalid COA account ID').optional().nullable(),
   }),
   params: z.object({
     id: z.string().regex(/^\d+$/, 'Invalid bank account ID format'),

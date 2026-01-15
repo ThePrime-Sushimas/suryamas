@@ -11,6 +11,8 @@ export interface BankAccount {
   is_primary: boolean
   is_active: boolean
   verified_by: string | null // UUID
+  // COA Link (optional)
+  coa_account_id: string | null
 
   created_at: string
   updated_at: string
@@ -27,6 +29,13 @@ export interface BankAccountWithBank extends BankAccount {
     bank_code: string
     bank_name: string
   }
+  // COA details
+  coa_account?: {
+    id: string
+    account_code: string
+    account_name: string
+    account_type: string
+  } | null
 }
 
 
@@ -38,6 +47,7 @@ export interface CreateBankAccountDto {
   owner_id: string // VARCHAR(50) - supports both UUID and integer as string
   is_primary?: boolean
   is_active?: boolean
+  coa_account_id?: string | null // Optional COA link
 }
 
 export interface UpdateBankAccountDto {
@@ -45,6 +55,7 @@ export interface UpdateBankAccountDto {
   account_number?: string
   is_primary?: boolean
   is_active?: boolean
+  coa_account_id?: string | null // Optional COA link
 }
 
 export interface BankAccountListQuery {

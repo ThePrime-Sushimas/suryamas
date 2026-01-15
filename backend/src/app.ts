@@ -18,6 +18,7 @@ import paymentTermsRoutes from './modules/payment-terms/payment-terms.routes'
 import suppliersRoutes from './modules/suppliers/suppliers.routes'
 import banksRoutes from './modules/banks/banks.routes'
 import bankAccountsRoutes, { ownerBankAccountsRouter } from './modules/bank-accounts/bankAccounts.routes'
+import paymentMethodsRoutes from './modules/payment-methods/payment-methods.routes'
 import supplierProductsRoutes from './modules/supplier-products/supplier-products.routes'
 import pricelistsRoutes from './modules/pricelists/pricelists.routes'
 import chartOfAccountsRoutes from './modules/accounting/chart-of-accounts/chart-of-accounts.routes'
@@ -73,6 +74,7 @@ app.use('/api/v1/payment-terms', paymentTermsRoutes)
 app.use('/api/v1/suppliers', suppliersRoutes)
 app.use('/api/v1/banks', banksRoutes)
 app.use('/api/v1/bank-accounts', bankAccountsRoutes)
+app.use('/api/v1/payment-methods', paymentMethodsRoutes)
 app.use('/api/v1/supplier-products', supplierProductsRoutes)
 app.use('/api/v1/pricelists', pricelistsRoutes)
 app.use('/api/v1/chart-of-accounts', chartOfAccountsRoutes)

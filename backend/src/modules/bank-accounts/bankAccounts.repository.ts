@@ -7,7 +7,9 @@ export class BankAccountsRepository {
     pagination: { limit: number; offset: number },
     query?: BankAccountListQuery
   ): Promise<{ data: BankAccountWithBank[]; total: number }> {
-    let dbQuery = supabase.from('bank_accounts').select('*, banks(id, bank_code, bank_name)', { count: 'exact' })
+    let dbQuery = supabase
+      .from('bank_accounts')
+      .select('*, banks(id, bank_code, bank_name), chart_of_accounts(id, account_code, account_name, account_type)', { count: 'exact' })
     
     dbQuery = dbQuery.is('deleted_at', null)
 
@@ -35,12 +37,20 @@ export class BankAccountsRepository {
 
     const mapped = (data || []).map(item => {
       const bank = Array.isArray(item.banks) ? item.banks[0] : item.banks
+      const coa = Array.isArray(item.chart_of_accounts) ? item.chart_of_accounts[0] : item.chart_of_accounts
       return {
         ...item,
         bank_code: bank?.bank_code,
         bank_name: bank?.bank_name,
         bank,
         banks: undefined,
+        coa_account: coa ? {
+          id: coa.id,
+          account_code: coa.account_code,
+          account_name: coa.account_name,
+          account_type: coa.account_type
+        } : null,
+        chart_of_accounts: undefined,
       }
     })
 
@@ -50,7 +60,7 @@ export class BankAccountsRepository {
   async findById(id: number): Promise<BankAccountWithBank | null> {
     const { data, error } = await supabase
       .from('bank_accounts')
-      .select('*, banks(id, bank_code, bank_name)')
+      .select('*, banks(id, bank_code, bank_name), chart_of_accounts(id, account_code, account_name, account_type)')
       .eq('id', id)
       .is('deleted_at', null)
       .maybeSingle()
@@ -60,12 +70,20 @@ export class BankAccountsRepository {
     if (!data) return null
 
     const bank = Array.isArray(data.banks) ? data.banks[0] : data.banks
+    const coa = Array.isArray(data.chart_of_accounts) ? data.chart_of_accounts[0] : data.chart_of_accounts
     return {
       ...data,
       bank_code: bank?.bank_code,
       bank_name: bank?.bank_name,
       bank,
       banks: undefined,
+      coa_account: coa ? {
+        id: coa.id,
+        account_code: coa.account_code,
+        account_name: coa.account_name,
+        account_type: coa.account_type
+      } : null,
+      chart_of_accounts: undefined,
     }
   }
 
@@ -159,7 +177,7 @@ export class BankAccountsRepository {
   async findByOwner(ownerType: OwnerType, ownerId: string): Promise<BankAccountWithBank[]> {
     const { data, error } = await supabase
       .from('bank_accounts')
-      .select('*, banks(id, bank_code, bank_name)')
+      .select('*, banks(id, bank_code, bank_name), chart_of_accounts(id, account_code, account_name, account_type)')
       .eq('owner_type', ownerType)
       .eq('owner_id', ownerId)
       .is('deleted_at', null)
@@ -170,12 +188,20 @@ export class BankAccountsRepository {
 
     return (data || []).map(item => {
       const bank = Array.isArray(item.banks) ? item.banks[0] : item.banks
+      const coa = Array.isArray(item.chart_of_accounts) ? item.chart_of_accounts[0] : item.chart_of_accounts
       return {
         ...item,
         bank_code: bank?.bank_code,
         bank_name: bank?.bank_name,
         bank,
         banks: undefined,
+        coa_account: coa ? {
+          id: coa.id,
+          account_code: coa.account_code,
+          account_name: coa.account_name,
+          account_type: coa.account_type
+        } : null,
+        chart_of_accounts: undefined,
       }
     })
   }

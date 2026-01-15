@@ -52,10 +52,31 @@ export class BankAccountsService {
     if (!data.is_active) throw new BankNotActiveError(bankId)
   }
 
+  private async validateCoaAccount(coaAccountId: string | null | undefined): Promise<void> {
+    if (!coaAccountId) return
+
+    const { data, error } = await supabase
+      .from('chart_of_accounts')
+      .select('id, account_code, account_name, account_type, is_active')
+      .eq('id', coaAccountId)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    if (error) throw new Error(error.message)
+    if (!data) throw new Error(`COA account with ID ${coaAccountId} not found`)
+    if (!data.is_active) throw new Error('COA account is not active')
+    
+    // Optionally validate that COA is an ASSET type (bank accounts should be assets)
+    if (data.account_type !== 'ASSET') {
+      throw new Error('Bank account should be linked to an ASSET type COA account')
+    }
+  }
+
   // FIX #1: Use atomic function to prevent race condition
   async createBankAccount(data: CreateBankAccountDto): Promise<BankAccount> {
     await this.validateOwner(data.owner_type, data.owner_id)
     await this.validateBank(data.bank_id)
+    await this.validateCoaAccount(data.coa_account_id)
 
     const existing = await bankAccountsRepository.findByAccountNumber(data.bank_id, data.account_number)
     if (existing) {
@@ -90,6 +111,11 @@ export class BankAccountsService {
       if (duplicate) {
         throw new DuplicateBankAccountError(data.account_number)
       }
+    }
+
+    // Validate COA if provided
+    if (data.coa_account_id !== undefined) {
+      await this.validateCoaAccount(data.coa_account_id)
     }
 
     // FIX #12: Log critical operation
