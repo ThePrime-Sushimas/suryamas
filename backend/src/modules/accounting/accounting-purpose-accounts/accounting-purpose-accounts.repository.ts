@@ -5,10 +5,25 @@ import {
   UpdateAccountingPurposeAccountDTO,
   AccountingPurposeAccountWithDetails
 } from './accounting-purpose-accounts.types'
-import { logError } from '../../../config/logger'
+import { logError, logInfo } from '../../../config/logger'
 
+/**
+ * Transaction context interface for database operations
+ * Provides type-safe access to Supabase client within transactions
+ */
 interface TransactionContext {
-  client: any
+  client: typeof supabase
+}
+
+/**
+ * Filter parameters for repository queries
+ */
+interface FilterParams {
+  purpose_id?: string
+  side?: string
+  is_required?: boolean
+  is_active?: boolean
+  account_type?: string
 }
 
 export class AccountingPurposeAccountsRepository {
@@ -58,7 +73,7 @@ export class AccountingPurposeAccountsRepository {
     companyId: string,
     pagination: { limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: any,
+    filter?: FilterParams,
     trx?: TransactionContext
   ): Promise<{ data: AccountingPurposeAccountWithDetails[]; total: number }> {
     const client = trx?.client || supabase
@@ -306,7 +321,7 @@ export class AccountingPurposeAccountsRepository {
     this.invalidateCache()
   }
 
-  async exportData(companyId: string, filter?: any, limit: number = 10000): Promise<AccountingPurposeAccountWithDetails[]> {
+  async exportData(companyId: string, filter?: FilterParams, limit: number = 10000): Promise<AccountingPurposeAccountWithDetails[]> {
     let query = supabase
       .from('accounting_purpose_accounts')
       .select(`
@@ -345,7 +360,7 @@ export class AccountingPurposeAccountsRepository {
     companyId: string,
     pagination: { limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: any,
+    filter?: FilterParams,
     trx?: TransactionContext
   ): Promise<{ data: AccountingPurposeAccountWithDetails[]; total: number }> {
     const client = trx?.client || supabase

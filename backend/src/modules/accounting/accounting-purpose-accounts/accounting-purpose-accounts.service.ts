@@ -32,11 +32,21 @@ export class AccountingPurposeAccountsService {
     logInfo('Creating purpose account mapping', { 
       purpose_id: data.purpose_id,
       account_id: data.account_id,
-      side: data.side
+      side: data.side,
+      company_id: companyId
     })
     
     return await this.repository.withTransaction(async (trx) => {
       try {
+        // Validate purpose exists and belongs to company
+        const purpose = await this.validatePurposeExists(data.purpose_id, companyId)
+        
+        // Validate account exists, is postable, and belongs to company
+        const account = await this.validateAccountExists(data.account_id, companyId)
+        
+        // Validate balance side
+        this.validateBalanceSide(account.account_type, account.normal_balance, data.side)
+
         // Check for duplicate mapping
         const existing = await this.repository.findByPurposeAndAccount(
           data.purpose_id, 
@@ -58,13 +68,18 @@ export class AccountingPurposeAccountsService {
           throw AccountingPurposeAccountErrors.CREATE_FAILED()
         }
 
-        logInfo('Purpose account mapping created successfully', { id: purposeAccount.id })
+        logInfo('Purpose account mapping created successfully', { 
+          id: purposeAccount.id,
+          purpose_code: purpose.purpose_code,
+          account_code: account.account_code
+        })
         return purposeAccount
       } catch (error: any) {
         logError('Failed to create purpose account mapping', { 
           error: error.message, 
           purpose_id: data.purpose_id,
-          account_id: data.account_id
+          account_id: data.account_id,
+          company_id: companyId
         })
         throw error
       }
@@ -308,21 +323,112 @@ export class AccountingPurposeAccountsService {
   }
 
   private validateBalanceSide(accountType: string, normalBalance: string, side: string): void {
-    // DEBIT accounts (ASSET, EXPENSE) should typically be on DEBIT side
-    // CREDIT accounts (LIABILITY, EQUITY, REVENUE) should typically be on CREDIT side
-    // But we allow flexibility for contra accounts and special cases
-    
-    // Only enforce strict rules for obvious mismatches
-    if ((accountType === 'ASSET' || accountType === 'EXPENSE') && normalBalance === 'DEBIT' && side === 'CREDIT') {
-      // This might be a contra account, allow it but could add warning
+    // Define valid normal balance for each account type
+    // ASSET and EXPENSE should have DEBIT normal balance
+    // LIABILITY, EQUITY, and REVENUE should have CREDIT normal balance
+    const VALID_BALANCE_SIDES: Record<string, string[]> = {
+      'ASSET': ['DEBIT'],
+      'LIABILITY': ['CREDIT'],
+      'EQUITY': ['CREDIT'],
+      'REVENUE': ['CREDIT'],
+      'EXPENSE': ['DEBIT']
     }
-    
-    if ((accountType === 'LIABILITY' || accountType === 'EQUITY' || accountType === 'REVENUE') && normalBalance === 'CREDIT' && side === 'DEBIT') {
-      // This might be a contra account, allow it but could add warning
+
+    const validSides = VALID_BALANCE_SIDES[accountType]
+    if (!validSides) {
+      throw new Error(`Unknown account type: ${accountType}`)
     }
-    
-    // For now, we'll be permissive and not throw errors for balance side mismatches
-    // as there are legitimate business cases for contra accounts
+
+    // Check if the side matches the expected normal balance
+    if (!validSides.includes(normalBalance)) {
+      throw AccountingPurposeAccountErrors.INVALID_BALANCE_SIDE(
+        accountType,
+        normalBalance,
+        side
+      )
+    }
+
+    // Strict validation: accounts should typically post to the side matching their normal balance
+    // Allow contra accounts (opposite side) but with warning in logs
+    if (normalBalance === 'DEBIT' && side === 'CREDIT') {
+      logInfo('Contra account detected', {
+        account_type: accountType,
+        normal_balance: normalBalance,
+        posting_side: side,
+        message: 'This is a contra account posting to opposite side'
+      })
+    }
+
+    if (normalBalance === 'CREDIT' && side === 'DEBIT') {
+      logInfo('Contra account detected', {
+        account_type: accountType,
+        normal_balance: normalBalance,
+        posting_side: side,
+        message: 'This is a contra account posting to opposite side'
+      })
+    }
+  }
+
+  private async validatePurposeExists(purposeId: string, companyId: string): Promise<any> {
+    const { data, error } = await supabase
+      .from('accounting_purposes')
+      .select('id, company_id, purpose_code')
+      .eq('id', purposeId)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    if (error) {
+      logError('Error validating purpose', { error: error.message, purpose_id: purposeId })
+      throw new Error(error.message)
+    }
+
+    if (!data) {
+      throw AccountingPurposeAccountErrors.PURPOSE_NOT_FOUND(purposeId)
+    }
+
+    if (data.company_id !== companyId) {
+      logError('Company access denied for purpose', {
+        purpose_id: purposeId,
+        purpose_company_id: data.company_id,
+        requested_company_id: companyId
+      })
+      throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
+    }
+
+    return data
+  }
+
+  private async validateAccountExists(accountId: string, companyId: string): Promise<any> {
+    const { data, error } = await supabase
+      .from('chart_of_accounts')
+      .select('id, company_id, account_code, account_type, normal_balance, is_postable')
+      .eq('id', accountId)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    if (error) {
+      logError('Error validating account', { error: error.message, account_id: accountId })
+      throw new Error(error.message)
+    }
+
+    if (!data) {
+      throw AccountingPurposeAccountErrors.ACCOUNT_NOT_FOUND(accountId)
+    }
+
+    if (data.company_id !== companyId) {
+      logError('Company access denied for account', {
+        account_id: accountId,
+        account_company_id: data.company_id,
+        requested_company_id: companyId
+      })
+      throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
+    }
+
+    if (!data.is_postable) {
+      throw AccountingPurposeAccountErrors.ACCOUNT_NOT_POSTABLE(data.account_code)
+    }
+
+    return data
   }
 
   async listDeleted(
