@@ -25,6 +25,7 @@ import accountingPurposesRoutes from './modules/accounting/accounting-purposes/a
 import accountingPurposeAccountsRoutes from './modules/accounting/accounting-purpose-accounts/accounting-purpose-accounts.routes'
 import fiscalPeriodsRoutes from './modules/accounting/fiscal-periods/fiscal-periods.routes'
 import journalHeadersRoutes from './modules/accounting/journals/journal-headers/journal-headers.routes'
+import journalLinesRoutes from './modules/accounting/journals/journal-lines/journal-lines.routes'
 import { errorHandler } from './middleware/error.middleware'
 import { requestLogger } from './middleware/request-logger.middleware'
 import { generateOpenApiDocument } from './config/openapi'
@@ -79,6 +80,7 @@ app.use('/api/v1/accounting-purposes', accountingPurposesRoutes)
 app.use('/api/v1/accounting-purpose-accounts', accountingPurposeAccountsRoutes)
 app.use('/api/v1/accounting/fiscal-periods', fiscalPeriodsRoutes)
 app.use('/api/v1/accounting/journals', journalHeadersRoutes)
+app.use('/api/v1/accounting/journal-lines', journalLinesRoutes)
 app.use('/api/v1', ownerBankAccountsRouter)
 
 // Error handler
