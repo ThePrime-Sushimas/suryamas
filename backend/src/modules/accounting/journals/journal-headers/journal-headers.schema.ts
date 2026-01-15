@@ -13,6 +13,7 @@ export const journalLineSchema = z.object({
 
 export const createJournalSchema = z.object({
   body: z.object({
+    branch_id: z.string().uuid().optional(),
     journal_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     journal_type: z.enum(['MANUAL', 'PURCHASE', 'SALES', 'PAYMENT', 'RECEIPT', 'ADJUSTMENT', 'OPENING', 'CLOSING']),
     description: z.string().min(1).max(500),

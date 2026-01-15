@@ -13,7 +13,7 @@ export class JournalHeadersRepository {
   ): Promise<{ data: JournalHeader[]; total: number }> {
     let query = supabase
       .from('journal_headers')
-      .select('*', { count: 'exact' })
+      .select('*, branches(branch_name)', { count: 'exact' })
       .eq('company_id', companyId)
     
     let countQuery = supabase
@@ -73,13 +73,19 @@ export class JournalHeadersRepository {
     if (error) throw new Error(error.message)
     if (countError) throw new Error(countError.message)
     
-    return { data: data || [], total: count || 0 }
+    // Map branch_name from nested object
+    const mappedData = (data || []).map(item => ({
+      ...item,
+      branch_name: (item as any).branches?.branch_name || null
+    }))
+    
+    return { data: mappedData, total: count || 0 }
   }
 
   async findById(id: string, includeDeleted: boolean = false): Promise<JournalHeaderWithLines | null> {
     let query = supabase
       .from('journal_headers')
-      .select('*')
+      .select('*, branches(branch_name)')
       .eq('id', id)
     
     if (!includeDeleted) {
@@ -99,7 +105,11 @@ export class JournalHeadersRepository {
 
     if (linesError) throw new Error(linesError.message)
 
-    return { ...header, lines: lines || [] }
+    return { 
+      ...header, 
+      branch_name: (header as any).branches?.branch_name || null,
+      lines: lines || [] 
+    }
   }
 
   /**

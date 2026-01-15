@@ -58,10 +58,13 @@ export class JournalHeadersController {
       const companyId = this.getCompanyId(req as any)
       const employeeId = getEmployeeId(req as any)
       
+      // Priority: context branch_id > body branch_id > null
+      const branchId = (req as any).context?.branch_id || req.validated.body.branch_id || null
+      
       const journal = await journalHeadersService.create({
         ...req.validated.body,
         company_id: companyId,
-        branch_id: (req as any).context?.branch_id
+        branch_id: branchId
       }, employeeId)
       
       sendSuccess(res, journal, 'Journal created', 201)
