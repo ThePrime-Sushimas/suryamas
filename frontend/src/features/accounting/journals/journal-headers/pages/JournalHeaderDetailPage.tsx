@@ -7,11 +7,13 @@ import { JournalTypeBadge } from '../components/JournalTypeBadge'
 import { BalanceIndicator } from '../../journal-lines/components/BalanceIndicator'
 import { formatCurrency, formatDate, calculateBalance } from '../../shared/journal.utils'
 import { canTransitionTo } from '../../shared/journal.constants'
+import { useJournalPermissions } from '../hooks/useJournalPermissions'
 import type { JournalLineWithDetails } from '../../shared/journal.types'
 
 export function JournalHeaderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const permissions = useJournalPermissions()
   const {
     selectedJournal,
     loading,
@@ -45,13 +47,13 @@ export function JournalHeaderDetailPage() {
   }
 
   const balance = calculateBalance(selectedJournal.lines || [])
-  const canEdit = selectedJournal.status === 'DRAFT'
-  const canDelete = selectedJournal.status === 'DRAFT'
-  const canSubmit = canTransitionTo(selectedJournal.status, 'SUBMITTED')
-  const canApprove = canTransitionTo(selectedJournal.status, 'APPROVED')
-  const canReject = selectedJournal.status === 'SUBMITTED' || selectedJournal.status === 'APPROVED'
-  const canPost = canTransitionTo(selectedJournal.status, 'POSTED')
-  const canReverse = selectedJournal.status === 'POSTED' && !selectedJournal.is_reversed
+  const canEdit = permissions.canEdit && selectedJournal.status === 'DRAFT'
+  const canDelete = permissions.canDelete && selectedJournal.status === 'DRAFT'
+  const canSubmit = permissions.canSubmit && canTransitionTo(selectedJournal.status, 'SUBMITTED')
+  const canApprove = permissions.canApprove && canTransitionTo(selectedJournal.status, 'APPROVED')
+  const canReject = permissions.canReject && (selectedJournal.status === 'SUBMITTED' || selectedJournal.status === 'APPROVED')
+  const canPost = permissions.canPost && canTransitionTo(selectedJournal.status, 'POSTED')
+  const canReverse = permissions.canReverse && selectedJournal.status === 'POSTED' && !selectedJournal.is_reversed
 
   const handleEdit = () => navigate(`/accounting/journals/${id}/edit`)
   

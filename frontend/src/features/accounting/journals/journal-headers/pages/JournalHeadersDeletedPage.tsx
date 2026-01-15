@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { useJournalHeadersStore } from '../store/journalHeaders.store'
 import { JournalHeaderTable } from '../components/JournalHeaderTable'
+import { useJournalPermissions } from '../hooks/useJournalPermissions'
 
 export function JournalHeadersDeletedPage() {
   const navigate = useNavigate()
+  const permissions = useJournalPermissions()
   const { journals, loading, fetchJournals, restoreJournal } = useJournalHeadersStore()
 
   useEffect(() => {
@@ -43,7 +45,7 @@ export function JournalHeadersDeletedPage() {
         ) : (
           <JournalHeaderTable
             journals={journals}
-            onRestore={handleRestore}
+            onRestore={permissions.canRestore ? handleRestore : undefined}
             showDeleted
           />
         )}

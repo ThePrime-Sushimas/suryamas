@@ -4,10 +4,12 @@ import { Plus } from 'lucide-react'
 import { useJournalHeadersStore } from '../store/journalHeaders.store'
 import { JournalHeaderFilters } from '../components/JournalHeaderFilters'
 import { JournalHeaderTable } from '../components/JournalHeaderTable'
+import { useJournalPermissions } from '../hooks/useJournalPermissions'
 import type { JournalHeader } from '../types/journal-header.types'
 
 export function JournalHeadersListPage() {
   const navigate = useNavigate()
+  const permissions = useJournalPermissions()
   const {
     journals,
     loading,
@@ -52,13 +54,15 @@ export function JournalHeadersListPage() {
           >
             View Deleted
           </button>
-          <button
-            onClick={() => navigate('/accounting/journals/new')}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            <Plus size={20} />
-            New Journal
-          </button>
+          {permissions.canCreate && (
+            <button
+              onClick={() => navigate('/accounting/journals/new')}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              <Plus size={20} />
+              New Journal
+            </button>
+          )}
         </div>
       </div>
 
@@ -87,9 +91,9 @@ export function JournalHeadersListPage() {
         ) : (
           <JournalHeaderTable
             journals={journals}
-            onView={handleView}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
+            onView={permissions.canView ? handleView : undefined}
+            onEdit={permissions.canEdit ? handleEdit : undefined}
+            onDelete={permissions.canDelete ? handleDelete : undefined}
           />
         )}
       </div>
