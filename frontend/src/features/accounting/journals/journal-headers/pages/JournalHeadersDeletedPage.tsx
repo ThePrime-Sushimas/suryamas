@@ -6,7 +6,7 @@ import { JournalHeaderTable } from '../components/JournalHeaderTable'
 
 export function JournalHeadersDeletedPage() {
   const navigate = useNavigate()
-  const { journals, isLoading, fetchJournals, restoreJournal } = useJournalHeadersStore()
+  const { journals, loading, fetchJournals, restoreJournal } = useJournalHeadersStore()
 
   useEffect(() => {
     fetchJournals({ show_deleted: true })
@@ -36,7 +36,7 @@ export function JournalHeadersDeletedPage() {
       </div>
 
       <div className="bg-white border rounded shadow">
-        {isLoading ? (
+        {loading ? (
           <div className="text-center py-12 text-gray-500">Loading...</div>
         ) : journals.length === 0 ? (
           <div className="text-center py-12 text-gray-500">No deleted journals found</div>

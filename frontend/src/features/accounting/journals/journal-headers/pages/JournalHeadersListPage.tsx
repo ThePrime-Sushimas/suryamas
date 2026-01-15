@@ -4,13 +4,13 @@ import { Plus } from 'lucide-react'
 import { useJournalHeadersStore } from '../store/journalHeaders.store'
 import { JournalHeaderFilters } from '../components/JournalHeaderFilters'
 import { JournalHeaderTable } from '../components/JournalHeaderTable'
-import type { JournalHeaderWithLines } from '../types/journal-header.types'
+import type { JournalHeader } from '../types/journal-header.types'
 
 export function JournalHeadersListPage() {
   const navigate = useNavigate()
   const {
     journals,
-    isLoading,
+    loading,
     error,
     pagination,
     fetchJournals,
@@ -23,11 +23,11 @@ export function JournalHeadersListPage() {
     fetchJournals({})
   }, [fetchJournals])
 
-  const handleView = (journal: JournalHeaderWithLines) => {
+  const handleView = (journal: JournalHeader) => {
     navigate(`/accounting/journals/${journal.id}`)
   }
 
-  const handleEdit = (journal: JournalHeaderWithLines) => {
+  const handleEdit = (journal: JournalHeader) => {
     navigate(`/accounting/journals/${journal.id}/edit`)
   }
 
@@ -82,7 +82,7 @@ export function JournalHeadersListPage() {
 
       {/* Table */}
       <div className="bg-white border rounded shadow">
-        {isLoading ? (
+        {loading ? (
           <div className="text-center py-12 text-gray-500">Loading journals...</div>
         ) : (
           <JournalHeaderTable

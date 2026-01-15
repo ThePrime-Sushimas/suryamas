@@ -7,7 +7,7 @@ import type { UpdateJournalDto } from '../types/journal-header.types'
 export function JournalHeaderEditPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { selectedJournal, isLoading, fetchJournalById, updateJournal } = useJournalHeadersStore()
+  const { selectedJournal, loading, fetchJournalById, updateJournal } = useJournalHeadersStore()
 
   useEffect(() => {
     if (id) {
@@ -26,7 +26,7 @@ export function JournalHeaderEditPage() {
     navigate('/accounting/journals')
   }, [navigate])
 
-  if (isLoading) {
+  if (loading) {
     return <div className="p-6 text-center">Loading...</div>
   }
 

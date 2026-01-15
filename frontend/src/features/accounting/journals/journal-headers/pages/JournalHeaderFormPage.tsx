@@ -2,14 +2,14 @@ import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useJournalHeadersStore } from '../store/journalHeaders.store'
 import { JournalHeaderForm } from '../components/JournalHeaderForm'
-import type { CreateJournalDto } from '../types/journal-header.types'
+import type { CreateJournalDto, UpdateJournalDto } from '../types/journal-header.types'
 
 export function JournalHeaderFormPage() {
   const navigate = useNavigate()
   const { createJournal } = useJournalHeadersStore()
 
-  const handleSubmit = useCallback(async (dto: CreateJournalDto) => {
-    await createJournal(dto)
+  const handleSubmit = useCallback(async (dto: CreateJournalDto | UpdateJournalDto) => {
+    await createJournal(dto as CreateJournalDto)
     navigate('/accounting/journals')
   }, [createJournal, navigate])
 

@@ -1,19 +1,28 @@
 import api from '@/lib/axios'
 import type {
+  JournalHeader,
   JournalHeaderWithLines,
   CreateJournalDto,
   UpdateJournalDto,
   RejectJournalDto,
   ReverseJournalDto,
   JournalHeaderFilter,
-  JournalHeaderListResponse,
 } from '../types/journal-header.types'
+
+interface PaginationResponse {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
+}
 
 const BASE_URL = '/accounting/journals'
 
 export const journalHeadersApi = {
   list: async (params: JournalHeaderFilter & { page?: number; limit?: number }) => {
-    const { data } = await api.get<{ success: boolean; message: string; data: any[]; pagination: any }>(BASE_URL, { params })
+    const { data } = await api.get<{ success: boolean; message: string; data: JournalHeader[]; pagination: PaginationResponse }>(BASE_URL, { params })
     return { data: data.data, pagination: data.pagination }
   },
 
