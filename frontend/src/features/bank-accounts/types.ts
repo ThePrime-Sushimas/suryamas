@@ -10,6 +10,14 @@ export interface BankAccount {
   currency: string
   is_primary: boolean
   is_active: boolean
+  // COA Link (optional)
+  coa_account_id: string | null
+  coa_account?: {
+    id: string
+    account_code: string
+    account_name: string
+    account_type: string
+  } | null
   created_at: string
 }
 
@@ -21,6 +29,7 @@ export interface CreateBankAccountDto {
   account_number: string
   is_primary?: boolean
   is_active?: boolean
+  coa_account_id?: string | null
 }
 
 export interface UpdateBankAccountDto {
@@ -29,6 +38,7 @@ export interface UpdateBankAccountDto {
   account_number?: string
   is_primary?: boolean
   is_active?: boolean
+  coa_account_id?: string | null
 }
 
 export interface ApiResponse<T> {

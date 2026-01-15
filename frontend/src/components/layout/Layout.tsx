@@ -46,6 +46,7 @@ export default function Layout() {
         { id: 'sub-categories', name: 'Sub Categories', href: '/sub-categories', icon: <Package size={16} />, module: 'sub_categories' },
         { id: 'metric-units', name: 'Metric Units', href: '/metric-units', icon: <Package size={16} />, module: 'metric-units' },
         { id: 'payment-terms', name: 'Payment Terms', href: '/payment-terms', icon: <Package size={16} />, module: 'payment_terms' },
+        { id: 'payment-methods', name: 'Payment Methods', href: '/payment-methods', icon: <DollarSign size={16} />, module: 'payment_methods' },
       ]
     },
     {

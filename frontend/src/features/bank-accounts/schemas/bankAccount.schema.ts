@@ -13,7 +13,10 @@ export const bankAccountSchema = z.object({
     .regex(/^[0-9]+$/, 'Account number must contain only digits'),
   
   is_primary: z.boolean(),
-  is_active: z.boolean()
+  is_active: z.boolean(),
+  
+  // Optional COA link
+  coa_account_id: z.string().uuid('Invalid COA account ID').optional().nullable(),
 })
 
 export type BankAccountFormData = z.infer<typeof bankAccountSchema>
