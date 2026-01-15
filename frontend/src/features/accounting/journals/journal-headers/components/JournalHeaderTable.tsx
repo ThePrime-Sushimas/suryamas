@@ -2,12 +2,12 @@ import { Eye, Edit, Trash2, RotateCcw } from 'lucide-react'
 import { JournalStatusBadge } from './JournalStatusBadge'
 import { JournalTypeBadge } from './JournalTypeBadge'
 import { formatCurrency, formatDate } from '../../shared/journal.utils'
-import type { JournalHeaderWithLines } from '../types/journal-header.types'
+import type { JournalHeader } from '../types/journal-header.types'
 
 interface Props {
-  journals: JournalHeaderWithLines[]
-  onView?: (journal: JournalHeaderWithLines) => void
-  onEdit?: (journal: JournalHeaderWithLines) => void
+  journals: JournalHeader[]
+  onView?: (journal: JournalHeader) => void
+  onEdit?: (journal: JournalHeader) => void
   onDelete?: (id: string) => void
   onRestore?: (id: string) => void
   showDeleted?: boolean

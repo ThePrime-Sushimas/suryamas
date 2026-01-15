@@ -4,6 +4,7 @@ export interface JournalHeader {
   id: string
   company_id: string
   branch_id?: string
+  branch_name?: string
   journal_number: string
   sequence_number: number
   journal_date: string
