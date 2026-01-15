@@ -99,16 +99,34 @@ export class JournalHeadersRepository {
 
     const { data: lines, error: linesError } = await supabase
       .from('journal_lines')
-      .select('*')
+      .select(`
+        *,
+        chart_of_accounts!inner(
+          account_code,
+          account_name,
+          account_type
+        )
+      `)
       .eq('journal_header_id', id)
       .order('line_number')
 
     if (linesError) throw new Error(linesError.message)
 
+    // Flatten account data into line object
+    const linesWithAccounts = (lines || []).map(line => {
+      const account = (line as any).chart_of_accounts
+      return {
+        ...line,
+        account_code: account?.account_code,
+        account_name: account?.account_name,
+        account_type: account?.account_type
+      }
+    })
+
     return { 
       ...header, 
       branch_name: (header as any).branches?.branch_name || null,
-      lines: lines || [] 
+      lines: linesWithAccounts
     }
   }
 
