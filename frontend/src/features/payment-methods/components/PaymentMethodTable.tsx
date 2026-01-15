@@ -13,13 +13,12 @@ interface PaymentMethodTableProps {
 }
 
 const PAYMENT_TYPE_LABELS: Record<string, string> = {
+  BANK: 'Bank',
+  CARD: 'Card',
   CASH: 'Cash',
-  BANK_TRANSFER: 'Bank Transfer',
-  GIRO: 'Giro',
-  CREDIT_CARD: 'Credit Card',
-  DEBIT_CARD: 'Debit Card',
-  DIGITAL_WALLET: 'Digital Wallet',
-  OTHER: 'Other'
+  COMPLIMENT: 'Compliment',
+  MEMBER_DEPOSIT: 'Member Deposit',
+  OTHER_COST: 'Other Cost'
 }
 
 export const PaymentMethodTable = ({ 

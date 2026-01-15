@@ -25,13 +25,12 @@ interface COAOption {
 }
 
 const PAYMENT_TYPE_OPTIONS: { value: PaymentType; label: string }[] = [
+  { value: 'BANK', label: 'Bank' },
+  { value: 'CARD', label: 'Card' },
   { value: 'CASH', label: 'Cash' },
-  { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
-  { value: 'GIRO', label: 'Giro' },
-  { value: 'CREDIT_CARD', label: 'Credit Card' },
-  { value: 'DEBIT_CARD', label: 'Debit Card' },
-  { value: 'DIGITAL_WALLET', label: 'Digital Wallet' },
-  { value: 'OTHER', label: 'Other' }
+  { value: 'COMPLIMENT', label: 'Compliment' },
+  { value: 'MEMBER_DEPOSIT', label: 'Member Deposit' },
+  { value: 'OTHER_COST', label: 'Other Cost' }
 ]
 
 export const PaymentMethodForm = ({ 

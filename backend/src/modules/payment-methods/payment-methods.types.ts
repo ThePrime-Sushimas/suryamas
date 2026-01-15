@@ -4,13 +4,12 @@
  * Payment method types available in the system
  */
 export type PaymentType =
-  | 'CASH' 
-  | 'BANK_TRANSFER' 
-  | 'GIRO' 
-  | 'CREDIT_CARD' 
-  | 'DEBIT_CARD' 
-  | 'DIGITAL_WALLET' 
-  | 'OTHER'
+  | 'BANK'
+  | 'CARD'
+  | 'CASH'
+  | 'COMPLIMENT'
+  | 'MEMBER_DEPOSIT'
+  | 'OTHER_COST'
 
 /**
  * Main payment method interface

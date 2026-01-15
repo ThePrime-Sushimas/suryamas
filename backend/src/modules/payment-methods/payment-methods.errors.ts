@@ -115,13 +115,12 @@ export const PaymentMethodErrors = {
  */
 export const PaymentMethodsConfig = {
   PAYMENT_TYPES: [
+    'BANK',
+    'CARD',
     'CASH',
-    'BANK_TRANSFER',
-    'GIRO',
-    'CREDIT_CARD',
-    'DEBIT_CARD',
-    'DIGITAL_WALLET',
-    'OTHER'
+    'COMPLIMENT',
+    'MEMBER_DEPOSIT',
+    'OTHER_COST'
   ] as const,
 
   EXPORT: {
