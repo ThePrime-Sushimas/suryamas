@@ -291,6 +291,26 @@ export class JournalHeadersService {
     return reversal
   }
 
+  async restore(id: string, userId: string, companyId: string): Promise<void> {
+    const journal = await journalHeadersRepository.findById(id, true)
+    
+    if (!journal) {
+      throw JournalErrors.NOT_FOUND(id)
+    }
+    
+    if (journal.company_id !== companyId) {
+      throw JournalErrors.NOT_FOUND(id)
+    }
+    
+    if (!journal.deleted_at) {
+      throw new Error('Journal is not deleted')
+    }
+
+    await journalHeadersRepository.restore(id, userId)
+    
+    logInfo('Journal restored', { journal_id: id, user_id: userId })
+  }
+
   private async validateAccount(accountId: string, companyId: string): Promise<void> {
     const account = await chartOfAccountsRepository.findById(accountId)
     

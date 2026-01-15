@@ -178,6 +178,19 @@ export class JournalHeadersController {
       handleError(res, error)
     }
   }
+
+  async restore(req: AuthenticatedRequest, res: Response) {
+    try {
+      requireEmployee(req)
+      const companyId = this.getCompanyId(req)
+      const employeeId = getEmployeeId(req)
+      
+      await journalHeadersService.restore(req.params.id, employeeId, companyId)
+      sendSuccess(res, null, 'Journal restored')
+    } catch (error) {
+      handleError(res, error)
+    }
+  }
 }
 
 export const journalHeadersController = new JournalHeadersController()

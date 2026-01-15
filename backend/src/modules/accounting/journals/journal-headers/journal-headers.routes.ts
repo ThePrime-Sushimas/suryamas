@@ -62,4 +62,8 @@ router.post('/:id/post', canUpdate('journals'), validateSchema(journalIdSchema),
 router.post('/:id/reverse', canUpdate('journals'), validateSchema(reverseJournalSchema), (req, res) => 
   journalHeadersController.reverse(req as ValidatedAuthRequest<typeof reverseJournalSchema>, res))
 
+// Restore deleted journal
+router.post('/:id/restore', canUpdate('journals'), validateSchema(journalIdSchema), (req, res) => 
+  journalHeadersController.restore(req as AuthenticatedRequest, res))
+
 export default router

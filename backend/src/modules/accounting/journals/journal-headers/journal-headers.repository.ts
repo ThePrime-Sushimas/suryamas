@@ -76,13 +76,17 @@ export class JournalHeadersRepository {
     return { data: data || [], total: count || 0 }
   }
 
-  async findById(id: string): Promise<JournalHeaderWithLines | null> {
-    const { data: header, error: headerError } = await supabase
+  async findById(id: string, includeDeleted: boolean = false): Promise<JournalHeaderWithLines | null> {
+    let query = supabase
       .from('journal_headers')
       .select('*')
       .eq('id', id)
-      .is('deleted_at', null)
-      .maybeSingle()
+    
+    if (!includeDeleted) {
+      query = query.is('deleted_at', null)
+    }
+    
+    const { data: header, error: headerError } = await query.maybeSingle()
 
     if (headerError) throw new Error(headerError.message)
     if (!header) return null
@@ -246,6 +250,20 @@ export class JournalHeadersRepository {
         reversal_date: new Date().toISOString(),
         reversal_reason: reason,
         updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+
+    if (error) throw new Error(error.message)
+  }
+
+  async restore(id: string, userId: string): Promise<void> {
+    const { error } = await supabase
+      .from('journal_headers')
+      .update({
+        deleted_at: null,
+        deleted_by: null,
+        updated_at: new Date().toISOString(),
+        updated_by: userId
       })
       .eq('id', id)
 
