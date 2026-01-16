@@ -3,6 +3,7 @@ import { useLocation, Link, Outlet, useNavigate } from 'react-router-dom'
 import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, Key, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User, ShoppingCart, Building2, UserCog, Shield, DollarSign, Calculator, FileSpreadsheet } from 'lucide-react'
 import { useAuthStore } from '@/features/auth'
 import { BranchSwitcher, usePermissionStore } from '@/features/branch_context'
+import { UploadProgressToast } from '@/features/pos-imports/components/UploadProgressToast'
 
 interface MenuItem {
   id: string
@@ -354,6 +355,9 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Global Upload Progress Toast */}
+      <UploadProgressToast />
     </div>
   )
 }
