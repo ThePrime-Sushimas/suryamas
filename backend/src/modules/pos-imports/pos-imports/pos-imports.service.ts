@@ -483,6 +483,35 @@ class PosImportsService {
     }
     return posImport
   }
+
+  /**
+   * Export POS import to Excel
+   */
+  async exportToExcel(id: string, companyId: string): Promise<Buffer> {
+    const posImport = await this.getById(id, companyId)
+    const allLines = await posImportLinesRepository.findAllByImportId(id)
+
+    // Create workbook
+    const wb = XLSX.utils.book_new()
+    
+    // Prepare data with headers
+    const data = [
+      // Header row
+      Object.keys(EXCEL_COLUMN_MAP),
+      // Data rows
+      ...allLines.map(line => 
+        Object.keys(EXCEL_COLUMN_MAP).map(excelCol => {
+          const dbCol = EXCEL_COLUMN_MAP[excelCol]
+          return (line as any)[dbCol] ?? ''
+        })
+      )
+    ]
+
+    const ws = XLSX.utils.aoa_to_sheet(data)
+    XLSX.utils.book_append_sheet(wb, ws, 'POS Data')
+
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
+  }
 }
 
 export const posImportsService = new PosImportsService()

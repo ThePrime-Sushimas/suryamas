@@ -57,6 +57,14 @@ router.get('/:id/lines', canView('pos-imports'), queryMiddleware({
 }), validateSchema(posImportIdSchema), (req, res) => 
   posImportsController.getLines(req as AuthenticatedQueryRequest, res))
 
+// Export import to Excel
+router.get('/:id/export', canView('pos-imports'), validateSchema(posImportIdSchema), (req, res) => 
+  posImportsController.export(req as AuthenticatedRequest, res))
+
+// Get financial summary
+router.get('/:id/summary', canView('pos-imports'), validateSchema(posImportIdSchema), (req, res) => 
+  posImportsController.getSummary(req as AuthenticatedRequest, res))
+
 // Confirm import (after duplicate analysis)
 router.post('/:id/confirm', 
   canInsert('pos-imports'), 

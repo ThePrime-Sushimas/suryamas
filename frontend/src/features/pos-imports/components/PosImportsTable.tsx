@@ -1,52 +1,163 @@
-import { Trash2, FileText, Eye } from 'lucide-react'
+import { useState } from 'react'
+import { Trash2, FileText, Eye, ArrowUpDown, Upload } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import type { PosImport } from '../types/pos-imports.types'
+import type { PosImport, PosImportStatus } from '../types/pos-imports.types'
+import { STATUS_COLORS } from '../constants/pos-imports.constants'
 
 interface PosImportsTableProps {
   imports: PosImport[]
+  selectedIds: Set<string>
+  onToggleSelection: (id: string) => void
+  onSelectAll: (checked: boolean) => void
   onDelete: (id: string) => void
   isLoading: boolean
 }
 
-const STATUS_COLORS = {
-  PENDING: 'bg-gray-100 text-gray-800',
-  ANALYZED: 'bg-blue-100 text-blue-800',
-  IMPORTED: 'bg-green-100 text-green-800',
-  MAPPED: 'bg-purple-100 text-purple-800',
-  POSTED: 'bg-indigo-100 text-indigo-800',
-  FAILED: 'bg-red-100 text-red-800'
-}
+const SortableHeader = ({ 
+  field, 
+  label, 
+  sortField, 
+  sortDirection, 
+  onSort 
+}: { 
+  field: keyof PosImport
+  label: string
+  sortField: keyof PosImport
+  sortDirection: 'asc' | 'desc'
+  onSort: (field: keyof PosImport) => void
+}) => (
+  <th 
+    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+    onClick={() => onSort(field)}
+  >
+    <div className="flex items-center gap-1">
+      {label}
+      <ArrowUpDown size={12} className="text-gray-400" />
+      {sortField === field && (
+        <span className="text-xs font-bold">
+          {sortDirection === 'asc' ? '↑' : '↓'}
+        </span>
+      )}
+    </div>
+  </th>
+)
 
-export const PosImportsTable = ({ imports, onDelete, isLoading }: PosImportsTableProps) => {
+export const PosImportsTable = ({ 
+  imports, 
+  selectedIds,
+  onToggleSelection,
+  onSelectAll,
+  onDelete, 
+  isLoading 
+}: PosImportsTableProps) => {
   const navigate = useNavigate()
+  const [sortField, setSortField] = useState<keyof PosImport>('import_date')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  
+  // Sort imports
+  const sortedImports = [...imports].sort((a, b) => {
+    const aValue = a[sortField]
+    const bValue = b[sortField]
+    
+    if (aValue === undefined || bValue === undefined) return 0
+    if (aValue === bValue) return 0
+    
+    const comparison = aValue > bValue ? 1 : -1
+    return sortDirection === 'asc' ? comparison : -comparison
+  })
+  
+  const handleSort = (field: keyof PosImport) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('desc')
+    }
+  }
+  
   if (imports.length === 0) {
     return (
-      <div className="text-center py-12 bg-gray-50 rounded-lg">
+      <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
         <FileText className="mx-auto h-12 w-12 text-gray-400" />
-        <h3 className="mt-2 text-sm font-medium text-gray-900">No imports yet</h3>
-        <p className="mt-1 text-sm text-gray-500">Upload an Excel file to get started</p>
+        <h3 className="mt-4 text-lg font-medium text-gray-900">No imports yet</h3>
+        <p className="mt-2 text-sm text-gray-500">
+          Upload your first POS data file to get started
+        </p>
+        <div className="mt-6">
+          <button
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('open-upload-modal'))
+              }
+            }}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Upload First File
+          </button>
+        </div>
+        <p className="mt-4 text-xs text-gray-400">
+          Supported formats: .xlsx, .xls
+        </p>
       </div>
     )
   }
+
+  const getStatusColor = (status: PosImportStatus) => {
+    return STATUS_COLORS[status] || STATUS_COLORS.PENDING
+  }
+
+  const isAllSelected = imports.length > 0 && selectedIds.size === imports.length
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
         <thead className="bg-gray-50 border-b">
           <tr>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">File Name</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date Range</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Rows</th>
+            <th className="px-4 py-3 text-left">
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                onChange={(e) => onSelectAll(e.target.checked)}
+                className="rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+                aria-label="Select all imports"
+              />
+            </th>
+            <SortableHeader field="file_name" label="File Name" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+            <SortableHeader field="date_range_start" label="Date Range" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+            <SortableHeader field="total_rows" label="Total Rows" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">New</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duplicates</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Import Date</th>
+            <SortableHeader field="status" label="Status" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+            <SortableHeader field="import_date" label="Import Date" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {imports.map((item) => (
-            <tr key={item.id} className="hover:bg-gray-50">
+          {sortedImports.map((item) => (
+            <tr 
+              key={item.id} 
+              className="hover:bg-gray-50 focus-within:bg-blue-50"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  navigate(`/pos-imports/${item.id}`)
+                }
+                if (e.key === ' ' || e.key === 'Spacebar') {
+                  e.preventDefault()
+                  onToggleSelection(item.id)
+                }
+              }}
+            >
+              <td className="px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(item.id)}
+                  onChange={() => onToggleSelection(item.id)}
+                  className="rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+                  aria-label={`Select import ${item.file_name}`}
+                />
+              </td>
               <td className="px-4 py-3 text-sm text-gray-900">{item.file_name}</td>
               <td className="px-4 py-3 text-sm text-gray-600">
                 {new Date(item.date_range_start).toLocaleDateString()} - {new Date(item.date_range_end).toLocaleDateString()}
@@ -55,7 +166,7 @@ export const PosImportsTable = ({ imports, onDelete, isLoading }: PosImportsTabl
               <td className="px-4 py-3 text-sm text-green-600 text-center font-medium">{item.new_rows}</td>
               <td className="px-4 py-3 text-sm text-orange-600 text-center font-medium">{item.duplicate_rows}</td>
               <td className="px-4 py-3">
-                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${STATUS_COLORS[item.status]}`}>
+                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(item.status)}`}>
                   {item.status}
                 </span>
               </td>
@@ -68,6 +179,7 @@ export const PosImportsTable = ({ imports, onDelete, isLoading }: PosImportsTabl
                     onClick={() => navigate(`/pos-imports/${item.id}`)}
                     className="text-blue-600 hover:text-blue-800"
                     title="View Details"
+                    aria-label={`View details for ${item.file_name}`}
                   >
                     <Eye size={16} />
                   </button>
@@ -76,6 +188,7 @@ export const PosImportsTable = ({ imports, onDelete, isLoading }: PosImportsTabl
                     disabled={isLoading}
                     className="text-red-600 hover:text-red-800 disabled:opacity-50"
                     title="Delete"
+                    aria-label={`Delete ${item.file_name}`}
                   >
                     <Trash2 size={16} />
                   </button>

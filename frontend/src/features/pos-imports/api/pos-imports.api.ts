@@ -1,5 +1,41 @@
 import api from '@/lib/axios'
-import type { AnalyzeResult } from '../types/pos-imports.types'
+import type { AnalyzeResult, PosImport, PosImportLine } from '../types/pos-imports.types'
+
+// Constants with descriptive naming
+export const POS_IMPORT_MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
+export const POS_IMPORT_UPLOAD_TIMEOUT = 120000 // 2 minutes
+export const POS_IMPORT_DEFAULT_PAGE_SIZE = 50
+
+const ALLOWED_MIME_TYPES = [
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/csv'
+]
+
+const ALLOWED_EXTENSIONS = ['.xlsx', '.xls', '.csv']
+
+function validateFile(file: File): void {
+  // Check file size
+  if (file.size > POS_IMPORT_MAX_FILE_SIZE) {
+    throw new Error(`File size must be less than ${POS_IMPORT_MAX_FILE_SIZE / 1024 / 1024}MB`)
+  }
+
+  // Check MIME type
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    // Fallback to extension check if MIME type is not set
+    const hasValidExtension = ALLOWED_EXTENSIONS.some(ext => 
+      file.name.toLowerCase().endsWith(ext)
+    )
+    if (!hasValidExtension) {
+      throw new Error('Invalid file type. Only Excel (.xlsx, .xls) and CSV files are allowed')
+    }
+  }
+
+  // Check if file is empty
+  if (file.size === 0) {
+    throw new Error('File is empty')
+  }
+}
 
 interface ListParams {
   page?: number
@@ -13,58 +49,109 @@ interface ListParams {
   order?: 'asc' | 'desc'
 }
 
+interface ListResponse {
+  data: PosImport[]
+  pagination?: {
+    total: number
+    page: number
+    limit: number
+  }
+}
+
+interface LinesResponse {
+  data: PosImportLine[]
+  pagination?: {
+    total: number
+    page: number
+    limit: number
+  }
+}
+
 export const posImportsApi = {
-  list: async (params?: ListParams) => {
-    const response = await api.get('/pos-imports', { params })
+  list: async (params?: ListParams, signal?: AbortSignal): Promise<ListResponse> => {
+    const response = await api.get('/pos-imports', { params, signal })
     return response.data
   },
 
-  getById: async (id: string) => {
-    const response = await api.get(`/pos-imports/${id}`)
+  getById: async (id: string, signal?: AbortSignal): Promise<{ data: PosImport }> => {
+    const response = await api.get(`/pos-imports/${id}`, { signal })
     return response.data
   },
 
-  upload: async (file: File, branchId: string): Promise<AnalyzeResult> => {
+  upload: async (
+    file: File,
+    branchId: string,
+    signal?: AbortSignal,
+    onProgress?: (progress: number) => void
+  ): Promise<AnalyzeResult> => {
+    // Validate file before upload
+    validateFile(file)
+
     const formData = new FormData()
     formData.append('file', file)
     formData.append('branch_id', branchId)
+    // Note: File metadata is automatically added by axios interceptor
 
     const response = await api.post('/pos-imports/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       },
-      timeout: 120000, // 2 minutes
+      timeout: POS_IMPORT_UPLOAD_TIMEOUT,
+      signal,
       onUploadProgress: (progressEvent) => {
-        if (progressEvent.total) {
+        if (onProgress && progressEvent.total) {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-          // Dispatch custom event for progress tracking
-          window.dispatchEvent(new CustomEvent('upload-progress', { detail: percentCompleted }))
+          onProgress(percentCompleted)
         }
       }
     })
     return response.data.data
   },
 
-  confirm: async (id: string, skipDuplicates: boolean = true) => {
+  confirm: async (id: string, skipDuplicates: boolean = true, signal?: AbortSignal) => {
     const response = await api.post(`/pos-imports/${id}/confirm`, {
       skip_duplicates: skipDuplicates
-    })
+    }, { signal })
     return response.data
   },
 
-  delete: async (id: string) => {
-    await api.delete(`/pos-imports/${id}`)
+  delete: async (id: string, signal?: AbortSignal) => {
+    await api.delete(`/pos-imports/${id}`, { signal })
   },
 
-  getLines: async (id: string, page: number = 1, limit: number = 50) => {
+  getLines: async (
+    id: string,
+    page: number = 1,
+    limit: number = POS_IMPORT_DEFAULT_PAGE_SIZE,
+    signal?: AbortSignal
+  ): Promise<LinesResponse> => {
     const response = await api.get(`/pos-imports/${id}/lines`, {
       params: { 
         page, 
         limit,
         sort: 'row_number',
         order: 'asc'
-      }
+      },
+      signal
     })
     return response.data
+  },
+
+  export: async (id: string, signal?: AbortSignal): Promise<Blob> => {
+    const response = await api.get(`/pos-imports/${id}/export`, {
+      responseType: 'blob',
+      signal
+    })
+    return response.data
+  },
+
+  getSummary: async (id: string, signal?: AbortSignal): Promise<{
+    totalAmount: number
+    totalTax: number
+    totalDiscount: number
+    transactionCount: number
+  }> => {
+    const response = await api.get(`/pos-imports/${id}/summary`, { signal })
+    return response.data.data
   }
 }

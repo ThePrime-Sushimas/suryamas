@@ -1,30 +1,23 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { Upload, X, AlertCircle } from 'lucide-react'
 import { useBranchContextStore } from '@/features/branch_context'
+import { POS_IMPORT_MAX_FILE_SIZE_BYTES, POS_IMPORT_MAX_FILE_SIZE_MB } from '../constants/pos-imports.constants'
+import { ConfirmModal } from './ConfirmModal'
 
 interface UploadModalProps {
   isOpen: boolean
   onClose: () => void
   onUpload: (file: File, branchId: string) => Promise<void>
   isLoading: boolean
+  uploadProgress: number
 }
 
-export const UploadModal = ({ isOpen, onClose, onUpload, isLoading }: UploadModalProps) => {
+export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgress }: UploadModalProps) => {
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [uploadProgress, setUploadProgress] = useState(0)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const currentBranch = useBranchContextStore(s => s.currentBranch)
-
-  // Listen to upload progress
-  useEffect(() => {
-    const handleProgress = (e: Event) => {
-      const customEvent = e as CustomEvent<number>
-      setUploadProgress(customEvent.detail)
-    }
-    window.addEventListener('upload-progress', handleProgress)
-    return () => window.removeEventListener('upload-progress', handleProgress)
-  }, [])
 
   if (!isOpen) return null
 
@@ -37,8 +30,8 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading }: UploadModa
       return
     }
 
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      setError('File size must be less than 10MB')
+    if (selectedFile.size > POS_IMPORT_MAX_FILE_SIZE_BYTES) {
+      setError(`File size must be less than ${POS_IMPORT_MAX_FILE_SIZE_MB}MB`)
       return
     }
 
@@ -50,18 +43,28 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading }: UploadModa
     if (!file || !currentBranch?.branch_id) return
 
     try {
-      setUploadProgress(0)
       await onUpload(file, currentBranch.branch_id)
       setFile(null)
-      setUploadProgress(0)
+      setError(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
-    } catch {
-      setUploadProgress(0)
-      // Error handled by store
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Upload failed')
     }
   }
 
   const handleClose = () => {
+    if (isLoading && uploadProgress < 100) {
+      setShowCloseConfirm(true)
+      return
+    }
+    setFile(null)
+    setError(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    onClose()
+  }
+
+  const confirmClose = () => {
+    setShowCloseConfirm(false)
     setFile(null)
     setError(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
@@ -73,7 +76,7 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading }: UploadModa
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="text-lg font-semibold">Upload POS Data</h3>
-          <button onClick={handleClose} disabled={isLoading} className="text-gray-400 hover:text-gray-600">
+          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
             <X size={20} />
           </button>
         </div>
@@ -99,7 +102,7 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading }: UploadModa
                   Click to upload or drag and drop
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  Excel files only (max 10MB)
+                  Excel files only (max {POS_IMPORT_MAX_FILE_SIZE_MB}MB)
                 </p>
               </label>
             </div>
@@ -127,22 +130,43 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading }: UploadModa
           </div>
 
           {isLoading && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">
-                  {uploadProgress === 100 ? 'Processing...' : 'Uploading...'}
+                  {uploadProgress === 100 ? 'Analyzing...' : 'Uploading...'}
                 </span>
-                <span className="font-medium text-blue-600">{uploadProgress}%</span>
+                <div className="text-right">
+                  <div className="font-medium text-blue-600">{uploadProgress}%</div>
+                </div>
               </div>
+              
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
                   className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${uploadProgress}%` }}
                 />
               </div>
+              
+              <div className="grid grid-cols-3 gap-2 text-xs text-gray-500">
+                <div>
+                  <div className="font-medium">File Size</div>
+                  <div>{((file?.size || 0) / 1024 / 1024).toFixed(2)} MB</div>
+                </div>
+                <div>
+                  <div className="font-medium">Type</div>
+                  <div>{file?.name.split('.').pop()?.toUpperCase() || 'N/A'}</div>
+                </div>
+                <div>
+                  <div className="font-medium">Branch</div>
+                  <div className="truncate" title={currentBranch?.branch_name}>
+                    {currentBranch?.branch_name || 'Unknown'}
+                  </div>
+                </div>
+              </div>
+              
               {uploadProgress === 100 && (
                 <p className="text-xs text-gray-500 text-center">
-                  Analyzing file for duplicates, please wait...
+                  Analyzing {file?.name} for duplicates and validation...
                 </p>
               )}
             </div>
@@ -162,10 +186,9 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading }: UploadModa
         <div className="flex justify-end gap-3 p-4 border-t bg-gray-50">
           <button
             onClick={handleClose}
-            disabled={isLoading}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
           >
-            Cancel
+            {isLoading ? 'Close' : 'Cancel'}
           </button>
           <button
             onClick={handleUpload}
@@ -182,6 +205,16 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading }: UploadModa
           </button>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showCloseConfirm}
+        title="Upload in Progress"
+        message="Upload is in progress. Are you sure you want to close? The upload will continue in the background."
+        confirmText="Close Anyway"
+        onConfirm={confirmClose}
+        onCancel={() => setShowCloseConfirm(false)}
+        variant="warning"
+      />
     </div>
   )
 }

@@ -69,6 +69,26 @@ export class PosImportLinesRepository {
   }
 
   /**
+   * Find all lines by import ID (no pagination, for export)
+   */
+  async findAllByImportId(importId: string): Promise<PosImportLine[]> {
+    try {
+      const { data, error } = await supabase
+        .from('pos_import_lines')
+        .select('*')
+        .eq('pos_import_id', importId)
+        .order('row_number', { ascending: true })
+
+      if (error) throw error
+
+      return data || []
+    } catch (error) {
+      logError('PosImportLinesRepository findAllByImportId error', { importId, error })
+      throw error
+    }
+  }
+
+  /**
    * Check for existing transactions (bulk)
    */
   async findExistingTransactions(
@@ -130,6 +150,37 @@ export class PosImportLinesRepository {
       return count || 0
     } catch (error) {
       logError('PosImportLinesRepository countByImportId error', { importId, error })
+      throw error
+    }
+  }
+
+  /**
+   * Get financial summary for import
+   */
+  async getSummaryByImportId(importId: string): Promise<{
+    totalAmount: number
+    totalTax: number
+    totalDiscount: number
+    transactionCount: number
+  }> {
+    try {
+      const { data, error } = await supabase
+        .from('pos_import_lines')
+        .select('total, tax, discount')
+        .eq('pos_import_id', importId)
+
+      if (error) throw error
+
+      const summary = (data || []).reduce((acc, line) => ({
+        totalAmount: acc.totalAmount + (line.total || 0),
+        totalTax: acc.totalTax + (line.tax || 0),
+        totalDiscount: acc.totalDiscount + (line.discount || 0),
+        transactionCount: acc.transactionCount + 1
+      }), { totalAmount: 0, totalTax: 0, totalDiscount: 0, transactionCount: 0 })
+
+      return summary
+    } catch (error) {
+      logError('PosImportLinesRepository getSummaryByImportId error', { importId, error })
       throw error
     }
   }

@@ -28,6 +28,7 @@ import fiscalPeriodsRoutes from './modules/accounting/fiscal-periods/fiscal-peri
 import journalHeadersRoutes from './modules/accounting/journals/journal-headers/journal-headers.routes'
 import journalLinesRoutes from './modules/accounting/journals/journal-lines/journal-lines.routes'
 import posImportsRoutes from './modules/pos-imports/pos-imports/pos-imports.routes'
+import monitoringRoutes from './modules/monitoring/monitoring.routes'
 import { errorHandler } from './middleware/error.middleware'
 import { requestLogger } from './middleware/request-logger.middleware'
 import { generateOpenApiDocument } from './config/openapi'
@@ -85,6 +86,7 @@ app.use('/api/v1/accounting/fiscal-periods', fiscalPeriodsRoutes)
 app.use('/api/v1/accounting/journals', journalHeadersRoutes)
 app.use('/api/v1/accounting/journal-lines', journalLinesRoutes)
 app.use('/api/v1/pos-imports', posImportsRoutes)
+app.use('/api/v1/monitoring', monitoringRoutes)
 app.use('/api/v1', ownerBankAccountsRouter)
 
 // Error handler

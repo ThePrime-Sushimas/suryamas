@@ -96,6 +96,52 @@ class PosImportsController {
   }
 
   /**
+   * Export POS import to Excel
+   * GET /api/v1/pos-imports/:id/export
+   */
+  async export(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params
+      const company_id = (req as any).context?.company_id
+      if (!company_id) {
+        throw new Error('Branch context required')
+      }
+
+      const buffer = await posImportsService.exportToExcel(id, company_id)
+      const posImport = await posImportsService.getById(id, company_id)
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      res.setHeader('Content-Disposition', `attachment; filename="${posImport.file_name.replace(/\.[^/.]+$/, '')}_export.xlsx"`)
+      return res.send(buffer)
+    } catch (error) {
+      logError('PosImportsController export error', { error })
+      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+    }
+  }
+
+  /**
+   * Get financial summary for import
+   * GET /api/v1/pos-imports/:id/summary
+   */
+  async getSummary(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params
+      const company_id = (req as any).context?.company_id
+      if (!company_id) {
+        throw new Error('Branch context required')
+      }
+
+      await posImportsService.getById(id, company_id)
+      const summary = await posImportLinesRepository.getSummaryByImportId(id)
+
+      return sendSuccess(res, summary, 'Summary retrieved')
+    } catch (error) {
+      logError('PosImportsController getSummary error', { error })
+      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+    }
+  }
+
+  /**
    * Upload and analyze POS Excel file
    * POST /api/v1/pos-imports/upload
    */
