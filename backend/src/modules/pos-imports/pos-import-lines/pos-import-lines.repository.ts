@@ -69,19 +69,36 @@ export class PosImportLinesRepository {
   }
 
   /**
-   * Find all lines by import ID (no pagination, for export)
+   * Find all lines by import ID (handles unlimited rows with chunking)
    */
   async findAllByImportId(importId: string): Promise<PosImportLine[]> {
     try {
-      const { data, error } = await supabase
-        .from('pos_import_lines')
-        .select('*')
-        .eq('pos_import_id', importId)
-        .order('row_number', { ascending: true })
+      let offset = 0
+      const limit = 1000
+      let hasMore = true
+      const allLines: PosImportLine[] = []
 
-      if (error) throw error
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('pos_import_lines')
+          .select('*')
+          .eq('pos_import_id', importId)
+          .order('row_number', { ascending: true })
+          .range(offset, offset + limit - 1)
 
-      return data || []
+        if (error) throw error
+
+        if (!data || data.length === 0) {
+          hasMore = false
+          break
+        }
+
+        allLines.push(...data)
+        hasMore = data.length === limit
+        offset += limit
+      }
+
+      return allLines
     } catch (error) {
       logError('PosImportLinesRepository findAllByImportId error', { importId, error })
       throw error
@@ -155,7 +172,7 @@ export class PosImportLinesRepository {
   }
 
   /**
-   * Get financial summary for import
+   * Get financial summary for import (handles unlimited rows with chunking)
    */
   async getSummaryByImportId(importId: string): Promise<{
     totalAmount: number
@@ -164,19 +181,48 @@ export class PosImportLinesRepository {
     transactionCount: number
   }> {
     try {
-      const { data, error } = await supabase
-        .from('pos_import_lines')
-        .select('total, tax, discount')
-        .eq('pos_import_id', importId)
+      // Try RPC function first (if available)
+      try {
+        const { data, error } = await supabase
+          .rpc('get_pos_import_summary', { import_id: importId })
 
-      if (error) throw error
+        if (!error && data && Array.isArray(data) && data.length > 0) {
+          return data[0]
+        }
+      } catch {
+        // Fall through to chunking approach
+      }
 
-      const summary = (data || []).reduce((acc, line) => ({
-        totalAmount: acc.totalAmount + (line.total || 0),
-        totalTax: acc.totalTax + (line.tax || 0),
-        totalDiscount: acc.totalDiscount + (line.discount || 0),
-        transactionCount: acc.transactionCount + 1
-      }), { totalAmount: 0, totalTax: 0, totalDiscount: 0, transactionCount: 0 })
+      // Fallback: Fetch in chunks of 1000
+      let offset = 0
+      const limit = 1000
+      let hasMore = true
+      const summary = { totalAmount: 0, totalTax: 0, totalDiscount: 0, transactionCount: 0 }
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('pos_import_lines')
+          .select('total, tax, discount')
+          .eq('pos_import_id', importId)
+          .range(offset, offset + limit - 1)
+
+        if (error) throw error
+
+        if (!data || data.length === 0) {
+          hasMore = false
+          break
+        }
+
+        data.forEach(line => {
+          summary.totalAmount += line.total || 0
+          summary.totalTax += line.tax || 0
+          summary.totalDiscount += line.discount || 0
+          summary.transactionCount += 1
+        })
+
+        hasMore = data.length === limit
+        offset += limit
+      }
 
       return summary
     } catch (error) {
