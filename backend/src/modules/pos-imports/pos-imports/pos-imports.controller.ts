@@ -1,0 +1,223 @@
+/**
+ * POS Imports Controller - COMPLETE VERSION
+ * All endpoints implemented
+ */
+
+import { Response } from 'express'
+import { posImportsService } from './pos-imports.service'
+import { sendSuccess, sendError } from '../../../utils/response.util'
+import { logError } from '../../../config/logger'
+import type { AuthenticatedRequest, AuthenticatedQueryRequest } from '../../../types/request.types'
+import type { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
+import type { UploadPosFileInput, ConfirmImportInput, UpdateStatusInput } from './pos-imports.schema'
+
+class PosImportsController {
+  /**
+   * List POS imports
+   * GET /api/v1/pos-imports
+   */
+  async list(req: AuthenticatedQueryRequest, res: Response) {
+    try {
+      const company_id = (req as any).context?.company_id
+      if (!company_id) {
+        throw new Error('Branch context required')
+      }
+      const { pagination, sort, filter } = req.query
+
+      const result = await posImportsService.list(company_id, pagination as any, sort as any, filter as any)
+
+      return sendSuccess(res, result.data, 'POS imports retrieved', 200, {
+        page: (pagination as any)?.page || 1,
+        limit: (pagination as any)?.limit || 10,
+        total: result.total
+      })
+    } catch (error) {
+      logError('PosImportsController list error', { error })
+      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+    }
+  }
+
+  /**
+   * Get POS import by ID
+   * GET /api/v1/pos-imports/:id
+   */
+  async getById(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params
+      const company_id = (req as any).context?.company_id
+      if (!company_id) {
+        throw new Error('Branch context required')
+      }
+
+      const posImport = await posImportsService.getById(id, company_id)
+
+      return sendSuccess(res, posImport)
+    } catch (error) {
+      logError('PosImportsController getById error', { error })
+      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+    }
+  }
+
+  /**
+   * Get POS import by ID with lines
+   * GET /api/v1/pos-imports/:id/lines
+   */
+  async getByIdWithLines(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params
+      const company_id = (req as any).context?.company_id
+      if (!company_id) {
+        throw new Error('Branch context required')
+      }
+
+      const posImport = await posImportsService.getByIdWithLines(id, company_id)
+
+      return sendSuccess(res, posImport)
+    } catch (error) {
+      logError('PosImportsController getByIdWithLines error', { error })
+      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+    }
+  }
+
+  /**
+   * Upload and analyze POS Excel file
+   * POST /api/v1/pos-imports/upload
+   */
+  async upload(req: any, res: Response) {
+    try {
+      const { branch_id } = req.body
+      const company_id = (req as any).context?.company_id
+      if (!company_id) {
+        throw new Error('Branch context required')
+      }
+      const userId = req.user?.id
+      if (!userId) {
+        throw new Error('User ID required')
+      }
+
+      if (!req.file) {
+        return sendError(res, 'No file uploaded', 400)
+      }
+
+      // Validate file type
+      const allowedMimeTypes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel'
+      ]
+      if (!allowedMimeTypes.includes(req.file.mimetype)) {
+        return sendError(res, 'Invalid file type. Please upload Excel file (.xlsx or .xls)', 400)
+      }
+
+      const result = await posImportsService.analyzeFile(req.file, branch_id, company_id, userId)
+
+      return sendSuccess(res, result, 'File analyzed successfully')
+    } catch (error) {
+      logError('PosImportsController upload error', { error })
+      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+    }
+  }
+
+  /**
+   * Confirm import after duplicate analysis
+   * POST /api/v1/pos-imports/:id/confirm
+   */
+  async confirm(req: any, res: Response) {
+    try {
+      const { id } = req.params
+      const { skip_duplicates } = req.body
+      const company_id = (req as any).context?.company_id
+      if (!company_id) {
+        throw new Error('Branch context required')
+      }
+      const userId = req.user?.id
+      if (!userId) {
+        throw new Error('User ID required')
+      }
+
+      const posImport = await posImportsService.confirmImport(id, company_id, skip_duplicates, userId)
+
+      return sendSuccess(res, posImport, 'Import confirmed successfully')
+    } catch (error) {
+      logError('PosImportsController confirm error', { error })
+      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+    }
+  }
+
+  /**
+   * Update import status
+   * PUT /api/v1/pos-imports/:id/status
+   */
+  async updateStatus(req: any, res: Response) {
+    try {
+      const { id } = req.params
+      const { status, error_message } = req.body
+      const company_id = (req as any).context?.company_id
+      if (!company_id) {
+        throw new Error('Branch context required')
+      }
+      const userId = req.user?.id
+      if (!userId) {
+        throw new Error('User ID required')
+      }
+
+      const posImport = await posImportsService.updateStatus(id, company_id, status, error_message, userId)
+
+      return sendSuccess(res, posImport, 'Status updated successfully')
+    } catch (error) {
+      logError('PosImportsController updateStatus error', { error })
+      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+    }
+  }
+
+  /**
+   * Delete POS import
+   * DELETE /api/v1/pos-imports/:id
+   */
+  async delete(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params
+      const company_id = (req as any).context?.company_id
+      if (!company_id) {
+        throw new Error('Branch context required')
+      }
+      const userId = req.user?.id
+      if (!userId) {
+        throw new Error('User ID required')
+      }
+
+      await posImportsService.delete(id, company_id, userId)
+
+      return sendSuccess(res, null, 'Import deleted successfully')
+    } catch (error) {
+      logError('PosImportsController delete error', { error })
+      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+    }
+  }
+
+  /**
+   * Restore deleted POS import
+   * POST /api/v1/pos-imports/:id/restore
+   */
+  async restore(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params
+      const company_id = (req as any).context?.company_id
+      if (!company_id) {
+        throw new Error('Branch context required')
+      }
+      const userId = req.user?.id
+      if (!userId) {
+        throw new Error('User ID required')
+      }
+
+      const posImport = await posImportsService.restore(id, company_id, userId)
+
+      return sendSuccess(res, posImport, 'Import restored successfully')
+    } catch (error) {
+      logError('PosImportsController restore error', { error })
+      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+    }
+  }
+}
+
+export const posImportsController = new PosImportsController()
