@@ -32,19 +32,36 @@ export class PosImportLinesRepository {
   }
 
   /**
-   * Find lines by import ID
+   * Find lines by import ID with pagination
    */
-  async findByImportId(importId: string): Promise<PosImportLine[]> {
+  async findByImportId(
+    importId: string,
+    page: number = 1,
+    limit: number = 50
+  ): Promise<{ data: PosImportLine[]; total: number }> {
     try {
-      const { data, error } = await supabase
-        .from('pos_import_lines')
-        .select('*')
-        .eq('pos_import_id', importId)
-        .order('row_number', { ascending: true })
+      const offset = (page - 1) * limit
 
-      if (error) throw error
+      const [dataResult, countResult] = await Promise.all([
+        supabase
+          .from('pos_import_lines')
+          .select('*')
+          .eq('pos_import_id', importId)
+          .order('row_number', { ascending: true })
+          .range(offset, offset + limit - 1),
+        supabase
+          .from('pos_import_lines')
+          .select('*', { count: 'exact', head: true })
+          .eq('pos_import_id', importId)
+      ])
 
-      return data || []
+      if (dataResult.error) throw dataResult.error
+      if (countResult.error) throw countResult.error
+
+      return {
+        data: dataResult.data || [],
+        total: countResult.count || 0
+      }
     } catch (error) {
       logError('PosImportLinesRepository findByImportId error', { importId, error })
       throw error
@@ -60,9 +77,9 @@ export class PosImportLinesRepository {
     try {
       if (transactions.length === 0) return []
 
-      // Build OR conditions for bulk check
+      // Build OR conditions for bulk check - use AND within each condition
       const orConditions = transactions
-        .map(t => `(bill_number.eq.${t.bill_number},sales_number.eq.${t.sales_number},sales_date.eq.${t.sales_date})`)
+        .map(t => `and(bill_number.eq.${t.bill_number},sales_number.eq.${t.sales_number},sales_date.eq.${t.sales_date})`)
         .join(',')
 
       const { data, error } = await supabase

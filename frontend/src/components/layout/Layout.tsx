@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useLocation, Link, Outlet, useNavigate } from 'react-router-dom'
-import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, Key, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User, ShoppingCart, Building2, UserCog, Shield, DollarSign, Calculator } from 'lucide-react'
+import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, Key, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User, ShoppingCart, Building2, UserCog, Shield, DollarSign, Calculator, FileSpreadsheet } from 'lucide-react'
 import { useAuthStore } from '@/features/auth'
 import { BranchSwitcher, usePermissionStore } from '@/features/branch_context'
 
@@ -70,6 +70,7 @@ export default function Layout() {
         { id: 'accounting-purpose-accounts', name: 'Purpose Accounts', href: '/accounting-purpose-accounts', icon: <Calculator size={16} />, module: 'accounting-purpose-accounts' },
         { id: 'fiscal-periods', name: 'Fiscal Periods', href: '/accounting/fiscal-periods', icon: <Calculator size={16} />, module: 'fiscal-periods' },
         { id: 'journal-entries', name: 'Journal Entries', href: '/accounting/journals', icon: <Calculator size={16} />, module: 'journals' },
+        { id: 'pos-imports', name: 'POS Imports', href: '/pos-imports', icon: <FileSpreadsheet size={16} />, module: 'pos-imports' },
       ]
     },
     {

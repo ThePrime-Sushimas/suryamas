@@ -34,7 +34,7 @@ router.use(authenticate, resolveBranchContext)
 
 // List POS imports
 router.get('/', canView('pos-imports'), queryMiddleware({
-  allowedSortFields: ['import_date', 'file_name', 'status', 'total_rows', 'created_at'],
+  allowedSortFields: ['import_date', 'file_name', 'status', 'total_rows', 'created_at', 'date_range_start', 'date_range_end'],
 }), validateSchema(listPosImportsSchema), (req, res) => 
   posImportsController.list(req as AuthenticatedQueryRequest, res))
 
@@ -51,9 +51,11 @@ router.post('/upload',
 router.get('/:id', canView('pos-imports'), validateSchema(posImportIdSchema), (req, res) => 
   posImportsController.getById(req as AuthenticatedRequest, res))
 
-// Get import by ID with lines
-router.get('/:id/lines', canView('pos-imports'), validateSchema(posImportIdSchema), (req, res) => 
-  posImportsController.getByIdWithLines(req as AuthenticatedRequest, res))
+// Get import lines with pagination
+router.get('/:id/lines', canView('pos-imports'), queryMiddleware({
+  allowedSortFields: ['row_number'],
+}), validateSchema(posImportIdSchema), (req, res) => 
+  posImportsController.getLines(req as AuthenticatedQueryRequest, res))
 
 // Confirm import (after duplicate analysis)
 router.post('/:id/confirm', 

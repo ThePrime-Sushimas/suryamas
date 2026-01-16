@@ -104,7 +104,7 @@ export class PosImportsRepository {
 
       let query = supabase
         .from('pos_imports')
-        .select('*, branches(name)', { count: 'exact' })
+        .select('*', { count: 'exact' })
         .eq('company_id', companyId)
         .eq('is_deleted', false)
 
@@ -141,7 +141,17 @@ export class PosImportsRepository {
 
       const { data, error, count } = await query
 
-      if (error) throw error
+      if (error) {
+        logError('PosImportsRepository Supabase error', { 
+          company_id: companyId, 
+          error: error,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
+        throw new Error(`Database error: ${error.message}`)
+      }
 
       const result = { data: data || [], total: count || 0 }
       this.setCache(cacheKey, result)
@@ -154,7 +164,12 @@ export class PosImportsRepository {
 
       return result
     } catch (error) {
-      logError('PosImportsRepository findAll error', { company_id: companyId, error })
+      logError('PosImportsRepository findAll error', { 
+        company_id: companyId, 
+        error,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : undefined
+      })
       throw error
     }
   }

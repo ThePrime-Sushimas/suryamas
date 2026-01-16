@@ -1,13 +1,12 @@
 // payment-methods.types.ts
 
 export type PaymentType = 
+  | 'BANK' 
+  | 'CARD' 
   | 'CASH' 
-  | 'BANK_TRANSFER' 
-  | 'GIRO' 
-  | 'CREDIT_CARD' 
-  | 'DEBIT_CARD' 
-  | 'DIGITAL_WALLET' 
-  | 'OTHER'
+  | 'COMPLIMENT' 
+  | 'MEMBER_DEPOSIT' 
+  | 'OTHER_COST'
 
 export interface PaymentMethod {
   id: number

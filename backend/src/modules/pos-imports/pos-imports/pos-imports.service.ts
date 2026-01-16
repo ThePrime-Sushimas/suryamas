@@ -117,9 +117,9 @@ class PosImportsService {
     userId: string
   ): Promise<{ import: PosImport; analysis: DuplicateAnalysis }> {
     try {
-      // Validate file size (2MB limit)
-      if (file.size > 2 * 1024 * 1024) {
-        throw PosImportErrors.FILE_TOO_LARGE(2)
+      // Validate file size (10MB limit)
+      if (file.size > 10 * 1024 * 1024) {
+        throw PosImportErrors.FILE_TOO_LARGE(10)
       }
 
       // Parse Excel
@@ -130,7 +130,17 @@ class PosImportsService {
       }
 
       const worksheet = workbook.Sheets[sheetName]
-      const rows = XLSX.utils.sheet_to_json(worksheet)
+      let rows = XLSX.utils.sheet_to_json(worksheet, { range: 10 }) // Start from row 11 (0-indexed, so 10)
+
+      // Filter out summary rows at the end (Discount Total Rounding, etc.)
+      rows = rows.filter((row: any) => {
+        const billNumber = row['Bill Number']
+        return billNumber && 
+               billNumber !== 'Discount Total Rounding' && 
+               billNumber !== 'Rounding Total' && 
+               billNumber !== 'Voucher Purchase Total' && 
+               billNumber !== 'Platform Fee Total'
+      })
 
       if (rows.length === 0) {
         throw PosImportErrors.INVALID_FILE('File is empty')
@@ -155,8 +165,24 @@ class PosImportsService {
         throw PosImportErrors.INVALID_FILE(errors.slice(0, 10).join('; ') + (errors.length > 10 ? '...' : ''))
       }
 
-      // Extract date range
-      const dateRange = extractDateRange(rows.map((r: any) => ({ sales_date: r['Sales Date'] })))
+      // Extract date range (parse Excel dates first)
+      const parsedRows = rows.map((r: any) => {
+        const rawDate = r['Sales Date']
+        let salesDate: string
+        
+        if (typeof rawDate === 'number') {
+          const excelEpoch = new Date(1899, 11, 30)
+          const date = new Date(excelEpoch.getTime() + rawDate * 86400000)
+          salesDate = date.toISOString().split('T')[0]
+        } else if (rawDate instanceof Date) {
+          salesDate = rawDate.toISOString().split('T')[0]
+        } else {
+          salesDate = new Date(rawDate).toISOString().split('T')[0]
+        }
+        
+        return { sales_date: salesDate }
+      })
+      const dateRange = extractDateRange(parsedRows)
 
       // Check for duplicates (FIXED: No more N+1 query)
       const duplicates = await this.checkDuplicatesBulk(rows)
@@ -206,15 +232,42 @@ class PosImportsService {
   private async checkDuplicatesBulk(rows: any[]): Promise<any[]> {
     const transactions = rows
       .filter(r => r['Bill Number'] && r['Sales Number'] && r['Sales Date'])
-      .map(r => ({
-        bill_number: String(r['Bill Number']),
-        sales_number: String(r['Sales Number']),
-        sales_date: new Date(r['Sales Date']).toISOString().split('T')[0]
-      }))
+      .map(r => {
+        // Parse Excel date properly
+        let salesDate: string
+        const rawDate = r['Sales Date']
+        
+        if (typeof rawDate === 'number') {
+          // Excel serial date number
+          const excelEpoch = new Date(1899, 11, 30)
+          const date = new Date(excelEpoch.getTime() + rawDate * 86400000)
+          salesDate = date.toISOString().split('T')[0]
+        } else if (rawDate instanceof Date) {
+          salesDate = rawDate.toISOString().split('T')[0]
+        } else {
+          salesDate = new Date(rawDate).toISOString().split('T')[0]
+        }
+        
+        return {
+          bill_number: String(r['Bill Number']),
+          sales_number: String(r['Sales Number']),
+          sales_date: salesDate
+        }
+      })
 
     if (transactions.length === 0) return []
 
-    return await posImportLinesRepository.findExistingTransactions(transactions)
+    // Limit to 50 transactions per query to avoid URL length issues
+    const batchSize = 50
+    const results: any[] = []
+    
+    for (let i = 0; i < transactions.length; i += batchSize) {
+      const batch = transactions.slice(i, i + batchSize)
+      const batchResults = await posImportLinesRepository.findExistingTransactions(batch)
+      results.push(...batchResults)
+    }
+    
+    return results
   }
 
   /**
@@ -283,10 +336,38 @@ class PosImportsService {
             row_number: index + 1
           }
 
-          // Map all columns
+          // Map all columns with type conversion
           Object.entries(EXCEL_COLUMN_MAP).forEach(([excelCol, dbCol]) => {
-            if (row[excelCol] !== undefined && row[excelCol] !== null && row[excelCol] !== '') {
-              mapped[dbCol] = row[excelCol]
+            const value = row[excelCol]
+            if (value !== undefined && value !== null && value !== '') {
+              // Convert Excel serial dates to ISO timestamps for timestamp fields
+              if (dbCol === 'sales_date_in' || dbCol === 'sales_date_out' || dbCol === 'order_time') {
+                if (typeof value === 'number') {
+                  const excelEpoch = new Date(1899, 11, 30)
+                  const date = new Date(excelEpoch.getTime() + value * 86400000)
+                  mapped[dbCol] = date.toISOString()
+                } else if (value instanceof Date) {
+                  mapped[dbCol] = value.toISOString()
+                } else {
+                  mapped[dbCol] = new Date(value).toISOString()
+                }
+              }
+              // Convert Excel serial dates to date strings for date fields
+              else if (dbCol === 'sales_date') {
+                if (typeof value === 'number') {
+                  const excelEpoch = new Date(1899, 11, 30)
+                  const date = new Date(excelEpoch.getTime() + value * 86400000)
+                  mapped[dbCol] = date.toISOString().split('T')[0]
+                } else if (value instanceof Date) {
+                  mapped[dbCol] = value.toISOString().split('T')[0]
+                } else {
+                  mapped[dbCol] = new Date(value).toISOString().split('T')[0]
+                }
+              }
+              // All other fields
+              else {
+                mapped[dbCol] = value
+              }
             }
           })
 
@@ -325,6 +406,7 @@ class PosImportsService {
 
       return this.getById(id, companyId)
     } catch (error) {
+      console.error('PosImportsService confirmImport error:', error)
       // Rollback: Update status to FAILED
       await posImportsRepository.update(id, companyId, {
         status: 'FAILED',

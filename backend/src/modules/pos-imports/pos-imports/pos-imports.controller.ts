@@ -5,6 +5,7 @@
 
 import { Response } from 'express'
 import { posImportsService } from './pos-imports.service'
+import { posImportLinesRepository } from '../pos-import-lines/pos-import-lines.repository'
 import { sendSuccess, sendError } from '../../../utils/response.util'
 import { logError } from '../../../config/logger'
 import type { AuthenticatedRequest, AuthenticatedQueryRequest } from '../../../types/request.types'
@@ -24,14 +25,18 @@ class PosImportsController {
       }
       const { pagination, sort, filter } = req.query
 
-      const result = await posImportsService.list(company_id, pagination as any, sort as any, filter as any)
+      // Provide default pagination if not present
+      const paginationParams = pagination || { page: 1, limit: 10 }
+
+      const result = await posImportsService.list(company_id, paginationParams as any, sort as any, filter as any)
 
       return sendSuccess(res, result.data, 'POS imports retrieved', 200, {
-        page: (pagination as any)?.page || 1,
-        limit: (pagination as any)?.limit || 10,
+        page: (paginationParams as any).page,
+        limit: (paginationParams as any).limit,
         total: result.total
       })
     } catch (error) {
+      console.error('PosImportsController list error:', error)
       logError('PosImportsController list error', { error })
       return sendError(res, error instanceof Error ? error.message : 'Unknown error')
     }
@@ -59,10 +64,10 @@ class PosImportsController {
   }
 
   /**
-   * Get POS import by ID with lines
+   * Get POS import lines with pagination
    * GET /api/v1/pos-imports/:id/lines
    */
-  async getByIdWithLines(req: AuthenticatedRequest, res: Response) {
+  async getLines(req: AuthenticatedQueryRequest, res: Response) {
     try {
       const { id } = req.params
       const company_id = (req as any).context?.company_id
@@ -70,11 +75,22 @@ class PosImportsController {
         throw new Error('Branch context required')
       }
 
-      const posImport = await posImportsService.getByIdWithLines(id, company_id)
+      // Verify import exists and belongs to company
+      await posImportsService.getById(id, company_id)
 
-      return sendSuccess(res, posImport)
+      const { pagination } = req.query
+      const page = (pagination as any)?.page || 1
+      const limit = (pagination as any)?.limit || 50
+
+      const result = await posImportLinesRepository.findByImportId(id, page, limit)
+
+      return sendSuccess(res, result.data, 'Lines retrieved', 200, {
+        page,
+        limit,
+        total: result.total
+      })
     } catch (error) {
-      logError('PosImportsController getByIdWithLines error', { error })
+      logError('PosImportsController getLines error', { error })
       return sendError(res, error instanceof Error ? error.message : 'Unknown error')
     }
   }
