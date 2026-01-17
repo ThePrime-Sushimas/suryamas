@@ -45,7 +45,7 @@ export default function Layout() {
         { id: 'branches', name: 'Branches', href: '/branches', icon: <Warehouse size={16} />, module: 'branches' },
         { id: 'categories', name: 'Categories', href: '/categories', icon: <Package size={16} />, module: 'categories' },
         { id: 'sub-categories', name: 'Sub Categories', href: '/sub-categories', icon: <Package size={16} />, module: 'sub_categories' },
-        { id: 'metric-units', name: 'Metric Units', href: '/metric-units', icon: <Package size={16} />, module: 'metric-units' },
+        { id: 'metric-units', name: 'Metric Units', href: '/metric-units', icon: <Package size={16} />, module: 'metric_units' },
         { id: 'payment-terms', name: 'Payment Terms', href: '/payment-terms', icon: <Package size={16} />, module: 'payment_terms' },
         { id: 'payment-methods', name: 'Payment Methods', href: '/payment-methods', icon: <DollarSign size={16} />, module: 'payment_methods' },
       ]
@@ -66,12 +66,13 @@ export default function Layout() {
       name: 'Accounting',
       icon: <Calculator size={18} />,
       submenu: [
-        { id: 'chart-of-accounts', name: 'Chart of Accounts', href: '/chart-of-accounts', icon: <Calculator size={16} />, module: 'chart-of-accounts' },
-        { id: 'accounting-purposes', name: 'Accounting Purposes', href: '/accounting-purposes', icon: <Calculator size={16} />, module: 'accounting-purposes' },
-        { id: 'accounting-purpose-accounts', name: 'Purpose Accounts', href: '/accounting-purpose-accounts', icon: <Calculator size={16} />, module: 'accounting-purpose-accounts' },
-        { id: 'fiscal-periods', name: 'Fiscal Periods', href: '/accounting/fiscal-periods', icon: <Calculator size={16} />, module: 'fiscal-periods' },
+        { id: 'chart-of-accounts', name: 'Chart of Accounts', href: '/chart-of-accounts', icon: <Calculator size={16} />, module: 'chart_of_accounts' },
+        { id: 'accounting-purposes', name: 'Accounting Purposes', href: '/accounting-purposes', icon: <Calculator size={16} />, module: 'accounting_purposes' },
+        { id: 'accounting-purpose-accounts', name: 'Purpose Accounts', href: '/accounting-purpose-accounts', icon: <Calculator size={16} />, module: 'accounting_purpose_accounts' },
+        { id: 'fiscal-periods', name: 'Fiscal Periods', href: '/accounting/fiscal-periods', icon: <Calculator size={16} />, module: 'fiscal_periods' },
         { id: 'journal-entries', name: 'Journal Entries', href: '/accounting/journals', icon: <Calculator size={16} />, module: 'journals' },
-        { id: 'pos-imports', name: 'POS Imports', href: '/pos-imports', icon: <FileSpreadsheet size={16} />, module: 'pos-imports' },
+        { id: 'pos-imports', name: 'POS Imports', href: '/pos-imports', icon: <FileSpreadsheet size={16} />, module: 'pos_imports' },
+        { id: 'pos-transactions', name: 'POS Transactions', href: '/pos-transactions', icon: <FileSpreadsheet size={16} />, module: 'pos_imports' },
       ]
     },
     {

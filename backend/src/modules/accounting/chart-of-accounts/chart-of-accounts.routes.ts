@@ -18,8 +18,8 @@ import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../../t
 import rateLimit from 'express-rate-limit'
 
 // Register module permissions
-PermissionService.registerModule('chart-of-accounts', 'Chart of Accounts Management').catch((error) => {
-  console.error('Failed to register chart-of-accounts module:', error.message)
+PermissionService.registerModule('chart_of_accounts', 'Chart of Accounts Management').catch((error) => {
+  console.error('Failed to register chart_of_accounts module:', error.message)
 })
 
 // Rate limiters for expensive operations
@@ -45,64 +45,64 @@ const router = Router()
 router.use(authenticate, resolveBranchContext)
 
 // List and search routes
-router.get('/', canView('chart-of-accounts'), queryMiddleware({
+router.get('/', canView('chart_of_accounts'), queryMiddleware({
   allowedSortFields: ['account_code', 'account_name', 'account_type', 'level', 'created_at', 'updated_at', 'id'],
 }), (req, res) => 
   chartOfAccountsController.list(req as AuthenticatedQueryRequest, res))
 
-router.get('/search', canView('chart-of-accounts'), queryMiddleware({
+router.get('/search', canView('chart_of_accounts'), queryMiddleware({
   allowedSortFields: ['account_code', 'account_name', 'account_type', 'level', 'created_at', 'updated_at', 'id'],
 }), (req, res) => 
   chartOfAccountsController.search(req as AuthenticatedQueryRequest, res))
 
 // Tree view with rate limiting
-router.get('/tree', canView('chart-of-accounts'), treeRateLimit, queryMiddleware({
+router.get('/tree', canView('chart_of_accounts'), treeRateLimit, queryMiddleware({
   allowedSortFields: ['account_code', 'account_name', 'account_type', 'level', 'created_at', 'updated_at', 'id'],
 }), (req, res) => 
   chartOfAccountsController.getTree(req as AuthenticatedQueryRequest, res))
 
 // Filter options
-router.get('/filter-options', canView('chart-of-accounts'), (req, res) => 
+router.get('/filter-options', canView('chart_of_accounts'), (req, res) => 
   chartOfAccountsController.getFilterOptions(req as AuthenticatedRequest, res))
 
 // Export routes with rate limiting
-router.get('/export/token', canView('chart-of-accounts'), exportLimiter, (req, res) => 
+router.get('/export/token', canView('chart_of_accounts'), exportLimiter, (req, res) => 
   chartOfAccountsController.generateExportToken(req as AuthenticatedRequest, res))
 
-router.get('/export', canView('chart-of-accounts'), exportLimiter, (req, res) => 
+router.get('/export', canView('chart_of_accounts'), exportLimiter, (req, res) => 
   chartOfAccountsController.exportData(req as AuthenticatedQueryRequest, res))
 
 // Import routes
-router.post('/import/preview', canInsert('chart-of-accounts'), (req, res) => 
+router.post('/import/preview', canInsert('chart_of_accounts'), (req, res) => 
   chartOfAccountsController.previewImport(req as AuthenticatedRequest, res))
 
-router.post('/import', canInsert('chart-of-accounts'), (req, res) => 
+router.post('/import', canInsert('chart_of_accounts'), (req, res) => 
   chartOfAccountsController.importData(req as AuthenticatedRequest, res))
 
 // Bulk operations with rate limiting
-router.post('/bulk/status', canUpdate('chart-of-accounts'), bulkOperationLimit, validateSchema(bulkUpdateStatusSchema), (req, res) => 
+router.post('/bulk/status', canUpdate('chart_of_accounts'), bulkOperationLimit, validateSchema(bulkUpdateStatusSchema), (req, res) => 
   chartOfAccountsController.bulkUpdateStatus(req as ValidatedAuthRequest<typeof bulkUpdateStatusSchema>, res))
 
-router.post('/bulk/delete', canDelete('chart-of-accounts'), bulkOperationLimit, validateSchema(bulkDeleteSchema), (req, res) => 
+router.post('/bulk/delete', canDelete('chart_of_accounts'), bulkOperationLimit, validateSchema(bulkDeleteSchema), (req, res) => 
   chartOfAccountsController.bulkDelete(req as ValidatedAuthRequest<typeof bulkDeleteSchema>, res))
 
-router.post('/bulk/restore', canUpdate('chart-of-accounts'), bulkOperationLimit, validateSchema(bulkDeleteSchema), (req, res) => 
+router.post('/bulk/restore', canUpdate('chart_of_accounts'), bulkOperationLimit, validateSchema(bulkDeleteSchema), (req, res) => 
   chartOfAccountsController.bulkRestore(req as ValidatedAuthRequest<typeof bulkDeleteSchema>, res))
 
 // CRUD operations
-router.post('/', canInsert('chart-of-accounts'), validateSchema(createChartOfAccountSchema), (req, res) => 
+router.post('/', canInsert('chart_of_accounts'), validateSchema(createChartOfAccountSchema), (req, res) => 
   chartOfAccountsController.create(req as ValidatedAuthRequest<typeof createChartOfAccountSchema>, res))
 
-router.get('/:id', canView('chart-of-accounts'), validateSchema(chartOfAccountIdSchema), (req, res) => 
+router.get('/:id', canView('chart_of_accounts'), validateSchema(chartOfAccountIdSchema), (req, res) => 
   chartOfAccountsController.getById(req as AuthenticatedRequest, res))
 
-router.put('/:id', canUpdate('chart-of-accounts'), validateSchema(updateChartOfAccountSchema), (req, res) => 
+router.put('/:id', canUpdate('chart_of_accounts'), validateSchema(updateChartOfAccountSchema), (req, res) => 
   chartOfAccountsController.update(req as ValidatedAuthRequest<typeof updateChartOfAccountSchema>, res))
 
-router.delete('/:id', canDelete('chart-of-accounts'), validateSchema(chartOfAccountIdSchema), (req, res) => 
+router.delete('/:id', canDelete('chart_of_accounts'), validateSchema(chartOfAccountIdSchema), (req, res) => 
   chartOfAccountsController.delete(req as AuthenticatedRequest, res))
 
-router.post('/:id/restore', canUpdate('chart-of-accounts'), validateSchema(chartOfAccountIdSchema), (req, res) => 
+router.post('/:id/restore', canUpdate('chart_of_accounts'), validateSchema(chartOfAccountIdSchema), (req, res) => 
   chartOfAccountsController.restore(req as AuthenticatedRequest, res))
 
 export default router

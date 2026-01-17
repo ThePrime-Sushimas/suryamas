@@ -18,8 +18,8 @@ import {
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../../types/request.types'
 
 // Register module permissions
-PermissionService.registerModule('accounting-purpose-accounts', 'Accounting Purpose Accounts Management').catch((error) => {
-  console.error('Failed to register accounting-purpose-accounts module:', error.message)
+PermissionService.registerModule('accounting_purpose_accounts', 'Accounting Purpose Accounts Management').catch((error) => {
+  console.error('Failed to register accounting_purpose_accounts module:', error.message)
 })
 
 const router = Router()
@@ -28,47 +28,47 @@ const router = Router()
 router.use(authenticate, resolveBranchContext)
 
 // List routes
-router.get('/', canView('accounting-purpose-accounts'), queryMiddleware({
+router.get('/', canView('accounting_purpose_accounts'), queryMiddleware({
   allowedSortFields: ['priority', 'side', 'created_at', 'updated_at', 'account_name'],
 }), (req, res) => 
   accountingPurposeAccountsController.list(req as AuthenticatedQueryRequest, res))
 
-router.get('/deleted', canView('accounting-purpose-accounts'), queryMiddleware({
+router.get('/deleted', canView('accounting_purpose_accounts'), queryMiddleware({
   allowedSortFields: ['deleted_at', 'priority', 'side', 'created_at'],
 }), (req, res) => 
   accountingPurposeAccountsController.listDeleted(req as AuthenticatedQueryRequest, res))
 
 // Export routes with rate limiting
-router.get('/export/token', canView('accounting-purpose-accounts'), exportLimiter, (req, res) => 
+router.get('/export/token', canView('accounting_purpose_accounts'), exportLimiter, (req, res) => 
   accountingPurposeAccountsController.generateExportToken(req as AuthenticatedRequest, res))
 
-router.get('/export', canView('accounting-purpose-accounts'), exportLimiter, (req, res) => 
+router.get('/export', canView('accounting_purpose_accounts'), exportLimiter, (req, res) => 
   accountingPurposeAccountsController.exportData(req as AuthenticatedQueryRequest, res))
 
 // Bulk operations with rate limiting
-router.post('/bulk/create', canInsert('accounting-purpose-accounts'), createRateLimit, validateSchema(bulkCreateAccountingPurposeAccountSchema), (req, res) => 
+router.post('/bulk/create', canInsert('accounting_purpose_accounts'), createRateLimit, validateSchema(bulkCreateAccountingPurposeAccountSchema), (req, res) => 
   accountingPurposeAccountsController.bulkCreate(req as ValidatedAuthRequest<typeof bulkCreateAccountingPurposeAccountSchema>, res))
 
-router.post('/bulk/remove', canDelete('accounting-purpose-accounts'), updateRateLimit, validateSchema(bulkRemoveAccountingPurposeAccountSchema), (req, res) => 
+router.post('/bulk/remove', canDelete('accounting_purpose_accounts'), updateRateLimit, validateSchema(bulkRemoveAccountingPurposeAccountSchema), (req, res) => 
   accountingPurposeAccountsController.bulkRemove(req as ValidatedAuthRequest<typeof bulkRemoveAccountingPurposeAccountSchema>, res))
 
-router.post('/bulk/status', canUpdate('accounting-purpose-accounts'), updateRateLimit, validateSchema(bulkUpdateStatusSchema), (req, res) => 
+router.post('/bulk/status', canUpdate('accounting_purpose_accounts'), updateRateLimit, validateSchema(bulkUpdateStatusSchema), (req, res) => 
   accountingPurposeAccountsController.bulkUpdateStatus(req as ValidatedAuthRequest<typeof bulkUpdateStatusSchema>, res))
 
 // CRUD operations
-router.post('/', canInsert('accounting-purpose-accounts'), validateSchema(createAccountingPurposeAccountSchema), (req, res) => 
+router.post('/', canInsert('accounting_purpose_accounts'), validateSchema(createAccountingPurposeAccountSchema), (req, res) => 
   accountingPurposeAccountsController.create(req as ValidatedAuthRequest<typeof createAccountingPurposeAccountSchema>, res))
 
-router.get('/:id', canView('accounting-purpose-accounts'), validateSchema(accountingPurposeAccountIdSchema), (req, res) => 
+router.get('/:id', canView('accounting_purpose_accounts'), validateSchema(accountingPurposeAccountIdSchema), (req, res) => 
   accountingPurposeAccountsController.getById(req as AuthenticatedRequest, res))
 
-router.put('/:id', canUpdate('accounting-purpose-accounts'), validateSchema(updateAccountingPurposeAccountSchema), (req, res) => 
+router.put('/:id', canUpdate('accounting_purpose_accounts'), validateSchema(updateAccountingPurposeAccountSchema), (req, res) => 
   accountingPurposeAccountsController.update(req as ValidatedAuthRequest<typeof updateAccountingPurposeAccountSchema>, res))
 
-router.delete('/:id', canDelete('accounting-purpose-accounts'), validateSchema(accountingPurposeAccountIdSchema), (req, res) => 
+router.delete('/:id', canDelete('accounting_purpose_accounts'), validateSchema(accountingPurposeAccountIdSchema), (req, res) => 
   accountingPurposeAccountsController.delete(req as AuthenticatedRequest, res))
 
-router.post('/:id/restore', canUpdate('accounting-purpose-accounts'), validateSchema(accountingPurposeAccountIdSchema), (req, res) => 
+router.post('/:id/restore', canUpdate('accounting_purpose_accounts'), validateSchema(accountingPurposeAccountIdSchema), (req, res) => 
   accountingPurposeAccountsController.restore(req as AuthenticatedRequest, res))
 
 export default router

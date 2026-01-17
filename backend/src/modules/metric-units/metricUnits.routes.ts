@@ -10,8 +10,8 @@ import { CreateMetricUnitSchema, UpdateMetricUnitSchema, metricUnitIdSchema, Bul
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 import { logError } from '../../config/logger'
 
-PermissionService.registerModule('metric-units', 'Metric Units Management').catch(err => {
-  logError('Failed to register metric-units module', { error: err.message })
+PermissionService.registerModule('metric_units', 'Metric Units Management').catch(err => {
+  logError('Failed to register metric_units module', { error: err.message })
 })
 
 const router = Router()
@@ -19,7 +19,7 @@ const router = Router()
 router.use(authenticate, resolveBranchContext)
 
 router.get('/active', 
-  canView('metric-units'), 
+  canView('metric_units'), 
   queryMiddleware({
     allowedSortFields: ['unit_code', 'unit_name', 'sort_order', 'created_at', 'updated_at', 'id']
   }), 
@@ -27,12 +27,12 @@ router.get('/active',
 )
 
 router.get('/filter-options', 
-  canView('metric-units'), 
+  canView('metric_units'), 
   (req, res) => metricUnitsController.getFilterOptions(req as AuthenticatedRequest, res)
 )
 
 router.get('/', 
-  canView('metric-units'), 
+  canView('metric_units'), 
   queryMiddleware({
     allowedSortFields: ['unit_code', 'unit_name', 'sort_order', 'created_at', 'updated_at', 'id']
   }),
@@ -40,37 +40,37 @@ router.get('/',
 )
 
 router.post('/bulk/status', 
-  canUpdate('metric-units'), 
+  canUpdate('metric_units'), 
   validateSchema(BulkUpdateStatusSchema),
   (req, res) => metricUnitsController.bulkUpdateStatus(req as ValidatedAuthRequest<typeof BulkUpdateStatusSchema>, res)
 )
 
 router.post('/', 
-  canInsert('metric-units'), 
+  canInsert('metric_units'), 
   validateSchema(CreateMetricUnitSchema),
   (req, res) => metricUnitsController.create(req as ValidatedAuthRequest<typeof CreateMetricUnitSchema>, res)
 )
 
 router.get('/:id', 
-  canView('metric-units'), 
+  canView('metric_units'), 
   validateSchema(metricUnitIdSchema),
   (req, res) => metricUnitsController.getById(req as AuthenticatedRequest, res)
 )
 
 router.put('/:id', 
-  canUpdate('metric-units'), 
+  canUpdate('metric_units'), 
   validateSchema(UpdateMetricUnitSchema),
   (req, res) => metricUnitsController.update(req as ValidatedAuthRequest<typeof UpdateMetricUnitSchema>, res)
 )
 
 router.delete('/:id', 
-  canDelete('metric-units'), 
+  canDelete('metric_units'), 
   validateSchema(metricUnitIdSchema),
   (req, res) => metricUnitsController.delete(req as AuthenticatedRequest, res)
 )
 
 router.post('/:id/restore',
-  canUpdate('metric-units'),
+  canUpdate('metric_units'),
   validateSchema(metricUnitIdSchema),
   (req, res) => metricUnitsController.restore(req as AuthenticatedRequest, res)
 )

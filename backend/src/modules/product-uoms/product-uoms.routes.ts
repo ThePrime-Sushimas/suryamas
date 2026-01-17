@@ -8,22 +8,22 @@ import { PermissionService } from '../../services/permission.service'
 import { createProductUomSchema, updateProductUomSchema, productUomIdSchema } from './product-uoms.schema'
 import type { AuthenticatedRequest } from '../../types/request.types'
 
-PermissionService.registerModule('product-uoms', 'Product UOM Management').catch(() => {})
+PermissionService.registerModule('product_uoms', 'Product UOM Management').catch(() => {})
 
 const router = Router({ mergeParams: true })
 
 router.use(authenticate, resolveBranchContext)
 
-router.get('/', canView('product-uoms'), (req, res) => 
+router.get('/', canView('product_uoms'), (req, res) => 
   productUomsController.list(req as AuthenticatedRequest, res))
 
-router.post('/', canInsert('product-uoms'), validateSchema(createProductUomSchema), productUomsController.create)
+router.post('/', canInsert('product_uoms'), validateSchema(createProductUomSchema), productUomsController.create)
 
-router.put('/:uomId', canUpdate('product-uoms'), validateSchema(updateProductUomSchema), productUomsController.update)
+router.put('/:uomId', canUpdate('product_uoms'), validateSchema(updateProductUomSchema), productUomsController.update)
 
-router.delete('/:uomId', canDelete('product-uoms'), validateSchema(productUomIdSchema), (req, res) => 
+router.delete('/:uomId', canDelete('product_uoms'), validateSchema(productUomIdSchema), (req, res) => 
   productUomsController.delete(req as AuthenticatedRequest, res))
 
-router.post('/:uomId/restore', canUpdate('product-uoms'), validateSchema(productUomIdSchema), productUomsController.restore)
+router.post('/:uomId/restore', canUpdate('product_uoms'), validateSchema(productUomIdSchema), productUomsController.restore)
 
 export default router

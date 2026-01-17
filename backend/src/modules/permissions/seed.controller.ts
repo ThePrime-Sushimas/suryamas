@@ -44,14 +44,20 @@ export class SeedController {
         { name: 'branches', description: 'Branch Management' },
         { name: 'categories', description: 'Category Management' },
         { name: 'sub_categories', description: 'Sub Category Management' },
-        { name: 'metric-units', description: 'Metric Units Management' },
+        { name: 'metric_units', description: 'Metric Units Management' },
         { name: 'payment_terms', description: 'Payment Terms Management' },
+        { name: 'payment_methods', description: 'Payment Methods Management' },
         { name: 'products', description: 'Product Management' },
+        { name: 'product_uoms', description: 'Product UOM Management' },
         { name: 'suppliers', description: 'Supplier Management' },
         { name: 'supplier_products', description: 'Supplier Product Management' },
         { name: 'pricelists', description: 'Pricelist Management' },
         { name: 'users', description: 'User Management' },
-        { name: 'chart-of-accounts', description: 'Chart of Accounts Management' },
+        { name: 'chart_of_accounts', description: 'Chart of Accounts Management' },
+        { name: 'accounting_purposes', description: 'Accounting Purposes Management' },
+        { name: 'accounting_purpose_accounts', description: 'Accounting Purpose Accounts Management' },
+        { name: 'fiscal_periods', description: 'Fiscal Periods Management' },
+        { name: 'pos_imports', description: 'POS Imports Management' },
       ]
 
       for (const moduleData of defaultModules) {
