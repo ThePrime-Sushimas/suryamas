@@ -12,7 +12,8 @@ export const PaymentMethodsPage = () => {
   const { 
     paymentMethods, 
     fetchPaymentMethods, 
-    createPaymentMethod, 
+    createPaymentMethod,
+    updatePaymentMethod, 
     deletePaymentMethod,
     page, 
     limit, 
@@ -33,8 +34,8 @@ export const PaymentMethodsPage = () => {
   const handleSubmit = async (data: CreatePaymentMethodDto | Partial<Omit<CreatePaymentMethodDto, 'code'>>) => {
     try {
       if (editingId) {
-        // TODO: Implement update when updatePaymentMethod is available
-        toast.info('Update not yet implemented')
+        await updatePaymentMethod(editingId, data as any)
+        toast.success('Payment method updated successfully')
       } else {
         await createPaymentMethod(data as CreatePaymentMethodDto)
         toast.success('Payment method created successfully')

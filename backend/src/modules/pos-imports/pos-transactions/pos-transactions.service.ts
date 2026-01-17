@@ -16,6 +16,7 @@ export interface PosTransactionFilters {
   brand?: string
   city?: string
   menuName?: string
+  paymentMethod?: string
   regularMemberName?: string
   customerName?: string
   visitPurpose?: string

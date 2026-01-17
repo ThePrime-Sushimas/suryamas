@@ -28,6 +28,7 @@ export const list = async (req: AuthRequest, res: Response) => {
       brand: req.query.brand as string,
       city: req.query.city as string,
       menuName: req.query.menuName as string,
+      paymentMethod: req.query.paymentMethod as string,
       regularMemberName: req.query.regularMemberName as string,
       customerName: req.query.customerName as string,
       visitPurpose: req.query.visitPurpose as string,

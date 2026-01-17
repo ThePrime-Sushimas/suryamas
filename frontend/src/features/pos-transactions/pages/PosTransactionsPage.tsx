@@ -2,26 +2,40 @@ import { useState, useEffect, useCallback } from 'react'
 import { Filter, X } from 'lucide-react'
 import { posTransactionsApi, type PosTransactionFilters } from '../api/pos-transactions.api'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
+import { useBranchesStore } from '@/features/branches/store/branches.store'
+import { usePaymentMethodsStore } from '@/features/payment-methods/store/paymentMethods.store'
 
 interface PosTransaction {
   id: string
   sales_date: string
   bill_number: string
-  sales_number: string
   branch: string
   menu: string
-  menu_category: string
+  payment_method: string
   qty: number
+  price: number
+  subtotal: number
+  discount: number
+  tax: number
   total: number
 }
 
 export function PosTransactionsPage() {
   const currentBranch = useBranchContextStore(s => s.currentBranch)
+  const { branches, fetchBranches } = useBranchesStore()
+  const { paymentMethods, fetchPaymentMethods } = usePaymentMethodsStore()
   const [transactions, setTransactions] = useState<PosTransaction[]>([])
   const [loading, setLoading] = useState(false)
   const [showFilters, setShowFilters] = useState(true)
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0 })
   const [filters, setFilters] = useState<PosTransactionFilters>({})
+
+  useEffect(() => {
+    if (currentBranch?.company_id) {
+      fetchBranches()
+      fetchPaymentMethods()
+    }
+  }, [currentBranch?.company_id, fetchBranches, fetchPaymentMethods])
 
   const fetchTransactions = useCallback(async () => {
     if (!currentBranch?.company_id) return
@@ -124,13 +138,16 @@ export function PosTransactionsPage() {
               placeholder="Bill Number"
               className="border rounded px-3 py-2 text-sm"
             />
-            <input
-              type="text"
+            <select
               value={filters.branch || ''}
               onChange={(e) => handleFilterChange('branch', e.target.value)}
-              placeholder="Branch"
               className="border rounded px-3 py-2 text-sm"
-            />
+            >
+              <option value="">All Branches</option>
+              {branches.map(b => (
+                <option key={b.id} value={b.branch_name}>{b.branch_name}</option>
+              ))}
+            </select>
             <input
               type="text"
               value={filters.menuName || ''}
@@ -138,6 +155,16 @@ export function PosTransactionsPage() {
               placeholder="Menu Name"
               className="border rounded px-3 py-2 text-sm"
             />
+            <select
+              value={filters.paymentMethod || ''}
+              onChange={(e) => handleFilterChange('paymentMethod', e.target.value)}
+              className="border rounded px-3 py-2 text-sm"
+            >
+              <option value="">All Payment Methods</option>
+              {paymentMethods.map(pm => (
+                <option key={pm.id} value={pm.name}>{pm.name}</option>
+              ))}
+            </select>
             <input
               type="text"
               value={filters.menuCategory || ''}
@@ -183,36 +210,40 @@ export function PosTransactionsPage() {
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bill Number</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sales Number</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Menu</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Price</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Subtotal</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Discount</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tax</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {transactions.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                         {loading ? 'Loading...' : 'Click "Apply Filters" to search transactions'}
                       </td>
                     </tr>
                   ) : (
                     transactions.map((tx) => (
                       <tr key={tx.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm">{new Date(tx.sales_date).toLocaleDateString()}</td>
                         <td className="px-4 py-3 text-sm font-medium">{tx.bill_number}</td>
-                        <td className="px-4 py-3 text-sm">{tx.sales_number}</td>
+                        <td className="px-4 py-3 text-sm">{new Date(tx.sales_date).toLocaleDateString()}</td>
                         <td className="px-4 py-3 text-sm">{tx.branch}</td>
                         <td className="px-4 py-3 text-sm">{tx.menu}</td>
-                        <td className="px-4 py-3 text-sm">{tx.menu_category}</td>
+                        <td className="px-4 py-3 text-sm">{tx.payment_method}</td>
                         <td className="px-4 py-3 text-sm text-right">{tx.qty}</td>
-                        <td className="px-4 py-3 text-sm text-right font-medium">
-                          Rp {Number(tx.total || 0).toLocaleString('id-ID')}
-                        </td>
+                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.price || 0).toLocaleString('id-ID')}</td>
+                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.subtotal || 0).toLocaleString('id-ID')}</td>
+                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.discount || 0).toLocaleString('id-ID')}</td>
+                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.tax || 0).toLocaleString('id-ID')}</td>
+                        <td className="px-4 py-3 text-sm text-right font-medium">Rp {Number(tx.total || 0).toLocaleString('id-ID')}</td>
                       </tr>
                     ))
                   )}
