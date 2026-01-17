@@ -5,7 +5,7 @@ import { PaymentMethodTable } from '../components/PaymentMethodTable'
 import { PaymentMethodFilters } from '../components/PaymentMethodFilters'
 import { PaymentMethodForm } from '../components/PaymentMethodForm'
 import { useToast } from '@/contexts/ToastContext'
-import type { CreatePaymentMethodDto } from '../types'
+import type { CreatePaymentMethodDto, UpdatePaymentMethodDto } from '../types'
 
 export const PaymentMethodsPage = () => {
   const toast = useToast()
@@ -31,10 +31,10 @@ export const PaymentMethodsPage = () => {
     fetchPaymentMethods()
   }, [fetchPaymentMethods])
 
-  const handleSubmit = async (data: CreatePaymentMethodDto | Partial<Omit<CreatePaymentMethodDto, 'code'>>) => {
+  const handleSubmit = async (data: CreatePaymentMethodDto | UpdatePaymentMethodDto) => {
     try {
       if (editingId) {
-        await updatePaymentMethod(editingId, data as any)
+        await updatePaymentMethod(editingId, data as UpdatePaymentMethodDto)
         toast.success('Payment method updated successfully')
       } else {
         await createPaymentMethod(data as CreatePaymentMethodDto)
