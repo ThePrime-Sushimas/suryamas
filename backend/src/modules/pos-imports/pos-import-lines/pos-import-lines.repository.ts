@@ -106,7 +106,7 @@ export class PosImportLinesRepository {
   }
 
   /**
-   * Check for existing transactions (bulk)
+   * Check for existing transactions using database function
    */
   async findExistingTransactions(
     transactions: Array<{ bill_number: string; sales_number: string; sales_date: string }>
@@ -114,19 +114,35 @@ export class PosImportLinesRepository {
     try {
       if (transactions.length === 0) return []
 
-      // Build OR conditions for bulk check - use AND within each condition
-      const orConditions = transactions
-        .map(t => `and(bill_number.eq.${t.bill_number},sales_number.eq.${t.sales_number},sales_date.eq.${t.sales_date})`)
-        .join(',')
+      // Try RPC function first (optimal)
+      try {
+        const { data, error } = await supabase
+          .rpc('check_duplicate_transactions', { transactions })
 
+        if (!error && data) {
+          return data
+        }
+      } catch {
+        // Fall through to fallback
+      }
+
+      // Fallback: Fetch by bill_numbers and filter in memory
+      const billNumbers = [...new Set(transactions.map(t => t.bill_number))]
+      
       const { data, error } = await supabase
         .from('pos_import_lines')
         .select('bill_number, sales_number, sales_date, pos_import_id')
-        .or(orConditions)
+        .in('bill_number', billNumbers)
 
       if (error) throw error
 
-      return data || []
+      const transactionSet = new Set(
+        transactions.map(t => `${t.bill_number}|${t.sales_number}|${t.sales_date}`)
+      )
+
+      return (data || []).filter(row => 
+        transactionSet.has(`${row.bill_number}|${row.sales_number}|${row.sales_date}`)
+      )
     } catch (error) {
       logError('PosImportLinesRepository findExistingTransactions error', { count: transactions.length, error })
       throw error

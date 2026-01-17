@@ -3,7 +3,6 @@
  * Centralized business rule enforcement for POS Imports
  */
 
-import type { PosImport } from '../types/pos-imports.types'
 import { POS_IMPORT_MAX_FILE_SIZE} from '../api/pos-imports.api'
 import { POS_IMPORT_UPLOAD_COOLDOWN_MS } from '../constants/pos-imports.constants'
 
@@ -52,20 +51,8 @@ export const validateUpload = (file: File, lastUploadTime: number | null): Valid
   return { valid: true }
 }
 
-export const validateDeletion = (posImport: PosImport): ValidationResult => {
-  if (posImport.status === 'IMPORTED' && !BUSINESS_RULES.deletion.allowDeleteImported) {
-    return { valid: false, error: 'Cannot delete imported data. Contact administrator if deletion is required.' }
-  }
-
-  const importAge = Date.now() - new Date(posImport.import_date).getTime()
-  const maxAgeMs = BUSINESS_RULES.deletion.maxAgeForDeletionDays * 24 * 60 * 60 * 1000
-  if (importAge > maxAgeMs) {
-    return { 
-      valid: false, 
-      error: `Import is older than ${BUSINESS_RULES.deletion.maxAgeForDeletionDays} days and cannot be deleted` 
-    }
-  }
-
+export const validateDeletion = (): ValidationResult => {
+  // Allow all deletions - backend will handle permission checks
   return { valid: true }
 }
 

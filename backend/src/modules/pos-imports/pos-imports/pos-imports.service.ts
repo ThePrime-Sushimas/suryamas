@@ -13,6 +13,7 @@ import { posImportsRepository } from './pos-imports.repository'
 import { posImportLinesRepository } from '../pos-import-lines/pos-import-lines.repository'
 import { PosImportErrors } from '../shared/pos-import.errors'
 import { canTransition, extractDateRange, validatePosRow } from '../shared/pos-import.utils'
+import { parseToLocalDate, parseToLocalDateTime } from '../shared/excel-date.util'
 import { supabase } from '../../../config/supabase'
 import { logInfo, logError } from '../../../config/logger'
 import type { PosImport, CreatePosImportDto, UpdatePosImportDto, PosImportFilter } from './pos-imports.types'
@@ -167,25 +168,19 @@ class PosImportsService {
 
       // Extract date range (parse Excel dates first)
       const parsedRows = rows.map((r: any) => {
-        const rawDate = r['Sales Date']
-        let salesDate: string
-        
-        if (typeof rawDate === 'number') {
-          const excelEpoch = new Date(1899, 11, 30)
-          const date = new Date(excelEpoch.getTime() + rawDate * 86400000)
-          salesDate = date.toISOString().split('T')[0]
-        } else if (rawDate instanceof Date) {
-          salesDate = rawDate.toISOString().split('T')[0]
-        } else {
-          salesDate = new Date(rawDate).toISOString().split('T')[0]
-        }
-        
-        return { sales_date: salesDate }
+        return { sales_date: parseToLocalDate(r['Sales Date']) }
       })
       const dateRange = extractDateRange(parsedRows)
 
-      // Check for duplicates (FIXED: No more N+1 query)
-      const duplicates = await this.checkDuplicatesBulk(rows)
+      // Check for duplicates against database
+      const dbDuplicates = await this.checkDuplicatesBulk(rows)
+      
+      // Count unique duplicates (deduplicate the duplicates list)
+      const uniqueDuplicates = new Set(
+        dbDuplicates.map(d => `${d.bill_number}-${d.sales_number}-${d.sales_date}`)
+      )
+      const duplicateCount = uniqueDuplicates.size
+      const newRowsCount = Math.max(0, rows.length - duplicateCount)
 
       // Create import record
       const posImport = await posImportsRepository.create({
@@ -195,8 +190,8 @@ class PosImportsService {
         date_range_start: dateRange.start || new Date().toISOString().split('T')[0],
         date_range_end: dateRange.end || new Date().toISOString().split('T')[0],
         total_rows: rows.length,
-        new_rows: rows.length - duplicates.length,
-        duplicate_rows: duplicates.length
+        new_rows: newRowsCount,
+        duplicate_rows: duplicateCount
       }, userId)
 
       // Store parsed data in Supabase Storage for later confirmation
@@ -207,9 +202,9 @@ class PosImportsService {
 
       const analysis: DuplicateAnalysis = {
         total_rows: rows.length,
-        new_rows: rows.length - duplicates.length,
-        duplicate_rows: duplicates.length,
-        duplicates: duplicates.map(d => ({
+        new_rows: newRowsCount,
+        duplicate_rows: duplicateCount,
+        duplicates: dbDuplicates.map(d => ({
           bill_number: d.bill_number,
           sales_number: d.sales_number,
           sales_date: d.sales_date,
@@ -232,28 +227,11 @@ class PosImportsService {
   private async checkDuplicatesBulk(rows: any[]): Promise<any[]> {
     const transactions = rows
       .filter(r => r['Bill Number'] && r['Sales Number'] && r['Sales Date'])
-      .map(r => {
-        // Parse Excel date properly
-        let salesDate: string
-        const rawDate = r['Sales Date']
-        
-        if (typeof rawDate === 'number') {
-          // Excel serial date number
-          const excelEpoch = new Date(1899, 11, 30)
-          const date = new Date(excelEpoch.getTime() + rawDate * 86400000)
-          salesDate = date.toISOString().split('T')[0]
-        } else if (rawDate instanceof Date) {
-          salesDate = rawDate.toISOString().split('T')[0]
-        } else {
-          salesDate = new Date(rawDate).toISOString().split('T')[0]
-        }
-        
-        return {
-          bill_number: String(r['Bill Number']),
-          sales_number: String(r['Sales Number']),
-          sales_date: salesDate
-        }
-      })
+      .map(r => ({
+        bill_number: String(r['Bill Number']),
+        sales_number: String(r['Sales Number']),
+        sales_date: parseToLocalDate(r['Sales Date'])
+      }))
 
     if (transactions.length === 0) return []
 
@@ -340,29 +318,13 @@ class PosImportsService {
           Object.entries(EXCEL_COLUMN_MAP).forEach(([excelCol, dbCol]) => {
             const value = row[excelCol]
             if (value !== undefined && value !== null && value !== '') {
-              // Convert Excel serial dates to ISO timestamps for timestamp fields
+              // Convert Excel dates to ISO timestamps for timestamp fields
               if (dbCol === 'sales_date_in' || dbCol === 'sales_date_out' || dbCol === 'order_time') {
-                if (typeof value === 'number') {
-                  const excelEpoch = new Date(1899, 11, 30)
-                  const date = new Date(excelEpoch.getTime() + value * 86400000)
-                  mapped[dbCol] = date.toISOString()
-                } else if (value instanceof Date) {
-                  mapped[dbCol] = value.toISOString()
-                } else {
-                  mapped[dbCol] = new Date(value).toISOString()
-                }
+                mapped[dbCol] = parseToLocalDateTime(value)
               }
-              // Convert Excel serial dates to date strings for date fields
+              // Convert Excel dates to date strings for date fields
               else if (dbCol === 'sales_date') {
-                if (typeof value === 'number') {
-                  const excelEpoch = new Date(1899, 11, 30)
-                  const date = new Date(excelEpoch.getTime() + value * 86400000)
-                  mapped[dbCol] = date.toISOString().split('T')[0]
-                } else if (value instanceof Date) {
-                  mapped[dbCol] = value.toISOString().split('T')[0]
-                } else {
-                  mapped[dbCol] = new Date(value).toISOString().split('T')[0]
-                }
+                mapped[dbCol] = parseToLocalDate(value)
               }
               // All other fields
               else {

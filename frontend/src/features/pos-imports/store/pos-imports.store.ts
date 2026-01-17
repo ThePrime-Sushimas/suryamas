@@ -317,7 +317,7 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
     }
 
     // Business rule validation
-    const deleteValidation = validateDeletion(importItem)
+    const deleteValidation = validateDeletion()
     if (!deleteValidation.valid) {
       const error = deleteValidation.error || 'Delete validation failed'
       set({ errors: { ...get().errors, general: error } })
