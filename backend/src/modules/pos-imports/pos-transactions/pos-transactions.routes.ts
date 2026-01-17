@@ -18,4 +18,12 @@ router.get(
   controller.list
 )
 
+router.get(
+  '/export',
+  authenticate,
+  resolveBranchContext,
+  canView('pos_imports'),
+  controller.exportToExcel
+)
+
 export default router

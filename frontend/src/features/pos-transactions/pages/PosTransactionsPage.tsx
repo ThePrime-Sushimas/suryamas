@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Filter, X } from 'lucide-react'
+import { Filter, X, Download, TrendingUp, Receipt, DollarSign, Percent, ChevronDown } from 'lucide-react'
 import { posTransactionsApi, type PosTransactionFilters } from '../api/pos-transactions.api'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useBranchesStore } from '@/features/branches/store/branches.store'
@@ -20,20 +20,40 @@ interface PosTransaction {
   total: number
 }
 
+interface Summary {
+  totalAmount: number
+  totalTax: number
+  totalDiscount: number
+  totalSubtotal: number
+  transactionCount: number
+}
+
 export function PosTransactionsPage() {
   const currentBranch = useBranchContextStore(s => s.currentBranch)
   const { branches, fetchBranches } = useBranchesStore()
   const { paymentMethods, fetchPaymentMethods } = usePaymentMethodsStore()
   const [transactions, setTransactions] = useState<PosTransaction[]>([])
+  const [summary, setSummary] = useState<Summary>({ totalAmount: 0, totalTax: 0, totalDiscount: 0, totalSubtotal: 0, transactionCount: 0 })
   const [loading, setLoading] = useState(false)
   const [showFilters, setShowFilters] = useState(true)
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0 })
   const [filters, setFilters] = useState<PosTransactionFilters>({})
+  const [selectedBranches, setSelectedBranches] = useState<string[]>([])
+  const [selectedPayments, setSelectedPayments] = useState<string[]>([])
+  const [showBranchDropdown, setShowBranchDropdown] = useState(false)
+  const [showPaymentDropdown, setShowPaymentDropdown] = useState(false)
 
   useEffect(() => {
     if (currentBranch?.company_id) {
-      fetchBranches()
-      fetchPaymentMethods()
+      fetchBranches(1, 100)
+      fetchPaymentMethods(1, 100)
+      // Set default date to this month
+      const today = new Date()
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+      setFilters({
+        dateFrom: monthStart.toISOString().split('T')[0],
+        dateTo: today.toISOString().split('T')[0]
+      })
     }
   }, [currentBranch?.company_id, fetchBranches, fetchPaymentMethods])
 
@@ -45,27 +65,39 @@ export function PosTransactionsPage() {
       const result = await posTransactionsApi.list({ 
         page: pagination.page, 
         limit: pagination.limit,
-        ...filters 
+        ...filters,
+        // If nothing selected = select all (don't send filter)
+        branches: selectedBranches.length > 0 ? selectedBranches.join(',') : undefined,
+        paymentMethods: selectedPayments.length > 0 ? selectedPayments.join(',') : undefined
       })
       setTransactions(result.data?.data || [])
       setPagination(prev => ({ ...prev, total: result.data?.total || 0 }))
+      setSummary(result.data?.summary || { totalAmount: 0, totalTax: 0, totalDiscount: 0, totalSubtotal: 0, transactionCount: 0 })
     } catch (error) {
       console.error('Failed to fetch transactions:', error)
     } finally {
       setLoading(false)
     }
-  }, [currentBranch?.company_id, pagination.page, pagination.limit, filters])
-
-  useEffect(() => {
-    // Don't auto-load on mount, only when page changes
-    if (currentBranch?.company_id && pagination.page > 1) {
-      fetchTransactions()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.page])
+  }, [currentBranch?.company_id, pagination.page, pagination.limit, filters, selectedBranches, selectedPayments])
 
   const handleFilterChange = (key: keyof PosTransactionFilters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value || undefined }))
+  }
+
+  const handleBranchToggle = (branchName: string) => {
+    setSelectedBranches(prev => 
+      prev.includes(branchName) 
+        ? prev.filter(b => b !== branchName)
+        : [...prev, branchName]
+    )
+  }
+
+  const handlePaymentToggle = (paymentName: string) => {
+    setSelectedPayments(prev => 
+      prev.includes(paymentName) 
+        ? prev.filter(p => p !== paymentName)
+        : [...prev, paymentName]
+    )
   }
 
   const handleApplyFilters = () => {
@@ -74,9 +106,74 @@ export function PosTransactionsPage() {
   }
 
   const handleClearFilters = () => {
-    setFilters({})
-    setTransactions([])
-    setPagination({ page: 1, limit: 50, total: 0 })
+    const today = new Date()
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+    setFilters({
+      dateFrom: monthStart.toISOString().split('T')[0],
+      dateTo: today.toISOString().split('T')[0]
+    })
+    setSelectedBranches([])
+    setSelectedPayments([])
+  }
+
+  const handleExport = async () => {
+    if (transactions.length === 0) return
+    
+    setLoading(true)
+    try {
+      const blob = await posTransactionsApi.export({
+        ...filters,
+        branches: selectedBranches.length > 0 ? selectedBranches.join(',') : undefined,
+        paymentMethods: selectedPayments.length > 0 ? selectedPayments.join(',') : undefined
+      })
+      
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `POS_Transactions_${new Date().toISOString().split('T')[0]}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to export:', error)
+      alert('Failed to export data')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const setDatePreset = (preset: 'today' | 'week' | 'month' | 'lastMonth') => {
+    const today = new Date()
+    let dateFrom = ''
+    let dateTo = today.toISOString().split('T')[0]
+
+    switch (preset) {
+      case 'today': {
+        dateFrom = dateTo
+        break
+      }
+      case 'week': {
+        const weekAgo = new Date(today)
+        weekAgo.setDate(today.getDate() - 7)
+        dateFrom = weekAgo.toISOString().split('T')[0]
+        break
+      }
+      case 'month': {
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+        dateFrom = monthStart.toISOString().split('T')[0]
+        break
+      }
+      case 'lastMonth': {
+        const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+        const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0)
+        dateFrom = lastMonthStart.toISOString().split('T')[0]
+        dateTo = lastMonthEnd.toISOString().split('T')[0]
+        break
+      }
+    }
+
+    setFilters(prev => ({ ...prev, dateFrom, dateTo }))
   }
 
   const totalPages = Math.ceil(pagination.total / pagination.limit)
@@ -98,32 +195,151 @@ export function PosTransactionsPage() {
           <h1 className="text-2xl font-bold">POS Transactions</h1>
           <p className="text-sm text-gray-600 mt-1">Consolidated view of all imported transactions</p>
         </div>
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="flex items-center gap-2 px-4 py-2 border rounded hover:bg-gray-50"
-        >
-          <Filter size={16} />
-          {showFilters ? 'Hide' : 'Show'} Filters
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 px-4 py-2 border rounded hover:bg-gray-50"
+            disabled={transactions.length === 0}
+          >
+            <Download size={16} />
+            Export
+          </button>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2 px-4 py-2 border rounded hover:bg-gray-50"
+          >
+            <Filter size={16} />
+            {showFilters ? 'Hide' : 'Show'} Filters
+          </button>
+        </div>
       </div>
 
+      {summary.transactionCount > 0 && (
+        <div className="grid grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Amount</p>
+                <p className="text-2xl font-bold text-gray-900">Rp {summary.totalAmount.toLocaleString('id-ID')}</p>
+              </div>
+              <div className="p-3 bg-blue-100 rounded-lg">
+                <DollarSign className="text-blue-600" size={24} />
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Tax</p>
+                <p className="text-2xl font-bold text-gray-900">Rp {summary.totalTax.toLocaleString('id-ID')}</p>
+              </div>
+              <div className="p-3 bg-green-100 rounded-lg">
+                <TrendingUp className="text-green-600" size={24} />
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Discount</p>
+                <p className="text-2xl font-bold text-gray-900">Rp {summary.totalDiscount.toLocaleString('id-ID')}</p>
+              </div>
+              <div className="p-3 bg-orange-100 rounded-lg">
+                <Percent className="text-orange-600" size={24} />
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Transactions</p>
+                <p className="text-2xl font-bold text-gray-900">{summary.transactionCount.toLocaleString('id-ID')}</p>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-lg">
+                <Receipt className="text-purple-600" size={24} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showFilters && (
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-lg shadow p-4 space-y-4">
+          <div className="flex gap-2">
+            <button onClick={() => setDatePreset('today')} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">Today</button>
+            <button onClick={() => setDatePreset('week')} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">This Week</button>
+            <button onClick={() => setDatePreset('month')} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">This Month</button>
+            <button onClick={() => setDatePreset('lastMonth')} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">Last Month</button>
+          </div>
+
           <div className="grid grid-cols-4 gap-4">
             <input
               type="date"
               value={filters.dateFrom || ''}
               onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
-              placeholder="Date From"
               className="border rounded px-3 py-2 text-sm"
             />
             <input
               type="date"
               value={filters.dateTo || ''}
               onChange={(e) => handleFilterChange('dateTo', e.target.value)}
-              placeholder="Date To"
               className="border rounded px-3 py-2 text-sm"
             />
+            
+            {/* Branch Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowBranchDropdown(!showBranchDropdown)}
+                className="w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50"
+              >
+                <span>{selectedBranches.length === 0 ? 'All Branches' : `${selectedBranches.length} selected`}</span>
+                <ChevronDown size={16} />
+              </button>
+              {showBranchDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto">
+                  {branches.map(b => (
+                    <label key={b.id} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedBranches.includes(b.branch_name)}
+                        onChange={() => handleBranchToggle(b.branch_name)}
+                        className="mr-2"
+                      />
+                      <span className="text-sm">{b.branch_name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Payment Method Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowPaymentDropdown(!showPaymentDropdown)}
+                className="w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50"
+              >
+                <span>{selectedPayments.length === 0 ? 'All Payments' : `${selectedPayments.length} selected`}</span>
+                <ChevronDown size={16} />
+              </button>
+              {showPaymentDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto">
+                  {paymentMethods.map(pm => (
+                    <label key={pm.id} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedPayments.includes(pm.name)}
+                        onChange={() => handlePaymentToggle(pm.name)}
+                        className="mr-2"
+                      />
+                      <span className="text-sm">{pm.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-4">
             <input
               type="text"
               value={filters.salesNumber || ''}
@@ -138,16 +354,6 @@ export function PosTransactionsPage() {
               placeholder="Bill Number"
               className="border rounded px-3 py-2 text-sm"
             />
-            <select
-              value={filters.branch || ''}
-              onChange={(e) => handleFilterChange('branch', e.target.value)}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Branches</option>
-              {branches.map(b => (
-                <option key={b.id} value={b.branch_name}>{b.branch_name}</option>
-              ))}
-            </select>
             <input
               type="text"
               value={filters.menuName || ''}
@@ -155,16 +361,6 @@ export function PosTransactionsPage() {
               placeholder="Menu Name"
               className="border rounded px-3 py-2 text-sm"
             />
-            <select
-              value={filters.paymentMethod || ''}
-              onChange={(e) => handleFilterChange('paymentMethod', e.target.value)}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Payment Methods</option>
-              {paymentMethods.map(pm => (
-                <option key={pm.id} value={pm.name}>{pm.name}</option>
-              ))}
-            </select>
             <input
               type="text"
               value={filters.menuCategory || ''}
@@ -172,15 +368,9 @@ export function PosTransactionsPage() {
               placeholder="Menu Category"
               className="border rounded px-3 py-2 text-sm"
             />
-            <input
-              type="text"
-              value={filters.salesType || ''}
-              onChange={(e) => handleFilterChange('salesType', e.target.value)}
-              placeholder="Sales Type"
-              className="border rounded px-3 py-2 text-sm"
-            />
           </div>
-          <div className="flex gap-2 mt-4">
+
+          <div className="flex gap-2">
             <button
               onClick={handleApplyFilters}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -227,7 +417,7 @@ export function PosTransactionsPage() {
                   {transactions.length === 0 ? (
                     <tr>
                       <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
-                        {loading ? 'Loading...' : 'Click "Apply Filters" to search transactions'}
+                        Click "Apply Filters" to search transactions
                       </td>
                     </tr>
                   ) : (

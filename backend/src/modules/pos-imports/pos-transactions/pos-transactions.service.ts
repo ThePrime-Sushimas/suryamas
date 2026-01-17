@@ -11,12 +11,12 @@ export interface PosTransactionFilters {
   dateTo?: string
   salesNumber?: string
   billNumber?: string
-  branch?: string
+  branches?: string // comma-separated
   area?: string
   brand?: string
   city?: string
   menuName?: string
-  paymentMethod?: string
+  paymentMethods?: string // comma-separated
   regularMemberName?: string
   customerName?: string
   visitPurpose?: string
@@ -36,6 +36,14 @@ class PosTransactionsService {
     filters: PosTransactionFilters
   ) {
     return posImportLinesRepository.findAllWithFilters(companyId, filters, pagination)
+  }
+
+  async exportToExcel(
+    companyId: string,
+    filters: PosTransactionFilters
+  ) {
+    // Export with high limit (10000 rows max for Excel)
+    return posImportLinesRepository.findAllWithFilters(companyId, filters, { page: 1, limit: 100000 })
   }
 }
 
