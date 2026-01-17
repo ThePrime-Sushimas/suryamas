@@ -44,7 +44,7 @@ export const AccountingPurposeForm = ({
       try {
         const response = await branchesApi.list(1, 100, null, { company_id: currentBranch.company_id })
         setBranches(response.data || [])
-      } catch (error) {
+      } catch {
         toast.error('Failed to fetch branches')
         setBranches([])
       } finally {
@@ -53,7 +53,7 @@ export const AccountingPurposeForm = ({
     }
     
     fetchBranches()
-  }, [currentBranch?.company_id])
+  }, [currentBranch?.company_id, toast])
 
   const schema = isEdit ? updateAccountingPurposeSchema : accountingPurposeSchema
   const isSystemPurpose = initialData?.is_system || false

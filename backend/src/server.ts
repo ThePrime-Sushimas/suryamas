@@ -4,6 +4,8 @@ dotenv.config()
 
 import app from './app'
 import { logInfo, logError } from './config/logger'
+import { jobWorker } from './modules/jobs'
+import { processPosTransactionsExport } from './modules/pos-imports/pos-transactions/pos-transactions.processor'
 
 const PORT = process.env.PORT || 3000
 
@@ -22,4 +24,39 @@ app.listen(PORT, () => {
 🚀 Server running on http://localhost:${PORT}
 📝 Environment: ${process.env.NODE_ENV || 'development'}
   `)
+  
+  // Register job processors
+  jobWorker.registerProcessor('export', async (jobId, userId, metadata) => {
+    return processPosTransactionsExport(jobId, userId, metadata as any)
+  })
+  
+  // Start cleanup interval
+  jobWorker.startCleanup()
+  
+  logInfo('Job worker initialized')
+})
+
+// Graceful shutdown handlers
+process.on('SIGTERM', async () => {
+  logInfo('SIGTERM received, starting graceful shutdown')
+  try {
+    await jobWorker.gracefulShutdown(30000)
+    logInfo('Graceful shutdown completed')
+    process.exit(0)
+  } catch (error) {
+    logError('Graceful shutdown error', { error })
+    process.exit(1)
+  }
+})
+
+process.on('SIGINT', async () => {
+  logInfo('SIGINT received, starting graceful shutdown')
+  try {
+    await jobWorker.gracefulShutdown(30000)
+    logInfo('Graceful shutdown completed')
+    process.exit(0)
+  } catch (error) {
+    logError('Graceful shutdown error', { error })
+    process.exit(1)
+  }
 })

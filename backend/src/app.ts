@@ -29,6 +29,7 @@ import journalHeadersRoutes from './modules/accounting/journals/journal-headers/
 import journalLinesRoutes from './modules/accounting/journals/journal-lines/journal-lines.routes'
 import posImportsRoutes from './modules/pos-imports/pos-imports/pos-imports.routes'
 import posTransactionsRoutes from './modules/pos-imports/pos-transactions/pos-transactions.routes'
+import jobsRoutes from './modules/jobs/jobs.routes'
 import monitoringRoutes from './modules/monitoring/monitoring.routes'
 import { errorHandler } from './middleware/error.middleware'
 import { requestLogger } from './middleware/request-logger.middleware'
@@ -88,6 +89,7 @@ app.use('/api/v1/accounting/journals', journalHeadersRoutes)
 app.use('/api/v1/accounting/journal-lines', journalLinesRoutes)
 app.use('/api/v1/pos-imports', posImportsRoutes)
 app.use('/api/v1/pos-transactions', posTransactionsRoutes)
+app.use('/api/v1/jobs', jobsRoutes)
 app.use('/api/v1/monitoring', monitoringRoutes)
 app.use('/api/v1', ownerBankAccountsRouter)
 

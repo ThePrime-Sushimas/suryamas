@@ -30,10 +30,7 @@ export const posTransactionsApi = {
   },
   
   export: async (params: PosTransactionFilters) => {
-    const response = await axios.get('/pos-transactions/export', { 
-      params,
-      responseType: 'blob'
-    })
+    const response = await axios.get('/pos-transactions/export', { params })
     return response.data
   }
 }

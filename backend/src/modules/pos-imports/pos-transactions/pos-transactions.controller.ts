@@ -7,7 +7,7 @@ import { AuthRequest } from '../../../types/common.types'
 import { posTransactionsService } from './pos-transactions.service'
 import { sendSuccess, sendError } from '../../../utils/response.util'
 import { logInfo } from '../../../config/logger'
-import * as XLSX from 'xlsx'
+import { jobsService } from '../../jobs'
 
 export const list = async (req: AuthRequest, res: Response) => {
   try {
@@ -59,8 +59,10 @@ export const list = async (req: AuthRequest, res: Response) => {
 export const exportToExcel = async (req: AuthRequest, res: Response) => {
   try {
     const companyId = req.context?.company_id
-    if (!companyId) {
-      return sendError(res, 'Company ID required', 400)
+    const userId = req.user?.id
+    
+    if (!companyId || !userId) {
+      return sendError(res, 'Company ID and User ID required', 400)
     }
 
     const filters = {
@@ -86,73 +88,28 @@ export const exportToExcel = async (req: AuthRequest, res: Response) => {
       tableName: req.query.tableName as string
     }
 
-    const result = await posTransactionsService.exportToExcel(companyId, filters)
-
-    // Create workbook
-    const workbook = XLSX.utils.book_new()
-    
-    // Prepare data for Excel
-    const excelData = result.data.map(tx => ({
-      'Bill Number': tx.bill_number,
-      'Sales Number': tx.sales_number,
-      'Sales Date': tx.sales_date,
-      'Branch': tx.branch,
-      'Area': tx.area,
-      'Brand': tx.brand,
-      'City': tx.city,
-      'Menu': tx.menu,
-      'Menu Category': tx.menu_category,
-      'Payment Method': tx.payment_method,
-      'Sales Type': tx.sales_type,
-      'Customer Name': tx.customer_name,
-      'Qty': tx.qty,
-      'Price': tx.price,
-      'Subtotal': tx.subtotal,
-      'Discount': tx.discount,
-      'Tax': tx.tax,
-      'Total': tx.total
-    }))
-
-    // Add summary row
-    excelData.push({
-      'Bill Number': '',
-      'Sales Number': '',
-      'Sales Date': '',
-      'Branch': '',
-      'Area': '',
-      'Brand': '',
-      'City': '',
-      'Menu': '',
-      'Menu Category': '',
-      'Payment Method': '',
-      'Sales Type': '',
-      'Customer Name': 'TOTAL',
-      'Qty': '' as any,
-      'Price': '' as any,
-      'Subtotal': result.summary.totalSubtotal,
-      'Discount': result.summary.totalDiscount,
-      'Tax': result.summary.totalTax,
-      'Total': result.summary.totalAmount
+    // Create job
+    const job = await jobsService.createJob({
+      user_id: userId,
+      company_id: companyId,
+      type: 'export',
+      name: 'POS Transactions Export',
+      metadata: { companyId, filters }
     })
 
-    const worksheet = XLSX.utils.json_to_sheet(excelData)
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions')
-
-    // Generate buffer
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
-
-    // Set headers
-    const filename = `POS_Transactions_${new Date().toISOString().split('T')[0]}.xlsx`
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-
-    logInfo('PosTransactionsController export success', { 
-      company_id: companyId, 
-      count: result.data.length 
+    // Trigger processing in background
+    const { jobWorker } = await import('../../jobs')
+    jobWorker.processJob(job.id).catch(error => {
+      logInfo('Background job processing error', { job_id: job.id, error })
     })
 
-    res.send(buffer)
+    logInfo('PosTransactionsController export job created', { 
+      job_id: job.id,
+      company_id: companyId 
+    })
+
+    sendSuccess(res, { job_id: job.id }, 'Export job created successfully')
   } catch (error) {
-    sendError(res, error instanceof Error ? error.message : 'Failed to export transactions', 500)
+    sendError(res, error instanceof Error ? error.message : 'Failed to create export job', 500)
   }
 }

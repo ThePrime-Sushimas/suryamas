@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useLocation, Link, Outlet, useNavigate } from 'react-router-dom'
-import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, Key, Package, Factory, Warehouse, Users, Settings, LogOut, Bell, Search, User, ShoppingCart, Building2, UserCog, Shield, DollarSign, Calculator, FileSpreadsheet } from 'lucide-react'
+import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, Key, Package, Factory, Warehouse, Users, Settings, LogOut, Search, User, ShoppingCart, Building2, UserCog, Shield, DollarSign, Calculator, FileSpreadsheet } from 'lucide-react'
 import { useAuthStore } from '@/features/auth'
 import { BranchSwitcher, usePermissionStore } from '@/features/branch_context'
 import { UploadProgressToast } from '@/features/pos-imports/components/UploadProgressToast'
+import { JobNotificationBell } from '@/features/jobs'
 
 interface MenuItem {
   id: string
@@ -183,13 +184,7 @@ export default function Layout() {
               >
                 <Search size={20} />
               </button>
-              <button 
-                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 relative"
-                aria-label="Notifications"
-              >
-                <Bell size={20} />
-                <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full" aria-hidden="true"></span>
-              </button>
+              <JobNotificationBell />
               
               {/* Profile Dropdown */}
               <div className="relative" ref={profileRef}>

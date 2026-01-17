@@ -58,6 +58,7 @@ export class SeedController {
         { name: 'accounting_purpose_accounts', description: 'Accounting Purpose Accounts Management' },
         { name: 'fiscal_periods', description: 'Fiscal Periods Management' },
         { name: 'pos_imports', description: 'POS Imports Management' },
+        { name: 'jobs', description: 'Background Jobs Management' },
       ]
 
       for (const moduleData of defaultModules) {

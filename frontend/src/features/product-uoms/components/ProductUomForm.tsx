@@ -46,14 +46,14 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
       try {
         const response = await metricUnitsApi.listActive(1, 100)
         setMetricUnits(response.data)
-      } catch (error) {
+      } catch {
         toast.error('Failed to fetch metric units')
       } finally {
         setIsLoadingUnits(false)
       }
     }
     fetchMetricUnits()
-  }, [])
+  }, [toast])
 
   // Auto-set conversion factor to 1 when base unit is selected
   useEffect(() => {

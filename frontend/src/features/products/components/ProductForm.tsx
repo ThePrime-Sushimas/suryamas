@@ -54,14 +54,14 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
         ])
         setCategories(catRes.data.data || [])
         setSubCategories(subCatRes.data.data || [])
-      } catch (error) {
+      } catch {
         toast.error('Failed to load categories')
       } finally {
         setLoadingCategories(false)
       }
     }
     fetchCategories()
-  }, [])
+  }, [toast])
 
   useEffect(() => {
     if (formData.category_id) {

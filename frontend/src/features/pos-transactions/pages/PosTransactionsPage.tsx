@@ -4,6 +4,7 @@ import { posTransactionsApi, type PosTransactionFilters } from '../api/pos-trans
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useBranchesStore } from '@/features/branches/store/branches.store'
 import { usePaymentMethodsStore } from '@/features/payment-methods/store/paymentMethods.store'
+import { useJobsStore } from '@/features/jobs'
 
 interface PosTransaction {
   id: string
@@ -32,6 +33,7 @@ export function PosTransactionsPage() {
   const currentBranch = useBranchContextStore(s => s.currentBranch)
   const { branches, fetchBranches } = useBranchesStore()
   const { paymentMethods, fetchPaymentMethods } = usePaymentMethodsStore()
+  const { fetchRecentJobs } = useJobsStore()
   const [transactions, setTransactions] = useState<PosTransaction[]>([])
   const [summary, setSummary] = useState<Summary>({ totalAmount: 0, totalTax: 0, totalDiscount: 0, totalSubtotal: 0, transactionCount: 0 })
   const [loading, setLoading] = useState(false)
@@ -110,23 +112,21 @@ export function PosTransactionsPage() {
     
     setLoading(true)
     try {
-      const blob = await posTransactionsApi.export({
+      await posTransactionsApi.export({
         ...filters,
         branches: selectedBranches.length > 0 ? selectedBranches.join(',') : undefined,
         paymentMethods: selectedPayments.length > 0 ? selectedPayments.join(',') : undefined
       })
       
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `POS_Transactions_${new Date().toISOString().split('T')[0]}.xlsx`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
+      // Show success message
+      alert('Export job created! Check the notification bell for progress.')
+      
+      // Refresh jobs list
+      fetchRecentJobs()
     } catch (error) {
       console.error('Failed to export:', error)
-      alert('Failed to export data')
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create export job'
+      alert(errorMessage)
     } finally {
       setLoading(false)
     }
