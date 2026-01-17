@@ -291,11 +291,14 @@ export class PosImportLinesRepository {
       if (filters.salesNumber) query = query.ilike('sales_number', `%${filters.salesNumber}%`)
       if (filters.billNumber) query = query.ilike('bill_number', `%${filters.billNumber}%`)
       
-      // Multi-select branches
+      // Multi-select branches - CASE INSENSITIVE
       if (filters.branches) {
         const branchList = filters.branches.split(',').map(b => b.trim()).filter(Boolean)
+        logInfo('Branch filter applied', { branches: branchList })
+        
         if (branchList.length > 0) {
-          query = query.in('branch', branchList)
+          const orConditions = branchList.map(b => `branch.ilike.%${b}%`).join(',')
+          query = query.or(orConditions)
         }
       }
       
@@ -304,11 +307,12 @@ export class PosImportLinesRepository {
       if (filters.city) query = query.eq('city', filters.city)
       if (filters.menuName) query = query.ilike('menu', `%${filters.menuName}%`)
       
-      // Multi-select payment methods
+      // Multi-select payment methods - CASE INSENSITIVE
       if (filters.paymentMethods) {
         const paymentList = filters.paymentMethods.split(',').map(p => p.trim()).filter(Boolean)
         if (paymentList.length > 0) {
-          query = query.in('payment_method', paymentList)
+          const orConditions = paymentList.map(p => `payment_method.ilike.%${p}%`).join(',')
+          query = query.or(orConditions)
         }
       }
       
@@ -341,49 +345,85 @@ export class PosImportLinesRepository {
 
       // Get summary for ALL filtered data (not just current page)
       if (count && count > 0) {
-        let summaryQuery = supabase
-          .from('pos_import_lines')
-          .select('total, tax, discount, subtotal, pos_imports!inner(company_id)')
-          .eq('pos_imports.company_id', companyId)
+        // Fetch in chunks to handle large datasets
+        let summaryOffset = 0
+        const summaryLimit = 1000
+        let hasMoreSummary = true
 
-        // Apply same filters for summary
-        if (filters.dateFrom) summaryQuery = summaryQuery.gte('sales_date', filters.dateFrom)
-        if (filters.dateTo) summaryQuery = summaryQuery.lte('sales_date', filters.dateTo)
-        if (filters.salesNumber) summaryQuery = summaryQuery.ilike('sales_number', `%${filters.salesNumber}%`)
-        if (filters.billNumber) summaryQuery = summaryQuery.ilike('bill_number', `%${filters.billNumber}%`)
-        if (filters.branches) {
-          const branchList = filters.branches.split(',').map(b => b.trim()).filter(Boolean)
-          if (branchList.length > 0) summaryQuery = summaryQuery.in('branch', branchList)
-        }
-        if (filters.area) summaryQuery = summaryQuery.eq('area', filters.area)
-        if (filters.brand) summaryQuery = summaryQuery.eq('brand', filters.brand)
-        if (filters.city) summaryQuery = summaryQuery.eq('city', filters.city)
-        if (filters.menuName) summaryQuery = summaryQuery.ilike('menu', `%${filters.menuName}%`)
-        if (filters.paymentMethods) {
-          const paymentList = filters.paymentMethods.split(',').map(p => p.trim()).filter(Boolean)
-          if (paymentList.length > 0) summaryQuery = summaryQuery.in('payment_method', paymentList)
-        }
-        if (filters.regularMemberName) summaryQuery = summaryQuery.eq('regular_member_name', filters.regularMemberName)
-        if (filters.customerName) summaryQuery = summaryQuery.ilike('customer_name', `%${filters.customerName}%`)
-        if (filters.visitPurpose) summaryQuery = summaryQuery.eq('visit_purpose', filters.visitPurpose)
-        if (filters.salesType) summaryQuery = summaryQuery.eq('sales_type', filters.salesType)
-        if (filters.menuCategory) summaryQuery = summaryQuery.eq('menu_category', filters.menuCategory)
-        if (filters.menuCategoryDetail) summaryQuery = summaryQuery.eq('menu_category_detail', filters.menuCategoryDetail)
-        if (filters.menuCode) summaryQuery = summaryQuery.eq('menu_code', filters.menuCode)
-        if (filters.customMenuName) summaryQuery = summaryQuery.ilike('custom_menu_name', `%${filters.customMenuName}%`)
-        if (filters.tableSection) summaryQuery = summaryQuery.eq('table_section', filters.tableSection)
-        if (filters.tableName) summaryQuery = summaryQuery.eq('table_name', filters.tableName)
+        while (hasMoreSummary) {
+          let summaryQuery = supabase
+            .from('pos_import_lines')
+            .select('total, tax, discount, subtotal, pos_imports!inner(company_id)')
+            .eq('pos_imports.company_id', companyId)
 
-        const { data: summaryData } = await summaryQuery
+          // Apply same filters for summary
+          if (filters.dateFrom) summaryQuery = summaryQuery.gte('sales_date', filters.dateFrom)
+          if (filters.dateTo) summaryQuery = summaryQuery.lte('sales_date', filters.dateTo)
+          if (filters.salesNumber) summaryQuery = summaryQuery.ilike('sales_number', `%${filters.salesNumber}%`)
+          if (filters.billNumber) summaryQuery = summaryQuery.ilike('bill_number', `%${filters.billNumber}%`)
+          if (filters.branches) {
+            const branchList = filters.branches.split(',').map(b => b.trim()).filter(Boolean)
+            if (branchList.length > 0) {
+              const orConditions = branchList.map(b => `branch.ilike.%${b}%`).join(',')
+              summaryQuery = summaryQuery.or(orConditions)
+            }
+          }
+          if (filters.area) summaryQuery = summaryQuery.eq('area', filters.area)
+          if (filters.brand) summaryQuery = summaryQuery.eq('brand', filters.brand)
+          if (filters.city) summaryQuery = summaryQuery.eq('city', filters.city)
+          if (filters.menuName) summaryQuery = summaryQuery.ilike('menu', `%${filters.menuName}%`)
+          if (filters.paymentMethods) {
+            const paymentList = filters.paymentMethods.split(',').map(p => p.trim()).filter(Boolean)
+            if (paymentList.length > 0) {
+              const orConditions = paymentList.map(p => `payment_method.ilike.%${p}%`).join(',')
+              summaryQuery = summaryQuery.or(orConditions)
+            }
+          }
+          if (filters.regularMemberName) summaryQuery = summaryQuery.eq('regular_member_name', filters.regularMemberName)
+          if (filters.customerName) summaryQuery = summaryQuery.ilike('customer_name', `%${filters.customerName}%`)
+          if (filters.visitPurpose) summaryQuery = summaryQuery.eq('visit_purpose', filters.visitPurpose)
+          if (filters.salesType) summaryQuery = summaryQuery.eq('sales_type', filters.salesType)
+          if (filters.menuCategory) summaryQuery = summaryQuery.eq('menu_category', filters.menuCategory)
+          if (filters.menuCategoryDetail) summaryQuery = summaryQuery.eq('menu_category_detail', filters.menuCategoryDetail)
+          if (filters.menuCode) summaryQuery = summaryQuery.eq('menu_code', filters.menuCode)
+          if (filters.customMenuName) summaryQuery = summaryQuery.ilike('custom_menu_name', `%${filters.customMenuName}%`)
+          if (filters.tableSection) summaryQuery = summaryQuery.eq('table_section', filters.tableSection)
+          if (filters.tableName) summaryQuery = summaryQuery.eq('table_name', filters.tableName)
 
-        if (summaryData) {
+          const { data: summaryData, error: summaryError } = await summaryQuery
+            .range(summaryOffset, summaryOffset + summaryLimit - 1)
+
+          if (summaryError) {
+            logError('PosImportLinesRepository summary query error', { error: summaryError })
+            break
+          }
+
+          if (!summaryData || summaryData.length === 0) {
+            hasMoreSummary = false
+            break
+          }
+
           summaryData.forEach(line => {
             summary.totalAmount += Number(line.total) || 0
             summary.totalTax += Number(line.tax) || 0
             summary.totalDiscount += Number(line.discount) || 0
             summary.totalSubtotal += Number(line.subtotal) || 0
           })
+
+          hasMoreSummary = summaryData.length === summaryLimit
+          summaryOffset += summaryLimit
+
+          logInfo('PosImportLinesRepository summary chunk processed', { 
+            offset: summaryOffset, 
+            chunkSize: summaryData.length,
+            hasMore: hasMoreSummary 
+          })
         }
+
+        logInfo('PosImportLinesRepository summary complete', { 
+          totalAmount: summary.totalAmount,
+          totalRows: count
+        })
       }
 
       return {

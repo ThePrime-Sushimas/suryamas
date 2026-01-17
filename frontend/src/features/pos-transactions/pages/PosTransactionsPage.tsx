@@ -47,13 +47,7 @@ export function PosTransactionsPage() {
     if (currentBranch?.company_id) {
       fetchBranches(1, 100)
       fetchPaymentMethods(1, 100)
-      // Set default date to this month
-      const today = new Date()
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
-      setFilters({
-        dateFrom: monthStart.toISOString().split('T')[0],
-        dateTo: today.toISOString().split('T')[0]
-      })
+      // Don't set default date - let user choose
     }
   }, [currentBranch?.company_id, fetchBranches, fetchPaymentMethods])
 
@@ -106,12 +100,7 @@ export function PosTransactionsPage() {
   }
 
   const handleClearFilters = () => {
-    const today = new Date()
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
-    setFilters({
-      dateFrom: monthStart.toISOString().split('T')[0],
-      dateTo: today.toISOString().split('T')[0]
-    })
+    setFilters({})
     setSelectedBranches([])
     setSelectedPayments([])
   }
@@ -273,18 +262,24 @@ export function PosTransactionsPage() {
           </div>
 
           <div className="grid grid-cols-4 gap-4">
-            <input
-              type="date"
-              value={filters.dateFrom || ''}
-              onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
-              className="border rounded px-3 py-2 text-sm"
-            />
-            <input
-              type="date"
-              value={filters.dateTo || ''}
-              onChange={(e) => handleFilterChange('dateTo', e.target.value)}
-              className="border rounded px-3 py-2 text-sm"
-            />
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Date From</label>
+              <input
+                type="date"
+                value={filters.dateFrom || ''}
+                onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Date To</label>
+              <input
+                type="date"
+                value={filters.dateTo || ''}
+                onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm"
+              />
+            </div>
             
             {/* Branch Dropdown */}
             <div className="relative">
