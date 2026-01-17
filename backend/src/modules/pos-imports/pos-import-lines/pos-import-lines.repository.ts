@@ -246,6 +246,81 @@ export class PosImportLinesRepository {
       throw error
     }
   }
+
+  /**
+   * Find all transactions with filters (for consolidated report)
+   */
+  async findAllWithFilters(
+    companyId: string,
+    filters: {
+      dateFrom?: string
+      dateTo?: string
+      salesNumber?: string
+      billNumber?: string
+      branch?: string
+      area?: string
+      brand?: string
+      city?: string
+      menuName?: string
+      regularMemberName?: string
+      customerName?: string
+      visitPurpose?: string
+      salesType?: string
+      menuCategory?: string
+      menuCategoryDetail?: string
+      menuCode?: string
+      customMenuName?: string
+      tableSection?: string
+      tableName?: string
+    },
+    pagination: { page: number; limit: number }
+  ): Promise<{ data: PosImportLine[]; total: number }> {
+    try {
+      const offset = (pagination.page - 1) * pagination.limit
+
+      // Build query
+      let query = supabase
+        .from('pos_import_lines')
+        .select('*, pos_imports!inner(company_id)', { count: 'exact' })
+        .eq('pos_imports.company_id', companyId)
+
+      // Apply filters
+      if (filters.dateFrom) query = query.gte('sales_date', filters.dateFrom)
+      if (filters.dateTo) query = query.lte('sales_date', filters.dateTo)
+      if (filters.salesNumber) query = query.ilike('sales_number', `%${filters.salesNumber}%`)
+      if (filters.billNumber) query = query.ilike('bill_number', `%${filters.billNumber}%`)
+      if (filters.branch) query = query.eq('branch', filters.branch)
+      if (filters.area) query = query.eq('area', filters.area)
+      if (filters.brand) query = query.eq('brand', filters.brand)
+      if (filters.city) query = query.eq('city', filters.city)
+      if (filters.menuName) query = query.ilike('menu', `%${filters.menuName}%`)
+      if (filters.regularMemberName) query = query.eq('regular_member_name', filters.regularMemberName)
+      if (filters.customerName) query = query.ilike('customer_name', `%${filters.customerName}%`)
+      if (filters.visitPurpose) query = query.eq('visit_purpose', filters.visitPurpose)
+      if (filters.salesType) query = query.eq('sales_type', filters.salesType)
+      if (filters.menuCategory) query = query.eq('menu_category', filters.menuCategory)
+      if (filters.menuCategoryDetail) query = query.eq('menu_category_detail', filters.menuCategoryDetail)
+      if (filters.menuCode) query = query.eq('menu_code', filters.menuCode)
+      if (filters.customMenuName) query = query.ilike('custom_menu_name', `%${filters.customMenuName}%`)
+      if (filters.tableSection) query = query.eq('table_section', filters.tableSection)
+      if (filters.tableName) query = query.eq('table_name', filters.tableName)
+
+      const { data, error, count } = await query
+        .order('sales_date', { ascending: false })
+        .order('sales_number', { ascending: false })
+        .range(offset, offset + pagination.limit - 1)
+
+      if (error) throw error
+
+      return {
+        data: data || [],
+        total: count || 0
+      }
+    } catch (error) {
+      logError('PosImportLinesRepository findAllWithFilters error', { error })
+      throw error
+    }
+  }
 }
 
 export const posImportLinesRepository = new PosImportLinesRepository()
