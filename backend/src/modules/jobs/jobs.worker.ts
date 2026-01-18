@@ -9,7 +9,12 @@ import { jobsRepository } from './jobs.repository'
 import { jobsService } from './jobs.service'
 import { JOB_QUEUE_CONFIG } from './jobs.constants'
 
-export type JobProcessor = (jobId: string, userId: string, metadata: Record<string, any>) => Promise<{
+// Generic JobProcessor type that accepts typed metadata
+export type JobProcessor<M extends Record<string, any> = Record<string, any>> = (
+  jobId: string,
+  userId: string,
+  metadata: M
+) => Promise<{
   filePath: string
   fileName: string
 }>
@@ -21,10 +26,11 @@ class JobWorker {
   private isShuttingDown = false
 
   /**
-   * Register job processor
+   * Register job processor with type-safe metadata
    */
-  registerProcessor(type: string, processor: JobProcessor): void {
-    this.processors.set(type, processor)
+  registerProcessor<M extends Record<string, any>>(type: string, processor: JobProcessor<M>): void {
+    // Cast to JobProcessor for internal storage
+    this.processors.set(type, processor as JobProcessor)
     logInfo('Job processor registered', { type })
   }
 
@@ -41,20 +47,25 @@ class JobWorker {
     
     let jobUserId: string | null = null
     let jobType = ''
+    let jobModule = ''
     
     try {
       // Mark as processing
       const job = await jobsRepository.markAsProcessing(jobId)
-      logInfo('Job processing started', { job_id: jobId, type: job.type })
+      logInfo('Job processing started', { job_id: jobId, type: job.type, module: job.module })
 
       // Store user_id for error handling
       jobUserId = job.user_id
       jobType = job.type
+      jobModule = job.module || ''
 
+      // Build processor key from type and module
+      const processorKey = jobModule ? `${jobType}:${jobModule}` : jobType
+      
       // Get processor
-      const processor = this.processors.get(job.type)
+      const processor = this.processors.get(processorKey)
       if (!processor) {
-        throw new Error(`No processor registered for job type: ${job.type}`)
+        throw new Error(`No processor registered for: ${processorKey}`)
       }
 
       // Execute processor with timeout
@@ -69,10 +80,10 @@ class JobWorker {
 
       // Complete job
       await jobsService.completeJob(jobId, job.user_id, result.filePath, result.fileName)
-      logInfo('Job processing completed', { job_id: jobId })
+      logInfo('Job processing completed', { job_id: jobId, type: processorKey })
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      logError('Job processing failed', { job_id: jobId, error })
+      logError('Job processing failed', { job_id: jobId, type: jobType, module: jobModule, error })
 
       try {
         // Use stored user_id or fetch it from repository

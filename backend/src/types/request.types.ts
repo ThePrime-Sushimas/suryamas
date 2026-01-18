@@ -49,6 +49,7 @@ export interface AuthenticatedFilteredRequest extends AuthenticatedRequest {
 
 // Authenticated request with pagination + sort + filter
 export interface AuthenticatedQueryRequest extends AuthenticatedRequest {
+  context: any
   pagination: PaginationParams
   sort?: SortParams
   queryFilter?: QueryFilter

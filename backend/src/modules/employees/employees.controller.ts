@@ -1,14 +1,20 @@
 import { Response } from 'express'
 import { employeesService } from './employees.service'
-import { sendSuccess } from '../../utils/response.util'
+import { sendSuccess, sendError } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { logInfo } from '../../config/logger'
+import { logInfo, logError } from '../../config/logger'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
 import type { AuthenticatedPaginatedRequest, AuthenticatedRequest } from '../../types/request.types'
+import type { AuthRequest } from '../../types/common.types'
 import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, EmployeeSearchSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
 import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import { jobsService, jobsRepository } from '../jobs'
 
 export class EmployeesController {
+  // ============================================
+  // LIST & SEARCH
+  // ============================================
+
   async list(req: AuthenticatedPaginatedRequest, res: Response) {
     try {
       const result = await employeesService.list({
@@ -153,6 +159,10 @@ export class EmployeesController {
     }
   }
 
+  // ============================================
+  // EXPORT (LEGACY)
+  // ============================================
+
   async generateExportToken(req: AuthenticatedRequest, res: Response) {
     return handleExportToken(req, res)
   }
@@ -161,6 +171,78 @@ export class EmployeesController {
     return handleExport(req, res, (filter) => employeesService.exportToExcel(filter), 'employees')
   }
 
+  // ============================================
+  // EXPORT (JOB-BASED - NEW)
+  // ============================================
+
+  /**
+   * Create export job for employees
+   * POST /api/v1/employees/export/job
+   */
+  async createExportJob(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.user!.id
+      const companyId = req.context?.company_id
+
+      if (!companyId) {
+        return sendError(res, 'Company context required', 400)
+      }
+
+      // Check for existing active job
+      const hasActiveJob = await jobsRepository.hasActiveJob(userId)
+      if (hasActiveJob) {
+        return sendError(res, 'You already have an active job. Please wait for it to complete.', 429)
+      }
+
+      // Extract filter from query params
+      const filter: Record<string, unknown> = {}
+      if (req.query.branch_name) filter.branch_name = req.query.branch_name
+      if (req.query.job_position) filter.job_position = req.query.job_position
+      if (req.query.status_employee) filter.status_employee = req.query.status_employee
+      if (req.query.is_active) filter.is_active = req.query.is_active === 'true'
+      if (req.query.search) filter.search = req.query.search
+
+      // Create the export job
+      const job = await jobsService.createJob({
+        user_id: userId,
+        company_id: companyId,
+        type: 'export',
+        module: 'employees',
+        name: `Export Employees - ${new Date().toISOString().slice(0, 10)}`,
+        metadata: {
+          type: 'export',
+          module: 'employees',
+          filter: Object.keys(filter).length > 0 ? filter : undefined
+        }
+      })
+
+      logInfo('Employees export job created', { job_id: job.id, user_id: userId })
+
+      // Trigger background processing
+      const { jobWorker } = await import('../jobs/jobs.worker')
+      jobWorker.processJob(job.id).catch(error => {
+        logError('Employees export job processing error', { job_id: job.id, error })
+      })
+
+      sendSuccess(res, {
+        job_id: job.id,
+        status: job.status,
+        name: job.name,
+        type: job.type,
+        module: job.module,
+        created_at: job.created_at,
+        message: 'Export job created successfully. Processing in background.'
+      }, 'Export job created', 201)
+    } catch (error: any) {
+      logError('Failed to create export job', { error: error.message })
+      handleError(res, error)
+    }
+  }
+
+  // ============================================
+  // IMPORT (LEGACY)
+  // ============================================
+
   async previewImport(req: AuthenticatedRequest, res: Response) {
     return handleImportPreview(req, res, (buffer) => employeesService.previewImport(buffer))
   }
@@ -168,6 +250,108 @@ export class EmployeesController {
   async importData(req: AuthenticatedRequest, res: Response) {
     return handleImport(req, res, (buffer, skip) => employeesService.importFromExcel(buffer, skip))
   }
+
+  // ============================================
+  // IMPORT (JOB-BASED - NEW)
+  // ============================================
+
+  /**
+   * Create import job for employees
+   * POST /api/v1/employees/import/job
+   */
+  async createImportJob(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.user!.id
+      const companyId = req.context?.company_id
+
+      if (!companyId) {
+        return sendError(res, 'Company context required', 400)
+      }
+
+      if (!req.file) {
+        return sendError(res, 'No file uploaded', 400)
+      }
+
+      // Check file type
+      const allowedMimeTypes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel',
+        'application/octet-stream'
+      ]
+      if (!allowedMimeTypes.includes(req.file.mimetype)) {
+        return sendError(res, 'Invalid file type. Only Excel files (.xlsx, .xls) are allowed', 400)
+      }
+
+      // Check file size (10MB limit)
+      const maxSize = 10 * 1024 * 1024
+      if (req.file.size > maxSize) {
+        return sendError(res, `File size exceeds maximum limit of ${maxSize / (1024 * 1024)}MB`, 400)
+      }
+
+      // Check for existing active job
+      const hasActiveJob = await jobsRepository.hasActiveJob(userId)
+      if (hasActiveJob) {
+        return sendError(res, 'You already have an active job. Please wait for it to complete.', 429)
+      }
+
+      // Save file to temp location
+      const { saveTempFile } = await import('../jobs/jobs.util')
+      const filePath = await saveTempFile(req.file.buffer, `employees_import_${Date.now()}.xlsx`)
+
+      // Parse skipDuplicates from body
+      const skipDuplicates = req.body.skipDuplicates === 'true' || req.body.skipDuplicates === true
+
+      // Create the import job
+      const job = await jobsService.createJob({
+        user_id: userId,
+        company_id: companyId,
+        type: 'import',
+        module: 'employees',
+        name: `Import Employees - ${req.file.originalname}`,
+        metadata: {
+          type: 'import',
+          module: 'employees',
+          filePath,
+          fileName: req.file.originalname,
+          fileSize: req.file.size,
+          skipDuplicates,
+          mimeType: req.file.mimetype
+        }
+      })
+
+      logInfo('Employees import job created', { 
+        job_id: job.id, 
+        file_name: req.file.originalname,
+        file_size: req.file.size,
+        user_id: userId 
+      })
+
+      // Trigger background processing
+      const { jobWorker } = await import('../jobs/jobs.worker')
+      jobWorker.processJob(job.id).catch(error => {
+        logError('Employees import job processing error', { job_id: job.id, error })
+      })
+
+      sendSuccess(res, {
+        job_id: job.id,
+        status: job.status,
+        name: job.name,
+        type: job.type,
+        module: job.module,
+        created_at: job.created_at,
+        file_name: req.file.originalname,
+        file_size: req.file.size,
+        message: 'Import job created successfully. Processing in background.'
+      }, 'Import job created', 201)
+    } catch (error: any) {
+      logError('Failed to create import job', { error: error.message })
+      handleError(res, error)
+    }
+  }
+
+  // ============================================
+  // BULK OPERATIONS
+  // ============================================
 
   async bulkUpdateActive(req: ValidatedAuthRequest<typeof BulkUpdateActiveSchema>, res: Response) {
     try {
@@ -216,3 +400,4 @@ export class EmployeesController {
 }
 
 export const employeesController = new EmployeesController()
+

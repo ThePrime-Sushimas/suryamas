@@ -2,13 +2,14 @@ import { Response, Request } from 'express'
 import { productsService } from './products.service'
 import { productsExportService } from '../../services/products.export.service'
 import { productsImportService } from '../../services/products.import.service'
-import { sendSuccess } from '../../utils/response.util'
+import { sendSuccess, sendError } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { logInfo } from '../../config/logger'
+import { logInfo, logError } from '../../config/logger'
 import { withValidated } from '../../utils/handler'
-import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
+import type { AuthenticatedQueryRequest } from '../../types/request.types'
 import type { ValidatedRequest } from '../../middleware/validation.middleware'
 import type { ProductType, ProductStatus } from './products.types'
+import { jobsService, jobsRepository } from '../jobs'
 import {
   createProductSchema,
   updateProductSchema,
@@ -26,6 +27,10 @@ type BulkRestoreReq = ValidatedRequest<typeof bulkRestoreSchema>
 type ProductIdReq = ValidatedRequest<typeof productIdSchema>
 
 export class ProductsController {
+  // ============================================
+  // LIST & SEARCH
+  // ============================================
+
   list = async (req: AuthenticatedQueryRequest, res: Response): Promise<void> => {
     try {
       const page = req.pagination?.page || parseInt(req.query.page as string) || 1
@@ -77,6 +82,10 @@ export class ProductsController {
     }
   })
 
+  // ============================================
+  // CRUD OPERATIONS
+  // ============================================
+
   create = withValidated(async (req: CreateProductReq, res: Response) => {
     try {
       const body = req.validated.body as any
@@ -112,7 +121,7 @@ export class ProductsController {
     }
   })
 
-  delete = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  delete = async (req: AuthenticatedQueryRequest, res: Response): Promise<void> => {
     try {
       const { id } = req.params
       await productsService.delete(id, req.user?.id)
@@ -142,7 +151,7 @@ export class ProductsController {
     }
   })
 
-  getFilterOptions = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  getFilterOptions = async (req: AuthenticatedQueryRequest, res: Response): Promise<void> => {
     try {
       const options = await productsService.getFilterOptions()
       sendSuccess(res, options, 'Filter options retrieved successfully')
@@ -151,7 +160,7 @@ export class ProductsController {
     }
   }
 
-  minimalActive = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  minimalActive = async (req: AuthenticatedQueryRequest, res: Response): Promise<void> => {
     try {
       const products = await productsService.minimalActive()
       sendSuccess(res, products, 'Products retrieved successfully')
@@ -160,7 +169,7 @@ export class ProductsController {
     }
   }
 
-  checkProductName = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  checkProductName = async (req: AuthenticatedQueryRequest, res: Response): Promise<void> => {
     try {
       const { product_name, excludeId } = req.query
       const exists = await productsService.checkProductNameExists(
@@ -193,7 +202,11 @@ export class ProductsController {
     }
   })
 
-  export = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  // ============================================
+  // EXPORT OPERATIONS (Direct - Legacy)
+  // ============================================
+
+  export = async (req: AuthenticatedQueryRequest, res: Response): Promise<void> => {
     try {
       const buffer = await productsExportService.export()
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -204,7 +217,80 @@ export class ProductsController {
     }
   }
 
-  importPreview = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  // ============================================
+  // EXPORT OPERATIONS (JOB-BASED - New)
+  // ============================================
+
+  /**
+   * Create export job for products
+   * POST /api/v1/products/export/job
+   * 
+   * Creates a job and immediately returns job ID.
+   * Processing happens in background via job worker.
+   */
+  createExportJob = async (req: AuthenticatedQueryRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user!.id
+      const companyId = req.context?.company_id
+
+      if (!companyId) {
+        return sendError(res, 'Company context required', 400)
+      }
+
+      // Check for existing active job
+      const hasActiveJob = await jobsRepository.hasActiveJob(userId)
+      if (hasActiveJob) {
+        return sendError(res, 'You already have an active job. Please wait for it to complete.', 429)
+      }
+
+      // Extract filter from query params
+      const filter: Record<string, unknown> = {}
+      if (req.query.status) filter.status = req.query.status
+      if (req.query.category_id) filter.category_id = req.query.category_id
+      if (req.query.search) filter.search = req.query.search
+
+      // Create the export job
+      const job = await jobsService.createJob({
+        user_id: userId,
+        company_id: companyId,
+        type: 'export',
+        module: 'products',
+        name: `Export Products - ${new Date().toISOString().slice(0, 10)}`,
+        metadata: {
+          type: 'export',
+          module: 'products',
+          filter: Object.keys(filter).length > 0 ? filter : undefined
+        }
+      })
+
+      logInfo('Products export job created', { job_id: job.id, user_id: userId })
+
+      // Trigger background processing (don't await)
+      const { jobWorker } = await import('../jobs/jobs.worker')
+      jobWorker.processJob(job.id).catch(error => {
+        logError('Products export job processing error', { job_id: job.id, error })
+      })
+
+      sendSuccess(res, {
+        job_id: job.id,
+        status: job.status,
+        name: job.name,
+        type: job.type,
+        module: job.module,
+        created_at: job.created_at,
+        message: 'Export job created successfully. Processing in background.'
+      }, 'Export job created', 201)
+    } catch (error: any) {
+      logError('Failed to create export job', { error: error.message })
+      handleError(res, error)
+    }
+  }
+
+  // ============================================
+  // IMPORT OPERATIONS (Direct - Legacy)
+  // ============================================
+
+  importPreview = async (req: AuthenticatedQueryRequest, res: Response): Promise<void> => {
     try {
       if (!req.file) {
         res.status(400).json({ success: false, error: 'No file uploaded' })
@@ -217,7 +303,7 @@ export class ProductsController {
     }
   }
 
-  import = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  import = async (req: AuthenticatedQueryRequest, res: Response): Promise<void> => {
     try {
       if (!req.file) {
         res.status(400).json({ success: false, error: 'No file uploaded' })
@@ -229,6 +315,108 @@ export class ProductsController {
       handleError(res, error)
     }
   }
+
+  // ============================================
+  // IMPORT OPERATIONS (JOB-BASED - New)
+  // ============================================
+
+  /**
+   * Create import job for products
+   * POST /api/v1/products/import/job
+   * 
+   * Accepts file upload, creates a job, and returns job ID.
+   * Processing happens in background via job worker.
+   */
+  createImportJob = async (req: AuthenticatedQueryRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user!.id
+      const companyId = req.context?.company_id
+
+      if (!companyId) {
+        return sendError(res, 'Company context required', 400)
+      }
+
+      if (!req.file) {
+        return sendError(res, 'No file uploaded', 400)
+      }
+
+      // Check file type
+      const allowedMimeTypes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel',
+        'application/octet-stream'
+      ]
+      if (!allowedMimeTypes.includes(req.file.mimetype)) {
+        return sendError(res, 'Invalid file type. Only Excel files (.xlsx, .xls) are allowed', 400)
+      }
+
+      // Check file size (10MB limit)
+      const maxSize = 10 * 1024 * 1024
+      if (req.file.size > maxSize) {
+        return sendError(res, `File size exceeds maximum limit of ${maxSize / (1024 * 1024)}MB`, 400)
+      }
+
+      // Check for existing active job
+      const hasActiveJob = await jobsRepository.hasActiveJob(userId)
+      if (hasActiveJob) {
+        return sendError(res, 'You already have an active job. Please wait for it to complete.', 429)
+      }
+
+      // Save file to temp location
+      const { saveTempFile } = await import('../jobs/jobs.util')
+      const filePath = await saveTempFile(req.file.buffer, `products_import_${Date.now()}.xlsx`)
+
+      // Parse skipDuplicates from body
+      const skipDuplicates = req.body.skipDuplicates === 'true' || req.body.skipDuplicates === true
+
+      // Create the import job
+      const job = await jobsService.createJob({
+        user_id: userId,
+        company_id: companyId,
+        type: 'import',
+        module: 'products',
+        name: `Import Products - ${req.file.originalname}`,
+        metadata: {
+          type: 'import',
+          module: 'products',
+          filePath,
+          fileName: req.file.originalname,
+          fileSize: req.file.size,
+          skipDuplicates,
+          mimeType: req.file.mimetype
+        }
+      })
+
+      logInfo('Products import job created', { 
+        job_id: job.id, 
+        file_name: req.file.originalname,
+        file_size: req.file.size,
+        user_id: userId 
+      })
+
+      // Trigger background processing (don't await)
+      const { jobWorker } = await import('../jobs/jobs.worker')
+      jobWorker.processJob(job.id).catch(error => {
+        logError('Products import job processing error', { job_id: job.id, error })
+      })
+
+      sendSuccess(res, {
+        job_id: job.id,
+        status: job.status,
+        name: job.name,
+        type: job.type,
+        module: job.module,
+        created_at: job.created_at,
+        file_name: req.file.originalname,
+        file_size: req.file.size,
+        message: 'Import job created successfully. Processing in background.'
+      }, 'Import job created', 201)
+    } catch (error: any) {
+      logError('Failed to create import job', { error: error.message })
+      handleError(res, error)
+    }
+  }
 }
 
 export const productsController = new ProductsController()
+

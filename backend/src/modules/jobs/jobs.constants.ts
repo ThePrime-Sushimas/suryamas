@@ -9,7 +9,7 @@ export const JOB_QUEUE_CONFIG: JobQueueConfig = {
   jobTimeout: parseInt(process.env.JOB_TIMEOUT_MS || String(30 * 60 * 1000)),
   retryAttempts: parseInt(process.env.JOB_RETRY_ATTEMPTS || '3'),
   retryDelay: parseInt(process.env.JOB_RETRY_DELAY_MS || '5000'),
-  resultExpiration: parseInt(process.env.JOB_RESULT_EXPIRATION_MS || String(60 * 60 * 1000)),
+  resultExpiration: parseInt(process.env.JOB_RESULT_EXPIRATION_MS || String(12 * 60 * 60 * 1000)), // 12 hours
   cleanupInterval: parseInt(process.env.JOB_CLEANUP_INTERVAL_MS || String(10 * 60 * 1000)),
 }
 

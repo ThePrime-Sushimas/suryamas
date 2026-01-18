@@ -11,7 +11,7 @@ import { JOB_QUEUE_CONFIG } from './jobs.constants'
 
 export class JobsRepository {
   /**
-   * Find user's recent jobs (last 3, excluding deleted)
+   * Find user's recent jobs (last 10, excluding deleted)
    */
   async findUserRecentJobs(userId: string): Promise<Job[]> {
     try {
@@ -22,7 +22,7 @@ export class JobsRepository {
         .is('deleted_at', null)
         .in('status', ['pending', 'processing', 'completed'])
         .order('created_at', { ascending: false })
-        .limit(3)
+        .limit(10)
 
       if (error) throw error
 
@@ -92,6 +92,7 @@ export class JobsRepository {
           p_user_id: dto.user_id,
           p_company_id: dto.company_id,
           p_type: dto.type,
+          p_module: dto.module,
           p_name: dto.name,
           p_metadata: dto.metadata || {}
         })
@@ -103,7 +104,7 @@ export class JobsRepository {
         throw error
       }
 
-      logInfo('Repository create success', { id: data.id, name: dto.name })
+      logInfo('Repository create success', { id: data.id, name: dto.name, type: dto.type, module: dto.module })
       return data
     } catch (error) {
       if (error instanceof Error && error.message.includes('already has an active job')) {

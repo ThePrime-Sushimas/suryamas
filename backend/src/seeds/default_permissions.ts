@@ -86,6 +86,36 @@ export async function seedDefaultPermissions(): Promise<SeedResult> {
         description: 'User Management System',
         is_active: true,
       },
+      {
+        name: 'jobs',
+        description: 'Job Queue Management System',
+        is_active: true,
+      },
+      {
+        name: 'companies',
+        description: 'Company Management System',
+        is_active: true,
+      },
+      {
+        name: 'products',
+        description: 'Product Management System',
+        is_active: true,
+      },
+      {
+        name: 'categories',
+        description: 'Category Management System',
+        is_active: true,
+      },
+      {
+        name: 'chart_of_accounts',
+        description: 'Chart of Accounts Management',
+        is_active: true,
+      },
+      {
+        name: 'accounting_purposes',
+        description: 'Accounting Purposes Management',
+        is_active: true,
+      },
     ]
 
     const createdModules: any[] = []

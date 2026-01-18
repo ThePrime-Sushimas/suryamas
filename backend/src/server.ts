@@ -4,8 +4,7 @@ dotenv.config()
 
 import app from './app'
 import { logInfo, logError } from './config/logger'
-import { jobWorker } from './modules/jobs'
-import { processPosTransactionsExport } from './modules/pos-imports/pos-transactions/pos-transactions.processor'
+import { jobWorker, registerAllProcessors } from './modules/jobs'
 
 const PORT = process.env.PORT || 3000
 
@@ -25,15 +24,15 @@ app.listen(PORT, () => {
 📝 Environment: ${process.env.NODE_ENV || 'development'}
   `)
   
-  // Register job processors
-  jobWorker.registerProcessor('export', async (jobId, userId, metadata) => {
-    return processPosTransactionsExport(jobId, userId, metadata as any)
+  // Register all job processors
+  registerAllProcessors((type, processor) => {
+    jobWorker.registerProcessor(type, processor)
   })
   
   // Start cleanup interval
   jobWorker.startCleanup()
   
-  logInfo('Job worker initialized')
+  logInfo('Job worker initialized with all processors registered')
 })
 
 // Graceful shutdown handlers

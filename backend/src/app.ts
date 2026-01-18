@@ -96,4 +96,25 @@ app.use('/api/v1', ownerBankAccountsRouter)
 // Error handler
 app.use(errorHandler)
 
+// Register modules on startup (silently fail if DB not available)
+import { PermissionService } from './services/permission.service'
+import { logInfo } from './config/logger'
+
+// Initialize permission modules
+const registerModules = async () => {
+  try {
+    await PermissionService.registerModule('jobs', 'Job Queue Management')
+    await PermissionService.registerModule('companies', 'Company Management')
+    await PermissionService.registerModule('products', 'Product Management')
+    await PermissionService.registerModule('categories', 'Category Management')
+    await PermissionService.registerModule('chart_of_accounts', 'Chart of Accounts')
+    await PermissionService.registerModule('accounting_purposes', 'Accounting Purposes')
+    logInfo('Permission modules registered successfully')
+  } catch (error) {
+    // Silently fail - module will be registered via seed later
+    logInfo('Permission modules will be registered via seed')
+  }
+}
+registerModules()
+
 export default app

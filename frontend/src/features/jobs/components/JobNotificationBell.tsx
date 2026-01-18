@@ -82,7 +82,7 @@ export function JobNotificationBell() {
 
             {/* Subtitle */}
             <div className="px-4 py-2 bg-gray-50 text-sm text-gray-600 border-b border-gray-200">
-              Last 3 processed files. Download within 1 hour to avoid expiration.
+              Last 10 processed files. Download within 12 hours to avoid expiration.
             </div>
 
             {/* Jobs List */}

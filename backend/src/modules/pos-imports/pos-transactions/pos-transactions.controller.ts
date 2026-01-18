@@ -88,13 +88,14 @@ export const exportToExcel = async (req: AuthRequest, res: Response) => {
       tableName: req.query.tableName as string
     }
 
-    // Create job
+    // Create job using new format (type + module)
     const job = await jobsService.createJob({
       user_id: userId,
       company_id: companyId,
       type: 'export',
+      module: 'pos_transactions',
       name: 'POS Transactions Export',
-      metadata: { companyId, filters }
+      metadata: { companyId, filters, module: 'pos_transactions', type: 'export' }
     })
 
     // Trigger processing in background
