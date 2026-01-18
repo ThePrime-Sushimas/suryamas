@@ -20,4 +20,9 @@ export const jobsApi = {
     const response = await axios.post(`/jobs/${id}/cancel`)
     return response.data.data
   },
+
+  clearAllJobs: async (): Promise<{ deleted: number }> => {
+    const response = await axios.post('/jobs/clear-all')
+    return response.data.data
+  },
 }

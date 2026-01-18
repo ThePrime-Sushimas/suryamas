@@ -136,14 +136,15 @@ export class JobsService {
     jobId: string,
     userId: string,
     resultFilePath: string,
-    resultFileName: string
+    resultFileName: string,
+    importResults?: Record<string, unknown>
   ): Promise<Job> {
     let uploadedFilePath: string | null = null
     
     try {
       // Skip upload if filePath is empty (import jobs)
       if (!resultFilePath || !resultFileName) {
-        return this.completeJobWithoutFile(jobId, userId)
+        return this.completeJobWithoutFile(jobId, userId, importResults)
       }
 
       // Upload file to storage
@@ -271,6 +272,31 @@ export class JobsService {
     }
 
     return jobsRepository.update(id, userId, { status: 'cancelled' })
+  }
+
+  /**
+   * Clear all completed jobs for a user (soft delete)
+   */
+  async clearAllJobs(userId: string, companyId: string): Promise<number> {
+    try {
+      // Get all completed jobs for this user and company
+      const jobs = await jobsRepository.findUserRecentJobs(userId)
+      const completedJobs = jobs.filter(
+        j => j.company_id === companyId && 
+            (j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled')
+      )
+
+      // Soft delete each job
+      for (const job of completedJobs) {
+        await jobsRepository.delete(job.id, userId)
+      }
+
+      logInfo('Service clearAllJobs success', { user_id: userId, deleted_count: completedJobs.length })
+      return completedJobs.length
+    } catch (error) {
+      logError('Service clearAllJobs error', { user_id: userId, error })
+      throw error
+    }
   }
 }
 

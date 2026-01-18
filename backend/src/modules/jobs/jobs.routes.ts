@@ -79,5 +79,10 @@ router.post('/:id/cancel',
   jobsController.cancelJob.bind(jobsController)
 )
 
+// Clear all completed jobs
+router.post('/clear-all',
+  jobsController.clearAllJobs.bind(jobsController)
+)
+
 export default router
 

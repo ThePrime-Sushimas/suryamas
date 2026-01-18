@@ -17,6 +17,7 @@ export type JobProcessor<M extends Record<string, any> = Record<string, any>> = 
 ) => Promise<{
   filePath: string
   fileName: string
+  importResults?: Record<string, unknown>
 }>
 
 class JobWorker {
@@ -78,8 +79,8 @@ class JobWorker {
         timeoutPromise,
       ])
 
-      // Complete job
-      await jobsService.completeJob(jobId, job.user_id, result.filePath, result.fileName)
+      // Complete job (pass importResults for import jobs)
+      await jobsService.completeJob(jobId, job.user_id, result.filePath, result.fileName, result.importResults)
       logInfo('Job processing completed', { job_id: jobId, type: processorKey })
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'

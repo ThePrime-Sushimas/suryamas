@@ -14,6 +14,7 @@ interface JobsState {
   fetchRecentJobs: () => Promise<void>
   downloadFile: (job: Job) => void
   clearError: () => void
+  clearAllJobs: () => Promise<void>
 }
 
 export const useJobsStore = create<JobsState>((set) => ({
@@ -41,4 +42,17 @@ export const useJobsStore = create<JobsState>((set) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  clearAllJobs: async () => {
+    set({ loading: true, error: null })
+    try {
+      await jobsApi.clearAllJobs()
+      set({ jobs: [], loading: false })
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to clear jobs',
+        loading: false 
+      })
+    }
+  },
 }))

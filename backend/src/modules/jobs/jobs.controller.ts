@@ -319,6 +319,28 @@ export class JobsController {
       next(error)
     }
   }
+
+  /**
+   * Clear all completed jobs for the current user
+   * POST /api/v1/jobs/clear-all
+   */
+  async clearAllJobs(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user!.id
+      const companyId = req.context?.company_id
+
+      if (!companyId) {
+        return next(new Error('Company context required'))
+      }
+
+      const deletedCount = await jobsService.clearAllJobs(userId, companyId)
+
+      sendSuccess(res, { deleted: deletedCount }, 'Jobs cleared successfully')
+    } catch (error) {
+      logError('Controller clearAllJobs error', { error })
+      next(error)
+    }
+  }
 }
 
 export const jobsController = new JobsController()
