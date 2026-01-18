@@ -46,10 +46,10 @@ export interface PosImportLine {
   id: string
   pos_import_id: string
   row_number: number
-  sales_number: string
-  bill_number: string
+  sales_number?: string
+  bill_number?: string
   sales_type?: string
-  sales_date: string
+  sales_date?: string
   sales_date_in?: string
   sales_date_out?: string
   branch?: string
@@ -66,5 +66,7 @@ export interface PosImportLine {
   vat?: number
   total?: number
   nett_sales?: number
+  bill_discount?: number
+  total_after_bill_discount?: number
   created_at: string
 }

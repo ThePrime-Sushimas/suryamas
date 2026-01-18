@@ -11,7 +11,14 @@ function PosImportDetailPageContent() {
   const navigate = useNavigate()
   const [posImport, setPosImport] = useState<PosImport | null>(null)
   const [lines, setLines] = useState<PosImportLine[]>([])
-  const [allLinesSummary, setAllLinesSummary] = useState({ totalAmount: 0, totalTax: 0, totalDiscount: 0, transactionCount: 0 })
+  const [allLinesSummary, setAllLinesSummary] = useState({ 
+    totalAmount: 0, 
+    totalTax: 0, 
+    totalDiscount: 0, 
+    totalBillDiscount: 0,
+    totalAfterBillDiscount: 0,
+    transactionCount: 0 
+  })
   const [loading, setLoading] = useState(true)
   const [loadingSummary, setLoadingSummary] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -49,7 +56,7 @@ function PosImportDetailPageContent() {
       line.bill_number?.toLowerCase().includes(query) ||
       line.menu?.toLowerCase().includes(query) ||
       line.payment_method?.toLowerCase().includes(query) ||
-      line.branch?.toLowerCase().includes(query)
+      line.branch?.toLowerCase().includes(query)      
     )
   }, [lines, searchQuery])
 
@@ -202,14 +209,14 @@ function PosImportDetailPageContent() {
       </div>
 
       {/* Financial Summary */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-5 gap-4 mb-6">
         <div className="bg-blue-50 rounded-lg p-4">
           <p className="text-sm text-gray-600">Total Amount</p>
           {loadingSummary ? (
             <div className="h-8 bg-blue-100 animate-pulse rounded mt-1" />
           ) : (
             <p className="text-2xl font-bold text-blue-600">
-              Rp {allLinesSummary.totalAmount.toLocaleString('id-ID')}
+              Rp {(allLinesSummary.totalAmount || 0).toLocaleString('id-ID')}
             </p>
           )}
         </div>
@@ -219,27 +226,37 @@ function PosImportDetailPageContent() {
             <div className="h-8 bg-green-100 animate-pulse rounded mt-1" />
           ) : (
             <p className="text-2xl font-bold text-green-600">
-              Rp {allLinesSummary.totalTax.toLocaleString('id-ID')}
+              Rp {(allLinesSummary.totalTax || 0).toLocaleString('id-ID')}
             </p>
           )}
         </div>
         <div className="bg-orange-50 rounded-lg p-4">
-          <p className="text-sm text-gray-600">Total Discount</p>
+          <p className="text-sm text-gray-600">Bill Discount</p>
           {loadingSummary ? (
             <div className="h-8 bg-orange-100 animate-pulse rounded mt-1" />
           ) : (
             <p className="text-2xl font-bold text-orange-600">
-              Rp {allLinesSummary.totalDiscount.toLocaleString('id-ID')}
+              Rp {(allLinesSummary.totalBillDiscount || 0).toLocaleString('id-ID')}
             </p>
           )}
         </div>
         <div className="bg-purple-50 rounded-lg p-4">
-          <p className="text-sm text-gray-600">Transactions</p>
+          <p className="text-sm text-gray-600">After Bill Disc</p>
           {loadingSummary ? (
             <div className="h-8 bg-purple-100 animate-pulse rounded mt-1" />
           ) : (
             <p className="text-2xl font-bold text-purple-600">
-              {allLinesSummary.transactionCount}
+              Rp {(allLinesSummary.totalAfterBillDiscount || 0).toLocaleString('id-ID')}
+            </p>
+          )}
+        </div>
+        <div className="bg-gray-50 rounded-lg p-4">
+          <p className="text-sm text-gray-600">Transactions</p>
+          {loadingSummary ? (
+            <div className="h-8 bg-gray-100 animate-pulse rounded mt-1" />
+          ) : (
+            <p className="text-2xl font-bold text-gray-900">
+              {allLinesSummary.transactionCount || 0}
             </p>
           )}
         </div>
@@ -288,22 +305,24 @@ function PosImportDetailPageContent() {
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Price</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Subtotal</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Discount</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Bill Discount</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tax</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total After Bill Disc</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredLines.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={13} className="px-4 py-8 text-center text-gray-500">
                     {searchQuery ? 'No transactions match your search' : 'No transaction lines found'}
                   </td>
                 </tr>
               ) : (
                 filteredLines.map((line) => (
                   <tr key={line.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium">{line.bill_number}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{new Date(line.sales_date).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 text-sm font-medium">{line.bill_number || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{line.sales_date ? new Date(line.sales_date).toLocaleDateString() : '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{line.branch || '-'}</td>
                     <td className="px-4 py-3 text-sm">{line.menu || '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{line.payment_method || '-'}</td>
@@ -311,8 +330,10 @@ function PosImportDetailPageContent() {
                     <td className="px-4 py-3 text-sm text-right">{line.price?.toLocaleString() || 0}</td>
                     <td className="px-4 py-3 text-sm text-right">{line.subtotal?.toLocaleString() || 0}</td>
                     <td className="px-4 py-3 text-sm text-right text-red-600">{line.discount?.toLocaleString() || 0}</td>
+                    <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">{(line.bill_discount || 0).toLocaleString()}</td>
                     <td className="px-4 py-3 text-sm text-right">{line.tax?.toLocaleString() || 0}</td>
                     <td className="px-4 py-3 text-sm text-right font-bold">{line.total?.toLocaleString() || 0}</td>
+                    <td className="px-4 py-3 text-sm text-right font-bold text-green-600">{(line.total_after_bill_discount || 0).toLocaleString()}</td>
                   </tr>
                 ))
               )}

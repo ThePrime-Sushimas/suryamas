@@ -17,6 +17,8 @@ interface PosTransaction {
   price: number
   subtotal: number
   discount: number
+  bill_discount?: number
+  total_after_bill_discount?: number
   tax: number
   total: number
 }
@@ -25,6 +27,8 @@ interface Summary {
   totalAmount: number
   totalTax: number
   totalDiscount: number
+  totalBillDiscount: number
+  totalAfterBillDiscount: number
   totalSubtotal: number
   transactionCount: number
 }
@@ -35,7 +39,7 @@ export function PosTransactionsPage() {
   const { paymentMethods, fetchPaymentMethods } = usePaymentMethodsStore()
   const { fetchRecentJobs } = useJobsStore()
   const [transactions, setTransactions] = useState<PosTransaction[]>([])
-  const [summary, setSummary] = useState<Summary>({ totalAmount: 0, totalTax: 0, totalDiscount: 0, totalSubtotal: 0, transactionCount: 0 })
+  const [summary, setSummary] = useState<Summary>({ totalAmount: 0, totalTax: 0, totalDiscount: 0, totalAfterBillDiscount:0, totalBillDiscount:0, totalSubtotal: 0, transactionCount: 0 })
   const [loading, setLoading] = useState(false)
   const [showFilters, setShowFilters] = useState(true)
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0 })
@@ -68,7 +72,15 @@ export function PosTransactionsPage() {
       })
       setTransactions(result.data?.data || [])
       setPagination(prev => ({ ...prev, total: result.data?.total || 0 }))
-      setSummary(result.data?.summary || { totalAmount: 0, totalTax: 0, totalDiscount: 0, totalSubtotal: 0, transactionCount: 0 })
+      setSummary(result.data?.summary || { 
+        totalAmount: 0, 
+        totalTax: 0, 
+        totalDiscount: 0, 
+        totalBillDiscount: 0,
+        totalAfterBillDiscount: 0,
+        totalSubtotal: 0, 
+        transactionCount: 0 
+      })
     } catch (error) {
       console.error('Failed to fetch transactions:', error)
     } finally {
@@ -204,12 +216,12 @@ export function PosTransactionsPage() {
       </div>
 
       {summary.transactionCount > 0 && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-5 gap-4">
           <div className="bg-white rounded-lg shadow p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Amount</p>
-                <p className="text-2xl font-bold text-gray-900">Rp {summary.totalAmount.toLocaleString('id-ID')}</p>
+                <p className="text-2xl font-bold text-gray-900">Rp {(summary.totalAmount || 0).toLocaleString('id-ID')}</p>
               </div>
               <div className="p-3 bg-blue-100 rounded-lg">
                 <DollarSign className="text-blue-600" size={24} />
@@ -220,7 +232,7 @@ export function PosTransactionsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Tax</p>
-                <p className="text-2xl font-bold text-gray-900">Rp {summary.totalTax.toLocaleString('id-ID')}</p>
+                <p className="text-2xl font-bold text-gray-900">Rp {(summary.totalTax || 0).toLocaleString('id-ID')}</p>
               </div>
               <div className="p-3 bg-green-100 rounded-lg">
                 <TrendingUp className="text-green-600" size={24} />
@@ -230,8 +242,8 @@ export function PosTransactionsPage() {
           <div className="bg-white rounded-lg shadow p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total Discount</p>
-                <p className="text-2xl font-bold text-gray-900">Rp {summary.totalDiscount.toLocaleString('id-ID')}</p>
+                <p className="text-sm text-gray-600">Bill Discount</p>
+                <p className="text-2xl font-bold text-gray-900">Rp {(summary.totalBillDiscount || 0).toLocaleString('id-ID')}</p>
               </div>
               <div className="p-3 bg-orange-100 rounded-lg">
                 <Percent className="text-orange-600" size={24} />
@@ -241,8 +253,19 @@ export function PosTransactionsPage() {
           <div className="bg-white rounded-lg shadow p-4">
             <div className="flex items-center justify-between">
               <div>
+                <p className="text-sm text-gray-600">After Bill Disc</p>
+                <p className="text-2xl font-bold text-green-600">Rp {(summary.totalAfterBillDiscount || 0).toLocaleString('id-ID')}</p>
+              </div>
+              <div className="p-3 bg-green-100 rounded-lg">
+                <DollarSign className="text-green-600" size={24} />
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-sm text-gray-600">Transactions</p>
-                <p className="text-2xl font-bold text-gray-900">{summary.transactionCount.toLocaleString('id-ID')}</p>
+                <p className="text-2xl font-bold text-gray-900">{(summary.transactionCount || 0).toLocaleString('id-ID')}</p>
               </div>
               <div className="p-3 bg-purple-100 rounded-lg">
                 <Receipt className="text-purple-600" size={24} />
@@ -406,12 +429,14 @@ export function PosTransactionsPage() {
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Discount</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tax</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Bill Discount</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total After Bill Disc</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {transactions.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={13} className="px-4 py-8 text-center text-gray-500">
                         Click "Apply Filters" to search transactions
                       </td>
                     </tr>
@@ -429,6 +454,8 @@ export function PosTransactionsPage() {
                         <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.discount || 0).toLocaleString('id-ID')}</td>
                         <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.tax || 0).toLocaleString('id-ID')}</td>
                         <td className="px-4 py-3 text-sm text-right font-medium">Rp {Number(tx.total || 0).toLocaleString('id-ID')}</td>
+                        <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">{(tx.bill_discount || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-sm text-right font-bold text-green-600">{(tx.total_after_bill_discount || 0).toLocaleString()}</td>
                       </tr>
                     ))
                   )}

@@ -194,31 +194,29 @@ export class PosImportLinesRepository {
     totalAmount: number
     totalTax: number
     totalDiscount: number
+    totalBillDiscount: number
+    totalAfterBillDiscount: number
     transactionCount: number
   }> {
     try {
-      // Try RPC function first (if available)
-      try {
-        const { data, error } = await supabase
-          .rpc('get_pos_import_summary', { import_id: importId })
-
-        if (!error && data && Array.isArray(data) && data.length > 0) {
-          return data[0]
-        }
-      } catch {
-        // Fall through to chunking approach
-      }
-
-      // Fallback: Fetch in chunks of 1000
+      // Always use chunking approach to ensure we get all fields
+      // The RPC function may not include all required fields
       let offset = 0
       const limit = 1000
       let hasMore = true
-      const summary = { totalAmount: 0, totalTax: 0, totalDiscount: 0, transactionCount: 0 }
+      const summary = { 
+        totalAmount: 0, 
+        totalTax: 0, 
+        totalDiscount: 0, 
+        totalBillDiscount: 0,
+        totalAfterBillDiscount: 0,
+        transactionCount: 0 
+      }
 
       while (hasMore) {
         const { data, error } = await supabase
           .from('pos_import_lines')
-          .select('total, tax, discount')
+          .select('total, tax, discount, bill_discount, total_after_bill_discount')
           .eq('pos_import_id', importId)
           .range(offset, offset + limit - 1)
 
@@ -230,15 +228,25 @@ export class PosImportLinesRepository {
         }
 
         data.forEach(line => {
-          summary.totalAmount += line.total || 0
-          summary.totalTax += line.tax || 0
-          summary.totalDiscount += line.discount || 0
+          summary.totalAmount += Number(line.total) || 0
+          summary.totalTax += Number(line.tax) || 0
+          summary.totalDiscount += Number(line.discount) || 0
+          summary.totalBillDiscount += Number(line.bill_discount) || 0
+          summary.totalAfterBillDiscount += Number(line.total_after_bill_discount) || 0
           summary.transactionCount += 1
         })
 
         hasMore = data.length === limit
         offset += limit
       }
+
+      logInfo('PosImportLinesRepository getSummaryByImportId', { 
+        importId, 
+        totalAmount: summary.totalAmount,
+        totalBillDiscount: summary.totalBillDiscount,
+        totalAfterBillDiscount: summary.totalAfterBillDiscount,
+        transactionCount: summary.transactionCount
+      })
 
       return summary
     } catch (error) {
@@ -275,7 +283,7 @@ export class PosImportLinesRepository {
       tableName?: string
     },
     pagination: { page: number; limit: number }
-  ): Promise<{ data: PosImportLine[]; total: number; summary: { totalAmount: number; totalTax: number; totalDiscount: number; totalSubtotal: number; transactionCount: number } }> {
+  ): Promise<{ data: PosImportLine[]; total: number; summary: { totalAmount: number; totalTax: number; totalDiscount: number; totalBillDiscount: number; totalAfterBillDiscount: number; totalSubtotal: number; transactionCount: number } }> {
     try {
       const offset = (pagination.page - 1) * pagination.limit
 
@@ -339,6 +347,8 @@ export class PosImportLinesRepository {
         totalAmount: 0,
         totalTax: 0,
         totalDiscount: 0,
+        totalBillDiscount: 0,
+        totalAfterBillDiscount: 0,
         totalSubtotal: 0,
         transactionCount: count || 0
       }
@@ -353,7 +363,7 @@ export class PosImportLinesRepository {
         while (hasMoreSummary) {
           let summaryQuery = supabase
             .from('pos_import_lines')
-            .select('total, tax, discount, subtotal, pos_imports!inner(company_id)')
+            .select('total, tax, discount, subtotal, bill_discount, total_after_bill_discount, pos_imports!inner(company_id)')
             .eq('pos_imports.company_id', companyId)
 
           // Apply same filters for summary
@@ -407,6 +417,8 @@ export class PosImportLinesRepository {
             summary.totalAmount += Number(line.total) || 0
             summary.totalTax += Number(line.tax) || 0
             summary.totalDiscount += Number(line.discount) || 0
+            summary.totalBillDiscount += Number(line.bill_discount) || 0
+            summary.totalAfterBillDiscount += Number(line.total_after_bill_discount) || 0
             summary.totalSubtotal += Number(line.subtotal) || 0
           })
 
@@ -422,6 +434,8 @@ export class PosImportLinesRepository {
 
         logInfo('PosImportLinesRepository summary complete', { 
           totalAmount: summary.totalAmount,
+          totalBillDiscount: summary.totalBillDiscount,
+          totalAfterBillDiscount: summary.totalAfterBillDiscount,
           totalRows: count
         })
       }

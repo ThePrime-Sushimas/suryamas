@@ -149,6 +149,8 @@ export const posImportsApi = {
     totalAmount: number
     totalTax: number
     totalDiscount: number
+    totalBillDiscount: number
+    totalAfterBillDiscount: number
     transactionCount: number
   }> => {
     const response = await api.get(`/pos-imports/${id}/summary`, { signal })
