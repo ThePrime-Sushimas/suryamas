@@ -13,6 +13,7 @@ interface ImportModalProps {
   onSuccess: () => void
   endpoint: string
   title: string
+  useJobApi?: boolean // Use job-based import endpoint
 }
 
 interface PreviewData {
@@ -26,13 +27,14 @@ interface ImportResult {
   errors: Array<{ row: number; error: string }>
 }
 
-export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, title }: ImportModalProps) {
+export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, title, useJobApi = false }: ImportModalProps) {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<PreviewData | null>(null)
   const [skipDuplicates, setSkipDuplicates] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const { error } = useToast()
+  const [jobInfo, setJobInfo] = useState<{ job_id: string } | null>(null)
+  const { success, error } = useToast()
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
@@ -68,15 +70,28 @@ export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, titl
       const formData = new FormData()
       formData.append('file', file)
       formData.append('skipDuplicates', String(skipDuplicates))
-      const { data } = await api.post<ApiResponse<ImportResult>>(`${endpoint}/import`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-      setResult(data.data)
-      if (data.data.failed === 0) {
-        setTimeout(() => {
-          onSuccess()
-          handleClose()
-        }, 2000)
+
+      if (useJobApi) {
+        // Use job-based import
+        const { data } = await api.post<ApiResponse<{ job_id: string }>>(`${endpoint}/import/job`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        setJobInfo(data.data)
+        success('Import job created! Check notification bell for progress.')
+        onSuccess()
+        handleClose()
+      } else {
+        // Use legacy import
+        const { data } = await api.post<ApiResponse<ImportResult>>(`${endpoint}/import`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        setResult(data.data)
+        if (data.data.failed === 0) {
+          setTimeout(() => {
+            onSuccess()
+            handleClose()
+          }, 2000)
+        }
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Import failed'
@@ -90,6 +105,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, titl
     setFile(null)
     setPreview(null)
     setResult(null)
+    setJobInfo(null)
     onClose()
   }
 
@@ -100,7 +116,15 @@ export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, titl
       <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <h2 className="text-2xl font-bold mb-4">Import {title}</h2>
 
-        {!result && (
+        {jobInfo && (
+          <div className="mb-4 bg-blue-50 p-4 rounded border border-blue-200">
+            <p className="text-blue-800 font-semibold">✓ Import job created successfully!</p>
+            <p className="text-blue-600 text-sm mt-1">Job ID: {jobInfo.job_id}</p>
+            <p className="text-blue-600 text-sm">Processing in background. Check notification bell for updates.</p>
+          </div>
+        )}
+
+        {!result && !jobInfo && (
           <>
             <div className="mb-4">
               <label className="block text-sm font-medium mb-2">Select Excel File</label>
@@ -122,7 +146,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, titl
                       onChange={(e) => setSkipDuplicates(e.target.checked)}
                       className="mr-2"
                     />
-                    Skip duplicate entries
+                    Skip duplicate entries (will not update existing records)
                   </label>
                 </div>
 
@@ -179,9 +203,9 @@ export default function ImportModal({ isOpen, onClose, onSuccess, endpoint, titl
             onClick={handleClose}
             className="px-4 py-2 border rounded hover:bg-gray-100"
           >
-            {result ? 'Close' : 'Cancel'}
+            {result || jobInfo ? 'Close' : 'Cancel'}
           </button>
-          {!result && preview && (
+          {!result && !jobInfo && preview && (
             <button
               onClick={handleImport}
               disabled={isLoading}

@@ -210,27 +210,47 @@ export class EmployeesRepository {
 
   async exportData(filter?: EmployeeFilter): Promise<EmployeeWithBranch[]> {
     const hasBranchFilter = !!filter?.branch_name
-    
-    let query = supabase.from('employees').select(`
-      *, employee_branches${hasBranchFilter ? '!inner' : ''}(branch_id, is_primary, branches(id, branch_name, branch_code, city))
-    `)
-    
-    if (!filter?.include_deleted) {
-      query = query.is('deleted_at', null)
+    const allData: any[] = []
+    let page = 1
+    const limit = 1000
+    let hasMore = true
+
+    while (hasMore) {
+      let query = supabase.from('employees').select(`
+        *, employee_branches${hasBranchFilter ? '!inner' : ''}(branch_id, is_primary, branches(id, branch_name, branch_code, city))
+      `)
+      
+      if (!filter?.include_deleted) {
+        query = query.is('deleted_at', null)
+      }
+      
+      if (filter) {
+        if (filter.search) query = query.or(`employee_id.ilike.%${filter.search}%,full_name.ilike.%${filter.search}%,email.ilike.%${filter.search}%,mobile_phone.ilike.%${filter.search}%`)
+        if (filter.branch_name) query = query.eq('employee_branches.branches.branch_name', filter.branch_name).eq('employee_branches.is_primary', true)
+        if (filter.is_active !== undefined) query = query.eq('is_active', filter.is_active)
+        if (filter.status_employee) query = query.eq('status_employee', filter.status_employee)
+        if (filter.job_position) query = query.ilike('job_position', filter.job_position)
+      }
+      
+      // Add pagination to get ALL data
+      const from = (page - 1) * limit
+      const to = from + limit - 1
+      query = query.range(from, to).order('full_name', { ascending: true })
+
+      const { data, error } = await query
+      if (error) throw new Error(error.message)
+      
+      if (!data || data.length === 0) {
+        hasMore = false
+        break
+      }
+      
+      allData.push(...data)
+      hasMore = data.length === limit
+      page++
     }
     
-    if (filter) {
-      if (filter.search) query = query.or(`employee_id.ilike.%${filter.search}%,full_name.ilike.%${filter.search}%,email.ilike.%${filter.search}%,mobile_phone.ilike.%${filter.search}%`)
-      if (filter.branch_name) query = query.eq('employee_branches.branches.branch_name', filter.branch_name).eq('employee_branches.is_primary', true)
-      if (filter.is_active !== undefined) query = query.eq('is_active', filter.is_active)
-      if (filter.status_employee) query = query.eq('status_employee', filter.status_employee)
-      if (filter.job_position) query = query.ilike('job_position', filter.job_position)
-    }
-    
-    const { data, error } = await query
-    if (error) throw new Error(error.message)
-    
-    return this.mapWithBranch(data || [])
+    return this.mapWithBranch(allData)
   }
 
   async bulkCreate(employees: Partial<EmployeeDB>[]): Promise<void> {

@@ -97,5 +97,41 @@ export const employeesApi = {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
     return data.data.profile_picture
+  },
+
+  // Export methods - using async job system
+  createExportJob: async (filter?: Record<string, string>) => {
+    const { data } = await api.post<ApiResponse<{ job_id: string }>>('/employees/export/job', { filter })
+    return data.data
+  },
+
+  // Import methods - using async job system
+  createImportJob: async (file: File, options?: { skipDuplicates?: boolean; sheetName?: string }) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (options?.skipDuplicates) formData.append('skipDuplicates', 'true')
+    if (options?.sheetName) formData.append('sheetName', options.sheetName)
+    
+    const { data } = await api.post<ApiResponse<{ job_id: string }>>('/employees/import/job', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return data.data
+  },
+
+  // Legacy direct export (for small datasets)
+  generateExportToken: async () => {
+    const { data } = await api.get<ApiResponse<{ token: string }>>('/employees/export/token')
+    return data.data
+  },
+
+  downloadExport: async (token: string, filter?: Record<string, string>) => {
+    const params = new URLSearchParams({ token })
+    if (filter) {
+      Object.entries(filter).forEach(([key, value]) => {
+        if (value) params.append(key, value)
+      })
+    }
+    const response = await api.get(`/employees/export?${params}`, { responseType: 'blob' })
+    return response.data
   }
 }

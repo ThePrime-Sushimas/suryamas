@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useEmployeeStore } from '@/features/employees'
+import { employeesApi } from '../api/employees.api'
+import { useJobsStore } from '@/features/jobs'
 import { useToast } from '@/contexts/ToastContext'
 import { useBulkSelection } from '@/hooks/_shared/useBulkSelection'
 
@@ -8,8 +10,9 @@ import { EmployeeListItem } from '@/features/employees/components/EmployeeListIt
 import { EmployeeDetailPanel } from '@/features/employees/components/EmployeeDetailPanel'
 import BulkActionBar from '@/components/BulkActionBar'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import ImportModal from '@/components/ImportModal'
 
-import { Users, Plus, Search, Filter, X } from 'lucide-react'
+import { Users, Plus, Search, Filter, X, Download, Upload } from 'lucide-react'
 
 type QueryState = {
   page: number
@@ -58,6 +61,7 @@ export default function EmployeesPage() {
     pagination,
     isLoading
   } = useEmployeeStore()
+  const { fetchRecentJobs } = useJobsStore()
 
   const [query, setQuery] = useState<QueryState>({
     page: 1,
@@ -77,6 +81,8 @@ export default function EmployeesPage() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState>(null)
   const [isConfirming, setIsConfirming] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
 
   const {
     selectedIds,
@@ -111,6 +117,30 @@ export default function EmployeesPage() {
     if (q.includeDeleted) filters.include_deleted = 'true'
     return filters
   }, [])
+
+  // Export handler
+  const handleExport = useCallback(async () => {
+    setIsExporting(true)
+    try {
+      await employeesApi.createExportJob(buildFilters(query))
+      success('Export job created! Check notifications for progress.')
+      fetchRecentJobs()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Export failed'
+      toastError(message)
+    } finally {
+      setIsExporting(false)
+    }
+  }, [query, buildFilters, success, toastError, fetchRecentJobs])
+
+  // Import success handler - refetch using current query values
+  const handleImportSuccess = useCallback(() => {
+    success('Import completed successfully!')
+    // Use setQuery to trigger refetch through the useEffect dependency
+    setQuery(q => ({ ...q }))
+    // Refresh job list to see import progress
+    fetchRecentJobs()
+  }, [success, fetchRecentJobs])
 
   // Declarative data fetch with abort
   useEffect(() => {
@@ -312,13 +342,30 @@ export default function EmployeesPage() {
               <p className="text-sm text-gray-500">{pagination?.total || 0} total</p>
             </div>
           </div>
-          <button
-            onClick={() => navigate('/employees/create')}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add Employee
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Upload size={16} />
+              Import
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={isExporting}
+              className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              <Download size={16} />
+              {isExporting ? 'Exporting...' : 'Export'}
+            </button>
+            <button
+              onClick={() => navigate('/employees/create')}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add Employee
+            </button>
+          </div>
         </div>
       </div>
 
@@ -513,6 +560,17 @@ export default function EmployeesPage() {
           variant="danger"
         />
       )}
+
+      {/* Import Modal */}
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={handleImportSuccess}
+        endpoint="/employees"
+        title="Employees"
+        useJobApi={true}
+      />
     </div>
   )
 }
+

@@ -96,6 +96,40 @@ export class JobsService {
   }
 
   /**
+   * Complete job without file upload (for import jobs)
+   * Stores import results in metadata instead
+   */
+  async completeJobWithoutFile(
+    jobId: string,
+    userId: string,
+    importResults?: Record<string, unknown>
+  ): Promise<Job> {
+    try {
+      // Mark job as completed with empty strings (no file to download)
+      const job = await jobsRepository.markAsCompleted(jobId, userId, '', '', 0)
+
+      // If there are import results, update metadata
+      if (importResults) {
+        const existingJob = await jobsRepository.findById(jobId, userId)
+        if (existingJob) {
+          await jobsRepository.update(jobId, userId, {
+            metadata: {
+              ...(existingJob.metadata as Record<string, unknown>),
+              importResults
+            }
+          })
+        }
+      }
+
+      logInfo('Service completeJobWithoutFile success', { job_id: jobId })
+      return job
+    } catch (error) {
+      logError('Service completeJobWithoutFile error', { job_id: jobId, error })
+      throw error
+    }
+  }
+
+  /**
    * Complete job with result file (with rollback on failure)
    */
   async completeJob(
@@ -107,6 +141,11 @@ export class JobsService {
     let uploadedFilePath: string | null = null
     
     try {
+      // Skip upload if filePath is empty (import jobs)
+      if (!resultFilePath || !resultFileName) {
+        return this.completeJobWithoutFile(jobId, userId)
+      }
+
       // Upload file to storage
       const { url, path: storagePath, size } = await this.uploadResultFile(
         jobId,

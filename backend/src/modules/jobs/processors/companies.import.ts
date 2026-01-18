@@ -144,8 +144,8 @@ export const processCompaniesImport: JobProcessor = async (
         }
       }
 
-      // Update progress
-      const progress = 50 + Math.min(40, (i / data.length) * 40)
+      // Update progress (use Math.round to convert float to integer)
+      const progress = Math.round(50 + Math.min(40, (i / data.length) * 40))
       await jobsService.updateProgress(jobId, progress, userId)
     }
 
