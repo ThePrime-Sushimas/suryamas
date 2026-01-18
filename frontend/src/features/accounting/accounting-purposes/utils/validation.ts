@@ -12,7 +12,25 @@ export const accountingPurposeSchema = z.object({
     .max(255, 'Purpose name must be 255 characters or less')
     .trim(),
   
-  applied_to: z.enum(['SALES', 'PURCHASE', 'CASH', 'BANK', 'INVENTORY'] as const),
+  applied_to: z.enum([  'MANUAL',
+  'PURCHASE',
+  'SALES',
+  'PAYMENT',
+  'RECEIPT',
+  'ADJUSTMENT',
+  'OPENING',
+  'CLOSING',
+  'INVENTORY',
+  'EXPENSE',
+  'CASH',
+  'BANK',
+  'ASSET',
+  'TAX',
+  'GENERAL',
+  'RECEIVABLE',
+  'PAYABLE',
+  'PAYROLL',
+  'FINANCING'] as const),
   
   description: z.string()
     .max(500, 'Description must be 500 characters or less')

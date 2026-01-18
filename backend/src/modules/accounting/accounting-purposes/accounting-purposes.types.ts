@@ -1,4 +1,18 @@
-export type AppliedToType = 'SALES' | 'PURCHASE' | 'CASH' | 'BANK' | 'INVENTORY'
+export type AppliedToType = 
+| 'PURCHASE'
+| 'SALES'
+| 'INVENTORY'
+| 'EXPENSE'
+| 'CASH'
+| 'BANK'
+| 'ASSET'
+| 'TAX'
+| 'GENERAL'
+| 'OPENING'
+| 'RECEIVABLE'
+| 'PAYABLE'
+| 'PAYROLL'
+| 'FINANCING'
 
 export interface AccountingPurpose {
   id: string

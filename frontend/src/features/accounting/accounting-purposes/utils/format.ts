@@ -1,12 +1,21 @@
 import type { AppliedToType } from '../types/accounting-purpose.types'
 
 export const formatAppliedTo = (appliedTo: AppliedToType): string => {
-  const labels = {
-    SALES: 'Sales',
+  const labels: Record<AppliedToType, string> = {
     PURCHASE: 'Purchase',
+    SALES: 'Sales',
+    INVENTORY: 'Inventory',
+    EXPENSE: 'Expense',
     CASH: 'Cash',
     BANK: 'Bank',
-    INVENTORY: 'Inventory'
+    ASSET: 'Asset',
+    TAX: 'Tax',
+    GENERAL: 'General',
+    OPENING: 'Opening',
+    RECEIVABLE: 'Receivable',
+    PAYABLE: 'Payable',
+    PAYROLL: 'Payroll',
+    FINANCING: 'Financing'
   }
   return labels[appliedTo] || appliedTo
 }

@@ -73,4 +73,18 @@ export const defaultConfig: AccountingPurposesConfig = {
 }
 
 /** Applied to types for accounting purposes */
-export const APPLIED_TO_TYPES = ['SALES', 'PURCHASE', 'CASH', 'BANK', 'INVENTORY'] as const
+export const APPLIED_TO_TYPES = [  
+  'PURCHASE',
+  'SALES',
+  'INVENTORY',
+  'EXPENSE',
+  'CASH',
+  'BANK',
+  'ASSET',
+  'TAX',
+  'GENERAL',
+  'OPENING',
+  'RECEIVABLE',
+  'PAYABLE',
+  'PAYROLL',
+  'FINANCING'] as const

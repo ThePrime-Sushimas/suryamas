@@ -198,11 +198,16 @@ export class AccountingPurposesController {
       
       const { body, params } = req.validated
       
-      this.logRequest('UPDATE', correlationId, req.user!.id, { 
+      this.logRequest('UPDATE', correlationId, req.user!.id, {
         purpose_id: params.id,
         company_id: companyId
       })
-      
+
+      logInfo(`Request received: ${req.method} ${req.path}`, {
+        correlation_id: correlationId,
+        user_id: req.user!.id
+      })
+
       const purpose = await accountingPurposesService.update(params.id, body, req.user!.id, companyId, correlationId)
       
       this.logResponse('UPDATE', correlationId, true, Date.now() - startTime)
