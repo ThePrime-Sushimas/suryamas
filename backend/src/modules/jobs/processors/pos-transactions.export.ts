@@ -29,12 +29,17 @@ export const processPosTransactionsExport: JobProcessor = async (
     // Update progress: 10%
     await jobsService.updateProgress(jobId, 10, userId)
 
-    // Extract filters from metadata
+    // Extract companyId and filters from metadata
+    const companyId = metadata.companyId as string
     const filters = metadata.filters || {}
+
+    if (!companyId) {
+      throw new Error('Company ID is required in metadata')
+    }
 
     // Fetch all data
     const result = await posImportLinesRepository.findAllWithFilters(
-      '', // companyId is not used in this repository method
+      companyId,
       filters,
       { page: 1, limit: 100000 }
     )
