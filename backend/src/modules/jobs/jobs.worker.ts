@@ -23,6 +23,7 @@ export type JobProcessor<M extends Record<string, any> = Record<string, any>> = 
 class JobWorker {
   private processors: Map<string, JobProcessor> = new Map()
   private cleanupInterval: NodeJS.Timeout | null = null
+  private pollingInterval: NodeJS.Timeout | null = null
   private activeJobs = new Set<string>()
   private isShuttingDown = false
 
@@ -33,6 +34,80 @@ class JobWorker {
     // Cast to JobProcessor for internal storage
     this.processors.set(type, processor as JobProcessor)
     logInfo('Job processor registered', { type })
+  }
+
+  /**
+   * Start polling for pending jobs
+   */
+  startPolling(): void {
+    if (this.pollingInterval) return
+
+    const pollInterval = 5000 // Poll every 5 seconds
+    this.pollingInterval = setInterval(async () => {
+      await this.pollAndProcessPendingJobs()
+    }, pollInterval)
+
+    logInfo('Job polling started', { interval: pollInterval })
+
+    // Also run immediately on start
+    this.pollAndProcessPendingJobs().catch(error => {
+      logError('Initial polling failed', { error })
+    })
+  }
+
+  /**
+   * Stop polling for pending jobs
+   */
+  stopPolling(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval)
+      this.pollingInterval = null
+      logInfo('Job polling stopped')
+    }
+  }
+
+  /**
+   * Poll and process pending jobs
+   */
+  private async pollAndProcessPendingJobs(): Promise<void> {
+    try {
+      // Fetch pending jobs (limit by max concurrent jobs)
+      const { data: pendingJobs, error } = await supabase
+        .from('jobs')
+        .select('id, user_id, type, module')
+        .eq('status', 'pending')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true })
+        .limit(JOB_QUEUE_CONFIG.maxConcurrentJobs * 2)
+
+      if (error) {
+        logError('Failed to fetch pending jobs', { error })
+        return
+      }
+
+      if (!pendingJobs || pendingJobs.length === 0) {
+        return
+      }
+
+      // Process each pending job (skip if already processing)
+      for (const job of pendingJobs) {
+        if (this.activeJobs.has(job.id)) {
+          continue // Already processing
+        }
+
+        // Check if we're at max concurrent capacity
+        if (this.activeJobs.size >= JOB_QUEUE_CONFIG.maxConcurrentJobs) {
+          break
+        }
+
+        // Process job in background
+        this.processJob(job.id).catch(error => {
+          logError('Auto-processing job failed', { job_id: job.id, error })
+        })
+      }
+    } catch (error) {
+      logError('Polling error', { error })
+    }
   }
 
   /**
@@ -153,6 +228,7 @@ class JobWorker {
   async gracefulShutdown(timeoutMs = 30000): Promise<void> {
     this.isShuttingDown = true
     this.stopCleanup()
+    this.stopPolling()
     
     logInfo('Starting graceful shutdown', { active_jobs: this.activeJobs.size })
     

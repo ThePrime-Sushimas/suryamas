@@ -32,6 +32,9 @@ app.listen(PORT, () => {
   // Start cleanup interval
   jobWorker.startCleanup()
   
+  // Start job polling for pending jobs
+  jobWorker.startPolling()
+  
   logInfo('Job worker initialized with all processors registered')
 })
 
