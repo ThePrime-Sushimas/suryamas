@@ -215,16 +215,15 @@ export class JobsService {
     return jobsRepository.markAsFailed(jobId, userId, errorMessage)
   }
 
-  /**
-   * Update job progress
-   */
-  async updateProgress(jobId: string, progress: number, _userId?: string): Promise<void> {
-    if (progress < 0 || progress > 100) {
-      throw new Error('Progress must be between 0 and 100')
-    }
-    return jobsRepository.updateProgress(jobId, progress)
+// jobs.service.ts - perbaiki updateProgress
+async updateProgress(jobId: string, progress: number, userId: string): Promise<void> {
+  if (progress < 0 || progress > 100) {
+    throw new Error('Progress must be between 0 and 100')
   }
-
+  
+  // Panggil repository dengan userId yang benar
+  return jobsRepository.updateProgress(jobId, progress, userId)
+}
   /**
    * Cleanup expired jobs
    */
