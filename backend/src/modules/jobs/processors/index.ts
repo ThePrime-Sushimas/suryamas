@@ -9,21 +9,12 @@
 import { JobProcessor } from '../jobs.worker'
 import { JobType, JobModule } from '../jobs.types'
 import { processEmployeesExport } from './employees.export'
-import { processCompaniesExport } from './companies.export'
-import { processProductsExport } from './products.export'
-import { processProductsImport } from './products.import'
 import { processPosTransactionsExport } from './pos-transactions.export'
 import { processPosTransactionsImport } from './pos-transactions.import'
 import { processFiscalPeriodsExport } from './fiscal-periods.export'
-import { processChartOfAccountsExport } from './chart-of-accounts.export'
-import { processAccountingPurposesExport } from './accounting-purposes.export'
 import { processPaymentMethodsExport } from './payment-methods.export'
-import { processCategoriesExport } from './categories.export'
-import { processSubCategoriesExport } from './sub-categories.export'
 import { processEmployeesImport } from './employees.import'
-import { processCompaniesImport } from './companies.import'
-import { processChartOfAccountsImport } from './chart-of-accounts.import'
-import { processAccountingPurposesImport } from './accounting-purposes.import'
+
 
 export interface ProcessorModule {
   type: JobType
@@ -36,24 +27,13 @@ export interface ProcessorModule {
 export const processorModules: ProcessorModule[] = [
   // Export processors
   { type: 'export', module: 'employees', processor: processEmployeesExport as JobProcessor },
-  { type: 'export', module: 'companies', processor: processCompaniesExport as JobProcessor },
-  { type: 'export', module: 'products', processor: processProductsExport as JobProcessor },
   { type: 'export', module: 'pos_transactions', processor: processPosTransactionsExport as JobProcessor },
   { type: 'export', module: 'fiscal_periods', processor: processFiscalPeriodsExport as JobProcessor },
-  { type: 'export', module: 'chart_of_accounts', processor: processChartOfAccountsExport as JobProcessor },
-  { type: 'export', module: 'accounting_purposes', processor: processAccountingPurposesExport as JobProcessor },
-  { type: 'export', module: 'accounting_purpose_accounts', processor: processAccountingPurposesExport as JobProcessor }, // Reuse
   { type: 'export', module: 'payment_methods', processor: processPaymentMethodsExport as JobProcessor },
-  { type: 'export', module: 'categories', processor: processCategoriesExport as JobProcessor },
-  { type: 'export', module: 'sub_categories', processor: processSubCategoriesExport as JobProcessor },
 
   // Import processors
-  { type: 'import', module: 'products', processor: processProductsImport as JobProcessor },
   { type: 'import', module: 'employees', processor: processEmployeesImport as JobProcessor },
-  { type: 'import', module: 'companies', processor: processCompaniesImport as JobProcessor },
-  { type: 'import', module: 'chart_of_accounts', processor: processChartOfAccountsImport as JobProcessor },
-  { type: 'import', module: 'accounting_purposes', processor: processAccountingPurposesImport as JobProcessor },
-  { type: 'import', module: 'pos_transactions', processor: processPosTransactionsImport as JobProcessor },
+ { type: 'import', module: 'pos_transactions', processor: processPosTransactionsImport as JobProcessor },
 ]
 
 /**

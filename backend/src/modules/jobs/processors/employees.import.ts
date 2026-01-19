@@ -3,8 +3,6 @@
  */
 
 import * as XLSX from 'xlsx'
-import * as path from 'path'
-import * as fs from 'fs'
 import { employeesRepository } from '@/modules/employees/employees.repository'
 import type { EmployeeCreatePayload, EmployeeFilter } from '@/modules/employees/employees.types'
 import { logInfo, logError } from '@/config/logger'

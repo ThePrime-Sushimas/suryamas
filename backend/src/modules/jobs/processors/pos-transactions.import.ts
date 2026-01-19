@@ -262,7 +262,7 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
     logError('POS transactions import failed', { job_id: jobId, error })
 
     // Update pos_imports status to FAILED if we have the ID
-    const posImportId = metadata?.posImportId
+    const posImportId = metadata?.pos_import_id
     if (posImportId) {
       try {
         // Get company_id from the job record (jobs have company_id field)
