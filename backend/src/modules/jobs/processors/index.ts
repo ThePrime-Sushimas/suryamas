@@ -13,6 +13,7 @@ import { processCompaniesExport } from './companies.export'
 import { processProductsExport } from './products.export'
 import { processProductsImport } from './products.import'
 import { processPosTransactionsExport } from './pos-transactions.export'
+import { processPosTransactionsImport } from './pos-transactions.import'
 import { processFiscalPeriodsExport } from './fiscal-periods.export'
 import { processChartOfAccountsExport } from './chart-of-accounts.export'
 import { processAccountingPurposesExport } from './accounting-purposes.export'
@@ -52,6 +53,7 @@ export const processorModules: ProcessorModule[] = [
   { type: 'import', module: 'companies', processor: processCompaniesImport as JobProcessor },
   { type: 'import', module: 'chart_of_accounts', processor: processChartOfAccountsImport as JobProcessor },
   { type: 'import', module: 'accounting_purposes', processor: processAccountingPurposesImport as JobProcessor },
+  { type: 'import', module: 'pos_transactions', processor: processPosTransactionsImport as JobProcessor },
 ]
 
 /**

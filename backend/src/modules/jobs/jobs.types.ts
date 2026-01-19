@@ -123,6 +123,17 @@ export interface PosTransactionsExportMetadata extends ExportMetadata {
   }
 }
 
+export interface PosTransactionsImportMetadata extends ImportMetadata {
+  module: 'pos_transactions'
+  posImportId: string
+  filePath: string
+  sheetName?: string
+  companyId: string
+  branchId?: string
+  dateRangeStart?: string
+  dateRangeEnd?: string
+}
+
 // Union type for all metadata
 export type JobMetadata =
   | ExportMetadata
@@ -131,6 +142,7 @@ export type JobMetadata =
   | ProductsExportMetadata
   | ProductsImportMetadata
   | PosTransactionsExportMetadata
+  | PosTransactionsImportMetadata
 
 export interface CreateJobDto {
   user_id: string
@@ -218,4 +230,11 @@ export function isProductsImportMetadata(metadata: unknown): metadata is Product
  */
 export function isPosTransactionsExportMetadata(metadata: unknown): metadata is PosTransactionsExportMetadata {
   return isExportMetadata(metadata) && (metadata as ExportMetadata).module === 'pos_transactions'
+}
+
+/**
+ * Check if metadata is PosTransactionsImportMetadata
+ */
+export function isPosTransactionsImportMetadata(metadata: unknown): metadata is PosTransactionsImportMetadata {
+  return isImportMetadata(metadata) && (metadata as ImportMetadata).module === 'pos_transactions'
 }

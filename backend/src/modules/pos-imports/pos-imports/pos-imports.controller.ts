@@ -144,6 +144,7 @@ class PosImportsController {
   /**
    * Upload and analyze POS Excel file
    * POST /api/v1/pos-imports/upload
+   * NOW: Returns job_id in response for frontend tracking
    */
   async upload(req: any, res: Response) {
     try {
@@ -172,7 +173,11 @@ class PosImportsController {
 
       const result = await posImportsService.analyzeFile(req.file, branch_id, company_id, userId)
 
-      return sendSuccess(res, result, 'File analyzed successfully')
+      return sendSuccess(res, {
+        import: result.import,
+        analysis: result.analysis,
+        job_id: result.job_id  // Added for jobs system integration
+      }, 'File analyzed successfully')
     } catch (error) {
       logError('PosImportsController upload error', { error })
       return sendError(res, error instanceof Error ? error.message : 'Unknown error')
@@ -182,6 +187,7 @@ class PosImportsController {
   /**
    * Confirm import after duplicate analysis
    * POST /api/v1/pos-imports/:id/confirm
+   * NOW: Passes job_id for jobs system tracking
    */
   async confirm(req: any, res: Response) {
     try {
@@ -196,7 +202,10 @@ class PosImportsController {
         throw new Error('User ID required')
       }
 
-      const posImport = await posImportsService.confirmImport(id, company_id, skip_duplicates, userId)
+      // Get job_id from request body (returned from upload response)
+      const { job_id } = req.body
+
+      const posImport = await posImportsService.confirmImport(id, company_id, skip_duplicates, userId, job_id)
 
       return sendSuccess(res, posImport, 'Import confirmed successfully')
     } catch (error) {

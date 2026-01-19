@@ -18,6 +18,7 @@ interface UploadSession {
   branchId: string
   fileName: string
   fileSize: number
+  job_id?: string  // Added for jobs system integration
 }
 
 interface Pagination {
@@ -195,7 +196,8 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
       userId,
       branchId,
       fileName: file.name,
-      fileSize: file.size
+      fileSize: file.size,
+      job_id: undefined  // Will be set after upload completes
     })
     set({ 
       uploads, 
@@ -240,6 +242,7 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
       if (session) {
         session.status = 'complete'
         session.result = result
+        session.job_id = result.job_id  // Store job_id from response
         set({ 
           uploads: currentUploads,
           analyzeResult: result,
@@ -293,7 +296,11 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
     })
 
     try {
-      await posImportsApi.confirm(id, skipDuplicates)
+      // Get job_id from the analyze result (stored in uploads)
+      const analyzeResult = get().analyzeResult
+      const job_id = analyzeResult?.job_id
+
+      await posImportsApi.confirm(id, skipDuplicates, job_id)
       set({ 
         analyzeResult: null,
         loading: { ...get().loading, confirm: false }

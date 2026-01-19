@@ -108,9 +108,10 @@ export const posImportsApi = {
     return response.data.data
   },
 
-  confirm: async (id: string, skipDuplicates: boolean = true, signal?: AbortSignal) => {
+  confirm: async (id: string, skipDuplicates: boolean = true, job_id?: string, signal?: AbortSignal) => {
     const response = await api.post(`/pos-imports/${id}/confirm`, {
-      skip_duplicates: skipDuplicates
+      skip_duplicates: skipDuplicates,
+      job_id  // Pass job_id for jobs system tracking
     }, { signal })
     return response.data
   },

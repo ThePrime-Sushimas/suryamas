@@ -1,11 +1,12 @@
 /**
- * POS Imports Service - FIXED VERSION
+ * POS Imports Service - COMPLETE VERSION
  * All critical issues resolved:
  * - N+1 query fixed
  * - Transaction management added
  * - confirmImport implemented
  * - File storage added
  * - Restore method added
+ * - Jobs system integration
  */
 
 import * as XLSX from 'xlsx'
@@ -16,10 +17,12 @@ import { canTransition, extractDateRange, validatePosRow } from '../shared/pos-i
 import { parseToLocalDate, parseToLocalDateTime } from '../shared/excel-date.util'
 import { supabase } from '../../../config/supabase'
 import { logInfo, logError } from '../../../config/logger'
+import { jobsService } from '../../jobs/jobs.service'
 import type { PosImport, CreatePosImportDto, UpdatePosImportDto, PosImportFilter } from './pos-imports.types'
 import type { PosImportStatus, DuplicateAnalysis } from '../shared/pos-import.types'
 import type { CreatePosImportLineDto } from '../pos-import-lines/pos-import-lines.types'
 import type { PaginationParams, SortParams } from '../../../types/request.types'
+import type { PosTransactionsImportMetadata } from '../../jobs/jobs.types'
 
 // Column mapping for Excel
 const EXCEL_COLUMN_MAP: Record<string, string> = {
@@ -109,29 +112,56 @@ class PosImportsService {
 
   /**
    * Analyze uploaded Excel file for duplicates
-   * FIXED: Now stores parsed data temporarily
+   * NOW: Creates a job before starting analysis for jobs system integration
    */
   async analyzeFile(
     file: Express.Multer.File,
     branchId: string,
     companyId: string,
     userId: string
-  ): Promise<{ import: PosImport; analysis: DuplicateAnalysis }> {
+  ): Promise<{ import: PosImport; analysis: DuplicateAnalysis; job_id: string }> {
+    let jobId: string | null = null
+
     try {
       // Validate file size (10MB limit)
       if (file.size > 10 * 1024 * 1024) {
         throw PosImportErrors.FILE_TOO_LARGE(10)
       }
 
+      // Create a job before starting the analysis (jobs system integration)
+      const jobName = `Analyze POS Import: ${file.originalname}`
+      const job = await jobsService.createJob({
+        user_id: userId,
+        company_id: companyId,
+        type: 'import',
+        module: 'pos_transactions',
+        name: jobName,
+        metadata: {
+          type: 'import',
+          module: 'pos_transactions',
+          fileName: file.originalname,
+          branchId,
+          companyId
+        }
+      })
+      jobId = job.id
+
+      // Update job progress
+      await jobsService.updateProgress(jobId, 10, userId)
+
       // Parse Excel
       const workbook = XLSX.read(file.buffer, { type: 'buffer' })
       const sheetName = workbook.SheetNames[0]
       if (!sheetName) {
+        await jobsService.failJob(jobId, userId, 'Invalid Excel format: No sheet found')
         throw PosImportErrors.INVALID_EXCEL_FORMAT()
       }
 
       const worksheet = workbook.Sheets[sheetName]
       let rows = XLSX.utils.sheet_to_json(worksheet, { range: 10 }) // Start from row 11 (0-indexed, so 10)
+
+      // Update progress
+      await jobsService.updateProgress(jobId, 30, userId)
 
       // Filter out summary rows at the end (Discount Total Rounding, etc.)
       rows = rows.filter((row: any) => {
@@ -144,6 +174,7 @@ class PosImportsService {
       })
 
       if (rows.length === 0) {
+        await jobsService.failJob(jobId, userId, 'File is empty')
         throw PosImportErrors.INVALID_FILE('File is empty')
       }
 
@@ -152,6 +183,7 @@ class PosImportsService {
       const requiredColumns = ['Bill Number', 'Sales Number', 'Sales Date']
       const missingColumns = requiredColumns.filter(col => !(col in firstRow))
       if (missingColumns.length > 0) {
+        await jobsService.failJob(jobId, userId, `Missing required columns: ${missingColumns.join(', ')}`)
         throw PosImportErrors.MISSING_REQUIRED_COLUMNS(missingColumns)
       }
 
@@ -163,8 +195,12 @@ class PosImportsService {
       })
 
       if (errors.length > 0) {
+        await jobsService.failJob(jobId, userId, `Validation errors: ${errors.slice(0, 10).join('; ')}`)
         throw PosImportErrors.INVALID_FILE(errors.slice(0, 10).join('; ') + (errors.length > 10 ? '...' : ''))
       }
+
+      // Update progress
+      await jobsService.updateProgress(jobId, 50, userId)
 
       // Extract date range (parse Excel dates first)
       const parsedRows = rows.map((r: any) => {
@@ -175,6 +211,9 @@ class PosImportsService {
       // Check for duplicates against database
       const dbDuplicates = await this.checkDuplicatesBulk(rows)
       
+      // Update progress
+      await jobsService.updateProgress(jobId, 70, userId)
+
       // Count unique duplicates (deduplicate the duplicates list)
       const uniqueDuplicates = new Set(
         dbDuplicates.map(d => `${d.bill_number}-${d.sales_number}-${d.sales_date}`)
@@ -182,7 +221,7 @@ class PosImportsService {
       const duplicateCount = uniqueDuplicates.size
       const newRowsCount = Math.max(0, rows.length - duplicateCount)
 
-      // Create import record
+      // Create import record (job_id is not stored in DB, only returned to frontend)
       const posImport = await posImportsRepository.create({
         company_id: companyId,
         branch_id: branchId,
@@ -200,6 +239,9 @@ class PosImportsService {
       // Update status to ANALYZED
       await posImportsRepository.update(posImport.id, companyId, { status: 'ANALYZED' }, userId)
 
+      // Update job progress to completed
+      await jobsService.updateProgress(jobId, 100, userId)
+
       const analysis: DuplicateAnalysis = {
         total_rows: rows.length,
         new_rows: newRowsCount,
@@ -212,10 +254,18 @@ class PosImportsService {
         }))
       }
 
-      logInfo('PosImportsService analyzeFile success', { import_id: posImport.id, analysis })
+      logInfo('PosImportsService analyzeFile success', { import_id: posImport.id, job_id: jobId, analysis })
 
-      return { import: posImport, analysis }
+      return { import: posImport, analysis, job_id: jobId }
     } catch (error) {
+      // If job was created, mark it as failed
+      if (jobId) {
+        try {
+          await jobsService.failJob(jobId, userId, error instanceof Error ? error.message : 'Unknown error')
+        } catch (jobError) {
+          logError('Failed to update job status', { job_id: jobId, error: jobError })
+        }
+      }
       logError('PosImportsService analyzeFile error', { error })
       throw error
     }
@@ -288,13 +338,16 @@ class PosImportsService {
   }
 
   /**
-   * Confirm and import data to pos_import_lines (FIXED: Fully implemented with transaction)
+   * Confirm and import data to pos_import_lines
+   * NOW: Triggers background job processing (NOT synchronous)
+   * Note: job_id comes from the original upload response (not stored in DB)
    */
   async confirmImport(
     id: string,
     companyId: string,
     skipDuplicates: boolean,
-    userId: string
+    userId: string,
+    jobId?: string  // job_id passed from controller (from upload response)
   ): Promise<PosImport> {
     const posImport = await this.getById(id, companyId)
 
@@ -302,6 +355,49 @@ class PosImportsService {
       throw PosImportErrors.INVALID_STATUS_TRANSITION(posImport.status, 'IMPORTED')
     }
 
+    // Update import status to IMPORTED first (optimistic)
+    await posImportsRepository.update(id, companyId, {
+      status: 'IMPORTED'
+    }, userId)
+
+    // Trigger background job processing if job_id is available
+    if (jobId) {
+      try {
+        // Import jobWorker dynamically to avoid circular dependencies
+        const { jobWorker } = await import('@/modules/jobs/jobs.worker')
+        
+        // Update job progress to show processing has started
+        await jobsService.updateProgress(jobId, 10, userId)
+        
+        // Trigger background processing (don't await - it runs async)
+        jobWorker.processJob(jobId).catch(error => {
+          logError('Background POS import job processing error', { job_id: jobId, error })
+        })
+        
+        logInfo('Triggered background job processing', { job_id: jobId, pos_import_id: id })
+      } catch (error) {
+        logError('Failed to trigger background job processing', { job_id: jobId, error })
+        // Continue with legacy sync processing as fallback
+      }
+    } else {
+      // If no job_id, process synchronously (legacy behavior)
+      logInfo('Processing import synchronously (no job_id provided)', { pos_import_id: id })
+      return this.processImportSync(id, companyId, skipDuplicates, userId)
+    }
+
+    // Return immediately - background job will update status
+    return this.getById(id, companyId)
+  }
+
+  /**
+   * Synchronous import processing (fallback when no job_id)
+   */
+  private async processImportSync(
+    id: string,
+    companyId: string,
+    skipDuplicates: boolean,
+    userId: string
+  ): Promise<PosImport> {
     try {
       // Retrieve stored data
       const rows = await this.retrieveTemporaryData(id)
@@ -364,18 +460,19 @@ class PosImportsService {
       // Clean up temporary data
       await this.cleanupTemporaryData(id)
 
-      logInfo('PosImportsService confirmImport success', { id, inserted: linesToInsert.length })
+      logInfo('PosImportsService processImportSync success', { id, inserted: linesToInsert.length })
 
       return this.getById(id, companyId)
     } catch (error) {
-      console.error('PosImportsService confirmImport error:', error)
+      console.error('PosImportsService processImportSync error:', error)
+      
       // Rollback: Update status to FAILED
       await posImportsRepository.update(id, companyId, {
         status: 'FAILED',
         error_message: error instanceof Error ? error.message : 'Unknown error'
       }, userId)
 
-      logError('PosImportsService confirmImport error', { id, error })
+      logError('PosImportsService processImportSync error', { id, error })
       throw error
     }
   }

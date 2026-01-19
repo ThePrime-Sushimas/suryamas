@@ -10,6 +10,7 @@ export interface PosImport {
   id: string
   company_id: string
   branch_id: string
+  job_id?: string  // Added for jobs system integration
   import_date: string
   date_range_start: string
   date_range_end: string
@@ -40,6 +41,7 @@ export interface DuplicateAnalysis {
 export interface AnalyzeResult {
   import: PosImport
   analysis: DuplicateAnalysis
+  job_id: string  // Added for jobs system integration
 }
 
 export interface PosImportLine {
