@@ -1,6 +1,7 @@
 /**
  * Fiscal Periods Export Processor
  */
+//TODO: BLM BUAT EXPORT FISCAL PERIODS
 
 import * as XLSX from 'xlsx'
 import * as path from 'path'

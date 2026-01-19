@@ -11,9 +11,9 @@ import { parseToLocalDate, parseToLocalDateTime } from '@/modules/pos-imports/sh
 import { logInfo, logError } from '@/config/logger'
 import { jobsService, jobsRepository } from '@/modules/jobs'
 import { JobProcessor } from '../jobs.worker'
+import type { CreatePosImportLineDto } from '@/modules/pos-imports/pos-import-lines/pos-import-lines.types'
 import type { PosTransactionsImportMetadata } from '../jobs.types'
 import { isPosTransactionsImportMetadata } from '../jobs.types'
-import type { CreatePosImportLineDto } from '@/modules/pos-imports/pos-import-lines/pos-import-lines.types'
 
 // Column mapping for Excel (same as pos-imports.service.ts)
 const EXCEL_COLUMN_MAP: Record<string, string> = {
@@ -262,7 +262,7 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
     logError('POS transactions import failed', { job_id: jobId, error })
 
     // Update pos_imports status to FAILED if we have the ID
-    const posImportId = metadata?.pos_import_id
+    const posImportId = metadata?.posImportId
     if (posImportId) {
       try {
         // Get company_id from the job record (jobs have company_id field)

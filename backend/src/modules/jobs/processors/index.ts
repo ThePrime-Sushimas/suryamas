@@ -12,7 +12,6 @@ import { processEmployeesExport } from './employees.export'
 import { processPosTransactionsExport } from './pos-transactions.export'
 import { processPosTransactionsImport } from './pos-transactions.import'
 import { processFiscalPeriodsExport } from './fiscal-periods.export'
-import { processPaymentMethodsExport } from './payment-methods.export'
 import { processEmployeesImport } from './employees.import'
 
 
@@ -29,7 +28,6 @@ export const processorModules: ProcessorModule[] = [
   { type: 'export', module: 'employees', processor: processEmployeesExport as JobProcessor },
   { type: 'export', module: 'pos_transactions', processor: processPosTransactionsExport as JobProcessor },
   { type: 'export', module: 'fiscal_periods', processor: processFiscalPeriodsExport as JobProcessor },
-  { type: 'export', module: 'payment_methods', processor: processPaymentMethodsExport as JobProcessor },
 
   // Import processors
   { type: 'import', module: 'employees', processor: processEmployeesImport as JobProcessor },

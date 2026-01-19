@@ -79,6 +79,14 @@ export interface ImportMetadata extends BaseJobMetadata {
   requiredFields?: string[]
 }
 
+export interface PosTransactionsImportMetadata {
+  type: 'import'
+  module: 'pos_transactions'
+  posImportId: string
+  skipDuplicates?: boolean
+}
+
+
 /**
  * Generic per-module metadata with optional filter
  */
@@ -170,4 +178,18 @@ export function isModuleImportMetadata<M extends JobModule>(
   module: M
 ): metadata is ModuleImportMetadata {
   return isImportMetadata(metadata) && (metadata as any).module === module
+}
+
+export function isPosTransactionsImportMetadata(
+  value: unknown
+): value is PosTransactionsImportMetadata {
+  if (!value || typeof value !== 'object') return false
+
+  const v = value as any
+
+  return (
+    v.type === 'import' &&
+    v.module === 'pos_transactions' &&
+    typeof v.posImportId === 'string'
+  )
 }
