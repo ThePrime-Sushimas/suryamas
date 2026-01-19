@@ -171,7 +171,7 @@ export const PosImportsTable = ({
                 </span>
               </td>
               <td className="px-4 py-3 text-sm text-gray-600">
-                {new Date(item.import_date).toLocaleString()}
+                {(item.import_date)}
               </td>
               <td className="px-4 py-3 text-right">
                 <div className="flex items-center justify-end gap-2">
