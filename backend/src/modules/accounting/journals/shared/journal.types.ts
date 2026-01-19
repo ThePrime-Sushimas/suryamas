@@ -1,19 +1,25 @@
-export type JournalType = 
-  | 'MANUAL' 
-  | 'PURCHASE' 
-  | 'SALES' 
-  | 'PAYMENT' 
-  | 'RECEIPT' 
-  | 'ADJUSTMENT' 
-  | 'OPENING' 
-  | 'CLOSING'
+export type JournalType =
+  | 'EXPENSE'
+  | 'PURCHASE'
+  | 'SALES'
+  | 'INVENTORY'
+  | 'CASH'
+  | 'BANK'
+  | 'ASSET'
+  | 'TAX'
+  | 'GENERAL'
+  | 'OPENING'
+  | 'RECEIVABLE'
+  | 'PAYABLE'
+  | 'PAYROLL'
+  | 'FINANCING'
 
-export type JournalStatus = 
-  | 'DRAFT' 
-  | 'SUBMITTED' 
-  | 'APPROVED' 
-  | 'POSTED' 
-  | 'REVERSED' 
+export type JournalStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'POSTED'
+  | 'REVERSED'
   | 'REJECTED'
 
 export type JournalAction =

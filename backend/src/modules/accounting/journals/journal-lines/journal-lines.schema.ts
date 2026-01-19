@@ -31,7 +31,7 @@ export const journalLinesAllSchema = z.object({
     page: z.string().transform(val => parseInt(val) || 1).optional(),
     limit: z.string().transform(val => parseInt(val) || 20).optional(),
     account_id: z.string().uuid().optional(),
-    journal_type: z.enum(['MANUAL', 'PURCHASE', 'SALES', 'PAYMENT', 'RECEIPT', 'ADJUSTMENT', 'OPENING', 'CLOSING']).optional(),
+    journal_type: z.enum(['EXPENSE','PURCHASE','SALES','INVENTORY','CASH','BANK','ASSET','TAX','GENERAL','OPENING','RECEIVABLE','PAYROLL','PAYABLE','FINANCING']).optional(),
     journal_status: z.enum(['DRAFT', 'SUBMITTED', 'APPROVED', 'POSTED', 'REVERSED', 'REJECTED', 'POSTED_ONLY']).optional(),
     date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),

@@ -15,7 +15,7 @@ export const createJournalSchema = z.object({
   body: z.object({
     branch_id: z.string().uuid().optional(),
     journal_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    journal_type: z.enum(['MANUAL', 'PURCHASE', 'SALES', 'PAYMENT', 'RECEIPT', 'ADJUSTMENT', 'OPENING', 'CLOSING']),
+    journal_type: z.enum(['EXPENSE','PURCHASE','SALES','INVENTORY','CASH','BANK','ASSET','TAX','PAYABLE','GENERAL','OPENING','RECEIVABLE','PAYROLL','FINANCING']),
     description: z.string().min(1).max(500),
     currency: z.string().length(3).optional(),
     exchange_rate: z.number().positive().optional(),

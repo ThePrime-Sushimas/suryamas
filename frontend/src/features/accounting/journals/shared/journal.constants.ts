@@ -2,14 +2,20 @@
 // Must match backend enums exactly
 
 export const JOURNAL_TYPES = {
-  MANUAL: 'MANUAL',
+  EXPENSE: 'EXPENSE',
   PURCHASE: 'PURCHASE',
   SALES: 'SALES',
-  PAYMENT: 'PAYMENT',
-  RECEIPT: 'RECEIPT',
-  ADJUSTMENT: 'ADJUSTMENT',
+  INVENTORY: 'INVENTORY',
+  CASH: 'CASH',
+  BANK: 'BANK',
+  ASSET: 'ASSET',
+  TAX: 'TAX',
+  GENERAL: 'GENERAL',
   OPENING: 'OPENING',
-  CLOSING: 'CLOSING',
+  RECEIVABLE: 'RECEIVABLE',
+  PAYROLL: 'PAYROLL',
+  PAYABLE: 'PAYABLE',
+  FINANCING: 'FINANCING'
 } as const
 
 export const JOURNAL_STATUS = {
@@ -22,14 +28,20 @@ export const JOURNAL_STATUS = {
 } as const
 
 export const JOURNAL_TYPE_LABELS: Record<keyof typeof JOURNAL_TYPES, string> = {
-  MANUAL: 'Manual Journal',
+  EXPENSE: 'Expense Journal',
   PURCHASE: 'Purchase Journal',
+  PAYABLE: 'Payable Journal',
   SALES: 'Sales Journal',
-  PAYMENT: 'Payment Journal',
-  RECEIPT: 'Receipt Journal',
-  ADJUSTMENT: 'Adjustment Journal',
+  INVENTORY: 'Inventory Journal',
+  CASH: 'Cash Journal',
+  BANK: 'Bank Journal',
+  ASSET: 'Asset Journal',
+  TAX: 'Tax Journal',
+  GENERAL: 'General Journal',
   OPENING: 'Opening Balance',
-  CLOSING: 'Closing Entry',
+  RECEIVABLE: 'Receivable Journal',
+  PAYROLL: 'Payroll Journal',
+  FINANCING: 'Financing Journal'
 }
 
 export const JOURNAL_STATUS_LABELS: Record<keyof typeof JOURNAL_STATUS, string> = {

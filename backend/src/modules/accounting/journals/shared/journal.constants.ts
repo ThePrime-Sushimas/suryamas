@@ -1,14 +1,20 @@
 import { JournalType, JournalStatus } from './journal.types'
 
 export const JOURNAL_TYPES: Record<JournalType, JournalType> = {
-  MANUAL: 'MANUAL',
+  EXPENSE: 'EXPENSE',
   PURCHASE: 'PURCHASE',
   SALES: 'SALES',
-  PAYMENT: 'PAYMENT',
-  RECEIPT: 'RECEIPT',
-  ADJUSTMENT: 'ADJUSTMENT',
+  INVENTORY: 'INVENTORY',
+  CASH: 'CASH',
+  BANK: 'BANK',
+  ASSET: 'ASSET',
+  TAX: 'TAX',
+  GENERAL: 'GENERAL',
   OPENING: 'OPENING',
-  CLOSING: 'CLOSING'
+  RECEIVABLE: 'RECEIVABLE',
+  PAYROLL: 'PAYROLL',
+  PAYABLE: 'PAYABLE',
+  FINANCING: 'FINANCING'
 } as const
 
 export const JOURNAL_STATUS: Record<JournalStatus, JournalStatus> = {
@@ -21,14 +27,20 @@ export const JOURNAL_STATUS: Record<JournalStatus, JournalStatus> = {
 } as const
 
 export const JOURNAL_TYPE_LABELS: Record<JournalType, string> = {
-  MANUAL: 'Manual Journal',
+  EXPENSE: 'Expense Journal',
   PURCHASE: 'Purchase Journal',
+  PAYABLE: 'Payable Journal',
   SALES: 'Sales Journal',
-  PAYMENT: 'Payment Journal',
-  RECEIPT: 'Receipt Journal',
-  ADJUSTMENT: 'Adjustment Journal',
+  INVENTORY: 'Inventory Journal',
+  CASH: 'Cash Journal',
+  BANK: 'Bank Journal',
+  ASSET: 'Asset Journal',
+  TAX: 'Tax Journal',
+  GENERAL: 'General Journal',
   OPENING: 'Opening Balance',
-  CLOSING: 'Closing Entry'
+  RECEIVABLE: 'Receivable Journal',
+  PAYROLL: 'Payroll Journal',
+  FINANCING: 'Financing Journal'
 }
 
 export const JOURNAL_STATUS_LABELS: Record<JournalStatus, string> = {
@@ -41,14 +53,20 @@ export const JOURNAL_STATUS_LABELS: Record<JournalStatus, string> = {
 }
 
 export const JOURNAL_NUMBER_PREFIX: Record<JournalType, string> = {
-  MANUAL: 'JM',
+  EXPENSE: 'JE',
   PURCHASE: 'JP',
   SALES: 'JS',
-  PAYMENT: 'JY',
-  RECEIPT: 'JR',
-  ADJUSTMENT: 'JA',
+  INVENTORY: 'JI',
+  PAYABLE: 'JX',
+  CASH: 'JC',
+  BANK: 'JB',
+  ASSET: 'JA',
+  TAX: 'JT',
+  GENERAL: 'JG',
   OPENING: 'JO',
-  CLOSING: 'JC'
+  RECEIVABLE: 'JR',
+  PAYROLL: 'JY',
+  FINANCING: 'JF'
 }
 
 // State Machine: Allowed status transitions
