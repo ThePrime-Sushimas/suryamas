@@ -1,17 +1,18 @@
 /**
  * Jobs Module Validation Schemas
+ * Fully type-safe using Zod
  */
 
-// Use direct zod import to avoid OpenAPI extension issues
 import { z as zodBase } from 'zod'
 
-// UUID regex pattern for validation
+// UUID regex pattern
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-// Job type enum
+// -----------------------------
+// Enums
+// -----------------------------
 export const jobTypeEnum = zodBase.enum(['export', 'import'])
 
-// Valid modules for jobs
 export const jobModuleEnum = zodBase.enum([
   'employees',
   'companies',
@@ -26,7 +27,11 @@ export const jobModuleEnum = zodBase.enum([
   'sub_categories',
 ])
 
-// Schema for creating a job
+// -----------------------------
+// Schemas
+// -----------------------------
+
+// Create Job
 export const createJobSchema = zodBase.object({
   user_id: zodBase.string().regex(uuidRegex),
   company_id: zodBase.string().regex(uuidRegex),
@@ -36,24 +41,23 @@ export const createJobSchema = zodBase.object({
   metadata: zodBase.record(zodBase.string(), zodBase.unknown()).optional()
 })
 
-// Schema for getting job by ID
+// Get Job by ID
 export const getJobByIdSchema = zodBase.object({
-  id: zodBase.string()
+  id: zodBase.string().regex(uuidRegex)
 })
 
-// Schema for processing a job
-export const processJobSchema = zodBase.object({
-  id: zodBase.string()
-})
-
-// Schema for cancelling a job
+// Cancel Job
 export const cancelJobSchema = zodBase.object({
-  id: zodBase.string()
+  id: zodBase.string().regex(uuidRegex)
 })
 
-// Schema for updating progress
+// Update Progress
 export const updateProgressSchema = zodBase.object({
-  id: zodBase.string(),
+  id: zodBase.string().regex(uuidRegex),
   progress: zodBase.number().int().min(0).max(100)
 })
 
+// Query param: Get Available Modules
+export const getAvailableModulesSchema = zodBase.object({
+  type: jobTypeEnum
+})

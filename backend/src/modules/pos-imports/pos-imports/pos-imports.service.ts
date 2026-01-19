@@ -22,7 +22,6 @@ import type { PosImport, CreatePosImportDto, UpdatePosImportDto, PosImportFilter
 import type { PosImportStatus, DuplicateAnalysis } from '../shared/pos-import.types'
 import type { CreatePosImportLineDto } from '../pos-import-lines/pos-import-lines.types'
 import type { PaginationParams, SortParams } from '../../../types/request.types'
-import type { PosTransactionsImportMetadata } from '../../jobs/jobs.types'
 
 // Column mapping for Excel
 const EXCEL_COLUMN_MAP: Record<string, string> = {

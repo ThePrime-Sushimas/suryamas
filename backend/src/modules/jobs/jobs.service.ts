@@ -1,20 +1,21 @@
 /**
  * Jobs Service
  * Business logic for background job queue
+ * Fully type-safe with repository integration
+ * FINAL: 100% mengikuti JobsRepository
  */
 
 import { supabase } from '@/config/supabase'
 import { logInfo, logError } from '@/config/logger'
-import { Job, CreateJobDto, UpdateJobDto } from './jobs.types'
+import { Job, CreateJobDto } from './jobs.types'
 import { JobErrors } from './jobs.errors'
 import { jobsRepository } from './jobs.repository'
 import { STORAGE_BUCKET, JOB_QUEUE_CONFIG } from './jobs.constants'
 import * as fs from 'fs'
-import * as path from 'path'
 
 export class JobsService {
   /**
-   * Get user's recent jobs (last 3)
+   * Get user's recent jobs (last 10)
    */
   async getUserRecentJobs(userId: string): Promise<Job[]> {
     return jobsRepository.findUserRecentJobs(userId)
@@ -37,7 +38,7 @@ export class JobsService {
   }
 
   /**
-   * Upload file to Supabase Storage with validation
+   * Upload result file to Supabase and return signed URL
    */
   async uploadResultFile(
     jobId: string,
@@ -45,256 +46,176 @@ export class JobsService {
     filePath: string,
     fileName: string
   ): Promise<{ url: string; path: string; size: number }> {
-    try {
-      // Validate file exists
-      if (!fs.existsSync(filePath)) {
-        throw new Error('File not found')
-      }
+    if (!fs.existsSync(filePath)) throw new Error('File not found')
 
-      // Get file size and validate
-      const fileSize = fs.statSync(filePath).size
-      const maxSize = 50 * 1024 * 1024 // 50MB
-      if (fileSize > maxSize) {
-        throw JobErrors.FILE_UPLOAD_FAILED(`File size ${fileSize} exceeds maximum ${maxSize}`)
-      }
+    const fileSize = fs.statSync(filePath).size
+    const maxSize = 50 * 1024 * 1024
+    if (fileSize > maxSize) throw JobErrors.FILE_UPLOAD_FAILED(`File size ${fileSize} exceeds max ${maxSize}`)
 
-      // Read file
-      const fileBuffer = fs.readFileSync(filePath)
+    const fileBuffer = fs.readFileSync(filePath)
+    const storagePath = `${userId}/${jobId}/${fileName}`
 
-      // Generate storage path: {userId}/{jobId}/{fileName}
-      const storagePath = `${userId}/${jobId}/${fileName}`
+    const { error: uploadError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(storagePath, fileBuffer, { contentType: 'application/octet-stream', upsert: false })
+    if (uploadError) throw uploadError
 
-      // Upload to Supabase Storage
-      const { data, error } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(storagePath, fileBuffer, {
-          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          upsert: false,
-        })
+    const expiresIn = Math.floor(JOB_QUEUE_CONFIG.resultExpiration / 1000)
+    const { data: urlData } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(storagePath, expiresIn)
+    if (!urlData?.signedUrl) throw new Error('Failed to generate signed URL')
 
-      if (error) throw error
-
-      // Get signed URL (expires same time as job)
-      const expiresIn = Math.floor(JOB_QUEUE_CONFIG.resultExpiration / 1000)
-      const { data: urlData } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .createSignedUrl(storagePath, expiresIn)
-
-      if (!urlData?.signedUrl) throw new Error('Failed to generate signed URL')
-
-      logInfo('Service uploadResultFile success', { job_id: jobId, path: storagePath, size: fileSize })
-
-      return {
-        url: urlData.signedUrl,
-        path: storagePath,
-        size: fileSize,
-      }
-    } catch (error) {
-      logError('Service uploadResultFile error', { job_id: jobId, error })
-      throw JobErrors.FILE_UPLOAD_FAILED(error instanceof Error ? error.message : 'Unknown error')
-    }
+    logInfo('Service uploadResultFile success', { job_id: jobId, path: storagePath, size: fileSize })
+    return { url: urlData.signedUrl, path: storagePath, size: fileSize }
   }
 
   /**
-   * Complete job without file upload (for import jobs)
-   * Stores import results in metadata instead
+   * Complete job without result file (import job)
    */
   async completeJobWithoutFile(
     jobId: string,
     userId: string,
     importResults?: Record<string, unknown>
   ): Promise<Job> {
-    try {
-      // Mark job as completed with empty strings (no file to download)
-      const job = await jobsRepository.markAsCompleted(jobId, userId, '', '', 0)
+    const job = await jobsRepository.markAsCompleted(jobId, userId, '', '', 0)
 
-      // If there are import results, update metadata
-      if (importResults) {
-        const existingJob = await jobsRepository.findById(jobId, userId)
-        if (existingJob) {
-          await jobsRepository.update(jobId, userId, {
-            metadata: {
-              ...(existingJob.metadata as Record<string, unknown>),
-              importResults
-            }
-          })
-        }
+    if (importResults) {
+      const existingJob = await jobsRepository.findById(jobId, userId)
+      if (existingJob) {
+        await jobsRepository.update(jobId, userId, {
+          metadata: {
+            ...(existingJob.metadata as Record<string, unknown>),
+            importResults
+          }
+        })
       }
-
-      logInfo('Service completeJobWithoutFile success', { job_id: jobId })
-      return job
-    } catch (error) {
-      logError('Service completeJobWithoutFile error', { job_id: jobId, error })
-      throw error
     }
+
+    logInfo('Service completeJobWithoutFile success', { job_id: jobId })
+    return job
   }
 
   /**
-   * Complete job with result file (with rollback on failure)
+   * Complete job with result file
    */
   async completeJob(
     jobId: string,
     userId: string,
-    resultFilePath: string,
-    resultFileName: string,
+    resultFilePath?: string,
+    resultFileName?: string,
     importResults?: Record<string, unknown>
   ): Promise<Job> {
-    let uploadedFilePath: string | null = null
-    
-    try {
-      // Skip upload if filePath is empty (import jobs)
-      if (!resultFilePath || !resultFileName) {
-        return this.completeJobWithoutFile(jobId, userId, importResults)
-      }
+    if (!resultFilePath || !resultFileName) {
+      return this.completeJobWithoutFile(jobId, userId, importResults)
+    }
 
-      // Upload file to storage
-      const { url, path: storagePath, size } = await this.uploadResultFile(
-        jobId,
-        userId,
-        resultFilePath,
-        resultFileName
-      )
+    let uploadedFilePath: string | null = null
+
+    try {
+      const { url, path: storagePath, size } = await this.uploadResultFile(jobId, userId, resultFilePath, resultFileName)
       uploadedFilePath = storagePath
 
-      // Mark job as completed (atomic)
       const job = await jobsRepository.markAsCompleted(jobId, userId, url, storagePath, size)
-
-      // Clean up local file
       this.cleanupLocalFile(resultFilePath)
 
       logInfo('Service completeJob success', { job_id: jobId })
       return job
     } catch (error) {
       logError('Service completeJob error', { job_id: jobId, error })
-      
-      // Rollback: Delete uploaded file if job update failed
+
       if (uploadedFilePath) {
         try {
           await supabase.storage.from(STORAGE_BUCKET).remove([uploadedFilePath])
           logInfo('Rolled back uploaded file', { job_id: jobId, path: uploadedFilePath })
         } catch (rollbackError) {
-          logError('Failed to rollback uploaded file', { job_id: jobId, error: rollbackError })
+          logError('Failed rollback uploaded file', { job_id: jobId, error: rollbackError })
         }
       }
-      
-      // Clean up local file
+
       this.cleanupLocalFile(resultFilePath)
-      
       throw error
     }
   }
 
   /**
-   * Clean up local file with error handling
-   */
-  private cleanupLocalFile(filePath: string): void {
-    try {
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath)
-        logInfo('Local file cleaned up', { path: filePath })
-      }
-    } catch (error) {
-      logError('Failed to delete local file', { path: filePath, error })
-      // Schedule for retry
-      setTimeout(() => {
-        try {
-          if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath)
-          }
-        } catch (retryError) {
-          logError('Failed to delete local file on retry', { path: filePath, error: retryError })
-        }
-      }, 60000) // Retry after 1 minute
-    }
-  }
-
-  /**
-   * Fail job with error message
+   * Fail job
    */
   async failJob(jobId: string, userId: string, errorMessage: string): Promise<Job> {
     return jobsRepository.markAsFailed(jobId, userId, errorMessage)
   }
 
-// jobs.service.ts - perbaiki updateProgress
-async updateProgress(jobId: string, progress: number, userId: string): Promise<void> {
-  if (progress < 0 || progress > 100) {
-    throw new Error('Progress must be between 0 and 100')
-  }
-  
-  // Panggil repository dengan userId yang benar
-  return jobsRepository.updateProgress(jobId, progress, userId)
-}
   /**
-   * Cleanup expired jobs
+   * Update job progress
    */
-  async cleanupExpiredJobs(): Promise<void> {
-    try {
-      const expiredJobs = await jobsRepository.findExpiredJobs()
-
-      for (const job of expiredJobs) {
-        try {
-          // Delete file from storage
-          if (job.file_path) {
-            const { error } = await supabase.storage
-              .from(STORAGE_BUCKET)
-              .remove([job.file_path])
-
-            if (error) {
-              logError('Failed to delete file from storage', { job_id: job.id, path: job.file_path, error })
-            }
-          }
-
-          // Delete job record
-          await jobsRepository.delete(job.id, job.user_id)
-
-          logInfo('Cleaned up expired job', { job_id: job.id })
-        } catch (error) {
-          logError('Failed to cleanup job', { job_id: job.id, error })
-        }
-      }
-
-      logInfo('Cleanup expired jobs completed', { count: expiredJobs.length })
-    } catch (error) {
-      logError('Cleanup expired jobs error', { error })
-      throw error
-    }
+  async updateProgress(jobId: string, progress: number, userId: string): Promise<void> {
+    if (progress < 0 || progress > 100) throw new Error('Progress must be 0–100')
+    return jobsRepository.updateProgress(jobId, progress, userId)
   }
 
   /**
    * Cancel job
    */
-  async cancelJob(id: string, userId: string): Promise<Job> {
-    const job = await this.getJobById(id, userId)
-
+  async cancelJob(jobId: string, userId: string): Promise<Job> {
+    const job = await this.getJobById(jobId, userId)
     if (job.status === 'completed' || job.status === 'failed') {
       throw new Error('Cannot cancel completed or failed job')
     }
-
-    return jobsRepository.update(id, userId, { status: 'cancelled' })
+    return jobsRepository.update(jobId, userId, { status: 'cancelled' })
   }
 
   /**
-   * Clear all completed jobs for a user (soft delete)
+   * Clear all completed/failed/cancelled jobs for a user in a company
    */
   async clearAllJobs(userId: string, companyId: string): Promise<number> {
-    try {
-      // Get all completed jobs for this user and company
-      const jobs = await jobsRepository.findUserRecentJobs(userId)
-      const completedJobs = jobs.filter(
-        j => j.company_id === companyId && 
-            (j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled')
-      )
+    const jobs = await jobsRepository.findUserRecentJobs(userId)
+    const completedJobs = jobs.filter(
+      j => j.company_id === companyId && ['completed', 'failed', 'cancelled'].includes(j.status)
+    )
 
-      // Soft delete each job
-      for (const job of completedJobs) {
-        await jobsRepository.delete(job.id, userId)
+    for (const job of completedJobs) {
+      await jobsRepository.delete(job.id, userId)
+    }
+
+    logInfo('Service clearAllJobs success', { user_id: userId, deleted_count: completedJobs.length })
+    return completedJobs.length
+  }
+
+  /**
+   * Cleanup expired jobs and storage
+   */
+  async cleanupExpiredJobs(): Promise<void> {
+    const expiredJobs = await jobsRepository.findExpiredJobs()
+    for (const job of expiredJobs) {
+      try {
+        if (job.file_path) {
+          const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([job.file_path])
+          if (error) logError('Failed to delete file from storage', { job_id: job.id, path: job.file_path, error })
+        }
+        await jobsRepository.delete(job.id, job.user_id)
+        logInfo('Cleaned up expired job', { job_id: job.id })
+      } catch (error) {
+        logError('Failed to cleanup job', { job_id: job.id, error })
       }
+    }
+    logInfo('Cleanup expired jobs completed', { count: expiredJobs.length })
+  }
 
-      logInfo('Service clearAllJobs success', { user_id: userId, deleted_count: completedJobs.length })
-      return completedJobs.length
+  /**
+   * Safely delete local file
+   */
+  private cleanupLocalFile(filePath?: string): void {
+    if (!filePath) return
+    try {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+      logInfo('Local file cleaned up', { path: filePath })
     } catch (error) {
-      logError('Service clearAllJobs error', { user_id: userId, error })
-      throw error
+      logError('Failed to delete local file', { path: filePath, error })
+      setTimeout(() => {
+        try {
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+        } catch (retryError) {
+          logError('Retry failed for local file delete', { path: filePath, error: retryError })
+        }
+      }, 60000)
     }
   }
 }

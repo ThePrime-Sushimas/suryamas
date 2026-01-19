@@ -23,7 +23,6 @@ Successfully integrated POS imports with the jobs system so they show in "Report
 ### Confirm Flow:
 1. User confirms the import
 2. Frontend sends `job_id` to confirm endpoint
-3. Server triggers `jobWorker.processJob(jobId)`
 4. Job status: `pending` → `processing`
 5. Background processor reads data from Supabase Storage
 6. Progress updates: 10% → 20% → 40% → 60% → 80% → 95% → 100%

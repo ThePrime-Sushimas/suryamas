@@ -6,9 +6,9 @@ import { logInfo, logError } from '../../config/logger'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
 import type { AuthenticatedPaginatedRequest, AuthenticatedRequest } from '../../types/request.types'
 import type { AuthRequest } from '../../types/common.types'
-import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, EmployeeSearchSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
+import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
 import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import { jobsService, jobsRepository } from '../jobs'
+import { jobsService } from '../jobs'
 
 export class EmployeesController {
   // ============================================
@@ -183,18 +183,8 @@ export class EmployeesController {
     try {
       const userId = req.user!.id
       const companyId = req.context?.company_id
+      if (!companyId) return sendError(res, 'Company context required', 400)
 
-      if (!companyId) {
-        return sendError(res, 'Company context required', 400)
-      }
-
-      // Check for existing active job
-      const hasActiveJob = await jobsRepository.hasActiveJob(userId)
-      if (hasActiveJob) {
-        return sendError(res, 'You already have an active job. Please wait for it to complete.', 429)
-      }
-
-      // Extract filter from query params
       const filter: Record<string, unknown> = {}
       if (req.query.branch_name) filter.branch_name = req.query.branch_name
       if (req.query.job_position) filter.job_position = req.query.job_position
@@ -202,7 +192,7 @@ export class EmployeesController {
       if (req.query.is_active) filter.is_active = req.query.is_active === 'true'
       if (req.query.search) filter.search = req.query.search
 
-      // Create the export job
+      // Create job via service; service handle active job check
       const job = await jobsService.createJob({
         user_id: userId,
         company_id: companyId,
@@ -212,17 +202,11 @@ export class EmployeesController {
         metadata: {
           type: 'export',
           module: 'employees',
-          filter: Object.keys(filter).length > 0 ? filter : undefined
+          filter: Object.keys(filter).length ? filter : undefined
         }
       })
 
       logInfo('Employees export job created', { job_id: job.id, user_id: userId })
-
-      // Trigger background processing
-      const { jobWorker } = await import('../jobs/jobs.worker')
-      jobWorker.processJob(job.id).catch(error => {
-        logError('Employees export job processing error', { job_id: job.id, error })
-      })
 
       sendSuccess(res, {
         job_id: job.id,
@@ -231,7 +215,7 @@ export class EmployeesController {
         type: job.type,
         module: job.module,
         created_at: job.created_at,
-        message: 'Export job created successfully. Processing in background.'
+        message: 'Export job created successfully. Processing will run in background automatically.'
       }, 'Export job created', 201)
     } catch (error: any) {
       logError('Failed to create export job', { error: error.message })
@@ -263,16 +247,9 @@ export class EmployeesController {
     try {
       const userId = req.user!.id
       const companyId = req.context?.company_id
+      if (!companyId) return sendError(res, 'Company context required', 400)
+      if (!req.file) return sendError(res, 'No file uploaded', 400)
 
-      if (!companyId) {
-        return sendError(res, 'Company context required', 400)
-      }
-
-      if (!req.file) {
-        return sendError(res, 'No file uploaded', 400)
-      }
-
-      // Check file type
       const allowedMimeTypes = [
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'application/vnd.ms-excel',
@@ -282,26 +259,15 @@ export class EmployeesController {
         return sendError(res, 'Invalid file type. Only Excel files (.xlsx, .xls) are allowed', 400)
       }
 
-      // Check file size (10MB limit)
       const maxSize = 10 * 1024 * 1024
       if (req.file.size > maxSize) {
-        return sendError(res, `File size exceeds maximum limit of ${maxSize / (1024 * 1024)}MB`, 400)
+        return sendError(res, `File size exceeds maximum ${maxSize / (1024 * 1024)}MB`, 400)
       }
 
-      // Check for existing active job
-      const hasActiveJob = await jobsRepository.hasActiveJob(userId)
-      if (hasActiveJob) {
-        return sendError(res, 'You already have an active job. Please wait for it to complete.', 429)
-      }
-
-      // Save file to temp location
       const { saveTempFile } = await import('../jobs/jobs.util')
       const filePath = await saveTempFile(req.file.buffer, `employees_import_${Date.now()}.xlsx`)
-
-      // Parse skipDuplicates from body
       const skipDuplicates = req.body.skipDuplicates === 'true' || req.body.skipDuplicates === true
 
-      // Create the import job
       const job = await jobsService.createJob({
         user_id: userId,
         company_id: companyId,
@@ -326,12 +292,6 @@ export class EmployeesController {
         user_id: userId 
       })
 
-      // Trigger background processing
-      const { jobWorker } = await import('../jobs/jobs.worker')
-      jobWorker.processJob(job.id).catch(error => {
-        logError('Employees import job processing error', { job_id: job.id, error })
-      })
-
       sendSuccess(res, {
         job_id: job.id,
         status: job.status,
@@ -341,7 +301,7 @@ export class EmployeesController {
         created_at: job.created_at,
         file_name: req.file.originalname,
         file_size: req.file.size,
-        message: 'Import job created successfully. Processing in background.'
+        message: 'Import job created successfully. Processing will run in background automatically.'
       }, 'Import job created', 201)
     } catch (error: any) {
       logError('Failed to create import job', { error: error.message })

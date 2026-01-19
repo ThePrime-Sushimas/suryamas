@@ -1,11 +1,12 @@
 /**
  * Jobs Repository
  * Database access layer for background job queue
+ * Fully type-safe with RPC methods
  */
 
 import { supabase } from '@/config/supabase'
 import { logInfo, logError } from '@/config/logger'
-import { Job, CreateJobDto, UpdateJobDto, JobFilters } from './jobs.types'
+import { Job, CreateJobDto, UpdateJobDto } from './jobs.types'
 import { JobErrors } from './jobs.errors'
 import { JOB_QUEUE_CONFIG } from './jobs.constants'
 
@@ -27,13 +28,27 @@ export class JobsRepository {
       if (error) throw error
 
       logInfo('Repository findUserRecentJobs success', { user_id: userId, count: data?.length || 0 })
-      return data || []
+      return data as Job[] || []
     } catch (error) {
       logError('Repository findUserRecentJobs error', { user_id: userId, error })
       throw error
     }
   }
 
+
+  async findPendingJobs(limit?: number): Promise<Job[]> {
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('*')
+      .eq('status', 'pending')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .limit(limit || 10)
+  
+    if (error) throw error
+    return data as Job[]
+  }
+  
   /**
    * Find job by ID
    */
@@ -52,7 +67,7 @@ export class JobsRepository {
       }
 
       logInfo('Repository findById success', { id, user_id: userId })
-      return data
+      return data as Job
     } catch (error) {
       logError('Repository findById error', { id, user_id: userId, error })
       throw error
@@ -98,14 +113,13 @@ export class JobsRepository {
         })
 
       if (error) {
-        if (error.code === '23505') {
-          throw JobErrors.ALREADY_PROCESSING()
-        }
+        if (error.code === '23505') throw JobErrors.ALREADY_PROCESSING()
         throw error
       }
 
-      logInfo('Repository create success', { id: data.id, name: dto.name, type: dto.type, module: dto.module })
-      return data
+      if (!data) throw new Error('Job creation failed')
+      logInfo('Repository create success', { id: (data as any).id, name: dto.name, type: dto.type, module: dto.module })
+      return data as Job
     } catch (error) {
       if (error instanceof Error && error.message.includes('already has an active job')) {
         throw JobErrors.ALREADY_PROCESSING()
@@ -133,8 +147,9 @@ export class JobsRepository {
         throw error
       }
 
+      if (!data) throw JobErrors.NOT_FOUND()
       logInfo('Repository update success', { id, updates })
-      return data
+      return data as Job
     } catch (error) {
       logError('Repository update error', { id, user_id: userId, updates, error })
       throw error
@@ -147,14 +162,13 @@ export class JobsRepository {
   async markAsProcessing(id: string): Promise<Job> {
     try {
       const { data, error } = await supabase
-        .rpc('mark_job_processing_atomic', {
-          p_job_id: id
-        })
+        .rpc('mark_job_processing_atomic', { p_job_id: id })
 
       if (error) throw error
+      if (!data) throw JobErrors.NOT_FOUND()
 
       logInfo('Repository markAsProcessing success', { id })
-      return data
+      return data as Job
     } catch (error) {
       logError('Repository markAsProcessing error', { id, error })
       throw error
@@ -173,7 +187,6 @@ export class JobsRepository {
   ): Promise<Job> {
     try {
       const expiresAt = new Date(Date.now() + JOB_QUEUE_CONFIG.resultExpiration)
-
       const { data, error } = await supabase
         .rpc('complete_job_atomic', {
           p_job_id: id,
@@ -185,9 +198,10 @@ export class JobsRepository {
         })
 
       if (error) throw error
+      if (!data) throw JobErrors.NOT_FOUND()
 
       logInfo('Repository markAsCompleted success', { id, expires_at: expiresAt })
-      return data
+      return data as Job
     } catch (error) {
       logError('Repository markAsCompleted error', { id, error })
       throw error
@@ -207,9 +221,10 @@ export class JobsRepository {
         })
 
       if (error) throw error
+      if (!data) throw JobErrors.NOT_FOUND()
 
-      logInfo('Repository markAsFailed success', { id })
-      return data
+      logInfo('Repository markAsFailed success', { id, errorMessage })
+      return data as Job
     } catch (error) {
       logError('Repository markAsFailed error', { id, error })
       throw error
@@ -226,13 +241,8 @@ export class JobsRepository {
         .update({ progress })
         .eq('id', id)
 
-      // Add user_id filter if provided (for security)
-      if (userId) {
-        query = query.eq('user_id', userId)
-      }
-
+      if (userId) query = query.eq('user_id', userId)
       const { error } = await query
-
       if (error) throw error
 
       logInfo('Repository updateProgress success', { id, progress })
@@ -257,9 +267,7 @@ export class JobsRepository {
         .limit(limit)
 
       if (error) throw error
-
-      logInfo('Repository findExpiredJobs success', { count: data?.length || 0 })
-      return data || []
+      return (data as Job[]) || []
     } catch (error) {
       logError('Repository findExpiredJobs error', { error })
       throw error
@@ -279,7 +287,6 @@ export class JobsRepository {
         })
 
       if (error) throw error
-
       logInfo('Repository soft delete success', { id, deleted_by: userId })
     } catch (error) {
       logError('Repository delete error', { id, user_id: userId, error })

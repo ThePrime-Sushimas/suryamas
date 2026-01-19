@@ -1,16 +1,18 @@
 /**
  * Jobs Module Types
  * Background job queue for export/import operations
- * 
- * Design: Simple 'export'/'import' type enum + module field for scalability
- * This allows adding new export/import types without database migrations
+ *
+ * Design: Simple 'export'/'import' type enum + module field for scalability.
+ * Generic metadata interfaces replace per-module interfaces to remove redundancy.
  */
 
-// Base job type (simple, extensible)
+// ---------------------------
+// Base Types
+// ---------------------------
+
 export type JobType = 'export' | 'import'
 
-// Module types - define what module the job operates on
-export type JobModule = 
+export type JobModule =
   | 'employees'
   | 'companies'
   | 'products'
@@ -22,21 +24,21 @@ export type JobModule =
   | 'payment_methods'
   | 'categories'
   | 'sub_categories'
-  // Future modules can be added here without DB changes:
-  // | 'tax_reports'
-  // | 'journals'
-  // | 'inventory'
-  // | 'suppliers'
+  // future modules can be added here without DB changes
+  // | 'tax_reports' | 'journals' | 'inventory' | 'suppliers'
 
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
 
-// Generic job interface
+// ---------------------------
+// Generic Job Interface
+// ---------------------------
+
 export interface Job {
   id: string
   user_id: string
   company_id: string
   type: JobType
-  module: JobModule  // What module this job operates on
+  module: JobModule
   name: string
   status: JobStatus
   progress: number
@@ -56,7 +58,10 @@ export interface Job {
   deleted_by?: string
 }
 
-// Metadata interfaces for each job type
+// ---------------------------
+// Generic Export / Import Metadata
+// ---------------------------
+
 export interface BaseJobMetadata {
   module: JobModule
   [key: string]: unknown
@@ -74,75 +79,28 @@ export interface ImportMetadata extends BaseJobMetadata {
   requiredFields?: string[]
 }
 
-export interface EmployeesExportMetadata extends ExportMetadata {
-  module: 'employees'
-  filter?: {
-    branch_id?: string
-    is_active?: boolean
-    search?: string
-  }
+/**
+ * Generic per-module metadata with optional filter
+ */
+export interface ModuleExportMetadata<F extends Record<string, unknown> = Record<string, unknown>> extends ExportMetadata {
+  module: JobModule
+  filter?: F
 }
 
-export interface ProductsExportMetadata extends ExportMetadata {
-  module: 'products'
-  filter?: {
-    category_id?: string
-    is_active?: boolean
-    search?: string
-  }
+export interface ModuleImportMetadata<F extends Record<string, unknown> = Record<string, unknown>> extends ImportMetadata {
+  module: JobModule
+  extra?: F
 }
 
-export interface ProductsImportMetadata extends ImportMetadata {
-  module: 'products'
-  sheetName?: string
-}
+// ---------------------------
+// Job Metadata Union
+// ---------------------------
 
-export interface PosTransactionsExportMetadata extends ExportMetadata {
-  module: 'pos_transactions'
-  filters: {
-    dateFrom?: string
-    dateTo?: string
-    salesNumber?: string
-    billNumber?: string
-    branches?: string
-    area?: string
-    brand?: string
-    city?: string
-    menuName?: string
-    paymentMethods?: string
-    regularMemberName?: string
-    customerName?: string
-    visitPurpose?: string
-    salesType?: string
-    menuCategory?: string
-    menuCategoryDetail?: string
-    menuCode?: string
-    customMenuName?: string
-    tableSection?: string
-    tableName?: string
-  }
-}
+export type JobMetadata = ExportMetadata | ImportMetadata | ModuleExportMetadata | ModuleImportMetadata
 
-export interface PosTransactionsImportMetadata extends ImportMetadata {
-  module: 'pos_transactions'
-  posImportId: string
-  filePath: string
-  sheetName?: string
-  companyId: string
-  branchId?: string
-  dateRangeStart?: string
-  dateRangeEnd?: string
-}
-
-// Union type for all metadata
-export type JobMetadata =
-  | ExportMetadata
-  | ImportMetadata
-  | EmployeesExportMetadata
-  | ProductsExportMetadata
-  | ProductsImportMetadata
-  | PosTransactionsExportMetadata
-  | PosTransactionsImportMetadata
+// ---------------------------
+// DTOs
+// ---------------------------
 
 export interface CreateJobDto {
   user_id: string
@@ -175,66 +133,41 @@ export interface JobFilters {
 
 export interface JobQueueConfig {
   maxConcurrentJobs: number
-  jobTimeout: number // milliseconds
+  jobTimeout: number
   retryAttempts: number
-  retryDelay: number // milliseconds
-  resultExpiration: number // milliseconds (1 hour = 3600000)
-  cleanupInterval: number // milliseconds
+  retryDelay: number
+  resultExpiration: number
+  cleanupInterval: number
 }
 
-// ============================================
-// Type Guards for Metadata Validation
-// ============================================
+// ---------------------------
+// Type Guards
+// ---------------------------
 
-/**
- * Check if metadata is a valid ExportMetadata
- */
 export function isExportMetadata(metadata: unknown): metadata is ExportMetadata {
-  if (!metadata || typeof metadata !== 'object') return false
-  const m = metadata as Record<string, unknown>
-  return m.type === 'export' && typeof m.module === 'string'
+  return Boolean(metadata && typeof metadata === 'object' && (metadata as any).type === 'export')
 }
 
-/**
- * Check if metadata is a valid ImportMetadata
- */
 export function isImportMetadata(metadata: unknown): metadata is ImportMetadata {
-  if (!metadata || typeof metadata !== 'object') return false
-  const m = metadata as Record<string, unknown>
-  return m.type === 'import' && typeof m.module === 'string'
+  return Boolean(metadata && typeof metadata === 'object' && (metadata as any).type === 'import')
 }
 
 /**
- * Check if metadata is EmployeesExportMetadata
+ * Generic module export type guard
  */
-export function isEmployeesExportMetadata(metadata: unknown): metadata is EmployeesExportMetadata {
-  return isExportMetadata(metadata) && (metadata as ExportMetadata).module === 'employees'
+export function isModuleExportMetadata<M extends JobModule>(
+  metadata: unknown,
+  module: M
+): metadata is ModuleExportMetadata {
+  return isExportMetadata(metadata) && (metadata as any).module === module
 }
 
 /**
- * Check if metadata is ProductsExportMetadata
+ * Generic module import type guard
  */
-export function isProductsExportMetadata(metadata: unknown): metadata is ProductsExportMetadata {
-  return isExportMetadata(metadata) && (metadata as ExportMetadata).module === 'products'
-}
-
-/**
- * Check if metadata is ProductsImportMetadata
- */
-export function isProductsImportMetadata(metadata: unknown): metadata is ProductsImportMetadata {
-  return isImportMetadata(metadata) && (metadata as ImportMetadata).module === 'products'
-}
-
-/**
- * Check if metadata is PosTransactionsExportMetadata
- */
-export function isPosTransactionsExportMetadata(metadata: unknown): metadata is PosTransactionsExportMetadata {
-  return isExportMetadata(metadata) && (metadata as ExportMetadata).module === 'pos_transactions'
-}
-
-/**
- * Check if metadata is PosTransactionsImportMetadata
- */
-export function isPosTransactionsImportMetadata(metadata: unknown): metadata is PosTransactionsImportMetadata {
-  return isImportMetadata(metadata) && (metadata as ImportMetadata).module === 'pos_transactions'
+export function isModuleImportMetadata<M extends JobModule>(
+  metadata: unknown,
+  module: M
+): metadata is ModuleImportMetadata {
+  return isImportMetadata(metadata) && (metadata as any).module === module
 }

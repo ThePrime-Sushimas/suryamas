@@ -8,7 +8,7 @@ import { authenticate } from '@/middleware/auth.middleware'
 import { resolveBranchContext } from '@/middleware/branch-context.middleware'
 import { canView, canInsert } from '@/middleware/permission.middleware'
 import { validateSchema } from '@/middleware/validation.middleware'
-import { getJobByIdSchema, processJobSchema, cancelJobSchema, createJobSchema } from './jobs.schema'
+import { getJobByIdSchema, cancelJobSchema, createJobSchema } from './jobs.schema'
 import rateLimit from 'express-rate-limit'
 import { PermissionService } from '@/services/permission.service'
 import multer from 'multer'
@@ -63,14 +63,6 @@ router.post('/:id/upload',
   upload.single('file'),
   jobRateLimiter,
   jobsController.uploadJobFile.bind(jobsController)
-)
-
-// Process job (requires insert permission)
-router.post('/:id/process',
-  canInsert('jobs'),
-  validateSchema(processJobSchema),
-  jobRateLimiter,
-  jobsController.processJob.bind(jobsController)
 )
 
 // Cancel job
