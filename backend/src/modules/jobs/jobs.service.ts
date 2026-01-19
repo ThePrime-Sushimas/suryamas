@@ -57,7 +57,7 @@ export class JobsService {
 
     const { error: uploadError } = await supabase.storage
       .from(STORAGE_BUCKET)
-      .upload(storagePath, fileBuffer, { contentType: 'application/octet-stream', upsert: false })
+      .upload(storagePath, fileBuffer, { contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', upsert: false })
     if (uploadError) throw uploadError
 
     const expiresIn = Math.floor(JOB_QUEUE_CONFIG.resultExpiration / 1000)

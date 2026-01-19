@@ -9,13 +9,12 @@ import { employeesRepository } from '@/modules/employees/employees.repository'
 import { logInfo, logError } from '@/config/logger'
 import { jobsService } from '@/modules/jobs'
 import { JobProcessor } from '../jobs.worker'
-import type { EmployeesExportMetadata } from '../jobs.types'
-import { isEmployeesExportMetadata } from '../jobs.types'
-
-export const processEmployeesExport: JobProcessor<EmployeesExportMetadata> = async (
+import type { ExportMetadata } from '../jobs.types'
+import { isExportMetadata } from '../jobs.types'
+export const processEmployeesExport: JobProcessor<ExportMetadata> = async (
   jobId: string,
   userId: string,
-  metadata: EmployeesExportMetadata
+  metadata: ExportMetadata
 ) => {
   try {
     logInfo('Processing employees export', { job_id: jobId, user_id: userId })
@@ -23,8 +22,12 @@ export const processEmployeesExport: JobProcessor<EmployeesExportMetadata> = asy
     await jobsService.updateProgress(jobId, 10, userId)
 
     // Validate metadata structure
-    if (!isEmployeesExportMetadata(metadata)) {
-      throw new Error('Invalid metadata format for employees export')
+    if (!isExportMetadata(metadata)) {
+      throw new Error('Invalid export metadata format')
+    }
+    
+    if (metadata.module !== 'employees') {
+      throw new Error('Invalid module for employees export')
     }
 
     // Fetch data with filter

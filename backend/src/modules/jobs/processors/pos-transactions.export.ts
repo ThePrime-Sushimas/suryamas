@@ -1,8 +1,3 @@
-/**
- * POS Transactions Export Processor
- * Background job processor for exporting POS transactions
- */
-
 import * as XLSX from 'xlsx'
 import * as path from 'path'
 import * as fs from 'fs'
@@ -10,8 +5,6 @@ import { posImportLinesRepository } from '@/modules/pos-imports/pos-import-lines
 import { logInfo, logError } from '@/config/logger'
 import { jobsService } from '@/modules/jobs'
 import { JobProcessor } from '../jobs.worker'
-import { isPosTransactionsExportMetadata } from '../jobs.types'
-import type { PosTransactionsExportMetadata } from '../jobs.types'
 
 export const processPosTransactionsExport: JobProcessor = async (
   jobId: string,
@@ -21,21 +14,16 @@ export const processPosTransactionsExport: JobProcessor = async (
   try {
     logInfo('Processing POS transactions export', { job_id: jobId })
 
-    // Validate metadata structure
-    if (!isPosTransactionsExportMetadata(metadata)) {
-      throw new Error('Invalid metadata format for POS transactions export')
-    }
-
-    // Update progress: 10%
-    await jobsService.updateProgress(jobId, 10, userId)
-
-    // Extract companyId and filters from metadata
+    // VALIDASI MANUAL GANTIAN TYPE GUARD
     const companyId = metadata.companyId as string
-    const filters = metadata.filters || {}
+    const filters = (metadata.filters as Record<string, unknown>) || {}
 
     if (!companyId) {
       throw new Error('Company ID is required in metadata')
     }
+
+    // Update progress: 10%
+    await jobsService.updateProgress(jobId, 10, userId)
 
     // Fetch all data
     const result = await posImportLinesRepository.findAllWithFilters(
@@ -128,7 +116,3 @@ export const processPosTransactionsExport: JobProcessor = async (
     throw error
   }
 }
-
-// Export type for reference
-export type { PosTransactionsExportMetadata }
-
