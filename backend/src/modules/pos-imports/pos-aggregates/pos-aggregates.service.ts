@@ -1,9 +1,9 @@
 import { supabase } from '../../../config/supabase'
 import { posAggregatesRepository } from './pos-aggregates.repository'
+import { posImportLinesRepository } from '../pos-import-lines/pos-import-lines.repository'
 import { 
   AggregatedTransaction, 
   AggregatedTransactionWithDetails,
-  AggregatedTransactionListItem,
   AggregatedTransactionFilterParams,
   AggregatedTransactionSortParams,
   AggregatedTransactionStatus,
@@ -38,23 +38,77 @@ export class PosAggregatesService {
     }
   }
 
-  /**
+/**
    * Validate that branch exists (if provided)
+   * Note: branchId can be either UUID (id) or branch name (string)
    */
-  private async validateBranch(branchId: string | null): Promise<void> {
+  private async validateBranch(branchId: string | null, companyId?: string): Promise<void> {
     if (!branchId) return
 
-    const { data, error } = await supabase
+    // Check if branchId is a valid UUID (5fdd0a7b-etc format)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(branchId)
+
+    let query = supabase
       .from('branches')
-      .select('id, is_active')
-      .eq('id', branchId)
-      .maybeSingle()
+      .select('id, status')
+
+    if (isUuid) {
+      // Query by UUID id
+      query = query.eq('id', branchId)
+    } else {
+      // Query by branch_name (string)
+      query = query.eq('branch_name', branchId.trim())
+    }
+
+    if (companyId) {
+      query = query.eq('company_id', companyId)
+    }
+
+    const { data, error } = await query.maybeSingle()
 
     if (error) throw AggregatedTransactionErrors.DATABASE_ERROR('Failed to validate branch', error)
     if (!data) throw AggregatedTransactionErrors.BRANCH_NOT_FOUND(branchId)
-    if (!(data as any).is_active) {
+    if ((data as any).status !== 'active') {
       throw AggregatedTransactionErrors.BRANCH_INACTIVE(branchId)
     }
+  }
+
+/**
+   * Find branch by name within a company
+   * Note: Uses case-insensitive search to handle differences in branch name capitalization
+   */
+  private async findBranchByName(companyId: string, branchName: string): Promise<{ id: string; branch_name: string } | null> {
+    // Normalize branch name: trim + collapse multiple spaces to single space
+    const normalizedBranchName = branchName.trim().replace(/\s+/g, ' ')
+    
+    // Try exact match first (case-insensitive via ilike)
+    const { data, error } = await supabase
+      .from('branches')
+      .select('id, branch_name')
+      .eq('company_id', companyId)
+      .ilike('branch_name', normalizedBranchName)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (error) {
+      logError('Failed to find branch by name', { 
+        company_id: companyId, 
+        branch_name: branchName,
+        normalized_name: normalizedBranchName,
+        error 
+      })
+      throw AggregatedTransactionErrors.DATABASE_ERROR('Failed to find branch by name', error)
+    }
+
+    logInfo('Branch lookup result', {
+      company_id: companyId,
+      original_name: branchName,
+      normalized_name: normalizedBranchName,
+      found: !!data,
+      branch_name: data?.id
+    })
+
+    return data
   }
 
   /**
@@ -103,7 +157,7 @@ export class PosAggregatesService {
   private toInsertData(data: CreateAggregatedTransactionDto): Omit<AggregatedTransaction, 'id' | 'created_at' | 'updated_at' | 'version'> {
     return {
       company_id: data.company_id,
-      branch_id: data.branch_id ?? null,
+      branch_name: data.branch_name ?? null,
       source_type: data.source_type,
       source_id: data.source_id,
       source_ref: data.source_ref,
@@ -125,10 +179,17 @@ export class PosAggregatesService {
   /**
    * Create new aggregated transaction
    */
-  async createTransaction(data: CreateAggregatedTransactionDto): Promise<AggregatedTransaction> {
+  async createTransaction(data: CreateAggregatedTransactionDto, skipPaymentMethodValidation = false): Promise<AggregatedTransaction> {
     await this.validateCompany(data.company_id)
-    await this.validateBranch(data.branch_id ?? null)
-    await this.validatePaymentMethod(data.payment_method_id)
+    
+    // Skip branch validation for POS imports - store branch_name directly
+    // Branch validation only needed when using branch_id (UUID)
+    // await this.validateBranch(data.branch_name ?? null)
+    
+    // Skip payment method validation if using fallback ID
+    if (!skipPaymentMethodValidation) {
+      await this.validatePaymentMethod(data.payment_method_id)
+    }
 
     const exists = await posAggregatesRepository.sourceExists(
       data.source_type,
@@ -241,8 +302,8 @@ export class PosAggregatesService {
       await this.validatePaymentMethod(updates.payment_method_id)
     }
 
-    if (updates.branch_id !== undefined) {
-      await this.validateBranch(updates.branch_id)
+    if (updates.branch_name !== undefined) {
+      await this.validateBranch(updates.branch_name)
     }
 
     logInfo('Updating aggregated transaction', {
@@ -354,7 +415,7 @@ export class PosAggregatesService {
     companyId: string,
     dateFrom?: string,
     dateTo?: string,
-    branchId?: string
+    branchName?: string
   ): Promise<AggregatedTransactionSummary> {
     await this.validateCompany(companyId)
 
@@ -362,7 +423,7 @@ export class PosAggregatesService {
       companyId,
       dateFrom,
       dateTo,
-      branchId
+      branchName
     )
 
     const statusCounts = await posAggregatesRepository.getStatusCounts(companyId)
@@ -380,7 +441,7 @@ export class PosAggregatesService {
     companyId: string,
     dateFrom: string,
     dateTo: string,
-    branchId?: string
+    branchName?: string
   ): Promise<AggregatedTransaction[]> {
     await this.validateCompany(companyId)
 
@@ -388,7 +449,7 @@ export class PosAggregatesService {
       companyId,
       dateFrom,
       dateTo,
-      branchId
+      branchName
     )
   }
 
@@ -453,15 +514,15 @@ export class PosAggregatesService {
   }> {
     await this.validateCompany(request.company_id)
 
-    if (request.branch_id) {
-      await this.validateBranch(request.branch_id)
+    if (request.branch_name) {
+      await this.validateBranch(request.branch_name)
     }
 
     const transactions = await this.getUnreconciledTransactions(
       request.company_id,
       request.transaction_date_from || new Date().toISOString().split('T')[0],
       request.transaction_date_to || new Date().toISOString().split('T')[0],
-      request.branch_id
+      request.branch_name
     )
 
     if (transactions.length === 0) {
@@ -504,6 +565,163 @@ export class PosAggregatesService {
     sourceRef: string
   ): Promise<boolean> {
     return posAggregatesRepository.sourceExists(sourceType, sourceId, sourceRef)
+  }
+
+  /**
+   * Generate aggregated transactions from POS import lines
+   */
+  async generateFromPosImportLines(
+    posImportId: string,
+    companyId: string,
+    branchName?: string
+  ): Promise<{
+    created: number
+    skipped: number
+    errors: Array<{ source_ref: string; error: string }>
+  }> {
+    await this.validateCompany(companyId)
+
+    // Get all lines from the import
+    const lines = await posImportLinesRepository.findAllByImportId(posImportId)
+    
+    if (lines.length === 0) {
+      return { created: 0, skipped: 0, errors: [] }
+    }
+
+    // Group lines by transaction (bill_number + sales_number + sales_date + payment_method)
+    const transactionGroups = new Map<string, typeof lines>()
+    
+    for (const line of lines) {
+      const transactionKey = `${line.bill_number}|${line.sales_number}|${line.sales_date}|${line.payment_method}`
+      if (!transactionGroups.has(transactionKey)) {
+        transactionGroups.set(transactionKey, [])
+      }
+      transactionGroups.get(transactionKey)!.push(line)
+    }
+
+    const results = {
+      created: 0,
+      skipped: 0,
+      errors: [] as Array<{ source_ref: string; error: string }>
+    }
+
+    // Process each transaction group
+    for (const [, groupLines] of transactionGroups) {
+      try {
+        const firstLine = groupLines[0]
+        const sourceRef = `${firstLine.bill_number}-${firstLine.sales_number}`
+        
+        // Check if already exists
+        const exists = await this.checkSourceExists('POS', posImportId, sourceRef)
+        if (exists) {
+          results.skipped++
+          continue
+        }
+
+        // Resolve branch from import line data
+        // Note: Store branch_name as NULL if not a valid UUID
+        // Database branch_name column expects UUID
+        let resolvedBranchName: string | null = null
+        
+        if (firstLine.branch?.trim()) {
+          resolvedBranchName = firstLine.branch.trim()
+        }        
+
+        // Calculate aggregated amounts
+        const grossAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.subtotal || 0), 0)
+        const discountAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.discount || 0), 0)
+        const taxAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.tax || 0), 0)
+        const netAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.total_after_bill_discount || line.total || 0), 0)
+
+        // Get payment method ID - global search (PT/CV/-M variants exist)
+        const { id: paymentMethodId, isFallback: isPaymentMethodFallback } = await this.getPaymentMethodId(firstLine.payment_method || 'Cash')
+
+        // Ensure sales_date is valid with null safety
+        const transactionDate = firstLine.sales_date || new Date().toISOString().split('T')[0]
+
+        const aggregatedTransaction: CreateAggregatedTransactionDto = {
+          company_id: companyId,
+          branch_name: resolvedBranchName,
+          source_type: 'POS',
+          source_id: posImportId,
+          source_ref: sourceRef,
+          transaction_date: transactionDate,
+          payment_method_id: paymentMethodId,
+          gross_amount: grossAmount,
+          discount_amount: discountAmount,
+          tax_amount: taxAmount,
+          service_charge_amount: 0, // Not available in POS import lines
+          net_amount: netAmount,
+          currency: 'IDR',
+          status: 'READY'
+        }
+
+        // Skip payment method validation if using fallback
+        await this.createTransaction(aggregatedTransaction, isPaymentMethodFallback)
+        results.created++
+
+        logInfo('Generated aggregated transaction from POS import', {
+          source_ref: sourceRef,
+          branch_name: firstLine.branch,
+          resolved_branch_name: resolvedBranchName,
+          gross_amount: grossAmount,
+          net_amount: netAmount,
+          line_count: groupLines.length
+        })
+
+      } catch (error) {
+        const sourceRef = `${groupLines[0].bill_number}-${groupLines[0].sales_number}`
+        results.errors.push({
+          source_ref: sourceRef,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+        logError('Failed to generate aggregated transaction', {
+          source_ref: sourceRef,
+          branch_name: groupLines[0].branch,
+          error
+        })
+      }
+    }
+
+    logInfo('Completed generating aggregated transactions from POS import', {
+      pos_import_id: posImportId,
+      total_groups: transactionGroups.size,
+      created: results.created,
+      skipped: results.skipped,
+      errors: results.errors.length
+    })
+
+    return results
+  }
+
+  /**
+   * Get payment method ID by name (helper method)
+   * Note: Global search - returns first match (PT/CV/-M variants exist)
+   */
+  private async getPaymentMethodId(paymentMethodName: string): Promise<{ id: number; isFallback: boolean }> {
+    // Try to find payment method (global search)
+    const { data, error } = await supabase
+      .from('payment_methods')
+      .select('id, name')
+      .ilike('name', paymentMethodName)
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle()
+
+    if (error) {
+      logError('Failed to get payment method', { name: paymentMethodName, error })
+    }
+
+    if (data) {
+      return { id: data.id, isFallback: false }
+    }
+
+    // Default to CASH PT (id 20) if not found
+    logInfo('Payment method not found, using default', { 
+      requested: paymentMethodName,
+      default_id: 20 
+    })
+    return { id: 20, isFallback: true }
   }
 }
 

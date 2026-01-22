@@ -23,8 +23,8 @@ export type AggregatedTransactionSourceType = 'POS'
  * Field Mapping from pos_import_lines:
  * | aggregated_transactions | pos_import_lines | Calculation |
  * |------------------------|------------------|-------------|
- * | company_id | - | From user login context |
- * | branch_id | branch | Store branch name as string (not UUID) |
+* | company_id | - | From user login context |
+ * | branch_name | branch | Store branch name as string from pos_import_lines |
  * | source_type | - | Fixed: 'POS' |
  * | source_id | pos_import_id | ID of import batch |
  * | source_ref | bill_number | Bill number from POS |
@@ -44,7 +44,7 @@ export type AggregatedTransactionSourceType = 'POS'
 export interface AggregatedTransaction {
   id: string
   company_id: string
-  branch_id: string | null  // Store branch name from pos_import_lines.branch
+  branch_name: string | null  // Store branch name from pos_import_lines.branch
   source_type: AggregatedTransactionSourceType
   source_id: string  // pos_import_id from pos_import_lines
   source_ref: string  // bill_number from pos_import_lines
@@ -72,7 +72,6 @@ export interface AggregatedTransactionWithDetails extends AggregatedTransaction 
   company_code?: string
   company_name?: string
   branch_code?: string
-  branch_name?: string  // Same as branch_id (stored as name, not UUID)
   payment_method_code?: string
   payment_method_name?: string
   journal?: JournalHeader
@@ -84,7 +83,6 @@ export interface AggregatedTransactionWithDetails extends AggregatedTransaction 
 export interface AggregatedTransactionListItem extends Pick<AggregatedTransaction,
   | 'id'
   | 'company_id'
-  | 'branch_id'
   | 'source_type'
   | 'source_id'
   | 'source_ref'
@@ -112,7 +110,7 @@ export interface AggregatedTransactionListItem extends Pick<AggregatedTransactio
  */
 export interface CreateAggregatedTransactionDto {
   company_id: string  // From user login context
-  branch_id?: string | null  // branch name from pos_import_lines.branch
+  branch_name?: string | null  // branch name from pos_import_lines.branch
   source_type: AggregatedTransactionSourceType  // Always 'POS'
   source_id: string  // pos_import_id from pos_import_lines
   source_ref: string  // bill_number from pos_import_lines
@@ -131,7 +129,7 @@ export interface CreateAggregatedTransactionDto {
  * DTO for updating an aggregated transaction
  */
 export interface UpdateAggregatedTransactionDto {
-  branch_id?: string | null
+  branch_name?: string | null
   source_type?: AggregatedTransactionSourceType
   source_id?: string
   source_ref?: string
@@ -153,7 +151,7 @@ export interface UpdateAggregatedTransactionDto {
  */
 export interface AggregatedTransactionFilterParams {
   company_id?: string
-  branch_id?: string | null
+  branch_name?: string | null
   source_type?: AggregatedTransactionSourceType
   source_id?: string
   payment_method_id?: number
@@ -217,7 +215,7 @@ export interface GenerateJournalRequestDto {
   transaction_ids?: string[]
   transaction_date_from?: string
   transaction_date_to?: string
-  branch_id?: string
+  branch_name?: string
   payment_method_id?: number
   include_unreconciled_only?: boolean
 }

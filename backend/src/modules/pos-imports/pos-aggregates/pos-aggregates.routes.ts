@@ -21,7 +21,7 @@ router.use(authenticate)
 router.use(resolveBranchContext)
 
 /**
- * @route GET /aggregated-transactions
+ * @route GET /
  * @desc List aggregated transactions with pagination and filters
  * @access Private
  */
@@ -32,7 +32,7 @@ router.get(
 )
 
 /**
- * @route GET /aggregated-transactions/summary
+ * @route GET /summary
  * @desc Get summary statistics
  * @access Private
  */
@@ -43,7 +43,7 @@ router.get(
 )
 
 /**
- * @route GET /aggregated-transactions/unreconciled
+ * @route GET /unreconciled
  * @desc Get unreconciled transactions
  * @access Private
  */
@@ -54,7 +54,17 @@ router.get(
 )
 
 /**
- * @route GET /aggregated-transactions/check-source
+ * @route POST /generate-from-import/:importId
+ * @desc Generate aggregated transactions from POS import lines
+ * @access Private
+ */
+router.post(
+  '/generate-from-import/:importId',
+  posAggregatesController.generateFromImport
+)
+
+/**
+ * @route GET /check-source
  * @desc Check if source already exists
  * @access Private
  */
@@ -64,7 +74,7 @@ router.get(
 )
 
 /**
- * @route POST /aggregated-transactions
+ * @route POST /
  * @desc Create new aggregated transaction
  * @access Private
  */
@@ -75,7 +85,7 @@ router.post(
 )
 
 /**
- * @route POST /aggregated-transactions/generate-journal
+ * @route POST /generate-journal
  * @desc Generate journal entries from eligible transactions
  * @access Private
  */
@@ -86,7 +96,7 @@ router.post(
 )
 
 /**
- * @route POST /aggregated-transactions/batch/reconcile
+ * @route POST /batch/reconcile
  * @desc Batch reconcile transactions
  * @access Private
  */

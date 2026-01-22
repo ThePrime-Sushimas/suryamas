@@ -25,7 +25,7 @@ export class PosAggregatesRepository {
       .select(`
         id,
         company_id,
-        branch_id,
+        branch_name,
         source_type,
         source_id,
         source_ref,
@@ -51,11 +51,11 @@ export class PosAggregatesRepository {
       dbQuery = dbQuery.eq('company_id', filter.company_id)
     }
 
-    if (filter?.branch_id !== undefined) {
-      if (filter.branch_id === null) {
-        dbQuery = dbQuery.is('branch_id', null)
+    if (filter?.branch_name !== undefined) {
+      if (filter.branch_name === null) {
+        dbQuery = dbQuery.is('branch_name', null)
       } else {
-        dbQuery = dbQuery.eq('branch_id', filter.branch_id)
+        dbQuery = dbQuery.eq('branch_name', filter.branch_name)
       }
     }
 
@@ -100,7 +100,7 @@ export class PosAggregatesRepository {
     }
 
     if (filter?.search) {
-      dbQuery = dbQuery.or(`source_ref.ilike.%${filter.search}%,branch_id.ilike.%${filter.search}%`)
+      dbQuery = dbQuery.or(`source_ref.ilike.%${filter.search}%,branch_name.ilike.%${filter.search}%`)
     }
 
     // Soft delete filter - exclude deleted by default
@@ -395,7 +395,7 @@ export class PosAggregatesRepository {
     companyId: string,
     dateFrom: string,
     dateTo: string,
-    branchId?: string
+    branchName?: string
   ): Promise<AggregatedTransaction[]> {
     let dbQuery = supabase
       .from('aggregated_transactions')
@@ -406,8 +406,8 @@ export class PosAggregatesRepository {
       .lte('transaction_date', dateTo)
       .is('deleted_at', null)
 
-    if (branchId) {
-      dbQuery = dbQuery.eq('branch_id', branchId)
+    if (branchName) {
+      dbQuery = dbQuery.eq('branch_name', branchName)
     }
 
     const { data, error } = await dbQuery.order('transaction_date', { ascending: true })
@@ -423,7 +423,7 @@ export class PosAggregatesRepository {
     companyId: string,
     dateFrom?: string,
     dateTo?: string,
-    branchId?: string
+    branchName?: string
   ): Promise<{
     total_count: number
     total_gross_amount: number
@@ -450,7 +450,7 @@ export class PosAggregatesRepository {
 
     if (dateFrom) dbQuery = dbQuery.gte('transaction_date', dateFrom)
     if (dateTo) dbQuery = dbQuery.lte('transaction_date', dateTo)
-    if (branchId) dbQuery = dbQuery.eq('branch_id', branchId)
+    if (branchName) dbQuery = dbQuery.eq('branch_name', branchName)
 
     const { data, error } = await dbQuery
 
@@ -530,7 +530,6 @@ export class PosAggregatesRepository {
     return {
       id: row.id as string,
       company_id: row.company_id as string,
-      branch_id: row.branch_id as string | null,
       source_type: row.source_type as AggregatedTransactionSourceType,
       source_id: row.source_id as string,
       source_ref: row.source_ref as string,
@@ -547,7 +546,7 @@ export class PosAggregatesRepository {
       created_at: row.created_at as string,
       version: row.version as number,
       company_name: (company as Record<string, unknown>)?.company_name as string | undefined,
-      branch_name: ((branch as Record<string, unknown>)?.branch_name as string) || (row.branch_id as string),
+      branch_name: ((branch as Record<string, unknown>)?.branch_name as string) || (row.branch_name as string),
       payment_method_name: (paymentMethod as Record<string, unknown>)?.payment_method_name as string | undefined,
     }
   }
@@ -564,7 +563,6 @@ export class PosAggregatesRepository {
     return {
       id: row.id as string,
       company_id: row.company_id as string,
-      branch_id: row.branch_id as string | null,
       source_type: row.source_type as AggregatedTransactionSourceType,
       source_id: row.source_id as string,
       source_ref: row.source_ref as string,
@@ -586,7 +584,7 @@ export class PosAggregatesRepository {
       company_code: (company as Record<string, unknown>)?.company_code as string | undefined,
       company_name: (company as Record<string, unknown>)?.company_name as string | undefined,
       branch_code: (branch as Record<string, unknown>)?.branch_code as string | undefined,
-      branch_name: ((branch as Record<string, unknown>)?.branch_name as string) || (row.branch_id as string),
+      branch_name: ((branch as Record<string, unknown>)?.branch_name as string) || (row.branch_name as string),
       payment_method_code: (paymentMethod as Record<string, unknown>)?.payment_method_code as string | undefined,
       payment_method_name: (paymentMethod as Record<string, unknown>)?.payment_method_name as string | undefined,
       journal: journal as AggregatedTransactionWithDetails['journal'],

@@ -18,7 +18,7 @@ import { z } from '@/lib/openapi'
 export const createAggregatedTransactionSchema = z.object({
   body: z.object({
     company_id: z.string().uuid('Company ID must be a valid UUID'),
-    branch_id: z.string().nullable().optional(),  // branch name from pos_import_lines
+    branch_name: z.string().nullable().optional(),  // branch name from pos_import_lines
     source_type: z.enum(['POS']).default('POS'),
     source_id: z.string().min(1, 'Source ID is required').max(100, 'Source ID must not exceed 100 characters'),
     source_ref: z.string().min(1, 'Source reference is required').max(100, 'Source reference must not exceed 100 characters'),
@@ -42,7 +42,7 @@ export const createAggregatedTransactionSchema = z.object({
  */
 export const updateAggregatedTransactionSchema = z.object({
   body: z.object({
-    branch_id: z.string().nullable().optional(),
+    branch_name: z.string().nullable().optional(),
     source_type: z.enum(['POS']).optional(),
     source_id: z.string().min(1).max(100).optional(),
     source_ref: z.string().min(1).max(100).optional(),
@@ -85,7 +85,7 @@ export const aggregatedTransactionListQuerySchema = z.object({
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().max(100).default(10),
     company_id: z.string().uuid().optional(),
-    branch_id: z.string().nullable().optional(),
+    branch_name: z.string().nullable().optional(),
     source_type: z.enum(['POS']).optional(),
     source_id: z.string().optional(),
     payment_method_id: z.coerce.number().int().positive().optional(),
@@ -109,7 +109,7 @@ export const generateJournalSchema = z.object({
     transaction_ids: z.array(z.string().uuid()).optional(),
     transaction_date_from: z.string().optional(),
     transaction_date_to: z.string().optional(),
-    branch_id: z.string().optional(),
+    branch_name: z.string().optional(),
     payment_method_id: z.number().int().positive().optional(),
     include_unreconciled_only: z.boolean().default(false),
   }),
@@ -134,7 +134,7 @@ export const aggregateFromImportSchema = z.object({
   body: z.object({
     company_id: z.string().uuid('Company ID must be a valid UUID'),
     pos_import_id: z.string().min(1, 'POS import ID is required'),
-    branch_id: z.string().nullable().optional(),
+    branch_name: z.string().nullable().optional(),
   }),
 })
 
@@ -160,7 +160,7 @@ export const aggregatedTransactionImportRowSchema = z.object({
  */
 export const aggregatedTransactionFilterSchema = z.object({
   company_id: z.string().uuid().optional(),
-  branch_id: z.string().nullable().optional(),
+  branch_name: z.string().nullable().optional(),
   source_type: z.string().optional(),
   source_id: z.string().optional(),
   payment_method_id: z.number().int().positive().optional(),

@@ -151,7 +151,7 @@ export class PosAggregatesController {
    */
   getSummary = withValidated(async (req: TransactionListQueryReq, res: Response) => {
     try {
-      const { company_id, transaction_date_from, transaction_date_to, branch_id } = req.validated.query
+      const { company_id, transaction_date_from, transaction_date_to, branch_name } = req.validated.query
       
       if (!company_id) {
         return handleError(res, new Error('company_id is required'))
@@ -161,7 +161,7 @@ export class PosAggregatesController {
         company_id,
         transaction_date_from,
         transaction_date_to,
-        branch_id || undefined
+        branch_name || undefined
       )
       sendSuccess(res, summary, 'Summary retrieved successfully')
     } catch (error: any) {
@@ -224,7 +224,7 @@ export class PosAggregatesController {
    */
   getUnreconciled = withValidated(async (req: TransactionListQueryReq, res: Response) => {
     try {
-      const { company_id, transaction_date_from, transaction_date_to, branch_id } = req.validated.query
+      const { company_id, transaction_date_from, transaction_date_to, branch_name } = req.validated.query
       if (!company_id || !transaction_date_from || !transaction_date_to) {
         return handleError(res, new Error('company_id, transaction_date_from, and transaction_date_to are required'))
       }
@@ -233,13 +233,47 @@ export class PosAggregatesController {
         company_id,
         transaction_date_from,
         transaction_date_to,
-        branch_id || undefined
+        branch_name || undefined
       )
       sendSuccess(res, transactions, 'Unreconciled transactions retrieved successfully')
     } catch (error: any) {
       handleError(res, error)
     }
   })
+
+  /**
+   * Generate aggregated transactions from POS import lines
+   * POST /aggregated-transactions/generate-from-import/:importId
+   */
+  generateFromImport = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const importId = req.params.importId as string
+      const companyId = req.context?.company_id
+      const branchName = req.body.branch_name || req.context?.branch_name
+
+      if (!companyId) {
+        return handleError(res, new Error('Company context required'))
+      }
+
+      if (!importId) {
+        return handleError(res, new Error('Import ID is required'))
+      }
+
+      const result = await posAggregatesService.generateFromPosImportLines(
+        importId,
+        companyId,
+        branchName
+      )
+
+      sendSuccess(res, result, 'Aggregated transactions generated successfully', 200, {
+        created: result.created,
+        skipped: result.skipped,
+        error_count: result.errors.length
+      })
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  }
 }
 
 export const posAggregatesController = new PosAggregatesController()
