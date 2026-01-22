@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
-import { ZodTypeAny } from '@/lib/openapi'
+import { z, ZodTypeAny } from '../lib/openapi'
 import { sendError } from '../utils/response.util'
 import type { AuthRequest } from '../types/common.types'
 
@@ -14,6 +14,25 @@ export type ValidatedRequest<T extends ZodTypeAny> = Request & {
  * Type-safe validated request with auth context
  */
 export type ValidatedAuthRequest<T extends ZodTypeAny> = ValidatedRequest<T> & AuthRequest
+
+/**
+ * Recursively convert query params to handle string | string[] issue
+ * Zod's coerce works better when values are consistently typed
+ */
+function normalizeQueryParams(obj: Record<string, unknown>): Record<string, unknown> {
+  const normalized: Record<string, unknown> = {}
+  
+  for (const [key, value] of Object.entries(obj)) {
+    if (Array.isArray(value)) {
+      // Take first value for single-value params, or join with comma for multi-value
+      normalized[key] = value[0] ?? ''
+    } else {
+      normalized[key] = value
+    }
+  }
+  
+  return normalized
+}
 
 /**
  * Type-safe validation middleware with proper generic inference
@@ -33,9 +52,12 @@ export const validateSchema = <T extends ZodTypeAny>(schema: T) => {
       }
     }
 
+    // Normalize query params to handle string | string[] issue
+    const normalizedQuery = normalizeQueryParams(req.query)
+
     const result = schema.safeParse({
       params: req.params,
-      query: req.query,
+      query: normalizedQuery,
       body: req.body,
     })
     

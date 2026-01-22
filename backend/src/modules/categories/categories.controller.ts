@@ -11,6 +11,7 @@ import {
   UpdateStatusSchema,
   BulkDeleteSchema,
 } from './categories.schema'
+import { ParsedQs } from 'qs'
 
 type CreateCategoryReq = ValidatedAuthRequest<typeof CreateCategorySchema>
 type UpdateCategoryReq = ValidatedAuthRequest<typeof UpdateCategorySchema>
@@ -39,8 +40,8 @@ export class CategoriesController {
 
   trash = async (req: AuthRequest & { sort?: any }, res: Response): Promise<void> => {
     try {
-      const page = parseInt(req.query.page as string) || 1
-      const limit = parseInt(req.query.limit as string) || 10
+      const page = parseInt(getQueryString(req.query.page) || '1') || 1
+      const limit = parseInt(getQueryString(req.query.limit) || '10') || 10
       const result = await categoriesService.trash({ page, limit }, req.sort)
       res.json({
         success: true,
@@ -55,9 +56,9 @@ export class CategoriesController {
 
   search = async (req: AuthRequest & { sort?: any }, res: Response): Promise<void> => {
     try {
-      const q = (req.query.q as string) || ''
-      const page = parseInt(req.query.page as string) || 1
-      const limit = parseInt(req.query.limit as string) || 10
+      const q = getQueryString(req.query.q) || ''
+      const page = parseInt(getQueryString(req.query.page) || '1') || 1
+      const limit = parseInt(getQueryString(req.query.limit) || '10') || 10
       const result = await categoriesService.search(q, { page, limit }, req.sort)
       res.json({
         success: true,
@@ -72,7 +73,7 @@ export class CategoriesController {
 
   getById = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { id } = req.params
+      const id = getQueryString(req.params.id)
       const category = await categoriesService.getById(id)
       sendSuccess(res, category, 'Category retrieved successfully')
     } catch (error: any) {
@@ -101,7 +102,7 @@ export class CategoriesController {
 
   delete = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { id } = req.params
+      const id = getQueryString(req.params.id)
       await categoriesService.delete(id, req.user?.id)
       sendSuccess(res, null, 'Category deleted successfully')
     } catch (error: any) {
@@ -111,7 +112,7 @@ export class CategoriesController {
 
   restore = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { id } = req.params
+      const id = getQueryString(req.params.id)
       await categoriesService.restore(id, req.user?.id)
       const category = await categoriesService.getById(id)
       sendSuccess(res, category, 'Category restored successfully')
@@ -142,3 +143,7 @@ export class CategoriesController {
 }
 
 export const categoriesController = new CategoriesController()
+function getQueryString(page: string | ParsedQs | (string | ParsedQs)[] | undefined): string {
+  throw new Error('Function not implemented.')
+}
+
