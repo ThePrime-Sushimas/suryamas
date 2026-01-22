@@ -61,6 +61,7 @@ export interface AggregatedTransaction {
   created_at: string
   updated_at: string
   deleted_at: string | null
+  deleted_by: string | null  // User who deleted the transaction
   version: number  // Default: 1
   status: AggregatedTransactionStatus  // Default: 'READY'
 }

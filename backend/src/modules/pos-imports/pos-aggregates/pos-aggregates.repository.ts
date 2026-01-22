@@ -576,6 +576,7 @@ export class PosAggregatesRepository {
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
       deleted_at: row.deleted_at as string | null,
+      deleted_by: row.deleted_by as string | null,
       version: row.version as number,
       status: row.status as AggregatedTransactionStatus,
       company_code: (company as Record<string, unknown>)?.company_code as string | undefined,
