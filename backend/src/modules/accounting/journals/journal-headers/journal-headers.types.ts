@@ -20,6 +20,7 @@ export interface JournalHeader {
   exchange_rate: number
   status: JournalStatus
   is_reversed: boolean
+  is_auto?: boolean
   reversed_by?: string
   reversal_date?: string
   reversal_reason?: string

@@ -42,8 +42,7 @@ export class PosAggregatesRepository {
         created_at,
         version,
         companies(id, company_code, company_name),
-        branches(id, branch_code, branch_name),
-        payment_methods(id, payment_method_code, payment_method_name)
+        payment_methods(id, code, name)
       `, { count: 'exact' })
 
     // Apply filters
@@ -136,8 +135,7 @@ export class PosAggregatesRepository {
       .select(`
         *,
         companies(id, company_code, company_name),
-        branches(id, branch_code, branch_name),
-        payment_methods(id, payment_method_code, payment_method_name),
+        payment_methods(id, code, name),
         journal:journal_headers(id, journal_number, status, is_auto)
       `)
       .eq('id', id)
@@ -524,7 +522,6 @@ export class PosAggregatesRepository {
    */
   private mapToListItem(row: Record<string, unknown>): AggregatedTransactionListItem {
     const company = Array.isArray(row.companies) ? row.companies[0] : row.companies
-    const branch = Array.isArray(row.branches) ? row.branches[0] : row.branches
     const paymentMethod = Array.isArray(row.payment_methods) ? row.payment_methods[0] : row.payment_methods
 
     return {
@@ -546,8 +543,8 @@ export class PosAggregatesRepository {
       created_at: row.created_at as string,
       version: row.version as number,
       company_name: (company as Record<string, unknown>)?.company_name as string | undefined,
-      branch_name: ((branch as Record<string, unknown>)?.branch_name as string) || (row.branch_name as string),
-      payment_method_name: (paymentMethod as Record<string, unknown>)?.payment_method_name as string | undefined,
+      branch_name: row.branch_name as string,
+      payment_method_name: (paymentMethod as Record<string, unknown>)?.name as string | undefined,
     }
   }
 
@@ -556,13 +553,13 @@ export class PosAggregatesRepository {
    */
   private mapToWithDetails(row: Record<string, unknown>): AggregatedTransactionWithDetails {
     const company = Array.isArray(row.companies) ? row.companies[0] : row.companies
-    const branch = Array.isArray(row.branches) ? row.branches[0] : row.branches
     const paymentMethod = Array.isArray(row.payment_methods) ? row.payment_methods[0] : row.payment_methods
     const journal = Array.isArray(row.journal) ? row.journal[0] : row.journal
 
     return {
       id: row.id as string,
       company_id: row.company_id as string,
+      branch_name: row.branch_name as string | null,
       source_type: row.source_type as AggregatedTransactionSourceType,
       source_id: row.source_id as string,
       source_ref: row.source_ref as string,
@@ -583,10 +580,8 @@ export class PosAggregatesRepository {
       status: row.status as AggregatedTransactionStatus,
       company_code: (company as Record<string, unknown>)?.company_code as string | undefined,
       company_name: (company as Record<string, unknown>)?.company_name as string | undefined,
-      branch_code: (branch as Record<string, unknown>)?.branch_code as string | undefined,
-      branch_name: ((branch as Record<string, unknown>)?.branch_name as string) || (row.branch_name as string),
-      payment_method_code: (paymentMethod as Record<string, unknown>)?.payment_method_code as string | undefined,
-      payment_method_name: (paymentMethod as Record<string, unknown>)?.payment_method_name as string | undefined,
+      payment_method_code: (paymentMethod as Record<string, unknown>)?.code as string | undefined,
+      payment_method_name: (paymentMethod as Record<string, unknown>)?.name as string | undefined,
       journal: journal as AggregatedTransactionWithDetails['journal'],
     }
   }
