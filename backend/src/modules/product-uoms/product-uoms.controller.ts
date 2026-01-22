@@ -4,6 +4,8 @@ import { productUomsService } from './product-uoms.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { withValidated } from '../../utils/handler'
+
+import { getParamString } from '../../utils/validation.util'
 import type { ValidatedRequest } from '../../middleware/validation.middleware'
 import {
   productUomIdSchema,
@@ -19,7 +21,7 @@ type UpdateProductUomReq = ValidatedRequest<typeof updateProductUomSchema>
 export class ProductUomsController {
   list = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { productId } = req.params
+      const productId = getParamString(req.params.productId)
       const { includeDeleted } = req.query
       const uoms = await productUomsService.getByProductId(productId, includeDeleted === 'true')
       sendSuccess(res, uoms, 'UOMs retrieved successfully')
@@ -50,7 +52,7 @@ export class ProductUomsController {
 
   delete = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { uomId } = req.params
+      const uomId = getParamString(req.params.uomId)
       await productUomsService.delete(uomId, req.user?.id)
       sendSuccess(res, null, 'UOM deleted successfully')
     } catch (error: any) {
@@ -60,7 +62,7 @@ export class ProductUomsController {
 
   restore = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { uomId } = req.params
+      const uomId = getParamString(req.params.uomId)
       const uom = await productUomsService.restore(uomId, req.user?.id)
       sendSuccess(res, uom, 'UOM restored successfully')
     } catch (error: any) {

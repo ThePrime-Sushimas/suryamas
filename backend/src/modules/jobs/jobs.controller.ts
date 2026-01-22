@@ -2,6 +2,8 @@ import { Response, NextFunction } from 'express'
 import { AuthRequest } from '@/types/common.types'
 import { jobsService } from './jobs.service'
 import { sendSuccess, sendError } from '@/utils/response.util'
+
+import { getParamString } from '../../utils/validation.util'
 import { logInfo, logError } from '@/config/logger'
 import { JobType, JobModule } from './jobs.types'
 
@@ -52,7 +54,7 @@ export class JobsController {
   // -----------------------------
   async getJobById(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const userId = req.user!.id
       const companyId = this.getCompanyId(req)
 
@@ -108,7 +110,7 @@ export class JobsController {
   // -----------------------------
   async uploadJobFile(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const userId = req.user!.id
       const companyId = this.getCompanyId(req)
 
@@ -153,7 +155,7 @@ export class JobsController {
   // -----------------------------
   async cancelJob(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const userId = req.user!.id
       const companyId = this.getCompanyId(req)
 

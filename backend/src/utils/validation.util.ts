@@ -34,3 +34,28 @@ export function validatePhone(phone: string): boolean {
   const digits = phone.replace(/\D/g, '')
   return phoneRegex.test(phone) && digits.length >= 10
 }
+
+/**
+ * Safely extract string value from Express request parameters
+ * Express params can be string | string[], this ensures we get a string
+ */
+export function getParamString(param: string | string[] | undefined): string {
+  if (Array.isArray(param)) {
+    return param[0] || ''
+  }
+  return param || ''
+}
+
+/**
+ * Safely extract string value from Express query parameters
+ * Express query can be string | string[] | ParsedQs | ParsedQs[], this ensures we get a string
+ */
+export function getQueryString(query: any): string {
+  if (Array.isArray(query)) {
+    return query[0] || ''
+  }
+  if (typeof query === 'object' && query !== null) {
+    return ''
+  }
+  return query || ''
+}

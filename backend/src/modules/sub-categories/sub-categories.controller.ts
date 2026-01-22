@@ -4,6 +4,8 @@ import { subCategoriesService } from './sub-categories.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { withValidated } from '../../utils/handler'
+
+import { getParamString } from '../../utils/validation.util'
 import type { ValidatedRequest } from '../../middleware/validation.middleware'
 import {
   subCategoryIdSchema,
@@ -58,7 +60,7 @@ export class SubCategoriesController {
 
   getById = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const subCategory = await subCategoriesService.getById(id)
 
       if (!subCategory) {
@@ -73,7 +75,7 @@ export class SubCategoriesController {
 
   getByCategory = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { categoryId } = req.params
+      const categoryId = getParamString(req.params.categoryId)
       const subCategories = await subCategoriesService.getByCategory(categoryId)
       sendSuccess(res, subCategories, 'SubCategories retrieved successfully')
     } catch (error: any) {
@@ -102,7 +104,7 @@ export class SubCategoriesController {
 
   delete = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       await subCategoriesService.delete(id, req.user?.id)
       sendSuccess(res, null, 'SubCategory deleted successfully')
     } catch (error: any) {
@@ -112,7 +114,7 @@ export class SubCategoriesController {
 
   restore = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       await subCategoriesService.restore(id, req.user?.id)
       const subCategory = await subCategoriesService.getById(id)
       sendSuccess(res, subCategory, 'SubCategory restored successfully')

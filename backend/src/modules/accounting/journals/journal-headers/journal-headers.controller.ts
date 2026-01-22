@@ -4,6 +4,8 @@ import { sendSuccess } from '../../../../utils/response.util'
 import { handleError } from '../../../../utils/error-handler.util'
 import { getPaginationParams } from '../../../../utils/pagination.util'
 import { requireEmployee, getEmployeeId } from '../../../../utils/employee.util'
+
+import { getParamString } from '../../../../utils/validation.util'
 import { ValidatedAuthRequest } from '../../../../middleware/validation.middleware'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../../../types/request.types'
 import { 
@@ -45,7 +47,7 @@ export class JournalHeadersController {
   async getById(req: AuthenticatedRequest, res: Response) {
     try {
       const companyId = this.getCompanyId(req)
-      const journal = await journalHeadersService.getById(req.params.id, companyId)
+      const journal = await journalHeadersService.getById(getParamString(req.params.id), companyId)
       sendSuccess(res, journal)
     } catch (error) {
       handleError(res, error)
@@ -98,7 +100,7 @@ export class JournalHeadersController {
       const companyId = this.getCompanyId(req)
       const employeeId = getEmployeeId(req)
       
-      await journalHeadersService.delete(req.params.id, employeeId, companyId)
+      await journalHeadersService.delete(getParamString(req.params.id), employeeId, companyId)
       sendSuccess(res, null, 'Journal deleted')
     } catch (error) {
       handleError(res, error)
@@ -111,7 +113,7 @@ export class JournalHeadersController {
       const companyId = this.getCompanyId(req)
       const employeeId = getEmployeeId(req)
       
-      await journalHeadersService.submit(req.params.id, employeeId, companyId)
+      await journalHeadersService.submit(getParamString(req.params.id), employeeId, companyId)
       sendSuccess(res, null, 'Journal submitted for approval')
     } catch (error) {
       handleError(res, error)
@@ -124,7 +126,7 @@ export class JournalHeadersController {
       const companyId = this.getCompanyId(req)
       const employeeId = getEmployeeId(req)
       
-      await journalHeadersService.approve(req.params.id, employeeId, companyId)
+      await journalHeadersService.approve(getParamString(req.params.id), employeeId, companyId)
       sendSuccess(res, null, 'Journal approved')
     } catch (error) {
       handleError(res, error)
@@ -156,7 +158,7 @@ export class JournalHeadersController {
       const companyId = this.getCompanyId(req)
       const employeeId = getEmployeeId(req)
       
-      await journalHeadersService.post(req.params.id, employeeId, companyId)
+      await journalHeadersService.post(getParamString(req.params.id), employeeId, companyId)
       sendSuccess(res, null, 'Journal posted to ledger')
     } catch (error) {
       handleError(res, error)
@@ -188,7 +190,7 @@ export class JournalHeadersController {
       const companyId = this.getCompanyId(req)
       const employeeId = getEmployeeId(req)
       
-      await journalHeadersService.restore(req.params.id, employeeId, companyId)
+      await journalHeadersService.restore(getParamString(req.params.id), employeeId, companyId)
       sendSuccess(res, null, 'Journal restored')
     } catch (error) {
       handleError(res, error)

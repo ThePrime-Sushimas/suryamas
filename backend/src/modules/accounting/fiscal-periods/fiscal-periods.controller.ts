@@ -5,6 +5,8 @@ import { handleError } from '../../../utils/error-handler.util'
 import { logInfo } from '../../../config/logger'
 import { getPaginationParams } from '../../../utils/pagination.util'
 import { handleExportToken, handleExport } from '../../../utils/export.util'
+
+import { getParamString } from '../../../utils/validation.util'
 import { 
   createFiscalPeriodSchema, 
   updateFiscalPeriodSchema, 
@@ -128,11 +130,11 @@ export class FiscalPeriodsController {
       const companyId = this.getCompanyId(req)
       this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('GET_BY_ID', correlationId, req.user?.id, { 
-        period_id: req.params.id,
+        period_id: getParamString(req.params.id),
         company_id: companyId
       })
       
-      const period = await fiscalPeriodsService.getById(req.params.id, companyId, correlationId)
+      const period = await fiscalPeriodsService.getById(getParamString(req.params.id), companyId, correlationId)
       
       this.logResponse('GET_BY_ID', correlationId, true, Date.now() - startTime)
       sendSuccess(res, period)
@@ -222,16 +224,16 @@ export class FiscalPeriodsController {
       }
       
       this.logRequest('DELETE', correlationId, req.user.id, { 
-        period_id: req.params.id,
+        period_id: getParamString(req.params.id),
         company_id: companyId
       })
       
-      await fiscalPeriodsService.delete(req.params.id, req.user.id, companyId, correlationId)
+      await fiscalPeriodsService.delete(getParamString(req.params.id), req.user.id, companyId, correlationId)
       
       this.logResponse('DELETE', correlationId, true, Date.now() - startTime)
       logInfo('Fiscal period deleted', {
         correlation_id: correlationId,
-        period_id: req.params.id,
+        period_id: getParamString(req.params.id),
         user: req.user.id
       })
       sendSuccess(res, null, 'Fiscal period deleted')
@@ -279,11 +281,11 @@ export class FiscalPeriodsController {
       }
       
       this.logRequest('RESTORE', correlationId, req.user.id, { 
-        period_id: req.params.id,
+        period_id: getParamString(req.params.id),
         company_id: companyId
       })
       
-      await fiscalPeriodsService.restore(req.params.id, req.user.id, companyId, correlationId)
+      await fiscalPeriodsService.restore(getParamString(req.params.id), req.user.id, companyId, correlationId)
       
       this.logResponse('RESTORE', correlationId, true, Date.now() - startTime)
       sendSuccess(res, null, 'Fiscal period restored')

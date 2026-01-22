@@ -5,6 +5,8 @@ import { handleError } from '../../../utils/error-handler.util'
 import { logInfo } from '../../../config/logger'
 import { getPaginationParams } from '../../../utils/pagination.util'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../../utils/export.util'
+
+import { getParamString } from '../../../utils/validation.util'
 import { 
   createChartOfAccountSchema, 
   updateChartOfAccountSchema, 
@@ -191,11 +193,11 @@ export class ChartOfAccountsController {
       const companyId = this.getCompanyId(req)
       this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('GET_BY_ID', correlationId, req.user?.id, { 
-        account_id: req.params.id,
+        account_id: getParamString(req.params.id),
         company_id: companyId
       })
       
-      const account = await chartOfAccountsService.getById(req.params.id, companyId)
+      const account = await chartOfAccountsService.getById(getParamString(req.params.id), companyId)
       
       this.logResponse('GET_BY_ID', correlationId, true, Date.now() - startTime)
       sendSuccess(res, account)
@@ -243,16 +245,16 @@ export class ChartOfAccountsController {
       const companyId = this.getCompanyId(req)
       this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('DELETE', correlationId, req.user.id, { 
-        account_id: req.params.id,
+        account_id: getParamString(req.params.id),
         company_id: companyId
       })
       
-      await chartOfAccountsService.delete(req.params.id, req.user.id, companyId)
+      await chartOfAccountsService.delete(getParamString(req.params.id), req.user.id, companyId)
       
       this.logResponse('DELETE', correlationId, true, Date.now() - startTime)
       logInfo('Chart of account deleted', {
         correlation_id: correlationId,
-        account_id: req.params.id,
+        account_id: getParamString(req.params.id),
         user: req.user.id
       })
       sendSuccess(res, null, 'Chart of account deleted')
@@ -397,16 +399,16 @@ export class ChartOfAccountsController {
       const companyId = this.getCompanyId(req)
       this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('RESTORE', correlationId, req.user!.id, { 
-        account_id: req.params.id,
+        account_id: getParamString(req.params.id),
         company_id: companyId
       })
       
-      await chartOfAccountsService.restore(req.params.id, req.user!.id, companyId)
+      await chartOfAccountsService.restore(getParamString(req.params.id), req.user!.id, companyId)
       
       this.logResponse('RESTORE', correlationId, true, Date.now() - startTime)
       logInfo('Chart of account restored', {
         correlation_id: correlationId,
-        account_id: req.params.id,
+        account_id: getParamString(req.params.id),
         user: req.user!.id
       })
       sendSuccess(res, null, 'Chart of account restored')

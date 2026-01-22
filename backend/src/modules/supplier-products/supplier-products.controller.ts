@@ -5,6 +5,8 @@ import { sendSuccess, sendError } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { logInfo } from '../../config/logger'
 import { withValidated } from '../../utils/handler'
+
+import { getParamString } from '../../utils/validation.util'
 import type { ValidatedRequest } from '../../middleware/validation.middleware'
 import {
   createSupplierProductSchema,
@@ -40,7 +42,7 @@ export class SupplierProductsController {
 
   findById = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const includeRelations = req.query.include_relations === 'true'
       const includeDeleted = req.query.include_deleted === 'true'
       const supplierProduct = await supplierProductsService.findById(id, includeRelations, includeDeleted)
@@ -53,7 +55,7 @@ export class SupplierProductsController {
 
   findBySupplier = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const supplierId = req.params.supplier_id
+      const supplierId = getParamString(req.params.supplier_id)
       const includeRelations = req.query.include_relations === 'true'
 
       const supplierProducts = await supplierProductsService.findBySupplier(supplierId, includeRelations)
@@ -65,7 +67,7 @@ export class SupplierProductsController {
 
   findByProduct = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { product_id } = req.params
+      const product_id = getParamString(req.params.product_id)
       const includeRelations = req.query.include_relations === 'true'
       
       const supplierProducts = await supplierProductsService.findByProduct(product_id, includeRelations)
@@ -120,7 +122,7 @@ export class SupplierProductsController {
 
   delete = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       await supplierProductsService.delete(id, req.user?.id)
       
       sendSuccess(res, null, 'Supplier product deleted successfully')
@@ -131,7 +133,7 @@ export class SupplierProductsController {
 
   restore = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const supplierProduct = await supplierProductsService.restore(id, req.user?.id)
       
       sendSuccess(res, supplierProduct, 'Supplier product restored successfully')

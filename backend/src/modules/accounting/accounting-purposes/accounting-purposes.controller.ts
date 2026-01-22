@@ -5,6 +5,8 @@ import { handleError } from '../../../utils/error-handler.util'
 import { logInfo } from '../../../config/logger'
 import { getPaginationParams } from '../../../utils/pagination.util'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../../utils/export.util'
+
+import { getParamString } from '../../../utils/validation.util'
 import { 
   createAccountingPurposeSchema, 
   updateAccountingPurposeSchema, 
@@ -174,11 +176,11 @@ export class AccountingPurposesController {
       const companyId = this.getCompanyId(req)
       this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('GET_BY_ID', correlationId, req.user?.id, { 
-        purpose_id: req.params.id,
+        purpose_id: getParamString(req.params.id),
         company_id: companyId
       })
       
-      const purpose = await accountingPurposesService.getById(req.params.id, companyId, correlationId)
+      const purpose = await accountingPurposesService.getById(getParamString(req.params.id), companyId, correlationId)
       
       this.logResponse('GET_BY_ID', correlationId, true, Date.now() - startTime)
       sendSuccess(res, purpose)
@@ -236,16 +238,16 @@ export class AccountingPurposesController {
       }
       
       this.logRequest('DELETE', correlationId, req.user.id, { 
-        purpose_id: req.params.id,
+        purpose_id: getParamString(req.params.id),
         company_id: companyId
       })
       
-      await accountingPurposesService.delete(req.params.id, req.user.id, companyId, correlationId)
+      await accountingPurposesService.delete(getParamString(req.params.id), req.user.id, companyId, correlationId)
       
       this.logResponse('DELETE', correlationId, true, Date.now() - startTime)
       logInfo('Accounting purpose deleted', {
         correlation_id: correlationId,
-        purpose_id: req.params.id,
+        purpose_id: getParamString(req.params.id),
         user: req.user.id
       })
       sendSuccess(res, null, 'Accounting purpose deleted')
@@ -392,11 +394,11 @@ export class AccountingPurposesController {
       }
       
       this.logRequest('RESTORE', correlationId, req.user.id, { 
-        purpose_id: req.params.id,
+        purpose_id: getParamString(req.params.id),
         company_id: companyId
       })
       
-      await accountingPurposesService.restore(req.params.id, req.user.id, companyId, correlationId)
+      await accountingPurposesService.restore(getParamString(req.params.id), req.user.id, companyId, correlationId)
       
       this.logResponse('RESTORE', correlationId, true, Date.now() - startTime)
       sendSuccess(res, null, 'Accounting purpose restored')

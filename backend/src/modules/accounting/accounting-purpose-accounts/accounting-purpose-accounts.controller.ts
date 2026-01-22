@@ -5,6 +5,8 @@ import { handleError } from '../../../utils/error-handler.util'
 import { logInfo } from '../../../config/logger'
 import { getPaginationParams } from '../../../utils/pagination.util'
 import { handleExportToken, handleExport } from '../../../utils/export.util'
+
+import { getParamString } from '../../../utils/validation.util'
 import { 
   createAccountingPurposeAccountSchema, 
   updateAccountingPurposeAccountSchema, 
@@ -117,11 +119,11 @@ export class AccountingPurposeAccountsController {
       const companyId = this.getCompanyId(req)
       await this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('GET_BY_ID', correlationId, req.user?.id, { 
-        id: req.params.id,
+        id: getParamString(req.params.id),
         company_id: companyId
       })
       
-      const purposeAccount = await accountingPurposeAccountsService.getById(req.params.id, companyId)
+      const purposeAccount = await accountingPurposeAccountsService.getById(getParamString(req.params.id), companyId)
       
       this.logResponse('GET_BY_ID', correlationId, true, Date.now() - startTime)
       sendSuccess(res, purposeAccount)
@@ -174,16 +176,16 @@ export class AccountingPurposeAccountsController {
       const companyId = this.getCompanyId(req)
       await this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('DELETE', correlationId, req.user.id, { 
-        id: req.params.id,
+        id: getParamString(req.params.id),
         company_id: companyId
       })
       
-      await accountingPurposeAccountsService.delete(req.params.id, req.user.id, companyId)
+      await accountingPurposeAccountsService.delete(getParamString(req.params.id), req.user.id, companyId)
       
       this.logResponse('DELETE', correlationId, true, Date.now() - startTime)
       logInfo('Purpose account mapping deleted', {
         correlation_id: correlationId,
-        id: req.params.id,
+        id: getParamString(req.params.id),
         user: req.user.id
       })
       sendSuccess(res, null, 'Purpose account mapping deleted')
@@ -330,16 +332,16 @@ export class AccountingPurposeAccountsController {
       const companyId = this.getCompanyId(req)
       await this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('RESTORE', correlationId, req.user.id, { 
-        id: req.params.id,
+        id: getParamString(req.params.id),
         company_id: companyId
       })
       
-      await accountingPurposeAccountsService.restore(req.params.id, req.user.id, companyId)
+      await accountingPurposeAccountsService.restore(getParamString(req.params.id), req.user.id, companyId)
       
       this.logResponse('RESTORE', correlationId, true, Date.now() - startTime)
       logInfo('Purpose account mapping restored', {
         correlation_id: correlationId,
-        id: req.params.id,
+        id: getParamString(req.params.id),
         user: req.user.id
       })
       sendSuccess(res, null, 'Purpose account mapping restored')

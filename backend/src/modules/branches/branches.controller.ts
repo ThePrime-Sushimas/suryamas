@@ -4,6 +4,7 @@ import { CreateBranchSchema, UpdateBranchSchema, BulkUpdateStatusSchema } from '
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { getPaginationParams } from '../../utils/pagination.util'
+import { getParamString } from '../../utils/validation.util'
 import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
 
@@ -39,7 +40,8 @@ export class BranchesController {
 
   getById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const branch = await branchesService.getById(req.params.id)
+      const id = getParamString(req.params.id)
+      const branch = await branchesService.getById(id)
       sendSuccess(res, branch, 'Branch retrieved')
     } catch (error: any) {
       handleError(res, error)
@@ -48,7 +50,8 @@ export class BranchesController {
 
   delete = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      await branchesService.delete(req.params.id, req.user.id)
+      const id = getParamString(req.params.id)
+      await branchesService.delete(id, req.user.id)
       sendSuccess(res, null, 'Branch deleted')
     } catch (error: any) {
       handleError(res, error)

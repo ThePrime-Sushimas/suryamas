@@ -6,6 +6,8 @@ import { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/req
 import { getPaginationParams } from '../../utils/pagination.util'
 import { CreateMetricUnitSchema, UpdateMetricUnitSchema, BulkUpdateStatusSchema, UuidParamSchema } from './metricUnits.schema'
 import { handleError } from '../../utils/error-handler.util'
+
+import { getParamString } from '../../utils/validation.util'
 import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 
 export class MetricUnitsController {
@@ -39,8 +41,8 @@ export class MetricUnitsController {
   async getById(req: AuthenticatedRequest, res: Response) {
     try {
       UuidParamSchema.parse(req.params)
-      const metricUnit = await metricUnitsService.getById(req.params.id)
-      logInfo('Metric unit retrieved', { id: req.params.id, userId: req.user?.id })
+      const metricUnit = await metricUnitsService.getById(getParamString(req.params.id))
+      logInfo('Metric unit retrieved', { id: getParamString(req.params.id), userId: req.user?.id })
       sendSuccess(res, metricUnit)
     } catch (error) {
       handleError(res, error)
@@ -72,8 +74,8 @@ export class MetricUnitsController {
   async delete(req: AuthenticatedRequest, res: Response) {
     try {
       UuidParamSchema.parse(req.params)
-      await metricUnitsService.delete(req.params.id, req.user?.id)
-      logInfo('Metric unit deleted', { id: req.params.id, userId: req.user?.id })
+      await metricUnitsService.delete(getParamString(req.params.id), req.user?.id)
+      logInfo('Metric unit deleted', { id: getParamString(req.params.id), userId: req.user?.id })
       sendSuccess(res, null, 'Deleted')
     } catch (error) {
       handleError(res, error)
@@ -83,8 +85,8 @@ export class MetricUnitsController {
   async restore(req: AuthenticatedRequest, res: Response) {
     try {
       UuidParamSchema.parse(req.params)
-      const metricUnit = await metricUnitsService.restore(req.params.id, req.user?.id)
-      logInfo('Metric unit restored', { id: req.params.id, userId: req.user?.id })
+      const metricUnit = await metricUnitsService.restore(getParamString(req.params.id), req.user?.id)
+      logInfo('Metric unit restored', { id: getParamString(req.params.id), userId: req.user?.id })
       sendSuccess(res, metricUnit, 'Restored')
     } catch (error) {
       handleError(res, error)

@@ -3,6 +3,7 @@ import { categoriesService } from './categories.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { withValidated } from '../../utils/handler'
+import { getParamString, getQueryString } from '../../utils/validation.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type { AuthRequest } from '../../types/common.types'
 import {
@@ -11,7 +12,6 @@ import {
   UpdateStatusSchema,
   BulkDeleteSchema,
 } from './categories.schema'
-import { ParsedQs } from 'qs'
 
 type CreateCategoryReq = ValidatedAuthRequest<typeof CreateCategorySchema>
 type UpdateCategoryReq = ValidatedAuthRequest<typeof UpdateCategorySchema>
@@ -73,7 +73,7 @@ export class CategoriesController {
 
   getById = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const id = getQueryString(req.params.id)
+      const id = getParamString(req.params.id)
       const category = await categoriesService.getById(id)
       sendSuccess(res, category, 'Category retrieved successfully')
     } catch (error: any) {
@@ -102,7 +102,7 @@ export class CategoriesController {
 
   delete = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const id = getQueryString(req.params.id)
+      const id = getParamString(req.params.id)
       await categoriesService.delete(id, req.user?.id)
       sendSuccess(res, null, 'Category deleted successfully')
     } catch (error: any) {
@@ -112,7 +112,7 @@ export class CategoriesController {
 
   restore = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const id = getQueryString(req.params.id)
+      const id = getParamString(req.params.id)
       await categoriesService.restore(id, req.user?.id)
       const category = await categoriesService.getById(id)
       sendSuccess(res, category, 'Category restored successfully')
@@ -143,7 +143,4 @@ export class CategoriesController {
 }
 
 export const categoriesController = new CategoriesController()
-function getQueryString(page: string | ParsedQs | (string | ParsedQs)[] | undefined): string {
-  throw new Error('Function not implemented.')
-}
 

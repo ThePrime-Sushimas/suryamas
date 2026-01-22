@@ -5,6 +5,8 @@ import { handleError } from '../../utils/error-handler.util'
 import { logInfo } from '../../config/logger'
 import { getPaginationParams } from '../../utils/pagination.util'
 import { handleExportToken, handleExport } from '../../utils/export.util'
+
+import { getParamString } from '../../utils/validation.util'
 import { 
   createPaymentMethodSchema, 
   updatePaymentMethodSchema, 
@@ -111,7 +113,7 @@ export class PaymentMethodsController {
     
     try {
       const companyId = this.getCompanyId(req)
-      const id = parseInt(req.params.id)
+      const id = parseInt(getParamString(req.params.id))
       
       this.logRequest('GET_BY_ID', correlationId, req.user?.id, { id, company_id: companyId })
       
@@ -157,7 +159,7 @@ export class PaymentMethodsController {
     
     try {
       const companyId = this.getCompanyId(req)
-      const id = parseInt(req.params.id)
+      const id = parseInt(getParamString(req.params.id))
       
       this.logRequest('DELETE', correlationId, req.user.id, { id, company_id: companyId })
       

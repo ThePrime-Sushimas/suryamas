@@ -9,6 +9,8 @@ import { RolesService } from './roles.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { withValidated } from '../../utils/handler'
+
+import { getParamString } from '../../utils/validation.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   createRoleSchema,
@@ -36,7 +38,7 @@ export class RolesController {
 
   findById = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const role = await this.service.findById(id)
 
       if (!role) {
@@ -76,7 +78,7 @@ export class RolesController {
 
   delete = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const success = await this.service.delete(id, req.user?.id)
 
       if (!success) {

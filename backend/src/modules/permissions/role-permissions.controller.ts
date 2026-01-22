@@ -9,6 +9,8 @@ import { RolePermissionsService } from './role-permissions.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logError } from '../../config/logger'
 import { withValidated } from '../../utils/handler'
+
+import { getParamString } from '../../utils/validation.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   updateRolePermissionSchema,
@@ -27,7 +29,7 @@ export class RolePermissionsController {
 
   getByRoleId = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { roleId } = req.params
+      const roleId = getParamString(req.params.roleId)
       const permissions = await this.service.getByRoleId(roleId)
       sendSuccess(res, permissions, 'Role permissions retrieved successfully')
     } catch (error: any) {

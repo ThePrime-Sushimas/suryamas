@@ -4,6 +4,8 @@ import { sendSuccess, sendError } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { logInfo, logError } from '../../config/logger'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
+
+import { getParamString } from '../../utils/validation.util'
 import type { AuthenticatedPaginatedRequest, AuthenticatedRequest } from '../../types/request.types'
 import type { AuthRequest } from '../../types/common.types'
 import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
@@ -109,7 +111,7 @@ export class EmployeesController {
 
   async getById(req: AuthenticatedRequest, res: Response) {
     try {
-      const employee = await employeesService.getById(req.params.id)
+      const employee = await employeesService.getById(getParamString(req.params.id))
       sendSuccess(res, employee)
     } catch (error) {
       handleError(res, error)
@@ -129,8 +131,8 @@ export class EmployeesController {
 
   async delete(req: AuthenticatedRequest, res: Response) {
     try {
-      await employeesService.delete(req.params.id, req.user.id)
-      logInfo('Employee deleted', { id: req.params.id, user: req.user.id })
+      await employeesService.delete(getParamString(req.params.id), req.user.id)
+      logInfo('Employee deleted', { id: getParamString(req.params.id), user: req.user.id })
       sendSuccess(res, null, 'Employee deleted')
     } catch (error) {
       handleError(res, error)
@@ -139,8 +141,8 @@ export class EmployeesController {
 
   async restore(req: AuthenticatedRequest, res: Response) {
     try {
-      await employeesService.restore(req.params.id, req.user.id)
-      logInfo('Employee restored', { id: req.params.id, user: req.user.id })
+      await employeesService.restore(getParamString(req.params.id), req.user.id)
+      logInfo('Employee restored', { id: getParamString(req.params.id), user: req.user.id })
       sendSuccess(res, null, 'Employee restored')
     } catch (error) {
       handleError(res, error)

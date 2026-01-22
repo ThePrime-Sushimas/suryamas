@@ -4,6 +4,8 @@ import { UsersService } from './users.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { withValidated } from '../../utils/handler'
+
+import { getParamString } from '../../utils/validation.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   userIdSchema,
@@ -34,7 +36,7 @@ export class UsersController {
 
   getUserById = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { userId } = req.params
+      const userId = getParamString(req.params.userId)
       const user = await this.service.getUserByEmployeeId(userId)
 
       if (!user) {
@@ -49,7 +51,7 @@ export class UsersController {
 
   getUserRole = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { userId } = req.params
+      const userId = getParamString(req.params.userId)
       const userRole = await this.service.getUserRoleByEmployeeId(userId)
 
       if (!userRole) {
@@ -74,7 +76,7 @@ export class UsersController {
 
   removeRole = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { userId } = req.params
+      const userId = getParamString(req.params.userId)
       await this.service.removeRoleByEmployeeId(userId, req.user?.id)
       sendSuccess(res, null, 'Role removed successfully')
     } catch (error: any) {

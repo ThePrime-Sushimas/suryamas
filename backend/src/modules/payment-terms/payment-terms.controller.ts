@@ -5,6 +5,8 @@ import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { logInfo } from '../../config/logger'
 import { withValidated } from '../../utils/handler'
+
+import { getParamString } from '../../utils/validation.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   createPaymentTermSchema,
@@ -39,7 +41,7 @@ export class PaymentTermsController {
 
   findById = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const id = parseInt(req.params.id)
+      const id = parseInt(getParamString(req.params.id))
       const includeDeleted = req.query.includeDeleted === 'true'
       const term = await paymentTermsService.findById(id, includeDeleted)
 
@@ -82,7 +84,7 @@ export class PaymentTermsController {
 
   delete = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const id = parseInt(req.params.id)
+      const id = parseInt(getParamString(req.params.id))
       const userId = req.user?.id
       await paymentTermsService.delete(id, userId)
       sendSuccess(res, null, 'Payment term deleted successfully')
@@ -93,7 +95,7 @@ export class PaymentTermsController {
 
   restore = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const id = parseInt(req.params.id)
+      const id = parseInt(getParamString(req.params.id))
       const userId = req.user?.id
       const term = await paymentTermsService.restore(id, userId)
       sendSuccess(res, term, 'Payment term restored successfully')

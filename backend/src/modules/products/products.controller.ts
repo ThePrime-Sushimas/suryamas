@@ -6,6 +6,8 @@ import { sendSuccess, sendError } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { logInfo, logError } from '../../config/logger'
 import { withValidated } from '../../utils/handler'
+
+import { getParamString } from '../../utils/validation.util'
 import type { AuthenticatedQueryRequest } from '../../types/request.types'
 import type { ValidatedRequest } from '../../middleware/validation.middleware'
 import type { ProductType, ProductStatus } from './products.types'
@@ -123,7 +125,7 @@ export class ProductsController {
 
   delete = async (req: AuthenticatedQueryRequest, res: Response): Promise<void> => {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       await productsService.delete(id, req.user?.id)
       sendSuccess(res, null, 'Product deleted successfully')
     } catch (error: any) {

@@ -5,6 +5,8 @@ import { handleError } from '../../utils/error-handler.util'
 import { logInfo, logError } from '../../config/logger'
 import { getPaginationParams } from '../../utils/pagination.util'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
+
+import { getParamString } from '../../utils/validation.util'
 import { createCompanySchema, updateCompanySchema, bulkUpdateStatusSchema, bulkDeleteSchema } from './companies.schema'
 import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
@@ -53,7 +55,7 @@ export class CompaniesController {
 
   async getById(req: AuthenticatedRequest, res: Response) {
     try {
-      const company = await companiesService.getById(req.params.id)
+      const company = await companiesService.getById(getParamString(req.params.id))
       sendSuccess(res, company)
     } catch (error) {
       handleError(res, error)
@@ -76,9 +78,9 @@ export class CompaniesController {
 
   async delete(req: AuthenticatedRequest, res: Response) {
     try {
-      await companiesService.delete(req.params.id, req.user.id)
+      await companiesService.delete(getParamString(req.params.id), req.user.id)
       logInfo('Company deleted', {
-        company_id: req.params.id,
+        company_id: getParamString(req.params.id),
         user: req.user.id
       })
       sendSuccess(res, null, 'Company deleted')

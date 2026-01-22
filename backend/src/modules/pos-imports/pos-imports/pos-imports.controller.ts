@@ -7,6 +7,8 @@ import { Response } from 'express'
 import { posImportsService } from './pos-imports.service'
 import { posImportLinesRepository } from '../pos-import-lines/pos-import-lines.repository'
 import { sendSuccess, sendError } from '../../../utils/response.util'
+
+import { getParamString } from '../../../utils/validation.util'
 import { logError } from '../../../config/logger'
 import type { AuthenticatedRequest, AuthenticatedQueryRequest } from '../../../types/request.types'
 import type { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
@@ -48,7 +50,7 @@ class PosImportsController {
    */
   async getById(req: AuthenticatedRequest, res: Response) {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const company_id = (req as any).context?.company_id
       if (!company_id) {
         throw new Error('Branch context required')
@@ -69,7 +71,7 @@ class PosImportsController {
    */
   async getLines(req: AuthenticatedQueryRequest, res: Response) {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const company_id = (req as any).context?.company_id
       if (!company_id) {
         throw new Error('Branch context required')
@@ -101,7 +103,7 @@ class PosImportsController {
    */
   async export(req: AuthenticatedRequest, res: Response) {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const company_id = (req as any).context?.company_id
       if (!company_id) {
         throw new Error('Branch context required')
@@ -125,7 +127,7 @@ class PosImportsController {
    */
   async getSummary(req: AuthenticatedRequest, res: Response) {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const company_id = (req as any).context?.company_id
       if (!company_id) {
         throw new Error('Branch context required')
@@ -191,7 +193,7 @@ class PosImportsController {
    */
   async confirm(req: any, res: Response) {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const { skip_duplicates } = req.body
       const company_id = (req as any).context?.company_id
       if (!company_id) {
@@ -220,7 +222,7 @@ class PosImportsController {
    */
   async updateStatus(req: any, res: Response) {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const { status, error_message } = req.body
       const company_id = (req as any).context?.company_id
       if (!company_id) {
@@ -246,7 +248,7 @@ class PosImportsController {
    */
   async delete(req: AuthenticatedRequest, res: Response) {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const company_id = (req as any).context?.company_id
       if (!company_id) {
         throw new Error('Branch context required')
@@ -271,7 +273,7 @@ class PosImportsController {
    */
   async restore(req: AuthenticatedRequest, res: Response) {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const company_id = (req as any).context?.company_id
       if (!company_id) {
         throw new Error('Branch context required')

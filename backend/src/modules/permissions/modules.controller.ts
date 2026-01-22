@@ -9,6 +9,8 @@ import { ModulesService } from './modules.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { logError } from '../../config/logger'
 import { withValidated } from '../../utils/handler'
+
+import { getParamString } from '../../utils/validation.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   createModuleSchema,
@@ -37,7 +39,7 @@ export class ModulesController {
 
   findById = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const module = await this.service.findById(id)
 
       if (!module) {
@@ -83,7 +85,7 @@ export class ModulesController {
 
   delete = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { id } = req.params
+      const id = getParamString(req.params.id)
       const success = await this.service.delete(id)
 
       if (!success) {

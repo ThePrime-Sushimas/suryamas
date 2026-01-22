@@ -5,6 +5,8 @@ import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { OwnerType } from './bankAccounts.types'
 import { withValidated } from '../../utils/handler'
+
+import { getParamString } from '../../utils/validation.util'
 import type { ValidatedRequest, ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   createBankAccountSchema,
@@ -71,8 +73,8 @@ export class BankAccountsController {
 
   getByOwner = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const ownerType = req.params.owner_type === 'companies' ? 'company' : 'supplier'
-      const ownerId = req.params.id
+      const ownerType = getParamString(req.params.owner_type) === 'companies' ? 'company' : 'supplier'
+      const ownerId = getParamString(req.params.id)
       const accounts = await bankAccountsService.getBankAccountsByOwner(ownerType as OwnerType, ownerId)
       sendSuccess(res, accounts, 'Bank accounts retrieved successfully')
     } catch (error: any) {

@@ -3,6 +3,8 @@ import { journalLinesService } from './journal-lines.service'
 import { sendSuccess } from '../../../../utils/response.util'
 import { handleError } from '../../../../utils/error-handler.util'
 import { getPaginationParams } from '../../../../utils/pagination.util'
+
+import { getParamString } from '../../../../utils/validation.util'
 import type { AuthenticatedRequest, AuthenticatedQueryRequest } from '../../../../types/request.types'
 import type { JournalLineFilter, JournalLineSortParams } from './journal-lines.types'
 
@@ -20,7 +22,7 @@ export class JournalLinesController {
   async listByJournal(req: AuthenticatedRequest, res: Response) {
     try {
       const companyId = this.getCompanyId(req)
-      const journalId = req.params.journalId
+      const journalId = getParamString(req.params.journalId)
       if (!journalId) throw new Error('journalId is required')
 
       const lines = await journalLinesService.getByJournalHeaderId(journalId, companyId)
@@ -36,7 +38,7 @@ export class JournalLinesController {
   async getById(req: AuthenticatedRequest, res: Response) {
     try {
       const companyId = this.getCompanyId(req)
-      const id = req.params.id
+      const id = getParamString(req.params.id)
       if (!id) throw new Error('line ID is required')
 
       const line = await journalLinesService.getById(id, companyId)
@@ -52,7 +54,7 @@ export class JournalLinesController {
   async getByAccount(req: AuthenticatedRequest, res: Response) {
     try {
       const companyId = this.getCompanyId(req)
-      const accountId = req.params.accountId
+      const accountId = getParamString(req.params.accountId)
       if (!accountId) throw new Error('accountId is required')
       
       const query = req.query || {}
