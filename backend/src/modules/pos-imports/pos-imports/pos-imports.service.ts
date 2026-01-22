@@ -338,15 +338,13 @@ class PosImportsService {
 
   /**
    * Confirm and import data to pos_import_lines
-   * NOW: Triggers background job processing (NOT synchronous)
-   * Note: job_id comes from the original upload response (not stored in DB)
+   * Processes synchronously (no job system)
    */
   async confirmImport(
     id: string,
     companyId: string,
     skipDuplicates: boolean,
-    userId: string,
-    jobId?: string  // job_id passed from controller (from upload response)
+    userId: string
   ): Promise<PosImport> {
     const posImport = await this.getById(id, companyId)
 
@@ -354,38 +352,8 @@ class PosImportsService {
       throw PosImportErrors.INVALID_STATUS_TRANSITION(posImport.status, 'IMPORTED')
     }
 
-    // Update import status to IMPORTED first (optimistic)
-    await posImportsRepository.update(id, companyId, {
-      status: 'IMPORTED'
-    }, userId)
-
-    // Trigger background job processing if job_id is available
-    if (jobId) {
-      try {
-        // Import jobWorker dynamically to avoid circular dependencies
-        const { jobWorker } = await import('@/modules/jobs/jobs.worker')
-        
-        // Update job progress to show processing has started
-        await jobsService.updateProgress(jobId, 10, userId)
-        
-        // Trigger background processing (don't await - it runs async)
-        jobWorker.processJob(jobId).catch(error => {
-          logError('Background POS import job processing error', { job_id: jobId, error })
-        })
-        
-        logInfo('Triggered background job processing', { job_id: jobId, pos_import_id: id })
-      } catch (error) {
-        logError('Failed to trigger background job processing', { job_id: jobId, error })
-        // Continue with legacy sync processing as fallback
-      }
-    } else {
-      // If no job_id, process synchronously (legacy behavior)
-      logInfo('Processing import synchronously (no job_id provided)', { pos_import_id: id })
-      return this.processImportSync(id, companyId, skipDuplicates, userId)
-    }
-
-    // Return immediately - background job will update status
-    return this.getById(id, companyId)
+    // Process synchronously
+    return this.processImportSync(id, companyId, skipDuplicates, userId)
   }
 
   /**

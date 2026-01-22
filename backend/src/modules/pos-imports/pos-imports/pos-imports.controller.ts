@@ -189,7 +189,7 @@ class PosImportsController {
   /**
    * Confirm import after duplicate analysis
    * POST /api/v1/pos-imports/:id/confirm
-   * NOW: Passes job_id for jobs system tracking
+   * Processes synchronously (no job system)
    */
   async confirm(req: any, res: Response) {
     try {
@@ -204,10 +204,7 @@ class PosImportsController {
         throw new Error('User ID required')
       }
 
-      // Get job_id from request body (returned from upload response)
-      const { job_id } = req.body
-
-      const posImport = await posImportsService.confirmImport(id, company_id, skip_duplicates, userId, job_id)
+      const posImport = await posImportsService.confirmImport(id, company_id, skip_duplicates, userId)
 
       return sendSuccess(res, posImport, 'Import confirmed successfully')
     } catch (error) {
