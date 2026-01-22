@@ -194,7 +194,7 @@ export interface AggregatedTransactionSummary {
  */
 export interface AggregatedTransactionBatchResult {
   success: string[]
-  failed: Array<{ id: string; error: string }>
+  failed: Array<{ source_ref: string; error: string }>
   total_processed: number
 }
 
