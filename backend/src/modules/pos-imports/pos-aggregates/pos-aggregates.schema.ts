@@ -86,7 +86,7 @@ export const aggregatedTransactionListQuerySchema = z.object({
     limit: z.coerce.number().int().positive().max(100).default(10),
     company_id: z.string().uuid().optional(),
     branch_id: z.string().nullable().optional(),
-    source_type: z.string().optional(),
+    source_type: z.enum(['POS']).optional(),
     source_id: z.string().optional(),
     payment_method_id: z.coerce.number().int().positive().optional(),
     transaction_date: z.string().optional(),
