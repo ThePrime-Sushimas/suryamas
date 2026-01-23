@@ -428,34 +428,68 @@ export class PosAggregatesRepository {
   }> {
     let dbQuery = supabase
       .from('aggregated_transactions')
-      .select(
-        `
-        count,
-        gross_amount:sum,
-        discount_amount:sum,
-        tax_amount:sum,
-        service_charge_amount:sum,
-        net_amount:sum
-      `,
-        { count: 'exact', head: true }
-      )
+      .select('*', { count: 'exact', head: true })
       .is('deleted_at', null)
 
     if (dateFrom) dbQuery = dbQuery.gte('transaction_date', dateFrom)
     if (dateTo) dbQuery = dbQuery.lte('transaction_date', dateTo)
     if (branchName) dbQuery = dbQuery.eq('branch_name', branchName)
 
-    const { data, error } = await dbQuery
+    // First get the count
+    const { count, error: countError } = await dbQuery
 
-    if (error) throw new DatabaseError('Failed to get summary', { cause: error })
+    if (countError) {
+      console.error('getSummary count error:', countError)
+      throw new DatabaseError('Failed to get summary count', { cause: countError })
+    }
+
+    // Then get the sum aggregations separately
+    let sumQuery = supabase
+      .from('aggregated_transactions')
+      .select('gross_amount, discount_amount, tax_amount, service_charge_amount, net_amount', { head: true })
+      .is('deleted_at', null)
+
+    if (dateFrom) sumQuery = sumQuery.gte('transaction_date', dateFrom)
+    if (dateTo) sumQuery = sumQuery.lte('transaction_date', dateTo)
+    if (branchName) sumQuery = sumQuery.eq('branch_name', branchName)
+
+    // Use .then() to get the response structure properly
+    const { data: sumData, error: sumError } = await sumQuery
+
+    // For sum queries with head: true, we need to use .range() approach
+    // Or use RPC if available, but let's try a different approach - get all data and sum in JS
+    let allDataQuery = supabase
+      .from('aggregated_transactions')
+      .select('gross_amount, discount_amount, tax_amount, service_charge_amount, net_amount')
+      .is('deleted_at', null)
+
+    if (dateFrom) allDataQuery = allDataQuery.gte('transaction_date', dateFrom)
+    if (dateTo) allDataQuery = allDataQuery.lte('transaction_date', dateTo)
+    if (branchName) allDataQuery = allDataQuery.eq('branch_name', branchName)
+
+    const { data: allData, error: allDataError } = await allDataQuery
+
+    if (allDataError) {
+      console.error('getSummary sum error:', allDataError)
+      throw new DatabaseError('Failed to get summary data', { cause: allDataError })
+    }
+
+    // Calculate sums in JavaScript
+    const totals = (allData || []).reduce((acc, row) => ({
+      gross_amount: (acc.gross_amount || 0) + Number(row.gross_amount || 0),
+      discount_amount: (acc.discount_amount || 0) + Number(row.discount_amount || 0),
+      tax_amount: (acc.tax_amount || 0) + Number(row.tax_amount || 0),
+      service_charge_amount: (acc.service_charge_amount || 0) + Number(row.service_charge_amount || 0),
+      net_amount: (acc.net_amount || 0) + Number(row.net_amount || 0),
+    }), { gross_amount: 0, discount_amount: 0, tax_amount: 0, service_charge_amount: 0, net_amount: 0 })
 
     return {
-      total_count: (data as any)?.count || 0,
-      total_gross_amount: (data as any)?.gross_amount?.sum || 0,
-      total_discount_amount: (data as any)?.discount_amount?.sum || 0,
-      total_tax_amount: (data as any)?.tax_amount?.sum || 0,
-      total_service_charge_amount: (data as any)?.service_charge_amount?.sum || 0,
-      total_net_amount: (data as any)?.net_amount?.sum || 0,
+      total_count: count || 0,
+      total_gross_amount: totals.gross_amount,
+      total_discount_amount: totals.discount_amount,
+      total_tax_amount: totals.tax_amount,
+      total_service_charge_amount: totals.service_charge_amount,
+      total_net_amount: totals.net_amount,
     }
   }
 
