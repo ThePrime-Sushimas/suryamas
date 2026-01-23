@@ -15,6 +15,14 @@ import { z } from '@/lib/openapi'
  * - service_charge_amount: service_charge
  * - net_amount: subtotal + tax + service_charge - (discount + bill_discount)
  */
+/**
+ * Payment method input - can be ID (number) or name (string)
+ */
+const paymentMethodIdSchema = z.union([
+  z.number().int().positive('Payment method ID must be a positive integer'),
+  z.string().min(1, 'Payment method name cannot be empty'),
+])
+
 export const createAggregatedTransactionSchema = z.object({
   body: z.object({
     company_id: z.string().uuid('Company ID must be a valid UUID'),
@@ -25,7 +33,7 @@ export const createAggregatedTransactionSchema = z.object({
     transaction_date: z.string().refine((val) => !isNaN(Date.parse(val)), {
       message: 'Transaction date must be a valid date string',
     }),
-    payment_method_id: z.number().int().positive('Payment method ID must be a positive integer'),
+    payment_method_id: paymentMethodIdSchema,
     gross_amount: z.number().min(0, 'Gross amount must be non-negative'),
     discount_amount: z.number().min(0, 'Discount amount must be non-negative').default(0),
     tax_amount: z.number().min(0, 'Tax amount must be non-negative').default(0),

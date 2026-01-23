@@ -112,21 +112,44 @@ export class PosAggregatesService {
     return data
   }
 
-  /**
+/**
    * Validate that payment method exists and is active
+   * Accepts either numeric ID or string name
    */
-  private async validatePaymentMethod(paymentMethodId: number): Promise<void> {
-    const { data, error } = await supabase
+  private async validatePaymentMethod(paymentMethodId: number | string): Promise<number> {
+    let query = supabase
       .from('payment_methods')
       .select('id, is_active')
-      .eq('id', paymentMethodId)
-      .maybeSingle()
+
+    // If it's a number, search by ID; if string, search by name (case-insensitive)
+    if (typeof paymentMethodId === 'number') {
+      query = query.eq('id', paymentMethodId)
+    } else {
+      query = query.ilike('name', paymentMethodId.trim())
+    }
+
+    const { data, error } = await query.maybeSingle()
 
     if (error) throw AggregatedTransactionErrors.DATABASE_ERROR('Failed to validate payment method', error)
     if (!data) throw AggregatedTransactionErrors.PAYMENT_METHOD_NOT_FOUND(paymentMethodId.toString())
     if (!(data as any).is_active) {
       throw AggregatedTransactionErrors.PAYMENT_METHOD_INACTIVE(paymentMethodId.toString())
     }
+
+    return data.id
+  }
+
+  /**
+   * Resolve payment method ID from either number ID or string name
+   * Returns the actual numeric ID
+   */
+  private async resolvePaymentMethodId(paymentMethodId: number | string): Promise<number> {
+    // If already a number, validate it exists
+    if (typeof paymentMethodId === 'number') {
+      return this.validatePaymentMethod(paymentMethodId)
+    }
+    // If string, look up by name and return the ID
+    return this.validatePaymentMethod(paymentMethodId)
   }
 
   /**
@@ -152,10 +175,14 @@ export class PosAggregatesService {
     }
   }
 
-  /**
+/**
    * Convert CreateDto to Repository insert format
+   * Note: paymentMethodId is the resolved numeric ID (already converted from name if needed)
    */
-  private toInsertData(data: CreateAggregatedTransactionDto): Omit<AggregatedTransaction, 'id' | 'created_at' | 'updated_at' | 'version'> {
+  private toInsertData(
+    data: Omit<CreateAggregatedTransactionDto, 'payment_method_id'>,
+    paymentMethodId: number
+  ): Omit<AggregatedTransaction, 'id' | 'created_at' | 'updated_at' | 'version'> {
     return {
       company_id: data.company_id,
       branch_name: data.branch_name ?? null,
@@ -163,7 +190,7 @@ export class PosAggregatesService {
       source_id: data.source_id,
       source_ref: data.source_ref,
       transaction_date: data.transaction_date,
-      payment_method_id: data.payment_method_id,
+      payment_method_id: paymentMethodId,
       gross_amount: data.gross_amount,
       discount_amount: data.discount_amount ?? 0,
       tax_amount: data.tax_amount ?? 0,
@@ -178,19 +205,27 @@ export class PosAggregatesService {
     }
   }
 
-  /**
+/**
    * Create new aggregated transaction
    */
   async createTransaction(data: CreateAggregatedTransactionDto, skipPaymentMethodValidation = false): Promise<AggregatedTransaction> {
     await this.validateCompany(data.company_id)
-    
+
     // Skip branch validation for POS imports - store branch_name directly
     // Branch validation only needed when using branch_id (UUID)
     // await this.validateBranch(data.branch_name ?? null)
-    
-    // Skip payment method validation if using fallback ID
-    if (!skipPaymentMethodValidation) {
-      await this.validatePaymentMethod(data.payment_method_id)
+
+    // Resolve payment method ID (handles both number ID and string name)
+    let resolvedPaymentMethodId: number
+    if (skipPaymentMethodValidation) {
+      // If skipping validation, still try to resolve the ID
+      if (typeof data.payment_method_id === 'number') {
+        resolvedPaymentMethodId = data.payment_method_id
+      } else {
+        resolvedPaymentMethodId = await this.resolvePaymentMethodId(data.payment_method_id)
+      }
+    } else {
+      resolvedPaymentMethodId = await this.resolvePaymentMethodId(data.payment_method_id)
     }
 
     const exists = await posAggregatesRepository.sourceExists(
@@ -211,10 +246,14 @@ export class PosAggregatesService {
       source_type: data.source_type,
       source_id: data.source_id,
       source_ref: data.source_ref,
-      company_id: data.company_id
+      company_id: data.company_id,
+      payment_method_id: resolvedPaymentMethodId
     })
 
-    const insertData = this.toInsertData(data)
+    // Create a modified data object without payment_method_id (will be passed separately)
+    const { payment_method_id, ...dataWithoutPaymentMethod } = data
+
+    const insertData = this.toInsertData(dataWithoutPaymentMethod, resolvedPaymentMethodId)
     return posAggregatesRepository.create(insertData)
   }
 
@@ -287,7 +326,7 @@ export class PosAggregatesService {
    * Update transaction
    */
   async updateTransaction(
-    id: string, 
+    id: string,
     updates: UpdateAggregatedTransactionDto,
     expectedVersion?: number
   ): Promise<AggregatedTransaction> {
@@ -300,8 +339,35 @@ export class PosAggregatesService {
       this.validateStatusTransition(existing.status, updates.status)
     }
 
-    if (updates.payment_method_id) {
-      await this.validatePaymentMethod(updates.payment_method_id)
+    // Resolve payment method ID if provided as string
+    // We need to create a new object with the resolved payment method ID
+    // to avoid type conflicts between UpdateAggregatedTransactionDto and Partial<AggregatedTransaction>
+    // Use type assertion to handle the spread operator type preservation issue
+    type ResolvedUpdateData = Omit<UpdateAggregatedTransactionDto, 'payment_method_id'> & { payment_method_id?: number }
+    const resolvedUpdates: ResolvedUpdateData = {
+      branch_name: updates.branch_name,
+      source_type: updates.source_type,
+      source_id: updates.source_id,
+      source_ref: updates.source_ref,
+      transaction_date: updates.transaction_date,
+      gross_amount: updates.gross_amount,
+      discount_amount: updates.discount_amount,
+      tax_amount: updates.tax_amount,
+      service_charge_amount: updates.service_charge_amount,
+      net_amount: updates.net_amount,
+      currency: updates.currency,
+      status: updates.status,
+      is_reconciled: updates.is_reconciled,
+      version: updates.version,
+      payment_method_id: typeof updates.payment_method_id === 'number' ? updates.payment_method_id : undefined
+    }
+
+    if (updates.payment_method_id !== undefined) {
+      if (typeof updates.payment_method_id === 'string') {
+        const resolvedId = await this.resolvePaymentMethodId(updates.payment_method_id)
+        resolvedUpdates.payment_method_id = resolvedId
+      }
+      // If it's a number, it's already set above
     }
 
     if (updates.branch_name !== undefined) {
@@ -311,16 +377,16 @@ export class PosAggregatesService {
     logInfo('Updating aggregated transaction', {
       id,
       expected_version: expectedVersion,
-      updates: Object.keys(updates)
+      updates: Object.keys(resolvedUpdates)
     })
 
     try {
-      return await posAggregatesRepository.update(id, updates, expectedVersion)
+      return await posAggregatesRepository.update(id, resolvedUpdates, expectedVersion)
     } catch (err: any) {
       if (err.message?.includes('version') || err.code === 'P0001') {
         throw AggregatedTransactionErrors.VERSION_CONFLICT(
-          id, 
-          expectedVersion || existing.version, 
+          id,
+          expectedVersion || existing.version,
           (expectedVersion || existing.version) + 1
         )
       }

@@ -108,6 +108,7 @@ export interface AggregatedTransactionListItem extends Pick<AggregatedTransactio
 /**
  * DTO for creating a new aggregated transaction
  * Data sourced from pos_import_lines
+ * payment_method_id can be either a numeric ID or string name
  */
 export interface CreateAggregatedTransactionDto {
   company_id: string  // From user login context
@@ -116,7 +117,7 @@ export interface CreateAggregatedTransactionDto {
   source_id: string  // pos_import_id from pos_import_lines
   source_ref: string  // bill_number from pos_import_lines
   transaction_date: string  // sales_date from pos_import_lines
-  payment_method_id: number  // Lookup from payment_methods using code
+  payment_method_id: number | string  // Numeric ID or string name (will be resolved)
   gross_amount: number  // subtotal from pos_import_lines
   discount_amount?: number  // discount + bill_discount from pos_import_lines
   tax_amount?: number  // tax from pos_import_lines
@@ -128,6 +129,7 @@ export interface CreateAggregatedTransactionDto {
 
 /**
  * DTO for updating an aggregated transaction
+ * payment_method_id can be either a numeric ID or string name
  */
 export interface UpdateAggregatedTransactionDto {
   branch_name?: string | null
@@ -135,7 +137,7 @@ export interface UpdateAggregatedTransactionDto {
   source_id?: string
   source_ref?: string
   transaction_date?: string
-  payment_method_id?: number
+  payment_method_id?: number | string  // Numeric ID or string name (will be resolved)
   gross_amount?: number
   discount_amount?: number
   tax_amount?: number
