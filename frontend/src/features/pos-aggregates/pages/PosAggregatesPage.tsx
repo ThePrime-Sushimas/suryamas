@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
-import { Plus, FileText, RefreshCw, CheckCircle, FilePlus, Database } from 'lucide-react'
+import { Plus, FileText, CheckCircle, FilePlus, Database } from 'lucide-react'
 import { usePosAggregatesStore } from '../store/posAggregates.store'
 import { useToast } from '@/contexts/ToastContext'
 import { useBranchContextStore } from '@/features/branch_context'
@@ -217,17 +217,6 @@ export const PosAggregatesPage: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Refresh Button */}
-          <button
-            onClick={() => {
-              fetchTransactions()
-              fetchSummary()
-            }}
-            className="px-3 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 flex items-center gap-2"
-            title="Refresh Data"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
 
           {/* Generate from POS Import Button */}
           <button

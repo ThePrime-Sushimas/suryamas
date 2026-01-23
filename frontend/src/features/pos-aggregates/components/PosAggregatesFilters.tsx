@@ -85,7 +85,6 @@ export const PosAggregatesFilters: React.FC = () => {
         // Fetch payment methods
         const pmData = await posAggregatesApi.getPaymentMethodOptions().catch(() => [])
         
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setBranches((branchesData as Array<{ id: string; branch_name: string }>).map((b: { id: string; branch_name: string }) => ({ id: b.id, branch_name: b.branch_name })))
         setPaymentMethods(pmData as PaymentMethodOption[])
       } catch (error) {
