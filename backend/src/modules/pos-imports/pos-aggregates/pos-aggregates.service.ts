@@ -12,7 +12,8 @@ import {
   UpdateAggregatedTransactionDto,
   AggregatedTransactionSummary,
   AggregatedTransactionBatchResult,
-  GenerateJournalRequestDto
+  GenerateJournalRequestDto,
+  GenerateJournalPerDateDto
 } from './pos-aggregates.types'
 import { 
   AggregatedTransactionErrors 
@@ -509,12 +510,13 @@ export class PosAggregatesService {
    * Generate journals for eligible transactions
    * Creates journal entries from aggregated POS transactions
    */
-  async generateJournals(request: GenerateJournalRequestDto): Promise<{
+  async generateJournals(request: GenerateJournalRequestDto): Promise<Array<{
+    date: string
     transaction_ids: string[]
     journal_id: string | null
     total_amount: number
     journal_number?: string
-  }> {
+  }>> {
     await this.validateCompany(request.company_id)
 
     if (request.branch_name) {
@@ -523,14 +525,15 @@ export class PosAggregatesService {
 
     const transactions = await this.getUnreconciledTransactions(
       request.company_id,
-      request.transaction_date_from || new Date().toISOString().split('T')[0],
-      request.transaction_date_to || new Date().toISOString().split('T')[0],
+      request.transaction_date_from,
+      request.transaction_date_to,
       request.branch_name
     )
 
     if (transactions.length === 0) {
-      return { transaction_ids: [], journal_id: null, total_amount: 0 }
+      return []
     }
+    
 
     let filtered = transactions
     if (request.include_unreconciled_only) {
@@ -544,12 +547,47 @@ export class PosAggregatesService {
     }
 
     if (filtered.length === 0) {
-      return { transaction_ids: [], journal_id: null, total_amount: 0 }
+      return []
     }
 
-    // Get unique payment method IDs from filtered transactions
-    const paymentMethodIds = [...new Set(filtered.map(tx => tx.payment_method_id))]
+    // 1️⃣ GROUP PER TANGGAL
+    const txByDate = new Map<string, AggregatedTransaction[]>()
+
+    for (const tx of filtered as AggregatedTransaction[]) {
+      if (!txByDate.has(tx.transaction_date)) {
+        txByDate.set(tx.transaction_date, [])
+      }
+      txByDate.get(tx.transaction_date)!.push(tx)
+    }
+
+    // 2️⃣ LOOP PER TANGGAL (AUTO JOURNAL)
+    const results = []
+
+    for (const [date, transactions] of txByDate) {
+      const journalResult = await this.generateJournalPerDate({
+        company_id: request.company_id,
+        branch_name: request.branch_name,
+        transaction_date: date,
+        _transactions: transactions
+      })
+      results.push(journalResult)
+    }
+    return results
+  }  
+    // generate journal per date
+    private async generateJournalPerDate(
+      request: GenerateJournalPerDateDto
+    ) {
+      const transactions = request._transactions
+      if (!transactions?.length) {
+        throw new Error('No transactions provided')
+      }
     
+    // Get unique payment method IDs from filtered transactions -> pindah ke generateJournalPerDate
+    const paymentMethodIds = [
+      ...new Set(transactions.map((tx: AggregatedTransaction) => tx.payment_method_id))
+    ]
+
     // Fetch payment method COA accounts
     const { data: paymentMethods, error: pmError } = await supabase
       .from('payment_methods')
@@ -611,7 +649,7 @@ export class PosAggregatesService {
     // Group transactions by payment method COA for journal lines
     const coaGroups = new Map<string, { amount: number; transactions: string[] }>()
     
-    for (const tx of filtered) {
+    for (const tx of transactions) {
       const coaAccountId = paymentMethodCoaMap.get(tx.payment_method_id) 
       if (!coaAccountId) continue
 
@@ -628,12 +666,13 @@ export class PosAggregatesService {
       throw new Error('No valid COA accounts found for payment methods')
     }
 
+  // ✅ DATE SOURCE — BUKAN ARRAY
+  const journalDate = request.transaction_date
+  const period = journalDate
+
     // Calculate totals
     const totalAmount = [...coaGroups.values()].reduce((sum, g) => sum + g.amount, 0)
-    const transactionIds = filtered.map(tx => tx.id)
-
-    // Get first transaction date for journal
-    const firstDate = filtered[0]?.transaction_date || new Date().toISOString().split('T')[0]
+    const transactionIds = transactions.map((tx: AggregatedTransaction) => tx.id)
 
     // Resolve branch ID if branch_name provided (DONT FUCKING CHANGE)
     let resolvedBranchId: string | null = null
@@ -649,7 +688,7 @@ export class PosAggregatesService {
     }
 
     // Create journal header
-    const journalDescription = `POS Sales ${firstDate}${request.branch_name ? ` - ${request.branch_name}` : ''}`
+    const journalDescription = `POS Sales ${journalDate}${request.branch_name ? ` - ${request.branch_name}` : ''}`
 
     const { data: journalHeader, error: headerError } = await supabase
       .from('journal_headers')
@@ -658,8 +697,8 @@ export class PosAggregatesService {
         branch_id: resolvedBranchId, // DONT FUCKING CHANGE
         journal_number: `AUTO-${Date.now()}`, // Will be replaced by sequence
         journal_type: 'RECEIPT',
-        journal_date: firstDate,
-        period: firstDate.substring(0, 7), // YYYY-MM
+        journal_date: journalDate,
+        period: period,
         description: journalDescription,
         total_debit: totalAmount,
         total_credit: totalAmount,
@@ -684,13 +723,13 @@ export class PosAggregatesService {
       .select('sequence_number')
       .eq('company_id', request.company_id)
       .eq('journal_type', 'RECEIPT')
-      .eq('period', firstDate.substring(0, 7))
+      .eq('period', period)
       .order('sequence_number', { ascending: false })
       .limit(1)
       .maybeSingle()
 
     const sequenceNumber = (sequenceData?.sequence_number || 0) + 1
-    const journalNumber = `RCP-${firstDate.substring(2, 4)}${firstDate.substring(5, 7)}-${sequenceNumber.toString().padStart(4, '0')}`
+    const journalNumber = `RCP-${journalDate}${journalDate}-${sequenceNumber.toString().padStart(4, '0')}`
 
     // Update with proper journal number
     const { data: updatedJournal, error: updateError } = await supabase
@@ -706,6 +745,11 @@ export class PosAggregatesService {
     if (updateError) {
       logError('Failed to update journal number', { error: updateError })
       // Continue anyway, journal already created
+    }
+
+    // Insert journal lines
+    if (coaGroups.has(salesCoaAccountId)) {
+      throw new Error('Payment COA tidak boleh sama dengan Sales COA');
     }
 
     // Create journal lines
@@ -746,11 +790,6 @@ export class PosAggregatesService {
       })
     }
 
-    // Insert journal lines
-    if (coaGroups.has(salesCoaAccountId)) {
-      throw new Error('Payment COA tidak boleh sama dengan Sales COA');
-    }
-
     const { error: linesError } = await supabase
       .from('journal_lines')
       .insert(journalLines)
@@ -785,12 +824,15 @@ export class PosAggregatesService {
     })
 
     return {
+      date:journalDate,
       transaction_ids: transactionIds,
       journal_id: journalHeader.id,
       total_amount: totalAmount,
       journal_number: journalNumber
     }
   }
+ 
+  // batas pindah generateJournalPerDate
 
   /**
    * Check source existence (for external use)

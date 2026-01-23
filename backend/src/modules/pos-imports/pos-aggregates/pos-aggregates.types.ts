@@ -213,12 +213,24 @@ export interface AggregatedTransactionReconciliationResult {
  */
 export interface GenerateJournalRequestDto {
   company_id: string
+  transaction_date_from: string
+  transaction_date_to: string
   transaction_ids?: string[]
-  transaction_date_from?: string
-  transaction_date_to?: string
+  _transactions: AggregatedTransaction[]
   branch_name?: string
   payment_method_id?: number
   include_unreconciled_only?: boolean
+}
+/**
+ * INTERNAL DTO
+ * Used for generating journal per single transaction date
+ * NOT exposed via API
+ */
+export interface GenerateJournalPerDateDto {
+  company_id: string
+  branch_name?: string
+  transaction_date: string // single date
+  _transactions: AggregatedTransaction[]
 }
 
 /**
