@@ -201,6 +201,31 @@ export class PosImportsRepository {
     }
   }
 
+  /**
+   * Find POS Import by ID only (without company filter)
+   * Useful for cross-company operations
+   */
+  async findByIdOnly(id: string): Promise<PosImport | null> {
+    try {
+      const { data, error } = await supabase
+        .from('pos_imports')
+        .select('*')
+        .eq('id', id)
+        .eq('is_deleted', false)
+        .single()
+
+      if (error) {
+        if (error.code === 'PGRST116') return null
+        throw error
+      }
+
+      return data
+    } catch (error) {
+      logError('PosImportsRepository findByIdOnly error', { id, error })
+      throw error
+    }
+  }
+
   async findByIdWithLines(id: string, companyId: string): Promise<any | null> {
     try {
       const cacheKey = this.getCacheKey('detail-with-lines', { id, companyId })

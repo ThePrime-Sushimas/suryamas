@@ -3,6 +3,7 @@ import { posAggregatesService } from './pos-aggregates.service'
 import { sendSuccess } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
 import { withValidated } from '../../../utils/handler'
+import { logInfo } from '../../../config/logger'
 import type { ValidatedRequest, ValidatedAuthRequest } from '../../../middleware/validation.middleware'
 import {
   createAggregatedTransactionSchema,
@@ -299,6 +300,12 @@ export class PosAggregatesController {
       if (!importId) {
         return handleError(res, new Error('Import ID is required'))
       }
+
+      logInfo('generateFromImport: Starting', {
+        import_id: importId,
+        company_id: companyId,
+        branch_name: branchName
+      })
 
       const result = await posAggregatesService.generateFromPosImportLines(
         importId,
