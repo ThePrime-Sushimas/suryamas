@@ -191,17 +191,11 @@ export class PosAggregatesController {
    */
   getSummary = withValidated(async (req: TransactionListQueryReq, res: Response) => {
     try {
-      const { company_id, transaction_date_from, transaction_date_to, branch_name } = req.validated.query
-      
-      if (!company_id) {
-        return handleError(res, new Error('company_id is required'))
-      }
-      
+      const { transaction_date_from, transaction_date_to, branch_name } = req.validated.query      
       const summary = await posAggregatesService.getSummary(
-        company_id,
-        transaction_date_from,
-        transaction_date_to,
-        branch_name || undefined
+        transaction_date_from ?? undefined,
+        transaction_date_to ?? undefined,
+        branch_name ?? undefined
       )
       sendSuccess(res, summary, 'Summary retrieved successfully')
     } catch (error: any) {
@@ -215,7 +209,16 @@ export class PosAggregatesController {
    */
   generateJournal = withValidated(async (req: GenerateJournalReq, res: Response) => {
     try {
-      const result = await posAggregatesService.generateJournals(req.validated.body)
+      const { transaction_date_from, transaction_date_to, branch_name, transaction_ids, payment_method_id, include_unreconciled_only } = req.validated.body
+      
+      const result = await posAggregatesService.generateJournals({
+        transaction_ids,
+        transaction_date_from: transaction_date_from ?? undefined,
+        transaction_date_to: transaction_date_to ?? undefined,
+        branch_name: branch_name ?? undefined,
+        payment_method_id,
+        include_unreconciled_only
+      })
       const transaction_count = result.reduce((sum, r) => sum + r.transaction_ids.length, 0)
       const total_amount = result.reduce((sum, r) => sum + r.total_amount, 0)  
       sendSuccess(res, result, 'Journal generation request processed', 200, {
@@ -266,16 +269,12 @@ export class PosAggregatesController {
    */
   getUnreconciled = withValidated(async (req: TransactionListQueryReq, res: Response) => {
     try {
-      const { company_id, transaction_date_from, transaction_date_to, branch_name } = req.validated.query
-      if (!company_id || !transaction_date_from || !transaction_date_to) {
-        return handleError(res, new Error('company_id, transaction_date_from, and transaction_date_to are required'))
-      }
+      const { transaction_date_from, transaction_date_to, branch_name } = req.validated.query
 
       const transactions = await posAggregatesService.getUnreconciledTransactions(
-        company_id,
-        transaction_date_from,
-        transaction_date_to,
-        branch_name || undefined
+        transaction_date_from ?? undefined,
+        transaction_date_to ?? undefined,
+        branch_name ?? undefined
       )
       sendSuccess(res, transactions, 'Unreconciled transactions retrieved successfully')
     } catch (error: any) {
@@ -290,12 +289,7 @@ export class PosAggregatesController {
   generateFromImport = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const importId = req.params.importId as string
-      const companyId = req.context?.company_id
-      const branchName = req.body.branch_name || req.context?.branch_name
-
-      if (!companyId) {
-        return handleError(res, new Error('Company context required'))
-      }
+      const branchName = req.body.branch_name || req.query.branch_name as string || req.context?.branch_name
 
       if (!importId) {
         return handleError(res, new Error('Import ID is required'))
@@ -303,13 +297,11 @@ export class PosAggregatesController {
 
       logInfo('generateFromImport: Starting', {
         import_id: importId,
-        company_id: companyId,
         branch_name: branchName
       })
 
       const result = await posAggregatesService.generateFromPosImportLines(
         importId,
-        companyId,
         branchName
       )
 

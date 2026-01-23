@@ -25,7 +25,6 @@ const paymentMethodIdSchema = z.union([
 
 export const createAggregatedTransactionSchema = z.object({
   body: z.object({
-    company_id: z.string().uuid('Company ID must be a valid UUID'),
     branch_name: z.string().nullable().optional(),  // branch name from pos_import_lines
     source_type: z.enum(['POS']).default('POS'),
     source_id: z.string().min(1, 'Source ID is required').max(100, 'Source ID must not exceed 100 characters'),
@@ -113,7 +112,6 @@ export const aggregatedTransactionListQuerySchema = z.object({
  */
 export const generateJournalSchema = z.object({
   body: z.object({
-    company_id: z.string().uuid('Company ID must be a valid UUID'),
     transaction_ids: z.array(z.string().uuid()).optional(),
     transaction_date_from: z.string().optional(),
     transaction_date_to: z.string().optional(),
@@ -141,7 +139,6 @@ export const batchReconcileSchema = z.object({
  */
 export const aggregateFromImportSchema = z.object({
   body: z.object({
-    company_id: z.string().uuid('Company ID must be a valid UUID'),
     pos_import_id: z.string().min(1, 'POS import ID is required'),
     branch_name: z.string().nullable().optional(),
   }),

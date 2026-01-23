@@ -23,7 +23,6 @@ export type AggregatedTransactionSourceType = 'POS'
  * Field Mapping from pos_import_lines:
  * | aggregated_transactions | pos_import_lines | Calculation |
  * |------------------------|------------------|-------------|
-* | company_id | - | From user login context |
  * | branch_name | branch | Store branch name as string from pos_import_lines |
  * | source_type | - | Fixed: 'POS' |
  * | source_id | pos_import_id | ID of import batch |
@@ -43,7 +42,6 @@ export type AggregatedTransactionSourceType = 'POS'
  */
 export interface AggregatedTransaction {
   id: string
-  company_id: string
   branch_name: string | null  // Store branch name from pos_import_lines.branch
   source_type: AggregatedTransactionSourceType
   source_id: string  // pos_import_id from pos_import_lines
@@ -70,8 +68,6 @@ export interface AggregatedTransaction {
  * Aggregated transaction with related details
  */
 export interface AggregatedTransactionWithDetails extends AggregatedTransaction {
-  company_code?: string
-  company_name?: string
   branch_code?: string
   payment_method_code?: string
   payment_method_name?: string
@@ -83,7 +79,6 @@ export interface AggregatedTransactionWithDetails extends AggregatedTransaction 
  */
 export interface AggregatedTransactionListItem extends Pick<AggregatedTransaction,
   | 'id'
-  | 'company_id'
   | 'source_type'
   | 'source_id'
   | 'source_ref'
@@ -100,7 +95,6 @@ export interface AggregatedTransactionListItem extends Pick<AggregatedTransactio
   | 'created_at'
   | 'version'
 > {
-  company_name?: string
   branch_name?: string
   payment_method_name?: string
 }
@@ -111,7 +105,6 @@ export interface AggregatedTransactionListItem extends Pick<AggregatedTransactio
  * payment_method_id can be either a numeric ID or string name
  */
 export interface CreateAggregatedTransactionDto {
-  company_id: string  // From user login context
   branch_name?: string | null  // branch name from pos_import_lines.branch
   source_type: AggregatedTransactionSourceType  // Always 'POS'
   source_id: string  // pos_import_id from pos_import_lines
@@ -153,7 +146,6 @@ export interface UpdateAggregatedTransactionDto {
  * Query parameters for listing aggregated transactions
  */
 export interface AggregatedTransactionFilterParams {
-  company_id?: string
   branch_name?: string | null
   source_type?: AggregatedTransactionSourceType
   source_id?: string
@@ -214,7 +206,6 @@ export interface AggregatedTransactionReconciliationResult {
  * Journal generation request for aggregated transactions
  */
 export interface GenerateJournalRequestDto {
-  company_id: string
   transaction_date_from?: string
   transaction_date_to?: string
   transaction_ids?: string[]
@@ -230,7 +221,6 @@ export interface GenerateJournalRequestDto {
  * NOT exposed via API
  */
 export interface GenerateJournalPerDateDto {
-  company_id: string
   branch_name?: string
   transaction_date: string // single date
   _transactions: AggregatedTransaction[]

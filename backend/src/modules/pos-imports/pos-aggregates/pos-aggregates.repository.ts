@@ -24,7 +24,6 @@ export class PosAggregatesRepository {
       .from('aggregated_transactions')
       .select(`
         id,
-        company_id,
         branch_name,
         source_type,
         source_id,
@@ -41,14 +40,10 @@ export class PosAggregatesRepository {
         is_reconciled,
         created_at,
         version,
-        companies(id, company_code, company_name),
         payment_methods(id, code, name)
       `, { count: 'exact' })
 
     // Apply filters
-    if (filter?.company_id) {
-      dbQuery = dbQuery.eq('company_id', filter.company_id)
-    }
 
     if (filter?.branch_name !== undefined) {
       if (filter.branch_name === null) {
@@ -134,7 +129,6 @@ export class PosAggregatesRepository {
       .from('aggregated_transactions')
       .select(`
         *,
-        companies(id, company_code, company_name),
         payment_methods(id, code, name),
         journal:journal_headers(id, journal_number, status, is_auto)
       `)
@@ -387,22 +381,25 @@ export class PosAggregatesRepository {
   }
 
   /**
-   * Find unreconciled transactions for company and date range
+   * Find unreconciled transactions for  and date range
    */
   async findUnreconciled(
-    companyId: string,
-    dateFrom: string,
-    dateTo: string,
+    dateFrom?: string,
+    dateTo?: string,
     branchName?: string
   ): Promise<AggregatedTransaction[]> {
     let dbQuery = supabase
       .from('aggregated_transactions')
       .select('*')
-      .eq('company_id', companyId)
       .eq('is_reconciled', false)
-      .gte('transaction_date', dateFrom)
-      .lte('transaction_date', dateTo)
       .is('deleted_at', null)
+
+    if (dateFrom) {
+      dbQuery = dbQuery.gte('transaction_date', dateFrom)
+    }
+    if (dateTo) {
+      dbQuery = dbQuery.lte('transaction_date', dateTo)
+    }
 
     if (branchName) {
       dbQuery = dbQuery.eq('branch_name', branchName)
@@ -418,7 +415,6 @@ export class PosAggregatesRepository {
    * Get summary statistics
    */
   async getSummary(
-    companyId: string,
     dateFrom?: string,
     dateTo?: string,
     branchName?: string
@@ -443,7 +439,6 @@ export class PosAggregatesRepository {
       `,
         { count: 'exact', head: true }
       )
-      .eq('company_id', companyId)
       .is('deleted_at', null)
 
     if (dateFrom) dbQuery = dbQuery.gte('transaction_date', dateFrom)
@@ -467,37 +462,9 @@ export class PosAggregatesRepository {
   /**
    * Get transaction counts by status
    */
-  async getStatusCounts(companyId: string): Promise<Record<AggregatedTransactionStatus, number>> {
-    // Use RPC for grouped count since Supabase JS doesn't support .group()
-    const { data, error } = await supabase
-      .rpc('count_aggregated_transactions_by_status', { company_id_param: companyId })
-
-    if (error) {
-      // Fallback: get counts individually for each status
-      const statuses: AggregatedTransactionStatus[] = ['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED']
-      const counts: Record<AggregatedTransactionStatus, number> = {
-        READY: 0,
-        PENDING: 0,
-        PROCESSING: 0,
-        COMPLETED: 0,
-        CANCELLED: 0,
-      }
-
-      for (const status of statuses) {
-        const { count } = await supabase
-          .from('aggregated_transactions')
-          .select('id', { count: 'exact', head: true })
-          .eq('company_id', companyId)
-          .eq('status', status)
-          .is('deleted_at', null)
-        
-        counts[status] = count || 0
-      }
-
-      return counts
-    }
-
-    // If RPC returns data, parse it
+  async getStatusCounts(): Promise<Record<AggregatedTransactionStatus, number>> {
+    // Fallback: get counts individually for each status
+    const statuses: AggregatedTransactionStatus[] = ['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED']
     const counts: Record<AggregatedTransactionStatus, number> = {
       READY: 0,
       PENDING: 0,
@@ -506,12 +473,14 @@ export class PosAggregatesRepository {
       CANCELLED: 0,
     }
 
-    if (Array.isArray(data)) {
-      for (const item of data) {
-        if (item.status && item.status in counts) {
-          counts[item.status as AggregatedTransactionStatus] = item.count || 0
-        }
-      }
+    for (const status of statuses) {
+      const { count } = await supabase
+        .from('aggregated_transactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', status)
+        .is('deleted_at', null)
+      
+      counts[status] = count || 0
     }
 
     return counts
@@ -521,12 +490,10 @@ export class PosAggregatesRepository {
    * Map database row to ListItem
    */
   private mapToListItem(row: Record<string, unknown>): AggregatedTransactionListItem {
-    const company = Array.isArray(row.companies) ? row.companies[0] : row.companies
     const paymentMethod = Array.isArray(row.payment_methods) ? row.payment_methods[0] : row.payment_methods
 
     return {
       id: row.id as string,
-      company_id: row.company_id as string,
       source_type: row.source_type as AggregatedTransactionSourceType,
       source_id: row.source_id as string,
       source_ref: row.source_ref as string,
@@ -542,7 +509,6 @@ export class PosAggregatesRepository {
       is_reconciled: row.is_reconciled as boolean,
       created_at: row.created_at as string,
       version: row.version as number,
-      company_name: (company as Record<string, unknown>)?.company_name as string | undefined,
       branch_name: row.branch_name as string,
       payment_method_name: (paymentMethod as Record<string, unknown>)?.name as string | undefined,
     }
@@ -552,13 +518,11 @@ export class PosAggregatesRepository {
    * Map database row to WithDetails
    */
   private mapToWithDetails(row: Record<string, unknown>): AggregatedTransactionWithDetails {
-    const company = Array.isArray(row.companies) ? row.companies[0] : row.companies
     const paymentMethod = Array.isArray(row.payment_methods) ? row.payment_methods[0] : row.payment_methods
     const journal = Array.isArray(row.journal) ? row.journal[0] : row.journal
 
     return {
       id: row.id as string,
-      company_id: row.company_id as string,
       branch_name: row.branch_name as string | null,
       source_type: row.source_type as AggregatedTransactionSourceType,
       source_id: row.source_id as string,
@@ -579,8 +543,6 @@ export class PosAggregatesRepository {
       deleted_by: row.deleted_by as string | null,
       version: row.version as number,
       status: row.status as AggregatedTransactionStatus,
-      company_code: (company as Record<string, unknown>)?.company_code as string | undefined,
-      company_name: (company as Record<string, unknown>)?.company_name as string | undefined,
       payment_method_code: (paymentMethod as Record<string, unknown>)?.code as string | undefined,
       payment_method_name: (paymentMethod as Record<string, unknown>)?.name as string | undefined,
       journal: journal as AggregatedTransactionWithDetails['journal'],

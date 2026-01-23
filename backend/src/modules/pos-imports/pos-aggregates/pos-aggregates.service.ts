@@ -23,27 +23,10 @@ import { logInfo, logError } from '../../../config/logger'
 
 export class PosAggregatesService {
   /**
-   * Validate that company exists and is active
-   */
-  private async validateCompany(companyId: string): Promise<void> {
-    const { data, error } = await supabase
-      .from('companies')
-      .select('id, status')
-      .eq('id', companyId)
-      .maybeSingle()
-
-    if (error) throw AggregatedTransactionErrors.DATABASE_ERROR('Failed to validate company', error)
-    if (!data) throw AggregatedTransactionErrors.COMPANY_NOT_FOUND(companyId)
-    if ((data as any).status === 'closed') {
-      throw AggregatedTransactionErrors.COMPANY_INACTIVE(companyId)
-    }
-  }
-
-/**
    * Validate that branch exists (if provided)
    * Note: branchId can be either UUID (id) or branch name (string)
    */
-  private async validateBranch(branchId: string | null, companyId?: string): Promise<void> {
+  private async validateBranch(branchId: string | null): Promise<void> {
     if (!branchId) return
 
     // Check if branchId is a valid UUID (5fdd0a7b-etc format)
@@ -61,10 +44,6 @@ export class PosAggregatesService {
       query = query.eq('branch_name', branchId.trim())
     }
 
-    if (companyId) {
-      query = query.eq('company_id', companyId)
-    }
-
     const { data, error } = await query.maybeSingle()
 
     if (error) throw AggregatedTransactionErrors.DATABASE_ERROR('Failed to validate branch', error)
@@ -75,10 +54,10 @@ export class PosAggregatesService {
   }
 
 /**
-   * Find branch by name within a company
+   * Find branch by name
    * Note: Uses case-insensitive search to handle differences in branch name capitalization
    */
-  private async findBranchByName(companyId: string, branchName: string): Promise<{ id: string; branch_name: string } | null> {
+  private async findBranchByName(branchName: string): Promise<{ id: string; branch_name: string } | null> {
     // Normalize branch name: trim + collapse multiple spaces to single space
     const normalizedBranchName = branchName.trim().replace(/\s+/g, ' ')
     
@@ -86,14 +65,12 @@ export class PosAggregatesService {
     const { data, error } = await supabase
       .from('branches')
       .select('id, branch_name')
-      .eq('company_id', companyId)
       .ilike('branch_name', normalizedBranchName)
       .eq('status', 'active')
       .maybeSingle()
 
     if (error) {
       logError('Failed to find branch by name', { 
-        company_id: companyId, 
         branch_name: branchName,
         normalized_name: normalizedBranchName,
         error 
@@ -102,7 +79,6 @@ export class PosAggregatesService {
     }
 
     logInfo('Branch lookup result', {
-      company_id: companyId,
       original_name: branchName,
       normalized_name: normalizedBranchName,
       found: !!data,
@@ -184,7 +160,6 @@ export class PosAggregatesService {
     paymentMethodId: number
   ): Omit<AggregatedTransaction, 'id' | 'created_at' | 'updated_at' | 'version'> {
     return {
-      company_id: data.company_id,
       branch_name: data.branch_name ?? null,
       source_type: data.source_type,
       source_id: data.source_id,
@@ -209,7 +184,6 @@ export class PosAggregatesService {
    * Create new aggregated transaction
    */
   async createTransaction(data: CreateAggregatedTransactionDto, skipPaymentMethodValidation = false): Promise<AggregatedTransaction> {
-    await this.validateCompany(data.company_id)
 
     // Skip branch validation for POS imports - store branch_name directly
     // Branch validation only needed when using branch_id (UUID)
@@ -246,7 +220,6 @@ export class PosAggregatesService {
       source_type: data.source_type,
       source_id: data.source_id,
       source_ref: data.source_ref,
-      company_id: data.company_id,
       payment_method_id: resolvedPaymentMethodId
     })
 
@@ -480,21 +453,17 @@ export class PosAggregatesService {
    * Get summary statistics
    */
   async getSummary(
-    companyId: string,
     dateFrom?: string,
     dateTo?: string,
     branchName?: string
   ): Promise<AggregatedTransactionSummary> {
-    await this.validateCompany(companyId)
-
     const summary = await posAggregatesRepository.getSummary(
-      companyId,
       dateFrom,
       dateTo,
       branchName
     )
 
-    const statusCounts = await posAggregatesRepository.getStatusCounts(companyId)
+    const statusCounts = await posAggregatesRepository.getStatusCounts()
 
     return {
       ...summary,
@@ -506,15 +475,11 @@ export class PosAggregatesService {
    * Get unreconciled transactions for journal generation
    */
   async getUnreconciledTransactions(
-    companyId: string,
-    dateFrom: string,
-    dateTo: string,
+    dateFrom?: string,
+    dateTo?: string,
     branchName?: string
   ): Promise<AggregatedTransaction[]> {
-    await this.validateCompany(companyId)
-
     return posAggregatesRepository.findUnreconciled(
-      companyId,
       dateFrom,
       dateTo,
       branchName
@@ -583,17 +548,13 @@ export class PosAggregatesService {
     total_amount: number
     journal_number?: string
   }>> {
-    await this.validateCompany(request.company_id)
-
     if (request.branch_name) {
       await this.validateBranch(request.branch_name)
     }
 
     const transactions = await this.getUnreconciledTransactions(
-      request.company_id,
       request.transaction_date_from || new Date().toISOString().split('T')[0],
       request.transaction_date_to || new Date().toISOString().split('T')[0],
-    
       request.branch_name
     )
 
@@ -632,7 +593,6 @@ export class PosAggregatesService {
 
     for (const [date, transactions] of txByDate) {
       const journalResult = await this.generateJournalPerDate({
-        company_id: request.company_id,
         branch_name: request.branch_name,
         transaction_date: date,
         _transactions: transactions
@@ -679,7 +639,6 @@ export class PosAggregatesService {
     const { data: salesPurpose, error: purposeError } = await supabase
       .from('accounting_purposes')
       .select('id, purpose_code, purpose_name')
-      .eq('company_id', request.company_id)
       .eq('purpose_code', 'SAL-INV')
       .eq('is_active', true)
       .maybeSingle()
@@ -741,13 +700,10 @@ export class PosAggregatesService {
     const totalAmount = [...coaGroups.values()].reduce((sum, g) => sum + g.amount, 0)
     const transactionIds = transactions.map((tx: AggregatedTransaction) => tx.id)
 
-    // Resolve branch ID if branch_name provided (DONT FUCKING CHANGE)
+    // Resolve branch ID if branch_name provided
     let resolvedBranchId: string | null = null
     if (request.branch_name) {
-      const branch = await this.findBranchByName(
-        request.company_id,
-        request.branch_name
-      )
+      const branch = await this.findBranchByName(request.branch_name)
       if (!branch) {
         throw AggregatedTransactionErrors.BRANCH_NOT_FOUND(request.branch_name)
       }
@@ -760,7 +716,6 @@ export class PosAggregatesService {
     const { data: journalHeader, error: headerError } = await supabase
       .from('journal_headers')
       .insert({
-        company_id: request.company_id,
         branch_id: resolvedBranchId, // DONT FUCKING CHANGE
         journal_number: `AUTO-${Date.now()}`, // Will be replaced by sequence
         journal_type: 'RECEIPT',
@@ -788,7 +743,6 @@ export class PosAggregatesService {
     const { data: sequenceData, error: seqError } = await supabase
       .from('journal_headers')
       .select('sequence_number')
-      .eq('company_id', request.company_id)
       .eq('journal_type', 'RECEIPT')
       .eq('period', period)
       .order('sequence_number', { ascending: false })
@@ -885,7 +839,6 @@ export class PosAggregatesService {
     logInfo('Generated journal from aggregated transactions', {
       journal_id: journalHeader.id,
       journal_number: journalNumber,
-      company_id: request.company_id,
       transaction_count: transactionIds.length,
       total_amount: totalAmount
     })
@@ -917,15 +870,12 @@ export class PosAggregatesService {
    */
   async generateFromPosImportLines(
     posImportId: string,
-    companyId: string,
     branchName?: string
   ): Promise<{
     created: number
     skipped: number
     errors: Array<{ source_ref: string; error: string }>
   }> {
-    await this.validateCompany(companyId)
-
     // Get all lines from the import
     const lines = await posImportLinesRepository.findAllByImportId(posImportId)
     
@@ -985,7 +935,6 @@ export class PosAggregatesService {
         const transactionDate = firstLine.sales_date || new Date().toISOString().split('T')[0]
 
         const aggregatedTransaction: CreateAggregatedTransactionDto = {
-          company_id: companyId,
           branch_name: resolvedBranchName,
           source_type: 'POS',
           source_id: posImportId,
