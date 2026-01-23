@@ -178,8 +178,9 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
           </thead>
           <tbody className="divide-y divide-gray-200">
             {transactions.map((transaction) => {
-              const isDeleted = transaction.status === 'CANCELLED'
+              const isDeleted = !!transaction.deleted_at
               const isSelected = selectedIds.has(transaction.id)
+              
               
               return (
                 <tr
