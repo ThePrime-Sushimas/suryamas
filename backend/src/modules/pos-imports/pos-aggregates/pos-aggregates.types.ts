@@ -147,9 +147,11 @@ export interface UpdateAggregatedTransactionDto {
  */
 export interface AggregatedTransactionFilterParams {
   branch_name?: string | null
+  branch_names?: string[]  // Multiple branches (checkbox method)
   source_type?: AggregatedTransactionSourceType
   source_id?: string
   payment_method_id?: number
+  payment_method_ids?: number[]  // Multiple payment methods (checkbox method)
   transaction_date?: string
   transaction_date_from?: string
   transaction_date_to?: string

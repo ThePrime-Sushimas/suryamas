@@ -108,11 +108,12 @@ interface PosAggregatesState {
  * Initial filter state
  */
 const initialFilter: AggregatedTransactionFilterParams = {
-  company_id: undefined,
   branch_name: undefined,
+  branch_names: undefined,
   source_type: undefined,
   source_id: undefined,
   payment_method_id: undefined,
+  payment_method_ids: undefined,
   transaction_date: undefined,
   transaction_date_from: undefined,
   transaction_date_to: undefined,

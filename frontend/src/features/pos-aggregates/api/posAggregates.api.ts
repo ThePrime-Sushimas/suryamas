@@ -246,7 +246,26 @@ export const posAggregatesApi = {
         params.order = sort.order
       }
       if (filter) {
-        Object.assign(params, filter)
+        // Handle array filters - spread each array element separately for backend
+        if (filter.branch_names && filter.branch_names.length > 0) {
+          filter.branch_names.forEach((name, index) => {
+            params[`branch_names[${index}]`] = name
+          })
+        }
+        if (filter.payment_method_ids && filter.payment_method_ids.length > 0) {
+          filter.payment_method_ids.forEach((id, index) => {
+            params[`payment_method_ids[${index}]`] = id
+          })
+        }
+        // Copy other filter params
+        Object.entries(filter).forEach(([key, value]) => {
+          if (value !== undefined && 
+              key !== 'branch_names' && 
+              key !== 'payment_method_ids' &&
+              !key.includes('[')) {
+            params[key] = value
+          }
+        })
       }
 
       try {

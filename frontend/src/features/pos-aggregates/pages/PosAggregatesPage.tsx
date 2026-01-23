@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
-import { Plus, FileText, RefreshCw, CheckCircle, FilePlus } from 'lucide-react'
+import { Plus, FileText, RefreshCw, CheckCircle, FilePlus, Database } from 'lucide-react'
 import { usePosAggregatesStore } from '../store/posAggregates.store'
 import { useToast } from '@/contexts/ToastContext'
 import { useBranchContextStore } from '@/features/branch_context'
@@ -14,7 +14,12 @@ import { PosAggregatesTable } from '../components/PosAggregatesTable'
 import { PosAggregatesFilters } from '../components/PosAggregatesFilters'
 import { PosAggregatesForm } from '../components/PosAggregatesForm'
 import { PosAggregatesSummary } from '../components/PosAggregatesSummary'
-import type { CreateAggregatedTransactionDto, UpdateAggregatedTransactionDto } from '../types'
+import { GenerateFromImportModal } from '../components/GenerateFromImportModal'
+import type { 
+  AggregatedTransaction, 
+  CreateAggregatedTransactionDto, 
+  UpdateAggregatedTransactionDto 
+} from '../types'
 
 // =============================================================================
 // PROPS (None for main page)
@@ -61,6 +66,7 @@ export const PosAggregatesPage: React.FC = () => {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showGenerateJournalModal, setShowGenerateJournalModal] = useState(false)
+  const [showGenerateFromImportModal, setShowGenerateFromImportModal] = useState(false)
   const [journalDateFrom, setJournalDateFrom] = useState('')
   const [journalDateTo, setJournalDateTo] = useState('')
   const [includeUnreconciledOnly, setIncludeUnreconciledOnly] = useState(false)
@@ -143,7 +149,6 @@ export const PosAggregatesPage: React.FC = () => {
     setGeneratingJournal(true)
     try {
       await generateJournal({
-        company_id: currentBranch.company_id,
         transaction_date_from: journalDateFrom,
         transaction_date_to: journalDateTo,
         include_unreconciled_only: includeUnreconciledOnly,
@@ -192,8 +197,9 @@ export const PosAggregatesPage: React.FC = () => {
   }, [])
 
   // Selected transaction for edit
+  // Use type assertion since AggregatedTransactionListItem has the same fields as AggregatedTransaction
   const selectedTransaction = editingId 
-    ? transactions.find((tx) => tx.id === editingId) || null 
+    ? (transactions.find((tx) => tx.id === editingId) as AggregatedTransaction | undefined) || null 
     : null
 
   // Pagination info
@@ -221,6 +227,15 @@ export const PosAggregatesPage: React.FC = () => {
             title="Refresh Data"
           >
             <RefreshCw className="w-4 h-4" />
+          </button>
+
+          {/* Generate from POS Import Button */}
+          <button
+            onClick={() => setShowGenerateFromImportModal(true)}
+            className="px-3 py-2 text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
+          >
+            <Database className="w-4 h-4" />
+            Generate dari Import
           </button>
 
           {/* Generate Journal Button */}
@@ -430,6 +445,16 @@ export const PosAggregatesPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Generate from Import Modal */}
+      <GenerateFromImportModal
+        isOpen={showGenerateFromImportModal}
+        onClose={() => setShowGenerateFromImportModal(false)}
+        onGenerated={() => {
+          fetchTransactions()
+          fetchSummary()
+        }}
+      />
     </div>
   )
 }

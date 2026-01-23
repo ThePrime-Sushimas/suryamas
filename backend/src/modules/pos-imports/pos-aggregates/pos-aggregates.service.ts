@@ -1,6 +1,8 @@
 import { supabase } from '../../../config/supabase'
 import { posAggregatesRepository } from './pos-aggregates.repository'
 import { posImportLinesRepository } from '../pos-import-lines/pos-import-lines.repository'
+import { posImportsRepository } from '../pos-imports/pos-imports.repository'
+import type { PosImportStatus } from '../shared/pos-import.types'
 import { 
   AggregatedTransaction, 
   AggregatedTransactionWithDetails,
@@ -867,6 +869,8 @@ export class PosAggregatesService {
 
   /**
    * Generate aggregated transactions from POS import lines
+   * Group by: sales_date + branch + payment_method
+   * source_ref: ${tanggal}-${cabang}-${metode}
    */
   async generateFromPosImportLines(
     posImportId: string,
@@ -883,11 +887,16 @@ export class PosAggregatesService {
       return { created: 0, skipped: 0, errors: [] }
     }
 
-    // Group lines by transaction (bill_number + sales_number + sales_date + payment_method)
+    // Group lines by: sales_date + branch + payment_method
     const transactionGroups = new Map<string, typeof lines>()
     
     for (const line of lines) {
-      const transactionKey = `${line.bill_number}|${line.sales_number}|${line.sales_date}|${line.payment_method}`
+      // Normalize values for grouping key
+      const salesDate = line.sales_date || 'unknown'
+      const branch = line.branch || 'unknown'
+      const paymentMethod = line.payment_method || 'unknown'
+      
+      const transactionKey = `${salesDate}|${branch}|${paymentMethod}`
       if (!transactionGroups.has(transactionKey)) {
         transactionGroups.set(transactionKey, [])
       }
@@ -901,10 +910,13 @@ export class PosAggregatesService {
     }
 
     // Process each transaction group
-    for (const [, groupLines] of transactionGroups) {
+    for (const [groupKey, groupLines] of transactionGroups) {
       try {
         const firstLine = groupLines[0]
-        const sourceRef = `${firstLine.bill_number}-${firstLine.sales_number}`
+        
+        // Create source_ref: ${tanggal}-${cabang}-${metode}
+        // Example: 2026-01-22-Sushimas Grand Galaxy-QRIS BCA - M
+        const sourceRef = groupKey.replace(/\|/g, '-')
         
         // Check if already exists
         const exists = await this.checkSourceExists('POS', posImportId, sourceRef)
@@ -914,17 +926,16 @@ export class PosAggregatesService {
         }
 
         // Resolve branch from import line data
-        // Note: Store branch_name as NULL if not a valid UUID
-        // Database branch_name column expects UUID
         let resolvedBranchName: string | null = null
         
         if (firstLine.branch?.trim()) {
           resolvedBranchName = firstLine.branch.trim()
         }        
 
-        // Calculate aggregated amounts
+        // Calculate aggregated amounts (SUM per group)
         const grossAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.subtotal || 0), 0)
         const discountAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.discount || 0), 0)
+        const billDiscountAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.bill_discount || 0), 0)
         const taxAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.tax || 0), 0)
         const netAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.total_after_bill_discount || line.total || 0), 0)
 
@@ -942,7 +953,7 @@ export class PosAggregatesService {
           transaction_date: transactionDate,
           payment_method_id: paymentMethodId,
           gross_amount: grossAmount,
-          discount_amount: discountAmount,
+          discount_amount: discountAmount + billDiscountAmount, // Include both discount types
           tax_amount: taxAmount,
           service_charge_amount: 0, // Not available in POS import lines
           net_amount: netAmount,
@@ -957,21 +968,21 @@ export class PosAggregatesService {
         logInfo('Generated aggregated transaction from POS import', {
           source_ref: sourceRef,
           branch_name: firstLine.branch,
-          resolved_branch_name: resolvedBranchName,
+          payment_method: firstLine.payment_method,
+          transaction_date: transactionDate,
           gross_amount: grossAmount,
           net_amount: netAmount,
           line_count: groupLines.length
         })
 
       } catch (error) {
-        const sourceRef = `${groupLines[0].bill_number}-${groupLines[0].sales_number}`
+        const sourceRef = groupKey.replace(/\|/g, '-')
         results.errors.push({
           source_ref: sourceRef,
           error: error instanceof Error ? error.message : 'Unknown error'
         })
         logError('Failed to generate aggregated transaction', {
           source_ref: sourceRef,
-          branch_name: groupLines[0].branch,
           error
         })
       }
@@ -984,6 +995,39 @@ export class PosAggregatesService {
       skipped: results.skipped,
       errors: results.errors.length
     })
+
+    // Update pos_import status to MAPPED after successful generation
+    // Only if there were no critical errors
+    if (results.created > 0 || results.skipped > 0) {
+      try {
+        logInfo('Attempting to update pos_import status to MAPPED', { 
+          pos_import_id: posImportId,
+          created: results.created,
+          skipped: results.skipped
+        })
+        
+        // Update status directly using Supabase (bypass repository to avoid company_id requirement)
+        const { error: updateError } = await supabase
+          .from('pos_imports')
+          .update({
+            status: 'MAPPED',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', posImportId)
+
+        if (updateError) {
+          throw updateError
+        }
+        
+        logInfo('Updated pos_import status to MAPPED', { pos_import_id: posImportId })
+      } catch (statusError) {
+        logError('Failed to update pos_import status to MAPPED', {
+          pos_import_id: posImportId,
+          error: statusError
+        })
+        // Don't fail the whole operation if status update fails
+      }
+    }
 
     return results
   }

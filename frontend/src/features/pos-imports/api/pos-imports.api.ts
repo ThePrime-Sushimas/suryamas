@@ -156,5 +156,10 @@ export const posImportsApi = {
   }> => {
     const response = await api.get(`/pos-imports/${id}/summary`, { signal })
     return response.data.data
+  },
+
+  updateStatus: async (id: string, status: string, signal?: AbortSignal): Promise<{ data: PosImport }> => {
+    const response = await api.put(`/pos-imports/${id}/status`, { status }, { signal })
+    return response.data
   }
 }

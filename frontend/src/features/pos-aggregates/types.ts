@@ -84,8 +84,9 @@ export interface AggregatedTransactionListItem {
   service_charge_amount: number
   net_amount: number
   currency: string
-  status: AggregatedTransactionStatus
+  journal_id: string | null
   is_reconciled: boolean
+  status: AggregatedTransactionStatus
   created_at: string
   updated_at?: string
   deleted_at?: string | null
@@ -94,7 +95,6 @@ export interface AggregatedTransactionListItem {
   company_name?: string
   payment_method_name?: string
   journal_number?: string
-  journal_id?: string | null
 }
 
 // =============================================================================
@@ -198,9 +198,11 @@ export interface AggregatedTransactionFilterParams {
   page?: number
   limit?: number
   branch_name?: string | null
+  branch_names?: string[]  // Multiple branches (checkbox method)
   source_type?: AggregatedTransactionSourceType
   source_id?: string
   payment_method_id?: number
+  payment_method_ids?: number[]  // Multiple payment methods (checkbox method)
   transaction_date?: string
   transaction_date_from?: string
   transaction_date_to?: string

@@ -53,6 +53,11 @@ export class PosAggregatesRepository {
       }
     }
 
+    // Support multiple branch_names (array filter)
+    if (filter?.branch_names && filter.branch_names.length > 0) {
+      dbQuery = dbQuery.in('branch_name', filter.branch_names)
+    }
+
     if (filter?.source_type) {
       dbQuery = dbQuery.eq('source_type', filter.source_type)
     }
@@ -63,6 +68,11 @@ export class PosAggregatesRepository {
 
     if (filter?.payment_method_id) {
       dbQuery = dbQuery.eq('payment_method_id', filter.payment_method_id)
+    }
+
+    // Support multiple payment_method_ids (array filter)
+    if (filter?.payment_method_ids && filter.payment_method_ids.length > 0) {
+      dbQuery = dbQuery.in('payment_method_id', filter.payment_method_ids)
     }
 
     if (filter?.transaction_date) {

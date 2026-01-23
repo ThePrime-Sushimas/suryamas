@@ -34,7 +34,8 @@ router.use(authenticate, resolveBranchContext)
 
 // List POS imports
 router.get('/', canView('pos_imports'), queryMiddleware({
-  allowedSortFields: ['import_date', 'file_name', 'status', 'total_rows', 'created_at', 'date_range_start', 'date_range_end'],
+  allowedSortFields: ['id', 'import_date', 'file_name', 'status', 'total_rows', 'created_at', 'date_range_start', 'date_range_end'],
+  defaultSort: 'created_at'
 }), validateSchema(listPosImportsSchema), (req, res) => 
   posImportsController.list(req as AuthenticatedQueryRequest, res))
 
