@@ -525,8 +525,9 @@ export class PosAggregatesService {
 
     const transactions = await this.getUnreconciledTransactions(
       request.company_id,
-      request.transaction_date_from,
-      request.transaction_date_to,
+      request.transaction_date_from || new Date().toISOString().split('T')[0],
+      request.transaction_date_to || new Date().toISOString().split('T')[0],
+    
       request.branch_name
     )
 

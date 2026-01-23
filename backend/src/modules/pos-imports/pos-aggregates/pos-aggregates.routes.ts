@@ -12,6 +12,8 @@ import {
   aggregatedTransactionListQuerySchema,
   generateJournalSchema,
   batchReconcileSchema,
+  createBatchSchema,
+  batchAssignJournalSchema,
 } from './pos-aggregates.schema'
 
 const router = Router()
@@ -170,6 +172,28 @@ router.post(
   '/:id/assign-journal',
   validateSchema(aggregatedTransactionIdSchema),
   posAggregatesController.assignJournal
+)
+
+/**
+ * @route POST /aggregated-transactions/batch
+ * @desc Create multiple transactions (batch)
+ * @access Private
+ */
+router.post(
+  '/batch',
+  validateSchema(createBatchSchema),
+  posAggregatesController.createBatch
+)
+
+/**
+ * @route POST /aggregated-transactions/batch/assign-journal
+ * @desc Batch assign journal to multiple transactions
+ * @access Private
+ */
+router.post(
+  '/batch/assign-journal',
+  validateSchema(batchAssignJournalSchema),
+  posAggregatesController.batchAssignJournal
 )
 
 export default router

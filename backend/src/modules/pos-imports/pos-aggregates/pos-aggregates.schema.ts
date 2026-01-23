@@ -112,6 +112,7 @@ export const generateJournalSchema = z.object({
     branch_name: z.string().optional(),
     payment_method_id: z.number().int().positive().optional(),
     include_unreconciled_only: z.boolean().default(false),
+    total_amount: z.number().optional(), // internal use only
   }),
 })
 
@@ -180,4 +181,27 @@ export const aggregatedTransactionFilterSchema = z.object({
 export const aggregatedTransactionSortSchema = z.object({
   field: z.enum(['transaction_date', 'gross_amount', 'net_amount', 'created_at', 'updated_at']),
   order: z.enum(['asc', 'desc']),
+})
+
+/**
+ * Schema for batch creating aggregated transactions
+ */
+export const createBatchSchema = z.object({
+  body: z.object({
+    transactions: z.array(createAggregatedTransactionSchema.shape.body, {
+      message: 'Transactions must be an array of valid transaction objects',
+    }).min(1, 'At least one transaction is required'),
+  }),
+})
+
+/**
+ * Schema for batch assigning journals to transactions
+ */
+export const batchAssignJournalSchema = z.object({
+  body: z.object({
+    transaction_ids: z.array(z.string().uuid(), {
+      message: 'Transaction IDs must be valid UUIDs',
+    }).min(1, 'At least one transaction ID is required'),
+    journal_id: z.string().uuid('Journal ID must be a valid UUID'),
+  }),
 })

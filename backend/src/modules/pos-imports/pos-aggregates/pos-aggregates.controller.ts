@@ -11,6 +11,8 @@ import {
   aggregatedTransactionListQuerySchema,
   generateJournalSchema,
   batchReconcileSchema,
+  createBatchSchema,
+  batchAssignJournalSchema,
 } from './pos-aggregates.schema'
 import { AuthRequest } from '../../../types/common.types'
 
@@ -21,6 +23,8 @@ type TransactionIdReq = ValidatedAuthRequest<typeof aggregatedTransactionIdSchem
 type TransactionListQueryReq = ValidatedRequest<typeof aggregatedTransactionListQuerySchema>
 type GenerateJournalReq = ValidatedRequest<typeof generateJournalSchema>
 type BatchReconcileReq = ValidatedRequest<typeof batchReconcileSchema>
+type CreateBatchReq = ValidatedRequest<typeof createBatchSchema>
+type BatchAssignJournalReq = ValidatedRequest<typeof batchAssignJournalSchema>
 
 export class PosAggregatesController {
   /**
@@ -146,6 +150,41 @@ export class PosAggregatesController {
   })
 
   /**
+   * Create multiple transactions (batch)
+   * POST /aggregated-transactions/batch
+   */
+  createBatch = withValidated(async (req: CreateBatchReq, res: Response) => {
+    try {
+      const { transactions } = req.validated.body
+      const result = await posAggregatesService.createBatch(transactions)
+      sendSuccess(res, result, 'Batch transaction creation completed', 200, {
+        total_processed: result.total_processed,
+        success_count: result.success.length,
+        failed_count: result.failed.length
+      })
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  })
+
+  /**
+   * Batch assign journal to multiple transactions
+   * POST /aggregated-transactions/batch/assign-journal
+   */
+  batchAssignJournal = withValidated(async (req: BatchAssignJournalReq, res: Response) => {
+    try {
+      const { transaction_ids, journal_id } = req.validated.body
+      const result = await posAggregatesService.assignJournalBatch(transaction_ids, journal_id)
+      sendSuccess(res, result, 'Batch journal assignment completed', 200, {
+        assigned: result.assigned,
+        skipped: result.skipped
+      })
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  })
+
+  /**
    * Get summary statistics
    * GET /aggregated-transactions/summary
    */
@@ -176,9 +215,11 @@ export class PosAggregatesController {
   generateJournal = withValidated(async (req: GenerateJournalReq, res: Response) => {
     try {
       const result = await posAggregatesService.generateJournals(req.validated.body)
+      const transaction_count = result.reduce((sum, r) => sum + r.transaction_ids.length, 0)
+      const total_amount = result.reduce((sum, r) => sum + r.total_amount, 0)  
       sendSuccess(res, result, 'Journal generation request processed', 200, {
-        transaction_count: result.transaction_ids.length,
-        total_amount: result.total_amount,
+        transaction_count,
+        total_amount,
       })
     } catch (error: any) {
       handleError(res, error)

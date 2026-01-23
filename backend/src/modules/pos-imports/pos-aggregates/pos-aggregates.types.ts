@@ -213,13 +213,14 @@ export interface AggregatedTransactionReconciliationResult {
  */
 export interface GenerateJournalRequestDto {
   company_id: string
-  transaction_date_from: string
-  transaction_date_to: string
+  transaction_date_from?: string
+  transaction_date_to?: string
   transaction_ids?: string[]
-  _transactions: AggregatedTransaction[]
   branch_name?: string
   payment_method_id?: number
   include_unreconciled_only?: boolean
+  total_amount?: number
+  _transactions?: AggregatedTransaction[]
 }
 /**
  * INTERNAL DTO
