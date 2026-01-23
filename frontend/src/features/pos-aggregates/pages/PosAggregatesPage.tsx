@@ -6,6 +6,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, FileText, CheckCircle, FilePlus, Database } from 'lucide-react'
 import { usePosAggregatesStore } from '../store/posAggregates.store'
 import { useToast } from '@/contexts/ToastContext'
@@ -34,6 +35,7 @@ import type {
  * Provides list view with filtering, pagination, and bulk actions
  */
 export const PosAggregatesPage: React.FC = () => {
+  const navigate = useNavigate()
   const toast = useToast()
   const currentBranch = useBranchContextStore((s) => s.currentBranch)
   
@@ -164,12 +166,10 @@ export const PosAggregatesPage: React.FC = () => {
     }
   }, [generateJournal, toast, currentBranch?.company_id, journalDateFrom, journalDateTo, includeUnreconciledOnly, fetchTransactions, fetchSummary])
 
-  // Handle view detail
+// Handle view detail
   const handleViewDetail = useCallback((id: string) => {
-    // Navigate to detail page or open modal
-    console.log('View detail:', id)
-    // TODO: Navigate to detail page
-  }, [])
+    navigate(`/pos-aggregates/${id}`)
+  }, [navigate])
 
   // Handle form submit
   const handleSubmit = useCallback(async (data: CreateAggregatedTransactionDto | UpdateAggregatedTransactionDto) => {
