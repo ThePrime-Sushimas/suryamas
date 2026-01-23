@@ -80,6 +80,10 @@ const AccountingPurposesPage = lazy(() => import('./features/accounting/accounti
 const AccountingPurposeAccountsPage = lazy(() => import('./features/accounting/accounting-purpose-accounts').then(m => ({ default: m.AccountingPurposeAccountsPage })))
 const FiscalPeriodsPage = lazy(() => import('./features/accounting/fiscal-periods').then(m => ({ default: m.FiscalPeriodsPage })))
 const JournalHeadersPage = lazy(() => import('./features/accounting/journals/journal-headers').then(m => ({ default: m.JournalHeadersPage })))
+const PosAggregatesPage = lazy(() => import('./features/pos-aggregates').then(m => ({ default: m.PosAggregatesPage })))
+const CreatePosAggregatePage = lazy(() => import('./features/pos-aggregates').then(m => ({ default: m.CreatePosAggregatePage })))
+const EditPosAggregatePage = lazy(() => import('./features/pos-aggregates').then(m => ({ default: m.EditPosAggregatePage })))
+const PosAggregateDetailPage = lazy(() => import('./features/pos-aggregates').then(m => ({ default: m.PosAggregateDetailPage })))
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -175,7 +179,7 @@ function App() {
           <Route path="suppliers" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><SuppliersPage /></Suspense></ProtectedRoute>} />
           <Route path="suppliers/create" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreateSupplierPage /></Suspense></ProtectedRoute>} />
           <Route path="suppliers/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><SupplierDetailPage /></Suspense></ProtectedRoute>} />
-          <Route path="suppliers/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditSupplierPage /></Suspense></ProtectedRoute>} />
+<Route path="suppliers/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditSupplierPage /></Suspense></ProtectedRoute>} />
           <Route path="pricelists" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><PricelistsPage /></Suspense></ProtectedRoute>} />
           <Route path="pricelists/new" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreatePricelistPage /></Suspense></ProtectedRoute>} />
           <Route path="pricelists/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><PricelistDetailPage /></Suspense></ProtectedRoute>} />
@@ -199,6 +203,10 @@ function App() {
           <Route path="accounting-purpose-accounts/*" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><AccountingPurposeAccountsPage /></Suspense></ProtectedRoute>} />
           <Route path="accounting/fiscal-periods/*" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><FiscalPeriodsPage /></Suspense></ProtectedRoute>} />
           <Route path="accounting/journals/*" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><JournalHeadersPage /></Suspense></ProtectedRoute>} />
+          <Route path="pos-aggregates/create" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreatePosAggregatePage /></Suspense></ProtectedRoute>} />
+          <Route path="pos-aggregates/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><PosAggregateDetailPage /></Suspense></ProtectedRoute>} />
+          <Route path="pos-aggregates/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditPosAggregatePage /></Suspense></ProtectedRoute>} />
+          <Route path="pos-aggregates" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><PosAggregatesPage /></Suspense></ProtectedRoute>} />
               </Route>
             </Routes>
           </BrowserRouter>

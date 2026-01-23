@@ -74,6 +74,7 @@ export default function Layout() {
         { id: 'journal-entries', name: 'Journal Entries', href: '/accounting/journals', icon: <Calculator size={16} />, module: 'journals' },
         { id: 'pos-imports', name: 'POS Imports', href: '/pos-imports', icon: <FileSpreadsheet size={16} />, module: 'pos_imports' },
         { id: 'pos-transactions', name: 'POS Transactions', href: '/pos-transactions', icon: <FileSpreadsheet size={16} />, module: 'pos_imports' },
+        { id: 'pos-aggregates', name: 'POS Aggregates', href: '/pos-aggregates', icon: <FileSpreadsheet size={16} />, module: 'pos_aggregates' },
       ]
     },
     {
