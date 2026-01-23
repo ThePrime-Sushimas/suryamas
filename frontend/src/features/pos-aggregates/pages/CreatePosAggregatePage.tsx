@@ -51,9 +51,9 @@ export const CreatePosAggregatePage: React.FC = () => {
   }, [navigate])
 
   return (
-    <div className="p-6">
+    <div className="p-6 space-y-6">
       {/* Page Header */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4">
         <button
           onClick={() => navigate('/pos-aggregates')}
           className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
@@ -68,7 +68,7 @@ export const CreatePosAggregatePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Form */}
+      {/* Form Card */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-6">
           <PosAggregatesForm

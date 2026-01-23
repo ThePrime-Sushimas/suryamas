@@ -50,8 +50,12 @@ export const EditPosAggregatePage: React.FC = () => {
     const loadTransaction = async () => {
       try {
         await fetchTransactionById(id)
-      } catch {
-        toast.error('Gagal mengambil data transaksi')
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('tidak ditemukan')) {
+          toast.error('Transaksi tidak ditemukan atau telah dihapus')
+        } else {
+          toast.error('Gagal mengambil data transaksi')
+        }
         navigate('/pos-aggregates')
       } finally {
         setInitialLoad(false)
@@ -85,8 +89,8 @@ export const EditPosAggregatePage: React.FC = () => {
   // Loading state
   if (initialLoad) {
     return (
-      <div className="p-6">
-        <div className="flex items-center gap-4 mb-6">
+      <div className="p-6 space-y-6">
+        <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/pos-aggregates')}
             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
@@ -108,8 +112,8 @@ export const EditPosAggregatePage: React.FC = () => {
   // Error state
   if (error) {
     return (
-      <div className="p-6">
-        <div className="flex items-center gap-4 mb-6">
+      <div className="p-6 space-y-6">
+        <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/pos-aggregates')}
             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
@@ -134,9 +138,9 @@ export const EditPosAggregatePage: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 space-y-6">
       {/* Page Header */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4">
         <button
           onClick={() => navigate('/pos-aggregates')}
           className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
@@ -151,7 +155,7 @@ export const EditPosAggregatePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Form */}
+      {/* Form Card */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-6">
           {selectedTransaction ? (
