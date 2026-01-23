@@ -9,7 +9,9 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { useBranchContextStore } from '@/features/branch_context'
 import { posAggregatesApi } from '../api/posAggregates.api'
+import { branchesApi } from '@/features/branches/api/branches.api'
 import type { AggregatedTransaction, CreateAggregatedTransactionDto, UpdateAggregatedTransactionDto, PaymentMethodOption } from '../types'
+import type { Branch } from '@/features/branches/types'
 
 // =============================================================================
 // UTILITY FUNCTIONS
@@ -62,6 +64,8 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
   const [showErrors, setShowErrors] = useState(false)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([])
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false)
+  const [branches, setBranches] = useState<Branch[]>([])
+  const [loadingBranches, setLoadingBranches] = useState(false)
 
   // React Hook Form
   const {
@@ -115,6 +119,24 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
     }
 
     fetchPaymentMethods()
+  }, [])
+
+  // Fetch branches on mount
+  useEffect(() => {
+    const fetchBranches = async () => {
+      setLoadingBranches(true)
+      try {
+        const response = await branchesApi.list(1, 100, { field: 'branch_name', order: 'asc' }, { status: 'active' })
+        const branchesData = response.data || []
+        setBranches(branchesData as Branch[])
+      } catch (error) {
+        console.error('Failed to fetch branches:', error)
+      } finally {
+        setLoadingBranches(false)
+      }
+    }
+
+    fetchBranches()
   }, [])
 
   // Reset form when transaction changes
@@ -281,11 +303,25 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Nama Cabang
             </label>
-            <input
-              type="text"
-              {...register('branch_name')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              placeholder="Nama cabang"
+            <Controller
+              name="branch_name"
+              control={control}
+              render={({ field }) => (
+                <select
+                  {...field}
+                  value={field.value || ''}
+                  onChange={(e) => field.onChange(e.target.value || null)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  disabled={loadingBranches}
+                >
+                  <option value="">-- Pilih Cabang --</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.branch_name}>
+                      {branch.branch_name}
+                    </option>
+                  ))}
+                </select>
+              )}
             />
           </div>
 
