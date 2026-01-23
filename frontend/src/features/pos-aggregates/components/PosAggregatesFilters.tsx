@@ -2,15 +2,13 @@
  * PosAggregatesFilters.tsx
  * 
  * Filter controls component for aggregated transactions.
- * Provides search, status, date range, branch checkbox, and payment method checkbox filters.
+ * Provides search, status, and date range filters.
  */
 
-import React, { useState, useEffect } from 'react'
+import React from 'react'
 import { usePosAggregatesStore } from '../store/posAggregates.store'
 import type { AggregatedTransactionStatus } from '../types'
-import { posAggregatesApi } from '../api/posAggregates.api'
-import { branchesApi } from '@/features/branches/api/branches.api'
-import { Search, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 
 // =============================================================================
 // CONFIGURATION
@@ -38,27 +36,12 @@ const JOURNAL_OPTIONS: { value: string; label: string }[] = [
 ]
 
 // =============================================================================
-// TYPES
-// =============================================================================
-
-interface BranchOption {
-  id: string
-  branch_name: string
-}
-
-interface PaymentMethodOption {
-  id: number
-  name: string
-  code: string
-}
-
-// =============================================================================
 // COMPONENT
 // =============================================================================
 
 /**
  * Filter controls component for aggregated transactions
- * Provides search, status, date range, branch checkbox, and payment method checkbox filters
+ * Provides search, status, and date range filters
  */
 export const PosAggregatesFilters: React.FC = () => {
   const {
@@ -66,40 +49,6 @@ export const PosAggregatesFilters: React.FC = () => {
     setFilter,
     clearFilter,
   } = usePosAggregatesStore()
-
-  const [branches, setBranches] = useState<BranchOption[]>([])
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([])
-  const [loadingBranches, setLoadingBranches] = useState(false)
-  const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false)
-
-  // Fetch branches and payment methods for filter dropdowns
-  useEffect(() => {
-    const fetchFilterOptions = async () => {
-      setLoadingBranches(true)
-      setLoadingPaymentMethods(true)
-      try {
-        // Fetch all branches (limit 100 to get most)
-        const branchesRes = await branchesApi.list(1, 100, { field: 'branch_name', order: 'asc' }, { status: 'active' })
-        const branchesData = branchesRes.data || []
-        
-        // Fetch payment methods
-        const pmData = await posAggregatesApi.getPaymentMethodOptions().catch(() => [])
-        
-        setBranches((branchesData as Array<{ id: string; branch_name: string }>).map((b: { id: string; branch_name: string }) => ({ id: b.id, branch_name: b.branch_name })))
-        setPaymentMethods(pmData as PaymentMethodOption[])
-      } catch (error) {
-        console.error('Failed to fetch filter options:', error)
-      } finally {
-        setLoadingBranches(false)
-        setLoadingPaymentMethods(false)
-      }
-    }
-    fetchFilterOptions()
-  }, [])
-
-  // State for collapsible sections
-  const [showBranchFilter, setShowBranchFilter] = useState(true)
-  const [showPaymentMethodFilter, setShowPaymentMethodFilter] = useState(true)
 
   // Handle search change
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -134,29 +83,9 @@ export const PosAggregatesFilters: React.FC = () => {
     setFilter({ transaction_date_to: e.target.value || undefined })
   }
 
-  // Handle show deleted change
+// Handle show deleted change
   const handleShowDeletedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFilter({ show_deleted: e.target.checked })
-  }
-
-  // Handle branch checkbox change
-  const handleBranchChange = (branchName: string, checked: boolean) => {
-    const currentBranches = filter.branch_names || []
-    if (checked) {
-      setFilter({ branch_names: [...currentBranches, branchName] })
-    } else {
-      setFilter({ branch_names: currentBranches.filter(b => b !== branchName) })
-    }
-  }
-
-  // Handle payment method checkbox change
-  const handlePaymentMethodChange = (pmId: number, checked: boolean) => {
-    const currentPmIds = filter.payment_method_ids || []
-    if (checked) {
-      setFilter({ payment_method_ids: [...currentPmIds, pmId] })
-    } else {
-      setFilter({ payment_method_ids: currentPmIds.filter(id => id !== pmId) })
-    }
   }
 
   // Check if any filters are active
@@ -167,9 +96,7 @@ export const PosAggregatesFilters: React.FC = () => {
     filter.has_journal !== undefined ||
     filter.transaction_date_from ||
     filter.transaction_date_to ||
-    filter.show_deleted ||
-    (filter.branch_names && filter.branch_names.length > 0) ||
-    (filter.payment_method_ids && filter.payment_method_ids.length > 0)
+    filter.show_deleted
 
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
@@ -314,83 +241,6 @@ export const PosAggregatesFilters: React.FC = () => {
             Hapus Filter
           </button>
         )}
-      </div>
-
-      {/* Collapsible Filter Sections */}
-      <div className="border-t pt-4 space-y-3">
-        {/* Branch Filter - Checkbox Group */}
-        <div>
-          <button
-            onClick={() => setShowBranchFilter(!showBranchFilter)}
-            className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900"
-          >
-            {showBranchFilter ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            Filter Branch ({filter.branch_names?.length || 0} dipilih)
-          </button>
-          {showBranchFilter && (
-            <div className="mt-2 p-3 bg-gray-50 rounded-lg max-h-40 overflow-y-auto">
-              {loadingBranches ? (
-                <div className="text-sm text-gray-500">Memuat...</div>
-              ) : branches.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {branches.map((branch) => (
-                    <label
-                      key={branch.id}
-                      className="flex items-center gap-1 px-2 py-1 bg-white rounded border border-gray-200 cursor-pointer hover:bg-gray-100"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={filter.branch_names?.includes(branch.branch_name) || false}
-                        onChange={(e) => handleBranchChange(branch.branch_name, e.target.checked)}
-                        className="w-3 h-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-xs text-gray-700">{branch.branch_name}</span>
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-sm text-gray-500">Tidak ada branch tersedia</div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Payment Method Filter - Checkbox Group */}
-        <div>
-          <button
-            onClick={() => setShowPaymentMethodFilter(!showPaymentMethodFilter)}
-            className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900"
-          >
-            {showPaymentMethodFilter ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            Filter Metode Pembayaran ({filter.payment_method_ids?.length || 0} dipilih)
-          </button>
-          {showPaymentMethodFilter && (
-            <div className="mt-2 p-3 bg-gray-50 rounded-lg max-h-40 overflow-y-auto">
-              {loadingPaymentMethods ? (
-                <div className="text-sm text-gray-500">Memuat...</div>
-              ) : paymentMethods.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {paymentMethods.map((pm) => (
-                    <label
-                      key={pm.id}
-                      className="flex items-center gap-1 px-2 py-1 bg-white rounded border border-gray-200 cursor-pointer hover:bg-gray-100"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={filter.payment_method_ids?.includes(pm.id) || false}
-                        onChange={(e) => handlePaymentMethodChange(pm.id, e.target.checked)}
-                        className="w-3 h-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-xs text-gray-700">{pm.name}</span>
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-sm text-gray-500">Tidak ada metode pembayaran tersedia</div>
-              )}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   )
