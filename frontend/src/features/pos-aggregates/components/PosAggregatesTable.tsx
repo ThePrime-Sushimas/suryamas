@@ -149,18 +149,18 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Metode Pembayaran
               </th>
-              {/* Amounts */}
+              {/* Amounts  jangan rubah urutannya*/}
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Jumlah Kotor
+                Sub Total
               </th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Potongan
+                Tax
               </th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Pajak
+                Discount
               </th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Net Amount
+                Bill After Discount
               </th>
               {/* Status */}
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -233,20 +233,20 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                     </span>
                   </td>
 
-                  {/* Amounts */}
+                  {/* Amounts //jangan rubah urutannya */}
                   <td className="px-4 py-3 whitespace-nowrap text-right">
                     <span className="text-sm font-medium text-gray-900">
                       {formatCurrency(transaction.gross_amount)}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right">
-                    <span className="text-sm text-red-600">
-                      -{formatCurrency(transaction.discount_amount)}
+                    <span className="text-sm text-gray-600">
+                      +{formatCurrency(transaction.tax_amount)} 
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right">
-                    <span className="text-sm text-gray-600">
-                      +{formatCurrency(transaction.tax_amount)}
+                    <span className="text-sm text-red-600">
+                      -{formatCurrency(transaction.discount_amount)}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right">
