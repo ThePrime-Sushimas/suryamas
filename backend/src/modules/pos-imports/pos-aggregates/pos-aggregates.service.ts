@@ -604,14 +604,15 @@ export class PosAggregatesService {
       }
     }
 
-    // If no SAL-INV purpose, use default sales account from first payment method
-    const defaultSalesCoa = paymentMethods?.[0]?.coa_account_id || null
-
+    if (!salesCoaAccountId) {
+      throw new Error('Sales COA (SAL-INV) belum dikonfigurasi');
+    }
+    
     // Group transactions by payment method COA for journal lines
     const coaGroups = new Map<string, { amount: number; transactions: string[] }>()
     
     for (const tx of filtered) {
-      const coaAccountId = paymentMethodCoaMap.get(tx.payment_method_id) || defaultSalesCoa
+      const coaAccountId = paymentMethodCoaMap.get(tx.payment_method_id) 
       if (!coaAccountId) continue
 
       if (!coaGroups.has(coaAccountId)) {
@@ -729,11 +730,11 @@ export class PosAggregatesService {
     }
 
     // Credit line (Sales Revenue) - one line for total
-    if (salesCoaAccountId || defaultSalesCoa) {
+    if (salesCoaAccountId) {
       journalLines.push({
         journal_header_id: journalHeader.id,
         line_number: lineNumber++,
-        account_id: salesCoaAccountId || defaultSalesCoa,
+        account_id: salesCoaAccountId,
         description: `POS Sales Revenue`,
         debit_amount: 0,
         credit_amount: totalAmount,
@@ -746,6 +747,10 @@ export class PosAggregatesService {
     }
 
     // Insert journal lines
+    if (coaGroups.has(salesCoaAccountId)) {
+      throw new Error('Payment COA tidak boleh sama dengan Sales COA');
+    }
+
     const { error: linesError } = await supabase
       .from('journal_lines')
       .insert(journalLines)
