@@ -171,7 +171,6 @@ export interface BatchAssignJournalDto {
  * DTO for generating journal entries
  */
 export interface GenerateJournalDto {
-  company_id: string
   transaction_ids?: string[]
   transaction_date_from?: string
   transaction_date_to?: string
@@ -198,7 +197,6 @@ export interface AssignJournalDto {
 export interface AggregatedTransactionFilterParams {
   page?: number
   limit?: number
-  company_id?: string
   branch_name?: string | null
   source_type?: AggregatedTransactionSourceType
   source_id?: string
