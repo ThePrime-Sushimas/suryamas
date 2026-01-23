@@ -411,7 +411,7 @@
       }
     },
     {
-      "name": "🆕 14. Generate from POS Import Lines",
+      "name": "14. Generate from POS Import Lines",
       "request": {
         "method": "POST",
         "header": [
@@ -433,6 +433,58 @@
           "raw": "{{baseUrl}}/aggregated-transactions/generate-from-import/{{import_id}}",
           "host": ["{{baseUrl}}"],
           "path": ["aggregated-transactions", "generate-from-import", "{{import_id}}"]
+        }
+      }
+    },
+    {
+      "name": "15. Batch Create Aggregated Transactions",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-branch-id",
+            "value": "{{branch_id}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"transactions\": [\n    {\n      \"company_id\": \"{{company_id}}\",\n      \"source_type\": \"POS\",\n      \"source_id\": \"{{$guid}}\",\n      \"source_ref\": \"BATCH{{$randomInt}}-001\",\n      \"transaction_date\": \"{{$isoTimestamp}}\",\n      \"payment_method_id\": 1,\n      \"gross_amount\": {{$randomInt}},\n      \"discount_amount\": {{$randomInt}},\n      \"tax_amount\": {{$randomInt}},\n      \"net_amount\": {{$randomInt}},\n      \"currency\": \"IDR\",\n      \"status\": \"READY\"\n    },\n    {\n      \"company_id\": \"{{company_id}}\",\n      \"source_type\": \"POS\",\n      \"source_id\": \"{{$guid}}\",\n      \"source_ref\": \"BATCH{{$randomInt}}-002\",\n      \"transaction_date\": \"{{$isoTimestamp}}\",\n      \"payment_method_id\": 1,\n      \"gross_amount\": {{$randomInt}},\n      \"discount_amount\": {{$randomInt}},\n      \"tax_amount\": {{$randomInt}},\n      \"net_amount\": {{$randomInt}},\n      \"currency\": \"IDR\",\n      \"status\": \"READY\"\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/aggregated-transactions/batch",
+          "host": ["{{baseUrl}}"],
+          "path": ["aggregated-transactions", "batch"]
+        }
+      }
+    },
+    {
+      "name": "16. Batch Assign Journal to Transactions",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-branch-id",
+            "value": "{{branch_id}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"transaction_ids\": [\n    \"{{$guid}}\",\n    \"{{$guid}}\",\n    \"{{$guid}}\"\n  ],\n  \"journal_id\": \"{{$guid}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/aggregated-transactions/batch/assign-journal",
+          "host": ["{{baseUrl}}"],
+          "path": ["aggregated-transactions", "batch", "assign-journal"]
         }
       }
     }
