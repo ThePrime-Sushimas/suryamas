@@ -2,6 +2,7 @@ export interface BranchContext {
   branch_id: string
   branch_name: string
   company_id: string
+  employee_id: string
   role_id: string
   role_name: string
   approval_limit: number
