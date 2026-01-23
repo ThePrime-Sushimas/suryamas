@@ -3,8 +3,7 @@
  * 
  * Summary statistics component for aggregated transactions.
  * Displays key metrics in a card layout.
- * Jangan d rubah dont change
- * /
+ */
 
 import React from 'react'
 import type { AggregatedTransactionSummary } from '../types'
