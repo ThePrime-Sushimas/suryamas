@@ -1044,28 +1044,118 @@ export class PosAggregatesService {
    * Note: Global search - returns first match (PT/CV/-M variants exist)
    */
   private async getPaymentMethodId(paymentMethodName: string): Promise<{ id: number; isFallback: boolean }> {
+    // Log the raw input
+    logInfo('getPaymentMethodId: Starting lookup', {
+      raw_input: paymentMethodName,
+      input_type: typeof paymentMethodName,
+      input_length: paymentMethodName?.length,
+      input_trimmed: paymentMethodName?.trim()
+    })
+
+    // Validate input
+    if (!paymentMethodName || typeof paymentMethodName !== 'string') {
+      logError('getPaymentMethodId: Invalid input', {
+        payment_method_name: paymentMethodName,
+        input_type: typeof paymentMethodName
+      })
+      return { id: 20, isFallback: true }
+    }
+
+    const trimmedName = paymentMethodName.trim()
+
     // Try to find payment method (global search)
+    logInfo('getPaymentMethodId: Executing database query', {
+      query_name: trimmedName,
+      query_ilike: true,
+      is_active_filter: true
+    })
+
     const { data, error } = await supabase
       .from('payment_methods')
-      .select('id, name')
-      .ilike('name', paymentMethodName)
-      .eq('is_active', true)
+      .select('id, name, code, is_active')
+      .ilike('name', trimmedName)
       .limit(1)
       .maybeSingle()
 
+    // Log raw database response
+    logInfo('getPaymentMethodId: Database query result', {
+      query_name: trimmedName,
+      data_found: !!data,
+      error_occurred: !!error,
+      error_message: error?.message,
+      error_details: error,
+      returned_data: data
+    })
+
     if (error) {
-      logError('Failed to get payment method', { name: paymentMethodName, error })
+      logError('getPaymentMethodId: Database error', {
+        name: trimmedName,
+        error_code: error.code,
+        error_message: error.message,
+        error_details: error
+      })
+      // On database error, still use fallback but log detailed error info
+      logInfo('getPaymentMethodId: Using fallback due to database error', {
+        requested: trimmedName,
+        fallback_reason: 'database_error',
+        default_id: 20
+      })
+      return { id: 20, isFallback: true }
     }
 
     if (data) {
+      logInfo('getPaymentMethodId: Found payment method', {
+        requested: trimmedName,
+        found_id: data.id,
+        found_name: data.name,
+        found_code: data.code,
+        found_is_active: data.is_active,
+        is_fallback: false
+      })
       return { id: data.id, isFallback: false }
     }
 
-    // Default to CASH PT (id 20) if not found
-    logInfo('Payment method not found, using default', { 
-      requested: paymentMethodName,
-      default_id: 20 
+    // No data found - log all possible reasons
+    logInfo('getPaymentMethodId: Payment method not found, using default', {
+      requested: trimmedName,
+      fallback_reason: 'not_found_in_database',
+      default_id: 20,
+      search_attempted: {
+        table: 'payment_methods',
+        column: 'name',
+        operator: 'ilike (case-insensitive)',
+        value: trimmedName,
+        is_active_filter: true
+      },
+      troubleshooting_suggestions: [
+        'Check if payment_method name exists in payment_methods table',
+        'Check if name has trailing/leading spaces',
+        'Check if payment_method is_active = true',
+        'Check if there are similar names with different casing (e.g., "Cash" vs "CASH")',
+        'Verify the exact name in the source data'
+      ]
     })
+
+    // Log available payment methods for debugging (limited to first 10)
+    const { data: allPaymentMethods, error: listError } = await supabase
+      .from('payment_methods')
+      .select('id, name, code, is_active')
+      .limit(10)
+
+    if (!listError) {
+      logInfo('getPaymentMethodId: Available payment methods (sample)', {
+        requested: trimmedName,
+        available_count: allPaymentMethods?.length,
+        available_methods: allPaymentMethods?.map(pm => ({
+          id: pm.id,
+          name: pm.name,
+          code: pm.code,
+          is_active: pm.is_active
+        }))
+      })
+    }
+
+    // Default to CASH PT (id 20) if not found
     return { id: 20, isFallback: true }
   }
 }
