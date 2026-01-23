@@ -3,10 +3,11 @@
  * 
  * Summary statistics component for aggregated transactions.
  * Displays key metrics in a card layout.
- */
+ * Jangan d rubah dont change
+ * /
 
 import React from 'react'
-import type { AggregatedTransactionSummary, AggregatedTransactionStatus } from '../types'
+import type { AggregatedTransactionSummary } from '../types'
 
 // =============================================================================
 // UTILITY FUNCTIONS
@@ -29,20 +30,6 @@ const formatCurrency = (value: number): string => {
  */
 const formatNumber = (value: number): string => {
   return new Intl.NumberFormat('id-ID').format(value)
-}
-
-/**
- * Get status label in Indonesian
- */
-const getStatusLabel = (status: AggregatedTransactionStatus): string => {
-  const labels: Record<AggregatedTransactionStatus, string> = {
-    READY: 'Siap',
-    PENDING: 'Tertunda',
-    PROCESSING: 'Diproses',
-    COMPLETED: 'Selesai',
-    CANCELLED: 'Dibatalkan',
-  }
-  return labels[status] || status
 }
 
 // =============================================================================
@@ -115,7 +102,18 @@ export const PosAggregatesSummary: React.FC<PosAggregatesSummaryProps> = ({
       bgColor: 'bg-green-50',
     },
     {
-      label: 'Total Potongan',
+      label: 'Total Pajak',
+      value: formatCurrency(summary.total_tax_amount),
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+      color: 'text-yellow-600',
+      bgColor: 'bg-yellow-50',
+    },
+    {
+      label: 'Total Discount',
       value: formatCurrency(summary.total_discount_amount),
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -125,23 +123,23 @@ export const PosAggregatesSummary: React.FC<PosAggregatesSummaryProps> = ({
       color: 'text-red-600',
       bgColor: 'bg-red-50',
     },
-    {
-      label: 'Total Penjualan Bersih',
-      value: formatCurrency(summary.total_net_amount),
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
-    },
+      {
+        label: 'Total Penjualan Bersih',
+        value: formatCurrency(summary.total_net_amount),
+        icon: (
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ),
+        color: 'text-purple-600',
+        bgColor: 'bg-purple-50',
+      },  
   ]
 
   return (
     <div className={className}>
       {/* Main Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
         {statCards.map((card, index) => (
           <div
             key={index}
@@ -157,65 +155,6 @@ export const PosAggregatesSummary: React.FC<PosAggregatesSummaryProps> = ({
           </div>
         ))}
       </div>
-
-      {/* Status Breakdown */}
-      {summary.by_status && Object.keys(summary.by_status).length > 0 && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">Status Transaksi</h3>
-          <div className="flex flex-wrap gap-2">
-            {(Object.entries(summary.by_status) as [AggregatedTransactionStatus, number][])
-              .sort((a, b) => b[1] - a[1]) // Sort by count descending
-              .map(([status, count]) => {
-                const total = Object.values(summary.by_status!).reduce((sum, val) => sum + val, 0)
-                const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : '0'
-
-                const statusColors: Record<AggregatedTransactionStatus, string> = {
-                  READY: 'bg-blue-100 text-blue-700',
-                  PENDING: 'bg-yellow-100 text-yellow-700',
-                  PROCESSING: 'bg-purple-100 text-purple-700',
-                  COMPLETED: 'bg-green-100 text-green-700',
-                  CANCELLED: 'bg-red-100 text-red-700',
-                }
-
-                return (
-                  <div
-                    key={status}
-                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${statusColors[status]}`}
-                  >
-                    <span className="text-sm font-medium">
-                      {getStatusLabel(status)}
-                    </span>
-                    <span className="text-xs opacity-75">
-                      {formatNumber(count)} ({percentage}%)
-                    </span>
-                  </div>
-                )
-              })}
-          </div>
-        </div>
-      )}
-
-      {/* Additional Stats */}
-      {(summary.total_tax_amount > 0 || summary.total_service_charge_amount > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          {summary.total_tax_amount > 0 && (
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-sm font-medium text-gray-500 mb-1">Total Pajak</div>
-              <div className="text-lg font-semibold text-gray-900">
-                {formatCurrency(summary.total_tax_amount)}
-              </div>
-            </div>
-          )}
-          {summary.total_service_charge_amount > 0 && (
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-sm font-medium text-gray-500 mb-1">Total Service Charge</div>
-              <div className="text-lg font-semibold text-gray-900">
-                {formatCurrency(summary.total_service_charge_amount)}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }
