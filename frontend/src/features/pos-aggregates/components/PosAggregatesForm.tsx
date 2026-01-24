@@ -472,11 +472,12 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 {...register('status')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
-                <option value="READY">Siap</option>
-                <option value="PENDING">Tertunda</option>
-                <option value="PROCESSING">Diproses</option>
-                <option value="COMPLETED">Selesai</option>
-                <option value="CANCELLED">Dibatalkan</option>
+                <option value="READY">READY</option>
+                <option value="PENDING">PENDING</option>
+                <option value="PROCESSING">PROCESSING</option>
+                <option value="COMPLETED">COMPLETED</option>
+                <option value="CANCELLED">CANCELLED</option>
+                <option value="FAILED">FAILED</option>
               </select>
             </div>
 

@@ -14,32 +14,32 @@ import type { AggregatedTransactionStatus } from '../types'
 
 const STATUS_CONFIG: Record<AggregatedTransactionStatus, { label: string; colorClass: string; bgClass: string }> = {
   READY: {
-    label: 'Siap',
+    label: 'READY',
     colorClass: 'text-blue-700',
     bgClass: 'bg-blue-100',
   },
   PENDING: {
-    label: 'Tertunda',
+    label: 'PENDING',
     colorClass: 'text-yellow-700',
     bgClass: 'bg-yellow-100',
   },
   PROCESSING: {
-    label: 'Diproses',
+    label: 'PROCESSING',
     colorClass: 'text-purple-700',
     bgClass: 'bg-purple-100',
   },
   COMPLETED: {
-    label: 'Selesai',
+    label: 'COMPLETED',
     colorClass: 'text-green-700',
     bgClass: 'bg-green-100',
   },
   CANCELLED: {
-    label: 'Dibatalkan',
+    label: 'CANCELLED',
     colorClass: 'text-red-700',
     bgClass: 'bg-red-100',
   },
   FAILED: {
-    label: 'Gagal',
+    label: 'FAILED',
     colorClass: 'text-gray-700',
     bgClass: 'bg-gray-100',
   },

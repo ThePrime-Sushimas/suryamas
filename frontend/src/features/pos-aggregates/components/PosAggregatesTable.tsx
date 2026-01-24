@@ -135,9 +135,9 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Tanggal
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {/* <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Referensi
-              </th>
+              </th> */}
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Cabang
               </th>
@@ -202,7 +202,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                     </span>
                   </td>
 
-                  <td className="px-4 py-3 whitespace-nowrap">
+                  {/* <td className="px-4 py-3 whitespace-nowrap">
                     <div className="text-sm">
                       <span className="font-mono font-medium text-gray-900">
                         {transaction.source_ref}
@@ -211,7 +211,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                         ID: {transaction.source_id.slice(0, 8)}...
                       </div>
                     </div>
-                  </td>
+                  </td> */}
 
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className="text-sm text-gray-900">
