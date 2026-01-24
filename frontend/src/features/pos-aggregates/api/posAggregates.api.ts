@@ -652,6 +652,160 @@ export const posAggregatesApi = {
   },
 
   /**
+   * List failed transactions with pagination and filters
+   */
+  listFailed: async (
+    page = 1,
+    limit = 25,
+    sort?: AggregatedTransactionSortParams | null,
+    filter?: AggregatedTransactionFilterParams | null
+  ): Promise<{ data: AggregatedTransactionListItem[]; pagination: BackendResponse<AggregatedTransactionListItem[]>['pagination'] }> => {
+    return handleApiCall(async () => {
+      const signal = requestManager.getSignal('pos-aggregates:list-failed')
+
+      const params: ListParams = { page, limit }
+      if (sort) {
+        params.sort = sort.field
+        params.order = sort.order
+      }
+      if (filter) {
+        if (filter.branch_name !== undefined && filter.branch_name !== null) {
+          params.branch_name = filter.branch_name
+        }
+        if (filter.branch_names && filter.branch_names.length > 0) {
+          params.branch_names = filter.branch_names
+        }
+        if (filter.transaction_date_from) {
+          params.transaction_date_from = filter.transaction_date_from
+        }
+        if (filter.transaction_date_to) {
+          params.transaction_date_to = filter.transaction_date_to
+        }
+        if (filter.search) {
+          params.search = filter.search
+        }
+      }
+
+      try {
+        const res = await api.get<BackendResponse<AggregatedTransactionListItem[]>>(
+          '/aggregated-transactions/failed',
+          { params, signal }
+        )
+
+        if (!res.data.success) {
+          throw new Error(res.data.message || 'Failed to fetch failed transactions')
+        }
+
+        if (!Array.isArray(res.data.data)) {
+          throw new Error('Expected array of failed transactions')
+        }
+
+        requestManager.cleanup('pos-aggregates:list-failed')
+
+        return {
+          data: res.data.data,
+          pagination: res.data.pagination || {
+            page,
+            limit,
+            total: res.data.data.length,
+            totalPages: 1,
+            hasNext: false,
+            hasPrev: false,
+          },
+        }
+      } catch (error) {
+        requestManager.cleanup('pos-aggregates:list-failed')
+        throw error
+      }
+    }, 'Gagal mengambil data transaksi gagal', 'listFailed')
+  },
+
+  /**
+   * Get failed transaction details by ID
+   */
+  getFailedById: async (id: string): Promise<AggregatedTransactionWithDetails> => {
+    return handleApiCall(async () => {
+      const res = await api.get<BackendResponse<AggregatedTransactionWithDetails>>(
+        `/aggregated-transactions/failed/${id}`
+      )
+
+      if (!res.data.success) {
+        throw new Error(res.data.message || 'Failed to fetch failed transaction')
+      }
+
+      if (!res.data.data) {
+        throw new Error('Failed transaction not found')
+      }
+
+      return res.data.data
+    }, 'Gagal mengambil detail transaksi gagal', 'getFailedById')
+  },
+
+  /**
+   * Fix and retry a failed transaction
+   */
+  fixFailed: async (
+    id: string,
+    updates?: UpdateAggregatedTransactionDto
+  ): Promise<AggregatedTransaction> => {
+    return handleApiCall(async () => {
+      const res = await api.post<BackendResponse<AggregatedTransaction>>(
+        `/aggregated-transactions/failed/${id}/fix`,
+        updates || {}
+      )
+
+      if (!res.data.success) {
+        throw new Error(res.data.message || 'Failed to fix failed transaction')
+      }
+
+      if (!res.data.data) {
+        throw new Error('No data returned after fix')
+      }
+
+      return res.data.data
+    }, 'Gagal memperbaiki transaksi gagal', 'fixFailed')
+  },
+
+  /**
+   * Batch fix multiple failed transactions
+   */
+  batchFixFailed: async (
+    ids: string[],
+    updates?: UpdateAggregatedTransactionDto
+  ): Promise<{ fixed: string[]; failed: Array<{ id: string; error: string }> }> => {
+    return handleApiCall(async () => {
+      const res = await api.post<BackendResponse<{
+        fixed: string[]
+        failed: Array<{ id: string; error: string }>
+      }>>('/aggregated-transactions/failed/batch-fix', {
+        ids,
+        updates: updates || {}
+      })
+
+      if (!res.data.success) {
+        throw new Error(res.data.message || 'Failed to batch fix failed transactions')
+      }
+
+      return res.data.data
+    }, 'Gagal memperbaiki transaksi secara batch', 'batchFixFailed')
+  },
+
+  /**
+   * Permanently delete a failed transaction
+   */
+  deleteFailed: async (id: string): Promise<void> => {
+    return handleApiCall(async () => {
+      const res = await api.delete<BackendResponse<void>>(
+        `/aggregated-transactions/failed/${id}`
+      )
+
+      if (!res.data.success) {
+        throw new Error(res.data.message || 'Failed to delete failed transaction')
+      }
+    }, 'Gagal menghapus transaksi gagal', 'deleteFailed')
+  },
+
+  /**
    * Cleanup all pending requests (call on unmount)
    */
   cleanup: () => {

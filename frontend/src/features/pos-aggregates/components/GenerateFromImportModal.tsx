@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Database, FileText, Check, X, Loader2, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Database, FileText, Check, X, Loader2, AlertTriangle, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
 import { posAggregatesApi } from '../api/posAggregates.api'
 import { useToast } from '@/contexts/ToastContext'
 import { useBranchContextStore } from '@/features/branch_context'
@@ -39,6 +40,7 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
   onClose,
   onGenerated,
 }) => {
+  const navigate = useNavigate()
   const toast = useToast()
   const currentBranch = useBranchContextStore((s) => s.currentBranch)
   
@@ -377,11 +379,25 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
                 </table>
               </div>
 
-              {/* Info */}
+{/* Info */}
               <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-sm text-blue-700">
                   <strong>Info:</strong> Transaksi akan di-aggregate berdasarkan tanggal + cabang + metode pembayaran.
                   File yang sudah di-generate akan ditandai sebagai MAPPED.
+                </p>
+              </div>
+
+              {/* Failed Transactions Link */}
+              <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <button
+                  onClick={() => navigate('/pos-aggregates/failed-transactions')}
+                  className="flex items-center gap-2 text-sm text-yellow-700 hover:text-yellow-800"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span className="font-medium">Lihat Transaksi Gagal</span>
+                </button>
+                <p className="text-xs text-yellow-600 mt-1">
+                  Klik untuk melihat dan memfix transaksi yang gagal diproses.
                 </p>
               </div>
             </>

@@ -143,6 +143,7 @@ export class PosAggregatesService {
       PROCESSING: ['COMPLETED', 'CANCELLED'],
       COMPLETED: [],
       CANCELLED: [],
+      FAILED: ['READY', 'CANCELLED'], // FAILED can be retried or cancelled
     }
 
     if (!validTransitions[currentStatus].includes(newStatus)) {
@@ -179,6 +180,8 @@ export class PosAggregatesService {
       status: data.status ?? 'READY',
       deleted_at: null,
       deleted_by: null,
+      failed_at: null,
+      failed_reason: null,
     }
   }
 
@@ -965,7 +968,7 @@ export class PosAggregatesService {
   }
 
   /**
-   * Generate aggregated transactions from POS import lines
+   * Generate aggregated transactions from POS import lines (OLD LOOP METHOD)
    * Group by: sales_date + branch + payment_method
    * source_ref: ${tanggal}-${cabang}-${metode}
    */
@@ -1094,7 +1097,6 @@ export class PosAggregatesService {
     })
 
     // Update pos_import status to MAPPED after successful generation
-    // Only if there were no critical errors
     if (results.created > 0 || results.skipped > 0) {
       try {
         logInfo('Attempting to update pos_import status to MAPPED', { 
@@ -1103,7 +1105,6 @@ export class PosAggregatesService {
           skipped: results.skipped
         })
         
-        // Update status directly using Supabase (bypass repository to avoid company_id requirement)
         const { error: updateError } = await supabase
           .from('pos_imports')
           .update({
@@ -1122,11 +1123,247 @@ export class PosAggregatesService {
           pos_import_id: posImportId,
           error: statusError
         })
-        // Don't fail the whole operation if status update fails
       }
     }
 
     return results
+  }
+
+  /**
+   * Generate aggregated transactions from POS import lines (OPTIMIZED - BULK INSERT + FAILED TRACKING)
+   * Uses batch insert and stores failed transactions
+   * 
+   * @returns Progress info including created, skipped, failed count and error details
+   */
+  async generateFromPosImportLinesOptimized(
+    posImportId: string,
+    branchName?: string,
+    onProgress?: (progress: { current: number; total: number; created: number; skipped: number; failed: number }) => void
+  ): Promise<{
+    created: number
+    skipped: number
+    failed: number
+    errors: Array<{ source_ref: string; error: string }>
+    total_groups: number
+  }> {
+    // Get all lines from the import
+    const lines = await posImportLinesRepository.findAllByImportId(posImportId)
+    
+    if (lines.length === 0) {
+      return { created: 0, skipped: 0, failed: 0, errors: [], total_groups: 0 }
+    }
+
+    // Group lines by: sales_date + branch + payment_method
+    const transactionGroups = new Map<string, typeof lines>()
+    
+    for (const line of lines) {
+      const salesDate = line.sales_date || 'unknown'
+      const branch = line.branch || 'unknown'
+      const paymentMethod = line.payment_method || 'unknown'
+      
+      const transactionKey = `${salesDate}|${branch}|${paymentMethod}`
+      if (!transactionGroups.has(transactionKey)) {
+        transactionGroups.set(transactionKey, [])
+      }
+      transactionGroups.get(transactionKey)!.push(line)
+    }
+
+    const groupArray = Array.from(transactionGroups.entries())
+    const totalGroups = groupArray.length
+
+    // Prepare all insert data first (batch processing)
+    const insertDataArray: Array<{
+      data: Omit<AggregatedTransaction, 'id' | 'created_at' | 'updated_at' | 'version'>
+      sourceRef: string
+    }> = []
+    const skippedGroups: string[] = []
+    const failedGroups: Array<{ sourceRef: string; error: string }> = []
+
+    logInfo('Preparing transaction groups for bulk insert', {
+      pos_import_id: posImportId,
+      total_groups: totalGroups
+    })
+
+    // Pre-process all groups to prepare insert data
+    for (let i = 0; i < groupArray.length; i++) {
+      const [groupKey, groupLines] = groupArray[i]
+      
+      // Report progress
+      if (onProgress) {
+        onProgress({
+          current: i,
+          total: totalGroups,
+          created: insertDataArray.length,
+          skipped: skippedGroups.length,
+          failed: failedGroups.length
+        })
+      }
+
+      try {
+        const firstLine = groupLines[0]
+        const sourceRef = groupKey.replace(/\|/g, '-')
+        
+        // Check if already exists
+        const exists = await this.checkSourceExists('POS', posImportId, sourceRef)
+        if (exists) {
+          skippedGroups.push(sourceRef)
+          continue
+        }
+
+        // Resolve branch
+        let resolvedBranchName: string | null = null
+        if (firstLine.branch?.trim()) {
+          resolvedBranchName = firstLine.branch.trim()
+        }
+
+        // Calculate aggregated amounts
+        const grossAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.subtotal || 0), 0)
+        const discountAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.discount || 0), 0)
+        const billDiscountAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.bill_discount || 0), 0)
+        const taxAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.tax || 0), 0)
+        const netAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.total_after_bill_discount || line.total || 0), 0)
+
+        // Get payment method ID
+        const { id: paymentMethodId, isFallback } = await this.getPaymentMethodId(firstLine.payment_method || 'Cash')
+
+        // Prepare insert data
+        const insertData = {
+          branch_name: resolvedBranchName,
+          source_type: 'POS' as AggregatedTransactionSourceType,
+          source_id: posImportId,
+          source_ref: sourceRef,
+          transaction_date: firstLine.sales_date || new Date().toISOString().split('T')[0],
+          payment_method_id: paymentMethodId,
+          gross_amount: grossAmount,
+          discount_amount: discountAmount + billDiscountAmount,
+          tax_amount: taxAmount,
+          service_charge_amount: 0,
+          net_amount: netAmount,
+          currency: 'IDR',
+          journal_id: null,
+          is_reconciled: false,
+          status: 'READY' as AggregatedTransactionStatus,
+          deleted_at: null,
+          deleted_by: null,
+          failed_at: null,
+          failed_reason: null,
+        }
+
+        insertDataArray.push({ data: insertData, sourceRef })
+
+      } catch (error) {
+        const sourceRef = groupKey.replace(/\|/g, '-')
+        failedGroups.push({
+          sourceRef,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+      }
+    }
+
+    // Bulk insert successful transactions
+    const insertDataOnly = insertDataArray.map(item => item.data)
+    let createdCount = 0
+
+    if (insertDataOnly.length > 0) {
+      logInfo('Starting bulk insert', {
+        pos_import_id: posImportId,
+        transaction_count: insertDataOnly.length
+      })
+
+      const bulkResult = await posAggregatesRepository.createBatchBulk(
+        insertDataOnly,
+        (current, total) => {
+          if (onProgress) {
+            onProgress({
+              current: current + skippedGroups.length,
+              total: totalGroups,
+              created: current,
+              skipped: skippedGroups.length,
+              failed: failedGroups.length
+            })
+          }
+        }
+      )
+
+      createdCount = bulkResult.success.length
+      failedGroups.push(...bulkResult.failed.map(f => ({ sourceRef: f.source_ref, error: f.error })))
+
+      logInfo('Bulk insert completed', {
+        pos_import_id: posImportId,
+        success: bulkResult.success.length,
+        failed: bulkResult.failed.length
+      })
+    }
+
+    // Store failed transactions with FAILED status
+    if (failedGroups.length > 0) {
+      logInfo('Storing failed transactions', {
+        pos_import_id: posImportId,
+        count: failedGroups.length
+      })
+
+      const failedRecords = failedGroups.map(fg => ({
+        data: insertDataArray.find(item => item.sourceRef === fg.sourceRef)?.data,
+        error: fg.error
+      })).filter(r => r.data) as Array<{
+        data: Omit<AggregatedTransaction, 'id' | 'created_at' | 'updated_at' | 'version'>
+        error: string
+      }>
+
+      if (failedRecords.length > 0) {
+        const failedResult = await posAggregatesRepository.createFailedBatch(failedRecords)
+        logInfo('Failed transactions stored', {
+          pos_import_id: posImportId,
+          created: failedResult.created,
+          failed: failedResult.failed
+        })
+      }
+    }
+
+    // Final progress report
+    if (onProgress) {
+      onProgress({
+        current: totalGroups,
+        total: totalGroups,
+        created: createdCount,
+        skipped: skippedGroups.length,
+        failed: failedGroups.length
+      })
+    }
+
+    logInfo('Completed generating aggregated transactions (optimized)', {
+      pos_import_id: posImportId,
+      total_groups: totalGroups,
+      created: createdCount,
+      skipped: skippedGroups.length,
+      failed: failedGroups.length
+    })
+
+    // Update pos_import status to MAPPED
+    if (createdCount > 0 || skippedGroups.length > 0) {
+      try {
+        await supabase
+          .from('pos_imports')
+          .update({
+            status: 'MAPPED',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', posImportId)
+      } catch (statusError) {
+        logError('Failed to update pos_import status to MAPPED', {
+          pos_import_id: posImportId,
+          error: statusError
+        })
+      }
+    }
+
+    return {
+      created: createdCount,
+      skipped: skippedGroups.length,
+      failed: failedGroups.length,
+      errors: failedGroups.map(fg => ({ source_ref: fg.sourceRef, error: fg.error })),
+      total_groups: totalGroups
+    }
   }
 
   /**
@@ -1288,6 +1525,162 @@ export class PosAggregatesService {
 
     // Default to CASH PT (id 20) if not found
     return { id: 20, isFallback: true }
+  }
+
+  /**
+   * Get all failed transactions
+   */
+  async getFailedTransactions(
+    filter?: AggregatedTransactionFilterParams,
+    sort?: AggregatedTransactionSortParams
+  ) {
+    const { page, limit, offset } = getPaginationParams(filter as any)
+    
+    // Add FAILED status filter by default
+    const failedFilter: AggregatedTransactionFilterParams = {
+      ...filter,
+      status: 'FAILED'
+    }
+    
+    const { data, total } = await posAggregatesRepository.findAll(
+      { limit, offset },
+      failedFilter,
+      sort
+    )
+    
+    return createPaginatedResponse(data, total, page, limit)
+  }
+
+  /**
+   * Get failed transaction by ID with error details
+   */
+  async getFailedTransactionById(id: string): Promise<AggregatedTransactionWithDetails> {
+    const transaction = await posAggregatesRepository.findById(id)
+    if (!transaction) {
+      throw AggregatedTransactionErrors.NOT_FOUND(id)
+    }
+    if (transaction.status !== 'FAILED') {
+      throw new Error('Transaction is not in FAILED status')
+    }
+    return transaction
+  }
+
+  /**
+   * Fix and retry a failed transaction
+   * Updates the failed transaction with corrected data and sets status back to READY
+   */
+  async fixFailedTransaction(
+    id: string,
+    updates: UpdateAggregatedTransactionDto
+  ): Promise<AggregatedTransaction> {
+    const existing = await posAggregatesRepository.findById(id)
+    if (!existing) {
+      throw AggregatedTransactionErrors.NOT_FOUND(id)
+    }
+    if (existing.status !== 'FAILED') {
+      throw new Error('Only FAILED transactions can be fixed')
+    }
+
+    logInfo('Fixing failed transaction', {
+      id,
+      source_ref: existing.source_ref,
+      current_failed_reason: existing.failed_reason,
+      updates: Object.keys(updates)
+    })
+
+    // Resolve payment method if provided as string
+    if (typeof updates.payment_method_id === 'string') {
+      const resolvedId = await this.resolvePaymentMethodId(updates.payment_method_id)
+      ;(updates as any).payment_method_id = resolvedId
+    }
+
+    // Clear failed fields and set status to READY
+    const fixData: any = {
+      ...updates,
+      status: 'READY' as AggregatedTransactionStatus,
+      failed_at: null,
+      failed_reason: null,
+    }
+
+    try {
+      const updated = await posAggregatesRepository.update(id, fixData, existing.version)
+      
+      logInfo('Successfully fixed failed transaction', {
+        id,
+        source_ref: existing.source_ref,
+        new_status: 'READY'
+      })
+      
+      return updated
+    } catch (err: any) {
+      logError('Failed to fix transaction', { id, error: err })
+      throw err
+    }
+  }
+
+  /**
+   * Batch fix failed transactions
+   */
+  async batchFixFailedTransactions(
+    ids: string[],
+    updates: UpdateAggregatedTransactionDto
+  ): Promise<{
+    fixed: string[]
+    failed: Array<{ id: string; error: string }>
+  }> {
+    const results = {
+      fixed: [] as string[],
+      failed: [] as Array<{ id: string; error: string }>
+    }
+
+    for (const id of ids) {
+      try {
+        await this.fixFailedTransaction(id, updates)
+        results.fixed.push(id)
+      } catch (err) {
+        results.failed.push({
+          id,
+          error: err instanceof Error ? err.message : 'Unknown error'
+        })
+      }
+    }
+
+    logInfo('Batch fix completed', {
+      total: ids.length,
+      fixed: results.fixed.length,
+      failed: results.failed.length
+    })
+
+    return results
+  }
+
+  /**
+   * Delete a failed transaction permanently
+   */
+  async deleteFailedTransaction(id: string, deletedBy?: string): Promise<void> {
+    const existing = await posAggregatesRepository.findById(id)
+    if (!existing) {
+      throw AggregatedTransactionErrors.NOT_FOUND(id)
+    }
+    if (existing.status !== 'FAILED') {
+      throw new Error('Only FAILED transactions can be deleted')
+    }
+
+    logInfo('Deleting failed transaction', {
+      id,
+      source_ref: existing.source_ref,
+      failed_reason: existing.failed_reason
+    })
+
+    // Hard delete for failed transactions
+    const { error } = await supabase
+      .from('aggregated_transactions')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      throw new Error(`Failed to delete failed transaction: ${error.message}`)
+    }
   }
 }
 

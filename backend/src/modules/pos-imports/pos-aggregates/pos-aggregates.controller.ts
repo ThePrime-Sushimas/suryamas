@@ -314,6 +314,85 @@ export class PosAggregatesController {
       handleError(res, error)
     }
   }
+
+  /**
+   * List failed transactions with pagination and filters
+   * GET /aggregated-transactions/failed
+   */
+  listFailed = withValidated(async (req: TransactionListQueryReq, res: Response) => {
+    try {
+      const result = await posAggregatesService.getFailedTransactions(
+        req.validated.query,
+        undefined
+      )
+      sendSuccess(res, result.data, 'Failed transactions retrieved successfully', 200, result.pagination)
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  })
+
+  /**
+   * Get failed transaction details
+   * GET /aggregated-transactions/failed/:id
+   */
+  findFailedById = withValidated(async (req: TransactionIdReq, res: Response) => {
+    try {
+      const id = req.validated.params.id
+      const transaction = await posAggregatesService.getFailedTransactionById(id)
+      sendSuccess(res, transaction, 'Failed transaction retrieved successfully')
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  })
+
+  /**
+   * Fix and retry a failed transaction
+   * POST /aggregated-transactions/failed/:id/fix
+   */
+  fixFailed = withValidated(async (req: UpdateTransactionReq, res: Response) => {
+    try {
+      const id = req.validated.params.id
+      const transaction = await posAggregatesService.fixFailedTransaction(id, req.validated.body)
+      sendSuccess(res, transaction, 'Failed transaction fixed successfully')
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  })
+
+  /**
+   * Batch fix multiple failed transactions
+   * POST /aggregated-transactions/failed/batch-fix
+   */
+  batchFixFailed = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { ids, updates } = req.body
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return handleError(res, new Error('ids array is required'))
+      }
+      const result = await posAggregatesService.batchFixFailedTransactions(ids, updates || {})
+      sendSuccess(res, result, 'Batch fix completed', 200, {
+        fixed_count: result.fixed.length,
+        failed_count: result.failed.length
+      })
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  }
+
+  /**
+   * Permanently delete a failed transaction
+   * DELETE /aggregated-transactions/failed/:id
+   */
+  deleteFailed = withValidated(async (req: TransactionIdReq, res: Response) => {
+    try {
+      const id = req.validated.params.id
+      const employeeId = req.context?.employee_id
+      await posAggregatesService.deleteFailedTransaction(id, employeeId)
+      sendSuccess(res, null, 'Failed transaction deleted permanently')
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  })
 }
 
 export const posAggregatesController = new PosAggregatesController()

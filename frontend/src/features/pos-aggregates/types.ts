@@ -14,7 +14,7 @@
  * Status of aggregated transaction in the system
  * Maps to: public.aggregated_transaction_status
  */
-export type AggregatedTransactionStatus = 'READY' | 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED'
+export type AggregatedTransactionStatus = 'READY' | 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED' | 'FAILED'
 
 /**
  * Source types for aggregated transactions

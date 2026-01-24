@@ -201,7 +201,7 @@ export class PosAggregatesRepository {
     return (count || 0) > 0
   }
 
-  /**
+/**
    * Create new aggregated transaction
    */
   async create(data: Omit<AggregatedTransaction, 'id' | 'created_at' | 'updated_at' | 'version'>): Promise<AggregatedTransaction> {
@@ -227,27 +227,152 @@ export class PosAggregatesRepository {
   }
 
   /**
-   * Create multiple aggregated transactions (batch)
+   * Create multiple aggregated transactions (TRUE BULK INSERT)
+   * Uses Supabase bulk insert for better performance
    */
-  async createBatch(
-    transactions: Array<Omit<AggregatedTransaction, 'id' | 'created_at' | 'updated_at' | 'version'>>
-  ): Promise<{ success: string[]; failed: Array<{ source_ref: string; error: string }> }> {
+  async createBatchBulk(
+    transactions: Array<Omit<AggregatedTransaction, 'id' | 'created_at' | 'updated_at' | 'version'>>,
+    onProgress?: (current: number, total: number) => void
+  ): Promise<{ 
+    success: string[] 
+    failed: Array<{ source_ref: string; error: string }>
+    total_processed: number
+  }> {
+    const BATCH_SIZE = 100 // Process in batches of 100
     const success: string[] = []
     const failed: Array<{ source_ref: string; error: string }> = []
+    
+    // Process in batches
+    const batches: Array<typeof transactions> = []
+    for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
+      batches.push(transactions.slice(i, i + BATCH_SIZE))
+    }
 
-    for (const tx of transactions) {
-      try {
-        await this.create(tx)
-        success.push(tx.source_ref)
-      } catch (err) {
-        failed.push({
-          source_ref: tx.source_ref,
-          error: err instanceof Error ? err.message : 'Unknown error'
-        })
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex]
+      const batchNum = batchIndex + 1
+      const startIndex = batchIndex * BATCH_SIZE
+      
+      // Report progress
+      if (onProgress) {
+        onProgress(startIndex, transactions.length)
+      }
+
+      // Bulk insert for this batch
+      const { data, error } = await supabase
+        .from('aggregated_transactions')
+        .insert(batch)
+        .select('id, source_ref')
+
+      if (error) {
+        // If bulk insert fails, try one-by-one for detailed error tracking
+        for (const tx of batch) {
+          try {
+            await this.create(tx)
+            success.push(tx.source_ref)
+          } catch (err) {
+            failed.push({
+              source_ref: tx.source_ref,
+              error: err instanceof Error ? err.message : 'Unknown error'
+            })
+          }
+        }
+      } else if (data) {
+        // Success - collect source_refs
+        for (const row of data) {
+          success.push(row.source_ref)
+        }
       }
     }
 
-    return { success, failed }
+    // Report final progress
+    if (onProgress) {
+      onProgress(transactions.length, transactions.length)
+    }
+
+    return {
+      success,
+      failed,
+      total_processed: transactions.length
+    }
+  }
+
+  /**
+   * Create failed transaction record
+   * Stores transaction with FAILED status and error details
+   */
+  async createFailedTransaction(
+    data: Omit<AggregatedTransaction, 'id' | 'created_at' | 'updated_at' | 'version'>,
+    failedReason: string
+  ): Promise<AggregatedTransaction> {
+    const failedData = {
+      ...data,
+      status: 'FAILED' as AggregatedTransactionStatus,
+      failed_at: new Date().toISOString(),
+      failed_reason: failedReason,
+    }
+
+    const { data: result, error } = await supabase
+      .from('aggregated_transactions')
+      .insert(failedData)
+      .select()
+      .single()
+
+    if (error) {
+      // Log but don't throw - failed transaction recording should not break the process
+      console.error('Failed to record failed transaction:', {
+        source_ref: data.source_ref,
+        error: error.message
+      })
+      throw new Error(`Failed to record error: ${error.message}`)
+    }
+
+    return result
+  }
+
+  /**
+   * Create multiple failed transactions (bulk) with FAILED status
+   */
+  async createFailedBatch(
+    transactions: Array<{
+      data: Omit<AggregatedTransaction, 'id' | 'created_at' | 'updated_at' | 'version'>
+      error: string
+    }>
+  ): Promise<{ created: number; failed: number }> {
+    const BATCH_SIZE = 100
+    let created = 0
+    let failed = 0
+
+    for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
+      const batch = transactions.slice(i, i + BATCH_SIZE)
+      
+      const records = batch.map(tx => ({
+        ...tx.data,
+        status: 'FAILED' as AggregatedTransactionStatus,
+        failed_at: new Date().toISOString(),
+        failed_reason: tx.error,
+      }))
+
+      const { error } = await supabase
+        .from('aggregated_transactions')
+        .insert(records)
+
+      if (error) {
+        // Fallback: one-by-one
+        for (const tx of batch) {
+          try {
+            await this.createFailedTransaction(tx.data, tx.error)
+            created++
+          } catch {
+            failed++
+          }
+        }
+      } else {
+        created += records.length
+      }
+    }
+
+    return { created, failed }
   }
 
   /**
@@ -508,13 +633,14 @@ export class PosAggregatesRepository {
    */
   async getStatusCounts(): Promise<Record<AggregatedTransactionStatus, number>> {
     // Fallback: get counts individually for each status
-    const statuses: AggregatedTransactionStatus[] = ['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED']
+    const statuses: AggregatedTransactionStatus[] = ['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED']
     const counts: Record<AggregatedTransactionStatus, number> = {
       READY: 0,
       PENDING: 0,
       PROCESSING: 0,
       COMPLETED: 0,
       CANCELLED: 0,
+      FAILED: 0,
     }
 
     for (const status of statuses) {
@@ -590,6 +716,8 @@ export class PosAggregatesRepository {
       payment_method_code: (paymentMethod as Record<string, unknown>)?.code as string | undefined,
       payment_method_name: (paymentMethod as Record<string, unknown>)?.name as string | undefined,
       journal: journal as AggregatedTransactionWithDetails['journal'],
+      failed_at: row.failed_at as string | null,
+      failed_reason: row.failed_reason as string | null,
     }
   }
 }

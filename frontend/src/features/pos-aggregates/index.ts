@@ -22,6 +22,7 @@ export { posAggregatesApi } from './api/posAggregates.api'
 // =============================================================================
 
 export { usePosAggregatesStore } from './store/posAggregates.store'
+export { useFailedTransactionsStore } from './store/failedTransactions.store'
 
 // =============================================================================
 // COMPONENTS
@@ -33,12 +34,15 @@ export { PosAggregatesFilters } from './components/PosAggregatesFilters'
 export { PosAggregatesForm } from './components/PosAggregatesForm'
 export { PosAggregatesTable } from './components/PosAggregatesTable'
 export { PosAggregatesDetail } from './components/PosAggregatesDetail'
+export { FailedTransactionsTable } from './components/FailedTransactionsTable'
+export { FailedTransactionDetailModal } from './components/FailedTransactionDetailModal'
 
 // =============================================================================
 // PAGES
 // =============================================================================
 
 export { PosAggregatesPage } from './pages/PosAggregatesPage'
+export { FailedTransactionsPage } from './pages/FailedTransactionsPage'
 export { CreatePosAggregatePage } from './pages/CreatePosAggregatePage'
 export { EditPosAggregatePage } from './pages/EditPosAggregatePage'
 export { PosAggregateDetailPage } from './pages/PosAggregateDetailPage'

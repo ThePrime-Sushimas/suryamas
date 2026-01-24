@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useLocation, Link, Outlet, useNavigate } from 'react-router-dom'
-import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, Key, Package, Factory, Warehouse, Users, Settings, LogOut, Search, User, ShoppingCart, Building2, UserCog, Shield, DollarSign, Calculator, FileSpreadsheet } from 'lucide-react'
+import { Menu, X, ChevronDown, ChevronRight, LayoutDashboard, Key, Package, Factory, Warehouse, Users, Settings, LogOut, Search, User, ShoppingCart, Building2, UserCog, Shield, DollarSign, Calculator, FileSpreadsheet, AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '@/features/auth'
 import { BranchSwitcher, usePermissionStore } from '@/features/branch_context'
 import { UploadProgressToast } from '@/features/pos-imports/components/UploadProgressToast'
@@ -45,7 +45,7 @@ export default function Layout() {
         { id: 'companies', name: 'Companies', href: '/companies', icon: <Factory size={16} />, module: 'companies' },
         { id: 'branches', name: 'Branches', href: '/branches', icon: <Warehouse size={16} />, module: 'branches' },
         { id: 'categories', name: 'Categories', href: '/categories', icon: <Package size={16} />, module: 'categories' },
-        { id: 'sub-categories', name: 'Sub Categories', href: '/sub-categories', icon: <Package size={16} />, module: 'sub_categories' },
+{ id: 'sub-categories', name: 'Sub Categories', href: '/sub-categories', icon: <Package size={16} />, module: 'sub_categories' },
         { id: 'metric-units', name: 'Metric Units', href: '/metric-units', icon: <Package size={16} />, module: 'metric_units' },
         { id: 'payment-terms', name: 'Payment Terms', href: '/payment-terms', icon: <Package size={16} />, module: 'payment_terms' },
         { id: 'payment-methods', name: 'Payment Methods', href: '/payment-methods', icon: <DollarSign size={16} />, module: 'payment_methods' },
@@ -75,6 +75,7 @@ export default function Layout() {
         { id: 'pos-imports', name: 'POS Imports', href: '/pos-imports', icon: <FileSpreadsheet size={16} />, module: 'pos_imports' },
         { id: 'pos-transactions', name: 'POS Transactions', href: '/pos-transactions', icon: <FileSpreadsheet size={16} />, module: 'pos_imports' },
         { id: 'pos-aggregates', name: 'POS Aggregates', href: '/pos-aggregates', icon: <FileSpreadsheet size={16} />, module: 'pos_aggregates' },
+        { id: 'failed-transactions', name: 'Failed Transactions', href: '/pos-aggregates/failed-transactions', icon: <AlertTriangle size={16} />, module: 'pos_aggregates' },
       ]
     },
     {

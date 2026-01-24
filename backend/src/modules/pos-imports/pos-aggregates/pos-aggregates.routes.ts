@@ -219,6 +219,65 @@ router.post(
   posAggregatesController.batchAssignJournal
 )
 
+/**
+ * @route GET /failed
+ * @desc List failed transactions with pagination and filters
+ * @access Private
+ */
+router.get(
+  '/failed',
+  canView('pos_aggregates'),
+  validateSchema(aggregatedTransactionListQuerySchema),
+  posAggregatesController.listFailed
+)
+
+/**
+ * @route GET /failed/:id
+ * @desc Get failed transaction details
+ * @access Private
+ */
+router.get(
+  '/failed/:id',
+  canView('pos_aggregates'),
+  validateSchema(aggregatedTransactionIdSchema),
+  posAggregatesController.findFailedById
+)
+
+/**
+ * @route POST /failed/:id/fix
+ * @desc Fix and retry a failed transaction
+ * @access Private
+ */
+router.post(
+  '/failed/:id/fix',
+  canUpdate('pos_aggregates'),
+  validateSchema(updateAggregatedTransactionSchema),
+  posAggregatesController.fixFailed
+)
+
+/**
+ * @route POST /failed/batch-fix
+ * @desc Batch fix multiple failed transactions
+ * @access Private
+ */
+router.post(
+  '/failed/batch-fix',
+  canUpdate('pos_aggregates'),
+  posAggregatesController.batchFixFailed
+)
+
+/**
+ * @route DELETE /failed/:id
+ * @desc Permanently delete a failed transaction
+ * @access Private
+ */
+router.delete(
+  '/failed/:id',
+  canDelete('pos_aggregates'),
+  validateSchema(aggregatedTransactionIdSchema),
+  posAggregatesController.deleteFailed
+)
+
 export default router
 
 

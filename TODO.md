@@ -1,29 +1,25 @@
-# TODO - Pos Aggregates Improvements
+# TODO - Failed Transactions Feature
 
-## Task: Ubah grouping aggregate & tambah filter
+## Backend Tasks
+- [ ] 1. Add `FAILED` status to AggregatedTransactionStatus type
+- [ ] 2. Update repository with batch insert + transaction support
+- [ ] 3. Add progress tracking to generateFromImport service
+- [ ] 4. Create new API endpoint: `GET /aggregated-transactions/failed`
+- [ ] 5. Create new API endpoint: `POST /aggregated-transactions/:id/fix`
+- [ ] 6. Create new API endpoint: `POST /aggregated-transactions/batch-fix`
+- [ ] 7. Update error types for failed transactions
 
-### Backend Changes
-- [x] 1. Ubah grouping logic di `pos-aggregates.service.ts`
-  - [x] Group by: `${sales_date}|${branch}|${payment_method}`
-  - [x] source_ref: `${tanggal}-${cabang}-${metode}`
-  - [x] SUM amounts per group
-- [x] 2. Tambah filter array di `pos-aggregates.types.ts`
-- [x] 3. Tambah filter array support di `pos-aggregates.repository.ts`
-- [x] 4. Update `generateFromPosImportLines` untuk update status ke MAPPED setelah generate
+## Frontend Tasks
+- [ ] 8. Create `FailedTransactionsPage.tsx` component
+- [ ] 9. Create `FailedTransactionsTable.tsx` component
+- [ ] 10. Create `FailedTransactionEditModal.tsx` component
+- [ ] 11. Add API functions for failed transactions
+- [ ] 12. Add navigation link in sidebar/menu
+- [ ] 13. Add route in App.tsx
+- [ ] 14. Store integration for failed transactions
 
-### Frontend Changes
-- [x] 5. Tambah filter Branch (checkbox) di `PosAggregatesFilters.tsx`
-- [x] 6. Tambah filter Payment Method (checkbox) di `PosAggregatesFilters.tsx`
-- [x] 7. Update API call untuk include filter params array
-- [x] 8. Update types di frontend
-- [x] 9. Tambah tombol "Generate dari Import" di halaman `/pos-aggregates`
-- [x] 10. Tambah modal untuk input Import ID
-
-## Notes
-- Filter menggunakan checkbox (tick method) untuk branch dan payment method
-- User bisa pilih multiple branches dan multiple payment methods
-- Grouping baru: sales_date + branch + payment_method (bukan per bill)
-- Tombol "Generate dari Import" sekarang ada di halaman `/pos-aggregates` (button biru dengan icon Database)
-- Setelah generate, status pos-import akan diupdate ke MAPPED secara otomatis
-
+## Testing
+- [ ] 15. Test batch insert with Supabase
+- [ ] 16. Test failed transaction listing
+- [ ] 17. Test fix/retry functionality
 

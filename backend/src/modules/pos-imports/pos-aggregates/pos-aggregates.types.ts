@@ -5,7 +5,7 @@ import { JournalHeader } from '../../accounting/journals/journal-headers/journal
  * Status of aggregated transaction in the system
  * Maps to: public.aggregated_transaction_status
  */
-export type AggregatedTransactionStatus = 'READY' | 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED'
+export type AggregatedTransactionStatus = 'READY' | 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED' | 'FAILED'
 
 /**
  * Source types for aggregated transactions
@@ -62,6 +62,8 @@ export interface AggregatedTransaction {
   deleted_by: string | null  // User who deleted the transaction
   version: number  // Default: 1
   status: AggregatedTransactionStatus  // Default: 'READY'
+  failed_at: string | null  // Timestamp when transaction failed
+  failed_reason: string | null  // Reason why transaction failed
 }
 
 /**
@@ -243,5 +245,22 @@ export interface AggregatedTransactionImportRow {
   service_charge_amount?: number
   net_amount: number
   currency?: string
+}
+
+/**
+ * Failed aggregated transaction with error details
+ */
+export interface FailedAggregatedTransaction extends AggregatedTransaction {
+  failed_at: string
+  failed_reason: string
+}
+
+/**
+ * Result for failed transaction fix
+ */
+export interface FixFailedTransactionResult {
+  success: boolean
+  transaction?: AggregatedTransaction
+  error?: string
 }
 
