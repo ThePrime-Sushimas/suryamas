@@ -213,6 +213,20 @@ export interface AggregatedTransactionReconciliationResult {
 }
 
 /**
+ * Journal generation result for aggregated transactions
+ */
+export interface GenerateJournalResult {
+  date: string
+  branch_name: string
+  transaction_ids: string[]
+  journal_id: string | null
+  total_amount: number
+  journal_number?: string
+  skipped?: boolean
+  skip_reason?: string
+}
+
+/**
  * Journal generation request for aggregated transactions
  */
 export interface GenerateJournalRequestDto {
@@ -224,14 +238,16 @@ export interface GenerateJournalRequestDto {
   include_unreconciled_only?: boolean
   total_amount?: number
   _transactions?: AggregatedTransaction[]
+  company_id?: string  // Added: for journal creation
 }
 /**
  * INTERNAL DTO
- * Used for generating journal per single transaction date
+ * Used for generating journal per single transaction date + branch
  * NOT exposed via API
  */
 export interface GenerateJournalPerDateDto {
-  branch_name?: string
+  company_id: string  // Required for journal creation
+  branch_name: string
   transaction_date: string // single date
   _transactions: AggregatedTransaction[]
 }

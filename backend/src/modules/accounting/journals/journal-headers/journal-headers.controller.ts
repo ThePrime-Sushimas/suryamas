@@ -11,7 +11,6 @@ import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../../.
 import { 
   createJournalSchema, 
   updateJournalSchema, 
-  journalIdSchema,
   rejectJournalSchema,
   reverseJournalSchema
 } from './journal-headers.schema'
@@ -39,6 +38,24 @@ export class JournalHeadersController {
       )
       
       sendSuccess(res, result.data, 'Journals retrieved', 200, result.pagination)
+    } catch (error) {
+      handleError(res, error)
+    }
+  }
+
+  async listWithLines(req: AuthenticatedQueryRequest, res: Response) {
+    try {
+      const companyId = this.getCompanyId(req)
+      const { offset } = getPaginationParams(req.query)
+      
+      const result = await journalHeadersService.listWithLines(
+        companyId,
+        { ...req.pagination, offset },
+        req.sort as any,
+        { ...req.filterParams, company_id: companyId }
+      )
+      
+      sendSuccess(res, result.data, 'Journals with lines retrieved', 200, result.pagination)
     } catch (error) {
       handleError(res, error)
     }

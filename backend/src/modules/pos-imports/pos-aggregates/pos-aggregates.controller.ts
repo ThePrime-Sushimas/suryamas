@@ -5,6 +5,7 @@ import { handleError } from '../../../utils/error-handler.util'
 import { withValidated } from '../../../utils/handler'
 import { logInfo } from '../../../config/logger'
 import type { ValidatedRequest, ValidatedAuthRequest } from '../../../middleware/validation.middleware'
+import type { BranchContext } from '../../../types/common.types'
 import {
   createAggregatedTransactionSchema,
   updateAggregatedTransactionSchema,
@@ -22,7 +23,7 @@ type CreateTransactionReq = ValidatedRequest<typeof createAggregatedTransactionS
 type UpdateTransactionReq = ValidatedAuthRequest<typeof updateAggregatedTransactionSchema>
 type TransactionIdReq = ValidatedAuthRequest<typeof aggregatedTransactionIdSchema>
 type TransactionListQueryReq = ValidatedRequest<typeof aggregatedTransactionListQuerySchema>
-type GenerateJournalReq = ValidatedRequest<typeof generateJournalSchema>
+type GenerateJournalReq = ValidatedAuthRequest<typeof generateJournalSchema>
 type BatchReconcileReq = ValidatedRequest<typeof batchReconcileSchema>
 type CreateBatchReq = ValidatedRequest<typeof createBatchSchema>
 type BatchAssignJournalReq = ValidatedRequest<typeof batchAssignJournalSchema>
@@ -222,19 +223,28 @@ export class PosAggregatesController {
     try {
       const { transaction_date_from, transaction_date_to, branch_name, transaction_ids, payment_method_id, include_unreconciled_only } = req.validated.body
       
+      // Get company_id from context (set by branch-context middleware)
+      const companyId = req.context?.company_id
+      
+      if (!companyId) {
+        return handleError(res, new Error('Company context is required. Please ensure you have an active branch assignment.'))
+      }
+
       const result = await posAggregatesService.generateJournals({
         transaction_ids,
         transaction_date_from: transaction_date_from ?? undefined,
         transaction_date_to: transaction_date_to ?? undefined,
         branch_name: branch_name ?? undefined,
         payment_method_id,
-        include_unreconciled_only
+        include_unreconciled_only,
+        company_id: companyId
       })
       const transaction_count = result.reduce((sum, r) => sum + r.transaction_ids.length, 0)
       const total_amount = result.reduce((sum, r) => sum + r.total_amount, 0)  
       sendSuccess(res, result, 'Journal generation request processed', 200, {
         transaction_count,
         total_amount,
+        journal_count: result.length
       })
     } catch (error: any) {
       handleError(res, error)

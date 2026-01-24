@@ -14,7 +14,8 @@ import {
   AggregatedTransactionSummary,
   AggregatedTransactionBatchResult,
   GenerateJournalRequestDto,
-  GenerateJournalPerDateDto
+  GenerateJournalPerDateDto,
+  GenerateJournalResult
 } from './pos-aggregates.types'
 import { 
   AggregatedTransactionErrors 
@@ -547,17 +548,18 @@ export class PosAggregatesService {
     return { assigned, skipped }
   }
 
-  /**
+   /**
    * Generate journals for eligible transactions
    * Creates journal entries from aggregated POS transactions
+   * Now generates 1 journal per date + per branch
    */
-  async generateJournals(request: GenerateJournalRequestDto): Promise<Array<{
-    date: string
-    transaction_ids: string[]
-    journal_id: string | null
-    total_amount: number
-    journal_number?: string
-  }>> {
+  async generateJournals(request: GenerateJournalRequestDto): Promise<GenerateJournalResult[]> {
+    const companyId = request.company_id
+    
+    if (!companyId) {
+      throw new Error('Company ID is required for journal generation')
+    }
+
     if (request.branch_name) {
       await this.validateBranch(request.branch_name)
     }
@@ -588,29 +590,33 @@ export class PosAggregatesService {
       return []
     }
 
-    // 1️⃣ GROUP PER TANGGAL
-    const txByDate = new Map<string, AggregatedTransaction[]>()
+    // 1️⃣ GROUP PER TANGGAL + PER CABANG (date|branch)
+    const txByDateBranch = new Map<string, AggregatedTransaction[]>()
 
     for (const tx of filtered as AggregatedTransaction[]) {
-      if (!txByDate.has(tx.transaction_date)) {
-        txByDate.set(tx.transaction_date, [])
+      const branchName = tx.branch_name || 'Unknown'
+      const key = `${tx.transaction_date}|${branchName}`
+      if (!txByDateBranch.has(key)) {
+        txByDateBranch.set(key, [])
       }
-      txByDate.get(tx.transaction_date)!.push(tx)
+      txByDateBranch.get(key)!.push(tx)
     }
 
-    // 2️⃣ LOOP PER TANGGAL (AUTO JOURNAL)
+    // 2️⃣ LOOP PER TANGGAL + PER CABANG
     const results = []
 
-    for (const [date, transactions] of txByDate) {
+    for (const [key, transactions] of txByDateBranch) {
+      const [date, branchName] = key.split('|')
       const journalResult = await this.generateJournalPerDate({
-        branch_name: request.branch_name,
+        company_id: companyId,
+        branch_name: branchName,
         transaction_date: date,
         _transactions: transactions
       })
       results.push(journalResult)
     }
     return results
-  }  
+  }
     // generate journal per date
     private async generateJournalPerDate(
       request: GenerateJournalPerDateDto
@@ -733,14 +739,16 @@ export class PosAggregatesService {
 
     let salesCoaAccountId: string | null = null
     if (salesPurpose) {
-      // Get the CREDIT side account for SAL-INV
+      // Get the CREDIT side account for SAL-INV - take highest priority (lowest number)
       const { data: salesAccounts, error: accError } = await supabase
         .from('accounting_purpose_accounts')
-        .select('account_id')
+        .select('account_id, priority')
         .eq('purpose_id', salesPurpose.id)
         .eq('side', 'CREDIT')
         .eq('is_active', true)
         .eq('is_auto', true)
+        .order('priority', { ascending: true })
+        .limit(1)
         .maybeSingle()
 
       if (accError) {
@@ -753,7 +761,7 @@ export class PosAggregatesService {
     }
 
     if (!salesCoaAccountId) {
-      throw new Error('Sales COA (SAL-INV) belum dikonfigurasi');
+      throw new Error('Sales COA (SAL-INV) belum dikonfigurasi. Pastikan accounting_purpose_accounts memiliki entry untuk purpose_code=SAL-INV dengan side=CREDIT, is_active=true, is_auto=true');
     }
     
     // Group transactions by payment method COA for journal lines
@@ -801,7 +809,8 @@ export class PosAggregatesService {
 
   // ✅ DATE SOURCE — BUKAN ARRAY
   const journalDate = request.transaction_date
-  const period = journalDate
+  // Extract period as YYYY-MM from date (e.g., "2026-01-01" -> "2026-01")
+  const period = journalDate.substring(0, 7)
 
     // Calculate totals
     const totalAmount = [...coaGroups.values()].reduce((sum, g) => sum + g.amount, 0)
@@ -818,61 +827,108 @@ export class PosAggregatesService {
     }
 
     // Create journal header
-    const journalDescription = `POS Sales ${journalDate}${request.branch_name ? ` - ${request.branch_name}` : ''}`
+    const journalDescription = `POS Sales ${journalDate} - ${request.branch_name}`
 
-    const { data: journalHeader, error: headerError } = await supabase
-      .from('journal_headers')
-      .insert({
-        branch_id: resolvedBranchId, // DONT FUCKING CHANGE
-        journal_number: `AUTO-${Date.now()}`, // Will be replaced by sequence
-        journal_type: 'RECEIPT',
-        journal_date: journalDate,
-        period: period,
-        description: journalDescription,
-        total_debit: totalAmount,
-        total_credit: totalAmount,
-        currency: 'IDR',
-        exchange_rate: 1,
-        status: 'DRAFT',
-        is_auto: true,
-        source_module: 'POS_AGGREGATES',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single()
-
-    if (headerError) {
-      throw AggregatedTransactionErrors.DATABASE_ERROR('Failed to create journal header', headerError)
-    }
-
-    // Update journal with proper journal_number (get sequence)
+    // Get next sequence number BEFORE insert (to avoid race condition)
     const { data: sequenceData, error: seqError } = await supabase
       .from('journal_headers')
       .select('sequence_number')
-      .eq('journal_type', 'RECEIPT')
+      .eq('company_id', request.company_id)
+      .eq('journal_type', 'CASH')
       .eq('period', period)
       .order('sequence_number', { ascending: false })
       .limit(1)
       .maybeSingle()
 
-    const sequenceNumber = (sequenceData?.sequence_number || 0) + 1
-    const journalNumber = `RCP-${journalDate}-${sequenceNumber.toString().padStart(4, '0')}`
+    const branchName = request.branch_name.replace(/\s+/g, '-').toUpperCase()
+    const journalNumber = `RCP-${branchName}-${journalDate}`
 
-    // Update with proper journal number
-    const { data: updatedJournal, error: updateError } = await supabase
-      .from('journal_headers')
-      .update({
-        journal_number: journalNumber,
-        sequence_number: sequenceNumber
+    // Use atomic RPC function for journal creation (handles race conditions with advisory locks)
+    // This function uses PostgreSQL advisory locks to prevent concurrent sequence generation
+    const { data: journalHeader, error: headerError } = await supabase
+      .rpc('create_journal_header_atomic', {
+        p_company_id: request.company_id,
+        p_branch_id: resolvedBranchId,
+        p_journal_number: journalNumber,
+        p_journal_type: 'CASH',
+        p_journal_date: journalDate,
+        p_period: period,
+        p_description: journalDescription,
+        p_total_amount: totalAmount,
+        p_source_module: 'POS_AGGREGATES'
       })
-      .eq('id', journalHeader.id)
-      .select()
-      .single()
 
-    if (updateError) {
-      logError('Failed to update journal number', { error: updateError })
-      // Continue anyway, journal already created
+    logInfo('Journal header create result (RPC)', {
+      journal_number: journalNumber,
+      data: journalHeader,
+      error: headerError,
+      error_code: headerError?.code,
+      error_message: headerError?.message
+    })
+
+    // Handle errors
+    if (headerError) {
+      logError('Failed to create journal header via RPC', { 
+        error: headerError.message,
+        error_code: headerError.code,
+        journal_number: journalNumber
+      })
+      throw AggregatedTransactionErrors.DATABASE_ERROR('Failed to create journal header', headerError)
+    }
+
+    // The RPC function returns the created/existing journal header directly
+    const header = journalHeader as any
+
+    logInfo('Journal created successfully via RPC', {
+      journal_id: header.id,
+      journal_number: journalNumber,
+      sequence_number: header.sequence_number,
+      is_existing: !!header.updated_at && header.created_at !== header.updated_at
+    })
+
+    // Check if journal lines already exist for this header
+    const { data: existingLines, error: existingLinesError } = await supabase
+      .from('journal_lines')
+      .select('id, line_number')
+      .eq('journal_header_id', header.id)
+      .order('line_number', { ascending: true })
+
+    if (existingLinesError) {
+      logError('Failed to check existing journal lines', { 
+        error: existingLinesError.message,
+        journal_header_id: header.id 
+      })
+    }
+
+    // If lines already exist, skip creating new lines and just assign journal to transactions
+    if (existingLines && existingLines.length > 0) {
+      logInfo('Journal lines already exist, skipping line creation', {
+        journal_header_id: header.id,
+        existing_line_count: existingLines.length
+      })
+
+      // Assign journal_id to all transactions
+      const { error: assignError } = await supabase
+        .from('aggregated_transactions')
+        .update({
+          journal_id: header.id,
+          status: 'PROCESSING' as AggregatedTransactionStatus,
+          updated_at: new Date().toISOString()
+        })
+        .in('id', transactionIds)
+
+      if (assignError) {
+        logError('Failed to assign journal to transactions', { error: assignError })
+      }
+
+      return {
+        date: journalDate,
+        branch_name: request.branch_name,
+        transaction_ids: transactionIds,
+        journal_id: header.id,
+        total_amount: totalAmount,
+        journal_number: journalNumber
+      }
     }
 
     // Insert journal lines
@@ -887,7 +943,7 @@ export class PosAggregatesService {
     // Debit lines (one per COA group)
     for (const [coaAccountId, group] of coaGroups) {
       journalLines.push({
-        journal_header_id: journalHeader.id,
+        journal_header_id: header.id,
         line_number: lineNumber++,
         account_id: coaAccountId,
         description: `POS Sales - Payment`,
@@ -904,7 +960,7 @@ export class PosAggregatesService {
     // Credit line (Sales Revenue) - one line for total
     if (salesCoaAccountId) {
       journalLines.push({
-        journal_header_id: journalHeader.id,
+        journal_header_id: header.id,
         line_number: lineNumber++,
         account_id: salesCoaAccountId,
         description: `POS Sales Revenue`,
@@ -924,7 +980,11 @@ export class PosAggregatesService {
 
     if (linesError) {
       // Delete the journal header if lines fail
-      await supabase.from('journal_headers').delete().eq('id', journalHeader.id)
+      logError('Failed to create journal lines, deleting header', { 
+        error: linesError.message,
+        journal_header_id: header.id 
+      })
+      await supabase.from('journal_headers').delete().eq('id', header.id)
       throw AggregatedTransactionErrors.DATABASE_ERROR('Failed to create journal lines', linesError)
     }
 
@@ -932,7 +992,7 @@ export class PosAggregatesService {
     const { error: assignError } = await supabase
       .from('aggregated_transactions')
       .update({
-        journal_id: journalHeader.id,
+        journal_id: header.id,
         status: 'PROCESSING' as AggregatedTransactionStatus,
         updated_at: new Date().toISOString()
       })
@@ -944,16 +1004,18 @@ export class PosAggregatesService {
     }
 
     logInfo('Generated journal from aggregated transactions', {
-      journal_id: journalHeader.id,
+      journal_id: header.id,
       journal_number: journalNumber,
+      branch_name: request.branch_name,
       transaction_count: transactionIds.length,
       total_amount: totalAmount
     })
 
     return {
-      date:journalDate,
+      date: journalDate,
+      branch_name: request.branch_name,
       transaction_ids: transactionIds,
-      journal_id: journalHeader.id,
+      journal_id: header.id,
       total_amount: totalAmount,
       journal_number: journalNumber
     }

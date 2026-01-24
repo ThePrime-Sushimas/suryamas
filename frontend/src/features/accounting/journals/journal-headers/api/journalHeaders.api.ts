@@ -26,6 +26,11 @@ export const journalHeadersApi = {
     return { data: data.data, pagination: data.pagination }
   },
 
+  listWithLines: async (params: JournalHeaderFilter & { page?: number; limit?: number }) => {
+    const { data } = await api.get<{ success: boolean; message: string; data: JournalHeaderWithLines[]; pagination: PaginationResponse }>(`${BASE_URL}/with-lines`, { params })
+    return { data: data.data, pagination: data.pagination }
+  },
+
   getById: async (id: string) => {
     const { data } = await api.get<{ success: boolean; message: string; data: JournalHeaderWithLines }>(`${BASE_URL}/${id}`)
     return data.data

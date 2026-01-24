@@ -4,6 +4,7 @@ import { JournalHeaderFormPage } from './JournalHeaderFormPage'
 import { JournalHeaderEditPage } from './JournalHeaderEditPage'
 import { JournalHeaderDetailPage } from './JournalHeaderDetailPage'
 import { JournalHeadersDeletedPage } from './JournalHeadersDeletedPage'
+import { GeneralJournalViewPage } from './GeneralJournalViewPage'
 
 export default function JournalHeadersPage() {
   return (
@@ -11,6 +12,7 @@ export default function JournalHeadersPage() {
       <Route index element={<JournalHeadersListPage />} />
       <Route path="new" element={<JournalHeaderFormPage />} />
       <Route path="deleted" element={<JournalHeadersDeletedPage />} />
+      <Route path="general-journal" element={<GeneralJournalViewPage />} />
       <Route path=":id" element={<JournalHeaderDetailPage />} />
       <Route path=":id/edit" element={<JournalHeaderEditPage />} />
     </Routes>

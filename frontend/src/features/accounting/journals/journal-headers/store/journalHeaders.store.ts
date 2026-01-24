@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { journalHeadersApi } from '../api/journalHeaders.api'
 import type {
-  JournalHeader,
   JournalHeaderWithLines,
   CreateJournalDto,
   UpdateJournalDto,
@@ -11,7 +10,7 @@ import type {
 } from '../types/journal-header.types'
 
 interface JournalHeadersState {
-  journals: JournalHeader[]
+  journals: JournalHeaderWithLines[]
   selectedJournal: JournalHeaderWithLines | null
   loading: boolean
   mutating: boolean
@@ -27,6 +26,7 @@ interface JournalHeadersState {
   filters: JournalHeaderFilter
 
   fetchJournals: (filters?: Partial<JournalHeaderFilter>) => Promise<void>
+  fetchJournalsWithLines: (filters?: Partial<JournalHeaderFilter>) => Promise<void>
   fetchJournalById: (id: string) => Promise<void>
   createJournal: (dto: CreateJournalDto) => Promise<JournalHeaderWithLines>
   updateJournal: (id: string, dto: UpdateJournalDto) => Promise<void>
@@ -72,11 +72,32 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
         limit: pagination.limit,
       })
       set({
-        journals: response.data,
+        journals: response.data as JournalHeaderWithLines[],
         pagination: response.pagination,
       })
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to fetch journals' })
+    } finally {
+      set({ loading: false })
+    }
+  },
+
+  fetchJournalsWithLines: async (filters?: Partial<JournalHeaderFilter>) => {
+    set({ loading: true, error: null })
+    try {
+      const { pagination } = get()
+      const currentFilters = filters || get().filters
+      const response = await journalHeadersApi.listWithLines({
+        ...currentFilters,
+        page: pagination.page,
+        limit: pagination.limit,
+      })
+      set({
+        journals: response.data,
+        pagination: response.pagination,
+      })
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to fetch journals with lines' })
     } finally {
       set({ loading: false })
     }

@@ -82,6 +82,104 @@ export class JournalHeadersRepository {
     return { data: mappedData, total: count || 0 }
   }
 
+  async findAllWithLines(
+    companyId: string,
+    pagination: { limit: number; offset: number },
+    sort?: SortParams,
+    filter?: JournalFilter
+  ): Promise<{ data: JournalHeaderWithLines[]; total: number }> {
+    let query = supabase
+      .from('journal_headers')
+      .select(`
+        *,
+        branches(branch_name),
+        journal_lines (
+          *,
+          chart_of_accounts!inner(
+            account_code,
+            account_name,
+            account_type
+          )
+        )
+      `, { count: 'exact' })
+      .eq('company_id', companyId)
+    
+    let countQuery = supabase
+      .from('journal_headers')
+      .select('*', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+    
+    // Default: show only active (not deleted)
+    if (!filter?.show_deleted) {
+      query = query.is('deleted_at', null)
+      countQuery = countQuery.is('deleted_at', null)
+    }
+    
+    if (filter) {
+      if (filter.branch_id) {
+        query = query.eq('branch_id', filter.branch_id)
+        countQuery = countQuery.eq('branch_id', filter.branch_id)
+      }
+      if (filter.journal_type) {
+        query = query.eq('journal_type', filter.journal_type)
+        countQuery = countQuery.eq('journal_type', filter.journal_type)
+      }
+      if (filter.status) {
+        query = query.eq('status', filter.status)
+        countQuery = countQuery.eq('status', filter.status)
+      }
+      if (filter.date_from) {
+        query = query.gte('journal_date', filter.date_from)
+        countQuery = countQuery.gte('journal_date', filter.date_from)
+      }
+      if (filter.date_to) {
+        query = query.lte('journal_date', filter.date_to)
+        countQuery = countQuery.lte('journal_date', filter.date_to)
+      }
+      if (filter.period) {
+        query = query.eq('period', filter.period)
+        countQuery = countQuery.eq('period', filter.period)
+      }
+      if (filter.search) {
+        query = query.or(`journal_number.ilike.%${filter.search}%,description.ilike.%${filter.search}%`)
+        countQuery = countQuery.or(`journal_number.ilike.%${filter.search}%,description.ilike.%${filter.search}%`)
+      }
+    }
+    
+    if (sort) {
+      query = query.order(sort.field, { ascending: sort.order === 'asc' })
+    } else {
+      query = query.order('journal_date', { ascending: false })
+    }
+    
+    const [{ data, error }, { count, error: countError }] = await Promise.all([
+      query.range(pagination.offset, pagination.offset + pagination.limit - 1),
+      countQuery
+    ])
+
+    if (error) throw new Error(error.message)
+    if (countError) throw new Error(countError.message)
+    
+    // Process and flatten the data
+    const mappedData = (data || []).map((item: any) => {
+      const branchName = item.branches?.branch_name || null
+      const lines = (item.journal_lines || []).map((line: any) => ({
+        ...line,
+        account_code: line.chart_of_accounts?.account_code,
+        account_name: line.chart_of_accounts?.account_name,
+        account_type: line.chart_of_accounts?.account_type
+      }))
+      
+      return {
+        ...item,
+        branch_name: branchName,
+        lines: lines
+      }
+    })
+    
+    return { data: mappedData, total: count || 0 }
+  }
+
   async findById(id: string, includeDeleted: boolean = false): Promise<JournalHeaderWithLines | null> {
     let query = supabase
       .from('journal_headers')

@@ -26,6 +26,22 @@ export class JournalHeadersService {
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
+  async listWithLines(
+    companyId: string,
+    pagination: { page: number; limit: number; offset: number },
+    sort?: SortParams,
+    filter?: JournalFilter
+  ): Promise<PaginatedResponse<JournalHeaderWithLines>> {
+    const { data, total } = await journalHeadersRepository.findAllWithLines(
+      companyId,
+      pagination,
+      sort,
+      filter
+    )
+    
+    return createPaginatedResponse(data, total, pagination.page, pagination.limit)
+  }
+
   async getById(id: string, companyId: string): Promise<JournalHeaderWithLines> {
     const journal = await journalHeadersRepository.findById(id)
     

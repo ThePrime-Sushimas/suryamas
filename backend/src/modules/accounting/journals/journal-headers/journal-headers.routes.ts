@@ -30,6 +30,12 @@ router.get('/', canView('journals'), queryMiddleware({
 }), (req, res) => 
   journalHeadersController.list(req as AuthenticatedQueryRequest, res))
 
+// List journals with lines (for General Journal View)
+router.get('/with-lines', canView('journals'), queryMiddleware({
+  allowedSortFields: ['journal_number', 'journal_date', 'journal_type', 'status', 'total_debit', 'created_at', 'updated_at', 'id'],
+}), (req, res) => 
+  journalHeadersController.listWithLines(req as AuthenticatedQueryRequest, res))
+
 // Get journal by ID
 router.get('/:id', canView('journals'), validateSchema(journalIdSchema), (req, res) => 
   journalHeadersController.getById(req as AuthenticatedRequest, res))
