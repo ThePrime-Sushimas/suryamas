@@ -2,7 +2,6 @@ import { supabase } from '../../../config/supabase'
 import { posAggregatesRepository } from './pos-aggregates.repository'
 import { posImportLinesRepository } from '../pos-import-lines/pos-import-lines.repository'
 import { posImportsRepository } from '../pos-imports/pos-imports.repository'
-import type { PosImportStatus } from '../shared/pos-import.types'
 import { 
   AggregatedTransaction, 
   AggregatedTransactionWithDetails,
@@ -857,7 +856,7 @@ export class PosAggregatesService {
       .maybeSingle()
 
     const sequenceNumber = (sequenceData?.sequence_number || 0) + 1
-    const journalNumber = `RCP-${journalDate}${journalDate}-${sequenceNumber.toString().padStart(4, '0')}`
+    const journalNumber = `RCP-${journalDate}-${sequenceNumber.toString().padStart(4, '0')}`
 
     // Update with proper journal number
     const { data: updatedJournal, error: updateError } = await supabase

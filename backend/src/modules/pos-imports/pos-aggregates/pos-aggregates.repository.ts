@@ -540,7 +540,7 @@ export class PosAggregatesRepository {
   }
 
   /**
-   * Find unreconciled transactions for  and date range
+   * Find unreconciled transactions for a given date range
    */
   async findUnreconciled(
     dateFrom?: string,

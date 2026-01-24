@@ -1,40 +1,40 @@
 {
   "env": {
     "node": true,
-    "es2020": true
+    "es2022": true
   },
   "extends": [
     "eslint:recommended",
-    "plugin:@typescript-eslint/recommended"
+    "plugin:@typescript-eslint/recommended",
+    "plugin:@typescript-eslint/recommended-requiring-type-checking",
+    "plugin:security/recommended"
   ],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
-    "ecmaVersion": 2020,
-    "sourceType": "module"
+    "ecmaVersion": 2022,
+    "sourceType": "module",
+    "project": "./tsconfig.json"
   },
   "plugins": [
-    "@typescript-eslint"
+    "@typescript-eslint",
+    "security"
   ],
   "rules": {
-    "no-restricted-syntax": [
-      "error",
-      {
-        "selector": "MemberExpression[object.name='req'][property.name='body']",
-        "message": "Use req.validated.body instead of req.body"
-      },
-      {
-        "selector": "MemberExpression[object.name='req'][property.name='params']",
-        "message": "Use req.validated.params instead of req.params in controllers"
-      },
-      {
-        "selector": "MemberExpression[object.name='req'][property.name='query']",
-        "message": "Use req.validated.query instead of req.query in controllers"
-      }
-    ]
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-unused-vars": ["error", { 
+      "argsIgnorePattern": "^_",
+      "varsIgnorePattern": "^_" 
+    }],
+    "@typescript-eslint/no-non-null-assertion": "warn",
+    "no-console": ["warn", { "allow": ["warn", "error", "info"] }],
+    "no-process-env": "error"
   },
   "overrides": [
     {
-      "files": ["src/modules/**/**.controller.ts"],
+      "files": [
+        "src/modules/**/*.controller.ts",
+        "src/modules/**/*.service.ts"
+      ],
       "rules": {
         "no-restricted-syntax": [
           "error",
@@ -49,8 +49,25 @@
           {
             "selector": "MemberExpression[object.name='req'][property.name='query']",
             "message": "Use req.validated.query instead of req.query"
+          },
+          {
+            "selector": "MemberExpression[object.name='request'][property.name='body']",
+            "message": "Use request.validated.body instead of request.body"
           }
-        ]
+        ],
+        "@typescript-eslint/explicit-function-return-type": ["error", {
+          "allowExpressions": true
+        }]
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.spec.ts"],
+      "env": {
+        "jest": true
+      },
+      "rules": {
+        "no-console": "off",
+        "no-restricted-syntax": "off"
       }
     }
   ]
