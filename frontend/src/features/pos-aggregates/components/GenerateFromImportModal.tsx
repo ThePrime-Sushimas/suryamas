@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Database, FileText, Check, X, Loader2 } from 'lucide-react'
+import { Database, FileText, Check, X, Loader2, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react'
 import { posAggregatesApi } from '../api/posAggregates.api'
 import { useToast } from '@/contexts/ToastContext'
 import { useBranchContextStore } from '@/features/branch_context'
@@ -22,6 +22,18 @@ interface GenerateFromImportModalProps {
   onGenerated: () => void
 }
 
+interface ImportError {
+  source_ref: string
+  error: string
+}
+
+interface GenerateResult {
+  importId: string
+  created: number
+  skipped: number
+  errors: ImportError[]
+}
+
 export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = ({
   isOpen,
   onClose,
@@ -34,6 +46,8 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
   const [loading, setLoading] = useState(true)
   const [generatingId, setGeneratingId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [errorsExpanded, setErrorsExpanded] = useState<Record<string, boolean>>({})
+  const [lastResult, setLastResult] = useState<GenerateResult | null>(null)
 
   const fetchImports = useCallback(async () => {
     setLoading(true)
@@ -57,6 +71,8 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
   useEffect(() => {
     if (isOpen) {
       fetchImports()
+      setLastResult(null)
+      setErrorsExpanded({})
     }
   }, [isOpen, fetchImports])
 
@@ -78,14 +94,28 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
     }
   }
 
+  const toggleErrorsExpanded = (importId: string) => {
+    setErrorsExpanded(prev => ({
+      ...prev,
+      [importId]: !prev[importId]
+    }))
+  }
+
   const handleGenerate = async (importId: string) => {
     setGeneratingId(importId)
+    setLastResult(null)
     try {
       const result = await posAggregatesApi.generateFromImport(
         importId,
         currentBranch?.company_id || '',
         currentBranch?.branch_name
       )
+      
+      // Store result with importId for error display
+      setLastResult({
+        ...result,
+        importId
+      })
       
       if (result.created > 0) {
         toast.success(`Berhasil membuat ${result.created} transaksi agregat`)
@@ -94,7 +124,14 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
         toast.info(`${result.skipped} transaksi di-skip (sudah ada)`)
       }
       if (result.errors.length > 0) {
-        toast.warning(`${result.errors.length} transaksi gagal dibuat`)
+        // Show all errors in toast notification
+        const errorMessages = result.errors.map(e => `${e.source_ref}: ${e.error}`).join('\n')
+        toast.error(`${result.errors.length} transaksi gagal:\n${errorMessages}`, 10000)
+        // Expand error section by default when there are errors
+        setErrorsExpanded(prev => ({ ...prev, [importId]: true }))
+      } else {
+        // Collapse errors if no errors
+        setErrorsExpanded(prev => ({ ...prev, [importId]: false }))
       }
       
       // Call API to update status to MAPPED
@@ -107,6 +144,12 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
           imp.id === importId ? { ...imp, status: 'MAPPED' } : imp
         )
       )
+
+      setSelectedIds((prev) => {
+        const newSet = new Set(prev)
+        newSet.delete(importId)
+        return newSet
+      })
       
       setSelectedIds((prev) => {
         const newSet = new Set(prev)
@@ -126,6 +169,59 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
     for (const importId of selectedIds) {
       await handleGenerate(importId)
     }
+  }
+
+  // Render error details section
+  const renderErrorDetails = (importId: string, errors: ImportError[]) => {
+    const isExpanded = errorsExpanded[importId] || false
+    
+    if (errors.length === 0) return null
+    
+    return (
+      <div className="mt-3 bg-red-50 border border-red-200 rounded-lg overflow-hidden">
+        <button
+          onClick={() => toggleErrorsExpanded(importId)}
+          className="w-full px-4 py-2 bg-red-100 hover:bg-red-200 transition-colors flex items-center justify-between"
+        >
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-600" />
+            <span className="text-sm font-medium text-red-700">
+              {errors.length} Transaksi Gagal
+            </span>
+          </div>
+          {isExpanded ? (
+            <ChevronDown className="w-4 h-4 text-red-600" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-red-600" />
+          )}
+        </button>
+        
+        {isExpanded && (
+          <div className="p-4 max-h-64 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-red-100">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-red-700 uppercase">Source Ref</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-red-700 uppercase">Error</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-red-200">
+                {errors.map((err, index) => (
+                  <tr key={index} className="hover:bg-red-100">
+                    <td className="px-3 py-2 text-red-800 font-mono text-xs break-all">
+                      {err.source_ref}
+                    </td>
+                    <td className="px-3 py-2 text-red-700">
+                      {err.error}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    )
   }
 
   if (!isOpen) return null
@@ -202,64 +298,79 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
                       const isSelected = selectedIds.has(imp.id)
                       const isGenerating = generatingId === imp.id
                       const isMapped = imp.status === 'MAPPED'
+                      
+                      // Get errors for this import from last result
+                      const errorsForImport = (lastResult?.importId === imp.id) ? lastResult.errors : []
+                      const errorCount = errorsForImport.length || 0
 
                       return (
-                        <tr
-                          key={imp.id}
-                          className={`hover:bg-gray-50 ${isMapped ? 'bg-green-50' : ''}`}
-                        >
-                          <td className="px-4 py-3">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              disabled={isMapped || isGenerating}
-                              onChange={() => handleToggleSelection(imp.id)}
-                              className="w-4 h-4 rounded border-gray-300"
-                            />
-                          </td>
-                          <td className="px-4 py-3 text-sm">{imp.file_name}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">
-                            {new Date(imp.date_range_start).toLocaleDateString()} -{' '}
-                            {new Date(imp.date_range_end).toLocaleDateString()}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">
-                            {imp.total_rows}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                                isMapped
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-blue-100 text-blue-800'
-                              }`}
-                            >
-                              {isMapped ? 'MAPPED' : imp.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            {isMapped ? (
-                              <span className="flex items-center justify-end gap-1 text-green-600 text-sm">
-                                <Check className="w-4 h-4" />
-                                Generated
-                              </span>
-                            ) : (
-                              <button
-                                onClick={() => handleGenerate(imp.id)}
-                                disabled={isGenerating}
-                                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1 ml-auto"
+                        <React.Fragment key={imp.id}>
+                          <tr
+                            className={`hover:bg-gray-50 ${isMapped ? 'bg-green-50' : ''} ${errorCount > 0 ? 'bg-red-50' : ''}`}
+                          >
+                            <td className="px-4 py-3">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                disabled={isMapped || isGenerating}
+                                onChange={() => handleToggleSelection(imp.id)}
+                                className="w-4 h-4 rounded border-gray-300"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-sm">{imp.file_name}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">
+                              {new Date(imp.date_range_start).toLocaleDateString()} -{' '}
+                              {new Date(imp.date_range_end).toLocaleDateString()}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-600">
+                              {imp.total_rows}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                  isMapped
+                                    ? 'bg-green-100 text-green-800'
+                                    : errorCount > 0
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-blue-100 text-blue-800'
+                                }`}
                               >
-                                {isGenerating ? (
-                                  <>
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                    Generating...
-                                  </>
-                                ) : (
-                                  'Generate'
-                                )}
-                              </button>
-                            )}
-                          </td>
-                        </tr>
+                                {isMapped ? 'MAPPED' : errorCount > 0 ? `ERROR (${errorCount})` : imp.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {isMapped ? (
+                                <span className="flex items-center justify-end gap-1 text-green-600 text-sm">
+                                  <Check className="w-4 h-4" />
+                                  Generated
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleGenerate(imp.id)}
+                                  disabled={isGenerating}
+                                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1 ml-auto"
+                                >
+                                  {isGenerating ? (
+                                    <>
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                      Generating...
+                                    </>
+                                  ) : (
+                                    'Generate'
+                                  )}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                          {/* Error details row */}
+                          {errorCount > 0 && (
+                            <tr className="bg-red-50">
+                              <td colSpan={6} className="px-4 py-0">
+                                {renderErrorDetails(imp.id, errorsForImport)}
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       )
                     })}
                   </tbody>

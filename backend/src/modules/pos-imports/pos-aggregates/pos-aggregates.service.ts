@@ -612,15 +612,21 @@ export class PosAggregatesService {
         throw new Error('No transactions provided')
       }
     
-    // Get unique payment method IDs from filtered transactions -> pindah ke generateJournalPerDate
+    // Get unique payment method IDs from filtered transactions
     const paymentMethodIds = [
       ...new Set(transactions.map((tx: AggregatedTransaction) => tx.payment_method_id))
     ]
 
+    logInfo('generateJournalPerDate: Processing transactions', {
+      transaction_count: transactions.length,
+      payment_method_ids: paymentMethodIds,
+      journal_date: request.transaction_date
+    })
+
     // Fetch payment method COA accounts
     const { data: paymentMethods, error: pmError } = await supabase
       .from('payment_methods')
-      .select('id, coa_account_id, name, code')
+      .select('id, coa_account_id, name, code, bank_account_id, company_id')
       .in('id', paymentMethodIds)
       .eq('is_active', true)
 
@@ -628,11 +634,79 @@ export class PosAggregatesService {
       throw AggregatedTransactionErrors.DATABASE_ERROR('Failed to fetch payment methods', pmError)
     }
 
+    logInfo('generateJournalPerDate: Payment methods fetched', {
+      requested_ids: paymentMethodIds,
+      found_count: paymentMethods?.length,
+      payment_methods: paymentMethods?.map(pm => ({
+        id: pm.id,
+        name: pm.name,
+        code: pm.code,
+        coa_account_id: pm.coa_account_id,
+        bank_account_id: pm.bank_account_id,
+        company_id: pm.company_id
+      }))
+    })
+
     // Create a map of payment_method_id -> coa_account_id
     const paymentMethodCoaMap = new Map<number, string>()
+    const paymentMethodDetails = new Map<number, { name: string; code: string; bankAccountId?: number }>()
+
     for (const pm of paymentMethods || []) {
       if (pm.coa_account_id) {
         paymentMethodCoaMap.set(pm.id, pm.coa_account_id)
+      }
+      paymentMethodDetails.set(pm.id, {
+        name: pm.name,
+        code: pm.code,
+        bankAccountId: pm.bank_account_id || undefined
+      })
+    }
+
+    // Check for payment methods without COA
+    const missingCoaPaymentMethods = paymentMethodIds.filter(id => !paymentMethodCoaMap.has(id))
+    if (missingCoaPaymentMethods.length > 0) {
+      logInfo('generateJournalPerDate: Payment methods without COA, trying fallback from bank_accounts', {
+        missing_ids: missingCoaPaymentMethods,
+        payment_methods: missingCoaPaymentMethods.map(id => paymentMethodDetails.get(id))
+      })
+
+      // Try to get COA from bank_accounts as fallback
+      const paymentMethodsWithoutCoa = paymentMethods?.filter(pm => !pm.coa_account_id && pm.bank_account_id) || []
+      
+      if (paymentMethodsWithoutCoa.length > 0) {
+        const bankAccountIds = paymentMethodsWithoutCoa.map(pm => pm.bank_account_id)
+        
+        const { data: bankAccounts, error: bankError } = await supabase
+          .from('bank_accounts')
+          .select('id, coa_account_id')
+          .in('id', bankAccountIds)
+          .not('coa_account_id', 'is', null)
+
+        if (!bankError && bankAccounts) {
+          const bankAccountCoaMap = new Map(bankAccounts.map(ba => [ba.id, ba.coa_account_id]))
+          
+          for (const pm of paymentMethodsWithoutCoa) {
+            if (pm.bank_account_id && bankAccountCoaMap.has(pm.bank_account_id)) {
+              const coaAccountId = bankAccountCoaMap.get(pm.bank_account_id)!
+              paymentMethodCoaMap.set(pm.id, coaAccountId)
+              logInfo('generateJournalPerDate: Fallback COA from bank_accounts', {
+                payment_method_id: pm.id,
+                payment_method_name: pm.name,
+                bank_account_id: pm.bank_account_id,
+                coa_account_id: coaAccountId
+              })
+            }
+          }
+        }
+      }
+
+      // Re-check after fallback
+      const stillMissingCoa = paymentMethodIds.filter(id => !paymentMethodCoaMap.has(id))
+      if (stillMissingCoa.length > 0) {
+        logInfo('generateJournalPerDate: Still missing COA after fallback', {
+          still_missing_ids: stillMissingCoa,
+          still_missing_methods: stillMissingCoa.map(id => paymentMethodDetails.get(id))
+        })
       }
     }
 
@@ -675,19 +749,42 @@ export class PosAggregatesService {
     }
     
     // Group transactions by payment method COA for journal lines
-    const coaGroups = new Map<string, { amount: number; transactions: string[] }>()
+    const coaGroups = new Map<string, { amount: number; transactions: string[]; paymentMethodName?: string }>()
+    const skippedTransactions: string[] = []
     
     for (const tx of transactions) {
-      const coaAccountId = paymentMethodCoaMap.get(tx.payment_method_id) 
-      if (!coaAccountId) continue
+      const coaAccountId = paymentMethodCoaMap.get(tx.payment_method_id)
+      const paymentMethodInfo = paymentMethodDetails.get(tx.payment_method_id)
+      
+      if (!coaAccountId) {
+        skippedTransactions.push(tx.id)
+        continue
+      }
 
       if (!coaGroups.has(coaAccountId)) {
-        coaGroups.set(coaAccountId, { amount: 0, transactions: [] })
+        coaGroups.set(coaAccountId, { 
+          amount: 0, 
+          transactions: [],
+          paymentMethodName: paymentMethodInfo?.name 
+        })
       }
       const group = coaGroups.get(coaAccountId)!
       group.amount += Number(tx.net_amount)
       group.transactions.push(tx.id)
     }
+
+    logInfo('generateJournalPerDate: COA grouping result', {
+      total_transactions: transactions.length,
+      grouped_count: coaGroups.size,
+      skipped_count: skippedTransactions.length,
+      coa_groups: [...coaGroups.entries()].map(([coaId, group]) => ({
+        coa_account_id: coaId,
+        payment_method_name: group.paymentMethodName,
+        amount: group.amount,
+        transaction_count: group.transactions.length
+      })),
+      skipped_transaction_ids: skippedTransactions.slice(0, 10) // Log first 10
+    })
 
     // If no valid COA accounts found, return error
     if (coaGroups.size === 0) {
@@ -1034,15 +1131,16 @@ export class PosAggregatesService {
 
   /**
    * Get payment method ID by name (helper method)
-   * Note: Global search - returns first match (PT/CV/-M variants exist)
+   * Note: Global search with company_id filter to handle duplicate names across companies
    */
-  private async getPaymentMethodId(paymentMethodName: string): Promise<{ id: number; isFallback: boolean }> {
+  private async getPaymentMethodId(paymentMethodName: string, companyId?: string): Promise<{ id: number; isFallback: boolean }> {
     // Log the raw input
     logInfo('getPaymentMethodId: Starting lookup', {
       raw_input: paymentMethodName,
       input_type: typeof paymentMethodName,
       input_length: paymentMethodName?.length,
-      input_trimmed: paymentMethodName?.trim()
+      input_trimmed: paymentMethodName?.trim(),
+      company_id: companyId
     })
 
     // Validate input
@@ -1056,19 +1154,26 @@ export class PosAggregatesService {
 
     const trimmedName = paymentMethodName.trim()
 
-    // Try to find payment method (global search)
+    // Try to find payment method with company_id filter if provided
     logInfo('getPaymentMethodId: Executing database query', {
       query_name: trimmedName,
       query_ilike: true,
-      is_active_filter: true
+      is_active_filter: true,
+      company_id_filter: companyId || 'none (global search)'
     })
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('payment_methods')
-      .select('id, name, code, is_active')
+      .select('id, name, code, is_active, coa_account_id, company_id')
       .ilike('name', trimmedName)
-      .limit(1)
-      .maybeSingle()
+      .eq('is_active', true)
+
+    // Add company_id filter if provided to avoid duplicate name issues
+    if (companyId) {
+      query = query.eq('company_id', companyId)
+    }
+
+    const { data, error } = await query.limit(1).maybeSingle()
 
     // Log raw database response
     logInfo('getPaymentMethodId: Database query result', {
@@ -1077,7 +1182,8 @@ export class PosAggregatesService {
       error_occurred: !!error,
       error_message: error?.message,
       error_details: error,
-      returned_data: data
+      returned_data: data,
+      company_filter_applied: !!companyId
     })
 
     if (error) {
@@ -1087,7 +1193,6 @@ export class PosAggregatesService {
         error_message: error.message,
         error_details: error
       })
-      // On database error, still use fallback but log detailed error info
       logInfo('getPaymentMethodId: Using fallback due to database error', {
         requested: trimmedName,
         fallback_reason: 'database_error',
@@ -1103,9 +1208,39 @@ export class PosAggregatesService {
         found_name: data.name,
         found_code: data.code,
         found_is_active: data.is_active,
+        found_coa_account_id: data.coa_account_id,
+        found_company_id: data.company_id,
         is_fallback: false
       })
       return { id: data.id, isFallback: false }
+    }
+
+    // If not found with company filter, try global search (for backward compatibility)
+    if (companyId) {
+      logInfo('getPaymentMethodId: Not found with company filter, trying global search', {
+        requested: trimmedName,
+        company_id: companyId
+      })
+
+      const { data: globalData, error: globalError } = await supabase
+        .from('payment_methods')
+        .select('id, name, code, is_active, coa_account_id, company_id')
+        .ilike('name', trimmedName)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle()
+
+      if (!globalError && globalData) {
+        logInfo('getPaymentMethodId: Found in global search', {
+          requested: trimmedName,
+          found_id: globalData.id,
+          found_name: globalData.name,
+          found_company_id: globalData.company_id,
+          coa_account_id: globalData.coa_account_id,
+          warning: 'Different company than expected!'
+        })
+        return { id: globalData.id, isFallback: true }
+      }
     }
 
     // No data found - log all possible reasons
@@ -1113,6 +1248,7 @@ export class PosAggregatesService {
       requested: trimmedName,
       fallback_reason: 'not_found_in_database',
       default_id: 20,
+      company_filter: companyId || 'none',
       search_attempted: {
         table: 'payment_methods',
         column: 'name',
@@ -1125,14 +1261,15 @@ export class PosAggregatesService {
         'Check if name has trailing/leading spaces',
         'Check if payment_method is_active = true',
         'Check if there are similar names with different casing (e.g., "Cash" vs "CASH")',
-        'Verify the exact name in the source data'
+        'Verify the exact name in the source data',
+        'Check for duplicate payment method names across companies'
       ]
     })
 
     // Log available payment methods for debugging (limited to first 10)
     const { data: allPaymentMethods, error: listError } = await supabase
       .from('payment_methods')
-      .select('id, name, code, is_active')
+      .select('id, name, code, is_active, company_id')
       .limit(10)
 
     if (!listError) {
@@ -1143,7 +1280,8 @@ export class PosAggregatesService {
           id: pm.id,
           name: pm.name,
           code: pm.code,
-          is_active: pm.is_active
+          is_active: pm.is_active,
+          company_id: pm.company_id
         }))
       })
     }

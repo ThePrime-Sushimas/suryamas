@@ -12,7 +12,7 @@ interface Toast {
 
 interface ToastContextType {
   success: (message: string) => void
-  error: (message: string) => void
+  error: (message: string, duration?: number) => void
   info: (message: string) => void
   warning: (message: string) => void
 }
@@ -36,7 +36,7 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
   }, [])
 
   const success = useCallback((message: string) => show(message, 'success'), [show])
-  const error = useCallback((message: string) => show(message, 'error', 4000), [show])
+  const error = useCallback((message: string, duration = 4000) => show(message, 'error', duration), [show])
   const info = useCallback((message: string) => show(message, 'info'), [show])
   const warning = useCallback((message: string) => show(message, 'warning', 3500), [show])
 
