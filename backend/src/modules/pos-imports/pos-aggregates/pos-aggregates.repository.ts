@@ -59,6 +59,9 @@ export class PosAggregatesRepository {
         status,
         is_reconciled,
         created_at,
+        updated_at,
+        deleted_at,
+        deleted_by,
         version,
         payment_methods(id, code, name)
       `, { count: 'exact' })
@@ -720,6 +723,9 @@ export class PosAggregatesRepository {
       status: row.status as AggregatedTransactionStatus,
       is_reconciled: row.is_reconciled as boolean,
       created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+      deleted_at: row.deleted_at as string,
+      deleted_by: row.deleted_by as string,
       version: row.version as number,
       branch_name: row.branch_name as string,
       payment_method_name: (paymentMethod as Record<string, unknown>)?.name as string | undefined,

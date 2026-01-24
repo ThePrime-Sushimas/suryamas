@@ -124,7 +124,6 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              {/* Checkbox */}
               <th className="px-4 py-3 text-left w-10">
                 <input
                   type="checkbox"
@@ -133,23 +132,18 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                   className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 />
               </th>
-              {/* Transaction Date */}
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Tanggal
               </th>
-              {/* Source Ref */}
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Referensi
               </th>
-              {/* Branch */}
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Cabang
               </th>
-              {/* Payment Method */}
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Metode Pembayaran
               </th>
-              {/* Amounts  jangan rubah urutannya*/}
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Sub Total
               </th>
@@ -162,15 +156,12 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Bill After Discount
               </th>
-              {/* Status */}
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
-              {/* Journal */}
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Jurnal
               </th>
-              {/* Actions */}
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
                 Aksi
               </th>
@@ -178,37 +169,39 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
           </thead>
           <tbody className="divide-y divide-gray-200">
             {transactions.map((transaction) => {
-              const isDeleted = !!transaction.deleted_at
+              // Explicitly check deleted_at - handle edge cases
+              const deletedAt = transaction.deleted_at
+              const isDeleted = deletedAt !== null && deletedAt !== undefined && deletedAt !== ''
               const isSelected = selectedIds.has(transaction.id)
-              
               
               return (
                 <tr
                   key={transaction.id}
+                  onClick={() => onViewDetail(transaction.id)}
                   className={`
-                    transition-colors
-                    ${isDeleted ? 'bg-gray-50 opacity-60' : 'hover:bg-gray-50'}
-                    ${isSelected ? 'bg-blue-50' : ''}
+                    cursor-pointer transition-colors
+                    ${isDeleted ? 'bg-red-50 opacity-100' : 'hover:bg-blue-50'}
+                    ${isSelected ? 'bg-blue-100' : ''}
                   `}
                 >
-                  {/* Checkbox */}
-                  <td className="px-4 py-3 whitespace-nowrap">
+                  <td
+                    className="px-4 py-3 whitespace-nowrap"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => onToggleSelection(transaction.id)}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
                     />
                   </td>
 
-                  {/* Transaction Date */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className="text-sm text-gray-900">
                       {formatDate(transaction.transaction_date)}
                     </span>
                   </td>
 
-                  {/* Source Ref */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="text-sm">
                       <span className="font-mono font-medium text-gray-900">
@@ -220,21 +213,18 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                     </div>
                   </td>
 
-                  {/* Branch */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className="text-sm text-gray-900">
                       {transaction.branch_name || '-'}
                     </span>
                   </td>
 
-                  {/* Payment Method */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className="text-sm text-gray-600">
                       {transaction.payment_method_name || `ID: ${transaction.payment_method_id}`}
                     </span>
                   </td>
 
-                  {/* Amounts //jangan rubah urutannya */}
                   <td className="px-4 py-3 whitespace-nowrap text-right">
                     <span className="text-sm font-medium text-gray-900">
                       {formatCurrency(transaction.gross_amount)}
@@ -256,7 +246,6 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                     </span>
                   </td>
 
-                  {/* Status */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <PosAggregatesStatusBadge
                       status={transaction.status}
@@ -265,7 +254,6 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                     />
                   </td>
 
-                  {/* Journal */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     {transaction.journal_number ? (
                       <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-medium">
@@ -277,22 +265,46 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                     )}
                   </td>
 
-                  {/* Actions */}
-                  <td className="px-4 py-3 whitespace-nowrap text-right">
+                  <td
+                    className="px-4 py-3 whitespace-nowrap text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="flex items-center justify-end gap-2">
+                      {/* Restore - show this FIRST for deleted items */}
+                      {isDeleted && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setRestoreId(transaction.id)
+                          }}
+                          className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                          title="Pulihkan"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                      )}
+
                       {/* View Detail */}
-                      <button
-                        onClick={() => onViewDetail(transaction.id)}
-                        className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                        title="Lihat Detail"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                      {!isDeleted && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onViewDetail(transaction.id)
+                          }}
+                          className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          title="Lihat Detail"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      )}
 
                       {/* Edit */}
                       {!isDeleted && (
                         <button
-                          onClick={() => onEdit(transaction.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onEdit(transaction.id)
+                          }}
                           className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                           title="Edit"
                         >
@@ -303,7 +315,10 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                       {/* Reconcile */}
                       {!isDeleted && !transaction.is_reconciled && transaction.journal_number && (
                         <button
-                          onClick={() => onReconcile(transaction.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onReconcile(transaction.id)
+                          }}
                           className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
                           title="Rekonsiliasi"
                         >
@@ -314,22 +329,14 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                       {/* Delete */}
                       {!isDeleted && (
                         <button
-                          onClick={() => setDeleteId(transaction.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setDeleteId(transaction.id)
+                          }}
                           className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                           title="Hapus"
                         >
                           <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-
-                      {/* Restore */}
-                      {isDeleted && (
-                        <button
-                          onClick={() => setRestoreId(transaction.id)}
-                          className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                          title="Pulihkan"
-                        >
-                          <RotateCcw className="w-4 h-4" />
                         </button>
                       )}
                     </div>
@@ -343,83 +350,60 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
 
       {/* Delete Confirmation Modal */}
       {deleteId && (
-        <DeleteConfirmModal
-          title="Hapus Transaksi Agregat?"
-          message="Apakah Anda yakin ingin menghapus transaksi agregat ini? Tindakan ini tidak dapat dibatalkan."
-          confirmText="Hapus"
-          confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"
-          onConfirm={() => {
-            const tx = transactions.find((t) => t.id === deleteId)
-            if (tx) handleDelete(deleteId, tx.source_ref)
-          }}
-          onCancel={() => setDeleteId(null)}
-        />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Hapus Transaksi Agregat?</h3>
+            <p className="text-gray-600 mb-6">Apakah Anda yakin ingin menghapus transaksi agregat ini? Tindakan ini tidak dapat dibatalkan.</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteId(null)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  const tx = transactions.find((t) => t.id === deleteId)
+                  if (tx) handleDelete(deleteId, tx.source_ref)
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                Hapus
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Restore Confirmation Modal */}
       {restoreId && (
-        <DeleteConfirmModal
-          title="Pulihkan Transaksi Agregat?"
-          message="Apakah Anda yakin ingin memulihkan transaksi agregat ini?"
-          confirmText="Pulihkan"
-          confirmButtonClass="bg-green-600 hover:bg-green-700 text-white"
-          onConfirm={() => {
-            const tx = transactions.find((t) => t.id === restoreId)
-            if (tx) handleRestore(restoreId, tx.source_ref)
-          }}
-          onCancel={() => setRestoreId(null)}
-        />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Pulihkan Transaksi Agregat?</h3>
+            <p className="text-gray-600 mb-6">Apakah Anda yakin ingin memulihkan transaksi agregat ini?</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setRestoreId(null)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  const tx = transactions.find((t) => t.id === restoreId)
+                  if (tx) handleRestore(restoreId, tx.source_ref)
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                Pulihkan
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )
 }
-
-// =============================================================================
-// DELETE CONFIRMATION MODAL
-// =============================================================================
-
-interface DeleteConfirmModalProps {
-  title: string
-  message: string
-  confirmText: string
-  confirmButtonClass: string
-  onConfirm: () => void
-  onCancel: () => void
-}
-
-const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
-  title,
-  message,
-  confirmText,
-  confirmButtonClass,
-  onConfirm,
-  onCancel,
-}) => (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-      <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
-      <p className="text-gray-600 mb-6">{message}</p>
-      <div className="flex justify-end gap-3">
-        <button
-          onClick={onCancel}
-          className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
-        >
-          Batal
-        </button>
-        <button
-          onClick={onConfirm}
-          className={`px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 ${confirmButtonClass}`}
-        >
-          {confirmText}
-        </button>
-      </div>
-    </div>
-  </div>
-)
-
-// =============================================================================
-// EXPORT DEFAULT
-// =============================================================================
 
 export default PosAggregatesTable
 

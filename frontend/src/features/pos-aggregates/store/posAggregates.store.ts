@@ -300,6 +300,8 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
               isMutating: false,
             }))
           } catch (error) {
+            // Refresh transactions to sync with backend state when delete fails
+            await get().fetchTransactions()
             const message = error instanceof Error ? error.message : 'Gagal menghapus transaksi'
             set({ error: message, isMutating: false })
             throw error

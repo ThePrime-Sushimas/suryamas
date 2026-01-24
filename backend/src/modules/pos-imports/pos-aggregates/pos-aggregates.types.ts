@@ -95,6 +95,9 @@ export interface AggregatedTransactionListItem extends Pick<AggregatedTransactio
   | 'status'
   | 'is_reconciled'
   | 'created_at'
+  | 'updated_at'
+  | 'deleted_at'
+  | 'deleted_by'
   | 'version'
 > {
   branch_name?: string
