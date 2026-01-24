@@ -464,12 +464,12 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
             filter: { ..._state.filter, ...filter },
             page: 1,
           }))
-          get().fetchTransactions(1)
+          // NOTE: Do NOT auto-fetch here - fetch only happens when user clicks "Terapkan Filter"
         },
 
         clearFilter: () => {
           set({ filter: initialFilter, page: 1 })
-          get().fetchTransactions(1)
+          // NOTE: Do NOT auto-fetch here - fetch only happens when user clicks "Terapkan Filter"
         },
 
         setSort: (sort: AggregatedTransactionSortParams | null) => {

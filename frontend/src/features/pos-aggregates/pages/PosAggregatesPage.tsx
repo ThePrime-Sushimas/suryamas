@@ -5,7 +5,7 @@
  * Features: list view, filters, pagination, bulk actions, summary.
  */
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, FileText, CheckCircle, FilePlus, Database } from 'lucide-react'
 import { usePosAggregatesStore } from '../store/posAggregates.store'
@@ -74,11 +74,7 @@ export const PosAggregatesPage: React.FC = () => {
   const [includeUnreconciledOnly, setIncludeUnreconciledOnly] = useState(false)
   const [generatingJournal, setGeneratingJournal] = useState(false)
 
-  // Fetch data on mount
-  useEffect(() => {
-    fetchTransactions()
-    fetchSummary()
-  }, [fetchTransactions, fetchSummary])
+  // Note: No auto-fetch on mount - user must click "Apply Filters" first
 
   // Handle edit
   const handleEdit = useCallback((id: string) => {

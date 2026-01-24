@@ -460,15 +460,20 @@ export class PosAggregatesService {
   async getSummary(
     dateFrom?: string,
     dateTo?: string,
-    branchName?: string
+    branchNames?: string[]
   ): Promise<AggregatedTransactionSummary> {
     const summary = await posAggregatesRepository.getSummary(
       dateFrom,
       dateTo,
-      branchName
+      branchNames
     )
 
-    const statusCounts = await posAggregatesRepository.getStatusCounts()
+    // Pass filters to getStatusCounts so counts match filtered data
+    const statusCounts = await posAggregatesRepository.getStatusCounts(
+      dateFrom,
+      dateTo,
+      branchNames
+    )
 
     return {
       ...summary,

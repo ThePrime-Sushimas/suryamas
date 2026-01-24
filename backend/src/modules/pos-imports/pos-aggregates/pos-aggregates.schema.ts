@@ -87,17 +87,28 @@ export const aggregatedTransactionIdSchema = z.object({
 /**
  * Schema for listing aggregated transactions query
  */
+// Custom schema that accepts either a comma-separated string or an array of strings
+const branchNamesSchema = z.union([
+  z.string(),  // Comma-separated string
+  z.array(z.string()),  // Array of strings
+]).optional()
+
+const paymentMethodIdsSchema = z.union([
+  z.string(),  // Comma-separated string
+  z.array(z.coerce.number().int().positive()),  // Array of numbers (coerced)
+]).optional()
+
 export const aggregatedTransactionListQuerySchema = z.object({
   query: z.object({
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().max(100).default(10),
     company_id: z.string().uuid().optional(),
     branch_name: z.string().optional(),
-    branch_names: z.array(z.string()).optional(),
+    branch_names: branchNamesSchema,
     source_type: z.enum(['POS']).optional(),
     source_id: z.string().optional(),
     payment_method_id: z.coerce.number().int().positive().optional(),
-    payment_method_ids: z.array(z.coerce.number().int().positive()).optional(),
+    payment_method_ids: paymentMethodIdsSchema,
     transaction_date: z.string().optional(),
     transaction_date_from: z.string().optional(),
     transaction_date_to: z.string().optional(),

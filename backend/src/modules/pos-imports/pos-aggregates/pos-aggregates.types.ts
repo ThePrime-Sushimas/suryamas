@@ -144,16 +144,18 @@ export interface UpdateAggregatedTransactionDto {
   version?: number
 }
 
+
 /**
  * Query parameters for listing aggregated transactions
  */
 export interface AggregatedTransactionFilterParams {
+  company_id?: string
   branch_name?: string | null
-  branch_names?: string[]  // Multiple branches (checkbox method)
+  branch_names?: string[] | string  // Multiple branches (checkbox method) - also accepts comma-separated string
   source_type?: AggregatedTransactionSourceType
   source_id?: string
   payment_method_id?: number
-  payment_method_ids?: number[]  // Multiple payment methods (checkbox method)
+  payment_method_ids?: number[] | string  // Multiple payment methods - also accepts comma-separated string
   transaction_date?: string
   transaction_date_from?: string
   transaction_date_to?: string
@@ -163,6 +165,7 @@ export interface AggregatedTransactionFilterParams {
   search?: string
   show_deleted?: boolean
 }
+
 
 /**
  * Sort parameters for aggregated transactions

@@ -11,6 +11,26 @@ import {
 } from './pos-aggregates.types'
 import { AggregatedTransactionErrors } from './pos-aggregates.errors'
 
+/**
+ * Helper function to normalize branch_names filter (handle both string and array)
+ */
+function normalizeStringArray(value: string | string[] | undefined): string[] | undefined {
+  if (!value) return undefined
+  if (Array.isArray(value)) return value.filter(Boolean).map(String)
+  // Handle comma-separated string
+  return value.split(',').map(s => s.trim()).filter(Boolean)
+}
+
+/**
+ * Helper function to normalize number IDs filter (handle both string and array)
+ */
+function normalizeNumberArray(value: string | number[] | undefined): number[] | undefined {
+  if (!value) return undefined
+  if (Array.isArray(value)) return value.filter(n => typeof n === 'number' && !isNaN(n))
+  // Handle comma-separated string
+  return value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
+}
+
 export class PosAggregatesRepository {
   /**
    * Find all aggregated transactions with pagination and filters
@@ -53,9 +73,12 @@ export class PosAggregatesRepository {
       }
     }
 
-    // Support multiple branch_names (array filter)
-    if (filter?.branch_names && filter.branch_names.length > 0) {
-      dbQuery = dbQuery.in('branch_name', filter.branch_names)
+    // Support multiple branch_names (array or comma-separated string) - use case-insensitive ilike
+    const branchNamesArray = normalizeStringArray(filter?.branch_names)
+    if (branchNamesArray && branchNamesArray.length > 0) {
+      // Use or() with ilike for case-insensitive matching
+      const orConditions = branchNamesArray.map(b => `branch_name.ilike.%${b}%`).join(',')
+      dbQuery = dbQuery.or(orConditions)
     }
 
     if (filter?.source_type) {
@@ -70,9 +93,10 @@ export class PosAggregatesRepository {
       dbQuery = dbQuery.eq('payment_method_id', filter.payment_method_id)
     }
 
-    // Support multiple payment_method_ids (array filter)
-    if (filter?.payment_method_ids && filter.payment_method_ids.length > 0) {
-      dbQuery = dbQuery.in('payment_method_id', filter.payment_method_ids)
+    // Support multiple payment_method_ids (array or comma-separated string)
+    const paymentMethodIdsArray = normalizeNumberArray(filter?.payment_method_ids)
+    if (paymentMethodIdsArray && paymentMethodIdsArray.length > 0) {
+      dbQuery = dbQuery.in('payment_method_id', paymentMethodIdsArray)
     }
 
     if (filter?.transaction_date) {
@@ -548,11 +572,12 @@ export class PosAggregatesRepository {
 
   /**
    * Get summary statistics
+   * Uses Supabase's .or() with ilike for case-insensitive branch name matching
    */
   async getSummary(
     dateFrom?: string,
     dateTo?: string,
-    branchName?: string
+    branchNames?: string[]
   ): Promise<{
     total_count: number
     total_gross_amount: number
@@ -568,7 +593,12 @@ export class PosAggregatesRepository {
 
     if (dateFrom) dbQuery = dbQuery.gte('transaction_date', dateFrom)
     if (dateTo) dbQuery = dbQuery.lte('transaction_date', dateTo)
-    if (branchName) dbQuery = dbQuery.eq('branch_name', branchName)
+    
+    // Use case-insensitive ilike for branch names
+    if (branchNames && branchNames.length > 0) {
+      const orConditions = branchNames.map(b => `branch_name.ilike.%${b}%`).join(',')
+      dbQuery = dbQuery.or(orConditions)
+    }
 
     // First get the count
     const { count, error: countError } = await dbQuery
@@ -578,21 +608,7 @@ export class PosAggregatesRepository {
       throw new DatabaseError('Failed to get summary count', { cause: countError })
     }
 
-    // Then get the sum aggregations separately
-    let sumQuery = supabase
-      .from('aggregated_transactions')
-      .select('gross_amount, discount_amount, tax_amount, service_charge_amount, net_amount', { head: true })
-      .is('deleted_at', null)
-
-    if (dateFrom) sumQuery = sumQuery.gte('transaction_date', dateFrom)
-    if (dateTo) sumQuery = sumQuery.lte('transaction_date', dateTo)
-    if (branchName) sumQuery = sumQuery.eq('branch_name', branchName)
-
-    // Use .then() to get the response structure properly
-    const { data: sumData, error: sumError } = await sumQuery
-
-    // For sum queries with head: true, we need to use .range() approach
-    // Or use RPC if available, but let's try a different approach - get all data and sum in JS
+    // Then get the sum aggregations
     let allDataQuery = supabase
       .from('aggregated_transactions')
       .select('gross_amount, discount_amount, tax_amount, service_charge_amount, net_amount')
@@ -600,7 +616,12 @@ export class PosAggregatesRepository {
 
     if (dateFrom) allDataQuery = allDataQuery.gte('transaction_date', dateFrom)
     if (dateTo) allDataQuery = allDataQuery.lte('transaction_date', dateTo)
-    if (branchName) allDataQuery = allDataQuery.eq('branch_name', branchName)
+    
+    // Use case-insensitive ilike for branch names
+    if (branchNames && branchNames.length > 0) {
+      const orConditions = branchNames.map(b => `branch_name.ilike.%${b}%`).join(',')
+      allDataQuery = allDataQuery.or(orConditions)
+    }
 
     const { data: allData, error: allDataError } = await allDataQuery
 
@@ -629,9 +650,14 @@ export class PosAggregatesRepository {
   }
 
   /**
-   * Get transaction counts by status
+   * Get transaction counts by status with optional filters
+   * Uses Supabase's .or() with ilike for case-insensitive branch name matching
    */
-  async getStatusCounts(): Promise<Record<AggregatedTransactionStatus, number>> {
+  async getStatusCounts(
+    dateFrom?: string,
+    dateTo?: string,
+    branchNames?: string[]
+  ): Promise<Record<AggregatedTransactionStatus, number>> {
     // Fallback: get counts individually for each status
     const statuses: AggregatedTransactionStatus[] = ['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED']
     const counts: Record<AggregatedTransactionStatus, number> = {
@@ -644,11 +670,27 @@ export class PosAggregatesRepository {
     }
 
     for (const status of statuses) {
-      const { count } = await supabase
+      let query = supabase
         .from('aggregated_transactions')
         .select('id', { count: 'exact', head: true })
         .eq('status', status)
         .is('deleted_at', null)
+
+      // Apply filters
+      if (dateFrom) {
+        query = query.gte('transaction_date', dateFrom)
+      }
+      if (dateTo) {
+        query = query.lte('transaction_date', dateTo)
+      }
+      
+      // Use case-insensitive ilike for branch names
+      if (branchNames && branchNames.length > 0) {
+        const orConditions = branchNames.map(b => `branch_name.ilike.%${b}%`).join(',')
+        query = query.or(orConditions)
+      }
+
+      const { count } = await query
       
       counts[status] = count || 0
     }

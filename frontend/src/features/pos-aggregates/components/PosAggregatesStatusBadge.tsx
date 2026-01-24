@@ -38,6 +38,11 @@ const STATUS_CONFIG: Record<AggregatedTransactionStatus, { label: string; colorC
     colorClass: 'text-red-700',
     bgClass: 'bg-red-100',
   },
+  FAILED: {
+    label: 'Gagal',
+    colorClass: 'text-gray-700',
+    bgClass: 'bg-gray-100',
+  },
 }
 
 // =============================================================================

@@ -250,8 +250,13 @@ export const posAggregatesApi = {
         if (filter.branch_name !== undefined && filter.branch_name !== null) {
           params.branch_name = filter.branch_name
         }
-        if (filter.branch_names && filter.branch_names.length > 0) {
-          params.branch_names = filter.branch_names
+        // Handle branch_names (can be array or comma-separated string)
+        if (filter.branch_names) {
+          if (Array.isArray(filter.branch_names)) {
+            params.branch_names = filter.branch_names.join(',')
+          } else {
+            params.branch_names = filter.branch_names
+          }
         }
         if (filter.source_type) {
           params.source_type = filter.source_type
@@ -262,8 +267,13 @@ export const posAggregatesApi = {
         if (filter.payment_method_id !== undefined && filter.payment_method_id !== null) {
           params.payment_method_id = filter.payment_method_id
         }
-        if (filter.payment_method_ids && filter.payment_method_ids.length > 0) {
-          params.payment_method_ids = filter.payment_method_ids
+        // Handle payment_method_ids (can be array or comma-separated string)
+        if (filter.payment_method_ids) {
+          if (Array.isArray(filter.payment_method_ids)) {
+            params.payment_method_ids = filter.payment_method_ids.join(',')
+          } else {
+            params.payment_method_ids = filter.payment_method_ids
+          }
         }
         if (filter.transaction_date) {
           params.transaction_date = filter.transaction_date
@@ -487,8 +497,13 @@ export const posAggregatesApi = {
         if (filter.branch_name !== undefined && filter.branch_name !== null) {
           params.branch_name = filter.branch_name
         }
-        if (filter.branch_names && filter.branch_names.length > 0) {
-          params.branch_names = filter.branch_names
+        // Handle branch_names (can be array or comma-separated string)
+        if (filter.branch_names) {
+          if (Array.isArray(filter.branch_names)) {
+            params.branch_names = filter.branch_names.join(',')
+          } else {
+            params.branch_names = filter.branch_names
+          }
         }
         if (filter.transaction_date_from) {
           params.transaction_date_from = filter.transaction_date_from
@@ -672,8 +687,13 @@ export const posAggregatesApi = {
         if (filter.branch_name !== undefined && filter.branch_name !== null) {
           params.branch_name = filter.branch_name
         }
-        if (filter.branch_names && filter.branch_names.length > 0) {
-          params.branch_names = filter.branch_names
+        // Handle branch_names (can be array or comma-separated string)
+        if (filter.branch_names) {
+          if (Array.isArray(filter.branch_names)) {
+            params.branch_names = filter.branch_names.join(',')
+          } else {
+            params.branch_names = filter.branch_names
+          }
         }
         if (filter.transaction_date_from) {
           params.transaction_date_from = filter.transaction_date_from
