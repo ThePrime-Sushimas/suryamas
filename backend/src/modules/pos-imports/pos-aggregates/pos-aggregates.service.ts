@@ -26,6 +26,7 @@ export class PosAggregatesService {
   /**
    * Validate that branch exists (if provided)
    * Note: branchId can be either UUID (id) or branch name (string)
+   * Uses case-insensitive search for branch names
    */
   private async validateBranch(branchId: string | null): Promise<void> {
     if (!branchId) return
@@ -35,14 +36,14 @@ export class PosAggregatesService {
 
     let query = supabase
       .from('branches')
-      .select('id, status')
+      .select('id, status, branch_name')
 
     if (isUuid) {
       // Query by UUID id
       query = query.eq('id', branchId)
     } else {
-      // Query by branch_name (string)
-      query = query.eq('branch_name', branchId.trim())
+      // Query by branch_name (string) - use ilike for case-insensitive search
+      query = query.ilike('branch_name', branchId.trim())
     }
 
     const { data, error } = await query.maybeSingle()
