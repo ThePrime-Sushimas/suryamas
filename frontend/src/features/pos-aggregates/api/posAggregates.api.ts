@@ -245,27 +245,50 @@ export const posAggregatesApi = {
         params.sort = sort.field
         params.order = sort.order
       }
+      // Only add filter params if they have values (not undefined/null)
       if (filter) {
-        // Handle array filters - spread each array element separately for backend
+        if (filter.branch_name !== undefined && filter.branch_name !== null) {
+          params.branch_name = filter.branch_name
+        }
         if (filter.branch_names && filter.branch_names.length > 0) {
-          filter.branch_names.forEach((name, index) => {
-            params[`branch_names[${index}]`] = name
-          })
+          params.branch_names = filter.branch_names
+        }
+        if (filter.source_type) {
+          params.source_type = filter.source_type
+        }
+        if (filter.source_id) {
+          params.source_id = filter.source_id
+        }
+        if (filter.payment_method_id !== undefined && filter.payment_method_id !== null) {
+          params.payment_method_id = filter.payment_method_id
         }
         if (filter.payment_method_ids && filter.payment_method_ids.length > 0) {
-          filter.payment_method_ids.forEach((id, index) => {
-            params[`payment_method_ids[${index}]`] = id
-          })
+          params.payment_method_ids = filter.payment_method_ids
         }
-        // Copy other filter params
-        Object.entries(filter).forEach(([key, value]) => {
-          if (value !== undefined && 
-              key !== 'branch_names' && 
-              key !== 'payment_method_ids' &&
-              !key.includes('[')) {
-            params[key] = value
-          }
-        })
+        if (filter.transaction_date) {
+          params.transaction_date = filter.transaction_date
+        }
+        if (filter.transaction_date_from) {
+          params.transaction_date_from = filter.transaction_date_from
+        }
+        if (filter.transaction_date_to) {
+          params.transaction_date_to = filter.transaction_date_to
+        }
+        if (filter.status) {
+          params.status = filter.status
+        }
+        if (filter.is_reconciled !== undefined && filter.is_reconciled !== null) {
+          params.is_reconciled = filter.is_reconciled
+        }
+        if (filter.has_journal !== undefined && filter.has_journal !== null) {
+          params.has_journal = filter.has_journal
+        }
+        if (filter.search) {
+          params.search = filter.search
+        }
+        if (filter.show_deleted) {
+          params.show_deleted = filter.show_deleted
+        }
       }
 
       try {
@@ -459,8 +482,20 @@ export const posAggregatesApi = {
   ): Promise<AggregatedTransactionSummary> => {
     return handleApiCall(async () => {
       const params: Record<string, unknown> = {}
+      // Only add filter params if they have values (not undefined/null)
       if (filter) {
-        Object.assign(params, filter)
+        if (filter.branch_name !== undefined && filter.branch_name !== null) {
+          params.branch_name = filter.branch_name
+        }
+        if (filter.branch_names && filter.branch_names.length > 0) {
+          params.branch_names = filter.branch_names
+        }
+        if (filter.transaction_date_from) {
+          params.transaction_date_from = filter.transaction_date_from
+        }
+        if (filter.transaction_date_to) {
+          params.transaction_date_to = filter.transaction_date_to
+        }
       }
 
       const res = await api.get<BackendResponse<AggregatedTransactionSummary>>(

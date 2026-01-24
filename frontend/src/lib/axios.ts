@@ -50,26 +50,6 @@ api.interceptors.request.use(
       config.headers['x-branch-id'] = branch.branch_id
     }
 
-    // Add audit headers for all requests
-    if (config.headers) {
-      config.headers['X-Client-Timestamp'] = new Date().toISOString()
-      config.headers['X-Client-Platform'] = 'web'
-      
-      // Add file metadata for upload requests
-      if (config.url?.includes('/upload') && config.data instanceof FormData) {
-        const file = config.data.get('file') as File
-        if (file) {
-          config.data.append('metadata', JSON.stringify({
-            original_filename: file.name,
-            file_size: file.size,
-            file_type: file.type,
-            last_modified: file.lastModified,
-            client_uploaded_at: new Date().toISOString()
-          }))
-        }
-      }
-    }
-
     return config
   },
   (error) => Promise.reject(error)
@@ -83,7 +63,7 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
     
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean; _retryCount?: number }
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
     // Token expired - try refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -105,36 +85,10 @@ api.interceptors.response.use(
       }
     }
 
-    // Retry logic for transient failures (max 3 retries)
-    const shouldRetry = (
-      error.code === 'ECONNABORTED' || // Timeout
-      error.code === 'ERR_NETWORK' ||  // Network issues
-      error.response?.status === 429 || // Rate limit
-      (error.response?.status && error.response.status >= 500) // Server errors
-    )
-    
-    if (shouldRetry && (!originalRequest._retryCount || originalRequest._retryCount < 3)) {
-      originalRequest._retryCount = (originalRequest._retryCount || 0) + 1
-      
-      // Exponential backoff: 1s, 2s, 4s
-      const delay = Math.pow(2, originalRequest._retryCount - 1) * 1000
-      await new Promise(resolve => setTimeout(resolve, delay))
-      
+    // Retry logic for network errors
+    if (!error.response && !originalRequest._retry) {
+      originalRequest._retry = true
       return api(originalRequest)
-    }
-
-    // Transform error to standard format
-    if (error.response?.data?.error) {
-      const apiError = error.response.data.error
-      const enhancedError = new Error(apiError.message || 'An error occurred') as Error & {
-        code?: string
-        details?: Record<string, unknown>
-        timestamp?: string
-      }
-      enhancedError.code = apiError.code
-      enhancedError.details = apiError.details
-      enhancedError.timestamp = apiError.timestamp
-      return Promise.reject(enhancedError)
     }
 
     return Promise.reject(error)
