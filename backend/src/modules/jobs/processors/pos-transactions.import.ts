@@ -27,7 +27,9 @@ import { isPosTransactionsImportMetadata } from '../jobs.types'
 // ==============================
 const CHUNK_SIZE = 1000;                    // Baris per insert batch
 const DUP_CHECK_BATCH_SIZE = 500;            // Transaksi per duplicate check batch
-const PROGRESS_UPDATE_FREQUENCY = 10;        // Update progress setiap N chunks
+const PROGRESS_UPDATE_FREQUENCY = 5;         // Update progress setiap 5%
+const MAX_RETRIES = 3;                       // Max retry attempts per batch
+const RETRY_DELAY_MS = 1000;                 // Base delay between retries (ms)
 
 // ==============================
 // COLUMN MAPPING (same as pos-imports.service.ts)
@@ -332,33 +334,54 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
 
     for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
       const chunk = lines.slice(i, i + CHUNK_SIZE)
+      let inserted = false
+      let retryCount = 0
       
-      try {
-        // Filter out duplicates for this chunk
-        const linesToInsert = skipDuplicates 
-          ? chunk.filter(line => !duplicateKeys.has(createTransactionKey(line)))
-          : chunk
+      // Filter out duplicates for this chunk
+      const linesToInsert = skipDuplicates 
+        ? chunk.filter(line => !duplicateKeys.has(createTransactionKey(line)))
+        : chunk
 
-        if (linesToInsert.length > 0) {
-          await posImportLinesRepository.bulkInsert(linesToInsert)
-          successCount += linesToInsert.length
+      // Retry mechanism untuk transient errors
+      while (!inserted && retryCount < MAX_RETRIES) {
+        try {
+          if (linesToInsert.length > 0) {
+            await posImportLinesRepository.bulkInsert(linesToInsert)
+            successCount += linesToInsert.length
+          }
+          inserted = true
+        } catch (error) {
+          retryCount++
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+          
+          if (retryCount < MAX_RETRIES) {
+            // Exponential backoff
+            const delay = RETRY_DELAY_MS * retryCount
+            logWarn('Insert batch retrying', {
+              job_id: jobId,
+              chunk_index: chunkIndex,
+              attempt: retryCount,
+              max_attempts: MAX_RETRIES,
+              delay_ms: delay,
+              error: errorMsg
+            })
+            await new Promise(resolve => setTimeout(resolve, delay))
+          } else {
+            // Final failure - log and continue (atomic per batch)
+            failCount += chunk.length
+            results.errors.push(`Batch ${chunkIndex + 1} failed after ${MAX_RETRIES} retries: ${errorMsg}`)
+            
+            logError('Insert batch final failure', { 
+              job_id: jobId,
+              chunk_index: chunkIndex,
+              chunk_size: chunk.length,
+              attempts: MAX_RETRIES,
+              error: errorMsg
+            })
+            // CRITICAL: Continue with next batch - don't fail entire import
+            // Financial data integrity is maintained per batch
+          }
         }
-      } catch (error) {
-        // CRITICAL: For financial data, we log and continue
-        // Each batch is atomic - failure of one batch ≠ failure of all
-        failCount += chunk.length
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-        results.errors.push(`Batch ${chunkIndex + 1} failed: ${errorMsg}`)
-        
-        logError('Insert batch failed', { 
-          job_id: jobId,
-          chunk_index: chunkIndex,
-          chunk_size: chunk.length,
-          error: errorMsg
-        })
-        
-        // CRITICAL: Continue with next batch - don't fail entire import
-        // Financial data integrity is maintained per batch
       }
 
       chunkIndex++
