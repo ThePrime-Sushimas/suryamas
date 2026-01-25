@@ -242,7 +242,7 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
       if (session) {
         session.status = 'complete'
         session.result = result
-        session.job_id = result.job_id  // Store job_id from response
+        // Note: job_id is no longer returned from upload - it's created during confirm
         set({ 
           uploads: currentUploads,
           analyzeResult: result,
@@ -296,11 +296,18 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
     })
 
     try {
-      // Get job_id from the analyze result (stored in uploads)
-      const analyzeResult = get().analyzeResult
-      const job_id = analyzeResult?.job_id
-
-      await posImportsApi.confirm(id, skipDuplicates, job_id)
+      // Call confirm endpoint - now returns { import, job_id }
+      const response = await posImportsApi.confirm(id, skipDuplicates)
+      
+      // Store job_id for tracking if available
+      if (response.data?.job_id) {
+        const currentUploads = new Map(get().uploads)
+        const session = Array.from(currentUploads.values())[0]
+        if (session) {
+          session.job_id = response.data.job_id
+        }
+      }
+      
       set({ 
         analyzeResult: null,
         loading: { ...get().loading, confirm: false }

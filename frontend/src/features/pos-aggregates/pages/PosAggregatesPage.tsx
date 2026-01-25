@@ -7,7 +7,7 @@
 
 import React, { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, FileText, CheckCircle, FilePlus, Database } from 'lucide-react'
+import { Plus, FileText, CheckCircle, Database } from 'lucide-react'
 import { usePosAggregatesStore } from '../store/posAggregates.store'
 import { useToast } from '@/contexts/ToastContext'
 import { useBranchContextStore } from '@/features/branch_context'
@@ -16,6 +16,7 @@ import { PosAggregatesFilters } from '../components/PosAggregatesFilters'
 import { PosAggregatesForm } from '../components/PosAggregatesForm'
 import { PosAggregatesSummary } from '../components/PosAggregatesSummary'
 import { GenerateFromImportModal } from '../components/GenerateFromImportModal'
+import { GenerateJournalModal } from '../components/GenerateJournalModal'
 import type { 
   AggregatedTransaction, 
   CreateAggregatedTransactionDto, 
@@ -59,7 +60,6 @@ export const PosAggregatesPage: React.FC = () => {
     restoreTransaction,
     reconcileTransaction,
     batchReconcile,
-    generateJournal,
     setPage,
     clearSelection,
   } = usePosAggregatesStore()
@@ -69,10 +69,6 @@ export const PosAggregatesPage: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showGenerateJournalModal, setShowGenerateJournalModal] = useState(false)
   const [showGenerateFromImportModal, setShowGenerateFromImportModal] = useState(false)
-  const [journalDateFrom, setJournalDateFrom] = useState('')
-  const [journalDateTo, setJournalDateTo] = useState('')
-  const [includeUnreconciledOnly, setIncludeUnreconciledOnly] = useState(false)
-  const [generatingJournal, setGeneratingJournal] = useState(false)
 
   // Note: No auto-fetch on mount - user must click "Apply Filters" first
 
@@ -116,7 +112,7 @@ export const PosAggregatesPage: React.FC = () => {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal merekonsiliasi transaksi')
     }
-  }, [reconcileTransaction, toast, currentBranch?.employee_id, fetchTransactions, fetchSummary])
+  }, [reconcileTransaction, toast, currentBranch, fetchTransactions, fetchSummary])
 
   // Handle batch reconcile
   const handleBatchReconcile = useCallback(async () => {
@@ -135,32 +131,7 @@ export const PosAggregatesPage: React.FC = () => {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal merekonsiliasi transaksi secara batch')
     }
-  }, [selectedIds, batchReconcile, toast, currentBranch?.employee_id, clearSelection, fetchTransactions, fetchSummary])
-
-  // Handle generate journal
-  const handleGenerateJournal = useCallback(async () => {
-    if (!currentBranch?.company_id) {
-      toast.error('Company context tidak tersedia')
-      return
-    }
-
-    setGeneratingJournal(true)
-    try {
-      await generateJournal({
-        transaction_date_from: journalDateFrom,
-        transaction_date_to: journalDateTo,
-        include_unreconciled_only: includeUnreconciledOnly,
-      })
-      toast.success('Jurnal berhasil dibuat dari transaksi yang eligible')
-      setShowGenerateJournalModal(false)
-      fetchTransactions()
-      fetchSummary()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal membuat jurnal')
-    } finally {
-      setGeneratingJournal(false)
-    }
-  }, [generateJournal, toast, currentBranch?.company_id, journalDateFrom, journalDateTo, includeUnreconciledOnly, fetchTransactions, fetchSummary])
+  }, [selectedIds, batchReconcile, toast, currentBranch, clearSelection, fetchTransactions, fetchSummary])
 
 // Handle view detail
   const handleViewDetail = useCallback((id: string) => {
@@ -348,88 +319,11 @@ export const PosAggregatesPage: React.FC = () => {
         </>
       )}
 
-      {/* Generate Journal Modal */}
-      {showGenerateJournalModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <FilePlus className="w-5 h-5" />
-                Buat Jurnal dari Transaksi
-              </h2>
-              <button
-                onClick={() => setShowGenerateJournalModal(false)}
-                className="text-gray-500 hover:text-gray-700 p-1"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Dari Tanggal
-                </label>
-                <input
-                  type="date"
-                  value={journalDateFrom}
-                  onChange={(e) => setJournalDateFrom(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Sampai Tanggal
-                </label>
-                <input
-                  type="date"
-                  value={journalDateTo}
-                  onChange={(e) => setJournalDateTo(e.target.value)}
-                  min={journalDateFrom}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="includeUnreconciled"
-                  checked={includeUnreconciledOnly}
-                  onChange={(e) => setIncludeUnreconciledOnly(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <label htmlFor="includeUnreconciled" className="text-sm text-gray-700">
-                  Hanya transaksi yang belum direkonsiliasi
-                </label>
-              </div>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                <p className="text-sm text-yellow-700">
-                  Jurnal akan dibuat dari semua transaksi eligible dalam rentang tanggal yang dipilih.
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 p-4 border-t">
-              <button
-                onClick={() => setShowGenerateJournalModal(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleGenerateJournal}
-                disabled={generatingJournal || !journalDateFrom || !journalDateTo}
-                className="px-4 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
-              >
-                {generatingJournal && (
-                  <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                )}
-                Buat Jurnal
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Generate Journal Modal - New Optimized Version */}
+      <GenerateJournalModal
+        isOpen={showGenerateJournalModal}
+        onClose={() => setShowGenerateJournalModal(false)}
+      />
 
       {/* Generate from Import Modal */}
       <GenerateFromImportModal

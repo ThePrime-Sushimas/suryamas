@@ -24,6 +24,8 @@ export type JobModule =
   | 'payment_methods'
   | 'categories'
   | 'sub_categories'
+  | 'pos_aggregates'
+  | 'pos_journals'
   // future modules can be added here without DB changes
   // | 'tax_reports' | 'journals' | 'inventory' | 'suppliers'
 

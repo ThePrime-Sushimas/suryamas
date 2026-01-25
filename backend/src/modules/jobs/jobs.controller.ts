@@ -24,7 +24,8 @@ export class JobsController {
     const validModules: JobModule[] = [
       'employees', 'companies', 'products', 'pos_transactions',
       'fiscal_periods', 'chart_of_accounts', 'accounting_purposes',
-      'accounting_purpose_accounts', 'payment_methods', 'categories', 'sub_categories'
+      'accounting_purpose_accounts', 'payment_methods', 'categories', 'sub_categories',
+      'pos_aggregates', 'pos_journals'
     ]
     if (!validModules.includes(module as JobModule)) {
       throw new Error(`Invalid module. Must be one of: ${validModules.join(', ')}`)

@@ -99,17 +99,7 @@ router.post(
   posAggregatesController.create
 )
 
-/**
- * @route POST /generate-journal
- * @desc Generate journal entries from eligible transactions
- * @access Private
- */
-router.post(
-  '/generate-journal',
-  canUpdate('pos_aggregates'),
-  validateSchema(generateJournalSchema),
-  posAggregatesController.generateJournal
-)
+
 
 /**
  * @route POST /batch/reconcile

@@ -25,11 +25,13 @@ import { isPosTransactionsImportMetadata } from '../jobs.types'
 // ==============================
 // CONFIGURATION - TUNABLE
 // ==============================
-const CHUNK_SIZE = 1000;                    // Baris per insert batch
+const CHUNK_SIZE = 2000;                     // Baris per insert batch (diingkatkan untuk 8MB file)
 const DUP_CHECK_BATCH_SIZE = 500;            // Transaksi per duplicate check batch
-const PROGRESS_UPDATE_FREQUENCY = 5;         // Update progress setiap 5%
+const PROGRESS_UPDATE_FREQUENCY = 10;        // Update progress setiap 10%
 const MAX_RETRIES = 3;                       // Max retry attempts per batch
-const RETRY_DELAY_MS = 1000;                 // Base delay between retries (ms)
+const RETRY_DELAY_MS = 3000;                 // Base delay between retries (ms)
+const DELAY_BETWEEN_BATCHES_MS = 500;        // Small delay between batches untuk avoid rate limit
+const DB_TIMEOUT_MS = 60000;                 // Database query timeout (60 detik)
 
 // ==============================
 // COLUMN MAPPING (same as pos-imports.service.ts)
@@ -386,8 +388,13 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
 
       chunkIndex++
 
+      // Small delay between batches to avoid rate limiting
+      if (i + CHUNK_SIZE < lines.length) {
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS))
+      }
+
       // Granular progress update
-      const progressPercent = 40 + Math.min(55, (i / lines.length) * 55)
+      const progressPercent = Math.round(40 + Math.min(55, (i / lines.length) * 55))
       
       // Only update database if progress changed significantly (every 5%)
       if (Math.floor(progressPercent) - lastProgressUpdate >= 5) {
@@ -451,14 +458,27 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
     }
 
   } catch (error) {
-    logError('POS transactions import failed', { job_id: jobId, error })
+    // Better error logging for debugging
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : undefined
+    const errorDetails = error instanceof Error ? { 
+      name: error.name, 
+      message: error.message,
+      stack: error.stack
+    } : String(error)
+    
+    logError('POS transactions import failed', { 
+      job_id: jobId, 
+      error_message: errorMessage,
+      error_details: errorDetails
+    })
 
     // Update pos_imports status to FAILED
     if (posImportId && importCompanyId) {
       try {
         await posImportsRepository.update(posImportId, importCompanyId, {
           status: 'FAILED',
-          error_message: error instanceof Error ? error.message : 'Unknown error'
+          error_message: errorMessage
         }, userId)
       } catch (updateError) {
         logError('Failed to update pos_imports status', { 

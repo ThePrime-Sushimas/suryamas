@@ -146,7 +146,8 @@ class PosImportsController {
   /**
    * Upload and analyze POS Excel file
    * POST /api/v1/pos-imports/upload
-   * NOW: Returns job_id in response for frontend tracking
+   * SYNCHRONOUS - Returns import record and duplicate analysis
+   * Job is created when user confirms the import
    */
   async upload(req: any, res: Response) {
     try {
@@ -177,9 +178,8 @@ class PosImportsController {
 
       return sendSuccess(res, {
         import: result.import,
-        analysis: result.analysis,
-        job_id: result.job_id  // Added for jobs system integration
-      }, 'File analyzed successfully')
+        analysis: result.analysis
+      }, 'File analyzed successfully. Review duplicates and click Confirm to start import.')
     } catch (error) {
       logError('PosImportsController upload error', { error })
       return sendError(res, error instanceof Error ? error.message : 'Unknown error')
@@ -189,7 +189,7 @@ class PosImportsController {
   /**
    * Confirm import after duplicate analysis
    * POST /api/v1/pos-imports/:id/confirm
-   * Processes synchronously (no job system)
+   * Creates a job for async processing via worker
    */
   async confirm(req: any, res: Response) {
     try {
@@ -204,9 +204,12 @@ class PosImportsController {
         throw new Error('User ID required')
       }
 
-      const posImport = await posImportsService.confirmImport(id, company_id, skip_duplicates, userId)
+      const result = await posImportsService.confirmImport(id, company_id, skip_duplicates, userId)
 
-      return sendSuccess(res, posImport, 'Import confirmed successfully')
+      return sendSuccess(res, {
+        import: result.posImport,
+        job_id: result.job_id
+      }, 'Import confirmed. Job is being processed in the background.')
     } catch (error) {
       logError('PosImportsController confirm error', { error })
       return sendError(res, error instanceof Error ? error.message : 'Unknown error')

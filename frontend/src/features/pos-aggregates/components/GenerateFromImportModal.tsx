@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Database, FileText, Check, X, Loader2, AlertTriangle, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
-import { posAggregatesApi } from '../api/posAggregates.api'
+import { Database, FileText, Check, X, Loader2, ExternalLink, Clock } from 'lucide-react'
+import { usePosAggregatesStore } from '../store/posAggregates.store'
 import { useToast } from '@/contexts/ToastContext'
 import { useBranchContextStore } from '@/features/branch_context'
 
@@ -23,18 +23,6 @@ interface GenerateFromImportModalProps {
   onGenerated: () => void
 }
 
-interface ImportError {
-  source_ref: string
-  error: string
-}
-
-interface GenerateResult {
-  importId: string
-  created: number
-  skipped: number
-  errors: ImportError[]
-}
-
 export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = ({
   isOpen,
   onClose,
@@ -43,13 +31,15 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
   const navigate = useNavigate()
   const toast = useToast()
   const currentBranch = useBranchContextStore((s) => s.currentBranch)
+  const { generateFromImportWithJob } = usePosAggregatesStore()
   
   const [imports, setImports] = useState<PosImport[]>([])
   const [loading, setLoading] = useState(true)
   const [generatingId, setGeneratingId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [errorsExpanded, setErrorsExpanded] = useState<Record<string, boolean>>({})
-  const [lastResult, setLastResult] = useState<GenerateResult | null>(null)
+  
+  // Track polling jobs
+  const pollingJobs = useRef<Map<string, string>>(new Map()) // jobId -> importId
 
   const fetchImports = useCallback(async () => {
     setLoading(true)
@@ -73,10 +63,19 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
   useEffect(() => {
     if (isOpen) {
       fetchImports()
-      setLastResult(null)
-      setErrorsExpanded({})
     }
   }, [isOpen, fetchImports])
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    // Copy ref value to a local variable to avoid stale closure
+    const jobsMap = pollingJobs.current
+    
+    return () => {
+      // Clear all polling jobs on unmount
+      jobsMap.clear()
+    }
+  }, [])
 
   const handleToggleSelection = (id: string) => {
     const newSelected = new Set(selectedIds)
@@ -96,62 +95,102 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
     }
   }
 
-  const toggleErrorsExpanded = (importId: string) => {
-    setErrorsExpanded(prev => ({
-      ...prev,
-      [importId]: !prev[importId]
-    }))
+  // Poll job status
+  const pollJobStatus = async (jobId: string, importId: string) => {
+    const pollInterval = 2000 // 2 seconds
+    const maxAttempts = 120 // 4 minutes max
+    let attempts = 0
+
+    // Register this polling job
+    pollingJobs.current.set(jobId, importId)
+
+    const poll = async () => {
+      // Check if this polling job is still active (not cancelled)
+      if (pollingJobs.current.get(jobId) !== importId) {
+        return // Job was cancelled
+      }
+
+      attempts++
+      
+      try {
+        const { jobsApi } = await import('@/features/jobs/api/jobs.api')
+        const job = await jobsApi.getJobById(jobId)
+        
+        // Update import status based on job progress
+        if (job.progress > 0 && job.progress < 100) {
+          setImports((prev) =>
+            prev.map((imp) =>
+              imp.id === importId ? { ...imp, status: 'PROCESSING' } : imp
+            )
+          )
+        }
+
+        if (job.status === 'completed') {
+          // Job completed successfully
+          pollingJobs.current.delete(jobId)
+          setImports((prev) =>
+            prev.map((imp) =>
+              imp.id === importId ? { ...imp, status: 'MAPPED' } : imp
+            )
+          )
+          
+          // Refresh data
+          fetchImports()
+          onGenerated()
+          
+          toast.success('Generate completed!')
+        } else if (job.status === 'failed') {
+          // Job failed
+          pollingJobs.current.delete(jobId)
+          setImports((prev) =>
+            prev.map((imp) =>
+              imp.id === importId ? { ...imp, status: 'FAILED' } : imp
+            )
+          )
+          
+          toast.error(`Job failed: ${job.error_message || 'Unknown error'}`)
+        } else if (attempts < maxAttempts) {
+          // Still processing, continue polling
+          setTimeout(poll, pollInterval)
+        } else {
+          // Timeout - stop polling but don't change status
+          pollingJobs.current.delete(jobId)
+          toast.warning('Job is taking too long. Check status later.')
+        }
+      } catch (error) {
+        console.error('Polling error:', error)
+        if (pollingJobs.current.get(jobId) === importId && attempts < maxAttempts) {
+          setTimeout(poll, pollInterval)
+        } else {
+          pollingJobs.current.delete(jobId)
+        }
+      }
+    }
+
+    poll()
   }
 
   const handleGenerate = async (importId: string) => {
     setGeneratingId(importId)
-    setLastResult(null)
     try {
-      const result = await posAggregatesApi.generateFromImport(
+      // Create job using jobs system
+      const jobId = await generateFromImportWithJob(
         importId,
         currentBranch?.company_id || '',
         currentBranch?.branch_name
       )
       
-      // Store result with importId for error display
-      setLastResult({
-        ...result,
-        importId
-      })
+      toast.success('Job created. Processing in background.')
       
-      if (result.created > 0) {
-        toast.success(`Berhasil membuat ${result.created} transaksi agregat`)
-      }
-      if (result.skipped > 0) {
-        toast.info(`${result.skipped} transaksi di-skip (sudah ada)`)
-      }
-      if (result.errors.length > 0) {
-        // Show all errors in toast notification
-        const errorMessages = result.errors.map(e => `${e.source_ref}: ${e.error}`).join('\n')
-        toast.error(`${result.errors.length} transaksi gagal:\n${errorMessages}`, 10000)
-        // Expand error section by default when there are errors
-        setErrorsExpanded(prev => ({ ...prev, [importId]: true }))
-      } else {
-        // Collapse errors if no errors
-        setErrorsExpanded(prev => ({ ...prev, [importId]: false }))
-      }
-      
-      // Call API to update status to MAPPED
-      const { posImportsApi } = await import('../../pos-imports/api/pos-imports.api')
-      await posImportsApi.updateStatus(importId, 'MAPPED')
-      
-      // Update local state - mark as generated
+      // Update local state to show processing
       setImports((prev) =>
         prev.map((imp) =>
-          imp.id === importId ? { ...imp, status: 'MAPPED' } : imp
+          imp.id === importId ? { ...imp, status: 'PROCESSING' } : imp
         )
       )
 
-      setSelectedIds((prev) => {
-        const newSet = new Set(prev)
-        newSet.delete(importId)
-        return newSet
-      })
+      // Start polling for job status
+      pollJobStatus(jobId, importId)
       
       setSelectedIds((prev) => {
         const newSet = new Set(prev)
@@ -173,56 +212,43 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
     }
   }
 
-  // Render error details section
-  const renderErrorDetails = (importId: string, errors: ImportError[]) => {
-    const isExpanded = errorsExpanded[importId] || false
+  // Render status badge with progress
+  const renderStatusBadge = (imp: PosImport) => {
+    const isGenerating = generatingId === imp.id
+    const isMapped = imp.status === 'MAPPED'
+    const isProcessing = imp.status === 'PROCESSING'
+    const isFailed = imp.status === 'FAILED'
+
+    if (isMapped) {
+      return (
+        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+          <Check className="w-3 h-3 mr-1" />
+          Generated
+        </span>
+      )
+    }
     
-    if (errors.length === 0) return null
+    if (isFailed) {
+      return (
+        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+          Failed
+        </span>
+      )
+    }
+    
+    if (isProcessing || isGenerating) {
+      return (
+        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+          <Clock className="w-3 h-3 mr-1" />
+          Processing
+        </span>
+      )
+    }
     
     return (
-      <div className="mt-3 bg-red-50 border border-red-200 rounded-lg overflow-hidden">
-        <button
-          onClick={() => toggleErrorsExpanded(importId)}
-          className="w-full px-4 py-2 bg-red-100 hover:bg-red-200 transition-colors flex items-center justify-between"
-        >
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-red-600" />
-            <span className="text-sm font-medium text-red-700">
-              {errors.length} Transaksi Gagal
-            </span>
-          </div>
-          {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-red-600" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-red-600" />
-          )}
-        </button>
-        
-        {isExpanded && (
-          <div className="p-4 max-h-64 overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-red-100">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-red-700 uppercase">Source Ref</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-red-700 uppercase">Error</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-red-200">
-                {errors.map((err, index) => (
-                  <tr key={index} className="hover:bg-red-100">
-                    <td className="px-3 py-2 text-red-800 font-mono text-xs break-all">
-                      {err.source_ref}
-                    </td>
-                    <td className="px-3 py-2 text-red-700">
-                      {err.error}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+        {imp.status}
+      </span>
     )
   }
 
@@ -300,79 +326,57 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
                       const isSelected = selectedIds.has(imp.id)
                       const isGenerating = generatingId === imp.id
                       const isMapped = imp.status === 'MAPPED'
-                      
-                      // Get errors for this import from last result
-                      const errorsForImport = (lastResult?.importId === imp.id) ? lastResult.errors : []
-                      const errorCount = errorsForImport.length || 0
+                      const isProcessing = imp.status === 'PROCESSING'
 
                       return (
-                        <React.Fragment key={imp.id}>
-                          <tr
-                            className={`hover:bg-gray-50 ${isMapped ? 'bg-green-50' : ''} ${errorCount > 0 ? 'bg-red-50' : ''}`}
-                          >
-                            <td className="px-4 py-3">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                disabled={isMapped || isGenerating}
-                                onChange={() => handleToggleSelection(imp.id)}
-                                className="w-4 h-4 rounded border-gray-300"
-                              />
-                            </td>
-                            <td className="px-4 py-3 text-sm">{imp.file_name}</td>
-                            <td className="px-4 py-3 text-sm text-gray-600">
-                              {new Date(imp.date_range_start).toLocaleDateString()} -{' '}
-                              {new Date(imp.date_range_end).toLocaleDateString()}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-600">
-                              {imp.total_rows}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span
-                                className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                                  isMapped
-                                    ? 'bg-green-100 text-green-800'
-                                    : errorCount > 0
-                                    ? 'bg-red-100 text-red-800'
-                                    : 'bg-blue-100 text-blue-800'
-                                }`}
-                              >
-                                {isMapped ? 'MAPPED' : errorCount > 0 ? `ERROR (${errorCount})` : imp.status}
+                        <tr
+                          key={imp.id}
+                          className={`hover:bg-gray-50 ${isMapped ? 'bg-green-50' : ''} ${isProcessing ? 'bg-blue-50' : ''}`}
+                        >
+                          <td className="px-4 py-3">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={isMapped || isGenerating || isProcessing}
+                              onChange={() => handleToggleSelection(imp.id)}
+                              className="w-4 h-4 rounded border-gray-300"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-sm">{imp.file_name}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {new Date(imp.date_range_start).toLocaleDateString()} -{' '}
+                            {new Date(imp.date_range_end).toLocaleDateString()}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {imp.total_rows}
+                          </td>
+                          <td className="px-4 py-3">
+                            {renderStatusBadge(imp)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {(isMapped || isProcessing) ? (
+                              <span className="flex items-center justify-end gap-1 text-green-600 text-sm">
+                                <Check className="w-4 h-4" />
+                                {isProcessing ? 'Processing...' : 'Generated'}
                               </span>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              {isMapped ? (
-                                <span className="flex items-center justify-end gap-1 text-green-600 text-sm">
-                                  <Check className="w-4 h-4" />
-                                  Generated
-                                </span>
-                              ) : (
-                                <button
-                                  onClick={() => handleGenerate(imp.id)}
-                                  disabled={isGenerating}
-                                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1 ml-auto"
-                                >
-                                  {isGenerating ? (
-                                    <>
-                                      <Loader2 className="w-3 h-3 animate-spin" />
-                                      Generating...
-                                    </>
-                                  ) : (
-                                    'Generate'
-                                  )}
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                          {/* Error details row */}
-                          {errorCount > 0 && (
-                            <tr className="bg-red-50">
-                              <td colSpan={6} className="px-4 py-0">
-                                {renderErrorDetails(imp.id, errorsForImport)}
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
+                            ) : (
+                              <button
+                                onClick={() => handleGenerate(imp.id)}
+                                disabled={isGenerating}
+                                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1 ml-auto"
+                              >
+                                {isGenerating ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                    Creating Job...
+                                  </>
+                                ) : (
+                                  'Generate'
+                                )}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
                       )
                     })}
                   </tbody>
@@ -384,6 +388,7 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
                 <p className="text-sm text-blue-700">
                   <strong>Info:</strong> Transaksi akan di-aggregate berdasarkan tanggal + cabang + metode pembayaran.
                   File yang sudah di-generate akan ditandai sebagai MAPPED.
+                  Proses berjalan di background - kamu bisa tutup modal ini dan cek status nanti.
                 </p>
               </div>
 

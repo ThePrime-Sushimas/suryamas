@@ -8,9 +8,12 @@
  * - Comprehensive error handling with user-friendly messages
  * - Type-safe API responses
  * - Request deduplication
+ * - Jobs system integration for background processing
  */
 
 import api from '@/lib/axios'
+import { useAuthStore } from '@/features/auth/store/auth.store'
+import { useBranchContextStore } from '@/features/branch_context'
 import type {
   AggregatedTransaction,
   AggregatedTransactionWithDetails,
@@ -823,6 +826,77 @@ export const posAggregatesApi = {
         throw new Error(res.data.message || 'Failed to delete failed transaction')
       }
     }, 'Gagal menghapus transaksi gagal', 'deleteFailed')
+  },
+
+  /**
+   * Generate aggregated transactions from POS import lines (using Jobs System)
+   */
+  generateFromImportWithJob: async (
+    importId: string,
+    companyId: string,
+    branchName?: string
+  ): Promise<{ job_id: string }> => {
+    return handleApiCall(async () => {
+      const user = useAuthStore.getState().user
+      const userId = user?.id
+      if (!userId) throw new Error('User not authenticated - please login again')
+
+      const res = await api.post<BackendResponse<{ job_id: string }>>('/jobs', {
+        user_id: userId,
+        company_id: companyId,
+        type: 'import',
+        module: 'pos_aggregates',
+        name: `Generate Aggregates from Import`,
+        metadata: {
+          posImportId: importId,
+          companyId,
+          branchName,
+        },
+      })
+
+      if (!res.data.success) {
+        throw new Error(res.data.message || 'Failed to create job')
+      }
+
+      return res.data.data
+    }, 'Gagal membuat job untuk generate dari import', 'generateFromImportWithJob')
+  },
+
+  /**
+   * Generate journal entries from transactions (using Jobs System)
+   */
+  generateJournalWithJob: async (
+    data: GenerateJournalDto
+  ): Promise<{ job_id: string }> => {
+    return handleApiCall(async () => {
+      const user = useAuthStore.getState().user
+      const userId = user?.id
+      if (!userId) throw new Error('User not authenticated')
+
+      const currentBranch = useBranchContextStore.getState().currentBranch
+      const companyId = currentBranch?.company_id
+      if (!companyId) throw new Error('Company context required')
+
+      const res = await api.post<BackendResponse<{ job_id: string }>>('/jobs', {
+        user_id: userId,
+        company_id: companyId,
+        type: 'import',
+        module: 'pos_journals',
+        name: `Generate Journals`,
+        metadata: {
+          ...data,
+          companyId,
+          // Convert status filter to array for ready/processing transactions
+          status: 'READY',
+        },
+      })
+
+      if (!res.data.success) {
+        throw new Error(res.data.message || 'Failed to create job')
+      }
+
+      return res.data.data
+    }, 'Gagal membuat job untuk generate jurnal', 'generateJournalWithJob')
   },
 
   /**

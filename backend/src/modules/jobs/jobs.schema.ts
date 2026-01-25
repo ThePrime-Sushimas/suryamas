@@ -25,6 +25,8 @@ export const jobModuleEnum = zodBase.enum([
   'payment_methods',
   'categories',
   'sub_categories',
+  'pos_aggregates',
+  'pos_journals',
 ])
 
 // -----------------------------
@@ -32,32 +34,55 @@ export const jobModuleEnum = zodBase.enum([
 // -----------------------------
 
 // Create Job
+// Note: user_id and company_id come from auth context, not from body
 export const createJobSchema = zodBase.object({
-  user_id: zodBase.string().regex(uuidRegex),
-  company_id: zodBase.string().regex(uuidRegex),
-  type: jobTypeEnum,
-  module: jobModuleEnum,
-  name: zodBase.string().min(1).max(255),
-  metadata: zodBase.record(zodBase.string(), zodBase.unknown()).optional()
+  body: zodBase.object({
+    type: jobTypeEnum,
+    module: jobModuleEnum,
+    name: zodBase.string().min(1).max(255),
+    metadata: zodBase.record(zodBase.string(), zodBase.unknown()).optional()
+  })
+})
+
+// Create Job with full body (for frontend that sends user_id/company_id)
+export const createJobFullSchema = zodBase.object({
+  body: zodBase.object({
+    user_id: zodBase.string().regex(uuidRegex).optional(),
+    company_id: zodBase.string().regex(uuidRegex).optional(),
+    type: jobTypeEnum,
+    module: jobModuleEnum,
+    name: zodBase.string().min(1).max(255),
+    metadata: zodBase.record(zodBase.string(), zodBase.unknown()).optional()
+  })
 })
 
 // Get Job by ID
 export const getJobByIdSchema = zodBase.object({
-  id: zodBase.string().regex(uuidRegex)
+  params: zodBase.object({
+    id: zodBase.string().regex(uuidRegex)
+  })
 })
 
 // Cancel Job
 export const cancelJobSchema = zodBase.object({
-  id: zodBase.string().regex(uuidRegex)
+  params: zodBase.object({
+    id: zodBase.string().regex(uuidRegex)
+  })
 })
 
 // Update Progress
 export const updateProgressSchema = zodBase.object({
-  id: zodBase.string().regex(uuidRegex),
-  progress: zodBase.number().int().min(0).max(100)
+  params: zodBase.object({
+    id: zodBase.string().regex(uuidRegex)
+  }),
+  body: zodBase.object({
+    progress: zodBase.number().int().min(0).max(100)
+  })
 })
 
 // Query param: Get Available Modules
 export const getAvailableModulesSchema = zodBase.object({
-  type: jobTypeEnum
+  query: zodBase.object({
+    type: jobTypeEnum
+  })
 })

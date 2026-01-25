@@ -36,6 +36,7 @@ export { PosAggregatesTable } from './components/PosAggregatesTable'
 export { PosAggregatesDetail } from './components/PosAggregatesDetail'
 export { FailedTransactionsTable } from './components/FailedTransactionsTable'
 export { FailedTransactionDetailModal } from './components/FailedTransactionDetailModal'
+export { GenerateJournalModal } from './components/GenerateJournalModal'
 
 // =============================================================================
 // PAGES

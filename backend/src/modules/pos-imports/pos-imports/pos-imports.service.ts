@@ -111,56 +111,30 @@ class PosImportsService {
 
   /**
    * Analyze uploaded Excel file for duplicates
-   * NOW: Creates a job before starting analysis for jobs system integration
+   * SYNCHRONOUS - No job system. Just analyze and create pos_import record.
+   * Job is created during confirm() instead.
    */
   async analyzeFile(
     file: Express.Multer.File,
     branchId: string,
     companyId: string,
     userId: string
-  ): Promise<{ import: PosImport; analysis: DuplicateAnalysis; job_id: string }> {
-    let jobId: string | null = null
-
+  ): Promise<{ import: PosImport; analysis: DuplicateAnalysis }> {
     try {
       // Validate file size (10MB limit)
       if (file.size > 10 * 1024 * 1024) {
         throw PosImportErrors.FILE_TOO_LARGE(10)
       }
 
-      // Create a job before starting the analysis (jobs system integration)
-      const jobName = `Analyze POS Import: ${file.originalname}`
-      const job = await jobsService.createJob({
-        user_id: userId,
-        company_id: companyId,
-        type: 'import',
-        module: 'pos_transactions',
-        name: jobName,
-        metadata: {
-          type: 'import',
-          module: 'pos_transactions',
-          fileName: file.originalname,
-          branchId,
-          companyId
-        }
-      })
-      jobId = job.id
-
-      // Update job progress
-      await jobsService.updateProgress(jobId, 10, userId)
-
       // Parse Excel
       const workbook = XLSX.read(file.buffer, { type: 'buffer' })
       const sheetName = workbook.SheetNames[0]
       if (!sheetName) {
-        await jobsService.failJob(jobId, userId, 'Invalid Excel format: No sheet found')
         throw PosImportErrors.INVALID_EXCEL_FORMAT()
       }
 
       const worksheet = workbook.Sheets[sheetName]
       let rows = XLSX.utils.sheet_to_json(worksheet, { range: 10 }) // Start from row 11 (0-indexed, so 10)
-
-      // Update progress
-      await jobsService.updateProgress(jobId, 30, userId)
 
       // Filter out summary rows at the end (Discount Total Rounding, etc.)
       rows = rows.filter((row: any) => {
@@ -173,7 +147,6 @@ class PosImportsService {
       })
 
       if (rows.length === 0) {
-        await jobsService.failJob(jobId, userId, 'File is empty')
         throw PosImportErrors.INVALID_FILE('File is empty')
       }
 
@@ -182,7 +155,6 @@ class PosImportsService {
       const requiredColumns = ['Bill Number', 'Sales Number', 'Sales Date']
       const missingColumns = requiredColumns.filter(col => !(col in firstRow))
       if (missingColumns.length > 0) {
-        await jobsService.failJob(jobId, userId, `Missing required columns: ${missingColumns.join(', ')}`)
         throw PosImportErrors.MISSING_REQUIRED_COLUMNS(missingColumns)
       }
 
@@ -194,12 +166,8 @@ class PosImportsService {
       })
 
       if (errors.length > 0) {
-        await jobsService.failJob(jobId, userId, `Validation errors: ${errors.slice(0, 10).join('; ')}`)
         throw PosImportErrors.INVALID_FILE(errors.slice(0, 10).join('; ') + (errors.length > 10 ? '...' : ''))
       }
-
-      // Update progress
-      await jobsService.updateProgress(jobId, 50, userId)
 
       // Extract date range (parse Excel dates first)
       const parsedRows = rows.map((r: any) => {
@@ -209,9 +177,6 @@ class PosImportsService {
 
       // Check for duplicates against database
       const dbDuplicates = await this.checkDuplicatesBulk(rows)
-      
-      // Update progress
-      await jobsService.updateProgress(jobId, 70, userId)
 
       // Count unique duplicates (deduplicate the duplicates list)
       const uniqueDuplicates = new Set(
@@ -220,7 +185,7 @@ class PosImportsService {
       const duplicateCount = uniqueDuplicates.size
       const newRowsCount = Math.max(0, rows.length - duplicateCount)
 
-      // Create import record (job_id is not stored in DB, only returned to frontend)
+      // Create import record
       const posImport = await posImportsRepository.create({
         company_id: companyId,
         branch_id: branchId,
@@ -238,9 +203,6 @@ class PosImportsService {
       // Update status to ANALYZED
       await posImportsRepository.update(posImport.id, companyId, { status: 'ANALYZED' }, userId)
 
-      // Update job progress to completed
-      await jobsService.updateProgress(jobId, 100, userId)
-
       const analysis: DuplicateAnalysis = {
         total_rows: rows.length,
         new_rows: newRowsCount,
@@ -253,18 +215,10 @@ class PosImportsService {
         }))
       }
 
-      logInfo('PosImportsService analyzeFile success', { import_id: posImport.id, job_id: jobId, analysis })
+      logInfo('PosImportsService analyzeFile success', { import_id: posImport.id, analysis })
 
-      return { import: posImport, analysis, job_id: jobId }
+      return { import: posImport, analysis }
     } catch (error) {
-      // If job was created, mark it as failed
-      if (jobId) {
-        try {
-          await jobsService.failJob(jobId, userId, error instanceof Error ? error.message : 'Unknown error')
-        } catch (jobError) {
-          logError('Failed to update job status', { job_id: jobId, error: jobError })
-        }
-      }
       logError('PosImportsService analyzeFile error', { error })
       throw error
     }
@@ -338,22 +292,46 @@ class PosImportsService {
 
   /**
    * Confirm and import data to pos_import_lines
-   * Processes synchronously (no job system)
+   * Creates a job with proper posImportId in metadata
    */
   async confirmImport(
     id: string,
     companyId: string,
     skipDuplicates: boolean,
     userId: string
-  ): Promise<PosImport> {
+  ): Promise<{ posImport: PosImport; job_id: string }> {
     const posImport = await this.getById(id, companyId)
 
     if (!canTransition(posImport.status, 'IMPORTED')) {
       throw PosImportErrors.INVALID_STATUS_TRANSITION(posImport.status, 'IMPORTED')
     }
 
-    // Process synchronously
-    return this.processImportSync(id, companyId, skipDuplicates, userId)
+    // Create a job for processing the import
+    const jobName = `Import POS Transactions: ${posImport.file_name}`
+    const job = await jobsService.createJob({
+      user_id: userId,
+      company_id: companyId,
+      type: 'import',
+      module: 'pos_transactions',
+      name: jobName,
+      metadata: {
+        type: 'import',
+        module: 'pos_transactions',
+        posImportId: id,
+        skipDuplicates: skipDuplicates
+      }
+    })
+
+    // Update status to IMPORTED
+    await posImportsRepository.update(id, companyId, { status: 'IMPORTED' }, userId)
+
+    logInfo('PosImportsService confirmImport - job created', { 
+      import_id: id, 
+      job_id: job.id,
+      skip_duplicates: skipDuplicates 
+    })
+
+    return { posImport, job_id: job.id }
   }
 
   /**

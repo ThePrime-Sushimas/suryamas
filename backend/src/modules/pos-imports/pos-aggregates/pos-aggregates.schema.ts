@@ -39,7 +39,7 @@ export const createAggregatedTransactionSchema = z.object({
     service_charge_amount: z.number().min(0, 'Service charge amount must be non-negative').default(0),
     net_amount: z.number().min(0, 'Net amount must be non-negative'),
     currency: z.string().min(1, 'Currency is required').max(10).default('IDR'),
-    status: z.enum(['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED'])
+    status: z.enum(['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED'])
       .default('READY'),
   }),
 })
@@ -65,7 +65,7 @@ export const updateAggregatedTransactionSchema = z.object({
     service_charge_amount: z.number().min(0).optional(),
     net_amount: z.number().min(0).optional(),
     currency: z.string().min(1).max(10).optional(),
-    status: z.enum(['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED'])
+    status: z.enum(['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED'])
       .optional(),
     is_reconciled: z.boolean().optional(),
     version: z.number().int().positive().optional(),
@@ -112,7 +112,7 @@ export const aggregatedTransactionListQuerySchema = z.object({
     transaction_date: z.string().optional(),
     transaction_date_from: z.string().optional(),
     transaction_date_to: z.string().optional(),
-    status: z.enum(['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED']).optional(),
+    status: z.enum(['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED']).optional(),
     is_reconciled: z.coerce.boolean().optional(),
     has_journal: z.coerce.boolean().optional(),
     search: z.string().optional(),
@@ -186,7 +186,7 @@ export const aggregatedTransactionFilterSchema = z.object({
   transaction_date: z.string().optional(),
   transaction_date_from: z.string().optional(),
   transaction_date_to: z.string().optional(),
-  status: z.enum(['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED']).optional(),
+  status: z.enum(['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED']).optional(),
   is_reconciled: z.boolean().optional(),
   has_journal: z.boolean().optional(),
   search: z.string().optional(),

@@ -8,7 +8,7 @@ import { authenticate } from '@/middleware/auth.middleware'
 import { resolveBranchContext } from '@/middleware/branch-context.middleware'
 import { canView, canInsert } from '@/middleware/permission.middleware'
 import { validateSchema } from '@/middleware/validation.middleware'
-import { getJobByIdSchema, cancelJobSchema, createJobSchema } from './jobs.schema'
+import { getJobByIdSchema, cancelJobSchema, createJobSchema, createJobFullSchema } from './jobs.schema'
 import rateLimit from 'express-rate-limit'
 import { PermissionService } from '@/services/permission.service'
 import multer from 'multer'
@@ -50,9 +50,10 @@ router.get('/:id',
 )
 
 // Create a new job (requires insert permission)
+// Use createJobFullSchema to accept optional user_id/company_id from frontend
 router.post('/',
   canInsert('jobs'),
-  validateSchema(createJobSchema),
+  validateSchema(createJobFullSchema),
   createJobRateLimiter,
   jobsController.createJob.bind(jobsController)
 )

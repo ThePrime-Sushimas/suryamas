@@ -22,6 +22,7 @@ import type {
   AggregatedTransactionFilterParams,
   AggregatedTransactionSortParams,
   AggregatedTransactionSummary,
+  GenerateJournalDto,
 } from '../types'
 import { posAggregatesApi } from '../api/posAggregates.api'
 
@@ -63,6 +64,10 @@ interface PosAggregatesState {
   fetchTransactions: (page?: number, limit?: number) => Promise<void>
   fetchTransactionById: (id: string) => Promise<AggregatedTransactionWithDetails>
   fetchSummary: () => Promise<void>
+  
+  // Actions - Jobs System
+  generateFromImportWithJob: (importId: string, companyId: string, branchName?: string) => Promise<string>
+  generateJournalWithJob: (data: GenerateJournalDto) => Promise<string>
   
   // Actions - CRUD
   createTransaction: (data: CreateAggregatedTransactionDto) => Promise<AggregatedTransaction>
@@ -185,6 +190,36 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
         isMutating: false,
         isSummaryLoading: false,
         error: null,
+
+        // --------------------------------------------------------------------
+        // Actions - Jobs System
+        // --------------------------------------------------------------------
+        
+        generateFromImportWithJob: async (importId: string, companyId: string, branchName?: string) => {
+          set({ isMutating: true, error: null })
+          try {
+            const { job_id } = await posAggregatesApi.generateFromImportWithJob(importId, companyId, branchName)
+            set({ isMutating: false })
+            return job_id
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Gagal membuat job'
+            set({ error: message, isMutating: false })
+            throw error
+          }
+        },
+
+        generateJournalWithJob: async (data: GenerateJournalDto) => {
+          set({ isMutating: true, error: null })
+          try {
+            const { job_id } = await posAggregatesApi.generateJournalWithJob(data)
+            set({ isMutating: false })
+            return job_id
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Gagal membuat job'
+            set({ error: message, isMutating: false })
+            throw error
+          }
+        },
 
         // --------------------------------------------------------------------
         // Actions - Data Fetching
