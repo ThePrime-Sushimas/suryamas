@@ -270,39 +270,6 @@ export class PosAggregatesController {
   })
 
   /**
-   * Generate aggregated transactions from POS import lines
-   * POST /aggregated-transactions/generate-from-import/:importId
-   */
-  generateFromImport = async (req: AuthRequest, res: Response): Promise<void> => {
-    try {
-      const importId = req.params.importId as string
-      const branchName = req.body.branch_name || req.query.branch_name as string || req.context?.branch_name
-
-      if (!importId) {
-        return handleError(res, new Error('Import ID is required'))
-      }
-
-      logInfo('generateFromImport: Starting', {
-        import_id: importId,
-        branch_name: branchName
-      })
-
-      const result = await posAggregatesService.generateFromPosImportLines(
-        importId,
-        branchName
-      )
-
-      sendSuccess(res, result, 'Aggregated transactions generated successfully', 200, {
-        created: result.created,
-        skipped: result.skipped,
-        error_count: result.errors.length
-      })
-    } catch (error: any) {
-      handleError(res, error)
-    }
-  }
-
-  /**
    * List failed transactions with pagination and filters
    * GET /aggregated-transactions/failed
    */

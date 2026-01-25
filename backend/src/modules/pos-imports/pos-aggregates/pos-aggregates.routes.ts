@@ -66,17 +66,6 @@ router.get(
 )
 
 /**
- * @route POST /generate-from-import/:importId
- * @desc Generate aggregated transactions from POS import lines
- * @access Private
- */
-router.post(
-  '/generate-from-import/:importId',
-  canInsert('pos_aggregates'),
-  posAggregatesController.generateFromImport
-)
-
-/**
  * @route GET /check-source
  * @desc Check if source already exists
  * @access Private
