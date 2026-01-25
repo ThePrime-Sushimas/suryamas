@@ -1,5 +1,3 @@
-
-
 import { Router } from 'express'
 import { posAggregatesController } from './pos-aggregates.controller'
 import { validateSchema } from '../../../middleware/validation.middleware'
@@ -29,174 +27,9 @@ const router = Router()
 router.use(authenticate)
 router.use(resolveBranchContext)
 
-/**
- * @route GET /
- * @desc List aggregated transactions with pagination and filters
- * @access Private
- */
-router.get(
-  '/',
-  canView('pos_aggregates'),
-  validateSchema(aggregatedTransactionListQuerySchema),
-  posAggregatesController.list
-)
-
-/**
- * @route GET /summary
- * @desc Get summary statistics
- * @access Private
- */
-router.get(
-  '/summary',
-  canView('pos_aggregates'),
-  validateSchema(aggregatedTransactionListQuerySchema),
-  posAggregatesController.getSummary
-)
-
-/**
- * @route GET /unreconciled
- * @desc Get unreconciled transactions
- * @access Private
- */
-router.get(
-  '/unreconciled',
-  canView('pos_aggregates'),
-  validateSchema(aggregatedTransactionListQuerySchema),
-  posAggregatesController.getUnreconciled
-)
-
-/**
- * @route GET /check-source
- * @desc Check if source already exists
- * @access Private
- */
-router.get(
-  '/check-source',
-  canView('pos_aggregates'),
-  posAggregatesController.checkSource
-)
-
-/**
- * @route POST /
- * @desc Create new aggregated transaction
- * @access Private
- */
-router.post(
-  '/',
-  canInsert('pos_aggregates'),
-  validateSchema(createAggregatedTransactionSchema),
-  posAggregatesController.create
-)
-
-
-
-/**
- * @route POST /batch/reconcile
- * @desc Batch reconcile transactions
- * @access Private
- */
-router.post(
-  '/batch/reconcile',
-  canUpdate('pos_aggregates'),
-  validateSchema(batchReconcileSchema),
-  posAggregatesController.batchReconcile
-)
-
-/**
- * @route GET /aggregated-transactions/:id
- * @desc Get single aggregated transaction
- * @access Private
- */
-router.get(
-  '/:id',
-  canView('pos_aggregates'),
-  validateSchema(aggregatedTransactionIdSchema),
-  posAggregatesController.findById
-)
-
-/**
- * @route PUT /aggregated-transactions/:id
- * @desc Update aggregated transaction
- * @access Private
- */
-router.put(
-  '/:id',
-  canUpdate('pos_aggregates'),
-  validateSchema(updateAggregatedTransactionSchema),
-  posAggregatesController.update
-)
-
-/**
- * @route DELETE /aggregated-transactions/:id
- * @desc Soft delete aggregated transaction
- * @access Private
- */
-router.delete(
-  '/:id',
-  canDelete('pos_aggregates'),
-  validateSchema(aggregatedTransactionIdSchema),
-  posAggregatesController.delete
-)
-
-/**
- * @route POST /aggregated-transactions/:id/restore
- * @desc Restore soft-deleted transaction
- * @access Private
- */
-router.post(
-  '/:id/restore',
-  canInsert('pos_aggregates'),
-  validateSchema(aggregatedTransactionIdSchema),
-  posAggregatesController.restore
-)
-
-/**
- * @route POST /aggregated-transactions/:id/reconcile
- * @desc Mark transaction as reconciled
- * @access Private
- */
-router.post(
-  '/:id/reconcile',
-  canUpdate('pos_aggregates'),
-  validateSchema(aggregatedTransactionIdSchema),
-  posAggregatesController.reconcile
-)
-
-/**
- * @route POST /aggregated-transactions/:id/assign-journal
- * @desc Assign journal to transaction
- * @access Private
- */
-router.post(
-  '/:id/assign-journal',
-  canUpdate('pos_aggregates'),
-  validateSchema(aggregatedTransactionIdSchema),
-  posAggregatesController.assignJournal
-)
-
-/**
- * @route POST /aggregated-transactions/batch
- * @desc Create multiple transactions (batch)
- * @access Private
- */
-router.post(
-  '/batch',
-  canInsert('pos_aggregates'),
-  validateSchema(createBatchSchema),
-  posAggregatesController.createBatch
-)
-
-/**
- * @route POST /aggregated-transactions/batch/assign-journal
- * @desc Batch assign journal to multiple transactions
- * @access Private
- */
-router.post(
-  '/batch/assign-journal',
-  canUpdate('pos_aggregates'),
-  validateSchema(batchAssignJournalSchema),
-  posAggregatesController.batchAssignJournal
-)
+// =============================================================================
+// FAILED TRANSACTIONS ROUTES - MUST be defined BEFORE /:id to avoid route conflicts
+// =============================================================================
 
 /**
  * @route GET /failed
@@ -257,6 +90,177 @@ router.delete(
   posAggregatesController.deleteFailed
 )
 
-export default router
+// =============================================================================
+// MAIN TRANSACTIONS ROUTES
+// =============================================================================
 
+/**
+ * @route GET /
+ * @desc List aggregated transactions with pagination and filters
+ * @access Private
+ */
+router.get(
+  '/',
+  canView('pos_aggregates'),
+  validateSchema(aggregatedTransactionListQuerySchema),
+  posAggregatesController.list
+)
+
+/**
+ * @route GET /summary
+ * @desc Get summary statistics
+ * @access Private
+ */
+router.get(
+  '/summary',
+  canView('pos_aggregates'),
+  validateSchema(aggregatedTransactionListQuerySchema),
+  posAggregatesController.getSummary
+)
+
+/**
+ * @route GET /unreconciled
+ * @desc Get unreconciled transactions
+ * @access Private
+ */
+router.get(
+  '/unreconciled',
+  canView('pos_aggregates'),
+  validateSchema(aggregatedTransactionListQuerySchema),
+  posAggregatesController.getUnreconciled
+)
+
+/**
+ * @route GET /check-source
+ * @desc Check if source already exists
+ * @access Private
+ */
+router.get(
+  '/check-source',
+  canView('pos_aggregates'),
+  posAggregatesController.checkSource
+)
+
+/**
+ * @route POST /
+ * @desc Create new aggregated transaction
+ * @access Private
+ */
+router.post(
+  '/',
+  canInsert('pos_aggregates'),
+  validateSchema(createAggregatedTransactionSchema),
+  posAggregatesController.create
+)
+
+/**
+ * @route POST /batch/reconcile
+ * @desc Batch reconcile transactions
+ * @access Private
+ */
+router.post(
+  '/batch/reconcile',
+  canUpdate('pos_aggregates'),
+  validateSchema(batchReconcileSchema),
+  posAggregatesController.batchReconcile
+)
+
+/**
+ * @route POST /batch
+ * @desc Create multiple transactions (batch)
+ * @access Private
+ */
+router.post(
+  '/batch',
+  canInsert('pos_aggregates'),
+  validateSchema(createBatchSchema),
+  posAggregatesController.createBatch
+)
+
+/**
+ * @route POST /batch/assign-journal
+ * @desc Batch assign journal to multiple transactions
+ * @access Private
+ */
+router.post(
+  '/batch/assign-journal',
+  canUpdate('pos_aggregates'),
+  validateSchema(batchAssignJournalSchema),
+  posAggregatesController.batchAssignJournal
+)
+
+/**
+ * @route GET /:id
+ * @desc Get single aggregated transaction
+ * @access Private
+ * @note This route MUST be defined AFTER all /failed routes to avoid conflicts
+ */
+router.get(
+  '/:id',
+  canView('pos_aggregates'),
+  validateSchema(aggregatedTransactionIdSchema),
+  posAggregatesController.findById
+)
+
+/**
+ * @route PUT /:id
+ * @desc Update aggregated transaction
+ * @access Private
+ */
+router.put(
+  '/:id',
+  canUpdate('pos_aggregates'),
+  validateSchema(updateAggregatedTransactionSchema),
+  posAggregatesController.update
+)
+
+/**
+ * @route DELETE /:id
+ * @desc Soft delete aggregated transaction
+ * @access Private
+ */
+router.delete(
+  '/:id',
+  canDelete('pos_aggregates'),
+  validateSchema(aggregatedTransactionIdSchema),
+  posAggregatesController.delete
+)
+
+/**
+ * @route POST /:id/restore
+ * @desc Restore soft-deleted transaction
+ * @access Private
+ */
+router.post(
+  '/:id/restore',
+  canInsert('pos_aggregates'),
+  validateSchema(aggregatedTransactionIdSchema),
+  posAggregatesController.restore
+)
+
+/**
+ * @route POST /:id/reconcile
+ * @desc Mark transaction as reconciled
+ * @access Private
+ */
+router.post(
+  '/:id/reconcile',
+  canUpdate('pos_aggregates'),
+  validateSchema(aggregatedTransactionIdSchema),
+  posAggregatesController.reconcile
+)
+
+/**
+ * @route POST /:id/assign-journal
+ * @desc Assign journal to transaction
+ * @access Private
+ */
+router.post(
+  '/:id/assign-journal',
+  canUpdate('pos_aggregates'),
+  validateSchema(aggregatedTransactionIdSchema),
+  posAggregatesController.assignJournal
+)
+
+export default router
 

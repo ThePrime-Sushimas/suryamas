@@ -117,6 +117,9 @@ export const aggregatedTransactionListQuerySchema = z.object({
     has_journal: z.coerce.boolean().optional(),
     search: z.string().optional(),
     show_deleted: z.coerce.boolean().default(false),
+    // Sort parameters
+    sort: z.enum(['transaction_date', 'gross_amount', 'net_amount', 'created_at', 'updated_at']).optional(),
+    order: z.enum(['asc', 'desc']).optional(),
   }),
 })
 

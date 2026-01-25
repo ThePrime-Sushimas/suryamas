@@ -202,9 +202,13 @@ export const FailedTransactionsTable: React.FC<FailedTransactionsTableProps> = (
 
                   {/* Error */}
                   <td className="px-4 py-3">
-                    <span className="text-sm text-red-600 max-w-xs truncate block" title="Klik untuk lihat detail error">
+                    <button
+                      onClick={() => onViewDetail(transaction.id)}
+                      className="text-sm text-red-600 max-w-xs truncate block hover:underline cursor-pointer text-left"
+                      title="Klik untuk lihat detail error"
+                    >
                       Klik untuk lihat detail
-                    </span>
+                    </button>
                   </td>
 
                   {/* Actions */}

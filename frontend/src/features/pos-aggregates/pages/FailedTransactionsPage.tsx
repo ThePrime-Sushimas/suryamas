@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react'
+import React, { useEffect, useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   AlertTriangle, 
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useFailedTransactionsStore } from '../store/failedTransactions.store'
 import { useToast } from '@/contexts/ToastContext'
+import { FailedTransactionDetailModal } from '../components/FailedTransactionDetailModal'
 
 /**
  * Failed Transactions Page
@@ -18,6 +19,8 @@ import { useToast } from '@/contexts/ToastContext'
 export const FailedTransactionsPage: React.FC = () => {
   const navigate = useNavigate()
   const toast = useToast()
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
   
   const {
     transactions,
@@ -43,7 +46,19 @@ export const FailedTransactionsPage: React.FC = () => {
     fetchTransactions()
   }, [fetchTransactions, page, limit])
 
-  // Handle single fix
+  // Handle view detail
+  const handleViewDetail = useCallback((id: string) => {
+    setSelectedTransactionId(id)
+    setIsModalOpen(true)
+  }, [])
+
+  // Handle close modal
+  const handleCloseModal = useCallback(() => {
+    setIsModalOpen(false)
+    setSelectedTransactionId(null)
+  }, [])
+
+  // Handle fix
   const handleFix = useCallback(async (id: string) => {
     try {
       await fixTransaction(id)
@@ -52,6 +67,16 @@ export const FailedTransactionsPage: React.FC = () => {
       toast.error(error instanceof Error ? error.message : 'Gagal memfix transaksi')
     }
   }, [fixTransaction, toast])
+
+  // Handle delete from modal
+  const handleDeleteFromModal = useCallback(async (id: string) => {
+    try {
+      await deleteTransaction(id)
+      toast.success('Transaksi gagal dihapus permanen')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal menghapus transaksi')
+    }
+  }, [deleteTransaction, toast])
 
   // Handle batch fix
   const handleBatchFix = useCallback(async () => {
@@ -289,12 +314,24 @@ export const FailedTransactionsPage: React.FC = () => {
                           {tx.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-red-600 max-w-xs truncate" title="View details for full error">
-                        {/* We'll need to fetch details for error message */}
-                        Klik untuk lihat error
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleViewDetail(tx.id)}
+                          className="text-sm text-red-600 hover:underline cursor-pointer text-left"
+                          title="Klik untuk lihat detail error"
+                        >
+                          Klik untuk lihat detail
+                        </button>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleViewDetail(tx.id)}
+                            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            title="Lihat Detail"
+                          >
+                            <AlertTriangle className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => handleFix(tx.id)}
                             disabled={isMutating}
@@ -357,9 +394,20 @@ export const FailedTransactionsPage: React.FC = () => {
           <li>Klik tombol <RefreshCw className="w-3 h-3 inline" /> untuk memfix dan memproses ulang transaksi</li>
           <li>Klik tombol <Trash2 className="w-3 h-3 inline" /> untuk menghapus transaksi gagal secara permanen</li>
           <li>Pilih beberapa transaksi dan klik "Fix Terpilih" untuk memfix sekaligus</li>
-          <li>Untuk melihat detail error, klik pada transaksi (fitur upcoming)</li>
+          <li>Klik pada kolom "Error" atau tombol <AlertTriangle className="w-3 h-3 inline" /> untuk melihat detail error transaksi</li>
         </ul>
       </div>
+
+      {/* Failed Transaction Detail Modal */}
+      {selectedTransactionId && (
+        <FailedTransactionDetailModal
+          transactionId={selectedTransactionId}
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+          onFix={handleFix}
+          onDelete={handleDeleteFromModal}
+        />
+      )}
     </div>
   )
 }

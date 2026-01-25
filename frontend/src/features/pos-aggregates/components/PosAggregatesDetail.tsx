@@ -6,7 +6,7 @@
  */
 
 import React from 'react'
-import { FileText, Calendar, Building, CreditCard, DollarSign, Clock, CheckCircle } from 'lucide-react'
+import { FileText, Calendar, Building, CreditCard, Clock, CheckCircle } from 'lucide-react'
 import type { AggregatedTransactionWithDetails } from '../types'
 
 // =============================================================================
@@ -180,8 +180,7 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({ transa
 
       {/* Amount Details */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <DollarSign className="w-5 h-5 text-gray-500" />
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">          
           Rincian Jumlah
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
