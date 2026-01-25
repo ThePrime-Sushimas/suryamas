@@ -246,6 +246,8 @@ function PosImportsPageContent() {
             <option value="PENDING">Pending</option>
             <option value="ANALYZED">Analyzed</option>
             <option value="IMPORTED">Imported</option>
+            <option value="MAPPED">Mapped</option>
+            <option value="POSTED">Posted</option>
             <option value="FAILED">Failed</option>
           </select>
           <div className="flex items-center justify-between">
