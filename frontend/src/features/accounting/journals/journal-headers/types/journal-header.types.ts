@@ -88,6 +88,11 @@ export interface JournalHeaderFilter {
   show_deleted?: boolean
 }
 
+export interface JournalSortParams {
+  sort?: 'journal_date' | 'journal_number' | 'created_at' | 'total_debit' | 'total_credit'
+  order?: 'asc' | 'desc'
+}
+
 export interface JournalHeaderListResponse {
   data: JournalHeader[]
   pagination: {

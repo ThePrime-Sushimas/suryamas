@@ -112,6 +112,26 @@ export const formatDate = (dateString: string | undefined | null): string => {
 }
 
 /**
+ * Format date for compact display (used in tables)
+ */
+export const formatDateShort = (dateString: string | undefined | null): string => {
+  if (!dateString) return '-'
+  
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return '-'
+    
+    return date.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    })
+  } catch {
+    return '-'
+  }
+}
+
+/**
  * Generate next line number
  */
 export const getNextLineNumber = (lines: JournalLine[]): number => {

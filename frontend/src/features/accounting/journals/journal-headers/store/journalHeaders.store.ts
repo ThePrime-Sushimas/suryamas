@@ -7,6 +7,7 @@ import type {
   RejectJournalDto,
   ReverseJournalDto,
   JournalHeaderFilter,
+  JournalSortParams,
 } from '../types/journal-header.types'
 
 interface JournalHeadersState {
@@ -23,11 +24,12 @@ interface JournalHeadersState {
     hasNext: boolean
     hasPrev: boolean
   }
-  filters: JournalHeaderFilter
+  filters: JournalHeaderFilter & JournalSortParams
   hasAppliedFilters: boolean
+  selectedRows: string[]
   
-  fetchJournals: (filters?: Partial<JournalHeaderFilter>) => Promise<void>
-  fetchJournalsWithLines: (filters?: Partial<JournalHeaderFilter>) => Promise<void>
+  fetchJournals: (filters?: Partial<JournalHeaderFilter & JournalSortParams>) => Promise<void>
+  fetchJournalsWithLines: (filters?: Partial<JournalHeaderFilter & JournalSortParams>) => Promise<void>
   fetchJournalById: (id: string) => Promise<void>
   createJournal: (dto: CreateJournalDto) => Promise<JournalHeaderWithLines>
   updateJournal: (id: string, dto: UpdateJournalDto) => Promise<void>
@@ -38,13 +40,22 @@ interface JournalHeadersState {
   rejectJournal: (id: string, dto: RejectJournalDto) => Promise<void>
   postJournal: (id: string) => Promise<void>
   reverseJournal: (id: string, dto: ReverseJournalDto) => Promise<JournalHeaderWithLines>
-  setFilters: (filters: Partial<JournalHeaderFilter>) => void
+  setFilters: (filters: Partial<JournalHeaderFilter & JournalSortParams>) => void
   setPage: (page: number) => void
   setLimit: (limit: number) => void
   clearError: () => void
   clearSelectedJournal: () => void
   setHasAppliedFilters: (value: boolean) => void
   refresh: () => Promise<void>
+  setSelectedRows: (ids: string[]) => void
+  toggleRowSelection: (id: string) => void
+  selectAllRows: () => void
+  clearSelection: () => void
+}
+
+const DEFAULT_FILTERS: JournalHeaderFilter & JournalSortParams = {
+  sort: 'journal_date',
+  order: 'desc',
 }
 
 export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => ({
@@ -61,10 +72,11 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
     hasNext: false,
     hasPrev: false,
   },
-  filters: {},
+  filters: DEFAULT_FILTERS,
   hasAppliedFilters: false,
+  selectedRows: [],
 
-  fetchJournals: async (filters?: Partial<JournalHeaderFilter>) => {
+  fetchJournals: async (filters?: Partial<JournalHeaderFilter & JournalSortParams>) => {
     set({ loading: true, error: null })
     try {
       const { pagination } = get()
@@ -85,7 +97,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
     }
   },
 
-  fetchJournalsWithLines: async (filters?: Partial<JournalHeaderFilter>) => {
+  fetchJournalsWithLines: async (filters?: Partial<JournalHeaderFilter & JournalSortParams>) => {
     set({ loading: true, error: null })
     try {
       const { pagination } = get()
@@ -268,7 +280,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
     }
   },
 
-  setFilters: (filters: Partial<JournalHeaderFilter>) => {
+  setFilters: (filters: Partial<JournalHeaderFilter & JournalSortParams>) => {
     set((state) => ({
       filters: { ...state.filters, ...filters },
       pagination: { ...state.pagination, page: 1 },
@@ -296,4 +308,18 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
   refresh: async () => {
     await get().fetchJournals()
   },
+
+  setSelectedRows: (ids: string[]) => set({ selectedRows: ids }),
+
+  toggleRowSelection: (id: string) => set((state) => ({
+    selectedRows: state.selectedRows.includes(id)
+      ? state.selectedRows.filter((rowId) => rowId !== id)
+      : [...state.selectedRows, id],
+  })),
+
+  selectAllRows: () => set((state) => ({
+    selectedRows: state.journals.map((j) => j.id),
+  })),
+
+  clearSelection: () => set({ selectedRows: [] }),
 }))

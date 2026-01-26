@@ -1,10 +1,10 @@
 import { useNavigate } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { Plus, ArrowUpDown, Trash2 } from 'lucide-react'
 import { useJournalHeadersStore } from '../store/journalHeaders.store'
 import { JournalHeaderFilters } from '../components/JournalHeaderFilters'
 import { JournalHeaderTable } from '../components/JournalHeaderTable'
 import { useJournalPermissions } from '../hooks/useJournalPermissions'
-import type { JournalHeader } from '../types/journal-header.types'
+import type { JournalHeader, JournalSortParams } from '../types/journal-header.types'
 
 export function JournalHeadersListPage() {
   const navigate = useNavigate()
@@ -14,9 +14,11 @@ export function JournalHeadersListPage() {
     loading,
     error,
     pagination,
+    filters,
     fetchJournals,
     deleteJournal,
     setPage,
+    setFilters,
     clearError,
     hasAppliedFilters,
   } = useJournalHeadersStore()
@@ -30,9 +32,15 @@ export function JournalHeadersListPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this journal?')) {
+    if (confirm('Apakah Anda yakin ingin menghapus journal ini?')) {
       await deleteJournal(id)
     }
+  }
+
+  const handleSort = (field: JournalSortParams['sort']) => {
+    const newOrder = filters.sort === field && filters.order === 'desc' ? 'asc' : 'desc'
+    setFilters({ sort: field, order: newOrder })
+    fetchJournals({ sort: field, order: newOrder })
   }
 
   const handlePrevPage = () => {
@@ -50,27 +58,28 @@ export function JournalHeadersListPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Journal Entries</h1>
-          <p className="text-gray-600 mt-1">Manage journal entries and transactions</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Journal Entries</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Kelola entri journal dan transaksi</p>
         </div>
         <div className="flex gap-3">
           <button
             onClick={() => navigate('/accounting/journals/deleted')}
-            className="px-4 py-2 border rounded hover:bg-gray-50"
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
           >
-            View Deleted
+            <Trash2 size={18} />
+            <span className="hidden sm:inline">Journal Terhapus</span>
           </button>
           {permissions.canCreate && (
             <button
               onClick={() => navigate('/accounting/journals/new')}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
             >
               <Plus size={20} />
-              New Journal
+              <span className="hidden sm:inline">Journal Baru</span>
             </button>
           )}
         </div>
@@ -78,65 +87,131 @@ export function JournalHeadersListPage() {
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded p-4">
-          <p className="text-red-700">{error}</p>
-          <button
-            onClick={clearError}
-            className="text-red-600 underline mt-2 text-sm hover:text-red-800"
-          >
-            Dismiss
-          </button>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <div className="flex justify-between items-start">
+            <p className="text-red-700 dark:text-red-400">{error}</p>
+            <button
+              onClick={clearError}
+              className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm"
+            >
+              Tutup
+            </button>
+          </div>
         </div>
       )}
 
       {/* Filters */}
-      <div className="bg-white border rounded p-4 shadow">
-        <JournalHeaderFilters />
-      </div>
+      <JournalHeaderFilters />
 
-      {/* Table */}
-      <div className="bg-white border rounded shadow">
-        {loading ? (
-          <div className="text-center py-12 text-gray-500">Loading journals...</div>
-        ) : !hasAppliedFilters ? (
-          <div className="text-center py-12 text-gray-500">
-            <p className="text-lg">Please select filters and click Apply to display data</p>
+      {/* Table or Loading/Empty States */}
+      {loading ? (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-8">
+          <div className="animate-pulse space-y-4">
+            <div className="flex gap-4">
+              <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded flex-1" />
+              <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded w-32" />
+              <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded w-32" />
+            </div>
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-12 bg-gray-100 dark:bg-gray-700/50 rounded" />
+              ))}
+            </div>
           </div>
-        ) : journals.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <p className="text-lg">No journals found</p>
+        </div>
+      ) : !hasAppliedFilters ? (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="text-center py-16">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-blue-50 dark:bg-blue-900/30 mb-4">
+              <ArrowUpDown className="w-10 h-10 text-blue-500" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Mulai Mencari Journal
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+              Gunakan filter di atas untuk mencari journal berdasarkan branch, tipe, status, atau rentang tanggal.
+            </p>
           </div>
-        ) : (
+        </div>
+      ) : journals.length === 0 ? (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="text-center py-16">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-700 mb-4">
+              <ArrowUpDown className="w-10 h-10 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Tidak Ada Journal Ditemukan
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400">
+              Coba ubah kriteria pencarian atau buat journal baru.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Stats Summary */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Total Journal</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{pagination.total}</p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Total Debit</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(
+                  journals.reduce((sum, j) => sum + j.total_debit, 0)
+                )}
+              </p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Total Kredit</p>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(
+                  journals.reduce((sum, j) => sum + j.total_credit, 0)
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Table */}
           <JournalHeaderTable
             journals={journals}
             onView={permissions.canView ? handleView : undefined}
             onEdit={permissions.canEdit ? handleEdit : undefined}
             onDelete={permissions.canDelete ? handleDelete : undefined}
+            onSort={handleSort}
+            sortBy={filters.sort}
+            sortOrder={filters.order}
           />
-        )}
-      </div>
 
-      {/* Pagination */}
-      {hasAppliedFilters && pagination.totalPages > 1 && (
-        <div className="flex justify-center items-center gap-3">
-          <button
-            onClick={handlePrevPage}
-            disabled={!pagination.hasPrev}
-            className="px-4 py-2 border rounded disabled:opacity-50 hover:bg-gray-50"
-          >
-            Previous
-          </button>
-          <span className="px-4 py-2">
-            Page {pagination.page} of {pagination.totalPages}
-          </span>
-          <button
-            onClick={handleNextPage}
-            disabled={!pagination.hasNext}
-            className="px-4 py-2 border rounded disabled:opacity-50 hover:bg-gray-50"
-          >
-            Next
-          </button>
-        </div>
+          {/* Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePrevPage}
+                  disabled={!pagination.hasPrev}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors"
+                >
+                  Previous
+                </button>
+                <span className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                  Halaman {pagination.page} dari {pagination.totalPages}
+                </span>
+                <button
+                  onClick={handleNextPage}
+                  disabled={!pagination.hasNext}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                Total {pagination.total} data
+              </span>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
