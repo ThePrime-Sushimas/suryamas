@@ -8,6 +8,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { useBranchContextStore } from '@/features/branch_context'
+import { useBranchesStore } from '@/features/branches/store/branches.store'
 import { posAggregatesApi } from '../api/posAggregates.api'
 import type { AggregatedTransaction, CreateAggregatedTransactionDto, UpdateAggregatedTransactionDto, PaymentMethodOption } from '../types'
 
@@ -57,6 +58,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
   isLoading = false,
 }) => {
   const currentBranch = useBranchContextStore((s) => s.currentBranch)
+  const { branches, fetchBranches, loading: loadingBranches } = useBranchesStore()
   const [showErrors, setShowErrors] = useState(false)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([])
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false)
@@ -97,6 +99,11 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
   const netAmount = useMemo(() => {
     return grossAmount + taxAmount + serviceChargeAmount - discountAmount
   }, [grossAmount, taxAmount, serviceChargeAmount, discountAmount])
+
+  // Fetch branches on mount
+  useEffect(() => {
+    fetchBranches(1, 1000, { field: 'branch_name', order: 'asc' }, { status: 'active' })
+  }, [fetchBranches])
 
   // Fetch payment methods on mount
   useEffect(() => {
@@ -277,29 +284,36 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
           {/* Branch Name - Read-only when editing */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nama Cabang
+              Nama Cabang <span className="text-red-500">*</span>
             </label>
             <Controller
               name="branch_name"
               control={control}
+              rules={{
+                required: 'Nama cabang wajib dipilih',
+              }}
               render={({ field }) => (
-                <div className="relative">
-                  <input
-                    {...field}
-                    type="text"
-                    value={field.value || ''}
-                    readOnly
-                    disabled={!!transaction}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-100 text-gray-700"
-                    placeholder="Pilih cabang"
-                  />
-                  {transaction && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    </div>
-                  )}
-                </div>
+                <select
+                  {...field}
+                  value={field.value || ''}
+                  onChange={(e) => field.onChange(e.target.value || null)}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                    errors.branch_name ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  disabled={loadingBranches || !!transaction}
+                >
+                  <option value="">-- Pilih Cabang --</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.branch_name}>
+                      {branch.branch_name}
+                    </option>
+                  ))}
+                </select>
               )}
             />
+            {errors.branch_name && showErrors && (
+              <p className="mt-1 text-sm text-red-500">{errors.branch_name.message}</p>
+            )}
           </div>
 
           {/* Payment Method */}

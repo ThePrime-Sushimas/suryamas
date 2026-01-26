@@ -1,14 +1,19 @@
 import { memo } from 'react'
 import { Trash2 } from 'lucide-react'
 import { AccountSelector } from '../../shared/AccountSelector'
-import type { JournalLine } from '../../shared/journal.types'
+import type { JournalLine, JournalLineWithDetails } from '../../shared/journal.types'
 
 interface Props {
-  lines: JournalLine[]
+  lines: (JournalLine | JournalLineWithDetails)[]
   branchName: string
   onLineChange: (index: number, field: keyof JournalLine, value: string | number) => void
   onRemoveLine: (index: number) => void
   formatCurrency: (value: number) => string
+}
+
+// Type guard untuk memeriksa apakah line memiliki account info
+function hasAccountInfo(line: JournalLine | JournalLineWithDetails): line is JournalLineWithDetails {
+  return 'account_code' in line && !!line.account_code
 }
 
 export const JournalLinesTable = memo(function JournalLinesTable({
@@ -48,6 +53,15 @@ export const JournalLinesTable = memo(function JournalLinesTable({
                 <td className="px-3 py-2 relative">
                   <AccountSelector
                     value={line.account_id}
+                    accountInfo={
+                      hasAccountInfo(line)
+                        ? {
+                            account_code: line.account_code,
+                            account_name: line.account_name,
+                            account_type: line.account_type
+                          }
+                        : null
+                    }
                     onChange={(accountId) => onLineChange(index, 'account_id', accountId)}
                     placeholder="Select account"
                   />

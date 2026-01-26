@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Search, ChevronDown } from 'lucide-react'
-import { chartOfAccountsApi } from '@/features/accounting/chart-of-accounts/api/chartOfAccounts.api'
+import { useChartOfAccountsStore } from '../../chart-of-accounts/store/chartOfAccounts.store'
+import { useDebounce } from '@/hooks/_shared/useDebounce'
 import type { ChartOfAccount } from '@/features/accounting/chart-of-accounts/types/chart-of-account.types'
 
 interface Props {
@@ -8,35 +9,53 @@ interface Props {
   onChange: (accountId: string) => void
   disabled?: boolean
   placeholder?: string
+  /**
+   * Optional account info passed directly for cases where account is not in the cache
+   * (e.g., when editing a journal with non-postable accounts)
+   */
+  accountInfo?: {
+    account_code: string
+    account_name: string
+    account_type: string
+  } | null
 }
 
-export function AccountSelector({ value, onChange, disabled, placeholder }: Props) {
-  const [accounts, setAccounts] = useState<ChartOfAccount[]>([])
-  const [filteredAccounts, setFilteredAccounts] = useState<ChartOfAccount[]>([])
+export function AccountSelector({ value, onChange, disabled, placeholder, accountInfo }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(false)
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
   const buttonRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    fetchAccounts()
-  }, [])
+  // Use global store for accounts data
+  const {
+    postableAccounts: accounts,
+    isLoadingPostable: loading,
+    fetchPostableAccounts
+  } = useChartOfAccountsStore()
 
+  // Debounced search for better performance
+  const debouncedSearch = useDebounce(search, 300)
+
+  // Fetch accounts on first mount
   useEffect(() => {
-    if (!search) {
-      setFilteredAccounts(accounts)
-    } else {
-      const filtered = accounts.filter(
-        (acc) =>
-          acc.account_code.toLowerCase().includes(search.toLowerCase()) ||
-          acc.account_name.toLowerCase().includes(search.toLowerCase())
-      )
-      setFilteredAccounts(filtered)
+    fetchPostableAccounts()
+  }, [fetchPostableAccounts])
+
+  // Get local search filter for postable accounts
+  const filteredAccounts = useMemo(() => {
+    if (!debouncedSearch.trim()) {
+      return accounts
     }
-  }, [search, accounts])
+    const searchLower = debouncedSearch.toLowerCase()
+    return accounts.filter(
+      (acc) =>
+        acc.account_code.toLowerCase().includes(searchLower) ||
+        acc.account_name.toLowerCase().includes(searchLower)
+    )
+  }, [accounts, debouncedSearch])
 
+  // Update dropdown position when opened
   useEffect(() => {
     if (isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect()
@@ -50,6 +69,7 @@ export function AccountSelector({ value, onChange, disabled, placeholder }: Prop
     }
   }, [isOpen])
 
+  // Handle click outside to close dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -65,20 +85,16 @@ export function AccountSelector({ value, onChange, disabled, placeholder }: Prop
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const fetchAccounts = async () => {
-    setLoading(true)
-    try {
-      const response = await chartOfAccountsApi.list(1, 1000, undefined, { is_postable: true })
-      setAccounts(response.data)
-      setFilteredAccounts(response.data)
-    } catch (error) {
-      console.error('Failed to fetch accounts:', error)
-    } finally {
-      setLoading(false)
+  // Get selected account - prefer accountInfo prop if provided, otherwise search in cache
+  const selectedAccount = useMemo(() => {
+    if (accountInfo) {
+      return {
+        id: value,
+        ...accountInfo
+      } as ChartOfAccount
     }
-  }
-
-  const selectedAccount = accounts.find((acc) => acc.id === value)
+    return accounts.find((acc) => acc.id === value)
+  }, [accounts, value, accountInfo])
 
   const handleSelect = (accountId: string) => {
     onChange(accountId)

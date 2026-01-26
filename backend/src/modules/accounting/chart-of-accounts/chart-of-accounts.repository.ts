@@ -351,6 +351,70 @@ export class ChartOfAccountsRepository {
     return data
   }
 
+  /**
+   * Bulk find accounts by IDs - OPTIMIZED for N+1 problem
+   * Replaces multiple findById calls with single IN query
+   */
+  async findByIds(ids: string[], trx?: TransactionContext): Promise<ChartOfAccount[]> {
+    if (!ids || ids.length === 0) return []
+    
+    const client = trx?.client || supabase
+    const { data, error } = await client
+      .from('chart_of_accounts')
+      .select('*')
+      .in('id', ids)
+      .is('deleted_at', null)
+
+    if (error) throw new Error(error.message)
+    return data || []
+  }
+
+  /**
+   * Validate multiple accounts at once - OPTIMIZED for journal validation
+   * Returns Map of accountId -> validation result
+   */
+  async validateMany(
+    accountIds: string[],
+    companyId: string,
+    requirePostable: boolean = true
+  ): Promise<Map<string, { valid: boolean; account?: ChartOfAccount; error?: string }>> {
+    if (!accountIds || accountIds.length === 0) return new Map()
+
+    const result = new Map<string, { valid: boolean; account?: ChartOfAccount; error?: string }>()
+
+    // Single bulk query instead of N queries
+    const accounts = await this.findByIds(accountIds)
+    const accountMap = new Map(accounts.map(a => [a.id, a]))
+
+    for (const accountId of accountIds) {
+      const account = accountMap.get(accountId)
+
+      if (!account) {
+        result.set(accountId, { valid: false, error: 'Account not found' })
+        continue
+      }
+
+      if (account.company_id !== companyId) {
+        result.set(accountId, { valid: false, error: 'Account does not belong to this company' })
+        continue
+      }
+
+      if (!account.is_active) {
+        result.set(accountId, { valid: false, error: 'Account is not active' })
+        continue
+      }
+
+      if (requirePostable && !account.is_postable) {
+        result.set(accountId, { valid: false, error: `Account ${account.account_code} is not postable` })
+        continue
+      }
+
+      result.set(accountId, { valid: true, account })
+    }
+
+    return result
+  }
+
   async findByCode(companyId: string, code: string, trx?: TransactionContext): Promise<ChartOfAccount | null> {
     const client = trx?.client || supabase
     const { data, error } = await client

@@ -6,11 +6,12 @@ interface LoadingState {
   list: boolean
   tree: boolean
   detail: boolean
+  postable: boolean
   submit: boolean
 }
 
 interface ErrorState {
-  scope: 'list' | 'tree' | 'detail' | 'submit'
+  scope: 'list' | 'tree' | 'detail' | 'postable' | 'submit'
   message: string
 }
 
@@ -31,15 +32,20 @@ interface Pagination {
 
 interface ChartOfAccountsState {
   accounts: ChartOfAccount[]
+  postableAccounts: ChartOfAccount[]
   tree: ChartOfAccountTreeNode[]
   selectedAccount: ChartOfAccount | null
   loading: LoadingState
+  isLoadingPostable: boolean
   error: ErrorState | null
+  lastFetched: number
+  CACHE_DURATION: number
   pagination: Pagination
   listParams: ListParams
   viewMode: 'table' | 'tree'
   
   fetchAccounts: (page: number, limit: number, sort?: { field: string; order: string }, filter?: ChartOfAccountFilter) => Promise<void>
+  fetchPostableAccounts: () => Promise<void>
   searchAccounts: (q: string, page: number, limit: number, filter?: ChartOfAccountFilter) => Promise<void>
   fetchTree: (maxDepth?: number, filter?: ChartOfAccountFilter) => Promise<void>
   getAccountById: (id: string) => Promise<ChartOfAccount>
@@ -61,10 +67,14 @@ interface ChartOfAccountsState {
 
 const initialState = {
   accounts: [],
+  postableAccounts: [],
   tree: [],
   selectedAccount: null,
-  loading: { list: false, tree: false, detail: false, submit: false },
+  loading: { list: false, tree: false, detail: false, postable: false, submit: false },
+  isLoadingPostable: false,
   error: null,
+  lastFetched: 0,
+  CACHE_DURATION: 5 * 60 * 1000, // 5 minutes in milliseconds
   pagination: { page: 1, limit: 25, total: 0, totalPages: 0 },
   listParams: { page: 1, limit: 25 },
   viewMode: 'tree' as const
@@ -97,6 +107,34 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       set(state => ({ 
         loading: { ...state.loading, list: false },
         error: { scope: 'list', message }
+      }))
+    }
+  },
+
+  // Fetch only postable accounts with caching
+  fetchPostableAccounts: async () => {
+    const { lastFetched, CACHE_DURATION, postableAccounts } = get()
+    const now = Date.now()
+    
+    // Return cached data if still valid
+    if (postableAccounts.length > 0 && (now - lastFetched) < CACHE_DURATION) {
+      return
+    }
+    
+    set(state => ({ loading: { ...state.loading, postable: true }, error: null }))
+    
+    try {
+      const res = await chartOfAccountsApi.list(1, 10000, undefined, { is_postable: true })
+      set(state => ({ 
+        postableAccounts: res.data,
+        loading: { ...state.loading, postable: false },
+        lastFetched: now
+      }))
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch postable accounts'
+      set(state => ({ 
+        loading: { ...state.loading, postable: false },
+        error: { scope: 'postable', message }
       }))
     }
   },
@@ -367,3 +405,4 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
     error: state.error?.scope === 'detail' ? null : state.error
   }))
 }))
+

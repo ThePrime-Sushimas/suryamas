@@ -68,9 +68,15 @@ export class JournalHeadersService {
       throw JournalErrors.NOT_BALANCED()
     }
 
-    // Validate accounts (N+1 query - acceptable for now, can be optimized with bulk query later)
+    // Validate accounts - BULK QUERY (optimized from N+1)
+    const accountIds = data.lines.map(line => line.account_id)
+    const validationResults = await chartOfAccountsRepository.validateMany(accountIds, data.company_id)
+    
     for (const line of data.lines) {
-      await this.validateAccount(line.account_id, data.company_id)
+      const validation = validationResults.get(line.account_id)
+      if (!validation || !validation.valid) {
+        throw JournalErrors.VALIDATION_ERROR('account', validation?.error || 'Account validation failed')
+      }
     }
 
     // Calculate totals
@@ -126,9 +132,15 @@ export class JournalHeadersService {
         throw JournalErrors.NOT_BALANCED()
       }
 
-      // Validate accounts (N+1 query - acceptable for now, can be optimized with bulk query later)
+      // Validate accounts - BULK QUERY (optimized from N+1)
+      const accountIds = data.lines.map(line => line.account_id)
+      const validationResults = await chartOfAccountsRepository.validateMany(accountIds, companyId)
+      
       for (const line of data.lines) {
-        await this.validateAccount(line.account_id, companyId)
+        const validation = validationResults.get(line.account_id)
+        if (!validation || !validation.valid) {
+          throw JournalErrors.VALIDATION_ERROR('account', validation?.error || 'Account validation failed')
+        }
       }
 
       const totals = calculateTotals(data.lines)
@@ -325,26 +337,6 @@ export class JournalHeadersService {
     await journalHeadersRepository.restore(id, userId)
     
     logInfo('Journal restored', { journal_id: id, user_id: userId })
-  }
-
-  private async validateAccount(accountId: string, companyId: string): Promise<void> {
-    const account = await chartOfAccountsRepository.findById(accountId)
-    
-    if (!account) {
-      throw JournalErrors.VALIDATION_ERROR('account', 'Account not found')
-    }
-    
-    if (!account.is_postable) {
-      throw JournalErrors.ACCOUNT_NOT_POSTABLE(account.account_code)
-    }
-    
-    if (!account.is_active) {
-      throw JournalErrors.VALIDATION_ERROR('account', 'Account is not active')
-    }
-    
-    if (account.company_id !== companyId) {
-      throw JournalErrors.VALIDATION_ERROR('account', 'Account does not belong to this company')
-    }
   }
 }
 

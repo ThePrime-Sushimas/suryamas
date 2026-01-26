@@ -7,7 +7,7 @@ import { calculateBalance, validateJournalLines, getNextLineNumber } from '../..
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useAutoSaveDraft, loadDraft, clearDraft } from '../hooks/useAutoSaveDraft'
 import type { CreateJournalDto, UpdateJournalDto, JournalHeaderWithLines } from '../types/journal-header.types'
-import type { JournalLine } from '../../shared/journal.types'
+import type { JournalLine, JournalLineWithDetails } from '../../shared/journal.types'
 import type { JournalType } from '../../shared/journal.types'
 
 interface Props {
@@ -24,16 +24,20 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
   const [journalDate, setJournalDate] = useState(initialData?.journal_date || new Date().toISOString().split('T')[0])
   const [journalType, setJournalType] = useState(initialData?.journal_type || 'MANUAL')
   const [description, setDescription] = useState(initialData?.description || '')
-  const [lines, setLines] = useState<JournalLine[]>(
+  const [lines, setLines] = useState<JournalLineWithDetails[]>(
     initialData?.lines?.map(l => ({
       line_number: l.line_number,
       account_id: l.account_id,
       description: l.description || '',
       debit_amount: l.debit_amount,
       credit_amount: l.credit_amount,
+      // Include account info from backend for AccountSelector
+      account_code: (l as JournalLineWithDetails).account_code,
+      account_name: (l as JournalLineWithDetails).account_name,
+      account_type: (l as JournalLineWithDetails).account_type,
     })) || [
-      { line_number: 1, account_id: '', description: '', debit_amount: 0, credit_amount: 0 },
-      { line_number: 2, account_id: '', description: '', debit_amount: 0, credit_amount: 0 },
+      { line_number: 1, account_id: '', description: '', debit_amount: 0, credit_amount: 0, account_code: '', account_name: '', account_type: '' },
+      { line_number: 2, account_id: '', description: '', debit_amount: 0, credit_amount: 0, account_code: '', account_name: '', account_type: '' },
     ]
   )
   const [errors, setErrors] = useState<string[]>([])
@@ -141,6 +145,15 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
       return
     }
 
+    // Transform lines to remove account_info fields before sending to backend
+    const linesForSubmit = lines.map(l => ({
+      line_number: l.line_number,
+      account_id: l.account_id,
+      description: l.description || '',
+      debit_amount: l.debit_amount,
+      credit_amount: l.credit_amount,
+    }))
+
     setErrors([])
     setIsSubmitting(true)
     
@@ -149,14 +162,14 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
         ? {
             journal_date: journalDate,
             description,
-            lines,
+            lines: linesForSubmit,
           }
         : {
             branch_id: currentBranch?.branch_id,
             journal_date: journalDate,
             journal_type: journalType as JournalType,
             description,
-            lines,
+            lines: linesForSubmit,
           }
       
       await onSubmit(dto)
