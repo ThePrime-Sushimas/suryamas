@@ -72,7 +72,6 @@ export default function Layout() {
         { id: 'accounting-purpose-accounts', name: 'Purpose Accounts', href: '/accounting-purpose-accounts', icon: <Calculator size={16} />, module: 'accounting_purpose_accounts' },
         { id: 'fiscal-periods', name: 'Fiscal Periods', href: '/accounting/fiscal-periods', icon: <Calculator size={16} />, module: 'fiscal_periods' },
         { id: 'journal-entries', name: 'Journal Entries', href: '/accounting/journals', icon: <Calculator size={16} />, module: 'journals' },
-        { id: 'general-journal', name: 'General Journal', href: '/accounting/journals/general-journal', icon: <FileSpreadsheet size={16} />, module: 'journals' },
         { id: 'pos-imports', name: 'POS Imports', href: '/pos-imports', icon: <FileSpreadsheet size={16} />, module: 'pos_imports' },
         { id: 'pos-transactions', name: 'POS Transactions', href: '/pos-transactions', icon: <FileSpreadsheet size={16} />, module: 'pos_imports' },
         { id: 'pos-aggregates', name: 'POS Aggregates', href: '/pos-aggregates', icon: <FileSpreadsheet size={16} />, module: 'pos_aggregates' },

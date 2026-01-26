@@ -4,7 +4,6 @@ export * from './pages/JournalHeaderFormPage'
 export * from './pages/JournalHeaderEditPage'
 export * from './pages/JournalHeaderDetailPage'
 export * from './pages/JournalHeadersDeletedPage'
-export { default as GeneralJournalViewPage } from './pages/GeneralJournalViewPage'  // ← Tambah ini
 export * from './api/journalHeaders.api'
 export * from './store/journalHeaders.store'
 export * from './types/journal-header.types'
