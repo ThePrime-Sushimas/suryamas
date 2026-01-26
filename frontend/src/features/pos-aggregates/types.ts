@@ -97,7 +97,7 @@ export interface AggregatedTransactionListItem {
   company_name?: string
   payment_method_name?: string
   journal_number?: string
-  failed_reason?: string
+  failed_reason?: string | null
   failed_at?: string | null
 }
 
