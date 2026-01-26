@@ -149,30 +149,6 @@ export function JournalHeadersListPage() {
         </div>
       ) : (
         <>
-          {/* Stats Summary */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Journal</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{pagination.total}</p>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Debit</p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(
-                  journals.reduce((sum, j) => sum + j.total_debit, 0)
-                )}
-              </p>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Kredit</p>
-              <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(
-                  journals.reduce((sum, j) => sum + j.total_credit, 0)
-                )}
-              </p>
-            </div>
-          </div>
-
           {/* Table */}
           <JournalHeaderTable
             journals={journals}
