@@ -402,7 +402,7 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
                   <span className="font-medium">Lihat Transaksi Gagal</span>
                 </button>
                 <p className="text-xs text-yellow-600 mt-1">
-                  Klik untuk melihat dan memfix transaksi yang gagal diproses.
+                  Klik untuk melihat transaksi yang gagal diproses.
                 </p>
               </div>
             </>

@@ -64,7 +64,7 @@ export const FailedTransactionsPage: React.FC = () => {
       await fixTransaction(id)
       toast.success('Transaksi berhasil difix dan diproses ulang')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal memfix transaksi')
+      toast.error(error instanceof Error ? error.message : 'Gagal reset transaksi')
     }
   }, [fixTransaction, toast])
 
@@ -95,7 +95,7 @@ export const FailedTransactionsPage: React.FC = () => {
       }
       clearSelection()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal memfix transaksi')
+      toast.error(error instanceof Error ? error.message : 'Gagal reset transaksi')
     }
   }, [selectedIds, batchFixTransactions, clearSelection, toast])
 
@@ -391,9 +391,9 @@ export const FailedTransactionsPage: React.FC = () => {
       <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
         <h3 className="text-sm font-medium text-yellow-800 mb-2">Petunjuk:</h3>
         <ul className="text-sm text-yellow-700 space-y-1 list-disc list-inside">
-          <li>Klik tombol <RefreshCw className="w-3 h-3 inline" /> untuk memfix dan memproses ulang transaksi</li>
+          <li>Klik tombol <RefreshCw className="w-3 h-3 inline" /> untuk reset dan memproses ulang transaksi</li>
           <li>Klik tombol <Trash2 className="w-3 h-3 inline" /> untuk menghapus transaksi gagal secara permanen</li>
-          <li>Pilih beberapa transaksi dan klik "Fix Terpilih" untuk memfix sekaligus</li>
+          <li>Pilih beberapa transaksi dan klik "Fix Terpilih" untuk reset sekaligus</li>
           <li>Klik pada kolom "Error" atau tombol <AlertTriangle className="w-3 h-3 inline" /> untuk melihat detail error transaksi</li>
         </ul>
       </div>
