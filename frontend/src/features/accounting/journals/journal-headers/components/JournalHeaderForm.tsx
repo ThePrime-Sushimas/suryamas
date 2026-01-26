@@ -24,7 +24,7 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
   const [journalDate, setJournalDate] = useState(initialData?.journal_date || new Date().toISOString().split('T')[0])
   const [journalType, setJournalType] = useState(initialData?.journal_type || 'MANUAL')
   const [description, setDescription] = useState(initialData?.description || '')
-  const [lines, setLines] = useState<JournalLineWithDetails[]>(
+  const [lines, setLines] = useState<JournalLine[]>(
     initialData?.lines?.map(l => ({
       line_number: l.line_number,
       account_id: l.account_id,
