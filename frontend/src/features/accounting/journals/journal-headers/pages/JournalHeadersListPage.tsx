@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { useJournalHeadersStore } from '../store/journalHeaders.store'
@@ -19,11 +18,8 @@ export function JournalHeadersListPage() {
     deleteJournal,
     setPage,
     clearError,
+    hasAppliedFilters,
   } = useJournalHeadersStore()
-
-  useEffect(() => {
-    fetchJournals({})
-  }, [fetchJournals])
 
   const handleView = (journal: JournalHeader) => {
     navigate(`/accounting/journals/${journal.id}`)
@@ -36,6 +32,20 @@ export function JournalHeadersListPage() {
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this journal?')) {
       await deleteJournal(id)
+    }
+  }
+
+  const handlePrevPage = () => {
+    setPage(pagination.page - 1)
+    if (hasAppliedFilters) {
+      fetchJournals({})
+    }
+  }
+
+  const handleNextPage = () => {
+    setPage(pagination.page + 1)
+    if (hasAppliedFilters) {
+      fetchJournals({})
     }
   }
 
@@ -88,6 +98,14 @@ export function JournalHeadersListPage() {
       <div className="bg-white border rounded shadow">
         {loading ? (
           <div className="text-center py-12 text-gray-500">Loading journals...</div>
+        ) : !hasAppliedFilters ? (
+          <div className="text-center py-12 text-gray-500">
+            <p className="text-lg">Please select filters and click Apply to display data</p>
+          </div>
+        ) : journals.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <p className="text-lg">No journals found</p>
+          </div>
         ) : (
           <JournalHeaderTable
             journals={journals}
@@ -99,10 +117,10 @@ export function JournalHeadersListPage() {
       </div>
 
       {/* Pagination */}
-      {pagination.totalPages > 1 && (
+      {hasAppliedFilters && pagination.totalPages > 1 && (
         <div className="flex justify-center items-center gap-3">
           <button
-            onClick={() => { setPage(pagination.page - 1); fetchJournals({}) }}
+            onClick={handlePrevPage}
             disabled={!pagination.hasPrev}
             className="px-4 py-2 border rounded disabled:opacity-50 hover:bg-gray-50"
           >
@@ -112,7 +130,7 @@ export function JournalHeadersListPage() {
             Page {pagination.page} of {pagination.totalPages}
           </span>
           <button
-            onClick={() => { setPage(pagination.page + 1); fetchJournals({}) }}
+            onClick={handleNextPage}
             disabled={!pagination.hasNext}
             className="px-4 py-2 border rounded disabled:opacity-50 hover:bg-gray-50"
           >
@@ -123,3 +141,4 @@ export function JournalHeadersListPage() {
     </div>
   )
 }
+

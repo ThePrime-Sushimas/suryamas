@@ -24,7 +24,8 @@ interface JournalHeadersState {
     hasPrev: boolean
   }
   filters: JournalHeaderFilter
-
+  hasAppliedFilters: boolean
+  
   fetchJournals: (filters?: Partial<JournalHeaderFilter>) => Promise<void>
   fetchJournalsWithLines: (filters?: Partial<JournalHeaderFilter>) => Promise<void>
   fetchJournalById: (id: string) => Promise<void>
@@ -42,6 +43,7 @@ interface JournalHeadersState {
   setLimit: (limit: number) => void
   clearError: () => void
   clearSelectedJournal: () => void
+  setHasAppliedFilters: (value: boolean) => void
   refresh: () => Promise<void>
 }
 
@@ -60,6 +62,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
     hasPrev: false,
   },
   filters: {},
+  hasAppliedFilters: false,
 
   fetchJournals: async (filters?: Partial<JournalHeaderFilter>) => {
     set({ loading: true, error: null })
@@ -287,6 +290,8 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
   clearError: () => set({ error: null }),
 
   clearSelectedJournal: () => set({ selectedJournal: null }),
+
+  setHasAppliedFilters: (value: boolean) => set({ hasAppliedFilters: value }),
 
   refresh: async () => {
     await get().fetchJournals()

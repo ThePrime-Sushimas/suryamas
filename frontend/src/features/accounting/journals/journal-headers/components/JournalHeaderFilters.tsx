@@ -6,7 +6,7 @@ import { branchesApi } from '@/features/branches/api/branches.api'
 import type { Branch } from '@/features/branches/types'
 
 export function JournalHeaderFilters() {
-  const { filters, setFilters, fetchJournals } = useJournalHeadersStore()
+  const { filters, setFilters, fetchJournals, setHasAppliedFilters } = useJournalHeadersStore()
   const [localFilters, setLocalFilters] = useState(filters)
   const [branches, setBranches] = useState<Branch[]>([])
 
@@ -24,6 +24,7 @@ export function JournalHeaderFilters() {
 
   const handleApply = () => {
     setFilters(localFilters)
+    setHasAppliedFilters(true)
     fetchJournals(localFilters)
   }
 
@@ -31,7 +32,7 @@ export function JournalHeaderFilters() {
     const resetFilters = {}
     setLocalFilters(resetFilters)
     setFilters(resetFilters)
-    fetchJournals(resetFilters)
+    setHasAppliedFilters(false)
   }
 
   return (
