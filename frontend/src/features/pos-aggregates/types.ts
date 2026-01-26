@@ -50,6 +50,8 @@ export interface AggregatedTransaction {
   deleted_by: string | null
   version: number
   status: AggregatedTransactionStatus
+  failed_reason: string | null
+  failed_at: string | null
 }
 
 /**
@@ -95,6 +97,8 @@ export interface AggregatedTransactionListItem {
   company_name?: string
   payment_method_name?: string
   journal_number?: string
+  failed_reason?: string
+  failed_at?: string | null
 }
 
 // =============================================================================

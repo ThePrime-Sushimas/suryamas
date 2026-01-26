@@ -99,6 +99,8 @@ export interface AggregatedTransactionListItem extends Pick<AggregatedTransactio
   | 'deleted_at'
   | 'deleted_by'
   | 'version'
+  | 'failed_at'
+  | 'failed_reason'
 > {
   branch_name?: string
   payment_method_name?: string

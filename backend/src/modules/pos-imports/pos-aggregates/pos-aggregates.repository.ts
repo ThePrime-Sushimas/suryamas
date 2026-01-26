@@ -63,6 +63,8 @@ export class PosAggregatesRepository {
         deleted_at,
         deleted_by,
         version,
+        failed_at,
+        failed_reason,
         payment_methods(id, code, name)
       `, { count: 'exact' })
 
@@ -729,6 +731,8 @@ export class PosAggregatesRepository {
       version: row.version as number,
       branch_name: row.branch_name as string,
       payment_method_name: (paymentMethod as Record<string, unknown>)?.name as string | undefined,
+      failed_reason: (row.failed_reason as string) || null,
+      failed_at: (row.failed_at as string) || null,
     }
   }
 

@@ -788,11 +788,10 @@ export class PosAggregatesService {
     }
 
     // Clear failed fields and set status to READY
+    // NOTE: failed_at and failed_reason are NOT cleared to preserve history
     const fixData: any = {
       ...updates,
       status: 'READY' as AggregatedTransactionStatus,
-      failed_at: null,
-      failed_reason: null,
     }
 
     try {

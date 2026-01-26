@@ -162,6 +162,20 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({ transa
               </dd>
             </div>
             <div className="grid grid-cols-3 gap-4">
+              <dt className="text-sm font-medium text-gray-500">Failed Reason</dt>
+              <dd className="col-span-2 text-sm text-red-600 font-medium">
+                {transaction.failed_reason || '-'}
+              </dd>
+            </div>
+            {transaction.failed_at && (
+              <div className="grid grid-cols-3 gap-4">
+                <dt className="text-sm font-medium text-gray-500">Failed At</dt>
+                <dd className="col-span-2 text-sm text-red-600">
+                  {formatDateTime(transaction.failed_at)}
+                </dd>
+              </div>
+            )}
+            <div className="grid grid-cols-3 gap-4">
               <dt className="text-sm font-medium text-gray-500">Rekonsiliasi</dt>
               <dd className="col-span-2 text-sm text-gray-900 flex items-center gap-2">
                 {transaction.is_reconciled ? (
