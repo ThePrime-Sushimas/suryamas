@@ -279,7 +279,7 @@ async function createJournalHeaderWithRetry(
         p_company_id: params.companyId,
         p_branch_id: params.branchId,
         p_journal_number: params.journalNumber,
-        p_journal_type: 'CASH',
+        p_journal_type: 'SALES',
         p_journal_date: params.journalDate,
         p_period: params.period,
         p_description: params.description,
