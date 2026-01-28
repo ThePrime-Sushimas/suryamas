@@ -12,9 +12,13 @@ export type PaymentType =
   | 'OTHER_COST'
 
 /**
- * Main payment method interface
+ * Main payment method interface dengan FEE Configuration
+ * 
+ * NOTE: Marketing Fee = Expected Net - Actual Bank Deposit (calculated during reconciliation)
+ *       Bukan percentage di payment method!
  */
 export interface PaymentMethod {
+  // === Basic Info ===
   id: number
   company_id: string
   code: string
@@ -23,10 +27,20 @@ export interface PaymentMethod {
   payment_type: PaymentType
   bank_account_id: number | null
   coa_account_id: string | null
+
+  // === Status ===
   is_active: boolean
   is_default: boolean
   requires_bank_account: boolean
   sort_order: number
+
+  // === 🔥 FEE CONFIGURATION (3 KOLOM SAJA) ===
+  fee_percentage: number              // Persentase biaya (contoh: 20.0 = 20%)
+  fee_fixed_amount: number           // Jumlah biaya tetap (contoh: 500 = Rp 500)
+  fee_fixed_per_transaction: boolean // Apakah fixed fee per transaksi (true) atau per total (false)
+  // NOTE: Marketing fee dihitung sebagai SELISIH expected vs actual, bukan di sini!
+
+  // === Audit ===
   created_at: string
   updated_at: string
   created_by: string | null
@@ -49,7 +63,9 @@ export interface PaymentMethodWithDetails extends PaymentMethod {
 }
 
 /**
- * DTO for creating a new payment method
+ * DTO for creating a new payment method dengan FEE configuration
+ * 
+ * NOTE: Marketing fee dihitung saat reconciliation, bukan di sini!
  */
 export interface CreatePaymentMethodDto {
   company_id: string
@@ -62,10 +78,15 @@ export interface CreatePaymentMethodDto {
   is_default?: boolean
   requires_bank_account?: boolean
   sort_order?: number
+
+  // === 🔥 FEE CONFIGURATION (3 KOLOM) ===
+  fee_percentage?: number              // Default: 0
+  fee_fixed_amount?: number           // Default: 0
+  fee_fixed_per_transaction?: boolean // Default: false
 }
 
 /**
- * DTO for updating a payment method
+ * DTO for updating a payment method dengan FEE configuration
  */
 export interface UpdatePaymentMethodDto {
   code?: string
@@ -78,6 +99,11 @@ export interface UpdatePaymentMethodDto {
   is_default?: boolean
   requires_bank_account?: boolean
   sort_order?: number
+
+  // === 🔥 FEE CONFIGURATION (3 KOLOM) ===
+  fee_percentage?: number
+  fee_fixed_amount?: number
+  fee_fixed_per_transaction?: boolean
 }
 
 /**
