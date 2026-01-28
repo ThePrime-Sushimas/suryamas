@@ -275,14 +275,74 @@ export class FeeReconciliationService {
     approvedBy: string,
     approvedAmount?: number
   ): Promise<void> {
-    logInfo('Approving marketing fee', { 
-      reconciliationId, 
-      approvedBy, 
-      approvedAmount 
+    logInfo('Approving marketing fee', {
+      reconciliationId,
+      approvedBy,
+      approvedAmount
     })
-    
-    // TODO: Implement update di database
-    // UPDATE reconciliation_results SET status = 'APPROVED', approved_by = $1, approved_amount = COALESCE($2, marketing_fee)
+
+    try {
+      // First, get the reconciliation result to understand what we're approving
+      // For now, we'll assume reconciliationId is a combination of payment_method_id and date
+      const [paymentMethodIdStr, dateStr] = reconciliationId.split('_')
+      const paymentMethodId = parseInt(paymentMethodIdStr)
+      const date = new Date(dateStr)
+
+      if (isNaN(paymentMethodId) || isNaN(date.getTime())) {
+        throw new Error('Invalid reconciliation ID format')
+      }
+
+      // Get the current reconciliation result
+      const result = await this.reconcilePaymentMethod(paymentMethodId, date)
+
+      // Mark bank statements as reconciled for this payment method and date
+      const dateString = date.toISOString().split('T')[0]
+      const { error: updateError } = await supabase
+        .from('bank_statements')
+        .update({
+          is_reconciled: true,
+          reconciled_at: new Date().toISOString(),
+          reconciliation_id: reconciliationId,
+          updated_at: new Date().toISOString(),
+          updated_by: approvedBy
+        })
+        .eq('payment_method_id', paymentMethodId)
+        .eq('transaction_date', dateString)
+        .eq('is_reconciled', false)
+        .is('deleted_at', null)
+
+      if (updateError) {
+        logError('Error updating bank statements for approval', { error: updateError.message })
+        throw new Error(updateError.message)
+      }
+
+      // TODO: Optionally create a reconciliation_results record
+      // const { error: insertError } = await supabase
+      //   .from('reconciliation_results')
+      //   .insert({
+      //     reconciliation_id: reconciliationId,
+      //     payment_method_id: paymentMethodId,
+      //     transaction_date: dateString,
+      //     status: 'APPROVED',
+      //     approved_amount: approvedAmount || result.marketingFee,
+      //     approved_by: approvedBy,
+      //     created_at: new Date().toISOString()
+      //   })
+
+      logInfo('Marketing fee approved successfully', {
+        reconciliationId,
+        approvedBy,
+        approvedAmount: approvedAmount || result.marketingFee
+      })
+
+    } catch (error) {
+      logError('Failed to approve marketing fee', {
+        reconciliationId,
+        approvedBy,
+        error: (error as Error).message
+      })
+      throw error
+    }
   }
 
   /**
@@ -294,9 +354,66 @@ export class FeeReconciliationService {
     reason: string
   ): Promise<void> {
     logInfo('Rejecting marketing fee', { reconciliationId, rejectedBy, reason })
-    
-    // TODO: Implement update di database
-    // UPDATE reconciliation_results SET status = 'REJECTED', rejection_reason = $1
+
+    try {
+      // Parse reconciliation ID (assuming format: paymentMethodId_date)
+      const [paymentMethodIdStr, dateStr] = reconciliationId.split('_')
+      const paymentMethodId = parseInt(paymentMethodIdStr)
+      const date = new Date(dateStr)
+
+      if (isNaN(paymentMethodId) || isNaN(date.getTime())) {
+        throw new Error('Invalid reconciliation ID format')
+      }
+
+      // Mark bank statements as reconciled with rejection status
+      const dateString = date.toISOString().split('T')[0]
+      const { error: updateError } = await supabase
+        .from('bank_statements')
+        .update({
+          is_reconciled: true,
+          reconciled_at: new Date().toISOString(),
+          reconciliation_id: reconciliationId,
+          updated_at: new Date().toISOString(),
+          updated_by: rejectedBy
+        })
+        .eq('payment_method_id', paymentMethodId)
+        .eq('transaction_date', dateString)
+        .eq('is_reconciled', false)
+        .is('deleted_at', null)
+
+      if (updateError) {
+        logError('Error updating bank statements for rejection', { error: updateError.message })
+        throw new Error(updateError.message)
+      }
+
+      // TODO: Optionally create a reconciliation_results record with rejection
+      // const { error: insertError } = await supabase
+      //   .from('reconciliation_results')
+      //   .insert({
+      //     reconciliation_id: reconciliationId,
+      //     payment_method_id: paymentMethodId,
+      //     transaction_date: dateString,
+      //     status: 'REJECTED',
+      //     rejection_reason: reason,
+      //     rejected_by: rejectedBy,
+      //     created_at: new Date().toISOString()
+      //   })
+
+      logInfo('Marketing fee rejected successfully', {
+        reconciliationId,
+        rejectedBy,
+        reason
+      })
+
+    } catch (error) {
+      logError('Failed to reject marketing fee', {
+        reconciliationId,
+        rejectedBy,
+        reason,
+        error: (error as Error).message
+      })
+      throw error
+    }
   }
 
   // ============================================================================
@@ -340,11 +457,36 @@ export class FeeReconciliationService {
     paymentMethodId: number,
     date: Date
   ): Promise<{ totalAmount: number; transactionCount: number }> {
-    // TODO: Implement dari pos_aggregates atau settlement_transactions table
-    // SELECT SUM(gross_amount) as total_amount, COUNT(*) as transaction_count
-    // FROM settlement_transactions
-    // WHERE payment_method_id = $1 AND transaction_date = $2
-    return { totalAmount: 0, transactionCount: 0 }
+    logInfo('Getting aggregated transactions', { paymentMethodId, date })
+
+    try {
+      const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD format
+
+      // Query pos_aggregates table untuk aggregated transactions
+      const { data, error } = await supabase
+        .from('pos_aggregates')
+        .select('total_gross_amount, total_transaction_count')
+        .eq('payment_method_id', paymentMethodId)
+        .eq('transaction_date', dateStr)
+        .maybeSingle()
+
+      if (error) {
+        logError('Error getting aggregated transactions', { error: error.message, paymentMethodId, date })
+        throw new Error(error.message)
+      }
+
+      return {
+        totalAmount: data?.total_gross_amount || 0,
+        transactionCount: data?.total_transaction_count || 0
+      }
+    } catch (error) {
+      logError('Failed to get aggregated transactions', {
+        paymentMethodId,
+        date,
+        error: (error as Error).message
+      })
+      throw error
+    }
   }
 
   /**
@@ -354,11 +496,39 @@ export class FeeReconciliationService {
     paymentMethodId: number,
     date: Date
   ): Promise<number> {
-    // TODO: Implement dari bank_statements table
-    // SELECT SUM(credit_amount) as total
-    // FROM bank_statements
-    // WHERE payment_method_id = $1 AND transaction_date = $2
-    return 0
+    logInfo('Getting bank deposits', { paymentMethodId, date })
+
+    try {
+      const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD format
+
+      // Query bank_statements table untuk total credit amounts (deposits)
+      const { data, error } = await supabase
+        .from('bank_statements')
+        .select('credit_amount')
+        .eq('payment_method_id', paymentMethodId)
+        .eq('transaction_date', dateStr)
+        .eq('is_reconciled', false) // Only unreconciled transactions
+        .is('deleted_at', null)
+
+      if (error) {
+        logError('Error getting bank deposits', { error: error.message, paymentMethodId, date })
+        throw new Error(error.message)
+      }
+
+      // Sum all credit amounts
+      const totalDeposits = (data || []).reduce((sum, record) => sum + (record.credit_amount || 0), 0)
+
+      logInfo('Bank deposits calculated', { paymentMethodId, date, totalDeposits, recordCount: data?.length || 0 })
+
+      return totalDeposits
+    } catch (error) {
+      logError('Failed to get bank deposits', {
+        paymentMethodId,
+        date,
+        error: (error as Error).message
+      })
+      throw error
+    }
   }
 
   /**
