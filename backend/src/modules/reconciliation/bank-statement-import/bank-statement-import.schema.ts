@@ -41,6 +41,8 @@ export const validateUploadedFile = (file: Express.Multer.File | undefined): voi
   const allowedMimeTypes = [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/vnd.ms-excel',
+    'text/csv',
+    'application/csv',
   ]
   
   if (!allowedMimeTypes.includes(file.mimetype)) {
@@ -52,7 +54,7 @@ export const validateUploadedFile = (file: Express.Multer.File | undefined): voi
     throw BankStatementImportErrors.FILE_TOO_LARGE(50)
   }
 
-  const allowedExtensions = ['.xlsx', '.xls']
+  const allowedExtensions = ['.xlsx', '.xls', '.csv']
   const fileExtension = file.originalname.toLowerCase().slice(file.originalname.lastIndexOf('.'))
   
   if (!allowedExtensions.includes(fileExtension)) {

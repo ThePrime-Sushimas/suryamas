@@ -399,3 +399,64 @@ export interface ExcelColumnMapping {
   balance?: string
   transaction_type?: string
 }
+
+// ============================================================================
+// CSV FORMAT TYPES
+// ============================================================================
+
+/**
+ * Bank CSV Format type (imported from constants)
+ */
+export type BankCSVFormat = 
+  | 'BCA_PERSONAL'
+  | 'BCA_BUSINESS'
+  | 'BANK_MANDIRI'
+  | 'UNKNOWN'
+
+/**
+ * Result dari format detection
+ */
+export interface CSVFormatDetectionResult {
+  format: BankCSVFormat
+  confidence: number // 0-100
+  headerRowIndex: number
+  dataStartRowIndex: number
+  columnMapping: BankStatementColumnMapping
+  detectedHeaders: string[]
+  warnings: string[]
+}
+
+/**
+ * Parsed row dari CSV dengan format detection
+ */
+export interface ParsedCSVRow {
+  row_number: number
+  raw_line: string
+  format: BankCSVFormat
+  transaction_date: string
+  transaction_time?: string
+  reference_number?: string
+  description: string
+  debit_amount: number
+  credit_amount: number
+  balance?: number
+  is_pending: boolean // True jika PEND transaction
+  transaction_type?: string
+  raw_data: Record<string, any>
+  errors?: string[]
+}
+
+/**
+ * Multi-line transaction dari Bank Mandiri
+ */
+export interface MandirMultiLineTransaction {
+  postDate: string
+  postTime?: string
+  remarks: string
+  additionalDesc?: string
+  creditAmount: number
+  debitAmount: number
+  closeBalance: number
+  rawLines: string[]
+  isPending: boolean
+}

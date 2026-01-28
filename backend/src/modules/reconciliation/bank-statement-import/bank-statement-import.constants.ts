@@ -9,8 +9,10 @@ export const FILE_UPLOAD = {
   ALLOWED_MIME_TYPES: [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
     'application/vnd.ms-excel', // .xls
+    'text/csv', // .csv
+    'application/csv', // .csv
   ],
-  ALLOWED_EXTENSIONS: ['.xlsx', '.xls'],
+  ALLOWED_EXTENSIONS: ['.xlsx', '.xls', '.csv'],
   TEMP_DIR: '/tmp/uploads',
 }
 
@@ -79,10 +81,110 @@ export const DATE_FORMATS = {
   MM_DD_YYYY: 'MM/DD/YYYY',
 }
 
+// ============================================================================
+// BANK CSV FORMAT CONFIGURATIONS
+// ============================================================================
+
+/**
+ * Enum untuk tipe format CSV bank
+ */
+export const BANK_CSV_FORMAT = {
+  BCA_PERSONAL: 'BCA_PERSONAL',
+  BCA_BUSINESS: 'BCA_BUSINESS',
+  BANK_MANDIRI: 'BANK_MANDIRI',
+  UNKNOWN: 'UNKNOWN',
+} as const
+
+export type BankCSVFormat = typeof BANK_CSV_FORMAT[keyof typeof BANK_CSV_FORMAT]
+
+/**
+ * Konfigurasi format CSV per bank
+ */
+export const BANK_CSV_FORMATS: Record<BankCSVFormat, {
+  name: string
+  headerRowIndex: number
+  dataStartRowIndex: number
+  hasQuotes: boolean
+  delimiter: string
+  multiLineTransaction: boolean
+  pendingIndicator: string
+  dateFormat: string
+  columnCount: number
+  description: string
+}> = {
+  [BANK_CSV_FORMAT.BCA_PERSONAL]: {
+    name: 'BCA Personal',
+    headerRowIndex: 0,
+    dataStartRowIndex: 1,
+    hasQuotes: false,
+    delimiter: ',',
+    multiLineTransaction: false,
+    pendingIndicator: 'PEND',
+    dateFormat: 'DD/MM/YYYY',
+    columnCount: 7,
+    description: 'Format CSV statement BCA personal (single line per transaction)',
+  },
+  [BANK_CSV_FORMAT.BCA_BUSINESS]: {
+    name: 'BCA Bisnis',
+    headerRowIndex: 0,
+    dataStartRowIndex: 1,
+    hasQuotes: true,
+    delimiter: ',',
+    multiLineTransaction: false,
+    pendingIndicator: 'PEND',
+    dateFormat: 'DD/MM/YYYY',
+    columnCount: 4,
+    description: 'Format CSV statement BCA bisnis (dengan quotes)',
+  },
+  [BANK_CSV_FORMAT.BANK_MANDIRI]: {
+    name: 'Bank Mandiri',
+    headerRowIndex: 0,
+    dataStartRowIndex: 1,
+    hasQuotes: false,
+    delimiter: ' ',
+    multiLineTransaction: true,
+    pendingIndicator: 'PEND',
+    dateFormat: 'DD/MM/YYYY',
+    columnCount: 6,
+    description: 'Format statement Bank Mandiri (multi-line per transaction)',
+  },
+  [BANK_CSV_FORMAT.UNKNOWN]: {
+    name: 'Unknown',
+    headerRowIndex: 0,
+    dataStartRowIndex: 1,
+    hasQuotes: false,
+    delimiter: ',',
+    multiLineTransaction: false,
+    pendingIndicator: 'PEND',
+    dateFormat: 'DD/MM/YYYY',
+    columnCount: 0,
+    description: 'Format tidak dikenali',
+  },
+}
+
+/**
+ * Header patterns untuk detect format bank
+ */
+export const BANK_HEADER_PATTERNS: Record<BankCSVFormat, string[]> = {
+  [BANK_CSV_FORMAT.BCA_PERSONAL]: ['date', 'description', 'branch', 'amount', 'balance'],
+  [BANK_CSV_FORMAT.BCA_BUSINESS]: ['tanggal transaksi', 'keterangan', 'cabang', 'jumlah'],
+  [BANK_CSV_FORMAT.BANK_MANDIRI]: ['postdate', 'remarks', 'additionaldesc', 'credit amount', 'debit amount', 'close balance'],
+  [BANK_CSV_FORMAT.UNKNOWN]: [],
+}
+
+/**
+ * PENDING transaction indicator
+ */
+export const PENDING_TRANSACTION = {
+  INDICATOR: 'PEND',
+  DESCRIPTION_PREFIX: 'PEND',
+  TRANSACTION_TYPE: 'PENDING' as const,
+}
+
 // Error messages
 export const ERROR_MESSAGES = {
   FILE_REQUIRED: 'File is required',
-  INVALID_FILE_TYPE: 'Invalid file type. Only Excel files (.xlsx, .xls) are allowed',
+  INVALID_FILE_TYPE: 'Invalid file type. Only Excel (.xlsx, .xls) or CSV (.csv) files are allowed',
   FILE_TOO_LARGE: 'File size exceeds maximum allowed size (50MB)',
   MISSING_COLUMNS: 'Missing required columns in Excel file',
   INVALID_DATE_FORMAT: 'Invalid date format',

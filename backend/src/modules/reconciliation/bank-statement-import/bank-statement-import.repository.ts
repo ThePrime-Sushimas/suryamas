@@ -257,14 +257,22 @@ export class BankStatementImportRepository {
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
 
+    // Handle case where no records found (not an error)
     if (error) {
+      // If it's a "PGRST116" error (no rows returned), that's actually okay
+      if (error.message.includes('PGRST116') || error.message.includes('row')) {
+        return null
+      }
       logError('BankStatementImportRepository.checkFileHashExists error', { error: error.message })
       return null
     }
 
-    return data as BankStatementImport | null
+    if (!data || data.length === 0) {
+      return null
+    }
+
+    return data[0] as BankStatementImport | null
   }
 
   /**

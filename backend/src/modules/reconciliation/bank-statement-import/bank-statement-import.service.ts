@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '../../../config/supabase'
+import { logInfo, logError } from '../../../config/logger'
 import { BankStatementImportRepository } from './bank-statement-import.repository'
 import { 
   BankStatementImport,
@@ -17,12 +18,21 @@ import {
   BankStatementPreviewRow,
   BankStatementDuplicate,
   BankStatementColumnMapping,
+  CSVFormatDetectionResult,
+  ParsedCSVRow,
+  BankCSVFormat,
 } from './bank-statement-import.types'
 import { 
   BankStatementImportErrors, 
   BankStatementImportConfig 
 } from './bank-statement-import.errors'
-import { IMPORT_STATUS } from './bank-statement-import.constants'
+import { 
+  IMPORT_STATUS,
+  BANK_CSV_FORMAT,
+  BANK_CSV_FORMATS,
+  BANK_HEADER_PATTERNS,
+  PENDING_TRANSACTION,
+} from './bank-statement-import.constants'
 import * as XLSX from 'xlsx'
 import fs from 'fs/promises'
 import path from 'path'
@@ -118,10 +128,38 @@ export class BankStatementImportService {
         throw BankStatementImportErrors.DUPLICATE_FILE()
       }
 
-      // Parse Excel file
-      const { rows, columnMapping } = await this.parseExcelFile(
-        fileResult.file_path
-      )
+      // Check file extension and parse accordingly
+      const isCSV = fileResult.file_name.toLowerCase().endsWith('.csv')
+      let rows: any[]
+      let columnMapping: BankStatementColumnMapping
+
+      if (isCSV) {
+        // Parse CSV file with format detection
+        logInfo('BankStatementImport: Parsing CSV file', { file_name: fileResult.file_name })
+        const csvResult = await this.parseCSVFile(fileResult.file_path)
+        rows = csvResult.rows.map(row => ({
+          row_number: row.row_number,
+          transaction_date: row.transaction_date,
+          transaction_time: row.transaction_time,
+          reference_number: row.reference_number,
+          description: row.description,
+          debit_amount: row.debit_amount,
+          credit_amount: row.credit_amount,
+          balance: row.balance,
+          raw_data: row.raw_data,
+        }))
+        columnMapping = csvResult.formatDetection.columnMapping
+        
+        logInfo('BankStatementImport: CSV parsed successfully', {
+          format: csvResult.formatDetection.format,
+          total_rows: rows.length,
+        })
+      } else {
+        // Parse Excel file
+        const excelResult = await this.parseExcelFile(fileResult.file_path)
+        rows = excelResult.rows
+        columnMapping = excelResult.columnMapping
+      }
 
       if (rows.length === 0) {
         throw BankStatementImportErrors.EMPTY_FILE()
@@ -249,9 +287,9 @@ export class BankStatementImportService {
     const { data: job, error } = await supabase
       .from('jobs')
       .insert({
-        type: 'BANK_STATEMENT_IMPORT',
+        type: 'import',
         module: 'bank_statements',
-        status: 'PENDING',
+        status: 'pending',
         metadata: {
           importId,
           bankAccountId: importRecord.bank_account_id,
@@ -692,10 +730,729 @@ export class BankStatementImportService {
     }
   }
 
+  // ==================== CSV PARSING METHODS ====================
+
+  /**
+   * Parse CSV file dengan format detection
+   */
+  async parseCSVFile(
+    filePath: string
+  ): Promise<{ rows: ParsedCSVRow[]; formatDetection: CSVFormatDetectionResult }> {
+    logInfo('BankStatementImport: Starting CSV file parsing', { filePath })
+
+    // Read file content
+    const content = await fs.readFile(filePath, 'utf-8')
+    const lines = content.split(/\r?\n/).filter(line => line.trim() !== '')
+
+    if (lines.length < 2) {
+      throw BankStatementImportErrors.EMPTY_FILE()
+    }
+
+    // Detect format
+    const formatDetection = this.detectCSVFormat(lines)
+
+    logInfo('BankStatementImport: CSV format detected', {
+      format: formatDetection.format,
+      confidence: formatDetection.confidence,
+    })
+
+    // Parse based on detected format
+    let rows: ParsedCSVRow[] = []
+
+    switch (formatDetection.format) {
+      case BANK_CSV_FORMAT.BCA_PERSONAL:
+        rows = this.parseBCAPersonal(lines, formatDetection)
+        break
+      case BANK_CSV_FORMAT.BCA_BUSINESS:
+        rows = this.parseBCABusiness(lines, formatDetection)
+        break
+      case BANK_CSV_FORMAT.BANK_MANDIRI:
+        rows = this.parseBankMandiri(lines, formatDetection)
+        break
+      default:
+        // Fallback ke generic parsing
+        rows = this.parseGenericCSV(lines, formatDetection)
+    }
+
+    logInfo('BankStatementImport: CSV parsing completed', {
+      format: formatDetection.format,
+      total_rows: rows.length,
+      pending_rows: rows.filter(r => r.is_pending).length,
+    })
+
+    return { rows, formatDetection }
+  }
+
+  /**
+   * Detect CSV format dari content
+   */
+  private detectCSVFormat(lines: string[]): CSVFormatDetectionResult {
+    const warnings: string[] = []
+    let bestFormat: BankCSVFormat = BANK_CSV_FORMAT.UNKNOWN
+    let highestConfidence = 0
+
+    // Normalize headers for comparison
+    const normalizeHeaders = (line: string): string[] => {
+      return line.toLowerCase().split(/[,\t]/).map(h => h.trim().replace(/["']/g, ''))
+    }
+
+    // Check first few lines for headers
+    const headerCandidates = lines.slice(0, 5).map((line, idx) => ({
+      line,
+      normalized: normalizeHeaders(line),
+      index: idx,
+    }))
+
+    // Score each format
+    const formatScores: Record<BankCSVFormat, { score: number; matchedHeaders: string[] }> = {
+      [BANK_CSV_FORMAT.BCA_PERSONAL]: { score: 0, matchedHeaders: [] },
+      [BANK_CSV_FORMAT.BCA_BUSINESS]: { score: 0, matchedHeaders: [] },
+      [BANK_CSV_FORMAT.BANK_MANDIRI]: { score: 0, matchedHeaders: [] },
+      [BANK_CSV_FORMAT.UNKNOWN]: { score: 0, matchedHeaders: [] },
+    }
+
+    // Check against known header patterns
+    for (const candidate of headerCandidates) {
+      const headers = candidate.normalized
+
+      // Check BCA Personal pattern
+      const bcaPersonalPattern = BANK_HEADER_PATTERNS[BANK_CSV_FORMAT.BCA_PERSONAL]
+      const bcaPersonalMatches = bcaPersonalPattern.filter(p => 
+        headers.some(h => h.includes(p))
+      )
+      if (bcaPersonalMatches.length >= 3) {
+        formatScores[BANK_CSV_FORMAT.BCA_PERSONAL].score += bcaPersonalMatches.length * 10
+        formatScores[BANK_CSV_FORMAT.BCA_PERSONAL].matchedHeaders = bcaPersonalMatches
+      }
+
+      // Check BCA Business pattern
+      const bcaBusinessPattern = BANK_HEADER_PATTERNS[BANK_CSV_FORMAT.BCA_BUSINESS]
+      const bcaBusinessMatches = bcaBusinessPattern.filter(p =>
+        headers.some(h => h.includes(p))
+      )
+      if (bcaBusinessMatches.length >= 2) {
+        formatScores[BANK_CSV_FORMAT.BCA_BUSINESS].score += bcaBusinessMatches.length * 10
+        formatScores[BANK_CSV_FORMAT.BCA_BUSINESS].matchedHeaders = bcaBusinessMatches
+      }
+
+      // Check Bank Mandiri pattern
+      const mandiriPattern = BANK_HEADER_PATTERNS[BANK_CSV_FORMAT.BANK_MANDIRI]
+      const mandiriMatches = mandiriPattern.filter(p =>
+        headers.some(h => h.includes(p))
+      )
+      if (mandiriMatches.length >= 3) {
+        formatScores[BANK_CSV_FORMAT.BANK_MANDIRI].score += mandiriMatches.length * 10
+        formatScores[BANK_CSV_FORMAT.BANK_MANDIRI].matchedHeaders = mandiriMatches
+      }
+    }
+
+    // Find best matching format
+    for (const [format, data] of Object.entries(formatScores)) {
+      if (data.score > highestConfidence) {
+        highestConfidence = data.score
+        bestFormat = format as BankCSVFormat
+      }
+    }
+
+    // If no clear match, try content-based detection
+    if (bestFormat === BANK_CSV_FORMAT.UNKNOWN) {
+      const formatConfig = BANK_CSV_FORMATS[BANK_CSV_FORMAT.BCA_PERSONAL]
+      const firstDataLine = lines[1] || ''
+      const columns = this.splitCSVLine(firstDataLine, formatConfig.delimiter)
+
+      // BCA Personal typically has 6-7 columns
+      if (columns.length >= 6) {
+        bestFormat = BANK_CSV_FORMAT.BCA_PERSONAL
+        highestConfidence = 50
+        warnings.push('Format detected by column count (BCA Personal fallback)')
+      }
+    }
+
+    // Build column mapping based on detected format
+    const columnMapping = this.buildColumnMapping(bestFormat, headerCandidates[0]?.normalized || [])
+
+    // Get data start row
+    const config = BANK_CSV_FORMATS[bestFormat]
+    const dataStartRowIndex = config.headerRowIndex + 1
+
+    // Calculate confidence percentage
+    const confidence = Math.min(100, highestConfidence)
+
+    if (confidence < 30) {
+      warnings.push('Low confidence format detection. Please verify the CSV format.')
+    }
+
+    return {
+      format: bestFormat,
+      confidence,
+      headerRowIndex: config.headerRowIndex,
+      dataStartRowIndex,
+      columnMapping,
+      detectedHeaders: headerCandidates[0]?.normalized || [],
+      warnings,
+    }
+  }
+
+  /**
+   * Build column mapping berdasarkan format
+   */
+  private buildColumnMapping(format: BankCSVFormat, headers: string[]): BankStatementColumnMapping {
+    const defaultMapping: BankStatementColumnMapping = {
+      transaction_date: 'transaction_date',
+      description: 'description',
+      debit_amount: 'debit_amount',
+      credit_amount: 'credit_amount',
+    }
+
+    switch (format) {
+      case BANK_CSV_FORMAT.BCA_PERSONAL:
+        return {
+          ...defaultMapping,
+          transaction_date: headers.find(h => h.includes('date') || h.includes('tanggal')) || 'transaction_date',
+          description: headers.find(h => h.includes('desc') || h.includes('keterangan')) || 'description',
+          balance: headers.find(h => h.includes('balance') || h.includes('saldo')) || 'balance',
+        }
+
+      case BANK_CSV_FORMAT.BCA_BUSINESS:
+        return {
+          ...defaultMapping,
+          transaction_date: headers[0] || 'transaction_date',
+          description: headers[1] || 'description',
+        }
+
+      case BANK_CSV_FORMAT.BANK_MANDIRI:
+        return {
+          transaction_date: headers[0] || 'postdate',
+          transaction_time: headers[1] || 'remarks',
+          description: headers[2] || 'additionaldesc',
+          debit_amount: headers[4] || 'debit_amount',
+          credit_amount: headers[3] || 'credit_amount',
+          balance: headers[5] || 'close_balance',
+        }
+
+      default:
+        return defaultMapping
+    }
+  }
+
+  /**
+   * Split CSV line dengan handle quotes
+   */
+  private splitCSVLine(line: string, delimiter: string = ','): string[] {
+    const result: string[] = []
+    let current = ''
+    let inQuotes = false
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i]
+
+      if (char === '"') {
+        inQuotes = !inQuotes
+      } else if (char === delimiter && !inQuotes) {
+        result.push(current.trim())
+        current = ''
+      } else {
+        current += char
+      }
+    }
+
+    result.push(current.trim())
+    return result
+  }
+
+  /**
+   * Parse BCA Personal format
+   */
+  private parseBCAPersonal(lines: string[], formatDetection: CSVFormatDetectionResult): ParsedCSVRow[] {
+    const rows: ParsedCSVRow[] = []
+    const config = BANK_CSV_FORMATS[BANK_CSV_FORMAT.BCA_PERSONAL]
+    const dataStartRow = formatDetection.dataStartRowIndex
+
+    for (let i = dataStartRow; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if (!line) continue
+
+      const columns = this.splitCSVLine(line, config.delimiter)
+      
+      if (columns.length < 4) continue
+
+      const row = this.parseBCAPersonalRow(columns, i + 1, line)
+      if (row) rows.push(row)
+    }
+
+    return rows
+  }
+
+  /**
+   * Parse single BCA Personal row
+   */
+  private parseBCAPersonalRow(columns: string[], rowNumber: number, rawLine: string): ParsedCSVRow | null {
+    try {
+      let dateValue = columns[0]?.trim() || ''
+      const description = columns[1]?.trim() || ''
+      const branch = columns[2]?.trim() || ''
+      const amountRaw = columns[3]?.trim() || ''
+      const creditDebit = columns[5]?.trim()?.toUpperCase() || ''
+      const balanceRaw = columns[6]?.trim() || ''
+
+      // Check for PEND indicator FIRST - before date parsing
+      const isPending = dateValue.toUpperCase() === PENDING_TRANSACTION.INDICATOR
+
+      // Parse date - only if not PEND
+      let transactionDate: string | null = null
+
+      if (!isPending) {
+        dateValue = dateValue.replace(/^'/, '')
+        transactionDate = this.parseDate(dateValue)
+        
+        if (!transactionDate) {
+          logInfo('BankStatementImport: Skipping row with invalid date', { rowNumber, dateValue })
+          return null
+        }
+      } else {
+        // For PEND transactions, use current date
+        transactionDate = new Date().toISOString().split('T')[0]
+      }
+
+      // Parse amount
+      let debitAmount = 0
+      let creditAmount = 0
+
+      const amountClean = amountRaw.replace(/[,\s]/g, '')
+      const amountNum = parseFloat(amountClean)
+
+      if (creditDebit.includes('CR') || creditDebit === 'KREDIT') {
+        creditAmount = isNaN(amountNum) ? 0 : amountNum
+      } else if (creditDebit.includes('DR') || creditDebit === 'DEBIT') {
+        debitAmount = isNaN(amountNum) ? 0 : amountNum
+      } else if (amountRaw.toUpperCase().includes('CR')) {
+        creditAmount = isNaN(amountNum) ? 0 : amountNum
+      } else if (amountRaw.toUpperCase().includes('DR')) {
+        debitAmount = isNaN(amountNum) ? 0 : amountNum
+      }
+
+      const balance = this.parseAmount(balanceRaw)
+      const referenceNumber = this.extractReferenceNumber(description)
+
+      return {
+        row_number: rowNumber,
+        raw_line: rawLine,
+        format: BANK_CSV_FORMAT.BCA_PERSONAL,
+        transaction_date: transactionDate!,
+        reference_number: referenceNumber,
+        description: description.substring(0, 1000),
+        debit_amount: debitAmount,
+        credit_amount: creditAmount,
+        balance: balance || undefined,
+        is_pending: isPending,
+        transaction_type: isPending ? PENDING_TRANSACTION.TRANSACTION_TYPE : undefined,
+        raw_data: { columns, branch },
+      }
+    } catch (error: any) {
+      logError('BankStatementImport: Error parsing BCA Personal row', { rowNumber, error: error.message })
+      return null
+    }
+  }
+
+  /**
+   * Parse BCA Business format
+   */
+  private parseBCABusiness(lines: string[], formatDetection: CSVFormatDetectionResult): ParsedCSVRow[] {
+    const rows: ParsedCSVRow[] = []
+    const dataStartRow = formatDetection.dataStartRowIndex
+
+    for (let i = dataStartRow; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if (!line) continue
+
+      const columns = this.parseBusinessCSV(line)
+
+      if (columns.length < 4) continue
+
+      const row = this.parseBCABusinessRow(columns, i + 1, line)
+      if (row) rows.push(row)
+    }
+
+    return rows
+  }
+
+  /**
+   * Parse BCA Business CSV line dengan quotes
+   */
+  private parseBusinessCSV(line: string): string[] {
+    const result: string[] = []
+    let current = ''
+    let inQuotes = false
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i]
+
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"'
+          i++
+        } else {
+          inQuotes = !inQuotes
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim())
+        current = ''
+      } else {
+        current += char
+      }
+    }
+
+    result.push(current.trim())
+    return result
+  }
+
+  /**
+   * Parse single BCA Business row
+   */
+  private parseBCABusinessRow(columns: string[], rowNumber: number, rawLine: string): ParsedCSVRow | null {
+    try {
+      let dateValue = columns[0]?.trim() || ''
+      const description = columns[1]?.trim() || ''
+      const branch = columns[2]?.trim() || ''
+      const amountRaw = columns[3]?.trim() || ''
+
+      // Check for PEND indicator FIRST - before date parsing
+      const isPending = dateValue.toUpperCase() === PENDING_TRANSACTION.INDICATOR
+
+      let transactionDate: string | null = null
+
+      if (!isPending) {
+        transactionDate = this.parseDate(dateValue)
+        if (!transactionDate) {
+          logInfo('BankStatementImport: Skipping BCA Business row with invalid date', { rowNumber, dateValue })
+          return null
+        }
+      } else {
+        // For PEND transactions, use current date
+        transactionDate = new Date().toISOString().split('T')[0]
+      }
+
+      let debitAmount = 0
+      let creditAmount = 0
+
+      const amountMatch = amountRaw.match(/^([\d,]+\.?\d*)\s*(CR|DR)?$/i)
+      
+      if (amountMatch) {
+        const amountNum = parseFloat(amountMatch[1].replace(/,/g, ''))
+        const indicator = amountMatch[2]?.toUpperCase()
+
+        if (indicator === 'CR') {
+          creditAmount = isNaN(amountNum) ? 0 : amountNum
+        } else if (indicator === 'DR') {
+          debitAmount = isNaN(amountNum) ? 0 : amountNum
+        } else {
+          creditAmount = isNaN(amountNum) ? 0 : amountNum
+        }
+      }
+
+      const referenceNumber = this.extractReferenceNumber(description)
+
+      return {
+        row_number: rowNumber,
+        raw_line: rawLine,
+        format: BANK_CSV_FORMAT.BCA_BUSINESS,
+        transaction_date: transactionDate!,
+        reference_number: referenceNumber,
+        description: description.substring(0, 1000),
+        debit_amount: debitAmount,
+        credit_amount: creditAmount,
+        is_pending: isPending,
+        transaction_type: isPending ? PENDING_TRANSACTION.TRANSACTION_TYPE : undefined,
+        raw_data: { columns, branch },
+      }
+    } catch (error: any) {
+      logError('BankStatementImport: Error parsing BCA Business row', { rowNumber, error: error.message })
+      return null
+    }
+  }
+
+  /**
+   * Parse Bank Mandiri format (multi-line)
+   */
+  private parseBankMandiri(lines: string[], formatDetection: CSVFormatDetectionResult): ParsedCSVRow[] {
+    const rows: ParsedCSVRow[] = []
+    const dataStartRow = formatDetection.dataStartRowIndex
+
+    let i = dataStartRow
+    while (i < lines.length) {
+      const line = lines[i].trim()
+      
+      if (!line) {
+        i++
+        continue
+      }
+
+      const transaction = this.parseMandiriMultiLineTransaction(lines, i)
+
+      if (transaction) {
+        const row = this.convertMandiriTransaction(transaction, i + 1)
+        if (row) rows.push(row)
+        i += transaction.rawLines.length
+      } else {
+        const singleLineRow = this.parseMandiriSingleLine(line, i + 1)
+        if (singleLineRow) {
+          rows.push(singleLineRow)
+          i++
+        } else {
+          i++
+        }
+      }
+    }
+
+    return rows
+  }
+
+  /**
+   * Parse Bank Mandiri multi-line transaction
+   */
+  private parseMandiriMultiLineTransaction(lines: string[], startIndex: number): {
+    postDate: string
+    postTime?: string
+    remarks: string
+    creditAmount: number
+    debitAmount: number
+    closeBalance: number
+    rawLines: string[]
+    isPending: boolean
+  } | null {
+    try {
+      const row1 = lines[startIndex]?.trim() || ''
+      if (!row1) return null
+
+      const dateMatch = row1.match(/^(\d{2}\/\d{2}\/\d{4})(?:\s+(\d{2}\.\d{2}\.\d{2}))?/)
+      
+      if (!dateMatch) return null
+
+      const postDate = dateMatch[1]
+      const postTime = dateMatch[2]
+
+      const row2 = lines[startIndex + 1]?.trim() || ''
+      if (!row2) return null
+
+      const isPending = row2.toUpperCase().startsWith(PENDING_TRANSACTION.INDICATOR)
+
+      const row3 = lines[startIndex + 2]?.trim() || ''
+      const row4 = lines[startIndex + 3]?.trim() || ''
+      const row5 = lines[startIndex + 4]?.trim() || ''
+
+      const parseMandiriAmount = (val: string): number => {
+        const cleaned = val.replace(/[,\s]/g, '')
+        const num = parseFloat(cleaned)
+        return isNaN(num) ? 0 : num
+      }
+
+      let creditAmount = 0
+      let debitAmount = 0
+
+      if (row3) {
+        if (row3.toUpperCase().includes('CR') || row3.toUpperCase().includes('KR')) {
+          creditAmount = parseMandiriAmount(row3)
+        } else if (!row3.toUpperCase().includes('DR') && !row3.toUpperCase().includes('DB')) {
+          creditAmount = parseMandiriAmount(row3)
+        }
+      }
+
+      if (row4) {
+        if (row4.toUpperCase().includes('DR') || row4.toUpperCase().includes('DB')) {
+          debitAmount = parseMandiriAmount(row4)
+        } else if (!row4.toUpperCase().includes('CR') && !row4.toUpperCase().includes('KR')) {
+          debitAmount = parseMandiriAmount(row4)
+        }
+      }
+
+      const closeBalance = parseMandiriAmount(row5)
+
+      return {
+        postDate,
+        postTime,
+        remarks: row2,
+        creditAmount,
+        debitAmount,
+        closeBalance,
+        rawLines: [row1, row2, row3 || '', row4 || '', row5 || ''],
+        isPending,
+      }
+    } catch (error: any) {
+      logError('BankStatementImport: Error parsing Mandiri multi-line', { startIndex, error: error.message })
+      return null
+    }
+  }
+
+  /**
+   * Parse Bank Mandiri single line (fallback)
+   */
+  private parseMandiriSingleLine(line: string, rowNumber: number): ParsedCSVRow | null {
+    try {
+      const parts = line.split(/\s+/).filter(p => p.trim())
+
+      if (parts.length < 3) return null
+
+      const dateIndex = parts.findIndex(p => /^\d{2}\/\d{2}\/\d{4}$/.test(p))
+      
+      if (dateIndex < 0) return null
+
+      const dateValue = parts[dateIndex]
+      const description = parts.slice(dateIndex + 1).join(' ')
+
+      // Check for PEND indicator
+      const isPending = description.toUpperCase().startsWith(PENDING_TRANSACTION.INDICATOR)
+
+      const amounts = parts
+        .slice(dateIndex + 1)
+        .filter(p => /^[-\d,]+\.?\d*$/.test(p.replace(/,/g, '')))
+        .map(p => parseFloat(p.replace(/,/g, '')))
+
+      let creditAmount = 0
+      let debitAmount = 0
+
+      if (amounts.length >= 1) {
+        if (amounts.length >= 2) {
+          const transactionAmount = amounts[amounts.length - 2]
+          
+          if (description.toUpperCase().includes('DR') || description.toUpperCase().includes('DEBIT')) {
+            debitAmount = transactionAmount
+          } else {
+            creditAmount = transactionAmount
+          }
+        }
+      }
+
+      const transactionDate = this.parseDate(dateValue)
+      if (!transactionDate) return null
+
+      return {
+        row_number: rowNumber,
+        raw_line: line,
+        format: BANK_CSV_FORMAT.BANK_MANDIRI,
+        transaction_date: transactionDate,
+        description: description.substring(0, 1000),
+        debit_amount: debitAmount,
+        credit_amount: creditAmount,
+        is_pending: isPending,
+        transaction_type: isPending ? PENDING_TRANSACTION.TRANSACTION_TYPE : undefined,
+        raw_data: { parts, amounts },
+      }
+    } catch (error: any) {
+      return null
+    }
+  }
+
+  /**
+   * Convert Mandiri transaction to ParsedCSVRow
+   */
+  private convertMandiriTransaction(
+    transaction: {
+      postDate: string
+      postTime?: string
+      remarks: string
+      creditAmount: number
+      debitAmount: number
+      closeBalance: number
+      rawLines: string[]
+      isPending: boolean
+    },
+    rowNumber: number
+  ): ParsedCSVRow {
+    const transactionDate = this.parseDate(transaction.postDate) || new Date().toISOString().split('T')[0]
+
+    return {
+      row_number: rowNumber,
+      raw_line: transaction.rawLines.join('\n'),
+      format: BANK_CSV_FORMAT.BANK_MANDIRI,
+      transaction_date: transactionDate,
+      transaction_time: transaction.postTime?.replace(/\./g, ':'),
+      description: transaction.remarks.substring(0, 1000),
+      debit_amount: transaction.debitAmount,
+      credit_amount: transaction.creditAmount,
+      balance: transaction.closeBalance,
+      is_pending: transaction.isPending,
+      transaction_type: transaction.isPending ? PENDING_TRANSACTION.TRANSACTION_TYPE : undefined,
+      raw_data: { rawLines: transaction.rawLines },
+    }
+  }
+
+  /**
+   * Generic CSV parsing fallback
+   */
+  private parseGenericCSV(lines: string[], formatDetection: CSVFormatDetectionResult): ParsedCSVRow[] {
+    const rows: ParsedCSVRow[] = []
+    const config = BANK_CSV_FORMATS[BANK_CSV_FORMAT.BCA_PERSONAL]
+    const dataStartRow = formatDetection.dataStartRowIndex
+
+    for (let i = dataStartRow; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if (!line) continue
+
+      const columns = this.splitCSVLine(line, config.delimiter)
+
+      if (columns.length < 3) continue
+
+      try {
+        const dateValue = columns[0]?.trim() || ''
+        const isPending = dateValue === PENDING_TRANSACTION.INDICATOR
+
+        let transactionDate: string | null = null
+        if (!isPending) {
+          transactionDate = this.parseDate(dateValue)
+          if (!transactionDate) continue
+        } else {
+          transactionDate = new Date().toISOString().split('T')[0]
+        }
+
+        const description = columns[1]?.trim() || ''
+        const debitAmount = this.parseAmount(columns[2])
+        const creditAmount = this.parseAmount(columns[3] || '0')
+
+        rows.push({
+          row_number: i + 1,
+          raw_line: line,
+          format: BANK_CSV_FORMAT.UNKNOWN,
+          transaction_date: transactionDate!,
+          description: description.substring(0, 1000),
+          debit_amount: debitAmount,
+          credit_amount: creditAmount,
+          is_pending: isPending,
+          transaction_type: isPending ? PENDING_TRANSACTION.TRANSACTION_TYPE : undefined,
+          raw_data: { columns },
+        })
+      } catch {
+        // Skip error rows
+      }
+    }
+
+    return rows
+  }
+
+  /**
+   * Extract reference number dari description
+   */
+  private extractReferenceNumber(description: string): string | undefined {
+    const patterns = [
+      /([A-Z0-9]{10,})/,
+      /#(\w+)/,
+      /Ref[:\s]*(\w+)/i,
+      /No\.?\s*(\w+)/i,
+    ]
+
+    for (const pattern of patterns) {
+      const match = description.match(pattern)
+      if (match) {
+        return match[1] || match[0]
+      }
+    }
+
+    return undefined
+  }
+
   // ==================== PRIVATE METHODS ====================
 
   /**
-   * Parse Excel file
+   * Parse Excel or CSV file
    */
   private async parseExcelFile(
     filePath: string
@@ -732,28 +1489,130 @@ export class BankStatementImportService {
   private detectColumnMapping(
     headers: string[]
   ): BankStatementColumnMapping {
-    const mapping: Record<string, string> = {}
-    const normalizedHeaders = headers.map(h => h?.toLowerCase().trim().replace(/\s+/g, '_'))
+    logInfo('BankStatementImport: Detecting column mapping from headers', { headers })
 
+    const mapping: Record<string, string> = {}
+    const normalizedHeaders = headers.map(h => h?.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''))
+
+    // Comprehensive list of column name variations for bank statement CSV files
     const columnVariations: Record<string, string[]> = {
-      transaction_date: ['tanggal', 'date', 'tgl', 'transaction_date', 'trx_date', 'tanggal_transaksi'],
-      transaction_time: ['waktu', 'time', 'jam', 'transaction_time', 'waktu_transaksi'],
-      reference_number: ['referensi', 'reference', 'ref', 'no_ref', 'ref_number', 'nomor_referensi'],
-      description: ['keterangan', 'description', 'desc', 'memo', 'keterangan_transaksi'],
-      debit_amount: ['debit', 'debet', 'keluar', 'withdrawal', 'pengeluaran'],
-      credit_amount: ['kredit', 'credit', 'masuk', 'deposit', 'pemasukan'],
-      balance: ['saldo', 'balance', 'saldo_akhir'],
+      transaction_date: [
+        'tanggal', 'date', 'tgl', 'transaction_date', 'trx_date', 'tanggal_transaksi',
+        'posting_date', 'valuedate', 'valuedate', 'trxdate', 'txndate', 'tanggal_transaksi',
+        'tanggal', 'tgl_transaksi', 'date_txn', 'tran_date', 'post_date', 'txn_date',
+        'datoverforing', 'valuedate', 'postingdate', 'trandate', 'txdate', 'postdate',
+        'valuedate', 'trndate', 'transdate', 'trans_date', 'trxn_date', 'txndate',
+        'tgl', 'd', 'dt', 'tglposting', 'tgldate', 'datepost'
+      ],
+      transaction_time: [
+        'waktu', 'time', 'jam', 'transaction_time', 'waktu_transaksi', 'jam_transaksi',
+        'trx_time', 'txn_time', 'posting_time', 'valued_time', 'tm', 'wkt', 'jam'
+      ],
+      reference_number: [
+        'referensi', 'reference', 'ref', 'no_ref', 'ref_number', 'nomor_referensi',
+        'no_referensi', 'reference_no', 'ref_no', 'trx_ref', 'txn_ref', 'reference_no',
+        'nostru', 'voucher_no', 'voucherno', 'doc_no', 'docnumber', 'bank_ref',
+        'refno', 'referencenumber', 'tran_ref', 'tran_ref', 'no', 'number',
+        'kode_transaksi', 'kode', 'no_transaksi', 'trx_no', 'trxn_no', 'sequence'
+      ],
+      description: [
+        'keterangan', 'description', 'desc', 'memo', 'keterangan_transaksi',
+        'transaction_description', 'trx_desc', 'txn_desc', 'details', 'detail',
+        'uraian', 'deskripsi', 'narrative', 'particulars', 'trx_description',
+        'transactiondetail', 'trandesc', 'trx_narration', 'narration', 'remark',
+        'remarks', 'note', 'notes', 'info', 'ket', 'keter'
+      ],
+      debit_amount: [
+        'debit', 'debet', 'keluar', 'withdrawal', 'pengeluaran', 'debit_amount',
+        'debet_amount', 'debit_amt', 'debet_amt', 'jumlah_keluar', 'amount_withdrawal',
+        'withdraw', 'paid_out', 'paidout', 'outgoing', 'debitamount', 'debit_',
+        'debitamount', 'debitamt', 'db', 'amount_debit', 'jumlah_debit', 'nilai_debit',
+        'debitn', 'dbt', 'debit_value', 'outflow', 'decrease'
+      ],
+      credit_amount: [
+        'kredit', 'credit', 'masuk', 'deposit', 'pemasukan', 'credit_amount',
+        'kredit_amount', 'credit_amt', 'kredit_amt', 'jumlah_masuk', 'amount_deposit',
+        'deposit', 'paid_in', 'paidin', 'incoming', 'creditamount', 'credit_',
+        'creditamount', 'creditamt', 'cr', 'amount_credit', 'jumlah_kredit', 'nilai_kredit',
+        'creditn', 'crt', 'credit_value', 'inflow', 'increase'
+      ],
+      balance: [
+        'saldo', 'balance', 'saldo_akhir', 'ending_balance', 'saldo_awal', 'opening_balance',
+        'current_balance', 'available_balance', 'balance_amount', 'saldo_transaksi',
+        'running_balance', 'balanceamt', 'saldo_tersedia', 'saldo_sebelum', 'saldo_setelah',
+        'balance_before', 'balance_after', 'end_balance', 'start_balance', 'accbalance',
+        'balance_', 'bal', 'sld', 'amount', 'saldoamount'
+      ],
     }
 
-    Object.entries(columnVariations).forEach(([key, variations]) => {
-      const matchIndex = normalizedHeaders.findIndex(h =>
-        variations.some(v => h?.includes(v))
+    // First pass: exact matches (case-insensitive) - case-insensitive comparison
+    for (const [key, variations] of Object.entries(columnVariations)) {
+      const matchIndex = headers.findIndex(h => 
+        variations.some(v => h?.toLowerCase().trim() === v.toLowerCase())
       )
-
       if (matchIndex !== -1) {
         mapping[key] = headers[matchIndex]
+        logInfo(`BankStatementImport: Found exact match for ${key}: ${headers[matchIndex]}`)
       }
-    })
+    }
+
+    // Second pass: partial matches if no exact match found
+    for (const [key, variations] of Object.entries(columnVariations)) {
+      if (!mapping[key]) {
+        const matchIndex = headers.findIndex(h =>
+          variations.some(v => h?.toLowerCase().trim().includes(v.toLowerCase()))
+        )
+        if (matchIndex !== -1) {
+          mapping[key] = headers[matchIndex]
+          logInfo(`BankStatementImport: Found partial match for ${key}: ${headers[matchIndex]}`)
+        }
+      }
+    }
+
+    // Third pass: try to match by common patterns
+    if (!mapping.transaction_date) {
+      // Try to find any column that looks like a date
+      const dateColumnIndex = headers.findIndex(h => {
+        const lower = h.toLowerCase()
+        return lower.includes('date') || lower.includes('tanggal') || lower.includes('tgl') || 
+               lower.includes('posting') || lower.includes('value') || lower === 'd' || lower === 'dt'
+      })
+      if (dateColumnIndex !== -1) {
+        mapping.transaction_date = headers[dateColumnIndex]
+        logInfo(`BankStatementImport: Found date-like column: ${headers[dateColumnIndex]}`)
+      }
+    }
+
+    // Try to find description column
+    if (!mapping.description) {
+      const descColumnIndex = headers.findIndex(h => {
+        const lower = h.toLowerCase()
+        return lower.includes('desc') || lower.includes('memo') || lower.includes('remark') ||
+               lower.includes('ket') || lower.includes('narrative') || lower.includes('detail')
+      })
+      if (descColumnIndex !== -1) {
+        mapping.description = headers[descColumnIndex]
+        logInfo(`BankStatementImport: Found description-like column: ${headers[descColumnIndex]}`)
+      }
+    }
+
+    // Try to find amount columns
+    if (!mapping.debit_amount || !mapping.credit_amount) {
+      // Look for columns with 'amount' or numeric-looking names
+      headers.forEach((h, idx) => {
+        const lower = h.toLowerCase()
+        if (!mapping.debit_amount && (lower.includes('debit') || lower.includes('db') || lower === 'dr' || lower.includes('withdrawal') || lower.includes('out'))) {
+          mapping.debit_amount = h
+          logInfo(`BankStatementImport: Found debit column: ${h}`)
+        }
+        if (!mapping.credit_amount && (lower.includes('credit') || lower.includes('cr') || lower.includes('deposit') || lower.includes('in'))) {
+          mapping.credit_amount = h
+          logInfo(`BankStatementImport: Found credit column: ${h}`)
+        }
+      })
+    }
+
+    logInfo('BankStatementImport: Final column mapping', { mapping })
 
     // Validate required columns
     if (!mapping.transaction_date) {

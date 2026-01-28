@@ -1,5 +1,15 @@
-import { useState, useRef } from 'react'
-import { Upload, X, FileSpreadsheet, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Upload, X, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, Building2 } from 'lucide-react'
+import { bankAccountsApi } from '../../bank-accounts/api/bankAccounts.api'
+import { useBranchContextStore } from '../../branch_context'
+
+interface BankAccount {
+  id: number
+  bank_id: number
+  account_name: string
+  account_number: string
+  bank_name?: string
+}
 
 interface UploadModalProps {
   isOpen: boolean
@@ -18,9 +28,45 @@ export function UploadModal({
 }: UploadModalProps) {
   const [file, setFile] = useState<File | null>(null)
   const [bankAccountId, setBankAccountId] = useState('')
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
+  const [loadingAccounts, setLoadingAccounts] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Use branch context untuk company_id
+  const currentBranch = useBranchContextStore(s => s.currentBranch)
+  const companyId = currentBranch?.company_id
+
+  const fetchBankAccounts = useCallback(async () => {
+    if (!companyId) {
+      setBankAccounts([])
+      return
+    }
+
+    setLoadingAccounts(true)
+    try {
+      const accounts = await bankAccountsApi.getByOwner('company', companyId)
+      setBankAccounts(accounts || [])
+    } catch (err) {
+      console.error('Failed to fetch bank accounts:', err)
+      setBankAccounts([])
+    } finally {
+      setLoadingAccounts(false)
+    }
+  }, [companyId])
+
+  // Fetch bank accounts when modal opens or company changes
+  useEffect(() => {
+    if (isOpen) {
+      if (companyId) {
+        fetchBankAccounts()
+      } else {
+        setLoadingAccounts(false)
+        setBankAccounts([])
+      }
+    }
+  }, [isOpen, companyId, fetchBankAccounts])
 
   if (!isOpen) return null
 
@@ -123,24 +169,57 @@ export function UploadModal({
         </div>
         
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Upload file Excel mutasi bank untuk dianalisis sebelum diimport.
+          Upload file Excel atau CSV mutasi bank untuk dianalisis sebelum diimport.
         </p>
 
         <div className="flex flex-col gap-4">
+          {/* Bank Account Dropdown */}
           <div className="form-control">
             <label className="label">
-              <span className="label-text font-medium">Akun Bank</span>
+              <span className="label-text font-medium flex items-center gap-2">
+                <Building2 className="w-4 h-4" />
+                Akun Bank
+              </span>
             </label>
-            <input
-              type="text"
-              className="input input-bordered w-full"
-              placeholder="Masukkan Bank Account ID"
-              value={bankAccountId}
-              onChange={(e) => setBankAccountId(e.target.value)}
-              disabled={isLoading}
-            />
+            {loadingAccounts ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500 p-3">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Memuat data akun bank...
+              </div>
+            ) : bankAccounts.length === 0 ? (
+              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                  {companyId 
+                    ? 'Tidak ada akun bank ditemukan untuk company ini.'
+                    : 'Company belum dipilih. Silakan pilih branch terlebih dahulu.'}
+                </p>
+                <p className="text-xs text-yellow-600 dark:text-yellow-500 mt-1">
+                  Silakan buat akun bank di menu Bank Accounts terlebih dahulu.
+                </p>
+              </div>
+            ) : (
+              <select
+                className="select select-bordered w-full"
+                value={bankAccountId}
+                onChange={(e) => setBankAccountId(e.target.value)}
+                disabled={isLoading}
+              >
+                <option value="">-- Pilih Akun Bank --</option>
+                {bankAccounts.map((account) => (
+                  <option key={account.id} value={String(account.id)}>
+                    {account.account_name} - {account.account_number}
+                  </option>
+                ))}
+              </select>
+            )}
+            <label className="label">
+              <span className="label-text-alt text-gray-500">
+                {bankAccounts.length} akun bank tersedia
+              </span>
+            </label>
           </div>
 
+          {/* File Upload */}
           <div className="form-control">
             <label className="label">
               <span className="label-text font-medium">File Excel / CSV</span>
@@ -235,7 +314,7 @@ export function UploadModal({
             type="button"
             className="btn btn-primary"
             onClick={handleSubmit}
-            disabled={isLoading || !file || !bankAccountId}
+            disabled={isLoading || !file || !bankAccountId || bankAccounts.length === 0}
           >
             {isLoading ? (
               <>

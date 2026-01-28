@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import axios from 'axios'
 import { bankStatementImportApi } from '../api/bank-statement-import.api'
 import type {
   BankStatementImport,
@@ -6,6 +7,29 @@ import type {
   BankStatementImportFilters,
 } from '../types/bank-statement-import.types'
 import { BANK_STATEMENT_IMPORT_PAGE_SIZE } from '../constants/bank-statement-import.constants'
+
+// Helper function untuk extract error message dari berbagai tipe error
+function getErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    // Handle axios error dengan response dari server
+    if (error.response?.data?.message) {
+      return Array.isArray(error.response.data.message) 
+        ? error.response.data.message.join(', ')
+        : error.response.data.message
+    }
+    if (error.response?.statusText) {
+      return error.response.statusText
+    }
+    if (error.code === 'ERR_BRANCH_REQUIRED') {
+      return 'Silakan pilih branch terlebih dahulu'
+    }
+    return error.message || 'Terjadi kesalahan pada server'
+  }
+  if (error instanceof Error) {
+    return error.message
+  }
+  return 'Terjadi kesalahan yang tidak diketahui'
+}
 
 interface Pagination {
   page: number
@@ -138,7 +162,7 @@ export const useBankStatementImportStore = create<BankStatementImportState>((set
       set({
         errors: {
           ...get().errors,
-          general: error instanceof Error ? error.message : 'Failed to fetch imports',
+          general: getErrorMessage(error),
         },
         loading: { ...get().loading, list: false },
       })
@@ -167,7 +191,7 @@ export const useBankStatementImportStore = create<BankStatementImportState>((set
       set({
         errors: {
           ...get().errors,
-          upload: error instanceof Error ? error.message : 'Failed to upload file',
+          upload: getErrorMessage(error),
         },
         loading: { ...get().loading, upload: false },
       })
@@ -199,7 +223,7 @@ export const useBankStatementImportStore = create<BankStatementImportState>((set
       set({
         errors: {
           ...get().errors,
-          confirm: error instanceof Error ? error.message : 'Failed to confirm import',
+          confirm: getErrorMessage(error),
         },
         loading: { ...get().loading, confirm: false },
       })

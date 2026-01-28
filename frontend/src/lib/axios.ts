@@ -42,9 +42,21 @@ api.interceptors.request.use(
       const branch = useBranchContextStore.getState().currentBranch
       
       if (!branch) {
-        // Redirect to branch selection instead of throwing error
-        window.location.href = '/'
-        return Promise.reject(new Error('Branch context required'))
+        // Instead of redirecting, create a proper axios error
+        const axiosError = new axios.AxiosError(
+          'Branch context required. Please select a branch.',
+          'ERR_BRANCH_REQUIRED',
+          config,
+          undefined,
+          {
+            status: 401,
+            statusText: 'Unauthorized',
+            data: { message: 'Branch context required' },
+            headers: {},
+            config,
+          }
+        )
+        return Promise.reject(axiosError)
       }
       
       config.headers['x-branch-id'] = branch.branch_id
@@ -52,7 +64,26 @@ api.interceptors.request.use(
 
     return config
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    // Convert non-axios errors to axios errors for consistent handling
+    if (!axios.isAxiosError(error)) {
+      const axiosError = new axios.AxiosError(
+        error.message || 'Unknown error occurred',
+        'ERR_UNKNOWN',
+        error.config,
+        undefined,
+        {
+          status: 500,
+          statusText: 'Internal Server Error',
+          data: { message: error.message },
+          headers: {},
+          config: error.config,
+        }
+      )
+      return Promise.reject(axiosError)
+    }
+    return Promise.reject(error)
+  }
 )
 
 // Response interceptor - handle errors and token refresh

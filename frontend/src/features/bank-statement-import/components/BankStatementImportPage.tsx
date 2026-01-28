@@ -36,6 +36,13 @@ export function BankStatementImportPage() {
     fetchImports()
   }, [fetchImports])
 
+  // Derived values
+  const importsArray = Array.isArray(imports) ? imports : []
+  const allIds = importsArray.map((imp) => imp.id)
+  const allSelected = importsArray.length > 0 && importsArray.every((imp) => selectedIds.has(imp.id))
+  const hasActiveFilters = Object.keys(filters).length > 0 && Object.values(filters).some((v) => v !== undefined && v !== null && v !== '')
+  const totalPages = Math.ceil(pagination.total / pagination.limit)
+
   const handleUpload = async (file: File, bankAccountId: string) => {
     await uploadFile(file, bankAccountId)
   }
@@ -62,10 +69,6 @@ export function BankStatementImportPage() {
     fetchImports({ page: newPage })
   }
 
-  const allIds = imports.map((imp) => imp.id)
-  const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id))
-  const hasActiveFilters = !!(filters.status || filters.dateFrom || filters.dateTo || filters.search)
-  const totalPages = Math.ceil(pagination.total / pagination.limit)
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
@@ -121,12 +124,12 @@ export function BankStatementImportPage() {
       <BankStatementImportFilters />
 
       {/* Progress Alert for Active Imports */}
-      {imports.some((imp) => imp.status === 'IMPORTING' || imp.status === 'PENDING') && (
+      {importsArray.length > 0 && importsArray.some((imp) => imp.status === 'IMPORTING' || imp.status === 'PENDING') && (
         <ImportProgress
-          importId={imports[0].id}
-          totalRows={imports[0].total_rows}
-          processedRows={imports[0].imported_rows}
-          status={imports[0].status}
+          importId={importsArray[0]?.id || ''}
+          totalRows={importsArray[0]?.total_rows || 0}
+          processedRows={importsArray[0]?.imported_rows || 0}
+          status={importsArray[0]?.status || 'PENDING'}
         />
       )}
 
@@ -146,7 +149,7 @@ export function BankStatementImportPage() {
             </div>
           </div>
         </div>
-      ) : !hasActiveFilters && imports.length === 0 ? (
+      ) : !hasActiveFilters && importsArray.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="text-center py-16">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-blue-50 dark:bg-blue-900/30 mb-4">
@@ -161,7 +164,7 @@ export function BankStatementImportPage() {
             </p>
           </div>
         </div>
-      ) : imports.length === 0 ? (
+      ) : importsArray.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="text-center py-16">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-700 mb-4">
@@ -179,7 +182,7 @@ export function BankStatementImportPage() {
         <>
           {/* Table */}
           <BankStatementImportTable
-            imports={imports}
+            imports={importsArray}
             selectedIds={selectedIds}
             onToggleSelection={toggleSelection}
             onSelectAll={(checked) => {
@@ -214,7 +217,7 @@ export function BankStatementImportPage() {
                 </span>
                 <button
                   onClick={handleNextPage}
-                  disabled={imports.length < pagination.limit}
+                  disabled={importsArray.length < pagination.limit}
                   className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors"
                 >
                   Next
