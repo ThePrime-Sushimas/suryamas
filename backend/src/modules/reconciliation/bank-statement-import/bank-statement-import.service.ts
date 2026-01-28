@@ -81,6 +81,7 @@ interface ParsedRow {
   balance?: number
   raw_data: Record<string, any>
   is_pending?: boolean
+  transaction_type?: string
 }
 
 export class BankStatementImportService {
@@ -1775,6 +1776,7 @@ export class BankStatementImportService {
           import_id: importId,
           row_number: row.row_number,
           is_pending: row.is_pending,
+          transaction_type: row.transaction_type,
         })
       } catch (error: any) {
         invalidRows.push(row)
