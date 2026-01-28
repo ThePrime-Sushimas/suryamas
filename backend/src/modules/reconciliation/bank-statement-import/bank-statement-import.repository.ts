@@ -14,6 +14,7 @@ import {
   BankStatementFilterParams
 } from './bank-statement-import.types'
 import { BankStatementImportErrors } from './bank-statement-import.errors'
+import { logError } from '../../../config/logger'
 
 // ============================================================================
 // REPOSITORY CLASS

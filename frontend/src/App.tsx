@@ -85,6 +85,8 @@ const CreatePosAggregatePage = lazy(() => import('./features/pos-aggregates').th
 const EditPosAggregatePage = lazy(() => import('./features/pos-aggregates').then(m => ({ default: m.EditPosAggregatePage })))
 const PosAggregateDetailPage = lazy(() => import('./features/pos-aggregates').then(m => ({ default: m.PosAggregateDetailPage })))
 const FailedTransactionsPage = lazy(() => import('./features/pos-aggregates').then(m => ({ default: m.FailedTransactionsPage })))
+const BankStatementImportPage = lazy(() => import('./features/bank-statement-import').then(m => ({ default: m.BankStatementImportPage })))
+
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -207,8 +209,9 @@ function App() {
           <Route path="pos-aggregates/create" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><CreatePosAggregatePage /></Suspense></ProtectedRoute>} />
           <Route path="pos-aggregates/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><PosAggregateDetailPage /></Suspense></ProtectedRoute>} />
           <Route path="pos-aggregates/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditPosAggregatePage /></Suspense></ProtectedRoute>} />
-<Route path="pos-aggregates" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><PosAggregatesPage /></Suspense></ProtectedRoute>} />
-          <Route path="pos-aggregates/failed-transactions" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><FailedTransactionsPage /></Suspense></ProtectedRoute>} />
+          <Route path="pos-aggregates" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><PosAggregatesPage /></Suspense></ProtectedRoute>}/>
+          <Route path="pos-aggregates/failed-transactions" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><FailedTransactionsPage /></Suspense></ProtectedRoute>}/>
+          <Route path="bank-statement-import" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><BankStatementImportPage /></Suspense></ProtectedRoute>} />
               </Route>
             </Routes>
           </BrowserRouter>

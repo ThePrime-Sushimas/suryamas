@@ -96,6 +96,7 @@ app.use('/api/v1/jobs', jobsRoutes)
 app.use('/api/v1/monitoring', monitoringRoutes)
 app.use('/api/v1/bank-statement-imports', bankStatementImportRoutes)
 app.use('/api/v1', ownerBankAccountsRouter)
+app.use('/api/v1/bank-statement-import', bankStatementImportRoutes)
 
 // Error handler
 app.use(errorHandler)

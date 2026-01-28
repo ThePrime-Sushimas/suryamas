@@ -1,0 +1,124 @@
+# 📋 Rencana Upgrade Tampilan Bank Statement Import - COMPLETED
+
+## ✅ File yang Diupgrade:
+
+### 1. Constants (`constants/bank-statement-import.constants.ts`)
+- ✅ Tambahkan status icons constants
+- ✅ Tambahkan quick filters (Hari Ini, Minggu Ini, Bulan Ini)
+- ✅ Update status labels ke Bahasa Indonesia
+
+### 2. Status Badge Component (BARU)
+- ✅ `components/BankStatementImportStatusBadge.tsx`
+- ✅ Status badges dengan icons (Clock, FileCheck, Loader2, CheckCircle, XCircle)
+- ✅ Support dark mode dengan colors yang sesuai
+
+### 3. Filters Component (BARU)
+- ✅ `components/BankStatementImportFilters.tsx`
+- ✅ Search input dengan icon
+- ✅ Quick filters buttons
+- ✅ Expandable filter section dengan status dropdown
+- ✅ Date range filters
+
+### 4. Table Component
+- ✅ `components/BankStatementImportTable.tsx` - Diupgrade
+- ✅ Sortable columns dengan icons (ChevronUp/Down)
+- ✅ Row hover effects dengan alternating colors
+- ✅ Better empty state dengan illustration
+- ✅ Action buttons dengan icons (Eye, Trash2)
+- ✅ Checkbox untuk selection
+
+### 5. Upload Modal
+- ✅ `components/UploadModal.tsx` - Diupgrade
+- ✅ Drag & drop file zone dengan visual feedback
+- ✅ Better file validation UI
+- ✅ File info display dengan remove option
+- ✅ Progress bar dengan percentage
+
+### 6. Analysis Modal
+- ✅ `components/AnalysisModal.tsx` - Diupgrade
+- ✅ Statistics cards dengan icons
+- ✅ Tabs untuk overview dan duplicates
+- ✅ Better warning alerts
+- ✅ Action buttons dengan clear hierarchy
+
+### 7. Import Progress
+- ✅ `components/ImportProgress.tsx` - Diupgrade
+- ✅ Animated progress bar
+- ✅ Status icons yang sesuai
+- ✅ ETA calculation display
+
+### 8. Main Page
+- ✅ `components/BankStatementImportPage.tsx` - Diupgrade
+- ✅ Header dengan title dan subtitle
+- ✅ Error message display dengan dismiss
+- ✅ Loading skeleton state
+- ✅ Empty states dengan illustrations
+- ✅ Better pagination dengan Previous/Next buttons
+- ✅ Total data counter
+
+### 9. Index Exports
+- ✅ `index.ts` - Updated exports
+- ✅ Export komponen baru (Filters, StatusBadge)
+
+## 🎨 Design Pattern yang Diterapkan (dari journal-headers):
+- Background: `bg-gray-50 dark:bg-gray-900 min-h-screen`
+- Cards: `bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700`
+- Primary: `bg-blue-600 text-white`
+- Text: `text-gray-900 dark:text-white`
+- Icons: `lucide-react` icons dengan consistent sizing
+
+## 📱 Responsive Design:
+- Mobile-friendly dengan `p-4 md:p-6`
+- Flex wrap untuk filters
+- Hidden labels pada mobile untuk buttons
+- Overflow-x-auto untuk table
+
+## 🚀 Fitur Baru:
+1. **Drag & Drop Upload** - User bisa drag file ke zone upload
+2. **Quick Filters** - Hari Ini, Minggu Ini, Bulan Ini
+3. **Sortable Columns** - Klik header untuk sort
+4. **Status Icons** - Visual indicator untuk setiap status
+5. **Dark Mode Support** - Full dark mode support
+6. **Loading Skeletons** - Loading state yang lebih baik
+7. **Empty States** - Ilustrasi untuk empty data
+
+## 📝 Notes:
+- Menggunakan `lucide-react` icons (sudah terinstall)
+- Tailwind CSS classes yang konsisten
+- TypeScript dengan proper typing
+- ESLint compliant (tanpa unused imports)
+
+## 🔧 Command untuk Menjalankan:
+```bash
+cd frontend
+npm run dev
+```
+
+## 📂 File Structure:
+```
+frontend/src/features/bank-statement-import/
+├── index.ts
+├── BANK_STATEMENT_IMPORT_FRONTEND_MD.md
+├── TODO_UPGRADE.md
+├── api/
+│   └── bank-statement-import.api.ts
+├── components/
+│   ├── AnalysisModal.tsx ✅
+│   ├── BankStatementImportFilters.tsx ✅ (BARU)
+│   ├── BankStatementImportPage.tsx ✅
+│   ├── BankStatementImportStatusBadge.tsx ✅ (BARU)
+│   ├── BankStatementImportTable.tsx ✅
+│   ├── ErrorBoundary.tsx
+│   ├── ImportProgress.tsx ✅
+│   └── UploadModal.tsx ✅
+├── constants/
+│   └── bank-statement-import.constants.ts ✅
+├── store/
+│   └── bank-statement-import.store.ts
+├── types/
+│   └── bank-statement-import.types.ts
+└── utils/
+    └── format.ts
+```
+
+**Status: ✅ COMPLETED**

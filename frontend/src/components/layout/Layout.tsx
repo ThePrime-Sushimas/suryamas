@@ -76,6 +76,7 @@ export default function Layout() {
         { id: 'pos-transactions', name: 'POS Transactions', href: '/pos-transactions', icon: <FileSpreadsheet size={16} />, module: 'pos_imports' },
         { id: 'pos-aggregates', name: 'POS Aggregates', href: '/pos-aggregates', icon: <FileSpreadsheet size={16} />, module: 'pos_aggregates' },
         { id: 'failed-transactions', name: 'Failed Transactions', href: '/pos-aggregates/failed-transactions', icon: <AlertTriangle size={16} />, module: 'pos_aggregates' },
+        { id: 'bank-statement-imports', name: 'Bank Statement Imports', href: '/bank-statement-import', icon: <FileSpreadsheet size={16} />, module: 'bank_statement_imports' },
       ]
     },
     {
