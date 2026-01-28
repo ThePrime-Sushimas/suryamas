@@ -3,7 +3,7 @@
  * Error definitions untuk bank statement import module
  */
 
-import { AppError, ValidationError, NotFoundError, ConflictError } from '@/utils/error-handler.util'
+import { AppError, ValidationError, NotFoundError, ConflictError } from '../../../utils/error-handler.util'
 
 // ============================================================================
 // CUSTOM ERROR CLASS
@@ -159,4 +159,3 @@ export const BankStatementImportConfig = {
     'YYYY/MM/DD'
   ]
 }
-

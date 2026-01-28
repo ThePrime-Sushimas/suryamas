@@ -3,8 +3,7 @@
  * Database operations untuk bank statement imports dan statements
  */
 
-import { supabase } from '@/config/supabase'
-import { logInfo, logError } from '@/config/logger'
+import { supabase } from '../../../config/supabase'
 import { 
   BankStatementImport, 
   BankStatement, 
@@ -13,8 +12,8 @@ import {
   CreateBankStatementDto,
   BankStatementImportFilterParams,
   BankStatementFilterParams
-} from './types'
-import { BankStatementImportErrors } from './errors'
+} from './bank-statement-import.types'
+import { BankStatementImportErrors } from './bank-statement-import.errors'
 
 // ============================================================================
 // REPOSITORY CLASS
@@ -243,6 +242,28 @@ export class BankStatementImportRepository {
     }
 
     return { data: (data || []) as BankStatement[], total: count || 0 }
+  }
+
+  /**
+   * Check for duplicate file hash
+   */
+  async checkFileHashExists(fileHash: string, companyId: string): Promise<BankStatementImport | null> {
+    const { data, error } = await supabase
+      .from('bank_statement_imports')
+      .select('*')
+      .eq('file_hash', fileHash)
+      .eq('company_id', companyId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (error) {
+      logError('BankStatementImportRepository.checkFileHashExists error', { error: error.message })
+      return null
+    }
+
+    return data as BankStatementImport | null
   }
 
   /**

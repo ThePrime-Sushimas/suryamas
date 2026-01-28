@@ -32,6 +32,7 @@ import posAggregatesRoutes from './modules/pos-imports/pos-aggregates/pos-aggreg
 import posTransactionsRoutes from './modules/pos-imports/pos-transactions/pos-transactions.routes'
 import jobsRoutes from './modules/jobs/jobs.routes'
 import monitoringRoutes from './modules/monitoring/monitoring.routes'
+import bankStatementImportRoutes from './modules/reconciliation/bank-statement-import/bank-statement-import.routes'
 import { errorHandler } from './middleware/error.middleware'
 import { requestLogger } from './middleware/request-logger.middleware'
 import { generateOpenApiDocument } from './config/openapi'
@@ -93,6 +94,7 @@ app.use('/api/v1/aggregated-transactions', posAggregatesRoutes)
 app.use('/api/v1/pos-transactions', posTransactionsRoutes)
 app.use('/api/v1/jobs', jobsRoutes)
 app.use('/api/v1/monitoring', monitoringRoutes)
+app.use('/api/v1/bank-statement-imports', bankStatementImportRoutes)
 app.use('/api/v1', ownerBankAccountsRouter)
 
 // Error handler

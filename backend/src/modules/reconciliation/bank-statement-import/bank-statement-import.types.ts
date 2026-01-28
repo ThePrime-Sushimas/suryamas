@@ -16,6 +16,7 @@ export type BankStatementImportStatus =
   | 'IMPORTING'    // Sedang diproses (job running)
   | 'COMPLETED'    // Import selesai
   | 'FAILED'       // Import gagal
+  | 'COMPLETED_WITH_ERRORS' // Import selesai dengan beberapa error
 
 /**
  * Bank Statement Transaction Type
@@ -100,6 +101,9 @@ export interface BankStatementImport {
   // Date range dari transactions
   date_range_start?: string
   date_range_end?: string
+  
+  // Job reference
+  job_id?: number
   
   // Error tracking
   error_message?: string
@@ -224,6 +228,8 @@ export interface BankStatementAnalysis {
   preview: BankStatementPreviewRow[]
   duplicates?: BankStatementDuplicate[]
   column_mapping: BankStatementColumnMapping
+  errors?: any[]
+  warnings?: string[]
 }
 
 /**
@@ -393,4 +399,3 @@ export interface ExcelColumnMapping {
   balance?: string
   transaction_type?: string
 }
-

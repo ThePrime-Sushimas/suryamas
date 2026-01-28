@@ -4,7 +4,6 @@
  */
 
 import * as XLSX from 'xlsx'
-import { logWarn, logError } from '@/config/logger'
 import { COLUMN_MAPPINGS } from '../constants'
 import type { 
   ParsedBankStatementRow, 

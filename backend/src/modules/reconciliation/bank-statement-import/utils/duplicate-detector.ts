@@ -3,7 +3,6 @@
  * Detects duplicate bank statement transactions
  */
 
-import { logWarn } from '@/config/logger'
 import { DUPLICATE_DETECTION } from '../constants'
 import type { 
   BankStatement, 

@@ -4,8 +4,8 @@
  */
 
 import { z } from 'zod'
-import { IMPORT_STATUS, TRANSACTION_TYPE } from './constants'
-import { BankStatementImportErrors } from './errors'
+import { IMPORT_STATUS, TRANSACTION_TYPE } from './bank-statement-import.constants'
+import { BankStatementImportErrors } from './bank-statement-import.errors'
 
 // ============================================================================
 // ENUMS (derived from constants)
@@ -181,4 +181,3 @@ export type ConfirmImportInput = z.infer<typeof confirmBankStatementImportSchema
 export type ListImportsQueryInput = z.infer<typeof listImportsQuerySchema>
 export type ListBankStatementsQueryInput = z.infer<typeof listBankStatementsQuerySchema>
 export type GetImportStatementsInput = z.infer<typeof getImportStatementsSchema>
-

@@ -96,4 +96,3 @@ export const ERROR_MESSAGES = {
 
 export type ImportStatus = typeof IMPORT_STATUS[keyof typeof IMPORT_STATUS]
 export type TransactionType = typeof TRANSACTION_TYPE[keyof typeof TRANSACTION_TYPE]
-

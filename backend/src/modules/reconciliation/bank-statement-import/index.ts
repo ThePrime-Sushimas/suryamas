@@ -27,13 +27,13 @@ export type {
   PaginatedStatementsResponse,
   BankStatementImportJobMetadata,
   FileValidationResult
-} from './types'
+} from './bank-statement-import.types'
 
 // Errors
-export * from './errors'
+export * from './bank-statement-import.errors'
 
 // Constants
-export * from './constants'
+export * from './bank-statement-import.constants'
 
 // Schema
 export {
@@ -53,16 +53,19 @@ export {
   type ListImportsQueryInput,
   type ListBankStatementsQueryInput,
   type GetImportStatementsInput
-} from './schema'
-
-// Services
-export * from './bank-statement-import.service'
+} from './bank-statement-import.schema'
 
 // Repository
-export * from './bank-statement-import.repository'
+export { BankStatementImportRepository } from './bank-statement-import.repository'
+
+// Service
+export { BankStatementImportService } from './bank-statement-import.service'
 
 // Controller
-export * from './bank-statement-import.controller'
+export { bankStatementImportController } from './bank-statement-import.controller'
+
+// Routes
+export { default as bankStatementImportRoutes } from './bank-statement-import.routes'
 
 // Utils
 export * from './utils'
