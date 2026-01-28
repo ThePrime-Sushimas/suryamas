@@ -11,8 +11,11 @@ import { ExportService } from '../../services/export.service'
 import { AuditService } from '../../services/audit.service'
 import { PaymentMethodErrors } from './payment-methods.errors'
 import { PaymentMethodsConfig } from './payment-methods.errors'
-import { logInfo, logError } from '../../config/logger'
+import { logInfo, logError, logWarn } from '../../config/logger'
 import { supabase } from '../../config/supabase'
+
+// Fee calculation service untuk validasi
+import { feeCalculationService, FeeConfig } from '../reconciliation/fee-reconciliation/fee-calculation.service'
 
 /**
  * Transaction context interface for database operations
@@ -88,6 +91,13 @@ export class PaymentMethodsService {
           await this.validateCoaAccount(data.coa_account_id, data.company_id, trx)
         }
 
+        // === 🔥 VALIDATE FEE CONFIGURATION ===
+        this.validateFeeConfig({
+          fee_percentage: data.fee_percentage,
+          fee_fixed_amount: data.fee_fixed_amount,
+          fee_fixed_per_transaction: data.fee_fixed_per_transaction
+        })
+
         // Handle default payment method
         if (data.is_default) {
           await this.repository.unsetDefault(data.company_id, undefined, trx)
@@ -152,6 +162,13 @@ export class PaymentMethodsService {
         if (data.coa_account_id) {
           await this.validateCoaAccount(data.coa_account_id, existing.company_id, trx)
         }
+
+        // === 🔥 VALIDATE FEE CONFIGURATION ===
+        this.validateFeeConfig({
+          fee_percentage: data.fee_percentage,
+          fee_fixed_amount: data.fee_fixed_amount,
+          fee_fixed_per_transaction: data.fee_fixed_per_transaction
+        })
 
         // Handle default payment method
         if (data.is_default && !existing.is_default) {
@@ -339,6 +356,67 @@ export class PaymentMethodsService {
     }
 
     return data as { id: string; account_code: string; account_type: string; is_postable: boolean; company_id: string }
+  }
+
+  /**
+   * Validate fee configuration
+   * Memastikan fee configuration valid sebelum disimpan
+   */
+  private validateFeeConfig(feeConfig: {
+    fee_percentage?: number
+    fee_fixed_amount?: number
+    fee_fixed_per_transaction?: boolean
+  }): void {
+    const errors: string[] = []
+
+    // Validate fee_percentage
+    if (feeConfig.fee_percentage !== undefined && feeConfig.fee_percentage < 0) {
+      errors.push('fee_percentage tidak boleh negatif')
+    }
+    if (feeConfig.fee_percentage !== undefined && feeConfig.fee_percentage > 100) {
+      errors.push('fee_percentage tidak boleh lebih dari 100%')
+    }
+
+    // Validate fee_fixed_amount
+    if (feeConfig.fee_fixed_amount !== undefined && feeConfig.fee_fixed_amount < 0) {
+      errors.push('fee_fixed_amount tidak boleh negatif')
+    }
+
+    // Warning jika fee > 99% dari gross (akan menghasilkan negative net)
+    if (feeConfig.fee_percentage !== undefined && feeConfig.fee_percentage > 99) {
+      logWarn('validateFeeConfig: fee_percentage > 99%, kemungkinan menghasilkan negative net')
+    }
+
+    if (errors.length > 0) {
+      throw new Error(`Invalid fee configuration: ${errors.join(', ')}`)
+    }
+  }
+
+  /**
+   * Format fee untuk display
+   */
+  formatFee(feeConfig: {
+    fee_percentage?: number
+    fee_fixed_amount?: number
+    fee_fixed_per_transaction?: boolean
+  }): string {
+    const parts: string[] = []
+    const percentage = feeConfig.fee_percentage || 0
+    const fixed = feeConfig.fee_fixed_amount || 0
+    const perTx = feeConfig.fee_fixed_per_transaction || false
+
+    if (percentage > 0) {
+      parts.push(`${percentage}%`)
+    }
+
+    if (fixed > 0) {
+      const fixedLabel = perTx 
+        ? `Rp ${fixed.toLocaleString()}/tx`
+        : `Rp ${fixed.toLocaleString()}`
+      parts.push(fixedLabel)
+    }
+
+    return parts.length > 0 ? parts.join(' + ') : 'Gratis'
   }
 }
 

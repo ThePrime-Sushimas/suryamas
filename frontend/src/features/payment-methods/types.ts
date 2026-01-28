@@ -28,6 +28,10 @@ export interface PaymentMethod {
   is_default: boolean
   requires_bank_account: boolean
   sort_order: number
+  // === 🔥 FEE CONFIGURATION ===
+  fee_percentage: number              // Persentase biaya (contoh: 20.0 = 20%)
+  fee_fixed_amount: number           // Jumlah biaya tetap (contoh: 500 = Rp 500)
+  fee_fixed_per_transaction: boolean // Apakah fixed fee per transaksi (true) atau per total (false)
   created_at: string
   updated_at: string
   created_by: string | null
@@ -46,6 +50,10 @@ export interface CreatePaymentMethodDto {
   is_default?: boolean
   requires_bank_account?: boolean
   sort_order?: number
+  // === 🔥 FEE CONFIGURATION ===
+  fee_percentage?: number              // Default: 0
+  fee_fixed_amount?: number           // Default: 0
+  fee_fixed_per_transaction?: boolean // Default: false
 }
 
 export type UpdatePaymentMethodDto = Partial<Omit<CreatePaymentMethodDto, 'code'>>
@@ -77,5 +85,21 @@ export interface PaymentMethodOption {
   name: string
   payment_type: PaymentType
   bank_name?: string
+}
+
+// Fee configuration helper types
+export interface FeeConfig {
+  fee_percentage: number
+  fee_fixed_amount: number
+  fee_fixed_per_transaction: boolean
+}
+
+export interface FeeCalculationResult {
+  grossAmount: number
+  transactionCount: number
+  percentageFee: number
+  fixedFee: number
+  totalFee: number
+  expectedNet: number
 }
 

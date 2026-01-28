@@ -70,7 +70,10 @@ export const PaymentMethodTable = ({
                 Bank
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                COA
+                Fee Configuration
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              COA
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
@@ -118,8 +121,31 @@ export const PaymentMethodTable = ({
                       <span className="text-sm text-gray-400">-</span>
                     )}
                   </td>
+                  {/* === 🔥 FEE CONFIGURATION COLUMN === */}
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {method.coa_code && method.coa_name ? (
+                    {method.fee_percentage > 0 || method.fee_fixed_amount > 0 ? (
+                      <div className="text-sm">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                          {method.fee_percentage > 0 && `${method.fee_percentage}%`}
+                          {method.fee_percentage > 0 && method.fee_fixed_amount > 0 && ' + '}
+                          {method.fee_fixed_amount > 0 && (
+                            <>
+                              Rp {method.fee_fixed_amount.toLocaleString()}
+                              {method.fee_fixed_per_transaction && '/tx'}
+                            </>
+                          )}
+                        </span>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {method.fee_fixed_per_transaction ? 'per tx' : 'per total'}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-400">Gratis</span>
+                    )}
+                  </td>
+
+                  <td className="px-6 py-4 whitespace-nowrap">
+                  {method.coa_code && method.coa_name ? (
                       <div className="text-sm">
                         <span className="text-gray-900 font-mono">{method.coa_code}</span>
                         <div className="text-xs text-gray-500 truncate max-w-xs">{method.coa_name}</div>

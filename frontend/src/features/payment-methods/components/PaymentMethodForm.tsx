@@ -57,7 +57,11 @@ export const PaymentMethodForm = ({
       coa_account_id: undefined,
       is_default: false,
       requires_bank_account: false,
-      sort_order: 0
+      sort_order: 0,
+      // === 🔥 FEE CONFIGURATION DEFAULTS ===
+      fee_percentage: 0,
+      fee_fixed_amount: 0,
+      fee_fixed_per_transaction: false
     }
   })
 
@@ -109,7 +113,11 @@ export const PaymentMethodForm = ({
         coa_account_id: paymentMethod.coa_account_id || undefined,
         is_default: paymentMethod.is_default,
         requires_bank_account: paymentMethod.requires_bank_account,
-        sort_order: paymentMethod.sort_order
+        sort_order: paymentMethod.sort_order,
+        // === 🔥 FEE CONFIGURATION ===
+        fee_percentage: paymentMethod.fee_percentage || 0,
+        fee_fixed_amount: paymentMethod.fee_fixed_amount || 0,
+        fee_fixed_per_transaction: paymentMethod.fee_fixed_per_transaction || false
       })
     } else {
       reset({
@@ -121,7 +129,11 @@ export const PaymentMethodForm = ({
         coa_account_id: undefined,
         is_default: false,
         requires_bank_account: false,
-        sort_order: 0
+        sort_order: 0,
+        // === 🔥 FEE CONFIGURATION DEFAULTS ===
+        fee_percentage: 0,
+        fee_fixed_amount: 0,
+        fee_fixed_per_transaction: false
       })
     }
   }, [paymentMethod, reset])
@@ -361,6 +373,113 @@ export const PaymentMethodForm = ({
         {errors.sort_order && showErrors && (
           <p className="mt-1 text-sm text-red-500">{errors.sort_order.message}</p>
         )}
+      </div>
+
+      {/* === 🔥 FEE CONFIGURATION SECTION === */}
+      <div className="border-t pt-6 mt-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+          <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Fee Configuration
+        </h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Configure fees untuk reconciliation. Fee dihitung saat settlement.
+          <br />
+          <span className="text-xs">Marketing fee = Expected Net - Actual dari Bank (selisih)</span>
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Fee Percentage */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fee Percentage (%)
+            </label>
+            <input
+              type="number"
+              step="0.001"
+              min="0"
+              max="100"
+              {...register('fee_percentage', {
+                valueAsNumber: true,
+                min: { value: 0, message: 'Fee percentage tidak boleh negatif' },
+                max: { value: 100, message: 'Fee percentage maksimal 100%' }
+              })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="0.00"
+            />
+            {errors.fee_percentage && showErrors && (
+              <p className="mt-1 text-sm text-red-500">{errors.fee_percentage.message}</p>
+            )}
+            <p className="mt-1 text-xs text-gray-500">Persentase biaya (MDR)</p>
+          </div>
+
+          {/* Fixed Amount */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fixed Amount (Rp)
+            </label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              {...register('fee_fixed_amount', {
+                valueAsNumber: true,
+                min: { value: 0, message: 'Fixed amount tidak boleh negatif' }
+              })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="0"
+            />
+            {errors.fee_fixed_amount && showErrors && (
+              <p className="mt-1 text-sm text-red-500">{errors.fee_fixed_amount.message}</p>
+            )}
+            <p className="mt-1 text-xs text-gray-500">Jumlah biaya tetap</p>
+          </div>
+
+          {/* Per Transaction Toggle */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fixed Fee Type
+            </label>
+            <div className="mt-2">
+              <label className="inline-flex items-center">
+                <input
+                  type="checkbox"
+                  {...register('fee_fixed_per_transaction')}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">
+                  Per Transaksi
+                </span>
+              </label>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              ✓ Per tx: Gojek, OVO, Grab
+              <br />
+              ✗ Per total: QRIS, Card, EDC
+            </p>
+          </div>
+        </div>
+
+        {/* Fee Preview */}
+        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+          <p className="text-sm font-medium text-gray-700 mb-2">Fee Preview:</p>
+          <div className="text-sm text-gray-600">
+            {(() => {
+              const percentage = watch('fee_percentage') || 0
+              const fixed = watch('fee_fixed_amount') || 0
+              const perTx = watch('fee_fixed_per_transaction') || false
+              
+              const parts: string[] = []
+              if (percentage > 0) parts.push(`${percentage}%`)
+              if (fixed > 0) {
+                parts.push(perTx ? `Rp ${fixed.toLocaleString()}/tx` : `Rp ${fixed.toLocaleString()}`)
+              }
+              
+              return parts.length > 0 ? parts.join(' + ') : 'Gratis'
+            })()}
+          </div>
+        </div>
       </div>
 
       <div className="flex justify-end gap-3 pt-4 border-t">

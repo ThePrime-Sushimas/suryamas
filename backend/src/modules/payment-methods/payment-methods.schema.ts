@@ -36,6 +36,19 @@ export const createPaymentMethodSchema = z.object({
     is_default: z.boolean().optional().default(false),
     requires_bank_account: z.boolean().optional().default(false),
     sort_order: z.number().int().min(PaymentMethodsConfig.VALIDATION.MIN_SORT_ORDER).optional(),
+    // === 🔥 FEE CONFIGURATION ===
+    fee_percentage: z.number()
+      .min(0, 'Fee percentage cannot be negative')
+      .max(100, 'Fee percentage cannot exceed 100%')
+      .optional()
+      .default(0),
+    fee_fixed_amount: z.number()
+      .min(0, 'Fixed amount cannot be negative')
+      .optional()
+      .default(0),
+    fee_fixed_per_transaction: z.boolean()
+      .optional()
+      .default(false),
   }),
 })
 
@@ -62,6 +75,16 @@ export const updatePaymentMethodSchema = z.object({
     is_default: z.boolean().optional(),
     requires_bank_account: z.boolean().optional(),
     sort_order: z.number().int().min(PaymentMethodsConfig.VALIDATION.MIN_SORT_ORDER).optional(),
+    // === 🔥 FEE CONFIGURATION ===
+    fee_percentage: z.number()
+      .min(0, 'Fee percentage cannot be negative')
+      .max(100, 'Fee percentage cannot exceed 100%')
+      .optional(),
+    fee_fixed_amount: z.number()
+      .min(0, 'Fixed amount cannot be negative')
+      .optional(),
+    fee_fixed_per_transaction: z.boolean()
+      .optional(),
   }),
 })
 
