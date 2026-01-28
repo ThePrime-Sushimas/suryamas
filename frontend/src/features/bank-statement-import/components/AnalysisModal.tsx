@@ -10,51 +10,10 @@ import {
   Clock,
   AlertCircle
 } from 'lucide-react'
-
-interface PreviewRow {
-  row_number: number
-  transaction_date: string
-  description: string
-  debit_amount: number
-  credit_amount: number
-  is_pending?: boolean
-  errors?: string[]
-  warnings?: string[]
-}
-
-interface DuplicateRow {
-  transaction_date: string
-  description: string
-  debit: number
-  credit: number
-  balance: number
-}
-
-interface AnalysisResult {
-  import: {
-    id: number
-    file_name: string
-    file_size: number
-    date_range_start?: string
-    date_range_end?: string
-    status: string
-    total_rows: number
-  }
-  analysis: {
-    total_rows: number
-    valid_rows: number
-    invalid_rows: number
-    date_range_start: string
-    date_range_end: string
-    preview: PreviewRow[]
-    duplicates: DuplicateRow[]
-    errors: any[]
-    warnings: string[]
-  }
-}
+import type { BankStatementAnalysisResult } from '../types/bank-statement-import.types'
 
 interface AnalysisModalProps {
-  result: AnalysisResult | null
+  result: BankStatementAnalysisResult | null
   onConfirm: (skipDuplicates: boolean) => Promise<void>
   onCancel: () => void
   isLoading: boolean
@@ -70,11 +29,13 @@ export function AnalysisModal({
 
   if (!result) return null
 
-  const { import: imp, analysis } = result
-  const { total_rows, valid_rows, invalid_rows, duplicates, warnings } = analysis
+  const { import: imp, stats, warnings, duplicates } = result
 
   // Hitung stats
-  const pendingCount = result.analysis.preview?.filter((r) => r.is_pending).length || 0
+  const total_rows = stats?.total_rows || 0
+  const valid_rows = stats?.valid_rows || 0
+  const invalid_rows = stats?.invalid_rows || 0
+  const pendingCount = 0 // Dari stats jika ada
   const duplicateCount = duplicates?.length || 0
 
   // Format file size
@@ -82,13 +43,6 @@ export function AnalysisModal({
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
-
-  // Format tanggal
-  const formatDate = (dateStr?: string): string => {
-    if (!dateStr) return '-'
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
   }
 
   return (
@@ -124,7 +78,7 @@ export function AnalysisModal({
                 {imp.file_name}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {formatFileSize(imp.file_size)} • {formatDate(imp.date_range_start)} - {formatDate(imp.date_range_end)}
+                {formatFileSize(imp.file_size || 0)}
               </p>
             </div>
             <div className="text-right">
@@ -184,56 +138,18 @@ export function AnalysisModal({
         </div>
 
         {/* Warnings */}
-        {warnings && warnings.length > 0 && (
+        {warnings && Array.isArray(warnings) && warnings.length > 0 && (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-6">
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Peringatan</p>
                 <ul className="text-xs text-amber-700 dark:text-amber-400 mt-1 space-y-1">
-                  {warnings.map((warning, idx) => (
+                  {warnings.map((warning: string, idx: number) => (
                     <li key={idx}>• {warning}</li>
                   ))}
                 </ul>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Preview Table - Simplified */}
-        {result.analysis.preview && result.analysis.preview.length > 0 && (
-          <div className="mb-6">
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Preview (5 data pertama)</p>
-            <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-              <table className="table table-xs">
-                <thead className="bg-gray-50 dark:bg-gray-800">
-                  <tr>
-                    <th className="bg-gray-50 dark:bg-gray-800">Tanggal</th>
-                    <th className="bg-gray-50 dark:bg-gray-800">Deskripsi</th>
-                    <th className="text-right bg-gray-50 dark:bg-gray-800">Debit</th>
-                    <th className="text-right bg-gray-50 dark:bg-gray-800">Kredit</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {result.analysis.preview.slice(0, 5).map((row: PreviewRow, idx: number) => (
-                    <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                      <td className="text-sm">
-                        <span className={row.is_pending ? 'text-yellow-600 font-medium' : ''}>
-                          {row.transaction_date}
-                          {row.is_pending && <span className="ml-1 text-xs">(PEND)</span>}
-                        </span>
-                      </td>
-                      <td className="text-sm max-w-[200px] truncate">{row.description}</td>
-                      <td className="text-sm text-right font-mono">
-                        {row.debit_amount > 0 ? row.debit_amount.toLocaleString('id-ID') : '-'}
-                      </td>
-                      <td className="text-sm text-right font-mono">
-                        {row.credit_amount > 0 ? row.credit_amount.toLocaleString('id-ID') : '-'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           </div>
         )}

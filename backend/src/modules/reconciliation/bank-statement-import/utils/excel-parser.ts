@@ -4,12 +4,12 @@
  */
 
 import * as XLSX from 'xlsx'
-import { COLUMN_MAPPINGS } from '../constants'
+import { COLUMN_MAPPINGS } from '../bank-statement-import.constants'
 import type { 
   ParsedBankStatementRow, 
   ExcelColumnMapping, 
   BankStatementPreviewRow 
-} from '../types'
+} from '../bank-statement-import.types'
 
 /**
  * Excel Parser Utility Class

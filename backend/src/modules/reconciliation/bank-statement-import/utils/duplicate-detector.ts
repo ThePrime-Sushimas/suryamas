@@ -3,12 +3,13 @@
  * Detects duplicate bank statement transactions
  */
 
-import { DUPLICATE_DETECTION } from '../constants'
+import { DUPLICATE_DETECTION } from '../bank-statement-import.constants'
 import type { 
   BankStatement, 
   BankStatementDuplicate, 
   ParsedBankStatementRow 
-} from '../types'
+} from '../bank-statement-import.types'
+import { logWarn } from '@/config/logger'
 
 /**
  * Duplicate Detection Utility Class

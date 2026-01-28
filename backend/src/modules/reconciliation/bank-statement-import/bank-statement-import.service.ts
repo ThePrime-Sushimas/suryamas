@@ -80,6 +80,7 @@ interface ParsedRow {
   credit_amount: number
   balance?: number
   raw_data: Record<string, any>
+  is_pending?: boolean
 }
 
 export class BankStatementImportService {
@@ -147,6 +148,7 @@ export class BankStatementImportService {
           credit_amount: row.credit_amount,
           balance: row.balance,
           raw_data: row.raw_data,
+          is_pending: row.is_pending,
         }))
         columnMapping = csvResult.formatDetection.columnMapping
         
@@ -287,6 +289,7 @@ export class BankStatementImportService {
     const { data: job, error } = await supabase
       .from('jobs')
       .insert({
+        name: `Import Bank Statement ${importRecord.file_name}`,
         type: 'import',
         module: 'bank_statements',
         status: 'pending',
@@ -868,12 +871,32 @@ export class BankStatementImportService {
       }
     }
 
-    // Build column mapping based on detected format
-    const columnMapping = this.buildColumnMapping(bestFormat, headerCandidates[0]?.normalized || [])
+    // Determine header row and data start row indices dynamically
+    // Check if first line is a header or data
+    let headerRowIndex = 0
+    let dataStartRowIndex = 1
+    
+    // Search for header row
+    for (const candidate of headerCandidates) {
+      const headers = candidate.normalized
+      // Simple check: if there are bank keywords, it's a header
+      const bankKeywords = ['date', 'tanggal', 'desc', 'keterangan', 'debit', 'credit', 'saldo', 'balance']
+      const isHeader = bankKeywords.some(keyword => 
+        headers.some(h => h.includes(keyword))
+      )
+      
+      if (isHeader) {
+        headerRowIndex = candidate.index
+        dataStartRowIndex = candidate.index + 1
+        break
+      }
+    }
 
-    // Get data start row
-    const config = BANK_CSV_FORMATS[bestFormat]
-    const dataStartRowIndex = config.headerRowIndex + 1
+    // Build column mapping based on detected format
+    const actualHeaders = headerCandidates[headerRowIndex]?.normalized || []
+    const columnMapping = this.buildColumnMapping(bestFormat, actualHeaders)
+
+    // Calculate confidence percentage
 
     // Calculate confidence percentage
     const confidence = Math.min(100, highestConfidence)
@@ -885,10 +908,10 @@ export class BankStatementImportService {
     return {
       format: bestFormat,
       confidence,
-      headerRowIndex: config.headerRowIndex,
+      headerRowIndex,
       dataStartRowIndex,
       columnMapping,
-      detectedHeaders: headerCandidates[0]?.normalized || [],
+      detectedHeaders: actualHeaders,
       warnings,
     }
   }
@@ -992,11 +1015,12 @@ export class BankStatementImportService {
       const description = columns[1]?.trim() || ''
       const branch = columns[2]?.trim() || ''
       const amountRaw = columns[3]?.trim() || ''
-      const creditDebit = columns[5]?.trim()?.toUpperCase() || ''
-      const balanceRaw = columns[6]?.trim() || ''
+      const creditDebit = columns[4]?.trim()?.toUpperCase() || ''
+      const balanceRaw = columns[5]?.trim() || ''
 
       // Check for PEND indicator FIRST - before date parsing
-      const isPending = dateValue.toUpperCase() === PENDING_TRANSACTION.INDICATOR
+      // Use startsWith to handle cases where there might be extra characters
+      const isPending = dateValue.toUpperCase().startsWith(PENDING_TRANSACTION.INDICATOR)
 
       // Parse date - only if not PEND
       let transactionDate: string | null = null
@@ -1010,7 +1034,7 @@ export class BankStatementImportService {
           return null
         }
       } else {
-        // For PEND transactions, use current date
+        // For PEND transactions, use current date as placeholder
         transactionDate = new Date().toISOString().split('T')[0]
       }
 
@@ -1730,7 +1754,8 @@ export class BankStatementImportService {
 
     for (const row of rows) {
       try {
-        if (!row.transaction_date) {
+        // Skip transaction_date validation for pending rows (they use placeholder date)
+        if (!row.is_pending && !row.transaction_date) {
           throw new Error('Transaction date is required')
         }
         if (!row.description) {
@@ -1749,6 +1774,7 @@ export class BankStatementImportService {
           balance: row.balance,
           import_id: importId,
           row_number: row.row_number,
+          is_pending: row.is_pending,
         })
       } catch (error: any) {
         invalidRows.push(row)
