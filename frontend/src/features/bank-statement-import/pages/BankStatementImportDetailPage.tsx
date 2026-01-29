@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -84,8 +84,8 @@ function BankStatementImportDetailPageContent() {
     window.history.back()
   }
 
-  // Fetch data
-  useEffect(() => {
+  // Fetch data with useCallback to prevent infinite loop
+  const fetchData = useCallback(async () => {
     if (!id) {
       return
     }
@@ -97,46 +97,44 @@ function BankStatementImportDetailPageContent() {
       return
     }
 
-    const fetchData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      console.log('Fetching data for ID:', numericId)
+
+      // First, try to get summary which includes preview
+      const summaryRes = await bankStatementImportApi.getSummary(numericId)
+      console.log('Summary received:', summaryRes)
+      console.log('Import data:', summaryRes.import)
+      
+      setAnalysisResult(summaryRes)
+      setImportData(summaryRes.import)
+      setLoading(false)
+      
+      // Fetch all data without pagination
       try {
-        setLoading(true)
-        setError(null)
-        console.log('Fetching data for ID:', numericId)
-
-        // First, try to get summary which includes preview
-        const summaryRes = await bankStatementImportApi.getSummary(numericId)
-        console.log('Summary received:', summaryRes)
-        console.log('Import data:', summaryRes.import)
-        
-        setAnalysisResult(summaryRes)
-        setImportData(summaryRes.import)
-        
-        // If summary has preview, use it
-        if (summaryRes.summary?.preview) {
-          setPreviewRows(summaryRes.summary.preview)
-        } else {
-          // Fallback: fetch preview separately
-          try {
-            const previewRes = await bankStatementImportApi.getPreview(numericId, 10)
-            setPreviewRows(previewRes.preview_rows)
-            console.log('Preview fetched from fallback:', previewRes.preview_rows)
-          } catch (previewErr) {
-            console.warn('Could not fetch preview:', previewErr)
-            setPreviewRows(null)
-          }
-        }
-        
-        console.log('States updated')
-      } catch (err) {
-        console.error('Error fetching data:', err)
-        setError(err instanceof Error ? err.message : 'Gagal memuat data')
-        setLoading(false)
+        const totalRows = summaryRes.import?.total_rows || 0
+        // Use limit = 0 or total_rows to get all data
+        const fetchLimit = totalRows > 0 ? totalRows : 0
+        const previewRes = await bankStatementImportApi.getPreview(numericId, fetchLimit)
+        setPreviewRows(previewRes.preview_rows)
+        console.log('All data fetched:', previewRes.preview_rows?.length, 'rows out of', previewRes.total_rows)
+      } catch (previewErr) {
+        console.warn('Could not fetch preview:', previewErr)
+        setPreviewRows(null)
       }
+      
+      console.log('States updated')
+    } catch (err) {
+      console.error('Error fetching data:', err)
+      setError(err instanceof Error ? err.message : 'Gagal memuat data')
+      setLoading(false)
     }
-
-    fetchData()
-
   }, [id])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   // Export handler
   const handleExport = async () => {
@@ -412,14 +410,18 @@ function BankStatementImportDetailPageContent() {
         return (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Pratinjau Data
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              5 baris pertama dari file yang diupload.
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Pratinjau Data
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Menampilkan semua {importData.total_rows?.toLocaleString() || 0} data
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
@@ -444,7 +446,7 @@ function BankStatementImportDetailPageContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {preview.slice(0, 5).map((row, index) => (
+                {preview.map((row, index) => (
                   <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                       {row.row_number}

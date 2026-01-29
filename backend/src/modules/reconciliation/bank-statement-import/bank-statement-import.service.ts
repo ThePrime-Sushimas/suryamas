@@ -752,6 +752,7 @@ export class BankStatementImportService {
 
   /**
    * Get import preview
+   * @param limit - Maximum number of rows to return (0 means all rows)
    */
   async getImportPreview(
     importId: number,
@@ -771,14 +772,18 @@ export class BankStatementImportService {
     // Try to get from temporary data first
     try {
       const rows = await this.retrieveTemporaryData(importId)
+      
+      // If limit is 0 or greater than rows.length, return all rows
+      const rowsToProcess = limit > 0 ? rows.slice(0, limit) : rows
+      
       const previewRows = this.generatePreview(
-        rows.slice(0, limit).map((r) => ({
+        rowsToProcess.map((r) => ({
           ...r,
           is_valid: true,
           errors: [],
           warnings: [],
         })),
-        limit
+        rowsToProcess.length
       )
 
       return {
@@ -788,7 +793,7 @@ export class BankStatementImportService {
       }
     } catch {
       // Fallback: get from statements in database
-      const statementsResult = await this.repository.findByImportId(importId, { page: 1, limit })
+      const statementsResult = await this.repository.findByImportId(importId, { page: 1, limit: limit > 0 ? limit : 10000 })
       const previewRows = statementsResult.data.map((stmt) => ({
         row_number: stmt.row_number || 0,
         transaction_date: stmt.transaction_date,

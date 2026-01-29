@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Upload, X, CheckCircle, Loader2 } from 'lucide-react'
+import { Upload, X, CheckCircle, Loader2, FileText, Sparkles, ArrowRight } from 'lucide-react'
 import { bankAccountsApi } from '../../bank-accounts/api/bankAccounts.api'
 import { useBranchContextStore } from '../../branch_context'
 import { UploadDropzone } from './upload-modal/UploadDropzone'
@@ -166,35 +166,67 @@ export function UploadModal({
   const canSubmit = file && bankAccountId && hasBankAccounts && !isLoading
 
   return (
-    <div className="modal modal-open backdrop-blur-sm bg-black/30">
-      <div className="modal-box max-w-lg bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl rounded-2xl p-0 overflow-hidden transform transition-all duration-300 scale-100 opacity-100">
-        {/* Header */}
-        <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 backdrop-blur-md">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-blue-600/10 rounded-xl">
-                <Upload className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+    <div className="modal modal-open backdrop-blur-sm bg-black/40">
+      <div className="modal-box max-w-xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl rounded-2xl p-0 overflow-hidden transform transition-all duration-300 scale-100 opacity-100">
+        
+        {/* Header dengan Gradient */}
+        <div className="relative overflow-hidden">
+          {/* Background Gradient */}
+          <div className="absolute inset-0 bg-linear-to-br from-blue-500 via-indigo-500 to-purple-600" />
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=%2260%22 height=%2260%22 viewBox=%220 0 60 60%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cg fill=%22none%22 fill-rule=%22evenodd%22%3E%3Cg fill=%22%23ffffff%22 fill-opacity=%220.05%22%3E%3Cpath d=%22M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30" />
+          
+          {/* Content */}
+          <div className="relative p-6 pb-8">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3.5 bg-white/20 backdrop-blur-md rounded-2xl shadow-lg">
+                  <Upload className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-xl text-white">
+                    Upload Bank Statement
+                  </h3>
+                  <p className="text-sm text-blue-100 dark:text-blue-200 mt-1">
+                    Import data mutasi bank dengan mudah
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-lg text-gray-900 dark:text-white">
-                  Upload Bank Statement
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
-                  Import data mutasi bank
-                </p>
+              <button
+                onClick={onClose}
+                disabled={isLoading}
+                className="p-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-xl transition-colors"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+
+            {/* Feature Pills */}
+            <div className="flex flex-wrap gap-2 mt-6">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-full text-xs text-white">
+                <FileText className="w-3.5 h-3.5" />
+                <span>Excel & CSV</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-full text-xs text-white">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Auto-detect</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-full text-xs text-white">
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>Cepat & Aman</span>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              disabled={isLoading}
-              className="btn btn-sm btn-ghost btn-circle hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-            >
-              <X className="w-5 h-5 text-gray-400" />
-            </button>
+          </div>
+          
+          {/* Wave Bottom */}
+          <div className="absolute bottom-0 left-0 right-0">
+            <svg viewBox="0 0 1440 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M0 60V30C240 60 480 0 720 30C960 60 1200 0 1440 30V60H0Z" fill="currentColor" className="text-white dark:text-gray-900" />
+            </svg>
           </div>
         </div>
         
-        <div className="p-6 space-y-6">
+        {/* Body Content */}
+        <div className="p-6 space-y-6 bg-white dark:bg-gray-900">
           {/* Bank Account Selection */}
           <div className="space-y-2">
             <BankAccountSelect
@@ -246,41 +278,50 @@ export function UploadModal({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 backdrop-blur-md flex justify-end gap-3">
-          <button
-            type="button"
-            className="px-5 py-2.5 rounded-xl font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm"
-            onClick={onClose}
-            disabled={isLoading}
-          >
-            Batal
-          </button>
-          <button
-            type="button"
-            className={`
-              px-5 py-2.5 rounded-xl font-medium text-white text-sm shadow-lg shadow-blue-500/20 
-              flex items-center gap-2 transition-all transform active:scale-95
-              ${canSubmit ? 'bg-blue-600 hover:bg-blue-700 hover:shadow-blue-600/30' : 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed shadow-none'}
-            `}
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Mengupload... {uploadProgress}%</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle className="w-4 h-4" />
-                <span>Upload & Analisis</span>
-              </>
-            )}
-          </button>
+        <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-800/50 backdrop-blur-md flex justify-between items-center">
+          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <span>Data terenkripsi & aman</span>
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              className="px-5 py-2.5 rounded-xl font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm"
+              onClick={onClose}
+              disabled={isLoading}
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              className={`
+                px-6 py-2.5 rounded-xl font-medium text-white text-sm shadow-lg shadow-blue-500/20 
+                flex items-center gap-2 transition-all transform active:scale-95 group
+                ${canSubmit 
+                  ? 'bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 hover:shadow-blue-600/30' 
+                  : 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed shadow-none'
+                }
+              `}
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Mengupload... {uploadProgress}%</span>
+                </>
+              ) : (
+                <>
+                  <span>Upload & Analisis</span>
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
       <div 
-        className="modal-backdrop bg-black/20 backdrop-blur-sm transition-opacity" 
+        className="modal-backdrop bg-black/40 backdrop-blur-sm transition-opacity" 
         onClick={onClose}
       />
     </div>

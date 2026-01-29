@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { Upload, X, FileSpreadsheet, File, AlertCircle, Loader2 } from 'lucide-react'
+import { Upload, X, FileSpreadsheet, AlertCircle, Loader2, FileCheck, FileType } from 'lucide-react'
 
 interface UploadDropzoneProps {
   onFileSelect: (file: File) => void
@@ -54,9 +54,17 @@ export function UploadDropzone({
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split('.').pop()?.toLowerCase()
     if (ext === 'csv') {
-      return <File className="w-8 h-8 text-green-500" />
+      return <FileType className="w-10 h-10 text-green-500" />
     }
-    return <FileSpreadsheet className="w-8 h-8 text-blue-500" />
+    return <FileSpreadsheet className="w-10 h-10 text-blue-500" />
+  }
+
+  const getFileTypeLabel = (fileName: string): string => {
+    const ext = fileName.split('.').pop()?.toLowerCase()
+    if (ext === 'csv') return 'CSV File'
+    if (ext === 'xlsx') return 'Excel File'
+    if (ext === 'xls') return 'Excel File'
+    return 'Spreadsheet'
   }
 
   return (
@@ -137,13 +145,18 @@ export function UploadDropzone({
           <div className="flex items-center gap-4 relative z-10">
             {/* File Icon */}
             <div className={`
-              shrink-0 w-14 h-14 rounded-xl flex items-center justify-center shadow-sm border
+              shrink-0 w-14 h-14 rounded-xl flex items-center justify-center shadow-sm border relative
               ${error
                 ? 'bg-red-100 border-red-200 dark:bg-red-900/30 dark:border-red-800'
                 : 'bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border-gray-100 dark:border-gray-700'
               }
             `}>
               {getFileIcon(selectedFile.name)}
+              {!isLoading && !error && (
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
+                  <FileCheck className="w-3 h-3 text-white" />
+                </div>
+              )}
             </div>
 
             {/* File Info */}
@@ -151,9 +164,15 @@ export function UploadDropzone({
               <p className="font-semibold text-gray-900 dark:text-white truncate">
                 {selectedFile.name}
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                {formatFileSize(selectedFile.size)}
-              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+                  {getFileTypeLabel(selectedFile.name)}
+                </span>
+                <span className="text-xs text-gray-400">•</span>
+                <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                  {formatFileSize(selectedFile.size)}
+                </span>
+              </div>
 
               {/* Progress Bar */}
               {isLoading && (
