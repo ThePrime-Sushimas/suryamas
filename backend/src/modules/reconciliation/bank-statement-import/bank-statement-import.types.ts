@@ -414,6 +414,20 @@ export type BankCSVFormat =
   | 'UNKNOWN'
 
 /**
+ * CSV Header Mapping - maps header names to expected columns
+ */
+export interface CSVHeaderMapping {
+  transaction_date: string[]
+  description: string[]
+  branch: string[]
+  amount: string[]
+  balance: string[]
+  debit: string[]
+  credit: string[]
+  reference: string[]
+}
+
+/**
  * Result dari format detection
  */
 export interface CSVFormatDetectionResult {
@@ -422,8 +436,41 @@ export interface CSVFormatDetectionResult {
   headerRowIndex: number
   dataStartRowIndex: number
   columnMapping: BankStatementColumnMapping
+  columnIndexMapping: Record<string, number> // Index-based mapping for fallback
   detectedHeaders: string[]
+  detectedColumnCount: number
   warnings: string[]
+  parsingConfig: {
+    skipLeadingQuote: boolean
+    quoteChar: string
+    hasEmptyColumns: boolean
+  }
+}
+
+/**
+ * Amount parsing result
+ */
+export interface AmountParsingResult {
+  rawValue: string
+  numericValue: number
+  indicator?: string
+  isDebit: boolean
+  isCredit: boolean
+  isValid: boolean
+}
+
+/**
+ * Row parsing context untuk debugging
+ */
+export interface RowParsingContext {
+  rowNumber: number
+  rawLine: string
+  format: BankCSVFormat
+  columns: string[]
+  appliedMapping: string
+  parsedAmount?: AmountParsingResult
+  warnings: string[]
+  errors: string[]
 }
 
 /**

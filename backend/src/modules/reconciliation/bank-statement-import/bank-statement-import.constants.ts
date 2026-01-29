@@ -166,10 +166,143 @@ export const BANK_CSV_FORMATS: Record<BankCSVFormat, {
  * Header patterns untuk detect format bank
  */
 export const BANK_HEADER_PATTERNS: Record<BankCSVFormat, string[]> = {
-  [BANK_CSV_FORMAT.BCA_PERSONAL]: ['date', 'description', 'branch', 'amount', 'balance'],
-  [BANK_CSV_FORMAT.BCA_BUSINESS]: ['tanggal transaksi', 'keterangan', 'cabang', 'jumlah'],
-  [BANK_CSV_FORMAT.BANK_MANDIRI]: ['postdate', 'remarks', 'additionaldesc', 'credit amount', 'debit amount', 'close balance'],
+  [BANK_CSV_FORMAT.BCA_PERSONAL]: [
+    'date', 'description', 'branch', 'amount', 'balance',
+    'tanggal', 'keterangan', 'cabang', 'jumlah', 'saldo'
+  ],
+  [BANK_CSV_FORMAT.BCA_BUSINESS]: [
+    'tanggal transaksi', 'keterangan', 'cabang', 'jumlah',
+    'date', 'description', 'branch', 'amount'
+  ],
+  [BANK_CSV_FORMAT.BANK_MANDIRI]: [
+    'account no', 'date', 'val. date', 'transaction code',
+    'description', 'description', 'reference no', 'debit', 'credit',
+    'postdate', 'remarks', 'additionaldesc', 'credit amount', 'debit amount', 'close balance'
+  ],
   [BANK_CSV_FORMAT.UNKNOWN]: [],
+}
+
+/**
+ * Column index mapping for each format
+ * Handle cases where header doesn't match data columns
+ */
+export const BANK_COLUMN_INDEX_MAPPING: Record<BankCSVFormat, {
+  transaction_date: number
+  description?: number
+  branch?: number
+  debit_amount?: number
+  credit_amount?: number
+  balance?: number
+  cr_db_indicator?: number
+  account_no?: number
+  transaction_code?: number
+  reference_no?: number
+}> = {
+  [BANK_CSV_FORMAT.BCA_PERSONAL]: {
+    transaction_date: 0,  // Date: '02/01/2026
+    description: 1,       // Description
+    branch: 2,            // Branch: '0000
+    debit_amount: 3,      // Amount: 72100000.00
+    cr_db_indicator: 4,   // CR/DB indicator
+    balance: 5,           // Balance
+  },
+  [BANK_CSV_FORMAT.BCA_BUSINESS]: {
+    transaction_date: 0,  // Date: 01/01/2026
+    description: 1,       // Description
+    branch: 2,            // Branch: 0000
+    debit_amount: 3,      // Amount: "287,490.00 DB" or "799,700.00 CR"
+    balance: 4,           // Balance (optional)
+  },
+  [BANK_CSV_FORMAT.BANK_MANDIRI]: {
+    account_no: 0,        // Account No
+    transaction_date: 1,  // Date
+    description: 4,       // Description column (index 4 = 5th column "Description")
+    branch: 2,            // Transaction Code column as branch
+    debit_amount: 7,      // Debit column
+    credit_amount: 8,     // Credit column
+    balance: 5,           // Close balance
+    transaction_code: 3,  // Transaction Code
+    reference_no: 6,      // Reference No.
+  },
+  [BANK_CSV_FORMAT.UNKNOWN]: {
+    transaction_date: 0,
+    description: 1,
+    branch: 2,
+    debit_amount: 3,
+    credit_amount: 4,
+    balance: 5,
+  },
+}
+
+/**
+ * Amount patterns untuk extract amount dari berbagai format
+ */
+export const AMOUNT_PATTERNS = {
+  // Pattern untuk "123,456.00 DB" atau "123,456.00 CR"
+  WITH_INDICATOR: /^([\d,]+\.?\d*)\s*(DB|CR|DR|KREDIT|DEBIT)?$/i,
+  
+  // Pattern untuk embedded amount di description
+  // E.g., "TRSF E-BANKING DB 0101/FTSCY/WS95271 72100000.00MICHAEL"
+  EMBEDDED_AMOUNT: /(\d{8,}(?:\.\d{2})?)/,
+  
+  // Pattern untuk Indonesian number format dengan dots dan commas
+  IDR_FORMAT: /[\d,]+\.?\d*/g,
+  
+  // Pattern untuk Mandiri format ".00" atau "453,684.00"
+  MANDIRI_AMOUNT: /\.?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/,
+  
+  // Pattern untuk extract amount dari text
+  EXTRACT_AMOUNT: /([\d,]+\.?\d*)/,
+}
+
+/**
+ * Special parsing configurations per format
+ */
+export const BANK_PARSING_CONFIG: Record<BankCSVFormat, {
+  skipLeadingQuote: boolean
+  quoteChar: string
+  hasEmptyColumns: boolean
+  emptyColumnIndices: number[]
+  trimWhitespace: boolean
+  descriptionMaxLength: number
+  dateFormat: string
+}> = {
+  [BANK_CSV_FORMAT.BCA_PERSONAL]: {
+    skipLeadingQuote: true,
+    quoteChar: "'",
+    hasEmptyColumns: true,
+    emptyColumnIndices: [4], // Column 4 is empty in header (index 4 = 5th column)
+    trimWhitespace: true,
+    descriptionMaxLength: 1000,
+    dateFormat: 'DD/MM/YYYY',
+  },
+  [BANK_CSV_FORMAT.BCA_BUSINESS]: {
+    skipLeadingQuote: false,
+    quoteChar: '"',
+    hasEmptyColumns: false,
+    emptyColumnIndices: [],
+    trimWhitespace: true,
+    descriptionMaxLength: 1000,
+    dateFormat: 'DD/MM/YYYY',
+  },
+  [BANK_CSV_FORMAT.BANK_MANDIRI]: {
+    skipLeadingQuote: false,
+    quoteChar: '"',
+    hasEmptyColumns: true,
+    emptyColumnIndices: [6], // Reference No. can be empty
+    trimWhitespace: true,
+    descriptionMaxLength: 1000,
+    dateFormat: 'DD/MM/YY',
+  },
+  [BANK_CSV_FORMAT.UNKNOWN]: {
+    skipLeadingQuote: false,
+    quoteChar: '"',
+    hasEmptyColumns: false,
+    emptyColumnIndices: [],
+    trimWhitespace: true,
+    descriptionMaxLength: 500,
+    dateFormat: 'DD/MM/YYYY',
+  },
 }
 
 /**

@@ -31,6 +31,9 @@ import {
   BANK_CSV_FORMAT,
   BANK_CSV_FORMATS,
   BANK_HEADER_PATTERNS,
+  BANK_COLUMN_INDEX_MAPPING,
+  AMOUNT_PATTERNS,
+  BANK_PARSING_CONFIG,
   PENDING_TRANSACTION,
 } from './bank-statement-import.constants'
 import * as XLSX from 'xlsx'
@@ -860,15 +863,33 @@ export class BankStatementImportService {
 
     // If no clear match, try content-based detection
     if (bestFormat === BANK_CSV_FORMAT.UNKNOWN) {
-      const formatConfig = BANK_CSV_FORMATS[BANK_CSV_FORMAT.BCA_PERSONAL]
       const firstDataLine = lines[1] || ''
-      const columns = this.splitCSVLine(firstDataLine, formatConfig.delimiter)
+      const columns = this.splitCSVLine(firstDataLine, ',')
 
-      // BCA Personal typically has 6-7 columns
-      if (columns.length >= 6) {
-        bestFormat = BANK_CSV_FORMAT.BCA_PERSONAL
-        highestConfidence = 50
-        warnings.push('Format detected by column count (BCA Personal fallback)')
+      // Detect by column count and content
+      if (columns.length >= 7) {
+        // BCA Personal format: Date, Description, Branch, Amount, Empty, CR/DB, Balance
+        const dateValue = columns[0]?.trim() || ''
+        const hasLeadingQuote = dateValue.startsWith("'")
+        const hasDBOrCR = columns.some(c => /\b(DB|CR|DR)\b/i.test(c))
+        
+        if (hasLeadingQuote && hasDBOrCR) {
+          bestFormat = BANK_CSV_FORMAT.BCA_PERSONAL
+          highestConfidence = 70
+          warnings.push('Format detected by column pattern (BCA Personal with leading quote)')
+        }
+      } else if (columns.length >= 4) {
+        const amountCol = columns[3]?.trim() || ''
+        // Check if amount has DB/CR suffix - likely BCA Bisnis
+        if (/^["']?[\d,]+\.?\d*\s*(DB|CR|DR)["']?$/i.test(amountCol)) {
+          bestFormat = BANK_CSV_FORMAT.BCA_BUSINESS
+          highestConfidence = 75
+          warnings.push('Format detected by amount pattern (BCA Bisnis with indicator)')
+        } else {
+          bestFormat = BANK_CSV_FORMAT.BCA_PERSONAL
+          highestConfidence = 50
+          warnings.push('Format detected by column count (BCA Personal fallback)')
+        }
       }
     }
 
@@ -881,7 +902,11 @@ export class BankStatementImportService {
     for (const candidate of headerCandidates) {
       const headers = candidate.normalized
       // Simple check: if there are bank keywords, it's a header
-      const bankKeywords = ['date', 'tanggal', 'desc', 'keterangan', 'debit', 'credit', 'saldo', 'balance']
+      const bankKeywords = [
+        'date', 'tanggal', 'desc', 'keterangan', 'debit', 'credit', 
+        'saldo', 'balance', 'account', 'transaction', 'val. date',
+        'transaction code', 'reference no', 'cabang', 'jumlah'
+      ]
       const isHeader = bankKeywords.some(keyword => 
         headers.some(h => h.includes(keyword))
       )
@@ -898,12 +923,26 @@ export class BankStatementImportService {
     const columnMapping = this.buildColumnMapping(bestFormat, actualHeaders)
 
     // Calculate confidence percentage
-
-    // Calculate confidence percentage
     const confidence = Math.min(100, highestConfidence)
 
     if (confidence < 30) {
       warnings.push('Low confidence format detection. Please verify the CSV format.')
+    }
+
+    // Get index-based mapping for fallback
+    const columnIndexMapping = BANK_COLUMN_INDEX_MAPPING[bestFormat] || BANK_COLUMN_INDEX_MAPPING[BANK_CSV_FORMAT.UNKNOWN]
+
+    // Get parsing config for this format
+    const parsingConfig = BANK_PARSING_CONFIG[bestFormat]
+
+    // Detect actual column count from first data line
+    const firstDataLine = lines[dataStartRowIndex] || ''
+    const dataColumns = this.splitCSVLine(firstDataLine, ',')
+    const detectedColumnCount = dataColumns.length
+
+    // Warn about column count mismatch
+    if (detectedColumnCount > 0 && (detectedColumnCount < 4 || detectedColumnCount > 9)) {
+      warnings.push(`Unusual column count detected: ${detectedColumnCount} columns. Please verify the format.`)
     }
 
     return {
@@ -912,8 +951,11 @@ export class BankStatementImportService {
       headerRowIndex,
       dataStartRowIndex,
       columnMapping,
+      columnIndexMapping,
       detectedHeaders: actualHeaders,
+      detectedColumnCount,
       warnings,
+      parsingConfig,
     }
   }
 
@@ -1016,7 +1058,7 @@ export class BankStatementImportService {
     try {
       let dateValue = columns[0]?.trim() || ''
       let description = columns[1]?.trim() || ''
-      const branch = columns[2]?.trim() || ''
+      const branch = columns[2]?.trim().replace(/^'/, '') || ''
       let amountRaw = columns[3]?.trim() || ''
       const creditDebit = columns[4]?.trim()?.toUpperCase() || ''
       const balanceRaw = columns[5]?.trim() || ''
@@ -1029,6 +1071,7 @@ export class BankStatementImportService {
       let transactionDate: string | null = null
 
       if (!isPending) {
+        // Remove leading single quote from date
         dateValue = dateValue.replace(/^'/, '')
         transactionDate = this.parseDate(dateValue)
         
