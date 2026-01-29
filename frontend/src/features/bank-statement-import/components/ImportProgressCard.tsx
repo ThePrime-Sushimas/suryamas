@@ -3,8 +3,8 @@ import type { BankStatementImport } from '../types/bank-statement-import.types'
 
 interface ImportProgressCardProps {
   importData: BankStatementImport
-  onCancel?: (id: string) => void
-  onRetry?: (id: string) => void
+  onCancel?: (id: number) => void
+  onRetry?: (id: number) => void
   showErrorMessage?: boolean
 }
 
@@ -18,15 +18,14 @@ export function ImportProgressCard({
     id,
     status,
     total_rows,
-    imported_rows,
-    duplicate_rows,
-    invalid_rows,
+    processed_rows,
+    failed_rows,
     file_name,
     error_message,
   } = importData
 
   const progress = total_rows > 0 
-    ? Math.round(((imported_rows + duplicate_rows + invalid_rows) / total_rows) * 100)
+    ? Math.round((processed_rows / total_rows) * 100)
     : 0
 
   const getStatusConfig = () => {
@@ -86,8 +85,8 @@ export function ImportProgressCard({
   const StatusIcon = config.icon
 
   // Calculate time remaining
-  const remainingRows = total_rows - (imported_rows + duplicate_rows + invalid_rows)
-  const progressPerSecond = imported_rows > 0 ? imported_rows / 10 : 0
+  const remainingRows = total_rows - processed_rows
+  const progressPerSecond = processed_rows > 0 ? processed_rows / 10 : 0
   const estimatedSeconds = progressPerSecond > 0 ? remainingRows / progressPerSecond : 0
 
   return (
@@ -104,7 +103,7 @@ export function ImportProgressCard({
                 {file_name}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                ID: {id.slice(0, 8)}...
+                ID: {id}
               </p>
             </div>
           </div>
@@ -139,7 +138,7 @@ export function ImportProgressCard({
       <div className="px-4 py-3">
         <div className="flex justify-between text-sm mb-2">
           <span className="text-gray-600 dark:text-gray-400">
-            {imported_rows.toLocaleString()} dari {total_rows.toLocaleString()} baris
+            {processed_rows.toLocaleString()} dari {total_rows.toLocaleString()} baris
           </span>
           <span className="font-bold text-blue-600 dark:text-blue-400">
             {progress}%
@@ -182,19 +181,19 @@ export function ImportProgressCard({
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
             <p className="text-lg font-bold text-green-600 dark:text-green-400">
-              {imported_rows.toLocaleString()}
+              {processed_rows.toLocaleString()}
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">Berhasil</p>
           </div>
           <div className="text-center">
             <p className="text-lg font-bold text-orange-600 dark:text-orange-400">
-              {duplicate_rows.toLocaleString()}
+              0
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">Duplikat</p>
           </div>
           <div className="text-center">
             <p className="text-lg font-bold text-red-600 dark:text-red-400">
-              {invalid_rows.toLocaleString()}
+              {failed_rows.toLocaleString()}
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">Gagal</p>
           </div>

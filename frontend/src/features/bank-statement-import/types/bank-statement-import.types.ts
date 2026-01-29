@@ -6,23 +6,28 @@ export type BankStatementImportStatus =
   | 'FAILED'
 
 export interface BankStatementImport {
-  id: string
+  idx?: number
+  id: number
   company_id: string
-  bank_account_id: string
+  bank_account_id: number
   file_name: string
   file_size: number
   file_hash?: string
   mime_type?: string
   status: BankStatementImportStatus
   total_rows: number
-  imported_rows: number
-  duplicate_rows: number
-  invalid_rows: number
-  date_from?: string
-  date_to?: string
+  processed_rows: number
+  failed_rows: number
+  date_range_start?: string
+  date_range_end?: string
   created_at: string
   updated_at: string
   error_message?: string
+  error_details?: Record<string, unknown> | null
+  job_id?: number | null
+  analysis_data?: Record<string, unknown> | null
+  created_by?: string
+  deleted_at?: string | null
 }
 
 export interface BankStatementDuplicateRow {

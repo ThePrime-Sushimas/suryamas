@@ -44,7 +44,7 @@ interface BankStatementImportState {
   analyzeResult: BankStatementAnalysisResult | null
 
   // UI state
-  selectedIds: Set<string>
+  selectedIds: Set<number>
   pagination: Pagination
   filters: BankStatementImportFilters
 
@@ -71,12 +71,12 @@ interface BankStatementImportState {
   fetchImports: (params?: { page?: number; limit?: number; filters?: BankStatementImportFilters }) => Promise<void>
   uploadFile: (file: File, bankAccountId: string) => Promise<void>
   confirmImport: (skipDuplicates: boolean) => Promise<void>
-  cancelImport: (id: string) => Promise<void>
-  retryImport: (id: string) => Promise<void>
-  deleteImport: (id: string) => Promise<void>
+  cancelImport: (id: number) => Promise<void>
+  retryImport: (id: number) => Promise<void>
+  deleteImport: (id: number) => Promise<void>
 
-  toggleSelection: (id: string) => void
-  selectAll: (ids: string[]) => void
+  toggleSelection: (id: number) => void
+  selectAll: (ids: number[]) => void
   clearSelection: () => void
 
   setFilters: (filters: BankStatementImportFilters) => void
@@ -112,7 +112,7 @@ const initialState: Pick<
   imports: [],
   currentImport: null,
   analyzeResult: null,
-  selectedIds: new Set<string>(),
+  selectedIds: new Set<number>(),
   pagination: {
     page: 1,
     limit: BANK_STATEMENT_IMPORT_PAGE_SIZE,
@@ -231,7 +231,7 @@ export const useBankStatementImportStore = create<BankStatementImportState>((set
     }
   },
 
-  cancelImport: async (id: string) => {
+  cancelImport: async (id: number) => {
     set({ loading: { ...get().loading, confirm: true } })
     try {
       await bankStatementImportApi.cancel(id)
@@ -241,7 +241,7 @@ export const useBankStatementImportStore = create<BankStatementImportState>((set
     }
   },
 
-  retryImport: async (id: string) => {
+  retryImport: async (id: number) => {
     set({ loading: { ...get().loading, retry: true } })
     try {
       await bankStatementImportApi.retry(id)
@@ -251,7 +251,7 @@ export const useBankStatementImportStore = create<BankStatementImportState>((set
     }
   },
 
-  deleteImport: async (id: string) => {
+  deleteImport: async (id: number) => {
     set({ loading: { ...get().loading, delete: true } })
     try {
       await bankStatementImportApi.delete(id)
@@ -261,7 +261,7 @@ export const useBankStatementImportStore = create<BankStatementImportState>((set
     }
   },
 
-  toggleSelection: (id: string) => {
+  toggleSelection: (id: number) => {
     const selected = new Set(get().selectedIds)
     if (selected.has(id)) {
       selected.delete(id)
@@ -271,12 +271,12 @@ export const useBankStatementImportStore = create<BankStatementImportState>((set
     set({ selectedIds: selected })
   },
 
-  selectAll: (ids: string[]) => {
+  selectAll: (ids: number[]) => {
     set({ selectedIds: new Set(ids) })
   },
 
   clearSelection: () => {
-    set({ selectedIds: new Set<string>() })
+    set({ selectedIds: new Set<number>() })
   },
 
   setFilters: (filters) => {

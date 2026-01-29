@@ -11,7 +11,6 @@ export { BankStatementImportStatusBadge } from './components/common/StatusBadge'
 
 // New Redesigned Components - Common
 export { StatusBadge, StatusBadgeCompact, StatusBadgeLarge } from './components/common/StatusBadge'
-export { EmptyState, EmptyUploadState, EmptySearchState, EmptyDataState } from './components/common/EmptyState'
 
 // New Redesigned Components - Import Page
 export { StatsCards, StatsCardsCompact } from './components/import-page/StatsCards'

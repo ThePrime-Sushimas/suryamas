@@ -21,7 +21,7 @@ interface UseBankStatementImportReturn {
   activeFiltersCount: number
   
   // Selection
-  selectedIds: Set<string>
+  selectedIds: Set<number>
   selectedCount: number
   allSelected: boolean
   hasSelection: boolean
@@ -52,12 +52,12 @@ interface UseBankStatementImportReturn {
   fetchImports: (params?: { page?: number; limit?: number; filters?: BankStatementImportFilters }) => Promise<void>
   uploadFile: (file: File, bankAccountId: string) => Promise<void>
   confirmImport: (skipDuplicates: boolean) => Promise<void>
-  cancelImport: (id: string) => Promise<void>
-  retryImport: (id: string) => Promise<void>
-  deleteImport: (id: string) => Promise<void>
+  cancelImport: (id: number) => Promise<void>
+  retryImport: (id: number) => Promise<void>
+  deleteImport: (id: number) => Promise<void>
   
   // Bulk actions
-  toggleSelection: (id: string) => void
+  toggleSelection: (id: number) => void
   selectAll: () => void
   clearSelection: () => void
   selectByStatus: (status: BankStatementImport['status']) => void
@@ -82,7 +82,7 @@ export function useBankStatementImport(): UseBankStatementImportReturn {
   const store = useBankStatementImportStore()
   
   // Computed values
-  const importsArray = Array.isArray(store.imports) ? store.imports : []
+  const importsArray = useMemo(() => Array.isArray(store.imports) ? store.imports : [], [store.imports])
   
   const selectedCount = store.selectedIds.size
   const allSelected = importsArray.length > 0 && importsArray.every((imp) => store.selectedIds.has(imp.id))
@@ -212,7 +212,7 @@ export function useImportStats() {
   }, [imports])
 }
 
-export function useImportById(id: string) {
+export function useImportById(id: number) {
   const imports = useBankStatementImportStore((state) => state.imports)
   
   return useMemo(() => {

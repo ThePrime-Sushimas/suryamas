@@ -1,13 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { 
   Upload, 
   FileText, 
   Trash2, 
   RefreshCw,
-  ChevronLeft,
-  ChevronRight,
   Search,
-  Filter,
   MoreVertical,
   Eye,
   Download,
@@ -15,10 +12,7 @@ import {
   X
 } from 'lucide-react'
 import { useBankStatementImportStore } from '../store/bank-statement-import.store'
-import { StatsCards } from './import-page/StatsCards'
-import { BulkActionsBar } from './import-page/BulkActionsBar'
-import { EmptyUploadState, EmptySearchState } from './common/EmptyState'
-import { TableSkeleton, CardSkeleton } from '@/components/ui/Skeleton'
+import { TableSkeleton } from '@/components/ui/Skeleton'
 import { StatusBadge } from './common/StatusBadge'
 import { UploadModal } from './UploadModal'
 import { AnalysisModal } from './AnalysisModal'
@@ -49,19 +43,31 @@ export function BankStatementImportPage() {
     clearError,
   } = useBankStatementImportStore()
 
-  const [showFilters, setShowFilters] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState<string | null>(null)
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState<number | null>(null)
+  const [filters, setFilters] = useState({ search: '', status: '' })
 
   useEffect(() => {
     fetchImports()
   }, [fetchImports])
 
   // Derived values
-  const importsArray = Array.isArray(imports) ? imports : []
+  const importsArray = useMemo(() => Array.isArray(imports) ? imports : [], [imports])
   const allIds = importsArray.map((imp) => imp.id)
   const allSelected = importsArray.length > 0 && importsArray.every((imp) => selectedIds.has(imp.id))
   const totalPages = Math.ceil(pagination.total / pagination.limit)
+
+  // Filter imports
+  const filteredImports = useMemo(() => {
+    let result = importsArray
+    if (filters.search) {
+      const query = filters.search.toLowerCase()
+      result = result.filter(imp => imp.file_name.toLowerCase().includes(query))
+    }
+    if (filters.status) {
+      result = result.filter(imp => imp.status === filters.status)
+    }
+    return result
+  }, [importsArray, filters])
 
   const handleUpload = async (file: File, bankAccountId: string) => {
     await uploadFile(file, bankAccountId)
@@ -71,7 +77,7 @@ export function BankStatementImportPage() {
     await confirmImport(skipDuplicates)
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     setShowDeleteConfirmation(id)
   }
 
@@ -96,12 +102,11 @@ export function BankStatementImportPage() {
     fetchImports()
   }
 
-  const handleSearch = (value: string) => {
-    setSearchTerm(value)
-    if (value.trim()) {
-      useBankStatementImportStore.getState().setFilters({ search: value })
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      selectAll(allIds)
     } else {
-      useBankStatementImportStore.getState().setFilters({ search: undefined })
+      clearSelection()
     }
   }
 
@@ -116,28 +121,27 @@ export function BankStatementImportPage() {
   // Loading state
   if (loading.list && importsArray.length === 0) {
     return (
-      <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="p-6 space-y-6">
+        {/* Header Skeleton */}
+        <div className="flex items-center justify-between">
           <div>
             <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
             <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mt-2" />
           </div>
-          <div className="flex gap-2">
-            <div className="h-10 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-            <div className="h-10 w-36 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          <div className="h-10 w-36 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+        </div>
+
+        {/* Filter Skeleton */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <CardSkeleton key={i} />
-          ))}
-        </div>
-
         {/* Table Skeleton */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
           <TableSkeleton rows={5} columns={6} />
         </div>
       </div>
@@ -145,14 +149,14 @@ export function BankStatementImportPage() {
   }
 
   return (
-    <div className="p-4 md:p-8 space-y-8 max-w-[1600px] mx-auto bg-gray-50/50 dark:bg-gray-950 min-h-screen">
+    <div className="p-6 space-y-6">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             Bank Statement Import
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
             Upload dan kelola data mutasi bank dengan mudah
           </p>
         </div>
@@ -160,16 +164,16 @@ export function BankStatementImportPage() {
           <button
             onClick={handleRefresh}
             disabled={loading.list}
-            className="btn btn-ghost hover:bg-white hover:shadow-sm dark:hover:bg-gray-800 transition-all gap-2"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${loading.list ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
+            <span>Refresh</span>
           </button>
           <button
             type="button"
             onClick={openUploadModal}
             disabled={loading.upload}
-            className="btn btn-primary gap-2 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all transform hover:-translate-y-0.5"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Upload size={18} />
             Upload Bank Statement
@@ -179,23 +183,26 @@ export function BankStatementImportPage() {
 
       {/* Error Message */}
       {errors.general && (
-        <div className="alert alert-error shadow-sm rounded-xl">
-          <AlertCircle className="w-5 h-5" />
-          <div className="flex-1">
-            <span className="font-medium">Error:</span> {errors.general}
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={20} />
+            <div className="flex-1">
+              <h3 className="font-medium text-red-900 dark:text-red-400">Error</h3>
+              <p className="text-sm text-red-700 dark:text-red-400 mt-1">{errors.general}</p>
+            </div>
+            <button
+              onClick={() => clearError('general')}
+              className="text-red-500 hover:text-red-700 dark:hover:text-red-400"
+            >
+              <X size={18} />
+            </button>
           </div>
-          <button onClick={() => clearError('general')} className="btn btn-sm btn-ghost btn-circle">
-            <X className="w-4 h-4" />
-          </button>
         </div>
       )}
 
-      {/* Stats Cards */}
-      <StatsCards imports={importsArray} totalItems={pagination.total} />
-
       {/* Active Import Progress */}
       {importsArray.some((imp) => imp.status === 'IMPORTING') && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="space-y-4">
           {importsArray
             .filter((imp) => imp.status === 'IMPORTING')
             .slice(0, 1)
@@ -210,124 +217,108 @@ export function BankStatementImportPage() {
         </div>
       )}
 
-      {/* Search and Filter Bar */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-1">
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      {/* Filters */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input
               type="text"
-              placeholder="Cari berdasarkan nama file..."
-              value={searchTerm}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-transparent border-none text-gray-900 dark:text-white placeholder-gray-400 focus:ring-0 focus:outline-none"
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              placeholder="Cari nama file..."
+              className="w-full pl-9 pr-9 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            {filters.search && (
+              <button
+                onClick={() => setFilters({ ...filters, search: '' })}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
-          <div className="w-px bg-gray-100 dark:bg-gray-700 hidden sm:block my-2" />
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`btn btn-ghost m-1 gap-2 border-none ${showFilters ? 'bg-gray-100 dark:bg-gray-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}
+          <select
+            value={filters.status}
+            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <Filter className="w-4 h-4 text-gray-500" />
-            <span className="text-gray-600 dark:text-gray-300">Filter</span>
-          </button>
+            <option value="">Semua Status</option>
+            <option value="PENDING">Menunggu</option>
+            <option value="ANALYZED">Siap Import</option>
+            <option value="IMPORTING">Sedang Import</option>
+            <option value="COMPLETED">Selesai</option>
+            <option value="FAILED">Gagal</option>
+          </select>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              {filteredImports.length} dari {importsArray.length} file
+            </span>
+            {(filters.search || filters.status) && (
+              <button
+                onClick={() => setFilters({ search: '', status: '' })}
+                className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+              >
+                Hapus Filter
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      </div>     
 
       {/* Main Content Area */}
-      {loading.list ? (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <TableSkeleton rows={5} columns={6} />
-        </div>
-      ) : importsArray.length === 0 ? (
-        searchTerm ? (
-          <EmptySearchState
-            onClear={() => {
-              setSearchTerm('')
-              useBankStatementImportStore.getState().setFilters({ search: undefined })
-            }}
-            searchTerm={searchTerm}
-          />
-        ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700">
-            <EmptyUploadState onUpload={openUploadModal} />
-          </div>
-        )
-      ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden flex flex-col">
-          {/* Bulk Actions Bar */}
-          {selectedIds.size > 0 && (
-             <BulkActionsBar
-              selectedCount={selectedIds.size}
-              onDelete={() => {
-                if (selectedIds.size === 1) {
-                  const id = Array.from(selectedIds)[0]
-                  handleDelete(id)
-                }
-              }}
-              onClearSelection={clearSelection}
-              isLoading={loading.delete}
-            />
-          )}
-
-          {/* Table Header Info */}
-          {selectedIds.size === 0 && (
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <FileText className="w-4 h-4 text-gray-400" />
-                Riwayat Import
-              </h3>
-              <span className="text-sm px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-gray-600 dark:text-gray-300 font-medium">
-                {pagination.total} file
-              </span>
-            </div>
-          )}
-
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           {/* Table */}
-          <div className="overflow-x-auto min-h-[400px]">
-            <table className="table w-full">
-              <thead className="bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-700">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
                 <tr>
-                  <th className="w-[50px] text-center">
+                  <th className="w-[50px] text-center px-4 py-3">
                     <input
                       type="checkbox"
-                      className="checkbox checkbox-sm rounded-md"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       checked={allSelected}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          selectAll(allIds)
-                        } else {
-                          clearSelection()
-                        }
-                      }}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
                     />
                   </th>
-                  <th className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4">File</th>
-                  <th className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4">Ukuran</th>
-                  <th className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4">Tanggal</th>
-                  <th className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4">Total Baris</th>
-                  <th className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4">Status</th>
-                  <th className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4 text-right pr-6">Aksi</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    File
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Ukuran
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Tanggal
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Total Baris
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Aksi
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {importsArray.map((imp) => (
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {filteredImports.map((imp) => (
                   <tr 
-                    key={imp.id} 
+                    key={imp.id}
                     className={`
-                      hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors
-                      ${selectedIds.has(imp.id) ? 'bg-blue-50/50 dark:bg-blue-900/20' : ''}
+                      hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors
+                      ${selectedIds.has(imp.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
                     `}
                   >
-                    <td className="text-center">
+                    <td className="text-center px-4 py-3">
                       <input
                         type="checkbox"
-                        className="checkbox checkbox-sm rounded-md"
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         checked={selectedIds.has(imp.id)}
                         onChange={() => toggleSelection(imp.id)}
                       />
                     </td>
-                    <td>
+                    <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className={`
                           p-2 rounded-lg 
@@ -339,33 +330,33 @@ export function BankStatementImportPage() {
                           <FileText className="w-5 h-5" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900 dark:text-white max-w-[200px] sm:max-w-[300px] truncate" title={imp.file_name}>
+                          <p className="font-medium text-gray-900 dark:text-white truncate max-w-[200px] sm:max-w-[300px]" title={imp.file_name}>
                             {imp.file_name}
                           </p>
-                          <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5">
-                            {imp.bank_account_id ? <span className="font-mono">Account #{imp.bank_account_id}</span> : '-'}
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {imp.bank_account_id ? `Account #${imp.bank_account_id}` : '-'}
                           </p>
                         </div>
                       </div>
                     </td>
-                    <td className="text-sm text-gray-600 dark:text-gray-400 font-mono">
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 font-mono">
                       {formatFileSize(imp.file_size)}
                     </td>
-                    <td className="text-sm text-gray-600 dark:text-gray-400">
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                       {imp.created_at ? format(new Date(imp.created_at), 'dd MMM yyyy, HH:mm', { locale: id }) : '-'}
                     </td>
-                    <td className="text-sm font-medium text-gray-900 dark:text-white">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
                       {imp.total_rows?.toLocaleString() || 0}
                     </td>
-                    <td>
+                    <td className="px-4 py-3">
                       <StatusBadge status={imp.status} size="sm" animated={imp.status === 'IMPORTING'} />
                     </td>
-                    <td className="text-right pr-4">
+                    <td className="px-4 py-3 text-right">
                       <div className="dropdown dropdown-end">
                         <label tabIndex={0} className="btn btn-ghost btn-sm btn-square rounded-lg">
                           <MoreVertical className="w-4 h-4" />
                         </label>
-                        <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow-xl bg-white dark:bg-gray-800 rounded-xl w-52 border border-gray-100 dark:border-gray-700 text-sm">
+                        <ul tabIndex={0} className="dropdown-content z-1 menu p-2 shadow-xl bg-white dark:bg-gray-800 rounded-xl w-52 border border-gray-100 dark:border-gray-700 text-sm">
                           <li>
                             <button onClick={() => console.log('View details:', imp.id)} className="rounded-lg">
                               <Eye className="w-4 h-4 mr-2" />
@@ -399,33 +390,31 @@ export function BankStatementImportPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="p-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/30">
-              <span className="text-sm text-gray-500">
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50">
+              <span className="text-sm text-gray-500 dark:text-gray-400">
                 Halaman {pagination.page} dari {totalPages}
               </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handlePrevPage}
                   disabled={pagination.page <= 1}
-                  className="btn btn-sm btn-ghost hover:bg-white dark:hover:bg-gray-700 disabled:bg-transparent"
+                  className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <ChevronLeft className="w-4 h-4" />
                   Previous
                 </button>
-                <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-2" />
+                <div className="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-2" />
                 <button
                   onClick={handleNextPage}
-                  disabled={importsArray.length < pagination.limit}
-                  className="btn btn-sm btn-ghost hover:bg-white dark:hover:bg-gray-700 disabled:bg-transparent"
+                  disabled={filteredImports.length < pagination.limit}
+                  className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
-                  <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )}
         </div>
-      )}
+      
 
       {/* Upload Modal */}
       <UploadModal
@@ -446,36 +435,37 @@ export function BankStatementImportPage() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirmation && (
-        <div className="modal modal-open backdrop-blur-sm bg-black/30">
-          <div className="modal-box bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-2xl rounded-2xl p-6 max-w-sm">
-            <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-2">Konfirmasi Hapus</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm mx-4 p-6">
+            <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-2">
+              Konfirmasi Hapus
+            </h3>
             <p className="text-gray-500 dark:text-gray-400 mb-6">
               Apakah Anda yakin ingin menghapus data import ini? Tindakan ini tidak dapat dibatalkan.
             </p>
             <div className="flex justify-end gap-3">
               <button 
-                className="btn btn-ghost hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl" 
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
                 onClick={() => setShowDeleteConfirmation(null)}
               >
                 Batal
               </button>
               <button 
-                className="btn btn-error text-white rounded-xl shadow-lg shadow-red-500/20" 
-                onClick={confirmDelete} 
+                className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700"
+                onClick={confirmDelete}
                 disabled={loading.delete}
               >
                 {loading.delete ? (
-                  <>
+                  <span className="flex items-center gap-2">
                     <span className="loading loading-spinner loading-sm" />
                     Menghapus...
-                  </>
+                  </span>
                 ) : (
                   'Hapus'
                 )}
               </button>
             </div>
           </div>
-          <div className="modal-backdrop" onClick={() => setShowDeleteConfirmation(null)} />
         </div>
       )}
     </div>

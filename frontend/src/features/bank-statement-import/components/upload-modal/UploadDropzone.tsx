@@ -140,7 +140,7 @@ export function UploadDropzone({
               shrink-0 w-14 h-14 rounded-xl flex items-center justify-center shadow-sm border
               ${error
                 ? 'bg-red-100 border-red-200 dark:bg-red-900/30 dark:border-red-800'
-                : 'bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border-gray-100 dark:border-gray-700'
+                : 'bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border-gray-100 dark:border-gray-700'
               }
             `}>
               {getFileIcon(selectedFile.name)}
@@ -203,7 +203,7 @@ export function UploadDropzone({
 
           {/* Error Message */}
           {error && (
-            <div className="mt-3 pl-[4.5rem] text-sm text-red-600 dark:text-red-400 flex items-center gap-1.5 animate-in slide-in-from-top-1 fade-in duration-200">
+            <div className="mt-3 pl-18 text-sm text-red-600 dark:text-red-400 flex items-center gap-1.5 animate-in slide-in-from-top-1 fade-in duration-200">
                <AlertCircle className="w-3.5 h-3.5" />
                <span>{error}</span>
             </div>

@@ -175,7 +175,7 @@ export function AnalysisModal({
               >
                 <AlertTriangle className="w-4 h-4" />
                 Peringatan
-                <span className="bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 text-xs px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center">
+                <span className="bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 text-xs px-1.5 py-0.5 rounded-full min-w-5 text-center">
                   {duplicateCount + (warnings?.length || 0)}
                 </span>
               </button>

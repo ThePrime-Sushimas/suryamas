@@ -43,30 +43,30 @@ export const bankStatementImportApi = {
     return response.data.data
   },
 
-  async confirm(id: string, payload: { skip_duplicates: boolean }): Promise<{ job_id?: string }> {
+  async confirm(id: number, payload: { skip_duplicates: boolean }): Promise<{ job_id?: string }> {
     const response = await api.post(`/bank-statement-imports/${id}/confirm`, payload)
     return response.data.data
   },
 
-  async cancel(id: string): Promise<void> {
+  async cancel(id: number): Promise<void> {
     await api.post(`/bank-statement-imports/${id}/cancel`)
   },
 
-  async retry(id: string): Promise<{ job_id?: string }> {
+  async retry(id: number): Promise<{ job_id?: string }> {
     const response = await api.post(`/bank-statement-imports/${id}/retry`)
     return response.data.data
   },
 
-  async delete(id: string): Promise<void> {
+  async delete(id: number): Promise<void> {
     await api.delete(`/bank-statement-imports/${id}`)
   },
 
-  async getById(id: string): Promise<BankStatementImport> {
+  async getById(id: number): Promise<BankStatementImport> {
     const response = await api.get(`/bank-statement-imports/${id}`)
     return response.data.data
   },
 
-  async getSummary(id: string): Promise<BankStatementAnalysisResult> {
+  async getSummary(id: number): Promise<BankStatementAnalysisResult> {
     const response = await api.get(`/bank-statement-imports/${id}/summary`)
     return response.data.data
   },
