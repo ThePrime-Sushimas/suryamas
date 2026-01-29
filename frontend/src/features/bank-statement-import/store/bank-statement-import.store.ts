@@ -149,12 +149,13 @@ export const useBankStatementImportStore = create<BankStatementImportState>((set
       const { page = get().pagination.page, limit = get().pagination.limit, filters = get().filters } = params || {}
       const response = await bankStatementImportApi.list({ page, limit, ...filters })
 
+      // API returns: { data: [...], total, page, limit, totalPages, hasNext, hasPrev }
       set({
-        imports: response.data ?? [],
+        imports: response.data || [],
         pagination: {
-          page,
-          limit,
-          total: response.pagination?.total ?? 0,
+          page: response.page || page,
+          limit: response.limit || limit,
+          total: response.total || 0,
         },
         loading: { ...get().loading, list: false },
       })

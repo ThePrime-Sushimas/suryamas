@@ -7,11 +7,12 @@ import type {
 
 interface ListResponse {
   data: BankStatementImport[]
-  pagination?: {
-    page: number
-    limit: number
-    total: number
-  }
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
 }
 
 export const bankStatementImportApi = {
@@ -19,7 +20,9 @@ export const bankStatementImportApi = {
     const response = await api.get('/bank-statement-imports', {
       params,
     })
-    return response.data
+    // Backend returns: { success: true, data: { data: [...], total, page, limit, ... } }
+    // So response.data.data = array of imports with pagination
+    return response.data.data
   },
 
   async upload(
