@@ -123,14 +123,46 @@ export class BankStatementImportService {
     })
 
     try {
-      // Check for duplicate file
-      const existingImport = await this.repository.checkFileHashExists(
+      // Check for duplicate file - first check active records
+      const activeImport = await this.repository.checkFileHashExists(
         fileResult.file_hash,
         companyId
       )
 
-      if (existingImport) {
+      if (activeImport) {
+        // File exists and is active - throw duplicate error
         throw BankStatementImportErrors.DUPLICATE_FILE()
+      }
+
+      // Check if file exists but was deleted (for re-upload)
+      const existingImport = await this.repository.checkFileHashExistsIncludingDeleted(
+        fileResult.file_hash,
+        companyId
+      )
+
+      if (existingImport && existingImport.deleted_at !== null) {
+        logInfo('BankStatementImport: Re-uploading previously deleted file', {
+          file_hash: fileResult.file_hash,
+          previous_import_id: existingImport.id
+        })
+        
+        // Hard delete the old record to allow new upload
+        const { error: hardDeleteError } = await supabase
+          .from('bank_statement_imports')
+          .delete()
+          .eq('id', existingImport.id)
+
+        if (hardDeleteError) {
+          logError('BankStatementImport: Failed to hard delete old import', {
+            import_id: existingImport.id,
+            error: hardDeleteError.message
+          })
+          throw new Error('Tidak dapat memproses file yang sama. Silakan coba lagi.')
+        }
+        
+        logInfo('BankStatementImport: Successfully deleted old import, allowing new upload', {
+          previous_import_id: existingImport.id
+        })
       }
 
       // Check file extension and parse accordingly
@@ -852,6 +884,9 @@ export class BankStatementImportService {
       case BANK_CSV_FORMAT.BCA_BUSINESS:
         rows = this.parseBCABusiness(lines, formatDetection)
         break
+      case BANK_CSV_FORMAT.BCA_BUSINESS_V2:
+        rows = this.parseBCABusinessV2(lines, formatDetection)
+        break
       case BANK_CSV_FORMAT.BANK_MANDIRI:
         rows = this.parseBankMandiri(lines, formatDetection)
         break
@@ -879,11 +914,12 @@ export class BankStatementImportService {
 
     // Normalize headers for comparison
     const normalizeHeaders = (line: string): string[] => {
-      return line.toLowerCase().split(/[,\t]/).map(h => h.trim().replace(/["']/g, ''))
+      // Remove generic quotes and split by comma or tab
+      return line.toLowerCase().split(/[,\t]/).map(h => h.trim().replace(/^["']|["']$/g, ''))
     }
 
-    // Check first few lines for headers
-    const headerCandidates = lines.slice(0, 5).map((line, idx) => ({
+    // Check first 20 lines (increased from 5) for headers to account for pre-header info
+    const headerCandidates = lines.slice(0, 20).map((line, idx) => ({
       line,
       normalized: normalizeHeaders(line),
       index: idx,
@@ -893,47 +929,68 @@ export class BankStatementImportService {
     const formatScores: Record<BankCSVFormat, { score: number; matchedHeaders: string[] }> = {
       [BANK_CSV_FORMAT.BCA_PERSONAL]: { score: 0, matchedHeaders: [] },
       [BANK_CSV_FORMAT.BCA_BUSINESS]: { score: 0, matchedHeaders: [] },
+      [BANK_CSV_FORMAT.BCA_BUSINESS_V2]: { score: 0, matchedHeaders: [] },
       [BANK_CSV_FORMAT.BANK_MANDIRI]: { score: 0, matchedHeaders: [] },
       [BANK_CSV_FORMAT.UNKNOWN]: { score: 0, matchedHeaders: [] },
     }
 
     // Check against known header patterns
     for (const candidate of headerCandidates) {
+      // Skip lines that look like section headers (e.g. "HEADER", "TRANSAKSI DEBIT")
+      const rawLineUpper = candidate.line.toUpperCase().trim()
+      if (['HEADER', 'TRANSAKSI', 'ACCOUNT NO'].some(k => rawLineUpper.startsWith(k)) && !candidate.line.includes(',')) {
+        continue
+      }
+
       const headers = candidate.normalized
 
       // Check BCA Personal pattern
       const bcaPersonalPattern = BANK_HEADER_PATTERNS[BANK_CSV_FORMAT.BCA_PERSONAL]
       const bcaPersonalMatches = bcaPersonalPattern.filter(p => 
-        headers.some(h => h.includes(p))
+        headers.some(h => h === p || h.includes(p))
       )
       if (bcaPersonalMatches.length >= 3) {
-        formatScores[BANK_CSV_FORMAT.BCA_PERSONAL].score += bcaPersonalMatches.length * 10
+        // High score if exact match sequence found
+        formatScores[BANK_CSV_FORMAT.BCA_PERSONAL].score += bcaPersonalMatches.length * 20
         formatScores[BANK_CSV_FORMAT.BCA_PERSONAL].matchedHeaders = bcaPersonalMatches
       }
 
       // Check BCA Business pattern
       const bcaBusinessPattern = BANK_HEADER_PATTERNS[BANK_CSV_FORMAT.BCA_BUSINESS]
       const bcaBusinessMatches = bcaBusinessPattern.filter(p =>
-        headers.some(h => h.includes(p))
+        headers.some(h => h === p || h.includes(p))
       )
       if (bcaBusinessMatches.length >= 2) {
-        formatScores[BANK_CSV_FORMAT.BCA_BUSINESS].score += bcaBusinessMatches.length * 10
+        formatScores[BANK_CSV_FORMAT.BCA_BUSINESS].score += bcaBusinessMatches.length * 20
         formatScores[BANK_CSV_FORMAT.BCA_BUSINESS].matchedHeaders = bcaBusinessMatches
       }
+
+      // Check BCA Business V2 pattern
+      const bcaBusinessV2Pattern = BANK_HEADER_PATTERNS[BANK_CSV_FORMAT.BCA_BUSINESS_V2]
+      const bcaBusinessV2Matches = bcaBusinessV2Pattern.filter(p =>
+        headers.some(h => h.includes(p))
+      )
+      if (bcaBusinessV2Matches.length >= 3) {
+        formatScores[BANK_CSV_FORMAT.BCA_BUSINESS_V2].score += bcaBusinessV2Matches.length * 20
+        formatScores[BANK_CSV_FORMAT.BCA_BUSINESS_V2].matchedHeaders = bcaBusinessV2Matches
+      }
+
 
       // Check Bank Mandiri pattern
       const mandiriPattern = BANK_HEADER_PATTERNS[BANK_CSV_FORMAT.BANK_MANDIRI]
       const mandiriMatches = mandiriPattern.filter(p =>
-        headers.some(h => h.includes(p))
+        headers.some(h => h === p || h.includes(p))
       )
-      if (mandiriMatches.length >= 3) {
-        formatScores[BANK_CSV_FORMAT.BANK_MANDIRI].score += mandiriMatches.length * 10
+      if (mandiriMatches.length >= 4) {
+        formatScores[BANK_CSV_FORMAT.BANK_MANDIRI].score += mandiriMatches.length * 20
         formatScores[BANK_CSV_FORMAT.BANK_MANDIRI].matchedHeaders = mandiriMatches
       }
     }
 
     // Find best matching format
     for (const [format, data] of Object.entries(formatScores)) {
+      if (format === BANK_CSV_FORMAT.UNKNOWN) continue
+      
       if (data.score > highestConfidence) {
         highestConfidence = data.score
         bestFormat = format as BankCSVFormat
@@ -941,33 +998,34 @@ export class BankStatementImportService {
     }
 
     // If no clear match, try content-based detection
-    if (bestFormat === BANK_CSV_FORMAT.UNKNOWN) {
-      const firstDataLine = lines[1] || ''
-      const columns = this.splitCSVLine(firstDataLine, ',')
-
-      // Detect by column count and content
-      if (columns.length >= 7) {
-        // BCA Personal format: Date, Description, Branch, Amount, Empty, CR/DB, Balance
-        const dateValue = columns[0]?.trim() || ''
-        const hasLeadingQuote = dateValue.startsWith("'")
-        const hasDBOrCR = columns.some(c => /\b(DB|CR|DR)\b/i.test(c))
+    if (highestConfidence < 50) {
+      // Look for data patterns in first few lines that look like data
+      const dataLines = lines.slice(0, 10).filter(l => l.includes(',') && /\d/.test(l))
+      
+      for (const line of dataLines) {
+        const columns = this.splitCSVLine(line, ',')
         
-        if (hasLeadingQuote && hasDBOrCR) {
-          bestFormat = BANK_CSV_FORMAT.BCA_PERSONAL
-          highestConfidence = 70
-          warnings.push('Format detected by column pattern (BCA Personal with leading quote)')
+        // Check for BCA Personal specific pattern: Date with quote, DB/CR col
+        if (columns.length >= 6) {
+           const col0 = columns[0]?.trim()
+           const col4 = columns[4]?.trim() // CR/DB col
+           if (col0?.startsWith("'") && (col4 === 'DB' || col4 === 'CR')) {
+             bestFormat = BANK_CSV_FORMAT.BCA_PERSONAL
+             highestConfidence = 80
+             warnings.push('Format detected by BCA Personal content pattern')
+             break
+           }
         }
-      } else if (columns.length >= 4) {
-        const amountCol = columns[3]?.trim() || ''
-        // Check if amount has DB/CR suffix - likely BCA Bisnis
-        if (/^["']?[\d,]+\.?\d*\s*(DB|CR|DR)["']?$/i.test(amountCol)) {
-          bestFormat = BANK_CSV_FORMAT.BCA_BUSINESS
-          highestConfidence = 75
-          warnings.push('Format detected by amount pattern (BCA Bisnis with indicator)')
-        } else {
-          bestFormat = BANK_CSV_FORMAT.BCA_PERSONAL
-          highestConfidence = 50
-          warnings.push('Format detected by column count (BCA Personal fallback)')
+        
+        // Check for BCA Business specific pattern: 4 cols, amount with suffix
+        if (columns.length >= 4) {
+          const col3 = columns[3]?.trim()
+          if (/[\d,]+\.?\d*\s*(DB|CR|DR)/i.test(col3)) {
+             bestFormat = BANK_CSV_FORMAT.BCA_BUSINESS
+             highestConfidence = 80
+             warnings.push('Format detected by BCA Business content pattern')
+             break
+          }
         }
       }
     }
@@ -977,18 +1035,27 @@ export class BankStatementImportService {
     let headerRowIndex = 0
     let dataStartRowIndex = 1
     
-    // Search for header row
+    // Search for header row AGAIN using the best format patterns
     for (const candidate of headerCandidates) {
       const headers = candidate.normalized
-      // Simple check: if there are bank keywords, it's a header
-      const bankKeywords = [
-        'date', 'tanggal', 'desc', 'keterangan', 'debit', 'credit', 
-        'saldo', 'balance', 'account', 'transaction', 'val. date',
-        'transaction code', 'reference no', 'cabang', 'jumlah'
-      ]
-      const isHeader = bankKeywords.some(keyword => 
-        headers.some(h => h.includes(keyword))
-      )
+      
+      // Simple check: if there are bank keywords matches the detected format
+      let isHeader = false
+      if (bestFormat !== BANK_CSV_FORMAT.UNKNOWN) {
+         const pattern = BANK_HEADER_PATTERNS[bestFormat]
+         const matches = pattern.filter(p => headers.some(h => h.includes(p)))
+         if (matches.length >= 2) isHeader = true
+      } else {
+        // Fallback generic check
+        const bankKeywords = [
+          'date', 'tanggal', 'desc', 'keterangan', 'debit', 'credit', 
+          'saldo', 'balance', 'account', 'transaction', 'val. date',
+          'transaction code', 'reference no', 'cabang', 'jumlah'
+        ]
+        isHeader = bankKeywords.some(keyword => 
+          headers.some(h => h.includes(keyword))
+        )
+      }
       
       if (isHeader) {
         headerRowIndex = candidate.index
@@ -1114,15 +1181,18 @@ export class BankStatementImportService {
     const dataStartRow = formatDetection.dataStartRowIndex
 
     for (let i = dataStartRow; i < lines.length; i++) {
-      const line = lines[i].trim()
-      if (!line) continue
+        const line = lines[i].trim()
+        if (!line) continue
+        
+        // Skip header sections
+        if (line.toUpperCase().startsWith('TRANSAKSI') || line.toUpperCase().includes('HEADER')) continue
 
-      const columns = this.splitCSVLine(line, config.delimiter)
-      
-      if (columns.length < 4) continue
+        const columns = this.splitCSVLine(line, config.delimiter)
+        
+        if (columns.length < 5) continue
 
-      const row = this.parseBCAPersonalRow(columns, i + 1, line)
-      if (row) rows.push(row)
+        const row = this.parseBCAPersonalRow(columns, i + 1, line)
+        if (row) rows.push(row)
     }
 
     return rows
@@ -1130,118 +1200,73 @@ export class BankStatementImportService {
 
   /**
    * Parse single BCA Personal row
-   * Handles special format where amount is embedded in description field
-   * Pattern: TRSF E-BANKING [CR|DB] [ref] [amount][nama]
    */
   private parseBCAPersonalRow(columns: string[], rowNumber: number, rawLine: string): ParsedCSVRow | null {
     try {
-      let dateValue = columns[0]?.trim() || ''
-      let description = columns[1]?.trim() || ''
-      const branch = columns[2]?.trim().replace(/^'/, '') || ''
-      let amountRaw = columns[3]?.trim() || ''
-      const creditDebit = columns[4]?.trim()?.toUpperCase() || ''
-      const balanceRaw = columns[5]?.trim() || ''
+        let dateValue = columns[0]?.trim() || ''
+        let description = columns[1]?.trim() || ''
+        const branch = columns[2]?.trim().replace(/^'/, '') || ''
+        let amountRaw = columns[3]?.trim() || ''
+        let creditDebit = columns[4]?.trim()?.toUpperCase() || '' // Sometimes in col 4
+        let balanceRaw = columns[5]?.trim() || ''
 
-      // Check for PEND indicator FIRST - before date parsing
-      // Use startsWith to handle cases where there might be extra characters
-      const isPending = dateValue.toUpperCase().startsWith(PENDING_TRANSACTION.INDICATOR)
-
-      // Parse date - only if not PEND
-      let transactionDate: string | null = null
-
-      if (!isPending) {
-        // Remove leading single quote from date
+        // Handle BCA Personal quirk: date often has leading quote '01/01/2026
         dateValue = dateValue.replace(/^'/, '')
-        transactionDate = this.parseDate(dateValue)
         
+        const transactionDate = this.parseDate(dateValue)
         if (!transactionDate) {
-          logInfo('BankStatementImport: Skipping row with invalid date', { rowNumber, dateValue })
-          return null
+            // Check if it's pending (PEND)
+            if (dateValue.toUpperCase().startsWith('PEND')) {
+                 // Pending logic
+                 return {
+                    row_number: rowNumber,
+                    raw_line: rawLine,
+                    format: BANK_CSV_FORMAT.BCA_PERSONAL,
+                    transaction_date: new Date().toISOString().split('T')[0],
+                    reference_number: '',
+                    description: description.substring(0, 1000),
+                    debit_amount: 0,
+                    credit_amount: 0,
+                    is_pending: true,
+                    transaction_type: PENDING_TRANSACTION.TRANSACTION_TYPE,
+                    raw_data: { columns }
+                 }
+            }
+            return null
         }
-      } else {
-        // For PEND transactions, use current date as placeholder
-        transactionDate = new Date().toISOString().split('T')[0]
-      }
 
-      // Parse amount
-      let debitAmount = 0
-      let creditAmount = 0
+        let debitAmount = 0
+        let creditAmount = 0
+        
+        const amountNum = parseFloat(amountRaw.replace(/[,\s]/g, ''))
 
-      // Determine transaction type from creditDebit column or from description
-      let transactionType = creditDebit
-      if (!transactionType && description) {
-        // Extract from description pattern: "TRSF E-BANKING CR ..." or "TRSF E-BANKING DB ..."
-        const typeMatch = description.match(/TRSF\s+E\-BANKING\s+(CR|DB)/i)
-        if (typeMatch) {
-          transactionType = typeMatch[1].toUpperCase()
+        // Use DB/CR indicator if available
+        if (creditDebit === 'CR') {
+             creditAmount = amountNum
+        } else if (creditDebit === 'DB') {
+             debitAmount = amountNum
+        } else {
+             // Fallback: check amount sign or description?
+             // Usually BCA Personal has explicit column
         }
-      }
+        
+        const balance = this.parseAmount(balanceRaw)
 
-      // Try to parse amount from column[3] first
-      const amountClean = amountRaw.replace(/[,\s]/g, '')
-      let amountNum = parseFloat(amountClean)
-
-      // Special handling for BCA Personal format with amount embedded in description
-      // Pattern: "TRSF E-BANKING CR 0101/FTSCY/WS95051       50000000.00pengembalian..."
-      // or "TRSF E-BANKING DB 0101/FTSCY/WS95271       50000000.00MICHAEL..."
-      if ((isNaN(amountNum) || amountNum === 0) && description) {
-        // Try to find amount in description: look for pattern like "12345678.00" followed by text
-        // Amount typically appears after the reference number
-        const descAmountMatch = description.match(/(\d{8,}(?:\.\d{2})?)/)
-        if (descAmountMatch) {
-          const extractedAmount = parseFloat(descAmountMatch[1])
-          if (!isNaN(extractedAmount) && extractedAmount > 0) {
-            amountNum = extractedAmount
-            logInfo('BankStatementImport: Extracted amount from description (BCA Personal format)', {
-              rowNumber,
-              originalDescription: description.substring(0, 50),
-              extractedAmount: amountNum
-            })
-          }
+        return {
+            row_number: rowNumber,
+            raw_line: rawLine,
+            format: BANK_CSV_FORMAT.BCA_PERSONAL,
+            transaction_date: transactionDate,
+            reference_number: '',
+            description: description.substring(0, 1000),
+            debit_amount: debitAmount,
+            credit_amount: creditAmount,
+            balance: balance || undefined,
+            is_pending: false,
+            raw_data: { columns, branch }
         }
-      }
-
-      // Assign amount based on transaction type
-      if (transactionType === 'CR' || transactionType.includes('KREDIT')) {
-        creditAmount = isNaN(amountNum) ? 0 : amountNum
-      } else if (transactionType === 'DB' || transactionType.includes('DEBIT') || transactionType.includes('DR')) {
-        debitAmount = isNaN(amountNum) ? 0 : amountNum
-      } else if (creditDebit.includes('CR')) {
-        creditAmount = isNaN(amountNum) ? 0 : amountNum
-      } else if (creditDebit.includes('DR') || creditDebit.includes('DB')) {
-        debitAmount = isNaN(amountNum) ? 0 : amountNum
-      }
-
-      // Fallback: if both are 0 but we found amount in description, assign to appropriate side
-      if (debitAmount === 0 && creditAmount === 0 && amountNum > 0) {
-        // Default to debit if we extracted an amount but couldn't determine type
-        debitAmount = amountNum
-        logInfo('BankStatementImport: Defaulting to debit for amount found in description', {
-          rowNumber,
-          amount: amountNum
-        })
-      }
-
-      const balance = this.parseAmount(balanceRaw)
-      const referenceNumber = this.extractReferenceNumber(description)
-
-      return {
-        row_number: rowNumber,
-        raw_line: rawLine,
-        format: BANK_CSV_FORMAT.BCA_PERSONAL,
-        transaction_date: transactionDate!,
-        reference_number: referenceNumber,
-        description: description.substring(0, 1000),
-        debit_amount: debitAmount,
-        credit_amount: creditAmount,
-        balance: balance || undefined,
-        is_pending: isPending,
-        transaction_type: isPending ? PENDING_TRANSACTION.TRANSACTION_TYPE : undefined,
-        raw_data: { columns, branch },
-      }
-    } catch (error: any) {
-      logError('BankStatementImport: Error parsing BCA Personal row', { rowNumber, error: error.message })
-      return null
+    } catch (e: any) {
+        return null
     }
   }
 
@@ -1253,48 +1278,27 @@ export class BankStatementImportService {
     const dataStartRow = formatDetection.dataStartRowIndex
 
     for (let i = dataStartRow; i < lines.length; i++) {
-      const line = lines[i].trim()
-      if (!line) continue
+        const line = lines[i].trim()
+        if (!line) continue
+        
+        // Skip header sections
+        if (line.toUpperCase().startsWith('TRANSAKSI') || line.toUpperCase().includes('HEADER')) continue
 
-      const columns = this.parseBusinessCSV(line)
+        const columns = this.parseBusinessCSV(line) // Handles quoted fields
+        if (columns.length < 4) continue
 
-      if (columns.length < 4) continue
-
-      const row = this.parseBCABusinessRow(columns, i + 1, line)
-      if (row) rows.push(row)
+        const row = this.parseBCABusinessRow(columns, i + 1, line)
+        if (row) rows.push(row)
     }
 
     return rows
   }
 
   /**
-   * Parse BCA Business CSV line dengan quotes
+   * Parse BCA Business CSV line
    */
   private parseBusinessCSV(line: string): string[] {
-    const result: string[] = []
-    let current = ''
-    let inQuotes = false
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i]
-
-      if (char === '"') {
-        if (inQuotes && line[i + 1] === '"') {
-          current += '"'
-          i++
-        } else {
-          inQuotes = !inQuotes
-        }
-      } else if (char === ',' && !inQuotes) {
-        result.push(current.trim())
-        current = ''
-      } else {
-        current += char
-      }
-    }
-
-    result.push(current.trim())
-    return result
+    return this.splitCSVLine(line, ',')
   }
 
   /**
@@ -1306,266 +1310,232 @@ export class BankStatementImportService {
       const description = columns[1]?.trim() || ''
       const branch = columns[2]?.trim() || ''
       const amountRaw = columns[3]?.trim() || ''
+      const balanceRaw = columns[4]?.trim() || ''
 
-      // Check for PEND indicator FIRST - before date parsing
-      const isPending = dateValue.toUpperCase() === PENDING_TRANSACTION.INDICATOR
-
-      let transactionDate: string | null = null
-
-      if (!isPending) {
-        transactionDate = this.parseDate(dateValue)
-        if (!transactionDate) {
-          logInfo('BankStatementImport: Skipping BCA Business row with invalid date', { rowNumber, dateValue })
-          return null
-        }
-      } else {
-        // For PEND transactions, use current date
-        transactionDate = new Date().toISOString().split('T')[0]
-      }
-
+      const transactionDate = this.parseDate(dateValue)
+      if (!transactionDate) return null
+      
       let debitAmount = 0
       let creditAmount = 0
 
-      const amountMatch = amountRaw.match(/^([\d,]+\.?\d*)\s*(CR|DR)?$/i)
-      
+      // Amount "287,490.00 DB"
+      const amountMatch = amountRaw.match(/^([\d,]+\.?\d*)\s*(DB|CR|DR)?/i)
       if (amountMatch) {
-        const amountNum = parseFloat(amountMatch[1].replace(/,/g, ''))
-        const indicator = amountMatch[2]?.toUpperCase()
-
-        if (indicator === 'CR') {
-          creditAmount = isNaN(amountNum) ? 0 : amountNum
-        } else if (indicator === 'DR') {
-          debitAmount = isNaN(amountNum) ? 0 : amountNum
-        } else {
-          creditAmount = isNaN(amountNum) ? 0 : amountNum
-        }
+          const num = parseFloat(amountMatch[1].replace(/,/g, ''))
+          const type = (amountMatch[2] || '').toUpperCase()
+          
+          if (type === 'CR') creditAmount = num
+          else if (type === 'DB' || type === 'DR') debitAmount = num
+          else {
+              // Should not happen for business format usually
+          }
       }
-
-      const referenceNumber = this.extractReferenceNumber(description)
+      
+      const balance = this.parseAmount(balanceRaw)
 
       return {
         row_number: rowNumber,
         raw_line: rawLine,
         format: BANK_CSV_FORMAT.BCA_BUSINESS,
-        transaction_date: transactionDate!,
-        reference_number: referenceNumber,
+        transaction_date: transactionDate,
         description: description.substring(0, 1000),
         debit_amount: debitAmount,
         credit_amount: creditAmount,
-        is_pending: isPending,
-        transaction_type: isPending ? PENDING_TRANSACTION.TRANSACTION_TYPE : undefined,
-        raw_data: { columns, branch },
+        balance: balance || undefined,
+        is_pending: false,
+        raw_data: { columns, branch }
       }
-    } catch (error: any) {
-      logError('BankStatementImport: Error parsing BCA Business row', { rowNumber, error: error.message })
-      return null
+    } catch (e: any) {
+        return null
     }
   }
 
   /**
-   * Parse Bank Mandiri format (multi-line)
+   * Parse Bank Mandiri format
    */
   private parseBankMandiri(lines: string[], formatDetection: CSVFormatDetectionResult): ParsedCSVRow[] {
     const rows: ParsedCSVRow[] = []
     const dataStartRow = formatDetection.dataStartRowIndex
-
-    let i = dataStartRow
-    while (i < lines.length) {
-      const line = lines[i].trim()
-      
-      if (!line) {
-        i++
-        continue
-      }
-
-      const transaction = this.parseMandiriMultiLineTransaction(lines, i)
-
-      if (transaction) {
-        const row = this.convertMandiriTransaction(transaction, i + 1)
+    
+    for (let i = dataStartRow; i < lines.length; i++) {
+        const line = lines[i].trim()
+        if (!line) continue
+        
+        // Skip section headers if any (e.g. "TRANSAKSI DEBIT")
+        if (line.toUpperCase().startsWith('TRANSAKSI') && !line.includes(',')) continue
+  
+        const columns = this.splitCSVLine(line, ',')
+        // Expected columns: Account No, Date, Val Date, Transaction Code, Description, Description, Reference No., Debit, Credit
+        if (columns.length < 5) continue
+  
+        const row = this.parseMandiriRow(columns, i + 1, line)
         if (row) rows.push(row)
-        i += transaction.rawLines.length
-      } else {
-        const singleLineRow = this.parseMandiriSingleLine(line, i + 1)
-        if (singleLineRow) {
-          rows.push(singleLineRow)
-          i++
-        } else {
-          i++
+    }
+  
+    return rows
+  }
+
+  /**
+   * Parse single Mandiri row
+   */
+  private parseMandiriRow(columns: string[], rowNumber: number, rawLine: string): ParsedCSVRow | null {
+    try {
+        // Mapping based on constants
+        // 0:AccountNo, 1:Date, 2:ValDate, 3:TrxCode, 4:Desc, 5:Desc, 6:RefNo, 7:Debit, 8:Credit
+        
+        // Date is in column 1 (DD/MM/YY)
+        const dateStr = columns[1]?.trim()
+        // Skip if date is empty
+        if (!dateStr) return null
+        
+        const transactionDate = this.parseDate(dateStr) || new Date().toISOString().split('T')[0]
+        
+        const transactionCode = columns[3]?.trim()
+        const description = (columns[4] || '') + ' ' + (columns[5] || '')
+        const referenceNo = columns[6]?.trim()
+        
+        const debitStr = columns[7]?.trim()
+        const creditStr = columns[8]?.trim()
+        
+        const parseAmount = (val: string): number => {
+            if (!val || val === '.00') return 0
+            const cleaned = val.replace(/,/g, '') // Remove thousands separator
+            const num = parseFloat(cleaned)
+            return isNaN(num) ? 0 : num
         }
+        
+        const debitAmount = parseAmount(debitStr)
+        const creditAmount = parseAmount(creditStr)
+        
+        const isPending = awaitPending(transactionDate) // Optional logic helper
+
+        // Helper to check logical pending (Mandiri usually uses specific codes/desc for pending, but here mostly completed)
+        function awaitPending(date: any) { return false } 
+
+        return {
+            row_number: rowNumber,
+            raw_line: rawLine,
+            format: BANK_CSV_FORMAT.BANK_MANDIRI,
+            transaction_date: transactionDate as string,
+            reference_number: referenceNo,
+            description: description.trim(),
+            debit_amount: debitAmount,
+            credit_amount: creditAmount,
+            // Balance not always available in this layout, or maybe 5th col? User example didn't show balance explicitly in header mapping provided effectively
+            // But we can check if there's extra column
+            balance: undefined, 
+            is_pending: false,
+            transaction_type: undefined,
+            raw_data: { columns, transactionCode }
+        }
+
+    } catch (error: any) {
+        logError('BankStatementImport: Error parsing Mandiri row', { rowNumber, error: error.message })
+        return null
+    }
+  }
+
+  /**
+   * Parse BCA Business V2 (Pratinjau Data - Tab Separated usually)
+   */
+  private parseBCABusinessV2(lines: string[], formatDetection: CSVFormatDetectionResult): ParsedCSVRow[] {
+    const rows: ParsedCSVRow[] = []
+    
+    // Config in constants might imply TSV via delimiter, but we detect dynamically here
+    const headerRow = lines[formatDetection.headerRowIndex]
+    
+    // Detect delimiter (Tab or Comma)
+    const delimiter = headerRow.includes('\t') ? '\t' : ','
+    logInfo('BankStatementImport: Detected delimiter for BCA Business V2', { delimiter: delimiter === '\t' ? 'TAB' : 'COMMA' })
+
+    const dataStartRow = formatDetection.dataStartRowIndex
+
+    for (let i = dataStartRow; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if (!line) continue
+
+      // Skip non-data lines (footer etc)
+      if (line.startsWith('Bersaldo') || line.startsWith('Total')) continue
+      
+      const columns = this.splitCSVLine(line, delimiter)
+      
+      // Expected columns: No, Tanggal, Keterangan, Debit, Kredit, Saldo
+      if (columns.length < 6) continue
+
+      const parsedRow = this.parseBCABusinessV2Row(columns, i + 1)
+      if (parsedRow) {
+        rows.push(parsedRow)
       }
     }
 
     return rows
   }
 
-  /**
-   * Parse Bank Mandiri multi-line transaction
-   */
-  private parseMandiriMultiLineTransaction(lines: string[], startIndex: number): {
-    postDate: string
-    postTime?: string
-    remarks: string
-    creditAmount: number
-    debitAmount: number
-    closeBalance: number
-    rawLines: string[]
-    isPending: boolean
-  } | null {
+  private parseBCABusinessV2Row(columns: string[], rowNumber: number): ParsedCSVRow | null {
     try {
-      const row1 = lines[startIndex]?.trim() || ''
-      if (!row1) return null
-
-      const dateMatch = row1.match(/^(\d{2}\/\d{2}\/\d{4})(?:\s+(\d{2}\.\d{2}\.\d{2}))?/)
-      
-      if (!dateMatch) return null
-
-      const postDate = dateMatch[1]
-      const postTime = dateMatch[2]
-
-      const row2 = lines[startIndex + 1]?.trim() || ''
-      if (!row2) return null
-
-      const isPending = row2.toUpperCase().startsWith(PENDING_TRANSACTION.INDICATOR)
-
-      const row3 = lines[startIndex + 2]?.trim() || ''
-      const row4 = lines[startIndex + 3]?.trim() || ''
-      const row5 = lines[startIndex + 4]?.trim() || ''
-
-      const parseMandiriAmount = (val: string): number => {
-        const cleaned = val.replace(/[,\s]/g, '')
-        const num = parseFloat(cleaned)
-        return isNaN(num) ? 0 : num
-      }
-
-      let creditAmount = 0
-      let debitAmount = 0
-
-      if (row3) {
-        if (row3.toUpperCase().includes('CR') || row3.toUpperCase().includes('KR')) {
-          creditAmount = parseMandiriAmount(row3)
-        } else if (!row3.toUpperCase().includes('DR') && !row3.toUpperCase().includes('DB')) {
-          creditAmount = parseMandiriAmount(row3)
+        const mapping = BANK_COLUMN_INDEX_MAPPING[BANK_CSV_FORMAT.BCA_BUSINESS_V2]
+        
+        // Date parsing (Col 1: Tanggal)
+        const dateValue = columns[mapping.transaction_date!]?.trim() || ''
+        const transactionDate = this.parseDate(dateValue)
+        
+        if (!transactionDate) {
+            // Check if it is a valid row
+            return null
         }
-      }
 
-      if (row4) {
-        if (row4.toUpperCase().includes('DR') || row4.toUpperCase().includes('DB')) {
-          debitAmount = parseMandiriAmount(row4)
-        } else if (!row4.toUpperCase().includes('CR') && !row4.toUpperCase().includes('KR')) {
-          debitAmount = parseMandiriAmount(row4)
+        const description = columns[mapping.description!]?.trim() || ''
+        
+        // Amount parsing (Col 3: Debit, Col 4: Kredit)
+        // Format: "Rp 806.300" (Indonesian format: Dot = thousand, Comma = decimal)
+        // Value "-" means 0
+        
+        const parseIdr = (val: string): number => {
+            if (!val || val.trim() === '-') return 0
+            
+            // Remove 'Rp' and whitespaces
+            let cleaned = val.replace(/Rp\s?/i, '').replace(/\s/g, '')
+            
+            // Handle Indonesian format: 806.300 -> 806300 | 123.456,78 -> 123456.78
+            // If there is a comma, replace dots with empty, replace comma with dot
+            if (cleaned.includes(',')) {
+                cleaned = cleaned.replace(/\./g, '').replace(',', '.')
+            } else {
+                // If only dots, assume thousand separators -> remove them
+                cleaned = cleaned.replace(/\./g, '')
+            }
+            
+            const num = parseFloat(cleaned)
+            return isNaN(num) ? 0 : num
         }
-      }
 
-      const closeBalance = parseMandiriAmount(row5)
+        const debitAmount = parseIdr(columns[mapping.debit_amount!])
+        const creditAmount = parseIdr(columns[mapping.credit_amount!])
+        const balance = parseIdr(columns[mapping.balance!])
 
-      return {
-        postDate,
-        postTime,
-        remarks: row2,
-        creditAmount,
-        debitAmount,
-        closeBalance,
-        rawLines: [row1, row2, row3 || '', row4 || '', row5 || ''],
-        isPending,
-      }
+        // Determine PENDING
+        const isPending = description.includes(PENDING_TRANSACTION.INDICATOR)
+
+        return {
+            row_number: rowNumber,
+            raw_line: columns.join(','),
+            format: BANK_CSV_FORMAT.BCA_BUSINESS_V2,
+            transaction_date: transactionDate,
+            description,
+            debit_amount: debitAmount,
+            credit_amount: creditAmount,
+            balance,
+            is_pending: isPending,
+            transaction_type: isPending ? PENDING_TRANSACTION.TRANSACTION_TYPE : undefined,
+            raw_data: { columns }
+        }
+
     } catch (error: any) {
-      logError('BankStatementImport: Error parsing Mandiri multi-line', { startIndex, error: error.message })
-      return null
+        logError('BankStatementImport: Error parsing BCA Business V2 row', { rowNumber, error: error.message })
+        return null
     }
   }
 
-  /**
-   * Parse Bank Mandiri single line (fallback)
-   */
-  private parseMandiriSingleLine(line: string, rowNumber: number): ParsedCSVRow | null {
-    try {
-      const parts = line.split(/\s+/).filter(p => p.trim())
-
-      if (parts.length < 3) return null
-
-      const dateIndex = parts.findIndex(p => /^\d{2}\/\d{2}\/\d{4}$/.test(p))
-      
-      if (dateIndex < 0) return null
-
-      const dateValue = parts[dateIndex]
-      const description = parts.slice(dateIndex + 1).join(' ')
-
-      // Check for PEND indicator
-      const isPending = description.toUpperCase().startsWith(PENDING_TRANSACTION.INDICATOR)
-
-      const amounts = parts
-        .slice(dateIndex + 1)
-        .filter(p => /^[-\d,]+\.?\d*$/.test(p.replace(/,/g, '')))
-        .map(p => parseFloat(p.replace(/,/g, '')))
-
-      let creditAmount = 0
-      let debitAmount = 0
-
-      if (amounts.length >= 1) {
-        if (amounts.length >= 2) {
-          const transactionAmount = amounts[amounts.length - 2]
-          
-          if (description.toUpperCase().includes('DR') || description.toUpperCase().includes('DEBIT')) {
-            debitAmount = transactionAmount
-          } else {
-            creditAmount = transactionAmount
-          }
-        }
-      }
-
-      const transactionDate = this.parseDate(dateValue)
-      if (!transactionDate) return null
-
-      return {
-        row_number: rowNumber,
-        raw_line: line,
-        format: BANK_CSV_FORMAT.BANK_MANDIRI,
-        transaction_date: transactionDate,
-        description: description.substring(0, 1000),
-        debit_amount: debitAmount,
-        credit_amount: creditAmount,
-        is_pending: isPending,
-        transaction_type: isPending ? PENDING_TRANSACTION.TRANSACTION_TYPE : undefined,
-        raw_data: { parts, amounts },
-      }
-    } catch (error: any) {
-      return null
-    }
-  }
-
-  /**
-   * Convert Mandiri transaction to ParsedCSVRow
-   */
-  private convertMandiriTransaction(
-    transaction: {
-      postDate: string
-      postTime?: string
-      remarks: string
-      creditAmount: number
-      debitAmount: number
-      closeBalance: number
-      rawLines: string[]
-      isPending: boolean
-    },
-    rowNumber: number
-  ): ParsedCSVRow {
-    const transactionDate = this.parseDate(transaction.postDate) || new Date().toISOString().split('T')[0]
-
-    return {
-      row_number: rowNumber,
-      raw_line: transaction.rawLines.join('\n'),
-      format: BANK_CSV_FORMAT.BANK_MANDIRI,
-      transaction_date: transactionDate,
-      transaction_time: transaction.postTime?.replace(/\./g, ':'),
-      description: transaction.remarks.substring(0, 1000),
-      debit_amount: transaction.debitAmount,
-      credit_amount: transaction.creditAmount,
-      balance: transaction.closeBalance,
-      is_pending: transaction.isPending,
-      transaction_type: transaction.isPending ? PENDING_TRANSACTION.TRANSACTION_TYPE : undefined,
-      raw_data: { rawLines: transaction.rawLines },
-    }
-  }
 
   /**
    * Generic CSV parsing fallback
@@ -1869,15 +1839,27 @@ export class BankStatementImportService {
     }
 
     if (typeof value === 'string') {
-      const isoDate = new Date(value)
-      if (!isNaN(isoDate.getTime())) {
-        return isoDate.toISOString().split('T')[0]
-      }
+      const cleaned = value.trim().replace(/^'/, '')
 
-      const dmyMatch = value.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
+      // Try DD/MM/YYYY
+      const dmyMatch = cleaned.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
       if (dmyMatch) {
         const [, day, month, year] = dmyMatch
         return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+      }
+
+      // Try DD/MM/YY (e.g., Mandiri 01/01/26)
+      const dmy2Match = cleaned.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2})$/)
+      if (dmy2Match) {
+        const [, day, month, yearShort] = dmy2Match
+        // Simple year pivot: assuming 20xx
+        const year = '20' + yearShort
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+      }
+
+      const isoDate = new Date(cleaned)
+      if (!isNaN(isoDate.getTime())) {
+        return isoDate.toISOString().split('T')[0]
       }
     }
 

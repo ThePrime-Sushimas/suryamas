@@ -123,6 +123,8 @@ export interface BankStatementImport {
   updated_at: string
   created_by?: string
   updated_by?: string
+  deleted_at?: string        // Soft delete timestamp
+  deleted_by?: string        // Soft delete by user
 }
 
 /**
@@ -427,6 +429,7 @@ export interface ExcelColumnMapping {
 export type BankCSVFormat = 
   | 'BCA_PERSONAL'
   | 'BCA_BUSINESS'
+  | 'BCA_BUSINESS_V2'
   | 'BANK_MANDIRI'
   | 'UNKNOWN'
 

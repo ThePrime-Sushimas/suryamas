@@ -117,8 +117,17 @@ function BankStatementImportDetailPageContent() {
         // Use limit = 0 or total_rows to get all data
         const fetchLimit = totalRows > 0 ? totalRows : 0
         const previewRes = await bankStatementImportApi.getPreview(numericId, fetchLimit)
-        setPreviewRows(previewRes.preview_rows)
-        console.log('All data fetched:', previewRes.preview_rows?.length, 'rows out of', previewRes.total_rows)
+        // Sort by transaction_date descending (newest first), then by row_number for same dates
+        const sortedRows = previewRes.preview_rows?.sort((a, b) => {
+          const dateA = new Date(a.transaction_date).getTime()
+          const dateB = new Date(b.transaction_date).getTime()
+          // If dates are different, sort by date descending (newest first)
+          if (dateA !== dateB) return dateB - dateA
+          // If dates are same, sort by row_number ascending
+          return a.row_number - b.row_number
+        }) || []
+        setPreviewRows(sortedRows)
+        console.log('All data fetched:', sortedRows.length, 'rows out of', previewRes.total_rows)
       } catch (previewErr) {
         console.warn('Could not fetch preview:', previewErr)
         setPreviewRows(null)

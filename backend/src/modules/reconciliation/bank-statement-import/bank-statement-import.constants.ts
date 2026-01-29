@@ -91,6 +91,7 @@ export const DATE_FORMATS = {
 export const BANK_CSV_FORMAT = {
   BCA_PERSONAL: 'BCA_PERSONAL',
   BCA_BUSINESS: 'BCA_BUSINESS',
+  BCA_BUSINESS_V2: 'BCA_BUSINESS_V2', // New format (Pratinjau Data)
   BANK_MANDIRI: 'BANK_MANDIRI',
   UNKNOWN: 'UNKNOWN',
 } as const
@@ -136,17 +137,29 @@ export const BANK_CSV_FORMATS: Record<BankCSVFormat, {
     columnCount: 4,
     description: 'Format CSV statement BCA bisnis (dengan quotes)',
   },
+  [BANK_CSV_FORMAT.BCA_BUSINESS_V2]: {
+    name: 'BCA Bisnis (Pratinjau)',
+    headerRowIndex: 0,
+    dataStartRowIndex: 1,
+    hasQuotes: false,
+    delimiter: '\t', // Usually copied from Excel/Web is TSV, but check detection
+    multiLineTransaction: false,
+    pendingIndicator: 'PEND',
+    dateFormat: 'DD/MM/YYYY',
+    columnCount: 6,
+    description: 'Format BCA Bisnis Pratinjau (No, Tanggal, Keterangan, Debit, Kredit, Saldo)',
+  },
   [BANK_CSV_FORMAT.BANK_MANDIRI]: {
     name: 'Bank Mandiri',
     headerRowIndex: 0,
     dataStartRowIndex: 1,
-    hasQuotes: false,
-    delimiter: ' ',
-    multiLineTransaction: true,
+    hasQuotes: true, // Quote handled
+    delimiter: ',',
+    multiLineTransaction: false, // Changed to false based on user request (looks like single line CSV)
     pendingIndicator: 'PEND',
-    dateFormat: 'DD/MM/YYYY',
-    columnCount: 6,
-    description: 'Format statement Bank Mandiri (multi-line per transaction)',
+    dateFormat: 'DD/MM/YY',
+    columnCount: 9, // Account No, Date, Val Date, Trx Code, Desc, Desc, Ref No, Debit, Credit
+    description: 'Format statement Bank Mandiri (CSV)',
   },
   [BANK_CSV_FORMAT.UNKNOWN]: {
     name: 'Unknown',
@@ -168,16 +181,20 @@ export const BANK_CSV_FORMATS: Record<BankCSVFormat, {
 export const BANK_HEADER_PATTERNS: Record<BankCSVFormat, string[]> = {
   [BANK_CSV_FORMAT.BCA_PERSONAL]: [
     'date', 'description', 'branch', 'amount', 'balance',
-    'tanggal', 'keterangan', 'cabang', 'jumlah', 'saldo'
+    // Removed Indonesian keywords that overlap with BCA Business (Business uses Tanggal/Keterangan)
+    // If Personal can be ID, we might need a distinct marker.
+    // For now, assume Personal is EN based on sample.
   ],
   [BANK_CSV_FORMAT.BCA_BUSINESS]: [
     'tanggal transaksi', 'keterangan', 'cabang', 'jumlah',
-    'date', 'description', 'branch', 'amount'
+    // Removed EN keywords to avoid confusion if Business is strictly ID
+  ],
+  [BANK_CSV_FORMAT.BCA_BUSINESS_V2]: [
+    'no', 'tanggal', 'keterangan', 'debit', 'kredit', 'saldo'
   ],
   [BANK_CSV_FORMAT.BANK_MANDIRI]: [
     'account no', 'date', 'val. date', 'transaction code',
-    'description', 'description', 'reference no', 'debit', 'credit',
-    'postdate', 'remarks', 'additionaldesc', 'credit amount', 'debit amount', 'close balance'
+    'description', 'reference no.', 'debit', 'credit'
   ],
   [BANK_CSV_FORMAT.UNKNOWN]: [],
 }
@@ -203,7 +220,7 @@ export const BANK_COLUMN_INDEX_MAPPING: Record<BankCSVFormat, {
     description: 1,       // Description
     branch: 2,            // Branch: '0000
     debit_amount: 3,      // Amount: 72100000.00
-    cr_db_indicator: 4,   // CR/DB indicator
+    cr_db_indicator: 4,   // CR/DB indicator column (after Amount) per user example
     balance: 5,           // Balance
   },
   [BANK_CSV_FORMAT.BCA_BUSINESS]: {
@@ -211,18 +228,25 @@ export const BANK_COLUMN_INDEX_MAPPING: Record<BankCSVFormat, {
     description: 1,       // Description
     branch: 2,            // Branch: 0000
     debit_amount: 3,      // Amount: "287,490.00 DB" or "799,700.00 CR"
-    balance: 4,           // Balance (optional)
+    balance: 4,           // Balance (from provided example content it seems to be 5th col)
+  },
+  [BANK_CSV_FORMAT.BCA_BUSINESS_V2]: {
+    transaction_date: 1,  // Tanggal
+    description: 2,       // Keterangan
+    debit_amount: 3,      // Debit
+    credit_amount: 4,     // Kredit
+    balance: 5,           // Saldo
   },
   [BANK_CSV_FORMAT.BANK_MANDIRI]: {
     account_no: 0,        // Account No
     transaction_date: 1,  // Date
-    description: 4,       // Description column (index 4 = 5th column "Description")
-    branch: 2,            // Transaction Code column as branch
-    debit_amount: 7,      // Debit column
-    credit_amount: 8,     // Credit column
-    balance: 5,           // Close balance
     transaction_code: 3,  // Transaction Code
+    description: 4,       // Description 1
+    branch: 2,            // Not used but requested mapping
     reference_no: 6,      // Reference No.
+    debit_amount: 7,      // Debit
+    credit_amount: 8,     // Credit
+    balance: 5,           // Not present in header but maybe inferred? User example ends at Credit
   },
   [BANK_CSV_FORMAT.UNKNOWN]: {
     transaction_date: 0,
@@ -280,6 +304,15 @@ export const BANK_PARSING_CONFIG: Record<BankCSVFormat, {
     skipLeadingQuote: false,
     quoteChar: '"',
     hasEmptyColumns: false,
+    emptyColumnIndices: [],
+    trimWhitespace: true,
+    descriptionMaxLength: 1000,
+    dateFormat: 'DD/MM/YYYY',
+  },
+  [BANK_CSV_FORMAT.BCA_BUSINESS_V2]: {
+    skipLeadingQuote: false,
+    quoteChar: '',
+    hasEmptyColumns: true,
     emptyColumnIndices: [],
     trimWhitespace: true,
     descriptionMaxLength: 1000,

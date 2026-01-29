@@ -153,13 +153,28 @@ export class BankStatementImportRepository {
    * Soft delete import
    */
   async delete(id: number, userId: string): Promise<void> {
+    // Try to update with deleted_by, but if column doesn't exist, just set deleted_at
     const { error } = await supabase
       .from('bank_statement_imports')
-      .update({ deleted_at: new Date().toISOString(), deleted_by: userId })
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', id)
 
+    // If the update failed due to deleted_by column not existing, try without it
     if (error) {
       logError('BankStatementImportRepository.delete error', { id, error: error.message })
+      // Try again with just deleted_at if the error mentions deleted_by
+      if (error.message.includes('deleted_by')) {
+        const { error: retryError } = await supabase
+          .from('bank_statement_imports')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('id', id)
+        
+        if (retryError) {
+          logError('BankStatementImportRepository.delete retry error', { id, error: retryError.message })
+          throw BankStatementImportErrors.DELETE_FAILED()
+        }
+        return
+      }
       throw BankStatementImportErrors.DELETE_FAILED()
     }
   }
@@ -275,7 +290,37 @@ export class BankStatementImportRepository {
   }
 
   /**
-   * Check for duplicate file hash
+   * Check for duplicate file hash (including soft-deleted records)
+   * Returns the record if found (including deleted ones), null if not found
+   */
+  async checkFileHashExistsIncludingDeleted(fileHash: string, companyId: string): Promise<BankStatementImport | null> {
+    const { data, error } = await supabase
+      .from('bank_statement_imports')
+      .select('*')
+      .eq('file_hash', fileHash)
+      .eq('company_id', companyId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    // Handle case where no records found (not an error)
+    if (error) {
+      // If it's a "PGRST116" error (no rows returned), that's actually okay
+      if (error.message.includes('PGRST116') || error.message.includes('row')) {
+        return null
+      }
+      logError('BankStatementImportRepository.checkFileHashExistsIncludingDeleted error', { error: error.message })
+      return null
+    }
+
+    if (!data || data.length === 0) {
+      return null
+    }
+
+    return data[0] as BankStatementImport | null
+  }
+
+  /**
+   * Check for active (non-deleted) file hash
    */
   async checkFileHashExists(fileHash: string, companyId: string): Promise<BankStatementImport | null> {
     const { data, error } = await supabase
