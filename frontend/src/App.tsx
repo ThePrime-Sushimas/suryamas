@@ -86,6 +86,7 @@ const EditPosAggregatePage = lazy(() => import('./features/pos-aggregates').then
 const PosAggregateDetailPage = lazy(() => import('./features/pos-aggregates').then(m => ({ default: m.PosAggregateDetailPage })))
 const FailedTransactionsPage = lazy(() => import('./features/pos-aggregates').then(m => ({ default: m.FailedTransactionsPage })))
 const BankStatementImportPage = lazy(() => import('./features/bank-statement-import').then(m => ({ default: m.BankStatementImportPage })))
+const BankStatementImportDetailPage = lazy(() => import('./features/bank-statement-import').then(m => ({ default: m.BankStatementImportDetailPage })))
 
 
 const LoadingFallback = () => (
@@ -212,6 +213,7 @@ function App() {
           <Route path="pos-aggregates" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><PosAggregatesPage /></Suspense></ProtectedRoute>}/>
           <Route path="pos-aggregates/failed-transactions" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><FailedTransactionsPage /></Suspense></ProtectedRoute>}/>
           <Route path="bank-statement-import" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><BankStatementImportPage /></Suspense></ProtectedRoute>} />
+          <Route path="bank-statement-import/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><BankStatementImportDetailPage /></Suspense></ProtectedRoute>} />
               </Route>
             </Routes>
           </BrowserRouter>

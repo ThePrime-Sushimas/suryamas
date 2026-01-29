@@ -1,26 +1,25 @@
 import { useEffect, useState, useMemo } from 'react'
-import { 
-  Upload, 
-  FileText, 
-  Trash2, 
+import {
+  Upload,
+  FileText,
   RefreshCw,
   Search,
-  MoreVertical,
-  Eye,
-  Download,
   AlertCircle,
   X
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useBankStatementImportStore } from '../store/bank-statement-import.store'
 import { TableSkeleton } from '@/components/ui/Skeleton'
 import { StatusBadge } from './common/StatusBadge'
+import { ActionMenu } from './common/ActionMenu'
 import { UploadModal } from './UploadModal'
 import { AnalysisModal } from './AnalysisModal'
 import { ImportProgressCard } from './ImportProgressCard'
 import { format } from 'date-fns'
-import { id } from 'date-fns/locale'
+import { id as idLocale } from 'date-fns/locale'
 
 export function BankStatementImportPage() {
+  const navigate = useNavigate()
   const {
     imports,
     pagination,
@@ -343,7 +342,7 @@ export function BankStatementImportPage() {
                       {formatFileSize(imp.file_size)}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                      {imp.created_at ? format(new Date(imp.created_at), 'dd MMM yyyy, HH:mm', { locale: id }) : '-'}
+                      {imp.created_at ? format(new Date(imp.created_at), 'dd MMM yyyy, HH:mm', { locale: idLocale }) : '-'}
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
                       {imp.total_rows?.toLocaleString() || 0}
@@ -352,35 +351,11 @@ export function BankStatementImportPage() {
                       <StatusBadge status={imp.status} size="sm" animated={imp.status === 'IMPORTING'} />
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="dropdown dropdown-end">
-                        <label tabIndex={0} className="btn btn-ghost btn-sm btn-square rounded-lg">
-                          <MoreVertical className="w-4 h-4" />
-                        </label>
-                        <ul tabIndex={0} className="dropdown-content z-1 menu p-2 shadow-xl bg-white dark:bg-gray-800 rounded-xl w-52 border border-gray-100 dark:border-gray-700 text-sm">
-                          <li>
-                            <button onClick={() => console.log('View details:', imp.id)} className="rounded-lg">
-                              <Eye className="w-4 h-4 mr-2" />
-                              Lihat Detail
-                            </button>
-                          </li>
-                          <li>
-                            <button onClick={() => console.log('Download:', imp.id)} className="rounded-lg">
-                              <Download className="w-4 h-4 mr-2" />
-                              Download File
-                            </button>
-                          </li>
-                          <div className="h-px bg-gray-100 dark:bg-gray-700 my-1" />
-                          <li>
-                            <button 
-                              onClick={() => handleDelete(imp.id)}
-                              className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Hapus
-                            </button>
-                          </li>
-                        </ul>
-                      </div>
+                      <ActionMenu
+                        id={imp.id}
+                        onDownload={() => console.log('Download:', imp.id)}
+                        onDelete={() => handleDelete(imp.id)}
+                      />
                     </td>
                   </tr>
                 ))}

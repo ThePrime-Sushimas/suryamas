@@ -69,9 +69,16 @@ export const bankStatementImportApi = {
     return response.data.data
   },
 
-  async getSummary(id: number): Promise<BankStatementAnalysisResult> {
-    const response = await api.get(`/bank-statement-imports/${id}/summary`)
+  async getSummary(id: number, signal?: AbortSignal): Promise<BankStatementAnalysisResult> {
+    const response = await api.get(`/bank-statement-imports/${id}/summary`, { signal })
     return response.data.data
+  },
+
+  async export(id: number): Promise<Blob> {
+    const response = await api.get(`/bank-statement-imports/${id}/export`, {
+      responseType: 'blob',
+    })
+    return response.data
   },
 }
 
