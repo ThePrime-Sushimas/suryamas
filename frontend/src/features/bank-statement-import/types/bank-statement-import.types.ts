@@ -22,6 +22,7 @@ export interface BankStatementImport {
   date_to?: string
   created_at: string
   updated_at: string
+  error_message?: string
 }
 
 export interface BankStatementDuplicateRow {

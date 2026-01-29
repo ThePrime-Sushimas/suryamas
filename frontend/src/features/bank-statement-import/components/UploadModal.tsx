@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Upload, X, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, Building2 } from 'lucide-react'
+import { Upload, X, CheckCircle, Loader2 } from 'lucide-react'
 import { bankAccountsApi } from '../../bank-accounts/api/bankAccounts.api'
 import { useBranchContextStore } from '../../branch_context'
+import { UploadDropzone } from './upload-modal/UploadDropzone'
+import { BankAccountSelect } from './upload-modal/BankAccountSelect'
 
 interface BankAccount {
   id: number
@@ -35,7 +37,7 @@ export function UploadModal({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Use branch context untuk company_id
-  const currentBranch = useBranchContextStore(s => s.currentBranch)
+  const currentBranch = useBranchContextStore((state) => state.currentBranch)
   const companyId = currentBranch?.company_id
 
   const fetchBankAccounts = useCallback(async () => {
@@ -67,6 +69,15 @@ export function UploadModal({
       }
     }
   }, [isOpen, companyId, fetchBankAccounts])
+
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setFile(null)
+      setBankAccountId('')
+      setError(null)
+    }
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -151,160 +162,94 @@ export function UploadModal({
     }
   }
 
+  const hasBankAccounts = bankAccounts.length > 0
+  const canSubmit = file && bankAccountId && hasBankAccounts && !isLoading
+
   return (
-    <div className="modal modal-open">
-      <div className="modal-box max-w-lg">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-lg flex items-center gap-2">
-            <Upload className="w-5 h-5 text-blue-600" />
-            Upload Bank Statement
-          </h3>
-          <button
-            onClick={onClose}
-            disabled={isLoading}
-            className="btn btn-sm btn-ghost btn-circle"
-          >
-            <X className="w-5 h-5" />
-          </button>
+    <div className="modal modal-open backdrop-blur-sm bg-black/30">
+      <div className="modal-box max-w-lg bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl rounded-2xl p-0 overflow-hidden transform transition-all duration-300 scale-100 opacity-100">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 backdrop-blur-md">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-blue-600/10 rounded-xl">
+                <Upload className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-gray-900 dark:text-white">
+                  Upload Bank Statement
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                  Import data mutasi bank
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              disabled={isLoading}
+              className="btn btn-sm btn-ghost btn-circle hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
         </div>
         
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Upload file Excel atau CSV mutasi bank untuk dianalisis sebelum diimport.
-        </p>
-
-        <div className="flex flex-col gap-4">
-          {/* Bank Account Dropdown */}
-          <div className="form-control">
-            <label className="label">
-              <span className="label-text font-medium flex items-center gap-2">
-                <Building2 className="w-4 h-4" />
-                Akun Bank
-              </span>
-            </label>
-            {loadingAccounts ? (
-              <div className="flex items-center gap-2 text-sm text-gray-500 p-3">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Memuat data akun bank...
-              </div>
-            ) : bankAccounts.length === 0 ? (
-              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                  {companyId 
-                    ? 'Tidak ada akun bank ditemukan untuk company ini.'
-                    : 'Company belum dipilih. Silakan pilih branch terlebih dahulu.'}
-                </p>
-                <p className="text-xs text-yellow-600 dark:text-yellow-500 mt-1">
-                  Silakan buat akun bank di menu Bank Accounts terlebih dahulu.
-                </p>
-              </div>
-            ) : (
-              <select
-                className="select select-bordered w-full"
-                value={bankAccountId}
-                onChange={(e) => setBankAccountId(e.target.value)}
-                disabled={isLoading}
-              >
-                <option value="">-- Pilih Akun Bank --</option>
-                {bankAccounts.map((account) => (
-                  <option key={account.id} value={String(account.id)}>
-                    {account.account_name} - {account.account_number}
-                  </option>
-                ))}
-              </select>
-            )}
-            <label className="label">
-              <span className="label-text-alt text-gray-500">
-                {bankAccounts.length} akun bank tersedia
-              </span>
-            </label>
+        <div className="p-6 space-y-6">
+          {/* Bank Account Selection */}
+          <div className="space-y-2">
+            <BankAccountSelect
+              value={bankAccountId}
+              onChange={setBankAccountId}
+              disabled={isLoading}
+              error={!companyId ? 'Company belum dipilih' : undefined}
+            />
           </div>
 
-          {/* File Upload */}
-          <div className="form-control">
-            <label className="label">
-              <span className="label-text font-medium">File Excel / CSV</span>
-            </label>
-            
-            {!file ? (
-              <div
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all ${
-                  isDragOver
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                }`}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  className="hidden"
-                  onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
-                  disabled={isLoading}
-                />
-                <FileSpreadsheet className={`w-12 h-12 mx-auto mb-3 ${
-                  isDragOver ? 'text-blue-500' : 'text-gray-400'
-                }`} />
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {isDragOver ? 'Lepaskan file di sini' : 'Klik atau seret file ke sini'}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Mendukung .xlsx, .xls, .csv (Max 50MB)
-                </p>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-                <div className="flex items-center justify-center w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                  <FileSpreadsheet className="w-5 h-5 text-green-600 dark:text-green-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                    {file.name}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {(file.size / (1024 * 1024)).toFixed(2)} MB
-                  </p>
-                </div>
-                <button
-                  onClick={removeFile}
-                  disabled={isLoading}
-                  className="btn btn-sm btn-ghost btn-circle text-gray-500 hover:text-red-500"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {isLoading && (
-            <div className="w-full">
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-600 dark:text-gray-400">Mengupload...</span>
-                <span className="font-medium text-blue-600">{uploadProgress}%</span>
-              </div>
-              <progress
-                className="progress progress-primary w-full h-2"
-                value={uploadProgress}
-                max={100}
-              />
+          {!companyId && (
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl flex gap-3">
+              <div className="text-amber-500 mt-0.5">⚠️</div>
+              <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">
+                Silakan pilih branch terlebih dahulu untuk mengakses akun bank.
+              </p>
             </div>
           )}
 
-          {error && (
-            <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+          {companyId && !loadingAccounts && bankAccounts.length === 0 && (
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl flex gap-3">
+              <div className="text-amber-500 mt-0.5">⚠️</div>
+              <div>
+                <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">
+                  Tidak ada akun bank ditemukan.
+                </p>
+                <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+                  Buat akun bank di menu Bank Accounts terlebih dahulu.
+                </p>
+              </div>
             </div>
           )}
+
+          {/* Upload Dropzone */}
+          <div>
+            <UploadDropzone
+              onFileSelect={handleFileChange}
+              onFileRemove={removeFile}
+              selectedFile={file}
+              isDragOver={isDragOver}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              isLoading={isLoading}
+              uploadProgress={uploadProgress}
+              error={error}
+            />
+          </div>
         </div>
 
-        <div className="modal-action mt-6">
+        {/* Footer */}
+        <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 backdrop-blur-md flex justify-end gap-3">
           <button
             type="button"
-            className="btn btn-ghost"
+            className="px-5 py-2.5 rounded-xl font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm"
             onClick={onClose}
             disabled={isLoading}
           >
@@ -312,26 +257,30 @@ export function UploadModal({
           </button>
           <button
             type="button"
-            className="btn btn-primary"
+            className={`
+              px-5 py-2.5 rounded-xl font-medium text-white text-sm shadow-lg shadow-blue-500/20 
+              flex items-center gap-2 transition-all transform active:scale-95
+              ${canSubmit ? 'bg-blue-600 hover:bg-blue-700 hover:shadow-blue-600/30' : 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed shadow-none'}
+            `}
             onClick={handleSubmit}
-            disabled={isLoading || !file || !bankAccountId || bankAccounts.length === 0}
+            disabled={!canSubmit}
           >
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Mengupload...
+                <span>Mengupload... {uploadProgress}%</span>
               </>
             ) : (
               <>
                 <CheckCircle className="w-4 h-4" />
-                Upload & Analisis
+                <span>Upload & Analisis</span>
               </>
             )}
           </button>
         </div>
       </div>
       <div 
-        className="modal-backdrop" 
+        className="modal-backdrop bg-black/20 backdrop-blur-sm transition-opacity" 
         onClick={onClose}
       />
     </div>
