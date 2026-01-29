@@ -107,6 +107,16 @@ export interface BankStatementImport {
   
   // Error tracking
   error_message?: string
+  error_details?: Record<string, unknown> | null
+  
+  // Analysis data (preview, column mapping, etc.)
+  analysis_data?: {
+    preview?: BankStatementPreviewRow[]
+    column_mapping?: BankStatementColumnMapping
+    valid_rows?: number
+    invalid_rows?: number
+    warnings?: string[]
+  } | null
   
   // Audit
   created_at: string
@@ -153,6 +163,13 @@ export interface UpdateBankStatementImportDto {
   date_range_start?: string
   date_range_end?: string
   error_message?: string
+  analysis_data?: {
+    preview?: BankStatementPreviewRow[]
+    column_mapping?: BankStatementColumnMapping
+    valid_rows?: number
+    invalid_rows?: number
+    warnings?: string[]
+  } | null
 }
 
 /**

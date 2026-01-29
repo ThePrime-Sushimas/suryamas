@@ -7,7 +7,6 @@ import {
   AlertCircle,
   X
 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import { useBankStatementImportStore } from '../store/bank-statement-import.store'
 import { TableSkeleton } from '@/components/ui/Skeleton'
 import { StatusBadge } from './common/StatusBadge'
@@ -19,7 +18,7 @@ import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 
 export function BankStatementImportPage() {
-  const navigate = useNavigate()
+  
   const {
     imports,
     pagination,

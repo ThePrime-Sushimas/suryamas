@@ -28,7 +28,14 @@ export interface BankStatementImport {
   error_message?: string
   error_details?: Record<string, unknown> | null
   job_id?: number | null
-  analysis_data?: Record<string, unknown> | null
+  // Analysis data stored in database
+  analysis_data?: {
+    preview?: BankStatementPreviewRow[]
+    column_mapping?: Record<string, string>
+    valid_rows?: number
+    invalid_rows?: number
+    warnings?: string[]
+  } | null
   created_by?: string
   deleted_at?: string | null
 }
@@ -65,13 +72,36 @@ export interface BankStatementAnalysisStats {
   new_rows: number
 }
 
-// Backend response format
+// Backend response format - matches actual backend response
+// Backend summary includes: import, summary (with preview), stats, etc.
 export interface BankStatementAnalysisResult {
   import: BankStatementImport
-  analysis: BankStatementAnalysis
+  summary: {
+    total_statements: number
+    total_credit: number
+    total_debit: number
+    reconciled_count: number
+    duplicate_count: number
+    preview?: BankStatementPreviewRow[]
+  }
   stats?: BankStatementAnalysisStats
   warnings?: string[]
   duplicates?: BankStatementDuplicateRow[]
+}
+
+// Preview row type (matches backend)
+export interface BankStatementPreviewRow {
+  row_number: number
+  transaction_date: string
+  transaction_time?: string
+  description: string
+  debit_amount: number
+  credit_amount: number
+  balance?: number
+  reference_number?: string
+  is_valid: boolean
+  errors?: string[]
+  warnings?: string[]
 }
 
 export interface BankStatementImportFilters {

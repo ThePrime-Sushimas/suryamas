@@ -3,6 +3,7 @@ import type {
   BankStatementImport,
   BankStatementAnalysisResult,
   BankStatementImportFilters,
+  BankStatementPreviewRow,
 } from '../types/bank-statement-import.types'
 
 interface ListResponse {
@@ -79,6 +80,17 @@ export const bankStatementImportApi = {
       responseType: 'blob',
     })
     return response.data
+  },
+
+  async getPreview(id: number, limit: number = 10): Promise<{
+    import: BankStatementImport
+    preview_rows: BankStatementPreviewRow[]
+    total_rows: number
+  }> {
+    const response = await api.get(`/bank-statement-imports/${id}/preview`, {
+      params: { limit },
+    })
+    return response.data.data
   },
 }
 

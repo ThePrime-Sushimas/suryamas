@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   AlertCircle,
@@ -60,58 +60,90 @@ function StatusBadge({ status }: { status: string }) {
 
 function BankStatementImportDetailPageContent() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
   const [importData, setImportData] = useState<BankStatementImport | null>(null)
   const [analysisResult, setAnalysisResult] = useState<BankStatementAnalysisResult | null>(null)
+  const [previewRows, setPreviewRows] = useState<Array<{
+    row_number: number
+    transaction_date: string
+    transaction_time?: string
+    description: string
+    debit_amount: number
+    credit_amount: number
+    balance?: number
+    reference_number?: string
+    is_valid: boolean
+    errors?: string[]
+    warnings?: string[]
+  }> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
-  const abortControllerRef = useRef<AbortController | undefined>(undefined)
+
+  // Go back handler
+  const goBack = () => {
+    window.history.back()
+  }
 
   // Fetch data
   useEffect(() => {
     if (!id) {
-      navigate('/bank-statement-import')
+      return
+    }
+
+    const numericId = Number(id)
+    if (isNaN(numericId)) {
+      setError('ID tidak valid')
+      setLoading(false)
       return
     }
 
     const fetchData = async () => {
-      abortControllerRef.current?.abort()
-      abortControllerRef.current = new AbortController()
-
       try {
         setLoading(true)
         setError(null)
+        console.log('Fetching data for ID:', numericId)
 
-        const [importRes, summaryRes] = await Promise.all([
-          bankStatementImportApi.getById(id, abortControllerRef.current.signal),
-          bankStatementImportApi.getSummary(id, abortControllerRef.current.signal)
-        ])
-
-        setImportData(importRes)
+        // First, try to get summary which includes preview
+        const summaryRes = await bankStatementImportApi.getSummary(numericId)
+        console.log('Summary received:', summaryRes)
+        console.log('Import data:', summaryRes.import)
+        
         setAnalysisResult(summaryRes)
-      } catch (err) {
-        if (err instanceof Error && err.name !== 'CanceledError') {
-          setError(err.message || 'Gagal memuat data')
+        setImportData(summaryRes.import)
+        
+        // If summary has preview, use it
+        if (summaryRes.summary?.preview) {
+          setPreviewRows(summaryRes.summary.preview)
+        } else {
+          // Fallback: fetch preview separately
+          try {
+            const previewRes = await bankStatementImportApi.getPreview(numericId, 10)
+            setPreviewRows(previewRes.preview_rows)
+            console.log('Preview fetched from fallback:', previewRes.preview_rows)
+          } catch (previewErr) {
+            console.warn('Could not fetch preview:', previewErr)
+            setPreviewRows(null)
+          }
         }
-      } finally {
+        
+        console.log('States updated')
+      } catch (err) {
+        console.error('Error fetching data:', err)
+        setError(err instanceof Error ? err.message : 'Gagal memuat data')
         setLoading(false)
       }
     }
 
     fetchData()
 
-    return () => {
-      abortControllerRef.current?.abort()
-    }
-  }, [id, navigate])
+  }, [id])
 
   // Export handler
   const handleExport = async () => {
-    if (!id || !importData) return
+    if (!importData) return
     setExporting(true)
     try {
-      const blob = await bankStatementImportApi.export(id)
+      const blob = await bankStatementImportApi.export(Number(id))
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -182,7 +214,7 @@ function BankStatementImportDetailPageContent() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => navigate('/bank-statement-import')}
+          onClick={goBack}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -372,7 +404,12 @@ function BankStatementImportDetailPageContent() {
       )}
 
       {/* Analysis Preview */}
-      {analysisResult?.analysis?.preview && analysisResult.analysis.preview.length > 0 && (
+      {(() => {
+        // Use previewRows state first, fallback to analysisResult.summary.preview
+        const preview = previewRows || analysisResult?.summary?.preview
+        if (!preview || preview.length === 0) return null
+        
+        return (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -386,31 +423,56 @@ function BankStatementImportDetailPageContent() {
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                  {Object.keys(analysisResult.analysis.preview[0] as Record<string, unknown>).map((key) => (
-                    <th
-                      key={key}
-                      className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                    >
-                      {key}
-                    </th>
-                  ))}
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    No
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Tanggal
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Keterangan
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Debit
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Kredit
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Saldo
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {(analysisResult.analysis.preview as Record<string, unknown>[]).slice(0, 5).map((row, index) => (
+                {preview.slice(0, 5).map((row, index) => (
                   <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    {Object.values(row).map((value: unknown, colIndex) => (
-                      <td key={colIndex} className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                        {String(value ?? '-')}
-                      </td>
-                    ))}
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                      {row.row_number}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                      {row.transaction_date
+                        ? format(new Date(row.transaction_date), 'dd/MM/yyyy', { locale: idLocale })
+                        : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">
+                      {row.description || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right font-mono text-red-600 dark:text-red-400">
+                      {row.debit_amount > 0 ? formatCurrency(row.debit_amount) : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right font-mono text-green-600 dark:text-green-400">
+                      {row.credit_amount > 0 ? formatCurrency(row.credit_amount) : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right font-mono text-gray-900 dark:text-white">
+                      {row.balance !== undefined && row.balance !== null ? formatCurrency(row.balance) : '-'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </div>
-      )}
+      )})()}
     </div>
   )
 }

@@ -235,7 +235,7 @@ export class BankStatementImportService {
         date_range_end: dateRangeEnd || undefined,
       })
 
-      // Store temporary data for later processing
+      // Store parsed data in Supabase Storage for later processing
       await this.storeTemporaryData(importRecord.id, rows)
 
       logInfo('BankStatementImport: File analysis completed', {
@@ -531,6 +531,7 @@ export class BankStatementImportService {
       total_debit: number
       reconciled_count: number
       duplicate_count: number
+      preview?: BankStatementPreviewRow[]
     }
   }> {
     const importRecord = await this.getImportById(importId, companyId)
@@ -541,11 +542,55 @@ export class BankStatementImportService {
 
     const summary = await this.repository.getSummaryByImportId(importId)
 
+    // Get preview - first try from storage (for ANALYZED status), then from statements (for COMPLETED status)
+    let preview: BankStatementPreviewRow[] | undefined
+    
+    // Try from Supabase Storage first (for ANALYZED status)
+    try {
+      const rows = await this.retrieveTemporaryData(importId)
+      preview = this.generatePreview(
+        rows.slice(0, 10).map((r) => ({
+          ...r,
+          is_valid: true,
+          errors: [],
+          warnings: [],
+        })),
+        10
+      )
+    } catch {
+      // Fallback: get from statements in database (for COMPLETED status)
+      try {
+        const statementsResult = await this.repository.findByImportId(importId, { page: 1, limit: 10 })
+        if (statementsResult.data.length > 0) {
+          preview = statementsResult.data.map((stmt) => ({
+            row_number: stmt.row_number || 0,
+            transaction_date: stmt.transaction_date,
+            transaction_time: stmt.transaction_time,
+            description: stmt.description || '',
+            debit_amount: stmt.debit_amount,
+            credit_amount: stmt.credit_amount,
+            balance: stmt.balance,
+            reference_number: stmt.reference_number,
+            is_valid: true,
+            errors: [],
+            warnings: [],
+          }))
+        }
+      } catch (error) {
+        logError('BankStatementImport: Could not fetch preview from statements', { importId, error })
+        preview = undefined
+      }
+    }
+
     return {
       import: importRecord,
       summary: {
-        ...summary,
+        total_statements: summary.total_statements,
+        total_credit: summary.total_credit,
+        total_debit: summary.total_debit,
+        reconciled_count: summary.reconciled_count,
         duplicate_count: 0,
+        preview,
       },
     }
   }
@@ -605,13 +650,17 @@ export class BankStatementImportService {
       throw new Error('Cannot delete import while it is being processed')
     }
 
-    // Delete associated statements
-    await this.repository.deleteByImportId(importId)
+    // Delete associated statements (ignore errors if none exist)
+    try {
+      await this.repository.deleteByImportId(importId)
+    } catch (error) {
+      logError('BankStatementImport: Could not delete statements, may not exist', { importId, error })
+    }
 
     // Soft delete import
     await this.repository.delete(importId, userId || '')
 
-    // Clean up temporary data
+    // Clean up temporary data (non-critical, ignore errors)
     await this.cleanupTemporaryData(importId)
 
     logInfo('BankStatementImport: Import deleted', {
@@ -719,21 +768,46 @@ export class BankStatementImportService {
       throw BankStatementImportErrors.IMPORT_NOT_FOUND(importId)
     }
 
-    const rows = await this.retrieveTemporaryData(importId)
-    const previewRows = this.generatePreview(
-      rows.slice(0, limit).map((r) => ({
-        ...r,
+    // Try to get from temporary data first
+    try {
+      const rows = await this.retrieveTemporaryData(importId)
+      const previewRows = this.generatePreview(
+        rows.slice(0, limit).map((r) => ({
+          ...r,
+          is_valid: true,
+          errors: [],
+          warnings: [],
+        })),
+        limit
+      )
+
+      return {
+        import: importRecord,
+        preview_rows: previewRows,
+        total_rows: rows.length,
+      }
+    } catch {
+      // Fallback: get from statements in database
+      const statementsResult = await this.repository.findByImportId(importId, { page: 1, limit })
+      const previewRows = statementsResult.data.map((stmt) => ({
+        row_number: stmt.row_number || 0,
+        transaction_date: stmt.transaction_date,
+        transaction_time: stmt.transaction_time,
+        description: stmt.description || '',
+        debit_amount: stmt.debit_amount,
+        credit_amount: stmt.credit_amount,
+        balance: stmt.balance,
+        reference_number: stmt.reference_number,
         is_valid: true,
         errors: [],
         warnings: [],
-      })),
-      limit
-    )
+      }))
 
-    return {
-      import: importRecord,
-      preview_rows: previewRows,
-      total_rows: rows.length,
+      return {
+        import: importRecord,
+        preview_rows: previewRows,
+        total_rows: statementsResult.total,
+      }
     }
   }
 
@@ -1979,31 +2053,68 @@ export class BankStatementImportService {
   }
 
   /**
-   * Store temporary data for processing
+   * Store temporary data in Supabase Storage
    */
   private async storeTemporaryData(importId: number, rows: any[]): Promise<void> {
-    const tempPath = path.join(this.TEMP_DIR, `import-${importId}.json`)
-    await fs.writeFile(tempPath, JSON.stringify(rows))
+    try {
+      const jsonData = JSON.stringify(rows)
+      const { error } = await supabase.storage
+        .from('bank-statement-imports-temp')
+        .upload(`${importId}.json`, jsonData, {
+          contentType: 'application/json',
+          upsert: true
+        })
+
+      if (error) throw error
+      
+      logInfo('BankStatementImport: Stored temporary data in Supabase Storage', { importId })
+    } catch (error) {
+      logError('BankStatementImport: storeTemporaryData error', { importId, error })
+      throw error
+    }
   }
 
   /**
-   * Retrieve temporary data
+   * Retrieve temporary data from Supabase Storage
    */
   private async retrieveTemporaryData(importId: number): Promise<any[]> {
-    const tempPath = path.join(this.TEMP_DIR, `import-${importId}.json`)
-    const data = await fs.readFile(tempPath, 'utf-8')
-    return JSON.parse(data)
+    try {
+      const { data, error } = await supabase.storage
+        .from('bank-statement-imports-temp')
+        .download(`${importId}.json`)
+
+      if (error) throw error
+
+      const text = await data.text()
+      return JSON.parse(text)
+    } catch (error) {
+      logError('BankStatementImport: retrieveTemporaryData error', { importId, error })
+      throw new Error('Temporary data not found. Please re-upload the file.')
+    }
   }
 
   /**
-   * Clean up temporary data
+   * Clean up temporary data from storage
    */
   private async cleanupTemporaryData(importId: number): Promise<void> {
-    const tempPath = path.join(this.TEMP_DIR, `import-${importId}.json`)
     try {
-      await fs.unlink(tempPath)
-    } catch {
-      // Ignore if file doesn't exist
+      // Check if storage bucket exists first
+      const { data: buckets } = await supabase.storage.listBuckets()
+      const bucketExists = buckets?.some(b => b.name === 'bank-statement-imports-temp')
+      
+      if (!bucketExists) {
+        logInfo('BankStatementImport: Storage bucket not found, skipping cleanup', { importId })
+        return
+      }
+      
+      await supabase.storage
+        .from('bank-statement-imports-temp')
+        .remove([`${importId}.json`])
+      
+      logInfo('BankStatementImport: Cleaned up temporary data', { importId })
+    } catch (error) {
+      logError('BankStatementImport: cleanupTemporaryData error', { importId, error })
+      // Non-critical error - don't throw
     }
   }
 }
