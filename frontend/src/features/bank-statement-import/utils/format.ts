@@ -21,9 +21,13 @@ export function formatDate(date?: string | Date | null): string {
 }
 
 export function formatDateRange(importItem: BankStatementImport): string {
-  if (!importItem.date_from && !importItem.date_to) return '-'
-  const from = importItem.date_from ? formatDate(importItem.date_from) : '?'
-  const to = importItem.date_to ? formatDate(importItem.date_to) : '?'
+  // Use date_from/date_to if available, otherwise use backend field names
+  const dateFrom = importItem.date_from ?? importItem.date_range_start
+  const dateTo = importItem.date_to ?? importItem.date_range_end
+  
+  if (!dateFrom && !dateTo) return '-'
+  const from = dateFrom ? formatDate(dateFrom) : '?'
+  const to = dateTo ? formatDate(dateTo) : '?'
   return `${from} - ${to}`
 }
 

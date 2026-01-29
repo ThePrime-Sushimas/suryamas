@@ -20,6 +20,9 @@ export interface BankStatementImport {
   failed_rows: number
   date_range_start?: string
   date_range_end?: string
+  // Frontend alias fields for compatibility
+  date_from?: string
+  date_to?: string
   created_at: string
   updated_at: string
   error_message?: string
