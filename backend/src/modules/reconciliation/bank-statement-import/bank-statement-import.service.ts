@@ -1009,13 +1009,15 @@ export class BankStatementImportService {
 
   /**
    * Parse single BCA Personal row
+   * Handles special format where amount is embedded in description field
+   * Pattern: TRSF E-BANKING [CR|DB] [ref] [amount][nama]
    */
   private parseBCAPersonalRow(columns: string[], rowNumber: number, rawLine: string): ParsedCSVRow | null {
     try {
       let dateValue = columns[0]?.trim() || ''
-      const description = columns[1]?.trim() || ''
+      let description = columns[1]?.trim() || ''
       const branch = columns[2]?.trim() || ''
-      const amountRaw = columns[3]?.trim() || ''
+      let amountRaw = columns[3]?.trim() || ''
       const creditDebit = columns[4]?.trim()?.toUpperCase() || ''
       const balanceRaw = columns[5]?.trim() || ''
 
@@ -1043,17 +1045,59 @@ export class BankStatementImportService {
       let debitAmount = 0
       let creditAmount = 0
 
-      const amountClean = amountRaw.replace(/[,\s]/g, '')
-      const amountNum = parseFloat(amountClean)
+      // Determine transaction type from creditDebit column or from description
+      let transactionType = creditDebit
+      if (!transactionType && description) {
+        // Extract from description pattern: "TRSF E-BANKING CR ..." or "TRSF E-BANKING DB ..."
+        const typeMatch = description.match(/TRSF\s+E\-BANKING\s+(CR|DB)/i)
+        if (typeMatch) {
+          transactionType = typeMatch[1].toUpperCase()
+        }
+      }
 
-      if (creditDebit.includes('CR') || creditDebit === 'KREDIT') {
+      // Try to parse amount from column[3] first
+      const amountClean = amountRaw.replace(/[,\s]/g, '')
+      let amountNum = parseFloat(amountClean)
+
+      // Special handling for BCA Personal format with amount embedded in description
+      // Pattern: "TRSF E-BANKING CR 0101/FTSCY/WS95051       50000000.00pengembalian..."
+      // or "TRSF E-BANKING DB 0101/FTSCY/WS95271       50000000.00MICHAEL..."
+      if ((isNaN(amountNum) || amountNum === 0) && description) {
+        // Try to find amount in description: look for pattern like "12345678.00" followed by text
+        // Amount typically appears after the reference number
+        const descAmountMatch = description.match(/(\d{8,}(?:\.\d{2})?)/)
+        if (descAmountMatch) {
+          const extractedAmount = parseFloat(descAmountMatch[1])
+          if (!isNaN(extractedAmount) && extractedAmount > 0) {
+            amountNum = extractedAmount
+            logInfo('BankStatementImport: Extracted amount from description (BCA Personal format)', {
+              rowNumber,
+              originalDescription: description.substring(0, 50),
+              extractedAmount: amountNum
+            })
+          }
+        }
+      }
+
+      // Assign amount based on transaction type
+      if (transactionType === 'CR' || transactionType.includes('KREDIT')) {
         creditAmount = isNaN(amountNum) ? 0 : amountNum
-      } else if (creditDebit.includes('DR') || creditDebit === 'DEBIT') {
+      } else if (transactionType === 'DB' || transactionType.includes('DEBIT') || transactionType.includes('DR')) {
         debitAmount = isNaN(amountNum) ? 0 : amountNum
-      } else if (amountRaw.toUpperCase().includes('CR')) {
+      } else if (creditDebit.includes('CR')) {
         creditAmount = isNaN(amountNum) ? 0 : amountNum
-      } else if (amountRaw.toUpperCase().includes('DR')) {
+      } else if (creditDebit.includes('DR') || creditDebit.includes('DB')) {
         debitAmount = isNaN(amountNum) ? 0 : amountNum
+      }
+
+      // Fallback: if both are 0 but we found amount in description, assign to appropriate side
+      if (debitAmount === 0 && creditAmount === 0 && amountNum > 0) {
+        // Default to debit if we extracted an amount but couldn't determine type
+        debitAmount = amountNum
+        logInfo('BankStatementImport: Defaulting to debit for amount found in description', {
+          rowNumber,
+          amount: amountNum
+        })
       }
 
       const balance = this.parseAmount(balanceRaw)
@@ -1763,6 +1807,14 @@ export class BankStatementImportService {
           throw new Error('Description is required')
         }
 
+        // Check that either debit_amount or credit_amount is greater than 0
+        // This prevents constraint violation for chk_amount_not_both_zero
+        const debitAmount = row.debit_amount ?? 0
+        const creditAmount = row.credit_amount ?? 0
+        if (debitAmount === 0 && creditAmount === 0) {
+          throw new Error(`Row ${row.row_number}: Either debit or credit amount must be greater than 0`)
+        }
+
         validRows.push({
           company_id: companyId,
           bank_account_id: bankAccountId,
@@ -1770,8 +1822,8 @@ export class BankStatementImportService {
           transaction_time: row.transaction_time,
           reference_number: row.reference_number,
           description: row.description,
-          debit_amount: row.debit_amount,
-          credit_amount: row.credit_amount,
+          debit_amount: debitAmount,
+          credit_amount: creditAmount,
           balance: row.balance,
           import_id: importId,
           row_number: row.row_number,

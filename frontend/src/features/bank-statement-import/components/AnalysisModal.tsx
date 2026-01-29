@@ -29,14 +29,16 @@ export function AnalysisModal({
 
   if (!result) return null
 
-  const { import: imp, stats, warnings, duplicates } = result
+  const { import: imp, analysis, duplicates } = result
 
-  // Hitung stats
-  const total_rows = stats?.total_rows || 0
-  const valid_rows = stats?.valid_rows || 0
-  const invalid_rows = stats?.invalid_rows || 0
-  const pendingCount = 0 // Dari stats jika ada
+  // Backend sends 'analysis' object, not 'stats'
+  const total_rows = analysis?.total_rows || 0
+  const valid_rows = analysis?.valid_rows || 0
+  const invalid_rows = analysis?.invalid_rows || 0
+  // Pending rows are the ones that are not valid and not invalid (PEND transactions)
+  const pendingCount = total_rows - valid_rows - invalid_rows
   const duplicateCount = duplicates?.length || 0
+  const warnings = analysis?.warnings || []
 
   // Format file size
   const formatFileSize = (bytes: number): string => {

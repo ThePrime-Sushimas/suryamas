@@ -166,17 +166,46 @@ export class BankStatementImportRepository {
 
   /**
    * Bulk insert bank statements
+   * Filters out rows where both debit_amount and credit_amount are 0
+   * to prevent constraint violation for chk_amount_not_both_zero
    */
   async bulkInsert(statements: CreateBankStatementDto[]): Promise<number> {
     if (statements.length === 0) return 0
 
+    // Filter out rows where both debit_amount and credit_amount are 0
+    // This prevents constraint violation for chk_amount_not_both_zero
+    const validStatements = statements.filter(statement => {
+      const debit = statement.debit_amount ?? 0
+      const credit = statement.credit_amount ?? 0
+      return debit !== 0 || credit !== 0
+    })
+
+    if (validStatements.length === 0) {
+      logError('BankStatementImportRepository.bulkInsert: No valid statements to insert', {
+        originalCount: statements.length,
+      })
+      return 0
+    }
+
+    // Log warning if some rows were filtered out
+    if (validStatements.length < statements.length) {
+      logError('BankStatementImportRepository.bulkInsert: Some rows filtered out', {
+        originalCount: statements.length,
+        validCount: validStatements.length,
+        filteredCount: statements.length - validStatements.length,
+      })
+    }
+
     const { data, error } = await supabase
       .from('bank_statements')
-      .insert(statements)
+      .insert(validStatements)
       .select('id')
 
     if (error) {
-      logError('BankStatementImportRepository.bulkInsert error', { error: error.message })
+      logError('BankStatementImportRepository.bulkInsert error', { 
+        error: error.message,
+        statementCount: validStatements.length,
+      })
       throw BankStatementImportErrors.IMPORT_FAILED()
     }
 
@@ -338,4 +367,3 @@ export class BankStatementImportRepository {
 }
 
 export const bankStatementImportRepository = new BankStatementImportRepository()
-
