@@ -230,6 +230,13 @@ export class BankReconciliationService {
   }
 
   /**
+   * Get reconciliation summary
+   */
+  async getSummary(companyId: string, startDate: Date, endDate: Date): Promise<any> {
+    return this.orchestratorService.getReconciliationSummary(companyId, startDate, endDate);
+  }
+
+  /**
    * Calculate difference between POS and bank
    */
   calculateDifference(aggregateAmount: number, statementAmount: number): { absolute: number; percentage: number } {

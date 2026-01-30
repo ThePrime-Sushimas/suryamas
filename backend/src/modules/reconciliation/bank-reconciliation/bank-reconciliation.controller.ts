@@ -18,14 +18,14 @@ export class BankReconciliationController {
    */
   async reconcile(req: Request, res: Response): Promise<void> {
     try {
-      const dto: ManualReconcileRequestDto = req.body;
-      const userId = (req as any).user?.id; // Assuming user info is attached to request
+      const validated = (req as any).validated.body;
+      const userId = (req as any).user?.id;
 
       const result = await this.service.reconcile(
-        dto.aggregateId, 
-        dto.statementId, 
+        validated.aggregateId, 
+        validated.statementId, 
         userId,
-        dto.notes
+        validated.notes
       );
       
       res.status(200).json({
@@ -73,14 +73,14 @@ export class BankReconciliationController {
    */
   async autoMatch(req: Request, res: Response): Promise<void> {
     try {
-      const dto: AutoMatchRequestDto = req.body;
+      const validated = (req as any).validated.body;
       const userId = (req as any).user?.id;
 
       const result = await this.service.autoMatch(
-        dto.companyId, 
-        new Date(dto.startDate), 
+        validated.companyId, 
+        new Date(validated.startDate), 
         userId,
-        dto.matchingCriteria
+        validated.matchingCriteria
       );
       
       res.status(200).json({
@@ -101,10 +101,9 @@ export class BankReconciliationController {
    */
   async getDiscrepancies(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.query.companyId as string;
-      const date = new Date(req.query.date as string);
+      const { companyId, date } = (req as any).validated.query;
       
-      const result = await this.service.getDiscrepancies(companyId, date);
+      const result = await this.service.getDiscrepancies(companyId, new Date(date));
       
       res.status(200).json({
         success: true,
@@ -123,10 +122,17 @@ export class BankReconciliationController {
    */
   async getSummary(req: Request, res: Response): Promise<void> {
     try {
-      // TODO: Implement summary calculation in service
+      const { companyId, startDate, endDate } = (req as any).validated.query;
+
+      const result = await this.service.getSummary(
+        companyId, 
+        new Date(startDate), 
+        new Date(endDate)
+      );
+
       res.status(200).json({
         success: true,
-        data: { total: 0, matched: 0, unmatched: 0 }
+        data: result
       });
     } catch (error: any) {
       res.status(400).json({

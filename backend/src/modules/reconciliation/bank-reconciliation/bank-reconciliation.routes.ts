@@ -1,16 +1,26 @@
 import { Router } from 'express';
 import { BankReconciliationController } from './bank-reconciliation.controller';
+import { authenticate } from '../../../middleware/auth.middleware';
+import { resolveBranchContext } from '../../../middleware/branch-context.middleware';
+import { canView, canInsert } from '../../../middleware/permission.middleware';
+import { createRateLimit, updateRateLimit } from '../../../middleware/rateLimiter.middleware';
+import { validateSchema } from '../../../middleware/validation.middleware';
+import { PermissionService } from '../../../services/permission.service';
 import { 
   manualReconcileSchema, 
   autoMatchSchema, 
   getDiscrepanciesQuerySchema, 
   getSummaryQuerySchema 
 } from './bank-reconciliation.schema';
-// Assuming a global validation middleware exists
-// import { validate } from '../../shared/middleware/validate'; 
+
+// Register module in permission system
+PermissionService.registerModule('bank_reconciliation', 'Bank Reconciliation Management').catch(() => {});
 
 export function createBankReconciliationRouter(controller: BankReconciliationController): Router {
   const router = Router();
+
+  // All routes require authentication and branch context
+  router.use(authenticate, resolveBranchContext);
 
   /**
    * @route POST /api/v1/reconciliation/bank/manual
@@ -18,7 +28,9 @@ export function createBankReconciliationRouter(controller: BankReconciliationCon
    */
   router.post(
     '/manual',
-    // validate(manualReconcileSchema),
+    canInsert('bank_reconciliation'),
+    createRateLimit,
+    validateSchema(manualReconcileSchema),
     (req, res) => controller.reconcile(req, res)
   );
 
@@ -28,7 +40,9 @@ export function createBankReconciliationRouter(controller: BankReconciliationCon
    */
   router.post(
     '/auto-match',
-    // validate(autoMatchSchema),
+    canInsert('bank_reconciliation'),
+    createRateLimit,
+    validateSchema(autoMatchSchema),
     (req, res) => controller.autoMatch(req, res)
   );
 
@@ -38,7 +52,8 @@ export function createBankReconciliationRouter(controller: BankReconciliationCon
    */
   router.get(
     '/discrepancies',
-    // validate(getDiscrepanciesQuerySchema),
+    canView('bank_reconciliation'),
+    validateSchema(getDiscrepanciesQuerySchema),
     (req, res) => controller.getDiscrepancies(req, res)
   );
 
@@ -48,6 +63,8 @@ export function createBankReconciliationRouter(controller: BankReconciliationCon
    */
   router.post(
     '/undo/:statementId',
+    canInsert('bank_reconciliation'),
+    updateRateLimit,
     (req, res) => controller.undo(req, res)
   );
 
