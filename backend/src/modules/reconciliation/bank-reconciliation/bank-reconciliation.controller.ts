@@ -1,9 +1,8 @@
 import { Request, Response } from 'express';
 import { BankReconciliationService } from './bank-reconciliation.service';
-import { 
-  ManualReconcileRequestDto, 
-  AutoMatchRequestDto 
-} from './bank-reconciliation.types';
+import type { AuthenticatedRequest, AuthenticatedQueryRequest } from '../../../types/request.types';
+import type { ValidatedAuthRequest } from '../../../middleware/validation.middleware';
+import { manualReconcileSchema, autoMatchSchema } from './bank-reconciliation.schema';
 import { 
   AlreadyReconciledError, 
   DifferenceThresholdExceededError,
@@ -16,10 +15,10 @@ export class BankReconciliationController {
   /**
    * Reconcile a single POS aggregate with bank statement
    */
-  async reconcile(req: Request, res: Response): Promise<void> {
+  async reconcile(req: ValidatedAuthRequest<typeof manualReconcileSchema>, res: Response): Promise<void> {
     try {
-      const validated = (req as any).validated.body;
-      const userId = (req as any).user?.id;
+      const validated = req.validated.body;
+      const userId = req.user?.id;
 
       const result = await this.service.reconcile(
         validated.aggregateId, 
@@ -48,10 +47,10 @@ export class BankReconciliationController {
   /**
    * Undo reconciliation
    */
-  async undo(req: Request, res: Response): Promise<void> {
+  async undo(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { statementId } = req.params;
-      const userId = (req as any).user?.id;
+      const userId = req.user?.id;
 
       await this.service.undo(statementId as string, userId);
       
@@ -71,10 +70,10 @@ export class BankReconciliationController {
   /**
    * Run auto-matching for all unreconciled items
    */
-  async autoMatch(req: Request, res: Response): Promise<void> {
+  async autoMatch(req: ValidatedAuthRequest<typeof autoMatchSchema>, res: Response): Promise<void> {
     try {
-      const validated = (req as any).validated.body;
-      const userId = (req as any).user?.id;
+      const validated = req.validated.body;
+      const userId = req.user?.id;
 
       const result = await this.service.autoMatch(
         validated.companyId, 
@@ -99,9 +98,10 @@ export class BankReconciliationController {
   /**
    * Get reconciliation discrepancies
    */
-  async getDiscrepancies(req: Request, res: Response): Promise<void> {
+  async getDiscrepancies(req: AuthenticatedQueryRequest, res: Response): Promise<void> {
     try {
-      const { companyId, date } = (req as any).validated.query;
+      const validated = (req as any).validated?.query || req.query;
+      const { companyId, date } = validated;
       
       const result = await this.service.getDiscrepancies(companyId, new Date(date));
       
@@ -120,9 +120,10 @@ export class BankReconciliationController {
   /**
    * Get reconciliation summary
    */
-  async getSummary(req: Request, res: Response): Promise<void> {
+  async getSummary(req: AuthenticatedQueryRequest, res: Response): Promise<void> {
     try {
-      const { companyId, startDate, endDate } = (req as any).validated.query;
+      const validated = (req as any).validated?.query || req.query;
+      const { companyId, startDate, endDate } = validated;
 
       const result = await this.service.getSummary(
         companyId, 
