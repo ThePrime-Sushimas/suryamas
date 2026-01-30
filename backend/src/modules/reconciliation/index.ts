@@ -8,10 +8,7 @@ export * from './shared/reconciliation.types';
 // Orchestrator exports
 // export * from './orchestrator/reconciliation-orchestrator.service'; // TODO: Fix dependencies
 
-// POS Reconciliation exports
-export * from './pos-reconciliation/pos-reconciliation.service';
-export * from './pos-reconciliation/pos-reconciliation.controller';
-export * from './pos-reconciliation/pos-reconciliation.repository';
+// POS Reconciliation exports - DIHAPUS (redundant, sudah ada di pos-aggregates)
 
 // Fee Reconciliation exports
 // export * from './fee-reconciliation/fee-reconciliation.service';

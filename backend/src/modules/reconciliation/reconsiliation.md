@@ -184,11 +184,6 @@ reconciliation/
 │   └── types.ts                      # Additional types
 ├── orchestrator/
 │   └── reconciliation-orchestrator.service.ts
-├── pos-reconciliation/
-│   ├── pos-reconciliation.service.ts
-│   ├── pos-reconciliation.controller.ts
-│   ├── pos-reconciliation.repository.ts
-│   └── index.ts
 ├── fee-reconciliation/
 │   ├── fee-reconciliation.service.ts
 │   ├── fee-reconciliation.controller.ts
@@ -200,14 +195,19 @@ reconciliation/
 │   ├── bank-statement-import.service.ts
 │   ├── bank-statement-import.controller.ts
 │   └── index.ts
-└── bank-reconciliation/              # Pencocokan bank
-    ├── bank-reconciliation.service.ts
-    ├── bank-reconciliation.controller.ts
-    ├── bank-reconciliation.repository.ts
-    └── index.ts
+├── bank-reconciliation/              # Pencocokan bank
+│   ├── bank-reconciliation.service.ts
+│   ├── bank-reconciliation.controller.ts
+│   ├── bank-reconciliation.repository.ts
+│   └── index.ts
+└── review-approval/                  # Manual review
+    ├── manual-review.service.ts
+    └── manual-review.controller.ts
 ```
 
-**Catatan:** Folder `settlement-import`, `review-approval`, dan `reports` **DIHAPUS** karena tidak diperlukan untuk alur POS reconciliation ini.
+**Catatan:** 
+- Folder `pos-reconciliation` **DIHAPUS** karena sudah ada feature `pos-aggregates` yang lengkap di frontend dan API.
+- Folder `settlement-import` tidak diperlukan untuk alur POS reconciliation ini.
 
 ---
 
