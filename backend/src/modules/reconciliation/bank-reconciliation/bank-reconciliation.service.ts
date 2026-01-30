@@ -1,4 +1,7 @@
-import { BankReconciliationRepository } from "./bank-reconciliation.repository";
+import {
+  bankReconciliationRepository,
+  BankReconciliationRepository,
+} from "./bank-reconciliation.repository";
 import {
   BankReconciliationStatus,
   MatchingCriteria,
@@ -10,14 +13,20 @@ import {
   DifferenceThresholdExceededError,
 } from "./bank-reconciliation.errors";
 import { getReconciliationConfig } from "./bank-reconciliation.config";
+import { IReconciliationOrchestratorService } from "../orchestrator/reconciliation-orchestrator.types";
+import {
+  FeeReconciliationService,
+  feeReconciliationService,
+} from "../fee-reconciliation/fee-reconciliation.service";
+import { reconciliationOrchestratorService } from "../orchestrator/reconciliation-orchestrator.service";
 
 export class BankReconciliationService {
   private readonly config = getReconciliationConfig();
 
   constructor(
     private readonly repository: BankReconciliationRepository,
-    private readonly orchestratorService: any,
-    private readonly feeReconciliationService: any,
+    private readonly orchestratorService: IReconciliationOrchestratorService,
+    private readonly feeReconciliationService: FeeReconciliationService,
   ) {}
 
   /**
@@ -107,7 +116,7 @@ export class BankReconciliationService {
     );
 
     // 2. Get aggregates (expected net) from orchestrator
-    const aggregates = await this.orchestratorService.getAggregatesForDateRange(
+    const aggregates = await this.orchestratorService.getAggregatesByDateRange(
       companyId,
       startDate,
       endDate,
@@ -313,3 +322,9 @@ export class BankReconciliationService {
     return { absolute, percentage };
   }
 }
+
+export const bankReconciliationService = new BankReconciliationService(
+  bankReconciliationRepository,
+  reconciliationOrchestratorService,
+  feeReconciliationService,
+);

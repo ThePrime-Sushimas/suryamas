@@ -252,22 +252,55 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     endDate: string
   ): Promise<any> {
     try {
-      const { data, error } = await supabase
+      const { data: aggData, error: aggError } = await supabase
         .from('aggregated_transactions')
         .select('is_reconciled, net_amount')
         .gte('transaction_date', startDate)
         .lte('transaction_date', endDate)
         .is('deleted_at', null);
 
-      if (error) throw error;
+      if (aggError) throw aggError;
+
+      const { data: stmtData, error: stmtError } = await supabase
+        .from('bank_statement_transactions')
+        .select('id, is_reconciled, credit_amount, debit_amount')
+        .gte('transaction_date', startDate)
+        .lte('transaction_date', endDate)
+        .is('deleted_at', null);
+
+      if (stmtError) throw stmtError;
+
+      // Calculate aggregated totals
+      const totalAggregates = aggData?.length || 0;
+      const reconciledAggregates = aggData?.filter(agg => agg.is_reconciled).length || 0;
+      const totalStatements = stmtData?.length || 0;
+      const reconciledStatements = stmtData?.filter(stmt => stmt.is_reconciled).length || 0;
+
+      // Calculate totals
+      const totalNetAmount = aggData?.reduce((sum, agg) => sum + (Number(agg.net_amount) || 0), 0) || 0;
+      const totalBankAmount = stmtData?.reduce((sum, stmt) => sum + ((Number(stmt.credit_amount) || 0) - (Number(stmt.debit_amount) || 0)), 0) || 0;
+
+      // Calculate difference
+      const totalDifference = Math.abs(totalNetAmount - totalBankAmount);
+
+      // Calculate percentage reconciled (based on statements matched)
+      const percentageReconciled = totalStatements > 0 
+        ? (reconciledStatements / totalStatements) * 100 
+        : 0;
 
       const summary = {
-        total_aggregates: data?.length || 0,
-        total_amount: data?.reduce((sum, agg) => sum + (Number(agg.net_amount) || 0), 0) || 0,
-        by_status: {
-          PENDING: data?.filter(agg => !agg.is_reconciled).length || 0,
-          RECONCILED: data?.filter(agg => agg.is_reconciled).length || 0
-        }
+        period: {
+          startDate,
+          endDate
+        },
+        totalAggregates,
+        totalStatements,
+        autoMatched: 0, // Will be populated by auto-match process
+        manuallyMatched: reconciledStatements,
+        discrepancies: totalStatements - reconciledStatements,
+        unreconciled: totalStatements - reconciledStatements,
+        totalDifference,
+        percentageReconciled
       };
 
       return summary;

@@ -1,18 +1,22 @@
-import { Pool, PoolClient } from "pg";
+import { supabase } from "../../../config/supabase";
 import { BankReconciliationStatus } from "./bank-reconciliation.types";
 
 export class BankReconciliationRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor() {}
 
   /**
    * Find bank statement by ID
    */
-  async findById(id: string, client?: PoolClient): Promise<any> {
-    const db = client || this.pool;
-    const query =
-      "SELECT * FROM bank_statements WHERE id = $1 AND deleted_at IS NULL";
-    const result = await db.query(query, [id]);
-    return result.rows[0] || null;
+  async findById(id: string): Promise<any> {
+    const { data, error } = await supabase
+      .from("bank_statements")
+      .select("*")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
   }
 
   /**
@@ -22,20 +26,22 @@ export class BankReconciliationRepository {
     companyId: string,
     startDate: Date,
     endDate?: Date,
-    client?: PoolClient,
   ): Promise<any[]> {
-    const db = client || this.pool;
     const end = endDate || startDate;
-    const query = `
-      SELECT * FROM bank_statements 
-      WHERE company_id = $1 
-        AND transaction_date BETWEEN $2 AND $3
-        AND is_reconciled = false 
-        AND deleted_at IS NULL
-      ORDER BY transaction_date DESC, created_at DESC
-    `;
-    const result = await db.query(query, [companyId, startDate, end]);
-    return result.rows;
+
+    const { data, error } = await supabase
+      .from("bank_statements")
+      .select("*")
+      .eq("company_id", companyId)
+      .gte("transaction_date", startDate.toISOString().split("T")[0])
+      .lte("transaction_date", end.toISOString().split("T")[0])
+      .eq("is_reconciled", false)
+      .is("deleted_at", null)
+      .order("transaction_date", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return data || [];
   }
 
   /**
@@ -45,18 +51,18 @@ export class BankReconciliationRepository {
     companyId: string,
     startDate: Date,
     endDate: Date,
-    client?: PoolClient,
   ): Promise<any[]> {
-    const db = client || this.pool;
-    const query = `
-      SELECT * FROM bank_statements 
-      WHERE company_id = $1 
-        AND transaction_date BETWEEN $2 AND $3
-        AND deleted_at IS NULL
-      ORDER BY transaction_date DESC
-    `;
-    const result = await db.query(query, [companyId, startDate, endDate]);
-    return result.rows;
+    const { data, error } = await supabase
+      .from("bank_statements")
+      .select("*")
+      .eq("company_id", companyId)
+      .gte("transaction_date", startDate.toISOString().split("T")[0])
+      .lte("transaction_date", endDate.toISOString().split("T")[0])
+      .is("deleted_at", null)
+      .order("transaction_date", { ascending: false });
+
+    if (error) throw error;
+    return data || [];
   }
 
   /**
@@ -65,23 +71,22 @@ export class BankReconciliationRepository {
   async updateStatus(
     id: string,
     status: BankReconciliationStatus,
-    client?: PoolClient,
   ): Promise<void> {
-    const db = client || this.pool;
-    const query = `
-      UPDATE bank_statements 
-      SET is_reconciled = $1,
-          updated_at = NOW()
-      WHERE id = $2
-    `;
-    // For simplicity, is_reconciled is true if status is not PENDING/UNRECONCILED/DISCREPANCY
     const isReconciled = ![
       BankReconciliationStatus.PENDING,
       BankReconciliationStatus.UNRECONCILED,
       BankReconciliationStatus.DISCREPANCY,
     ].includes(status);
 
-    await db.query(query, [isReconciled, id]);
+    const { error } = await supabase
+      .from("bank_statements")
+      .update({
+        is_reconciled: isReconciled,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+
+    if (error) throw error;
   }
 
   /**
@@ -90,18 +95,18 @@ export class BankReconciliationRepository {
   async markAsReconciled(
     statementId: string,
     aggregateId: string,
-    client?: PoolClient,
   ): Promise<void> {
-    const db = client || this.pool;
-    const query = `
-      UPDATE bank_statements 
-      SET is_reconciled = true,
-          reconciled_at = NOW(),
-          reconciliation_id = $1,
-          updated_at = NOW()
-      WHERE id = $2
-    `;
-    await db.query(query, [aggregateId, statementId]);
+    const { error } = await supabase
+      .from("bank_statements")
+      .update({
+        is_reconciled: true,
+        reconciled_at: new Date().toISOString(),
+        reconciliation_id: aggregateId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", statementId);
+
+    if (error) throw error;
   }
 
   /**
@@ -110,16 +115,16 @@ export class BankReconciliationRepository {
   async bulkUpdateReconciliationStatus(
     ids: string[],
     isReconciled: boolean,
-    client?: PoolClient,
   ): Promise<void> {
-    const db = client || this.pool;
-    const query = `
-      UPDATE bank_statements 
-      SET is_reconciled = $1,
-          updated_at = NOW()
-      WHERE id = ANY($2)
-    `;
-    await db.query(query, [isReconciled, ids]);
+    const { error } = await supabase
+      .from("bank_statements")
+      .update({
+        is_reconciled: isReconciled,
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", ids);
+
+    if (error) throw error;
   }
 
   /**
@@ -131,74 +136,62 @@ export class BankReconciliationRepository {
     endDate: Date,
     limit: number = 1000,
     offset: number = 0,
-    client?: PoolClient,
   ): Promise<any[]> {
-    const db = client || this.pool;
-    const query = `
-      SELECT * FROM bank_statements 
-      WHERE company_id = $1 
-        AND transaction_date BETWEEN $2 AND $3
-        AND is_reconciled = false 
-        AND deleted_at IS NULL
-      ORDER BY transaction_date DESC, created_at DESC
-      LIMIT $4 OFFSET $5
-    `;
-    const result = await db.query(query, [
-      companyId,
-      startDate,
-      endDate,
-      limit,
-      offset,
-    ]);
-    return result.rows;
+    const { data, error } = await supabase
+      .from("bank_statements")
+      .select("*")
+      .eq("company_id", companyId)
+      .gte("transaction_date", startDate.toISOString().split("T")[0])
+      .lte("transaction_date", endDate.toISOString().split("T")[0])
+      .eq("is_reconciled", false)
+      .is("deleted_at", null)
+      .order("transaction_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+    return data || [];
   }
 
   /**
    * Log reconciliation action to audit trail
    */
-  async logAction(
-    data: {
-      companyId: string;
-      userId?: string;
-      action: "MANUAL_RECONCILE" | "AUTO_MATCH" | "UNDO";
-      statementId?: string;
-      aggregateId?: string;
-      details?: any;
-    },
-    client?: PoolClient,
-  ): Promise<void> {
-    const db = client || this.pool;
-    const query = `
-      INSERT INTO bank_reconciliation_logs (
-        company_id, user_id, action, statement_id, aggregate_id, details
-      ) VALUES ($1, $2, $3, $4, $5, $6)
-    `;
-    await db.query(query, [
-      data.companyId,
-      data.userId,
-      data.action,
-      data.statementId,
-      data.aggregateId,
-      JSON.stringify(data.details || {}),
-    ]);
+  async logAction(data: {
+    companyId: string;
+    userId?: string;
+    action: "MANUAL_RECONCILE" | "AUTO_MATCH" | "UNDO";
+    statementId?: string;
+    aggregateId?: string;
+    details?: any;
+  }): Promise<void> {
+    const { error } = await supabase.from("bank_reconciliation_logs").insert({
+      company_id: data.companyId,
+      user_id: data.userId,
+      action: data.action,
+      statement_id: data.statementId,
+      aggregate_id: data.aggregateId,
+      details: data.details || {},
+    });
+
+    if (error) throw error;
   }
 
   /**
    * Undo reconciliation for a specific statement
    */
-  async undoReconciliation(
-    statementId: string,
-    client?: PoolClient,
-  ): Promise<void> {
-    const db = client || this.pool;
-    const query = `
-      UPDATE bank_statements 
-      SET is_reconciled = false,
-          reconciliation_id = NULL,
-          reconciled_at = NULL,
-          updated_at = NOW()
-      WHERE id = $1
-    `;
-    await db.query(query, [statementId]);
+  async undoReconciliation(statementId: string): Promise<void> {
+    const { error } = await supabase
+      .from("bank_statements")
+      .update({
+        is_reconciled: false,
+        reconciliation_id: null,
+        reconciled_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", statementId);
+
+    if (error) throw error;
   }
 }
+
+export const bankReconciliationRepository = new BankReconciliationRepository();

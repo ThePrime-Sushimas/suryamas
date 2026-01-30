@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
-import { BankReconciliationService } from "./bank-reconciliation.service";
+import {
+  bankReconciliationService,
+  BankReconciliationService,
+} from "./bank-reconciliation.service";
 import type {
   AuthenticatedRequest,
   AuthenticatedQueryRequest,
@@ -166,3 +169,7 @@ export class BankReconciliationController {
     }
   }
 }
+
+export const bankReconciliationController = new BankReconciliationController(
+  bankReconciliationService,
+);

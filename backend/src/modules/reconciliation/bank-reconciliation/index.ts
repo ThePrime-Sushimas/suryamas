@@ -1,35 +1,33 @@
-import { Pool } from 'pg';
-import { BankReconciliationRepository } from './bank-reconciliation.repository';
-import { BankReconciliationService } from './bank-reconciliation.service';
-import { BankReconciliationController } from './bank-reconciliation.controller';
-import { createBankReconciliationRouter } from './bank-reconciliation.routes';
-import { ReconciliationOrchestratorService } from '../orchestrator/reconciliation-orchestrator.service';
-import { feeReconciliationService } from '../fee-reconciliation/fee-reconciliation.service';
+/**
+ * Bank Reconciliation Module
+ * Standard entry point for the module, exporting types, singletons, and setup logic.
+ */
 
-export * from './bank-reconciliation.service';
-export * from './bank-reconciliation.controller';
-export * from './bank-reconciliation.repository';
-export * from './bank-reconciliation.types';
-export * from './bank-reconciliation.schema';
-export * from './bank-reconciliation.routes';
+export * from "./bank-reconciliation.types";
+export * from "./bank-reconciliation.errors";
+export * from "./bank-reconciliation.schema";
 
-export function setupBankReconciliationModule(pool: Pool) {
-  const repository = new BankReconciliationRepository(pool);
-  const orchestrator = new ReconciliationOrchestratorService();
-  
-  const service = new BankReconciliationService(
-    repository, 
-    orchestrator, 
-    feeReconciliationService
-  );
-  
-  const controller = new BankReconciliationController(service);
-  const router = createBankReconciliationRouter(controller);
+// Import singletons for use in setup function
+import { bankReconciliationRepository } from "./bank-reconciliation.repository";
+import { bankReconciliationService } from "./bank-reconciliation.service";
+import { bankReconciliationController } from "./bank-reconciliation.controller";
+import bankReconciliationRouter from "./bank-reconciliation.routes";
 
+// Re-export singletons for programmatic use
+export { bankReconciliationRepository };
+export { bankReconciliationService };
+export { bankReconciliationController };
+export { bankReconciliationRouter };
+
+/**
+ * Setup function to initialize the bank reconciliation module.
+ * Now simplified to use pre-instantiated singletons for consistency with the project.
+ */
+export function setupBankReconciliationModule() {
   return {
-    repository,
-    service,
-    controller,
-    router
+    repository: bankReconciliationRepository,
+    service: bankReconciliationService,
+    controller: bankReconciliationController,
+    router: bankReconciliationRouter,
   };
 }
