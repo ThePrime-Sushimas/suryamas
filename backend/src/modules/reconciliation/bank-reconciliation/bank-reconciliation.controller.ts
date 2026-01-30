@@ -4,6 +4,11 @@ import {
   ManualReconcileRequestDto, 
   AutoMatchRequestDto 
 } from './bank-reconciliation.types';
+import { 
+  AlreadyReconciledError, 
+  DifferenceThresholdExceededError,
+  NoMatchFoundError
+} from './bank-reconciliation.errors';
 
 export class BankReconciliationController {
   constructor(private readonly service: BankReconciliationService) {}
@@ -25,9 +30,14 @@ export class BankReconciliationController {
         data: result
       });
     } catch (error: any) {
-      res.status(400).json({
+      let status = 400;
+      if (error instanceof AlreadyReconciledError) status = 409;
+      if (error instanceof DifferenceThresholdExceededError) status = 422;
+      
+      res.status(status).json({
         success: false,
-        message: error.message
+        message: error.message,
+        code: error.code || 'RECONCILIATION_FAILED'
       });
     }
   }
@@ -51,7 +61,8 @@ export class BankReconciliationController {
     } catch (error: any) {
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
+        code: error.code || 'AUTO_MATCH_FAILED'
       });
     }
   }

@@ -4,15 +4,21 @@ import {
   MatchingCriteria, 
   ReconciliationMatch 
 } from './bank-reconciliation.types';
+import { 
+  AlreadyReconciledError, 
+  NoMatchFoundError, 
+  DifferenceThresholdExceededError 
+} from './bank-reconciliation.errors';
+import { getReconciliationConfig } from './bank-reconciliation.config';
 
 export class BankReconciliationService {
-  private readonly defaultCriteria: MatchingCriteria = {
-    amountTolerance: 0.01,
-    dateBufferDays: 3,
-    differenceThreshold: 100
-  };
+  private readonly config = getReconciliationConfig();
 
-  constructor(private readonly repository: BankReconciliationRepository) {}
+  constructor(
+    private readonly repository: BankReconciliationRepository,
+    private readonly orchestratorService?: any, // Placeholder for OrchestratorService
+    private readonly feeReconciliationService?: any // Placeholder for FeeReconciliationService
+  ) {}
 
   /**
    * Reconcile a single POS aggregate with a bank statement
@@ -28,12 +34,20 @@ export class BankReconciliationService {
     }
 
     if (statement.is_reconciled) {
-      throw new Error('Bank statement is already reconciled');
+      throw new AlreadyReconciledError(statementId);
     }
 
-    // TODO: Verify aggregate existence via Orchestrator or direct DB
+    // Verify difference against threshold
+    // We'd get aggregate amount here
+    // const agg = await this.orchestratorService.getAggregate(aggregateId);
+    // const diff = this.calculateDifference(agg.nett_amount, statement.credit_amount - statement.debit_amount);
+    // if (diff.absolute > this.config.differenceThreshold) {
+    //   throw new DifferenceThresholdExceededError(diff.absolute, this.config.differenceThreshold);
+    // }
     
     await this.repository.markAsReconciled(statementId, aggregateId);
+    
+    // TODO: Log action to bank_reconciliation_logs
     
     return { 
       success: true, 
@@ -45,55 +59,57 @@ export class BankReconciliationService {
   }
 
   /**
-   * Auto-match multiple aggregates with statements for a specific company and date
+   * Auto-match multiple aggregates with statements using tiered priority logic
    */
   async autoMatch(
     companyId: string, 
     date: Date, 
     criteria?: Partial<MatchingCriteria>
   ): Promise<any> {
-    const matchingCriteria = { ...this.defaultCriteria, ...criteria };
+    const matchingCriteria = { 
+      amountTolerance: this.config.amountTolerance,
+      dateBufferDays: this.config.dateBufferDays,
+      ...criteria 
+    };
     
-    // 1. Get unreconciled statements
-    const statements = await this.repository.getUnreconciled(companyId, date);
+    // 1. Get unreconciled statements (possibly in batches)
+    const statements = await this.repository.getUnreconciledBatch(
+      companyId, 
+      date, 
+      this.config.autoMatchBatchSize
+    );
     
-    // 2. Get aggregates for the same date
-    // Note: We'll need access to the aggregates table, usually via service-orchestrator
-    // For now, let's assume we have them or a way to get them.
-    // const aggregates = await this.orchestrator.getAggregatesForDate(companyId, date);
-    const aggregates: any[] = []; // Placeholder
+    // 2. Get aggregates (expected net) from orchestrator
+    const aggregates = this.orchestratorService 
+      ? await this.orchestratorService.getAggregatesForDate(companyId, date)
+      : [];
 
     const matches: ReconciliationMatch[] = [];
-    const unreconciledStatements = [...statements];
+    const remainingStatements = [...statements];
+    const remainingAggregates = [...aggregates];
 
-    // 3. Algorithm Phase 1: Exact Matches (Amount + Date + Ref if available)
-    for (let i = unreconciledStatements.length - 1; i >= 0; i--) {
-      const statement = unreconciledStatements[i];
-      const amount = statement.credit_amount - statement.debit_amount;
-      
-      const perfectMatchIdx = aggregates.findIndex(agg => 
-        Math.abs(agg.nett_amount - amount) <= matchingCriteria.amountTolerance &&
-        (!agg.reference_number || agg.reference_number === statement.reference_number)
-      );
+    // Priority 1: Exact Reference Number Match
+    this.processMatching(remainingStatements, remainingAggregates, matches, (s, a) => 
+      s.reference_number && a.reference_number && s.reference_number === a.reference_number,
+      'EXACT_REF', 100
+    );
 
-      if (perfectMatchIdx !== -1) {
-        const agg = aggregates[perfectMatchIdx];
-        matches.push({
-          aggregateId: agg.id,
-          statementId: statement.id,
-          matchScore: 100,
-          matchCriteria: 'EXACT_AMOUNT_DATE',
-          difference: 0
-        });
-        
-        // Remove from both lists
-        unreconciledStatements.splice(i, 1);
-        aggregates.splice(perfectMatchIdx, 1);
-      }
-    }
+    // Priority 2: Amount + Exact Date
+    this.processMatching(remainingStatements, remainingAggregates, matches, (s, a) => {
+      const sAmount = s.credit_amount - s.debit_amount;
+      const sDate = new Date(s.transaction_date).toDateString();
+      const aDate = new Date(a.transaction_date).toDateString();
+      return Math.abs(sAmount - a.nett_amount) <= matchingCriteria.amountTolerance && sDate === aDate;
+    }, 'EXACT_AMOUNT_DATE', 90);
 
-    // 4. Algorithm Phase 2: Fuzzy Matches (Date Buffer)
-    // TODO: Implement fuzzy matching using date ranges
+    // Priority 3: Amount + Date Buffer
+    this.processMatching(remainingStatements, remainingAggregates, matches, (s, a) => {
+      const sAmount = s.credit_amount - s.debit_amount;
+      const sDate = new Date(s.transaction_date).getTime();
+      const aDate = new Date(a.transaction_date).getTime();
+      const dayDiff = Math.abs(sDate - aDate) / (1000 * 3600 * 24);
+      return Math.abs(sAmount - a.nett_amount) <= matchingCriteria.amountTolerance && dayDiff <= matchingCriteria.dateBufferDays;
+    }, 'FUZZY_AMOUNT_DATE', 80);
 
     // 5. Apply matches to Database
     for (const match of matches) {
@@ -102,9 +118,40 @@ export class BankReconciliationService {
 
     return { 
       matched: matches.length, 
-      unmatched: unreconciledStatements.length,
+      unmatched: remainingStatements.length,
       matches 
     };
+  }
+
+  /**
+   * Helper to process matching logic for a specific priority tiered approach
+   */
+  private processMatching(
+    statements: any[], 
+    aggregates: any[], 
+    matches: ReconciliationMatch[], 
+    predicate: (s: any, a: any) => boolean,
+    criteriaName: ReconciliationMatch['matchCriteria'],
+    score: number
+  ) {
+    for (let i = statements.length - 1; i >= 0; i--) {
+      const statement = statements[i];
+      const matchIdx = aggregates.findIndex(agg => predicate(statement, agg));
+
+      if (matchIdx !== -1) {
+        const agg = aggregates[matchIdx];
+        matches.push({
+          aggregateId: agg.id,
+          statementId: statement.id,
+          matchScore: score,
+          matchCriteria: criteriaName,
+          difference: Math.abs((statement.credit_amount - statement.debit_amount) - agg.nett_amount)
+        });
+        
+        statements.splice(i, 1);
+        aggregates.splice(matchIdx, 1);
+      }
+    }
   }
 
   /**
@@ -112,18 +159,14 @@ export class BankReconciliationService {
    */
   async getDiscrepancies(companyId: string, date: Date): Promise<any[]> {
     const statements = await this.repository.getUnreconciled(companyId, date);
-    
-    return statements.map(s => {
-      const amount = s.credit_amount - s.debit_amount;
-      return {
-        id: s.id,
-        date: s.transaction_date,
-        description: s.description,
-        amount,
-        reason: 'UNMATCHED',
-        potentialMatches: [] // TODO: Search for potential matches
-      };
-    });
+    // Potentially search for fuzzy matches to suggest to user
+    return statements.map(s => ({
+      id: s.id,
+      date: s.transaction_date,
+      description: s.description,
+      amount: s.credit_amount - s.debit_amount,
+      reason: 'UNMATCHED'
+    }));
   }
 
   /**

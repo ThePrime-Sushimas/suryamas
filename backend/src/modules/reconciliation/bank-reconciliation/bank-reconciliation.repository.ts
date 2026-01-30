@@ -114,5 +114,29 @@ export class BankReconciliationRepository {
     `;
     await db.query(query, [isReconciled, ids]);
   }
+
+  /**
+   * Get unreconciled statements in batches for large datasets
+   */
+  async getUnreconciledBatch(
+    companyId: string, 
+    date: Date, 
+    limit: number = 1000, 
+    offset: number = 0,
+    client?: PoolClient
+  ): Promise<any[]> {
+    const db = client || this.pool;
+    const query = `
+      SELECT * FROM bank_statements 
+      WHERE company_id = $1 
+        AND transaction_date = $2 
+        AND is_reconciled = false 
+        AND deleted_at IS NULL
+      ORDER BY transaction_date DESC, created_at DESC
+      LIMIT $3 OFFSET $4
+    `;
+    const result = await db.query(query, [companyId, date, limit, offset]);
+    return result.rows;
+  }
 }
 
