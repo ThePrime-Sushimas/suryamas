@@ -77,28 +77,22 @@ export function DiscrepancyTable({
                 </td>
                 <td className="px-6 py-4">
                   <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                    {(
-                      item.statement?.debit_amount ||
-                      item.statement?.credit_amount ||
-                      0
-                    ).toLocaleString("id-ID")}
+                    {((item.statement?.debit_amount ?? 0) || (item.statement?.credit_amount ?? 0) || 0).toLocaleString("id-ID")}
                   </span>
                 </td>
                 <td className="px-6 py-4">
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     {item.statement?.matched_aggregate
-                      ? item.statement.matched_aggregate.gross_amount.toLocaleString(
-                          "id-ID",
-                        )
+                      ? (item.statement.matched_aggregate.gross_amount ?? 0).toLocaleString("id-ID")
                       : "-"}
                   </span>
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-1.5">
                     <span
-                      className={`text-sm font-bold ${item.difference === 0 ? "text-green-600" : "text-rose-600"}`}
+                      className={`text-sm font-bold ${(item.difference ?? 0) === 0 ? "text-green-600" : "text-rose-600"}`}
                     >
-                      {item.difference.toLocaleString("id-ID")}
+                      {(item.difference ?? 0).toLocaleString("id-ID")}
                     </span>
                   </div>
                 </td>

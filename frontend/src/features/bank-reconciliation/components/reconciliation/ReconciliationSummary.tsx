@@ -82,11 +82,20 @@ interface ReconciliationSummaryProps {
 export function ReconciliationSummaryCards({
   summary,
 }: ReconciliationSummaryProps) {
+  // Provide default values to prevent undefined errors
+  const safeSummary = {
+    totalStatements: summary.totalStatements ?? 0,
+    percentageReconciled: summary.percentageReconciled ?? 0,
+    discrepancies: summary.discrepancies ?? 0,
+    unreconciled: summary.unreconciled ?? 0,
+    totalDifference: summary.totalDifference ?? 0,
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <StatCard
         title="Total Transaksi"
-        value={summary.totalStatements}
+        value={safeSummary.totalStatements}
         icon={FileText}
         iconColor="text-blue-600"
         iconBgColor="bg-blue-100 dark:bg-blue-900/30"
@@ -94,7 +103,7 @@ export function ReconciliationSummaryCards({
       />
       <StatCard
         title="Terekonsiliasi"
-        value={summary.percentageReconciled.toFixed(1)}
+        value={safeSummary.percentageReconciled.toFixed(1)}
         icon={CheckCircle}
         iconColor="text-green-600"
         iconBgColor="bg-green-100 dark:bg-green-900/30"
@@ -103,7 +112,7 @@ export function ReconciliationSummaryCards({
       />
       <StatCard
         title="Discrepancies"
-        value={summary.discrepancies}
+        value={safeSummary.discrepancies}
         icon={AlertCircle}
         iconColor="text-rose-600"
         iconBgColor="bg-rose-100 dark:bg-rose-900/30"
@@ -111,7 +120,7 @@ export function ReconciliationSummaryCards({
       />
       <StatCard
         title="Belum Cocok"
-        value={summary.unreconciled}
+        value={safeSummary.unreconciled}
         icon={HelpCircle}
         iconColor="text-amber-600"
         iconBgColor="bg-amber-100 dark:bg-amber-900/30"
@@ -119,7 +128,7 @@ export function ReconciliationSummaryCards({
       />
       <StatCard
         title="Selisih Total"
-        value={summary.totalDifference.toLocaleString("id-ID", {
+        value={safeSummary.totalDifference.toLocaleString("id-ID", {
           style: "currency",
           currency: "IDR",
         })}
