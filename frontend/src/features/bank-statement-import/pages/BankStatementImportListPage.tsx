@@ -361,7 +361,14 @@ export function BankStatementImportListPage() {
                             {imp.file_name}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {imp.bank_account_id ? `Account #${imp.bank_account_id}` : '-'}
+                            {imp.bank_name && imp.account_number 
+                              ? `${imp.bank_name} - ${imp.account_number}`
+                              : imp.account_number 
+                                ? imp.account_number
+                                : imp.bank_account_id 
+                                  ? `Account #${imp.bank_account_id}`
+                                  : '-'
+                            }
                           </p>
                         </div>
                       </div>

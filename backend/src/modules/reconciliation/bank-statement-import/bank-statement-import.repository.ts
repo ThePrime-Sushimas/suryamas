@@ -56,7 +56,16 @@ export class BankStatementImportRepository {
   async findById(id: number): Promise<BankStatementImport | null> {
     const { data, error } = await supabase
       .from('bank_statement_imports')
-      .select('*')
+      .select(`
+        *,
+        bank_accounts:bank_account_id (
+          account_name,
+          account_number,
+          banks:bank_id (
+            bank_name
+          )
+        )
+      `)
       .eq('id', id)
       .is('deleted_at', null)
       .single()
@@ -66,7 +75,15 @@ export class BankStatementImportRepository {
       throw BankStatementImportErrors.IMPORT_NOT_FOUND(id)
     }
 
-    return data as BankStatementImport | null
+    // Transform to include bank account fields at top level
+    const transformed = {
+      ...data,
+      bank_name: data.bank_accounts?.banks?.bank_name || null,
+      account_number: data.bank_accounts?.account_number || null,
+      account_name: data.bank_accounts?.account_name || null,
+    }
+
+    return transformed as BankStatementImport | null
   }
 
   /**
@@ -81,7 +98,16 @@ export class BankStatementImportRepository {
 
     let query = supabase
       .from('bank_statement_imports')
-      .select('*', { count: 'exact' })
+      .select(`
+        *,
+        bank_accounts:bank_account_id (
+          account_name,
+          account_number,
+          banks:bank_id (
+            bank_name
+          )
+        )
+      `, { count: 'exact' })
       .eq('company_id', companyId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
@@ -110,8 +136,16 @@ export class BankStatementImportRepository {
       throw new Error(error.message)
     }
 
+    // Transform data to include bank account fields at top level
+    const transformedData = (data || []).map((item: any) => ({
+      ...item,
+      bank_name: item.bank_accounts?.banks?.bank_name || null,
+      account_number: item.bank_accounts?.account_number || null,
+      account_name: item.bank_accounts?.account_name || null,
+    }))
+
     return {
-      data: (data || []) as BankStatementImport[],
+      data: transformedData as BankStatementImport[],
       total: count || 0
     }
   }
@@ -129,7 +163,7 @@ export class BankStatementImportRepository {
 
     if (error) {
       logError('BankStatementImportRepository.update error', { id, error: error.message })
-      throw BankStatementImportErrors.UPDATE_FAILED()
+      throw BankStatementImportErrors.UPDATE_FAILED(id)
     }
 
     return result as BankStatementImport | null
@@ -171,11 +205,11 @@ export class BankStatementImportRepository {
         
         if (retryError) {
           logError('BankStatementImportRepository.delete retry error', { id, error: retryError.message })
-          throw BankStatementImportErrors.DELETE_FAILED()
+          throw BankStatementImportErrors.DELETE_FAILED(id)
         }
         return
       }
-      throw BankStatementImportErrors.DELETE_FAILED()
+      throw BankStatementImportErrors.DELETE_FAILED(id)
     }
   }
 

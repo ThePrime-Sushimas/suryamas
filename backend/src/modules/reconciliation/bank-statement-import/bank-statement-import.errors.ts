@@ -325,12 +325,12 @@ export const BankStatementImportErrors = {
       { operation, userMessage: `Gagal ${operation === 'create' ? 'membuat' : operation} data import. Silakan coba lagi.` }
     ),
   
-  UPDATE_FAILED: (operation: string = 'update') => 
+  UPDATE_FAILED: (id: number, operation: string = 'update') => 
     new BankStatementImportError(
-      `Failed to ${operation} bank statement import`,
+      `Failed to ${operation} bank statement import with id ${id}`,
       500, 
       'BS_UPDATE_FAILED',
-      { operation, userMessage: `Gagal ${operation === 'update' ? 'memperbarui' : operation} data import. Silakan coba lagi.` }
+      { id, operation, userMessage: `Gagal ${operation === 'update' ? 'memperbarui' : operation} data import dengan ID ${id}. Silakan coba lagi.` }
     ),
   
   DELETE_FAILED: (id: number) => 

@@ -10,6 +10,10 @@ export interface BankStatementImport {
   id: number
   company_id: string
   bank_account_id: number
+  // Bank account details (from joined bank_accounts table)
+  bank_name?: string
+  account_number?: string
+  account_name?: string
   file_name: string
   file_size: number
   file_hash?: string

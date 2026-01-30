@@ -257,7 +257,12 @@ function BankStatementImportDetailPageContent() {
             <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
               <span className="flex items-center gap-1.5">
                 <Hash className="w-4 h-4" />
-                Account #{importData.bank_account_id}
+                {importData.bank_name && importData.account_number
+                  ? `${importData.bank_name} - ${importData.account_number}`
+                  : importData.account_number
+                    ? importData.account_number
+                    : `Account #${importData.bank_account_id}`
+                }
               </span>
               <span className="flex items-center gap-1.5">
                 <FileText className="w-4 h-4" />
