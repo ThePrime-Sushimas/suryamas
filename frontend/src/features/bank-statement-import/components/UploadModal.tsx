@@ -187,9 +187,6 @@ export function UploadModal({
                   <h3 className="font-bold text-xl text-white">
                     Upload Bank Statement
                   </h3>
-                  <p className="text-sm text-blue-100 dark:text-blue-200 mt-1">
-                    Import data mutasi bank dengan mudah
-                  </p>
                 </div>
               </div>
               <button
