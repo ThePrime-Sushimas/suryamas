@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { 
-  AlertTriangle, 
+import ReactDOM from 'react-dom'
+import {
+  AlertTriangle,
   XCircle,
   Loader2,
   Upload,
@@ -65,7 +66,7 @@ export function AnalysisModal({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
-  return (
+  const modalContent = (
     <div className="modal modal-open backdrop-blur-sm bg-black/40">
       <div className="modal-box max-w-5xl bg-white dark:bg-gray-900 rounded-3xl p-0 shadow-2xl overflow-hidden">
         {/* Loading Overlay */}
@@ -333,5 +334,7 @@ export function AnalysisModal({
       <div className="modal-backdrop bg-black/40 backdrop-blur-sm" onClick={onCancel} />
     </div>
   )
+
+  return ReactDOM.createPortal(modalContent, document.body)
 }
 

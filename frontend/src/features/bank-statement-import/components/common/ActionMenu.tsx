@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { MoreVertical, Eye, Download, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
@@ -17,16 +18,34 @@ export function ActionMenu({
 }: ActionMenuProps) {
   const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 })
   const buttonRef = useRef<HTMLButtonElement>(null)
 
+  // Close menu on scroll or resize to prevent floating
   useEffect(() => {
+    if (!isOpen) return
+
+    const handleScroll = () => setIsOpen(false)
+    window.addEventListener('scroll', handleScroll, true) // Capture phase for all scrollable parents
+    window.addEventListener('resize', handleScroll)
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true)
+      window.removeEventListener('resize', handleScroll)
+    }
+  }, [isOpen])
+
+  // Click outside handler
+  useEffect(() => {
+    if (!isOpen) return
+
     function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node
+      const menu = document.getElementById(`action-menu-${id}`)
+      
       if (
-        menuRef.current &&
-        !menuRef.current.contains(event.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(event.target as Node)
+        menu && !menu.contains(target) &&
+        buttonRef.current && !buttonRef.current.contains(target)
       ) {
         setIsOpen(false)
       }
@@ -34,10 +53,25 @@ export function ActionMenu({
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+  }, [isOpen, id])
+
+  const toggleMenu = () => {
+    if (disabled) return
+    
+    if (!isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      // Position menu: Align right edge with button right edge, top below button
+      setMenuPosition({
+        top: rect.bottom + window.scrollY + 4, // 4px gap
+        left: rect.right + window.scrollX - 192, // 192px = w-48 (12rem)
+      })
+    }
+    setIsOpen(!isOpen)
+  }
 
   const handleViewDetail = useCallback(() => {
     navigate(`/bank-statement-import/${id}`)
+    setIsOpen(false)
   }, [navigate, id])
 
   const handleAction = useCallback((action: () => void) => {
@@ -46,10 +80,10 @@ export function ActionMenu({
   }, [])
 
   return (
-    <div className="relative inline-block text-left">
+    <>
       <button
         ref={buttonRef}
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+        onClick={toggleMenu}
         disabled={disabled}
         className={`
           p-1.5 rounded-lg transition-colors
@@ -62,10 +96,14 @@ export function ActionMenu({
         <MoreVertical className="w-4 h-4" />
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <div
-          ref={menuRef}
-          className="absolute right-0 top-full mt-1 z-50 w-48 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none border border-gray-100 dark:border-gray-700"
+          id={`action-menu-${id}`}
+          style={{
+            top: `${menuPosition.top}px`,
+            left: `${menuPosition.left}px`,
+          }}
+          className="fixed z-[9999] w-48 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none border border-gray-100 dark:border-gray-700"
         >
           <div className="py-1">
             <button
@@ -99,9 +137,10 @@ export function ActionMenu({
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   )
 }
 

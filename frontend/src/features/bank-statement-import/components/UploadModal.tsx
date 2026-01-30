@@ -166,15 +166,16 @@ export function UploadModal({
   const canSubmit = file && bankAccountId && hasBankAccounts && !isLoading
 
   return (
-    <div className="modal modal-open backdrop-blur-sm bg-black/40">
-      <div className="modal-box max-w-xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl rounded-2xl p-0 overflow-hidden transform transition-all duration-300 scale-100 opacity-100">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-xl overflow-hidden">
         
         {/* Header dengan Gradient */}
-        <div className="relative overflow-hidden">
-          {/* Background Gradient */}
-          <div className="absolute inset-0 bg-linear-to-br from-blue-500 via-indigo-500 to-purple-600" />
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=%2260%22 height=%2260%22 viewBox=%220 0 60 60%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cg fill=%22none%22 fill-rule=%22evenodd%22%3E%3Cg fill=%22%23ffffff%22 fill-opacity=%220.05%22%3E%3Cpath d=%22M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30" />
-          
+        <div className="relative overflow-hidden bg-linear-to-br from-blue-500 via-indigo-500 to-purple-600">
+          {/* Pattern Overlay */}
+          <div className="absolute inset-0 opacity-30">
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=%2260%22 height=%2260%22 viewBox=%220 0 60 60%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cg fill=%22none%22 fill-rule=%22evenodd%22%3E%3Cg fill=%22%23ffffff%22 fill-opacity=%220.05%22%3E%3Cpath d=%22M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')]"></div>
+          </div>
+
           {/* Content */}
           <div className="relative p-6 pb-8">
             <div className="flex items-start justify-between">
@@ -278,7 +279,7 @@ export function UploadModal({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-800/50 backdrop-blur-md flex justify-between items-center">
+        <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center">
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             <span>Data terenkripsi & aman</span>
@@ -320,10 +321,6 @@ export function UploadModal({
           </div>
         </div>
       </div>
-      <div 
-        className="modal-backdrop bg-black/40 backdrop-blur-sm transition-opacity" 
-        onClick={onClose}
-      />
     </div>
   )
 }
