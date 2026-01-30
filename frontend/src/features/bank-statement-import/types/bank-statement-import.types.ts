@@ -73,10 +73,14 @@ export interface BankStatementAnalysisStats {
 }
 
 // Backend response format - matches actual backend response
-// Backend summary includes: import, summary (with preview), stats, etc.
+// Backend upload returns: { import, analysis }
+// Backend summary returns: { import, summary, stats, warnings, duplicates }
 export interface BankStatementAnalysisResult {
   import: BankStatementImport
-  summary: {
+  // From upload response
+  analysis?: BankStatementAnalysis
+  // From summary response
+  summary?: {
     total_statements: number
     total_credit: number
     total_debit: number

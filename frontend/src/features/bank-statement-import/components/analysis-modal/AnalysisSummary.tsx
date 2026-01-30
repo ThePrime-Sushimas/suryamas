@@ -6,13 +6,13 @@ interface AnalysisSummaryProps {
 }
 
 export function AnalysisSummary({ result }: AnalysisSummaryProps) {
-  const { analysis } = result
+  const { analysis, stats } = result
 
   // Data dari backend analysis format
-  const totalRows = analysis?.total_rows || 0
-  const validRows = analysis?.valid_rows || 0
-  const invalidRows = analysis?.invalid_rows || 0
-  const duplicates = analysis?.duplicates || []
+  const totalRows = analysis?.total_rows || stats?.total_rows || 0
+  const validRows = analysis?.valid_rows || stats?.valid_rows || 0
+  const invalidRows = analysis?.invalid_rows || stats?.invalid_rows || 0
+  const duplicates = analysis?.duplicates || result.duplicates || []
   const duplicateCount = duplicates.length
 
   // Hitung pending rows (yang bukan valid dan bukan invalid)
@@ -174,9 +174,9 @@ export function AnalysisSummary({ result }: AnalysisSummaryProps) {
 
 // Compact version for smaller spaces
 export function AnalysisSummaryCompact({ result }: { result: BankStatementAnalysisResult }) {
-  const { analysis } = result
-  const totalRows = analysis?.total_rows || 0
-  const validRows = analysis?.valid_rows || 0
+  const { analysis, stats } = result
+  const totalRows = analysis?.total_rows || stats?.total_rows || 0
+  const validRows = analysis?.valid_rows || stats?.valid_rows || 0
 
   return (
     <div className="flex items-center gap-4">
