@@ -179,20 +179,51 @@ export function BankStatementImportListPage() {
 
       {/* Error Message */}
       {errors.general && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={20} />
-            <div className="flex-1">
-              <h3 className="font-medium text-red-900 dark:text-red-400">Error</h3>
-              <p className="text-sm text-red-700 dark:text-red-400 mt-1">{errors.general}</p>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl overflow-hidden">
+          <div className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="bg-red-100 dark:bg-red-900/30 p-2 rounded-lg shrink-0">
+                <AlertCircle className="text-red-500" size={20} />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-red-900 dark:text-red-400">Terjadi Kesalahan</h3>
+                <p className="text-sm text-red-700 dark:text-red-400 mt-1">{errors.general}</p>
+                
+                {/* Action Button */}
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => clearError('general')}
+                    className="px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                  >
+                    Tutup
+                  </button>
+                  <button
+                    onClick={handleRefresh}
+                    className="px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-1"
+                  >
+                    <RefreshCw size={14} />
+                    Coba Lagi
+                  </button>
+                </div>
+              </div>
+              
+              <button
+                onClick={() => clearError('general')}
+                className="text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <button
-              onClick={() => clearError('general')}
-              className="text-red-500 hover:text-red-700 dark:hover:text-red-400"
-            >
-              <X size={18} />
-            </button>
           </div>
+          
+          {/* Debug info (development only) */}
+          {import.meta?.env?.DEV && (
+            <div className="px-4 py-2 bg-red-100/50 dark:bg-red-900/10 border-t border-red-200 dark:border-red-800">
+              <p className="text-xs text-red-600 dark:text-red-500 font-mono">
+                Error ID: {Date.now()}
+              </p>
+            </div>
+          )}
         </div>
       )}
 

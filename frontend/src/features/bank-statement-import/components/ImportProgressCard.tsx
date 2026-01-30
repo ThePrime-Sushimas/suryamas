@@ -164,14 +164,34 @@ export function ImportProgressCard({
         )}
       </div>
 
-      {/* Error Message */}
+      {/* Error Message - Enhanced */}
       {showErrorMessage && status === 'FAILED' && error_message && (
         <div className="px-4 pb-3">
-          <div className="flex items-start gap-2 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
-            <XCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
-            <p className="text-sm text-red-700 dark:text-red-400">
-              {error_message}
-            </p>
+          <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+            <div className="flex items-start gap-3">
+              <div className="bg-red-100 dark:bg-red-900/30 p-2 rounded-lg shrink-0">
+                <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-red-800 dark:text-red-300">Import Gagal</h4>
+                <p className="text-sm text-red-700 dark:text-red-400 mt-1">{error_message}</p>
+                
+                {/* Error recovery info */}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="text-xs px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded">
+                    {failed_rows.toLocaleString()} baris gagal
+                  </span>
+                  {onRetry && (
+                    <button
+                      onClick={() => onRetry(id)}
+                      className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    >
+                      Coba Lagi
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

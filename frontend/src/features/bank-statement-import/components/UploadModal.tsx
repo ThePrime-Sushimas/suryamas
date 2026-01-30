@@ -257,6 +257,48 @@ export function UploadModal({
               error={error}
             />
           </div>
+
+          {/* Error Guidance - Enhanced */}
+          {error && (
+            <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl">
+              <div className="flex items-start gap-3">
+                <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg shrink-0">
+                  <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-medium text-blue-800 dark:text-blue-300">Tips</p>
+                  <ul className="mt-1 text-sm text-blue-700 dark:text-blue-400 space-y-1">
+                    {error.includes('Excel') && (
+                      <>
+                        <li>• Pastikan file berformat .xlsx atau .xls</li>
+                        <li>• File CSV juga didukung (.csv)</li>
+                      </>
+                    )}
+                    {error.includes('50MB') && (
+                      <>
+                        <li>• Kompres file menggunakan WinZip atau similar</li>
+                        <li>• Bagi file besar menjadi beberapa bagian</li>
+                      </>
+                    )}
+                    {error.includes('kosong') && (
+                      <>
+                        <li>• Cek apakah file sudah disimpan dengan benar</li>
+                        <li>• Pastikan file berisi data transaksi bank</li>
+                      </>
+                    )}
+                    {error.includes('duplikat') && (
+                      <>
+                        <li>• File sudah pernah diupload sebelumnya</li>
+                        <li>• Gunakan file yang berbeda atau hapus import lama</li>
+                      </>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

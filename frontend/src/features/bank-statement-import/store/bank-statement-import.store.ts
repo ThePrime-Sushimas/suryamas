@@ -8,27 +8,261 @@ import type {
 } from '../types/bank-statement-import.types'
 import { BANK_STATEMENT_IMPORT_PAGE_SIZE } from '../constants/bank-statement-import.constants'
 
+// ============================================================================
+// ERROR MESSAGE MAPPINGS - User-friendly error messages
+// ============================================================================
+
+interface ErrorMapping {
+  pattern: RegExp | string
+  userMessage: string
+  title: string
+  action?: string
+}
+
+const ERROR_MAPPINGS: ErrorMapping[] = [
+  // File upload errors
+  {
+    pattern: /FILE_TOO_LARGE|file too large/i,
+    userMessage: 'Ukuran file terlalu besar. Maksimal ukuran file adalah 50MB. Silakan kompres file atau gunakan file yang lebih kecil.',
+    title: 'File Terlalu Besar',
+    action: 'Coba gunakan file dengan ukuran lebih kecil'
+  },
+  {
+    pattern: /INVALID_FILE_TYPE|invalid file type|file type not allowed/i,
+    userMessage: 'Format file tidak didukung. Gunakan file Excel (.xlsx, .xls) atau CSV (.csv).',
+    title: 'Format File Tidak Didukung',
+    action: 'Gunakan format file yang benar'
+  },
+  {
+    pattern: /NO_FILE_UPLOADED|no file uploaded/i,
+    userMessage: 'Silakan pilih file terlebih dahulu untuk diupload.',
+    title: 'Belum Ada File',
+    action: 'Pilih file dari komputer Anda'
+  },
+  {
+    pattern: /EMPTY_FILE|file is empty|corrupted|rusak/i,
+    userMessage: 'File kosong atau tidak valid. Silakan pastikan file berisi data yang benar.',
+    title: 'File Tidak Valid',
+    action: 'Buka file di Excel dan pastikan data tersedia'
+  },
+  
+  // Bank account errors
+  {
+    pattern: /BANK_ACCOUNT_NOT_FOUND|bank account.*not found|akun bank.*tidak ditemukan/i,
+    userMessage: 'Akun bank tidak ditemukan. Akun mungkin sudah dihapus.',
+    title: 'Akun Bank Tidak Ditemukan',
+    action: 'Pilih akun bank lain dari dropdown'
+  },
+  {
+    pattern: /BANK_ACCOUNT_INACTIVE|inactive|tidak aktif/i,
+    userMessage: 'Akun bank tidak aktif. Silakan aktifkan akun tersebut di menu Bank Accounts.',
+    title: 'Akun Bank Tidak Aktif',
+    action: 'Aktifkan akun bank di menu Bank Accounts'
+  },
+  {
+    pattern: /BANK_ACCOUNT_COMPANY_MISMATCH|not belong to your company|bukan milik/i,
+    userMessage: 'Akun bank bukan milik perusahaan Anda. Silakan pilih akun bank yang benar.',
+    title: 'Akun Bank Tidak Sesuai',
+    action: 'Pilih akun bank yang terdaftar di perusahaan Anda'
+  },
+  {
+    pattern: /NO_BANK_ACCOUNTS|no bank accounts/i,
+    userMessage: 'Tidak ada akun bank tersedia. Silakan tambah akun bank di menu Bank Accounts.',
+    title: 'Tidak Ada Akun Bank',
+    action: 'Tambah akun bank di menu Bank Accounts'
+  },
+  
+  // Validation errors
+  {
+    pattern: /MISSING_REQUIRED_COLUMNS|missing required columns|kolom wajib/i,
+    userMessage: 'File tidak lengkap. Beberapa kolom yang wajib ada tidak ditemukan.',
+    title: 'Kolom Tidak Lengkap',
+    action: 'Gunakan template yang disediakan'
+  },
+  {
+    pattern: /INVALID_DATE_FORMAT|invalid date|format tanggal/i,
+    userMessage: 'Format tanggal tidak valid. Gunakan format YYYY-MM-DD, DD/MM/YYYY, atau MM/DD/YYYY.',
+    title: 'Format Tanggal Salah',
+    action: 'Perbaiki format tanggal di file Excel'
+  },
+  {
+    pattern: /INVALID_AMOUNT_FORMAT|invalid amount|format jumlah/i,
+    userMessage: 'Format jumlah tidak valid. Gunakan angka tanpa simbol mata uang (contoh: 1000000).',
+    title: 'Format Jumlah Salah',
+    action: 'Perbaiki format angka di file Excel'
+  },
+  
+  // Permission errors
+  {
+    pattern: /BRANCH_CONTEXT_REQUIRED|pilih branch|select branch/i,
+    userMessage: 'Silakan pilih branch terlebih dahulu untuk mengakses fitur ini.',
+    title: 'Branch Belum Dipilih',
+    action: 'Pilih branch di selector bagian kiri atas'
+  },
+  {
+    pattern: /COMPANY_ACCESS_DENIED|access denied|tidak memiliki akses/i,
+    userMessage: 'Anda tidak memiliki akses ke perusahaan ini. Silakan hubungi administrator.',
+    title: 'Akses Ditolak',
+    action: 'Hubungi administrator untuk mendapatkan akses'
+  },
+  {
+    pattern: /PERMISSION_DENIED|permission denied|izin/i,
+    userMessage: 'Anda tidak memiliki izin untuk melakukan tindakan ini. Silakan hubungi administrator.',
+    title: 'Izin Ditolak',
+    action: 'Hubungi administrator untuk mendapatkan izin'
+  },
+  
+  // Import status errors
+  {
+    pattern: /IMPORT_NOT_FOUND|not found|tidak ditemukan/i,
+    userMessage: 'Data import tidak ditemukan. Kemungkinan data sudah dihapus.',
+    title: 'Data Import Tidak Ditemukan',
+    action: 'Refresh halaman untuk memperbarui daftar'
+  },
+  {
+    pattern: /ALREADY_ANALYZED|already|udah|sudah/i,
+    userMessage: 'Data ini sudah dalam tahap analisis. Silakan refresh halaman.',
+    title: 'Sudah Diproses',
+    action: 'Refresh halaman'
+  },
+  {
+    pattern: /DUPLICATE_FILE|already uploaded|sudah diupload/i,
+    userMessage: 'File sudah pernah diupload. Silakan gunakan file yang berbeda.',
+    title: 'File Duplikat',
+    action: 'Gunakan file yang berbeda atau hapus import sebelumnya'
+  },
+  
+  // Processing errors
+  {
+    pattern: /PROCESSING_FAILED|processing failed|gagal memproses/i,
+    userMessage: 'Gagal memproses import. Silakan coba lagi atau hubungi administrator.',
+    title: 'Gagal Memproses',
+    action: 'Coba lagi atau hubungi administrator'
+  },
+  {
+    pattern: /IMPORT_FAILED|import failed|gagal mengimpor/i,
+    userMessage: 'Gagal mengimpor data. Silakan coba lagi.',
+    title: 'Gagal Import',
+    action: 'Coba lagi'
+  },
+  {
+    pattern: /CONFIRMATION_FAILED|confirm failed/i,
+    userMessage: 'Gagal mengkonfirmasi import. Silakan coba lagi.',
+    title: 'Gagal Konfirmasi',
+    action: 'Coba lagi'
+  },
+  
+  // Network errors
+  {
+    pattern: /network|NetworkError|CERTIFICATE|certificate/i,
+    userMessage: 'Terjadi masalah koneksi. Silakan cek koneksi internet Anda.',
+    title: 'Koneksi Bermasalah',
+    action: 'Cek koneksi internet dan coba lagi'
+  },
+  {
+    pattern: /timeout|TIMEOUT|ETIMEDOUT/i,
+    userMessage: 'Waktu tunggu habis. Silakan coba lagi.',
+    title: 'Waktu Habis',
+    action: 'Coba lagi'
+  },
+  {
+    pattern: /ECONNREFUSED|connection refused/i,
+    userMessage: 'Tidak dapat terhubung ke server. Silakan hubungi administrator.',
+    title: 'Tidak Terhubung',
+    action: 'Hubungi administrator'
+  },
+  
+  // Generic server errors
+  {
+    pattern: /500|Internal Server Error|server error/i,
+    userMessage: 'Terjadi kesalahan pada server. Silakan coba lagi atau hubungi administrator.',
+    title: 'Kesalahan Server',
+    action: 'Coba lagi atau hubungi administrator'
+  },
+  {
+    pattern: /401|Unauthorized|tidak sah/i,
+    userMessage: 'Sesi Anda telah berakhir. Silakan login kembali.',
+    title: 'Sesi Berakhir',
+    action: 'Login kembali'
+  },
+  {
+    pattern: /403|Forbidden/i,
+    userMessage: 'Akses ditolak. Anda tidak memiliki izin untuk tindakan ini.',
+    title: 'Akses Ditolak',
+    action: 'Hubungi administrator'
+  },
+  {
+    pattern: /404|Not Found|tidak ditemukan/i,
+    userMessage: 'Data tidak ditemukan. Silakan refresh halaman.',
+    title: 'Data Tidak Ditemukan',
+    action: 'Refresh halaman'
+  },
+  {
+    pattern: /429|Too Many Requests|rate limit/i,
+    userMessage: 'Terlalu banyak permintaan. Silakan tunggu sebentar dan coba lagi.',
+    title: 'Terlalu Banyak Permintaan',
+    action: 'Tunggu sebentar dan coba lagi'
+  },
+]
+
 // Helper function untuk extract error message dari berbagai tipe error
 function getErrorMessage(error: unknown): string {
+  // Default message
+  let message = 'Terjadi kesalahan yang tidak diketahui. Silakan coba lagi.'
+
   if (axios.isAxiosError(error)) {
     // Handle axios error dengan response dari server
     if (error.response?.data?.message) {
-      return Array.isArray(error.response.data.message) 
+      const serverMessage = Array.isArray(error.response.data.message) 
         ? error.response.data.message.join(', ')
         : error.response.data.message
+      
+      // Try to find matching error mapping
+      const mapping = ERROR_MAPPINGS.find(m => 
+        typeof m.pattern === 'string' 
+          ? serverMessage.toLowerCase().includes(m.pattern.toLowerCase())
+          : m.pattern.test(serverMessage)
+      )
+
+      if (mapping) {
+        return mapping.userMessage
+      }
+      
+      // Also check for context.userMessage (from our backend errors)
+      if (error.response.data.context?.userMessage) {
+        message = error.response.data.context.userMessage
+      } else {
+        message = serverMessage
+      }
+    } else if (error.response?.data?.context?.userMessage) {
+      // Check for context from our custom backend errors
+      message = error.response.data.context.userMessage
+    } else if (error.response?.statusText) {
+      message = `${error.response.statusText}. Silakan coba lagi.`
+    } else if (error.code === 'ERR_BRANCH_REQUIRED') {
+      message = 'Silakan pilih branch terlebih dahulu untuk mengakses fitur ini.'
+    } else if (!error.response) {
+      // Handle network errors
+      message = 'Tidak dapat terhubung ke server. Silakan cek koneksi internet Anda.'
+    } else {
+      message = error.message || 'Terjadi kesalahan pada server'
     }
-    if (error.response?.statusText) {
-      return error.response.statusText
+  } else if (error instanceof Error) {
+    // Try to match error message with our mappings
+    const mapping = ERROR_MAPPINGS.find(m => 
+      typeof m.pattern === 'string' 
+        ? error.message.toLowerCase().includes(m.pattern.toLowerCase())
+        : m.pattern.test(error.message)
+    )
+
+    if (mapping) {
+      return mapping.userMessage
     }
-    if (error.code === 'ERR_BRANCH_REQUIRED') {
-      return 'Silakan pilih branch terlebih dahulu'
-    }
-    return error.message || 'Terjadi kesalahan pada server'
+    
+    message = error.message
   }
-  if (error instanceof Error) {
-    return error.message
-  }
-  return 'Terjadi kesalahan yang tidak diketahui'
+  
+  return message
 }
 
 interface Pagination {

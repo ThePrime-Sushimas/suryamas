@@ -164,12 +164,33 @@ function BankStatementImportDetailPageContent() {
   if (error) {
     return (
       <div className="p-6">
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={20} />
-            <div>
-              <h3 className="font-medium text-red-900 dark:text-red-400">Error</h3>
-              <p className="text-sm text-red-700 dark:text-red-400 mt-1">{error}</p>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl overflow-hidden">
+          <div className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="bg-red-100 dark:bg-red-900/30 p-2 rounded-lg shrink-0">
+                <AlertCircle className="text-red-500" size={20} />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-red-900 dark:text-red-400">Terjadi Kesalahan</h3>
+                <p className="text-sm text-red-700 dark:text-red-400 mt-1">{error}</p>
+                
+                {/* Action Buttons */}
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={goBack}
+                    className="px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-1"
+                  >
+                    <ArrowLeft size={14} />
+                    Kembali
+                  </button>
+                  <button
+                    onClick={fetchData}
+                    className="px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                  >
+                    Coba Lagi
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -251,15 +272,36 @@ function BankStatementImportDetailPageContent() {
           <StatusBadge status={importData.status as BankStatementImportStatus} />
         </div>
 
-        {/* Error Message */}
+        {/* Error Message - Enhanced */}
         {importData.status === 'FAILED' && importData.error_message && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={20} />
-              <div>
-                <h3 className="font-medium text-red-900 dark:text-red-400">Error Import</h3>
-                <p className="text-sm text-red-700 dark:text-red-400 mt-1">{importData.error_message}</p>
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl overflow-hidden">
+            <div className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="bg-red-100 dark:bg-red-900/30 p-2 rounded-lg shrink-0">
+                  <AlertCircle className="text-red-500" size={20} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-red-900 dark:text-red-400">Import Gagal</h3>
+                  <p className="text-sm text-red-700 dark:text-red-400 mt-1">{importData.error_message}</p>
+                  
+                  {/* Recovery suggestion */}
+                  <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-red-100 dark:border-red-800">
+                    <p className="text-xs text-red-600 dark:text-red-400 font-medium mb-1">Saran Pemulihan:</p>
+                    <p className="text-sm text-red-700 dark:text-red-400">
+                      1. Cek file untuk memastikan format benar{'\n'}
+                      2. Refresh halaman dan upload ulang{'\n'}
+                      3. Jika masalah berlanjut, hubungi administrator
+                    </p>
+                  </div>
+                </div>
               </div>
+            </div>
+            
+            {/* Failed count */}
+            <div className="px-4 py-3 bg-red-100/50 dark:bg-red-900/10 border-t border-red-200 dark:border-red-800">
+              <p className="text-sm font-bold text-red-600 dark:text-red-400">
+                {stats?.invalid_rows?.toLocaleString() || importData.failed_rows?.toLocaleString() || 0} baris tidak valid
+              </p>
             </div>
           </div>
         )}
