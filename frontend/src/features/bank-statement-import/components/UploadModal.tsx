@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Upload, X, CheckCircle, Loader2, FileText, Sparkles, ArrowRight } from 'lucide-react'
+import { Upload, X, Loader2, ArrowRight } from 'lucide-react'
 import { bankAccountsApi } from '../../bank-accounts/api/bankAccounts.api'
 import { useBranchContextStore } from '../../branch_context'
 import { UploadDropzone } from './upload-modal/UploadDropzone'
@@ -200,22 +200,6 @@ export function UploadModal({
                 <X className="w-5 h-5 text-white" />
               </button>
             </div>
-
-            {/* Feature Pills */}
-            <div className="flex flex-wrap gap-2 mt-6">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-full text-xs text-white">
-                <FileText className="w-3.5 h-3.5" />
-                <span>Excel & CSV</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-full text-xs text-white">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Auto-detect</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-full text-xs text-white">
-                <CheckCircle className="w-3.5 h-3.5" />
-                <span>Cepat & Aman</span>
-              </div>
-            </div>
           </div>
           
           {/* Wave Bottom */}
@@ -280,10 +264,6 @@ export function UploadModal({
 
         {/* Footer */}
         <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center">
-          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span>Data terenkripsi & aman</span>
-          </div>
           <div className="flex gap-3">
             <button
               type="button"
