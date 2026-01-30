@@ -4,6 +4,7 @@ import { bankAccountsApi } from '../../bank-accounts/api/bankAccounts.api'
 import { useBranchContextStore } from '../../branch_context'
 import { UploadDropzone } from './upload-modal/UploadDropzone'
 import { BankAccountSelect } from './upload-modal/BankAccountSelect'
+import axios from 'axios'
 
 interface BankAccount {
   id: number
@@ -146,11 +147,25 @@ export function UploadModal({
       setError(null)
       onClose()
     } catch (e) {
-      if (e instanceof Error) {
-        setError(e.message)
-      } else {
-        setError('Gagal mengupload file')
+      // Extract user-friendly message from error
+      let errorMessage = 'Gagal mengupload file'
+      
+      if (axios.isAxiosError(e)) {
+        const errorData = e.response?.data as { context?: { userMessage?: string }; message?: string | string[] } | undefined
+        if (errorData?.context?.userMessage) {
+          errorMessage = errorData.context.userMessage
+        } else if (typeof errorData?.message === 'string') {
+          errorMessage = errorData.message
+        } else if (Array.isArray(errorData?.message)) {
+          errorMessage = errorData.message.join(', ')
+        } else if (e.response?.statusText) {
+          errorMessage = e.response.statusText
+        }
+      } else if (e instanceof Error) {
+        errorMessage = e.message
       }
+      
+      setError(errorMessage)
     }
   }
 

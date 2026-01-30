@@ -211,7 +211,12 @@ function getErrorMessage(error: unknown): string {
   let message = 'Terjadi kesalahan yang tidak diketahui. Silakan coba lagi.'
 
   if (axios.isAxiosError(error)) {
-    // Handle axios error dengan response dari server
+    // PRIORITY 1: Check for context.userMessage first (from our backend errors)
+    if (error.response?.data?.context?.userMessage) {
+      return error.response.data.context.userMessage
+    }
+    
+    // PRIORITY 2: Check for error response message
     if (error.response?.data?.message) {
       const serverMessage = Array.isArray(error.response.data.message) 
         ? error.response.data.message.join(', ')
@@ -228,16 +233,12 @@ function getErrorMessage(error: unknown): string {
         return mapping.userMessage
       }
       
-      // Also check for context.userMessage (from our backend errors)
-      if (error.response.data.context?.userMessage) {
-        message = error.response.data.context.userMessage
-      } else {
-        message = serverMessage
-      }
-    } else if (error.response?.data?.context?.userMessage) {
-      // Check for context from our custom backend errors
-      message = error.response.data.context.userMessage
-    } else if (error.response?.statusText) {
+      // Return server message if no mapping found
+      return serverMessage
+    }
+    
+    // PRIORITY 3: Handle other axios error cases
+    if (error.response?.statusText) {
       message = `${error.response.statusText}. Silakan coba lagi.`
     } else if (error.code === 'ERR_BRANCH_REQUIRED') {
       message = 'Silakan pilih branch terlebih dahulu untuk mengakses fitur ini.'

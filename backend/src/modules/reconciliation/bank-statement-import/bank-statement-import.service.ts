@@ -131,7 +131,7 @@ export class BankStatementImportService {
 
       if (activeImport) {
         // File exists and is active - throw duplicate error
-        throw BankStatementImportErrors.DUPLICATE_FILE()
+        throw BankStatementImportErrors.DUPLICATE_FILE(fileResult.file_name)
       }
 
       // Check if file exists but was deleted (for re-upload)
@@ -1802,7 +1802,10 @@ export class BankStatementImportService {
     const creditAmount = this.parseAmount(row[columnMapping.credit_amount])
 
     if (!transactionDate) {
-      throw BankStatementImportErrors.INVALID_DATE_FORMAT(columnMapping.transaction_date)
+      throw BankStatementImportErrors.INVALID_DATE_FORMAT(
+        columnMapping.transaction_date,
+        ['YYYY-MM-DD', 'DD/MM/YYYY', 'DD-MM-YYYY']
+      )
     }
 
     if (debitAmount === 0 && creditAmount === 0) {

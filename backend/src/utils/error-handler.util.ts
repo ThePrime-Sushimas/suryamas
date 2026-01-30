@@ -116,7 +116,8 @@ export const handleError = (res: Response, error: unknown): void => {
       context: error.context,
       cause: error.cause?.message
     })
-    sendError(res, error.message, error.statusCode)
+    // Send error with context for frontend user-friendly messages
+    sendError(res, error.message, error.statusCode, { context: error.context })
     return
   }
 
