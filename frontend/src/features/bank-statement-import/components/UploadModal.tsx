@@ -5,6 +5,7 @@ import { useBranchContextStore } from '../../branch_context'
 import { UploadDropzone } from './upload-modal/UploadDropzone'
 import { BankAccountSelect } from './upload-modal/BankAccountSelect'
 import axios from 'axios'
+import { useToast } from '@/contexts/ToastContext'
 
 interface BankAccount {
   id: number
@@ -36,6 +37,7 @@ export function UploadModal({
   const [error, setError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const toast = useToast()
 
   // Use branch context untuk company_id
   const currentBranch = useBranchContextStore((state) => state.currentBranch)
@@ -142,6 +144,7 @@ export function UploadModal({
 
     try {
       await onUpload(file, bankAccountId)
+      toast.success(`File "${file.name}" berhasil diupload dan sedang dianalisis.`)
       setFile(null)
       setBankAccountId('')
       setError(null)
@@ -166,6 +169,7 @@ export function UploadModal({
       }
       
       setError(errorMessage)
+      toast.error(errorMessage)
     }
   }
 

@@ -19,9 +19,11 @@ import { formatFileSize } from '../utils/format'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { useNavigate } from 'react-router-dom'
+import { useToast } from '@/contexts/ToastContext'
 
 export function BankStatementImportListPage() {
   const navigate = useNavigate()
+  const toast = useToast()
 
   const {
     imports,
@@ -72,11 +74,21 @@ export function BankStatementImportListPage() {
   }, [importsArray, filters])
 
   const handleUpload = async (file: File, bankAccountId: string) => {
-    await uploadFile(file, bankAccountId)
+    try {
+      await uploadFile(file, bankAccountId)
+    } catch {
+      // Error sudah ditangani oleh store dan ditampilkan sebagai toast dari UploadModal
+    }
   }
 
   const handleConfirm = async (skipDuplicates: boolean) => {
-    await confirmImport(skipDuplicates)
+    try {
+      await confirmImport(skipDuplicates)
+      toast.success('Import berhasil dikonfirmasi dan sedang diproses.')
+      closeAnalysisModal()
+    } catch {
+      // Error ditampilkan melalui error state
+    }
   }
 
   const handleDelete = async (id: number) => {
@@ -85,7 +97,12 @@ export function BankStatementImportListPage() {
 
   const confirmDelete = async () => {
     if (showDeleteConfirmation) {
-      await deleteImport(showDeleteConfirmation)
+      try {
+        await deleteImport(showDeleteConfirmation)
+        toast.success('Import berhasil dihapus.')
+      } catch {
+        // Error ditampilkan melalui error state
+      }
       setShowDeleteConfirmation(null)
     }
   }
