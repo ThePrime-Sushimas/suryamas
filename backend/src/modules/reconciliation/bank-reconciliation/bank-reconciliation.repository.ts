@@ -138,5 +138,48 @@ export class BankReconciliationRepository {
     const result = await db.query(query, [companyId, date, limit, offset]);
     return result.rows;
   }
+
+  /**
+   * Log reconciliation action to audit trail
+   */
+  async logAction(data: {
+    companyId: string;
+    userId?: string;
+    action: 'MANUAL_RECONCILE' | 'AUTO_MATCH' | 'UNDO';
+    statementId?: string;
+    aggregateId?: string;
+    details?: any;
+  }, client?: PoolClient): Promise<void> {
+    const db = client || this.pool;
+    const query = `
+      INSERT INTO bank_reconciliation_logs (
+        company_id, user_id, action, statement_id, aggregate_id, details
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+    `;
+    await db.query(query, [
+      data.companyId, 
+      data.userId, 
+      data.action, 
+      data.statementId, 
+      data.aggregateId, 
+      JSON.stringify(data.details || {})
+    ]);
+  }
+
+  /**
+   * Undo reconciliation for a specific statement
+   */
+  async undoReconciliation(statementId: string, client?: PoolClient): Promise<void> {
+    const db = client || this.pool;
+    const query = `
+      UPDATE bank_statements 
+      SET is_reconciled = false,
+          reconciliation_id = NULL,
+          reconciled_at = NULL,
+          updated_at = NOW()
+      WHERE id = $1
+    `;
+    await db.query(query, [statementId]);
+  }
 }
 

@@ -19,9 +19,12 @@ export class BankReconciliationController {
   async reconcile(req: Request, res: Response): Promise<void> {
     try {
       const dto: ManualReconcileRequestDto = req.body;
+      const userId = (req as any).user?.id; // Assuming user info is attached to request
+
       const result = await this.service.reconcile(
         dto.aggregateId, 
         dto.statementId, 
+        userId,
         dto.notes
       );
       
@@ -43,14 +46,40 @@ export class BankReconciliationController {
   }
 
   /**
+   * Undo reconciliation
+   */
+  async undo(req: Request, res: Response): Promise<void> {
+    try {
+      const { statementId } = req.params;
+      const userId = (req as any).user?.id;
+
+      await this.service.undo(statementId as string, userId);
+      
+      res.status(200).json({
+        success: true,
+        message: 'Reconciliation undone successfully'
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+        code: 'UNDO_FAILED'
+      });
+    }
+  }
+
+  /**
    * Run auto-matching for all unreconciled items
    */
   async autoMatch(req: Request, res: Response): Promise<void> {
     try {
       const dto: AutoMatchRequestDto = req.body;
+      const userId = (req as any).user?.id;
+
       const result = await this.service.autoMatch(
         dto.companyId, 
         new Date(dto.startDate), 
+        userId,
         dto.matchingCriteria
       );
       

@@ -291,7 +291,7 @@ export class ChartOfAccountsRepository {
 
     // Sort children recursively
     const sortNodes = (nodes: ChartOfAccountTreeNode[]) => {
-      nodes.sort((a, b) => {
+      nodes.sort((a: ChartOfAccountTreeNode, b: ChartOfAccountTreeNode) => {
         // Sort by sort_order first, then by account_code
         if (a.sort_order !== b.sort_order) {
           return (a.sort_order || 0) - (b.sort_order || 0)

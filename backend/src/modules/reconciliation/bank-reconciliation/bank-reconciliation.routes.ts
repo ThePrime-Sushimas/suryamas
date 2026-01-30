@@ -43,13 +43,12 @@ export function createBankReconciliationRouter(controller: BankReconciliationCon
   );
 
   /**
-   * @route GET /api/v1/reconciliation/bank/summary
-   * @desc Get reconciliation summary
+   * @route POST /api/v1/reconciliation/bank/undo/:statementId
+   * @desc Undo a previous reconciliation
    */
-  router.get(
-    '/summary',
-    // validate(getSummaryQuerySchema),
-    (req, res) => controller.getSummary(req, res)
+  router.post(
+    '/undo/:statementId',
+    (req, res) => controller.undo(req, res)
   );
 
   return router;

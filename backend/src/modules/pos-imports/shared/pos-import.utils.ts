@@ -31,7 +31,7 @@ export function extractDateRange(lines: Array<{ sales_date: string | Date }>) {
       }
     })
     .filter((d): d is Date => d !== null)
-    .sort((a, b) => a.getTime() - b.getTime())
+    .sort((a: Date, b: Date) => a.getTime() - b.getTime())
 
   if (dates.length === 0) {
     return { start: null, end: null }

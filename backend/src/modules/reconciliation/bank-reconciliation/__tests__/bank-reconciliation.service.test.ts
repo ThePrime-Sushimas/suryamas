@@ -107,4 +107,24 @@ describe('BankReconciliationService', () => {
       expect(result.matched).toBe(1);
     });
   });
+
+  describe('undo', () => {
+    it('should throw error if statement not found', async () => {
+      mockRepository.findById.mockResolvedValue(null);
+      await expect(service.undo('stmt1')).rejects.toThrow('Bank statement not found');
+    });
+
+    it('should call undoReconciliation and logAction', async () => {
+      mockRepository.findById.mockResolvedValue({ id: 'stmt1', company_id: 'comp1', aggregate_id: 'agg1' });
+      
+      await service.undo('stmt1', 'user1');
+      
+      expect(mockRepository.undoReconciliation).toHaveBeenCalledWith('stmt1');
+      expect(mockRepository.logAction).toHaveBeenCalledWith(expect.objectContaining({
+        action: 'UNDO',
+        statementId: 'stmt1',
+        userId: 'user1'
+      }));
+    });
+  });
 });

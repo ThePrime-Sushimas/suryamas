@@ -16,8 +16,8 @@ export class BankReconciliationService {
 
   constructor(
     private readonly repository: BankReconciliationRepository,
-    private readonly orchestratorService?: any, // Placeholder for OrchestratorService
-    private readonly feeReconciliationService?: any // Placeholder for FeeReconciliationService
+    private readonly orchestratorService: any,
+    private readonly feeReconciliationService: any
   ) {}
 
   /**
@@ -26,6 +26,7 @@ export class BankReconciliationService {
   async reconcile(
     aggregateId: string, 
     statementId: string, 
+    userId?: string,
     notes?: string
   ): Promise<any> {
     const statement = await this.repository.findById(statementId);
@@ -37,17 +38,18 @@ export class BankReconciliationService {
       throw new AlreadyReconciledError(statementId);
     }
 
-    // Verify difference against threshold
-    // We'd get aggregate amount here
-    // const agg = await this.orchestratorService.getAggregate(aggregateId);
-    // const diff = this.calculateDifference(agg.nett_amount, statement.credit_amount - statement.debit_amount);
-    // if (diff.absolute > this.config.differenceThreshold) {
-    //   throw new DifferenceThresholdExceededError(diff.absolute, this.config.differenceThreshold);
-    // }
-    
+    // 1. Mark as reconciled in DB
     await this.repository.markAsReconciled(statementId, aggregateId);
     
-    // TODO: Log action to bank_reconciliation_logs
+    // 2. Audit Trail
+    await this.repository.logAction({
+      companyId: statement.company_id,
+      userId,
+      action: 'MANUAL_RECONCILE',
+      statementId,
+      aggregateId,
+      details: { notes }
+    });
     
     return { 
       success: true, 
@@ -59,11 +61,33 @@ export class BankReconciliationService {
   }
 
   /**
+   * Undo reconciliation for a statement
+   */
+  async undo(statementId: string, userId?: string): Promise<void> {
+    const statement = await this.repository.findById(statementId);
+    if (!statement) {
+      throw new Error('Bank statement not found');
+    }
+
+    await this.repository.undoReconciliation(statementId);
+
+    // Audit Trail
+    await this.repository.logAction({
+      companyId: statement.company_id,
+      userId,
+      action: 'UNDO',
+      statementId,
+      details: { previousAggregateId: statement.aggregate_id }
+    });
+  }
+
+  /**
    * Auto-match multiple aggregates with statements using tiered priority logic
    */
   async autoMatch(
     companyId: string, 
     date: Date, 
+    userId?: string,
     criteria?: Partial<MatchingCriteria>
   ): Promise<any> {
     const matchingCriteria = { 
@@ -80,22 +104,20 @@ export class BankReconciliationService {
     );
     
     // 2. Get aggregates (expected net) from orchestrator
-    const aggregates = this.orchestratorService 
-      ? await this.orchestratorService.getAggregatesForDate(companyId, date)
-      : [];
+    const aggregates = await this.orchestratorService.getAggregatesForDate(companyId, date);
 
     const matches: ReconciliationMatch[] = [];
     const remainingStatements = [...statements];
     const remainingAggregates = [...aggregates];
 
     // Priority 1: Exact Reference Number Match
-    this.processMatching(remainingStatements, remainingAggregates, matches, (s, a) => 
+    this.processMatching(remainingStatements, remainingAggregates, matches, (s: any, a: any) => 
       s.reference_number && a.reference_number && s.reference_number === a.reference_number,
       'EXACT_REF', 100
     );
 
     // Priority 2: Amount + Exact Date
-    this.processMatching(remainingStatements, remainingAggregates, matches, (s, a) => {
+    this.processMatching(remainingStatements, remainingAggregates, matches, (s: any, a: any) => {
       const sAmount = s.credit_amount - s.debit_amount;
       const sDate = new Date(s.transaction_date).toDateString();
       const aDate = new Date(a.transaction_date).toDateString();
@@ -103,7 +125,7 @@ export class BankReconciliationService {
     }, 'EXACT_AMOUNT_DATE', 90);
 
     // Priority 3: Amount + Date Buffer
-    this.processMatching(remainingStatements, remainingAggregates, matches, (s, a) => {
+    this.processMatching(remainingStatements, remainingAggregates, matches, (s: any, a: any) => {
       const sAmount = s.credit_amount - s.debit_amount;
       const sDate = new Date(s.transaction_date).getTime();
       const aDate = new Date(a.transaction_date).getTime();
@@ -111,9 +133,17 @@ export class BankReconciliationService {
       return Math.abs(sAmount - a.nett_amount) <= matchingCriteria.amountTolerance && dayDiff <= matchingCriteria.dateBufferDays;
     }, 'FUZZY_AMOUNT_DATE', 80);
 
-    // 5. Apply matches to Database
+    // 5. Apply matches and log them
     for (const match of matches) {
       await this.repository.markAsReconciled(match.statementId, match.aggregateId);
+      await this.repository.logAction({
+        companyId,
+        userId,
+        action: 'AUTO_MATCH',
+        statementId: match.statementId,
+        aggregateId: match.aggregateId,
+        details: { matchScore: match.matchScore, matchCriteria: match.matchCriteria }
+      });
     }
 
     return { 
@@ -159,14 +189,30 @@ export class BankReconciliationService {
    */
   async getDiscrepancies(companyId: string, date: Date): Promise<any[]> {
     const statements = await this.repository.getUnreconciled(companyId, date);
-    // Potentially search for fuzzy matches to suggest to user
-    return statements.map(s => ({
-      id: s.id,
-      date: s.transaction_date,
-      description: s.description,
-      amount: s.credit_amount - s.debit_amount,
-      reason: 'UNMATCHED'
-    }));
+    const aggregates = await this.orchestratorService.getAggregatesForDate(companyId, date);
+
+    return statements.map(s => {
+      const sAmount = s.credit_amount - s.debit_amount;
+      
+      // Look for potential matches for this discrepancy
+      const potentialMatches = aggregates
+        .map((a: any) => ({
+          ...a,
+          diff: this.calculateDifference(a.nett_amount, sAmount)
+        }))
+        .filter((a: { diff: { percentage: number } }) => a.diff.percentage <= 10) // Suggest if within 10%
+        .sort((a: { diff: { absolute: number } }, b: { diff: { absolute: number } }) => a.diff.absolute - b.diff.absolute)
+        .slice(0, 3);
+
+      return {
+        id: s.id,
+        date: s.transaction_date,
+        description: s.description,
+        amount: sAmount,
+        reason: 'UNMATCHED',
+        potentialMatches
+      };
+    });
   }
 
   /**
