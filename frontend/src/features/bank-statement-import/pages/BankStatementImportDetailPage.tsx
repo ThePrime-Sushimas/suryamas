@@ -6,14 +6,17 @@ import {
   Download,
   FileText,
   Calendar,
-  Hash
+  Hash,
+  Upload,
+  Loader2
 } from 'lucide-react'
 import { bankStatementImportApi } from '../api/bank-statement-import.api'
 import { StatusBadge } from '../components/common/StatusBadge'
 import { formatCurrency, formatFileSize } from '../utils/format'
 import type {
   BankStatementImport,
-  BankStatementAnalysisResult
+  BankStatementAnalysisResult,
+  BankStatementImportStatus
 } from '../types/bank-statement-import.types'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
@@ -39,6 +42,7 @@ function BankStatementImportDetailPageContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [confirming, setConfirming] = useState(false)
 
   // Go back handler
   const goBack = () => {
@@ -127,6 +131,25 @@ function BankStatementImportDetailPageContent() {
     }
   }
 
+  // Confirm import handler
+  const handleConfirm = async (skipDuplicates: boolean = false) => {
+    if (!importData) return
+    setConfirming(true)
+    try {
+      await bankStatementImportApi.confirm(importData.id, { skip_duplicates: skipDuplicates })
+      // Refresh data after confirm
+      await fetchData()
+    } catch (err) {
+      console.error('Error confirming import:', err)
+      setError(err instanceof Error ? err.message : 'Gagal memulai import')
+    } finally {
+      setConfirming(false)
+    }
+  }
+
+  // Check if can import (status is ANALYZED)
+  const canImport = importData?.status === 'ANALYZED'
+
   // Loading state
   if (loading) {
     return (
@@ -188,14 +211,30 @@ function BankStatementImportDetailPageContent() {
           <ArrowLeft className="w-4 h-4" />
           Kembali ke Import
         </button>
-        <button
-          onClick={handleExport}
-          disabled={exporting}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-        >
-          <Download size={16} />
-          {exporting ? 'Mengunduh...' : 'Export ke Excel'}
-        </button>
+        <div className="flex items-center gap-3">
+          {canImport && (
+            <button
+              onClick={() => handleConfirm(false)}
+              disabled={confirming}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {confirming ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Upload size={16} />
+              )}
+              {confirming ? 'Memproses...' : 'Import Semua Data'}
+            </button>
+          )}
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+          >
+            <Download size={16} />
+            {exporting ? 'Mengunduh...' : 'Export ke Excel'}
+          </button>
+        </div>
       </div>
 
       {/* Import Info Card */}
@@ -220,7 +259,7 @@ function BankStatementImportDetailPageContent() {
               </span>
             </div>
           </div>
-          <StatusBadge status={importData.status as any} />
+          <StatusBadge status={importData.status as BankStatementImportStatus} />
         </div>
 
         {/* Error Message */}

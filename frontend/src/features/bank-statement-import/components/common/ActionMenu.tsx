@@ -103,7 +103,7 @@ export function ActionMenu({
             top: `${menuPosition.top}px`,
             left: `${menuPosition.left}px`,
           }}
-          className="fixed z-[9999] w-48 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none border border-gray-100 dark:border-gray-700"
+          className="fixed z-9999 w-48 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none border border-gray-100 dark:border-gray-700"
         >
           <div className="py-1">
             <button
