@@ -1,5 +1,5 @@
-import { Pool, PoolClient } from 'pg';
-import { BankReconciliationStatus } from './bank-reconciliation.types';
+import { Pool, PoolClient } from "pg";
+import { BankReconciliationStatus } from "./bank-reconciliation.types";
 
 export class BankReconciliationRepository {
   constructor(private readonly pool: Pool) {}
@@ -9,7 +9,8 @@ export class BankReconciliationRepository {
    */
   async findById(id: string, client?: PoolClient): Promise<any> {
     const db = client || this.pool;
-    const query = 'SELECT * FROM bank_statements WHERE id = $1 AND deleted_at IS NULL';
+    const query =
+      "SELECT * FROM bank_statements WHERE id = $1 AND deleted_at IS NULL";
     const result = await db.query(query, [id]);
     return result.rows[0] || null;
   }
@@ -17,17 +18,23 @@ export class BankReconciliationRepository {
   /**
    * Get unreconciled bank statements for a company on a specific date
    */
-  async getUnreconciled(companyId: string, date: Date, client?: PoolClient): Promise<any[]> {
+  async getUnreconciled(
+    companyId: string,
+    startDate: Date,
+    endDate?: Date,
+    client?: PoolClient,
+  ): Promise<any[]> {
     const db = client || this.pool;
+    const end = endDate || startDate;
     const query = `
       SELECT * FROM bank_statements 
       WHERE company_id = $1 
-        AND transaction_date = $2 
+        AND transaction_date BETWEEN $2 AND $3
         AND is_reconciled = false 
         AND deleted_at IS NULL
       ORDER BY transaction_date DESC, created_at DESC
     `;
-    const result = await db.query(query, [companyId, date]);
+    const result = await db.query(query, [companyId, startDate, end]);
     return result.rows;
   }
 
@@ -35,10 +42,10 @@ export class BankReconciliationRepository {
    * Get bank statements by date range
    */
   async getByDateRange(
-    companyId: string, 
-    startDate: Date, 
-    endDate: Date, 
-    client?: PoolClient
+    companyId: string,
+    startDate: Date,
+    endDate: Date,
+    client?: PoolClient,
   ): Promise<any[]> {
     const db = client || this.pool;
     const query = `
@@ -56,9 +63,9 @@ export class BankReconciliationRepository {
    * Update reconciliation status of a bank statement
    */
   async updateStatus(
-    id: string, 
-    status: BankReconciliationStatus, 
-    client?: PoolClient
+    id: string,
+    status: BankReconciliationStatus,
+    client?: PoolClient,
   ): Promise<void> {
     const db = client || this.pool;
     const query = `
@@ -69,11 +76,11 @@ export class BankReconciliationRepository {
     `;
     // For simplicity, is_reconciled is true if status is not PENDING/UNRECONCILED/DISCREPANCY
     const isReconciled = ![
-      BankReconciliationStatus.PENDING, 
-      BankReconciliationStatus.UNRECONCILED, 
-      BankReconciliationStatus.DISCREPANCY
+      BankReconciliationStatus.PENDING,
+      BankReconciliationStatus.UNRECONCILED,
+      BankReconciliationStatus.DISCREPANCY,
     ].includes(status);
-    
+
     await db.query(query, [isReconciled, id]);
   }
 
@@ -81,9 +88,9 @@ export class BankReconciliationRepository {
    * Mark a statement as reconciled with a specific aggregate
    */
   async markAsReconciled(
-    statementId: string, 
-    aggregateId: string, 
-    client?: PoolClient
+    statementId: string,
+    aggregateId: string,
+    client?: PoolClient,
   ): Promise<void> {
     const db = client || this.pool;
     const query = `
@@ -101,9 +108,9 @@ export class BankReconciliationRepository {
    * Bulk update status for multiple statements
    */
   async bulkUpdateReconciliationStatus(
-    ids: string[], 
-    isReconciled: boolean, 
-    client?: PoolClient
+    ids: string[],
+    isReconciled: boolean,
+    client?: PoolClient,
   ): Promise<void> {
     const db = client || this.pool;
     const query = `
@@ -119,37 +126,47 @@ export class BankReconciliationRepository {
    * Get unreconciled statements in batches for large datasets
    */
   async getUnreconciledBatch(
-    companyId: string, 
-    date: Date, 
-    limit: number = 1000, 
+    companyId: string,
+    startDate: Date,
+    endDate: Date,
+    limit: number = 1000,
     offset: number = 0,
-    client?: PoolClient
+    client?: PoolClient,
   ): Promise<any[]> {
     const db = client || this.pool;
     const query = `
       SELECT * FROM bank_statements 
       WHERE company_id = $1 
-        AND transaction_date = $2 
+        AND transaction_date BETWEEN $2 AND $3
         AND is_reconciled = false 
         AND deleted_at IS NULL
       ORDER BY transaction_date DESC, created_at DESC
-      LIMIT $3 OFFSET $4
+      LIMIT $4 OFFSET $5
     `;
-    const result = await db.query(query, [companyId, date, limit, offset]);
+    const result = await db.query(query, [
+      companyId,
+      startDate,
+      endDate,
+      limit,
+      offset,
+    ]);
     return result.rows;
   }
 
   /**
    * Log reconciliation action to audit trail
    */
-  async logAction(data: {
-    companyId: string;
-    userId?: string;
-    action: 'MANUAL_RECONCILE' | 'AUTO_MATCH' | 'UNDO';
-    statementId?: string;
-    aggregateId?: string;
-    details?: any;
-  }, client?: PoolClient): Promise<void> {
+  async logAction(
+    data: {
+      companyId: string;
+      userId?: string;
+      action: "MANUAL_RECONCILE" | "AUTO_MATCH" | "UNDO";
+      statementId?: string;
+      aggregateId?: string;
+      details?: any;
+    },
+    client?: PoolClient,
+  ): Promise<void> {
     const db = client || this.pool;
     const query = `
       INSERT INTO bank_reconciliation_logs (
@@ -157,19 +174,22 @@ export class BankReconciliationRepository {
       ) VALUES ($1, $2, $3, $4, $5, $6)
     `;
     await db.query(query, [
-      data.companyId, 
-      data.userId, 
-      data.action, 
-      data.statementId, 
-      data.aggregateId, 
-      JSON.stringify(data.details || {})
+      data.companyId,
+      data.userId,
+      data.action,
+      data.statementId,
+      data.aggregateId,
+      JSON.stringify(data.details || {}),
     ]);
   }
 
   /**
    * Undo reconciliation for a specific statement
    */
-  async undoReconciliation(statementId: string, client?: PoolClient): Promise<void> {
+  async undoReconciliation(
+    statementId: string,
+    client?: PoolClient,
+  ): Promise<void> {
     const db = client || this.pool;
     const query = `
       UPDATE bank_statements 
@@ -182,4 +202,3 @@ export class BankReconciliationRepository {
     await db.query(query, [statementId]);
   }
 }
-
