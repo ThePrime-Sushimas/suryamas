@@ -5,21 +5,24 @@ import {
   RefreshCw,
   Search,
   AlertCircle,
-  X
+  X,
+  Eye,
+  Trash2
 } from 'lucide-react'
 import { useBankStatementImportStore } from '../store/bank-statement-import.store'
 import { TableSkeleton } from '@/components/ui/Skeleton'
 import { StatusBadge } from '../components/common/StatusBadge'
-import { ActionMenu } from '../components/common/ActionMenu'
 import { UploadModal } from '../components/UploadModal'
 import { AnalysisModal } from '../components/AnalysisModal'
 import { ImportProgressCard } from '../components/ImportProgressCard'
 import { formatFileSize } from '../utils/format'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
+import { useNavigate } from 'react-router-dom'
 
 export function BankStatementImportListPage() {
-  
+  const navigate = useNavigate()
+
   const {
     imports,
     pagination,
@@ -345,10 +348,22 @@ export function BankStatementImportListPage() {
                       <StatusBadge status={imp.status} size="sm" animated={imp.status === 'IMPORTING'} />
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <ActionMenu
-                        id={imp.id}
-                        onDelete={() => handleDelete(imp.id)}
-                      />
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => navigate(`/bank-statement-import/${imp.id}`)}
+                          className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Lihat Detail"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(imp.id)}
+                          className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Hapus"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
