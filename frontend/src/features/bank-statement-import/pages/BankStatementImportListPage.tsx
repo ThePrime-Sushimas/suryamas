@@ -9,7 +9,6 @@ import {
   Eye,
   Trash2,
   CheckSquare,
-  Square,
   Trash
 } from 'lucide-react'
 import { useBankStatementImportStore } from '../store/bank-statement-import.store'

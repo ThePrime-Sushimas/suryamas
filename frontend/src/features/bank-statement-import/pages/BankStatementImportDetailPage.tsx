@@ -7,7 +7,9 @@ import {
   Calendar,
   Hash,
   Upload,
-  Loader2
+  Loader2,
+  Maximize2,
+  X
 } from 'lucide-react'
 import { bankStatementImportApi } from '../api/bank-statement-import.api'
 import { StatusBadge } from '../components/common/StatusBadge'
@@ -41,6 +43,11 @@ function BankStatementImportDetailPageContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
+  
+  // Description modal state
+  const [showDescriptionModal, setShowDescriptionModal] = useState(false)
+  const [selectedDescription, setSelectedDescription] = useState<string>('')
+  const [selectedRowInfo, setSelectedRowInfo] = useState<{ rowNumber: number; date: string } | null>(null)
 
   // Go back handler
   const goBack = () => {
@@ -147,6 +154,20 @@ function BankStatementImportDetailPageContent() {
 
   // Check if can import (status is ANALYZED)
   const canImport = importData?.status === 'ANALYZED'
+
+  // Open description modal
+  const openDescriptionModal = (description: string, rowNumber: number, date: string) => {
+    setSelectedDescription(description)
+    setSelectedRowInfo({ rowNumber, date })
+    setShowDescriptionModal(true)
+  }
+
+  // Close description modal
+  const closeDescriptionModal = () => {
+    setShowDescriptionModal(false)
+    setSelectedDescription('')
+    setSelectedRowInfo(null)
+  }
 
   // Loading state
   if (loading) {
@@ -407,8 +428,18 @@ function BankStatementImportDetailPageContent() {
                         ? format(new Date(dup.transaction_date), 'dd/MM/yyyy', { locale: idLocale })
                         : '-'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">
-                      {dup.description || '-'}
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-sm truncate">
+                      <button
+                        onClick={() => openDescriptionModal(dup.description || '-', index + 1, dup.transaction_date || '')}
+                        className="flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors w-full"
+                      >
+                        <span className="truncate flex-1 text-left">
+                          {dup.description || '-'}
+                        </span>
+                        {(dup.description || '').length > 50 && (
+                          <Maximize2 className="w-4 h-4 shrink-0 opacity-50" />
+                        )}
+                      </button>
                     </td>
                     <td className="px-4 py-3 text-sm text-right font-mono text-red-600 dark:text-red-400">
                       {dup.debit > 0 ? formatCurrency(dup.debit) : '-'}
@@ -501,8 +532,18 @@ function BankStatementImportDetailPageContent() {
                         ? format(new Date(row.transaction_date), 'dd/MM/yyyy', { locale: idLocale })
                         : '-'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">
-                      {row.description || '-'}
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-sm truncate">
+                      <button
+                        onClick={() => openDescriptionModal(row.description || '-', row.row_number, row.transaction_date)}
+                        className="flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors w-full"
+                      >
+                        <span className="truncate flex-1 text-left">
+                          {row.description || '-'}
+                        </span>
+                        {(row.description || '').length > 50 && (
+                          <Maximize2 className="w-4 h-4 shrink-0 opacity-50" />
+                        )}
+                      </button>
                     </td>
                     <td className="px-4 py-3 text-sm text-right font-mono text-red-600 dark:text-red-400">
                       {row.debit_amount > 0 ? formatCurrency(row.debit_amount) : '-'}
@@ -520,6 +561,63 @@ function BankStatementImportDetailPageContent() {
           </div>
         </div>
       )})()}
+
+      {/* Description Detail Modal */}
+      {showDescriptionModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="font-bold text-lg text-gray-900 dark:text-white">
+                  Detail Keterangan
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Baris {selectedRowInfo?.rowNumber || '-'} • {selectedRowInfo?.date 
+                    ? format(new Date(selectedRowInfo.date), 'dd/MM/yyyy', { locale: idLocale })
+                    : '-'}
+                </p>
+              </div>
+              <button
+                onClick={closeDescriptionModal}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                <p className="text-gray-900 dark:text-white whitespace-pre-wrap wrap-break-word">
+                  {selectedDescription}
+                </p>
+              </div>
+              
+              {/* Additional Info */}
+              <div className="mt-4 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                <span className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                  {selectedDescription.length} karakter
+                </span>
+                <span className="text-gray-400">•</span>
+                <span>
+                  {selectedDescription.split(/\s+/).length} kata
+                </span>
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end shrink-0">
+              <button
+                onClick={closeDescriptionModal}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
