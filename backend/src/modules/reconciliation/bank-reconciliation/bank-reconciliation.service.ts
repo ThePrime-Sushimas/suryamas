@@ -41,15 +41,15 @@ export class BankReconciliationService {
     // 1. Mark as reconciled in DB
     await this.repository.markAsReconciled(statementId, aggregateId);
     
-    // 2. Audit Trail
-    await this.repository.logAction({
-      companyId: statement.company_id,
-      userId,
-      action: 'MANUAL_RECONCILE',
-      statementId,
-      aggregateId,
-      details: { notes }
-    });
+    // 2. Update status in POS Aggregates (Bidirectional sync)
+    await this.orchestratorService.updateReconciliationStatus(
+      aggregateId, 
+      'RECONCILED', 
+      statementId, 
+      userId
+    );
+
+    // 3. Audit Trail
     
     return { 
       success: true, 
@@ -71,14 +71,15 @@ export class BankReconciliationService {
 
     await this.repository.undoReconciliation(statementId);
 
+    // Update status in POS Aggregates (Reset to PENDING)
+    if (statement.aggregate_id) {
+      await this.orchestratorService.updateReconciliationStatus(
+        statement.aggregate_id, 
+        'PENDING'
+      );
+    }
+
     // Audit Trail
-    await this.repository.logAction({
-      companyId: statement.company_id,
-      userId,
-      action: 'UNDO',
-      statementId,
-      details: { previousAggregateId: statement.aggregate_id }
-    });
   }
 
   /**
@@ -134,8 +135,16 @@ export class BankReconciliationService {
     }, 'FUZZY_AMOUNT_DATE', 80);
 
     // 5. Apply matches and log them
+    const bulkUpdates: any[] = [];
     for (const match of matches) {
       await this.repository.markAsReconciled(match.statementId, match.aggregateId);
+      
+      bulkUpdates.push({
+        aggregateId: match.aggregateId,
+        status: 'RECONCILED',
+        statementId: match.statementId
+      });
+
       await this.repository.logAction({
         companyId,
         userId,
@@ -144,6 +153,11 @@ export class BankReconciliationService {
         aggregateId: match.aggregateId,
         details: { matchScore: match.matchScore, matchCriteria: match.matchCriteria }
       });
+    }
+
+    // Bulk update POS aggregates
+    if (bulkUpdates.length > 0) {
+      await this.orchestratorService.bulkUpdateReconciliationStatus(bulkUpdates);
     }
 
     return { 
@@ -189,20 +203,18 @@ export class BankReconciliationService {
    */
   async getDiscrepancies(companyId: string, date: Date): Promise<any[]> {
     const statements = await this.repository.getUnreconciled(companyId, date);
-    const aggregates = await this.orchestratorService.getAggregatesForDate(companyId, date);
-
-    return statements.map(s => {
+    
+    const discrepancies = await Promise.all(statements.map(async (s) => {
       const sAmount = s.credit_amount - s.debit_amount;
       
-      // Look for potential matches for this discrepancy
-      const potentialMatches = aggregates
-        .map((a: any) => ({
-          ...a,
-          diff: this.calculateDifference(a.nett_amount, sAmount)
-        }))
-        .filter((a: { diff: { percentage: number } }) => a.diff.percentage <= 10) // Suggest if within 10%
-        .sort((a: { diff: { absolute: number } }, b: { diff: { absolute: number } }) => a.diff.absolute - b.diff.absolute)
-        .slice(0, 3);
+      // Use Orchestrator's smart suggestion logic
+      const potentialMatches = await this.orchestratorService.findPotentialAggregatesForStatement(
+        companyId,
+        sAmount,
+        new Date(s.transaction_date),
+        this.config.amountTolerance,
+        this.config.dateBufferDays
+      );
 
       return {
         id: s.id,
@@ -212,7 +224,9 @@ export class BankReconciliationService {
         reason: 'UNMATCHED',
         potentialMatches
       };
-    });
+    }));
+
+    return discrepancies;
   }
 
   /**
