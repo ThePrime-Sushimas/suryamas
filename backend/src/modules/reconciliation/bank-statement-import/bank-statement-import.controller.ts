@@ -298,8 +298,11 @@ export class BankStatementImportController {
   }
 
   /**
-   * Preview import data (first N rows)
+   * Preview import data (first N rows, or all rows if limit is 0)
    * GET /api/v1/bank-statement-imports/:id/preview
+   * 
+   * Query params:
+   * - limit: Number of rows to return. Default 10. Use 0 to get all rows.
    */
   preview = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -308,7 +311,7 @@ export class BankStatementImportController {
         10
       )
       const companyId = getCompanyId(req)
-      const limit = req.query.limit 
+      const limitParam = req.query.limit 
         ? parseInt(String(req.query.limit), 10) 
         : 10
 
@@ -316,11 +319,15 @@ export class BankStatementImportController {
         return handleError(res, new Error('Invalid import ID'))
       }
 
+      // Allow limit = 0 to get all rows
+      // If limit is 0, getImportPreview will return all rows
+      const limit = isNaN(limitParam) ? 10 : limitParam
+
       // @ts-ignore - helper function ensures string type
       const preview = await this.service.getImportPreview(
         importId,
         companyId as string,
-        Math.min(limit, 100)
+        limit
       )
 
       sendSuccess(res, preview, 'Preview retrieved successfully', 200)
