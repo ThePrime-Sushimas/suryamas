@@ -347,7 +347,6 @@ export function BankStatementImportListPage() {
                     <td className="px-4 py-3 text-right">
                       <ActionMenu
                         id={imp.id}
-                        onDownload={() => console.log('Download:', imp.id)}
                         onDelete={() => handleDelete(imp.id)}
                       />
                     </td>

@@ -3,7 +3,6 @@ import { useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   AlertCircle,
-  Download,
   FileText,
   Calendar,
   Hash,
@@ -41,7 +40,6 @@ function BankStatementImportDetailPageContent() {
   }> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [exporting, setExporting] = useState(false)
   const [confirming, setConfirming] = useState(false)
 
   // Go back handler
@@ -110,26 +108,26 @@ function BankStatementImportDetailPageContent() {
     fetchData()
   }, [fetchData])
 
-  // Export handler
-  const handleExport = async () => {
-    if (!importData) return
-    setExporting(true)
-    try {
-      const blob = await bankStatementImportApi.export(Number(id))
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${importData.file_name.replace(/\.[^/.]+$/, '')}_export_${new Date().toISOString().split('T')[0]}.xlsx`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(url)
-    } catch {
-      setError('Gagal mengekspor data')
-    } finally {
-      setExporting(false)
-    }
-  }
+  // // Export handler
+  // const handleExport = async () => {
+  //   if (!importData) return
+  //   setExporting(true)
+  //   try {
+  //     const blob = await bankStatementImportApi.export(Number(id))
+  //     const url = window.URL.createObjectURL(blob)
+  //     const a = document.createElement('a')
+  //     a.href = url
+  //     a.download = `${importData.file_name.replace(/\.[^/.]+$/, '')}_export_${new Date().toISOString().split('T')[0]}.xlsx`
+  //     document.body.appendChild(a)
+  //     a.click()
+  //     document.body.removeChild(a)
+  //     window.URL.revokeObjectURL(url)
+  //   } catch {
+  //     setError('Gagal mengekspor data')
+  //   } finally {
+  //     setExporting(false)
+  //   }
+  // }
 
   // Confirm import handler
   const handleConfirm = async (skipDuplicates: boolean = false) => {
@@ -225,16 +223,7 @@ function BankStatementImportDetailPageContent() {
               )}
               {confirming ? 'Memproses...' : 'Import Semua Data'}
             </button>
-          )}
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-          >
-            <Download size={16} />
-            {exporting ? 'Mengunduh...' : 'Export ke Excel'}
-          </button>
-        </div>
+          )}        </div>
       </div>
 
       {/* Import Info Card */}

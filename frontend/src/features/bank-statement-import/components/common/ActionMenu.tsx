@@ -1,18 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { MoreVertical, Eye, Download, Trash2 } from 'lucide-react'
+import { MoreVertical, Eye, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 interface ActionMenuProps {
   id: number
-  onDownload?: () => void
   onDelete?: () => void
   disabled?: boolean
 }
 
 export function ActionMenu({
   id,
-  onDownload,
   onDelete,
   disabled = false,
 }: ActionMenuProps) {
@@ -114,15 +112,6 @@ export function ActionMenu({
               Lihat Detail
             </button>
 
-            {onDownload && (
-              <button
-                onClick={() => handleAction(onDownload)}
-                className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                <Download className="w-4 h-4 mr-2.5 text-gray-400" />
-                Download File
-              </button>
-            )}
 
             {onDelete && (
               <>
