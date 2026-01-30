@@ -18,6 +18,7 @@ import type { BankStatementAnalysisResult } from '../types/bank-statement-import
 import { AnalysisSummary } from './analysis-modal/AnalysisSummary'
 import { AnalysisPreview } from './analysis-modal/AnalysisPreview'
 import { AnalysisWarnings } from './analysis-modal/AnalysisWarnings'
+import { formatFileSize } from '../utils/format'
 
 type TabType = 'summary' | 'preview' | 'warnings'
 
@@ -58,13 +59,6 @@ export function AnalysisModal({
   // Calculate percentages
   const validPercentage = total_rows > 0 ? Math.round((valid_rows / total_rows) * 100) : 0
 
-  // Format file size
-  const formatFileSize = (bytes: number): string => {
-    if (!bytes) return '-'
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
 
   const modalContent = (
     <div className="modal modal-open backdrop-blur-sm bg-black/40">

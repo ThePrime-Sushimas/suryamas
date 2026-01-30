@@ -1,5 +1,5 @@
-// Main Page
-export { BankStatementImportPage } from './components/BankStatementImportPage'
+// Pages
+export { BankStatementImportListPage } from './pages/BankStatementImportListPage'
 export { BankStatementImportDetailPage } from './pages/BankStatementImportDetailPage'
 
 // Modals

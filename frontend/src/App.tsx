@@ -85,7 +85,7 @@ const CreatePosAggregatePage = lazy(() => import('./features/pos-aggregates').th
 const EditPosAggregatePage = lazy(() => import('./features/pos-aggregates').then(m => ({ default: m.EditPosAggregatePage })))
 const PosAggregateDetailPage = lazy(() => import('./features/pos-aggregates').then(m => ({ default: m.PosAggregateDetailPage })))
 const FailedTransactionsPage = lazy(() => import('./features/pos-aggregates').then(m => ({ default: m.FailedTransactionsPage })))
-const BankStatementImportPage = lazy(() => import('./features/bank-statement-import').then(m => ({ default: m.BankStatementImportPage })))
+const BankStatementImportListPage = lazy(() => import('./features/bank-statement-import').then(m => ({ default: m.BankStatementImportListPage })))
 const BankStatementImportDetailPage = lazy(() => import('./features/bank-statement-import').then(m => ({ default: m.BankStatementImportDetailPage })))
 
 
@@ -212,7 +212,7 @@ function App() {
           <Route path="pos-aggregates/:id/edit" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><EditPosAggregatePage /></Suspense></ProtectedRoute>} />
           <Route path="pos-aggregates" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><PosAggregatesPage /></Suspense></ProtectedRoute>}/>
           <Route path="pos-aggregates/failed-transactions" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><FailedTransactionsPage /></Suspense></ProtectedRoute>}/>
-          <Route path="bank-statement-import" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><BankStatementImportPage /></Suspense></ProtectedRoute>} />
+          <Route path="bank-statement-import" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><BankStatementImportListPage /></Suspense></ProtectedRoute>} />
           <Route path="bank-statement-import/:id" element={<ProtectedRoute><Suspense fallback={<LoadingFallback />}><BankStatementImportDetailPage /></Suspense></ProtectedRoute>} />
               </Route>
             </Routes>

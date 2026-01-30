@@ -9,15 +9,16 @@ import {
 } from 'lucide-react'
 import { useBankStatementImportStore } from '../store/bank-statement-import.store'
 import { TableSkeleton } from '@/components/ui/Skeleton'
-import { StatusBadge } from './common/StatusBadge'
-import { ActionMenu } from './common/ActionMenu'
-import { UploadModal } from './UploadModal'
-import { AnalysisModal } from './AnalysisModal'
-import { ImportProgressCard } from './ImportProgressCard'
+import { StatusBadge } from '../components/common/StatusBadge'
+import { ActionMenu } from '../components/common/ActionMenu'
+import { UploadModal } from '../components/UploadModal'
+import { AnalysisModal } from '../components/AnalysisModal'
+import { ImportProgressCard } from '../components/ImportProgressCard'
+import { formatFileSize } from '../utils/format'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 
-export function BankStatementImportPage() {
+export function BankStatementImportListPage() {
   
   const {
     imports,
@@ -108,13 +109,7 @@ export function BankStatementImportPage() {
     }
   }
 
-  // Format file size
-  const formatFileSize = (bytes: number): string => {
-    if (!bytes) return '-'
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
+  // Refresh handler
 
   // Loading state
   if (loading.list && importsArray.length === 0) {

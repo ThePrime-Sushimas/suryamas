@@ -6,13 +6,11 @@ import {
   Download,
   FileText,
   Calendar,
-  Hash,
-  CheckCircle,
-  Clock,
-  XCircle,
-  Loader2
+  Hash
 } from 'lucide-react'
 import { bankStatementImportApi } from '../api/bank-statement-import.api'
+import { StatusBadge } from '../components/common/StatusBadge'
+import { formatCurrency, formatFileSize } from '../utils/format'
 import type {
   BankStatementImport,
   BankStatementAnalysisResult
@@ -20,43 +18,6 @@ import type {
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 
-// Helper function untuk format currency
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(amount)
-}
-
-// Helper function untuk format file size
-function formatFileSize(bytes: number): string {
-  if (!bytes) return '-'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-// Status badge component
-function StatusBadge({ status }: { status: string }) {
-  const config: Record<string, { color: string; icon: typeof CheckCircle; label: string }> = {
-    PENDING: { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', icon: Clock, label: 'Menunggu' },
-    ANALYZED: { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400', icon: FileText, label: 'Siap Import' },
-    IMPORTING: { color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400', icon: Loader2, label: 'Sedang Import' },
-    COMPLETED: { color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle, label: 'Selesai' },
-    FAILED: { color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', icon: XCircle, label: 'Gagal' },
-  }
-
-  const { color, icon: Icon, label } = config[status] || config.PENDING
-
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${color}`}>
-      <Icon className="w-3.5 h-3.5" />
-      {label}
-    </span>
-  )
-}
 
 function BankStatementImportDetailPageContent() {
   const { id } = useParams<{ id: string }>()
@@ -259,7 +220,7 @@ function BankStatementImportDetailPageContent() {
               </span>
             </div>
           </div>
-          <StatusBadge status={importData.status} />
+          <StatusBadge status={importData.status as any} />
         </div>
 
         {/* Error Message */}
