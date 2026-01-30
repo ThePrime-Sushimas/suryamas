@@ -11,12 +11,12 @@ import {
   Calendar,
   Info,
 } from "lucide-react";
-import type { DiscrepancyItem } from "../../types/bank-reconciliation.types";
+import type { BankStatementWithMatch } from "../../types/bank-reconciliation.types";
 import { posAggregatesApi } from "@/features/pos-aggregates/api/posAggregates.api";
 import type { AggregatedTransactionListItem } from "@/features/pos-aggregates/types";
 
 interface ManualMatchModalProps {
-  item: DiscrepancyItem | null;
+  item: BankStatementWithMatch | null;
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (
@@ -66,8 +66,9 @@ export function ManualMatchModal({
 
   if (!isOpen || !item) return null;
 
-  const statement = item.statement;
-  const bankAmount = (statement?.debit_amount ?? 0) || (statement?.credit_amount ?? 0) || 0;
+  const statement = item;
+  const bankAmount =
+    (statement?.debit_amount ?? 0) || (statement?.credit_amount ?? 0) || 0;
 
   const modalContent = (
     <div className="modal modal-open bg-black/40 backdrop-blur-sm">

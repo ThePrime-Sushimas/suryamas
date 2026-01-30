@@ -8,13 +8,13 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { ReconciliationSummaryCards } from "../components/reconciliation/ReconciliationSummary";
-import { DiscrepancyTable } from "../components/reconciliation/DiscrepancyTable";
+import { BankMutationTable } from "../components/reconciliation/BankMutationTable";
 import { ManualMatchModal } from "../components/reconciliation/ManualMatchModal";
 import { AutoMatchDialog } from "../components/reconciliation/AutoMatchDialog";
 import { useBankReconciliation } from "../hooks/useBankReconciliation";
 import { useBranchContextStore } from "@/features/branch_context/store/branchContext.store";
 import type {
-  DiscrepancyItem,
+  BankStatementWithMatch,
   AutoMatchRequest,
 } from "../types/bank-reconciliation.types";
 
@@ -24,35 +24,103 @@ export function BankReconciliationPage() {
 
   const {
     summary,
-    discrepancies,
+    statements,
+    bankAccounts,
     isLoading,
     fetchSummary,
-    fetchDiscrepancies,
+    fetchStatements,
     autoMatch,
     manualReconcile,
     undoReconciliation,
+    fetchPotentialMatches,
+    potentialMatchesMap,
+    isLoadingMatches,
   } = useBankReconciliation(companyId);
 
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(
+    null,
+  );
   const [isAutoMatchOpen, setIsAutoMatchOpen] = useState(false);
-  const [selectedDiscrepancy, setSelectedDiscrepancy] =
-    useState<DiscrepancyItem | null>(null);
+  const [selectedStatement, setSelectedStatement] =
+    useState<BankStatementWithMatch | null>(null);
 
-  const [dateRange] = useState({
+  const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().setDate(1)).toISOString().split("T")[0], // 1st of current month
     endDate: new Date().toISOString().split("T")[0],
   });
 
+  const handlePrevMonth = () => {
+    const start = new Date(dateRange.startDate);
+    start.setMonth(start.getMonth() - 1);
+    start.setDate(1);
+
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + 1);
+    end.setDate(0);
+
+    setDateRange({
+      startDate: start.toISOString().split("T")[0],
+      endDate: end.toISOString().split("T")[0],
+    });
+  };
+
+  const handleNextMonth = () => {
+    const start = new Date(dateRange.startDate);
+    start.setMonth(start.getMonth() + 1);
+    start.setDate(1);
+
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + 1);
+    end.setDate(0);
+
+    setDateRange({
+      startDate: start.toISOString().split("T")[0],
+      endDate: end.toISOString().split("T")[0],
+    });
+  };
+
   useEffect(() => {
-    fetchSummary(dateRange.startDate, dateRange.endDate);
-    fetchDiscrepancies(dateRange.startDate, dateRange.endDate);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange.startDate, dateRange.endDate]);
+    if (companyId) {
+      fetchSummary(dateRange.startDate, dateRange.endDate);
+    }
+  }, [dateRange.startDate, dateRange.endDate, companyId, fetchSummary]);
+
+  useEffect(() => {
+    if (companyId) {
+      fetchStatements(
+        dateRange.startDate,
+        dateRange.endDate,
+        selectedAccountId || undefined,
+      );
+    }
+  }, [
+    dateRange.startDate,
+    dateRange.endDate,
+    selectedAccountId,
+    companyId,
+    fetchStatements,
+  ]);
+
+  // Set initial selected account if not set
+  useEffect(() => {
+    if (!selectedAccountId && bankAccounts.length > 0) {
+      const firstId = bankAccounts[0].id;
+      // Using a microtask or macrotask to avoid synchronous state update in render
+      const timeoutId = setTimeout(() => {
+        setSelectedAccountId((prev) => prev || firstId);
+      }, 0);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [bankAccounts, selectedAccountId]);
 
   const handleAutoMatch = async (
     payload: Omit<AutoMatchRequest, "companyId">,
   ) => {
     try {
-      await autoMatch(payload);
+      await autoMatch({
+        ...payload,
+        bankAccountId: selectedAccountId || undefined,
+      });
       setIsAutoMatchOpen(false);
       // Data is refreshed by hook autoMatch
     } catch (err) {
@@ -64,24 +132,56 @@ export function BankReconciliationPage() {
     aggregateId: string,
     overrideDifference: boolean,
   ) => {
-    if (!selectedDiscrepancy) return;
+    if (!selectedStatement) return;
     try {
       await manualReconcile({
         aggregateId,
-        statementId: selectedDiscrepancy.statementId,
+        statementId: selectedStatement.id,
         overrideDifference,
       });
-      setSelectedDiscrepancy(null);
+      setSelectedStatement(null);
       // Refresh data
       fetchSummary(dateRange.startDate, dateRange.endDate);
-      fetchDiscrepancies(dateRange.startDate, dateRange.endDate);
+      fetchStatements(
+        dateRange.startDate,
+        dateRange.endDate,
+        selectedAccountId || undefined,
+      );
     } catch (err) {
       console.error("Manual match error:", err);
     }
   };
 
-  const handleManualMatchClick = (item: unknown) => {
-    setSelectedDiscrepancy(item as DiscrepancyItem);
+  const handleManualMatchClick = (item: BankStatementWithMatch) => {
+    setSelectedStatement(item);
+  };
+
+  const handleQuickMatch = async (
+    item: BankStatementWithMatch,
+    aggregateId: string,
+  ) => {
+    if (
+      confirm(
+        `Cocokkan transaksi ini dengan ${item.potentialMatches?.[0]?.payment_method_name} senilai ${item.potentialMatches?.[0]?.nett_amount.toLocaleString("id-ID")}?`,
+      )
+    ) {
+      try {
+        await manualReconcile({
+          aggregateId,
+          statementId: item.id,
+          overrideDifference: false,
+        });
+        // Refresh data
+        fetchSummary(dateRange.startDate, dateRange.endDate);
+        fetchStatements(
+          dateRange.startDate,
+          dateRange.endDate,
+          selectedAccountId || undefined,
+        );
+      } catch (err) {
+        console.error("Quick match error:", err);
+      }
+    }
   };
 
   const handleUndo = async (statementId: string) => {
@@ -89,7 +189,11 @@ export function BankReconciliationPage() {
       await undoReconciliation(statementId);
       // Refresh data
       fetchSummary(dateRange.startDate, dateRange.endDate);
-      fetchDiscrepancies(dateRange.startDate, dateRange.endDate);
+      fetchStatements(
+        dateRange.startDate,
+        dateRange.endDate,
+        selectedAccountId || undefined,
+      );
     }
   };
 
@@ -110,16 +214,25 @@ export function BankReconciliationPage() {
 
         <div className="flex items-center gap-3 self-end md:self-auto">
           <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-800 rounded-2xl p-1 shadow-sm">
-            <button className="p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors">
+            <button
+              onClick={handlePrevMonth}
+              className="p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors"
+            >
               <ChevronLeft className="w-4 h-4 text-gray-400" />
             </button>
             <div className="px-4 py-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
               <CalendarIcon className="w-4 h-4 text-blue-500" />
               <span>
-                {dateRange.startDate} - {dateRange.endDate}
+                {new Date(dateRange.startDate).toLocaleDateString("id-ID", {
+                  month: "long",
+                  year: "numeric",
+                })}
               </span>
             </div>
-            <button className="p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors">
+            <button
+              onClick={handleNextMonth}
+              className="p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors"
+            >
               <ChevronRight className="w-4 h-4 text-gray-400" />
             </button>
           </div>
@@ -143,11 +256,45 @@ export function BankReconciliationPage() {
       {/* Summary Cards */}
       {summary && <ReconciliationSummaryCards summary={summary} />}
 
+      {/* Bank Account Tabs */}
+      <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 overflow-x-auto scrollbar-none pb-px">
+        {bankAccounts.map((account) => (
+          <button
+            key={account.id}
+            onClick={() => setSelectedAccountId(account.id)}
+            className={`
+              px-6 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap flex items-center gap-3
+              ${
+                selectedAccountId === account.id
+                  ? "border-blue-600 text-blue-600 bg-blue-50/30 dark:bg-blue-900/10"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-800/50"
+              }
+            `}
+          >
+            <div className="flex flex-col items-start translate-y-0.5">
+              <span className="leading-tight">{account.account_name}</span>
+              <span className="text-[10px] opacity-60 font-medium">
+                {account.banks.bank_name} • {account.account_number}
+              </span>
+            </div>
+            {account.stats.unreconciled > 0 && (
+              <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full min-w-[1.25rem] h-5 flex items-center justify-center shadow-lg shadow-rose-500/20">
+                {account.stats.unreconciled}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {/* Main Content Area */}
       <div className="grid grid-cols-1 gap-8">
-        <DiscrepancyTable
-          items={discrepancies}
+        <BankMutationTable
+          items={statements}
+          potentialMatchesMap={potentialMatchesMap}
+          isLoadingMatches={isLoadingMatches}
           onManualMatch={handleManualMatchClick}
+          onQuickMatch={handleQuickMatch}
+          onCheckMatches={fetchPotentialMatches}
           onUndo={handleUndo}
         />
       </div>
@@ -162,9 +309,9 @@ export function BankReconciliationPage() {
       />
 
       <ManualMatchModal
-        item={selectedDiscrepancy}
-        isOpen={!!selectedDiscrepancy}
-        onClose={() => setSelectedDiscrepancy(null)}
+        item={selectedStatement}
+        isOpen={!!selectedStatement}
+        onClose={() => setSelectedStatement(null)}
         onConfirm={handleManualMatchConfirm}
         isLoading={isLoading}
       />

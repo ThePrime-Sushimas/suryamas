@@ -45,24 +45,102 @@ export class BankReconciliationRepository {
   }
 
   /**
-   * Get bank statements by date range
+   * Get bank statements by date range with optional filtering and joined data
    */
   async getByDateRange(
+    companyId: string,
+    startDate: Date,
+    endDate: Date,
+    bankAccountId?: number,
+  ): Promise<any[]> {
+    let query = supabase
+      .from("bank_statements")
+      .select(
+        `
+        *,
+        bank_accounts (
+          id,
+          account_name,
+          account_number,
+          banks (
+            bank_name,
+            bank_code
+          )
+        )
+      `,
+      )
+      .eq("company_id", companyId)
+      .gte("transaction_date", startDate.toISOString().split("T")[0])
+      .lte("transaction_date", endDate.toISOString().split("T")[0])
+      .is("deleted_at", null);
+
+    if (bankAccountId) {
+      query = query.eq("bank_account_id", bankAccountId);
+    }
+
+    const { data, error } = await query.order("transaction_date", {
+      ascending: false,
+    });
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  /**
+   * Get list of bank accounts with reconciliation summaries for a period
+   */
+  async getBankAccountsStatus(
     companyId: string,
     startDate: Date,
     endDate: Date,
   ): Promise<any[]> {
     const { data, error } = await supabase
       .from("bank_statements")
-      .select("*")
+      .select("bank_account_id, is_reconciled")
       .eq("company_id", companyId)
       .gte("transaction_date", startDate.toISOString().split("T")[0])
       .lte("transaction_date", endDate.toISOString().split("T")[0])
-      .is("deleted_at", null)
-      .order("transaction_date", { ascending: false });
+      .is("deleted_at", null);
 
     if (error) throw error;
-    return data || [];
+
+    const stats = (data || []).reduce((acc: any, curr: any) => {
+      const bId = curr.bank_account_id;
+      if (!acc[bId]) {
+        acc[bId] = { total: 0, unreconciled: 0 };
+      }
+      acc[bId].total++;
+      if (!curr.is_reconciled) {
+        acc[bId].unreconciled++;
+      }
+      return acc;
+    }, {});
+
+    // Get account details
+    const accountIds = Object.keys(stats).map((id) => parseInt(id));
+    if (accountIds.length === 0) return [];
+
+    const { data: accounts, error: accError } = await supabase
+      .from("bank_accounts")
+      .select(
+        `
+        id,
+        account_name,
+        account_number,
+        banks (
+          bank_name,
+          bank_code
+        )
+      `,
+      )
+      .in("id", accountIds);
+
+    if (accError) throw accError;
+
+    return accounts.map((acc) => ({
+      ...acc,
+      stats: stats[acc.id],
+    }));
   }
 
   /**
@@ -136,15 +214,22 @@ export class BankReconciliationRepository {
     endDate: Date,
     limit: number = 1000,
     offset: number = 0,
+    bankAccountId?: number,
   ): Promise<any[]> {
-    const { data, error } = await supabase
+    let query = supabase
       .from("bank_statements")
       .select("*")
       .eq("company_id", companyId)
       .gte("transaction_date", startDate.toISOString().split("T")[0])
       .lte("transaction_date", endDate.toISOString().split("T")[0])
       .eq("is_reconciled", false)
-      .is("deleted_at", null)
+      .is("deleted_at", null);
+
+    if (bankAccountId) {
+      query = query.eq("bank_account_id", bankAccountId);
+    }
+
+    const { data, error } = await query
       .order("transaction_date", { ascending: false })
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);

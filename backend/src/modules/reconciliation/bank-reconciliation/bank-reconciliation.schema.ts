@@ -25,6 +25,7 @@ export const autoMatchSchema = z.object({
     companyId: z.string().uuid("Invalid company ID"),
     startDate: z.string().date("Invalid start date format"),
     endDate: z.string().date("Invalid end date format"),
+    bankAccountId: z.number().int().positive().optional(),
     matchingCriteria: z
       .object({
         amountTolerance: z.number().min(0).optional(),
@@ -36,13 +37,14 @@ export const autoMatchSchema = z.object({
 });
 
 /**
- * Schema for discrepancy report query
+ * Schema for bank statements query
  */
-export const getDiscrepanciesQuerySchema = z.object({
+export const getStatementsQuerySchema = z.object({
   query: z.object({
     companyId: z.string().uuid("Invalid company ID"),
     startDate: z.string().date("Invalid start date format"),
     endDate: z.string().date("Invalid end date format"),
+    bankAccountId: z.coerce.number().int().positive().optional(),
     threshold: z.coerce.number().min(0).optional(),
   }),
 });
@@ -60,7 +62,5 @@ export const getSummaryQuerySchema = z.object({
 
 export type ManualReconcileInput = z.infer<typeof manualReconcileSchema>;
 export type AutoMatchInput = z.infer<typeof autoMatchSchema>;
-export type GetDiscrepanciesQueryInput = z.infer<
-  typeof getDiscrepanciesQuerySchema
->;
+export type GetStatementsQueryInput = z.infer<typeof getStatementsQuerySchema>;
 export type GetSummaryQueryInput = z.infer<typeof getSummaryQuerySchema>;

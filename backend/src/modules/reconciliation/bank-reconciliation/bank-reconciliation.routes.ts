@@ -13,7 +13,7 @@ import { PermissionService } from "../../../services/permission.service";
 import {
   manualReconcileSchema,
   autoMatchSchema,
-  getDiscrepanciesQuerySchema,
+  getStatementsQuerySchema,
   getSummaryQuerySchema,
 } from "./bank-reconciliation.schema";
 import type {
@@ -79,15 +79,30 @@ router.post(
 );
 
 /**
- * @route GET /api/v1/reconciliation/bank/discrepancies
- * @desc Get items requiring manual review
+ * @route GET /api/v1/reconciliation/bank/statements
+ * @desc Get all bank statements with reconciliation info
  */
 router.get(
-  "/discrepancies",
+  "/statements",
   canView("bank_reconciliation"),
-  validateSchema(getDiscrepanciesQuerySchema),
+  validateSchema(getStatementsQuerySchema),
   (req, res) =>
-    bankReconciliationController.getDiscrepancies(
+    bankReconciliationController.getStatements(
+      req as AuthenticatedQueryRequest,
+      res,
+    ),
+);
+
+/**
+ * @route GET /api/v1/reconciliation/bank/bank-accounts/status
+ * @desc Get reconciliation status per bank account
+ */
+router.get(
+  "/bank-accounts/status",
+  canView("bank_reconciliation"),
+  validateSchema(getSummaryQuerySchema), // Use summary schema as it has the same companyId/date range
+  (req, res) =>
+    bankReconciliationController.getBankAccountsStatus(
       req as AuthenticatedQueryRequest,
       res,
     ),
@@ -106,6 +121,17 @@ router.get(
       req as AuthenticatedQueryRequest,
       res,
     ),
+);
+
+/**
+ * @route GET /api/v1/reconciliation/bank/statements/:id/potential-matches
+ * @desc Get potential matches for a bank statement
+ */
+router.get(
+  "/statements/:id/potential-matches",
+  canView("bank_reconciliation"),
+  (req, res) =>
+    bankReconciliationController.getPotentialMatches(req as any, res),
 );
 
 /**

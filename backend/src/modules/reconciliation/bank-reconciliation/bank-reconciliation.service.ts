@@ -98,6 +98,7 @@ export class BankReconciliationService {
     companyId: string,
     startDate: Date,
     endDate: Date,
+    bankAccountId?: number,
     userId?: string,
     criteria?: Partial<MatchingCriteria>,
   ): Promise<any> {
@@ -113,6 +114,8 @@ export class BankReconciliationService {
       startDate,
       endDate,
       this.config.autoMatchBatchSize,
+      0,
+      bankAccountId,
     );
 
     // 2. Get aggregates (expected net) from orchestrator
@@ -252,45 +255,57 @@ export class BankReconciliationService {
   }
 
   /**
-   * Get reconciliation discrepancies
+   * Get all bank statements for a period with reconciliation info
    */
-  async getDiscrepancies(
+  async getStatements(
+    companyId: string,
+    startDate: Date,
+    endDate: Date,
+    bankAccountId?: number,
+  ): Promise<any[]> {
+    const statements = await this.repository.getByDateRange(
+      companyId,
+      startDate,
+      endDate,
+      bankAccountId,
+    );
+
+    return statements.map((s) => ({
+      ...s,
+      amount: s.credit_amount - s.debit_amount,
+      potentialMatches: [], // Suggestions are now lazy-loaded
+    }));
+  }
+
+  /**
+   * Fetch potential matches for a single bank statement
+   */
+  async getPotentialMatches(
+    companyId: string,
+    statementId: string,
+  ): Promise<any[]> {
+    const s = await this.repository.findById(statementId);
+    if (!s) throw new Error("Statement not found");
+
+    const sAmount = s.credit_amount - s.debit_amount;
+    return this.orchestratorService.findPotentialAggregatesForStatement(
+      companyId,
+      sAmount,
+      new Date(s.transaction_date),
+      this.config.amountTolerance,
+      this.config.dateBufferDays,
+    );
+  }
+
+  /**
+   * Get reconciliation summary per bank account
+   */
+  async getBankAccountsStatus(
     companyId: string,
     startDate: Date,
     endDate: Date,
   ): Promise<any[]> {
-    const statements = await this.repository.getUnreconciled(
-      companyId,
-      startDate,
-      endDate,
-    );
-
-    const discrepancies = await Promise.all(
-      statements.map(async (s) => {
-        const sAmount = s.credit_amount - s.debit_amount;
-
-        // Use Orchestrator's smart suggestion logic
-        const potentialMatches =
-          await this.orchestratorService.findPotentialAggregatesForStatement(
-            companyId,
-            sAmount,
-            new Date(s.transaction_date),
-            this.config.amountTolerance,
-            this.config.dateBufferDays,
-          );
-
-        return {
-          id: s.id,
-          date: s.transaction_date,
-          description: s.description,
-          amount: sAmount,
-          reason: "UNMATCHED",
-          potentialMatches,
-        };
-      }),
-    );
-
-    return discrepancies;
+    return this.repository.getBankAccountsStatus(companyId, startDate, endDate);
   }
 
   /**

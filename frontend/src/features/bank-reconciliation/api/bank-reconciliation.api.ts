@@ -1,11 +1,13 @@
 import api from "@/lib/axios";
 import type {
   ReconciliationSummary,
-  DiscrepancyItem,
   AutoMatchRequest,
   ManualReconcileRequest,
   GetSummaryParams,
-  GetDiscrepanciesParams,
+  GetStatementsParams,
+  BankAccountStatus,
+  BankStatementWithMatch,
+  PotentialMatch,
 } from "../types/bank-reconciliation.types";
 
 export const bankReconciliationApi = {
@@ -18,14 +20,27 @@ export const bankReconciliationApi = {
   },
 
   /**
-   * Get items requiring manual review (discrepancies)
+   * Get all bank statements with reconciliation info
    */
-  async getDiscrepancies(
-    params: GetDiscrepanciesParams,
-  ): Promise<DiscrepancyItem[]> {
-    const response = await api.get("/reconciliation/bank/discrepancies", {
+  async getStatements(
+    params: GetStatementsParams,
+  ): Promise<BankStatementWithMatch[]> {
+    const response = await api.get("/reconciliation/bank/statements", {
       params,
     });
+    return response.data.data;
+  },
+
+  /**
+   * Get bank accounts status for tabs
+   */
+  async getBankAccountsStatus(
+    params: GetSummaryParams,
+  ): Promise<BankAccountStatus[]> {
+    const response = await api.get(
+      "/reconciliation/bank/bank-accounts/status",
+      { params },
+    );
     return response.data.data;
   },
 
@@ -51,5 +66,19 @@ export const bankReconciliationApi = {
    */
   async undo(statementId: string): Promise<void> {
     await api.post(`/reconciliation/bank/undo/${statementId}`);
+  },
+
+  /**
+   * Get potential matches for a bank statement
+   */
+  async getPotentialMatches(
+    statementId: string,
+    companyId: string,
+  ): Promise<PotentialMatch[]> {
+    const response = await api.get(
+      `/reconciliation/bank/statements/${statementId}/potential-matches`,
+      { params: { companyId } },
+    );
+    return response.data.data;
   },
 };

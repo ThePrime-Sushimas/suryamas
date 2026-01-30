@@ -1,13 +1,23 @@
 /**
  * Bank Reconciliation Statuses
  */
-export enum BankReconciliationStatus {
-  PENDING = "PENDING",
-  AUTO_MATCHED = "AUTO_MATCHED",
-  MANUALLY_MATCHED = "MANUALLY_MATCHED",
-  DISCREPANCY = "DISCREPANCY",
-  UNRECONCILED = "UNRECONCILED",
-}
+/**
+ * Bank Reconciliation Statuses
+ */
+export type BankReconciliationStatus =
+  | "PENDING"
+  | "AUTO_MATCHED"
+  | "MANUALLY_MATCHED"
+  | "DISCREPANCY"
+  | "UNRECONCILED";
+
+export const BankReconciliationStatusMap = {
+  PENDING: "PENDING",
+  AUTO_MATCHED: "AUTO_MATCHED",
+  MANUALLY_MATCHED: "MANUALLY_MATCHED",
+  DISCREPANCY: "DISCREPANCY",
+  UNRECONCILED: "UNRECONCILED",
+} as const;
 
 /**
  * Match Criteria types
@@ -45,6 +55,14 @@ export interface ReconciliationSummary {
   percentageReconciled: number;
 }
 
+export interface PotentialMatch {
+  id: string;
+  gross_amount: number;
+  nett_amount: number;
+  payment_type: string;
+  payment_method_name: string;
+}
+
 /**
  * Bank statement with matched aggregate info
  */
@@ -52,16 +70,19 @@ export interface BankStatementWithMatch {
   id: string;
   transaction_date: string;
   description: string;
+  reference_number?: string;
   debit_amount: number;
   credit_amount: number;
   is_reconciled: boolean;
   status: BankReconciliationStatus;
+  potentialMatches?: PotentialMatch[];
   reconciliation_id?: string;
   matched_aggregate?: {
     id: string;
     gross_amount: number;
     nett_amount: number;
     payment_type: string;
+    payment_method_name?: string;
   };
 }
 
@@ -92,6 +113,7 @@ export interface AutoMatchRequest {
   companyId: string;
   startDate: string;
   endDate: string;
+  bankAccountId?: number;
   matchingCriteria?: Partial<MatchingCriteria>;
 }
 
@@ -101,9 +123,21 @@ export interface GetSummaryParams {
   endDate: string;
 }
 
-export interface GetDiscrepanciesParams {
-  companyId: string;
-  startDate: string;
-  endDate: string;
+export interface GetStatementsParams extends GetSummaryParams {
+  bankAccountId?: number;
   threshold?: number;
+}
+
+export interface BankAccountStatus {
+  id: number;
+  account_name: string;
+  account_number: string;
+  banks: {
+    bank_name: string;
+    bank_code: string;
+  };
+  stats: {
+    total: number;
+    unreconciled: number;
+  };
 }

@@ -94,6 +94,7 @@ export class BankReconciliationController {
         validated.companyId,
         new Date(validated.startDate),
         new Date(validated.endDate),
+        validated.bankAccountId,
         userId,
         validated.matchingCriteria,
       );
@@ -112,9 +113,39 @@ export class BankReconciliationController {
   }
 
   /**
-   * Get reconciliation discrepancies
+   * Get all bank statements with reconciliation info
    */
-  async getDiscrepancies(
+  async getStatements(
+    req: AuthenticatedQueryRequest,
+    res: Response,
+  ): Promise<void> {
+    try {
+      const validated = (req as any).validated?.query || req.query;
+      const { companyId, startDate, endDate, bankAccountId } = validated;
+
+      const result = await this.service.getStatements(
+        companyId,
+        new Date(startDate),
+        new Date(endDate),
+        bankAccountId ? parseInt(bankAccountId) : undefined,
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+
+  /**
+   * Get reconciliation status per bank account
+   */
+  async getBankAccountsStatus(
     req: AuthenticatedQueryRequest,
     res: Response,
   ): Promise<void> {
@@ -122,7 +153,7 @@ export class BankReconciliationController {
       const validated = (req as any).validated?.query || req.query;
       const { companyId, startDate, endDate } = validated;
 
-      const result = await this.service.getDiscrepancies(
+      const result = await this.service.getBankAccountsStatus(
         companyId,
         new Date(startDate),
         new Date(endDate),
@@ -155,6 +186,35 @@ export class BankReconciliationController {
         companyId,
         new Date(startDate),
         new Date(endDate),
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+
+  /**
+   * Get potential matches for a specific bank statement
+   */
+  async getPotentialMatches(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { companyId } = req.query;
+
+      if (!companyId) {
+        throw new Error("Company ID is required");
+      }
+
+      const result = await this.service.getPotentialMatches(
+        companyId as string,
+        id as string,
       );
 
       res.status(200).json({
