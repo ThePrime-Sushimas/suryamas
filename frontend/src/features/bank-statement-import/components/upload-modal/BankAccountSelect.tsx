@@ -128,7 +128,7 @@ export function BankAccountSelect({
             <div className={`
               p-2.5 rounded-xl shrink-0
               ${selectedAccount 
-                ? 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20' 
+                ? 'bg-linear-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20' 
                 : 'bg-gray-100 dark:bg-gray-700'
               }
             `}>
@@ -262,7 +262,7 @@ export function BankAccountSelect({
                         className={`
                           w-full px-3 py-3 text-left rounded-lg transition-all duration-200 group
                           ${String(account.id) === value 
-                            ? 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800' 
+                            ? 'bg-linear-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800' 
                             : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 border border-transparent hover:border-gray-200 dark:hover:border-gray-600'
                           }
                         `}
