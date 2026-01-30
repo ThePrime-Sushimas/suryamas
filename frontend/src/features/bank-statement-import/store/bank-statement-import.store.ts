@@ -309,6 +309,7 @@ interface BankStatementImportState {
   cancelImport: (id: number) => Promise<void>
   retryImport: (id: number) => Promise<void>
   deleteImport: (id: number) => Promise<void>
+  bulkDelete: (ids: number[]) => Promise<void>
 
   toggleSelection: (id: number) => void
   selectAll: (ids: number[]) => void
@@ -492,6 +493,20 @@ export const useBankStatementImportStore = create<BankStatementImportState>((set
     try {
       await bankStatementImportApi.delete(id)
       await get().fetchImports()
+    } finally {
+      set({ loading: { ...get().loading, delete: false } })
+    }
+  },
+
+  bulkDelete: async (ids: number[]) => {
+    if (ids.length === 0) return
+    
+    set({ loading: { ...get().loading, delete: true } })
+    try {
+      // Delete each import one by one
+      await Promise.all(ids.map(id => bankStatementImportApi.delete(id)))
+      await get().fetchImports()
+      set({ selectedIds: new Set<number>() })
     } finally {
       set({ loading: { ...get().loading, delete: false } })
     }

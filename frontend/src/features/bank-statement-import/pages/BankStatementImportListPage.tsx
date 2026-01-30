@@ -7,7 +7,10 @@ import {
   AlertCircle,
   X,
   Eye,
-  Trash2
+  Trash2,
+  CheckSquare,
+  Square,
+  Trash
 } from 'lucide-react'
 import { useBankStatementImportStore } from '../store/bank-statement-import.store'
 import { TableSkeleton } from '@/components/ui/Skeleton'
@@ -37,6 +40,7 @@ export function BankStatementImportListPage() {
     uploadFile,
     confirmImport,
     deleteImport,
+    bulkDelete,
     setPagination,
     toggleSelection,
     selectAll,
@@ -48,6 +52,7 @@ export function BankStatementImportListPage() {
   } = useBankStatementImportStore()
 
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState<number | null>(null)
+  const [showBulkDeleteConfirmation, setShowBulkDeleteConfirmation] = useState(false)
   const [filters, setFilters] = useState({ search: '', status: '' })
 
   useEffect(() => {
@@ -105,6 +110,19 @@ export function BankStatementImportListPage() {
       }
       setShowDeleteConfirmation(null)
     }
+  }
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    
+    try {
+      await bulkDelete(ids)
+      toast.success(`${ids.length} import berhasil dihapus.`)
+    } catch {
+      // Error ditampilkan melalui error state
+    }
+    setShowBulkDeleteConfirmation(false)
   }
 
   const handlePrevPage = () => {
@@ -298,7 +316,7 @@ export function BankStatementImportListPage() {
             <span className="text-sm text-gray-600 dark:text-gray-400">
               {filteredImports.length} dari {importsArray.length} file
             </span>
-            {(filters.search || filters.status) && (
+          {(filters.search || filters.status) && (
               <button
                 onClick={() => setFilters({ search: '', status: '' })}
                 className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
@@ -308,7 +326,44 @@ export function BankStatementImportListPage() {
             )}
           </div>
         </div>
-      </div>     
+      </div>
+
+      {/* Bulk Action Bar - Muncul saat ada item dipilih */}
+      {selectedIds.size > 0 && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 animate-in slide-in-from-top-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
+                <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="font-semibold text-blue-900 dark:text-blue-100">
+                  {selectedIds.size} item dipilih
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Pilih aksi untuk item yang dipilih
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={clearSelection}
+                className="px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/50 rounded-lg transition-colors"
+              >
+                Batalkan Pilihan
+              </button>
+              <button
+                onClick={() => setShowBulkDeleteConfirmation(true)}
+                disabled={loading.delete}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <Trash className="w-4 h-4" />
+                Hapus Terpilih ({selectedIds.size})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
@@ -500,6 +555,43 @@ export function BankStatementImportListPage() {
                   </span>
                 ) : (
                   'Hapus'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm mx-4 p-6">
+            <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-2">
+              Konfirmasi Hapus Massal
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">
+              Apakah Anda yakin ingin menghapus <span className="font-semibold text-red-600">{selectedIds.size} data import</span> ini? 
+              Tindakan ini tidak dapat dibatalkan.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button 
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+                onClick={() => setShowBulkDeleteConfirmation(false)}
+              >
+                Batal
+              </button>
+              <button 
+                className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700"
+                onClick={handleBulkDelete}
+                disabled={loading.delete}
+              >
+                {loading.delete ? (
+                  <span className="flex items-center gap-2">
+                    <span className="loading loading-spinner loading-sm" />
+                    Menghapus...
+                  </span>
+                ) : (
+                  `Hapus ${selectedIds.size} Item`
                 )}
               </button>
             </div>
