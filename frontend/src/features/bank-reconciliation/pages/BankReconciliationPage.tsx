@@ -162,7 +162,7 @@ export function BankReconciliationPage() {
   ) => {
     if (
       confirm(
-        `Cocokkan transaksi ini dengan ${item.potentialMatches?.[0]?.payment_method_name} senilai ${item.potentialMatches?.[0]?.net_amount.toLocaleString("id-ID")}?`,
+        `Cocokkan transaksi ini dengan ${item.potentialMatches?.[0]?.payment_method_name} senilai ${item.potentialMatches?.[0]?.nett_amount.toLocaleString("id-ID")}?`,
       )
     ) {
       try {

@@ -302,7 +302,7 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
         
         // Progress update setiap 5000 transaksi atau di akhir
         if (processedCount % 5000 === 0 || processedCount >= lines.length) {
-          const progress = 30 + Math.min(10, (processedCount / lines.length) * 10)
+          const progress = Math.round(30 + Math.min(10, (processedCount / lines.length) * 10))
           await jobsService.updateProgress(jobId, progress, userId)
           logInfo('Duplicate check progress', { 
             processed: processedCount, 

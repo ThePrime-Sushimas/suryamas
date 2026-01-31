@@ -87,7 +87,7 @@ export function BankMutationTable({
 const calculateDifference = (item: BankStatementWithMatch) => {
     if (!item.is_reconciled || !item.matched_aggregate) return 0;
     const bankAmount = item.credit_amount - item.debit_amount;
-    return Math.abs(bankAmount - item.matched_aggregate.net_amount);
+    return Math.abs(bankAmount - item.matched_aggregate.nett_amount);
   };
 
   return (
@@ -191,7 +191,7 @@ const calculateDifference = (item: BankStatementWithMatch) => {
 <td className="px-6 py-4 text-right">
                   <span className="text-sm text-gray-600 dark:text-gray-400 font-mono">
                     {item.matched_aggregate
-                      ? item.matched_aggregate.net_amount.toLocaleString(
+                      ? item.matched_aggregate.nett_amount.toLocaleString(
                           "id-ID",
                         )
                       : "-"}
@@ -226,7 +226,7 @@ const calculateDifference = (item: BankStatementWithMatch) => {
                             Match{" "}
                             {potentialMatchesMap[
                               item.id
-                            ]![0].net_amount.toLocaleString("id-ID")}
+                            ]![0].nett_amount.toLocaleString("id-ID")}
                           </button>
                         ) : (
                           <button
