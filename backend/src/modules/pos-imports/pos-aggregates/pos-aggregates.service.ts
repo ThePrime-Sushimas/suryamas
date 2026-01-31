@@ -1,5 +1,6 @@
 import { supabase } from "../../../config/supabase";
 import { posAggregatesRepository } from "./pos-aggregates.repository";
+import { paymentMethodsRepository } from "../../payment-methods/payment-methods.repository";
 import {
   AggregatedTransaction,
   AggregatedTransactionWithDetails,
@@ -179,14 +180,45 @@ export class PosAggregatesService {
   /**
    * Convert CreateDto to Repository insert format
    * Note: paymentMethodId is the resolved numeric ID (already converted from name if needed)
+   * Also calculates fee from payment method configuration
    */
   private toInsertData(
     data: Omit<CreateAggregatedTransactionDto, "payment_method_id">,
     paymentMethodId: number,
+    feeConfig?: {
+      fee_percentage: number
+      fee_fixed_amount: number
+      fee_fixed_per_transaction: boolean
+    },
   ): Omit<
     AggregatedTransaction,
     "id" | "created_at" | "updated_at" | "version"
   > {
+    // Calculate bill after discount = gross + tax - discount
+    const billAfterDiscount =
+      Number(data.gross_amount) +
+      Number(data.tax_amount ?? 0) -
+      Number(data.discount_amount ?? 0)
+
+    // Calculate fee from payment method configuration
+    // percentage_fee = bill_after_discount × fee_percentage / 100
+    const percentageFeeAmount =
+      feeConfig && feeConfig.fee_percentage > 0
+        ? billAfterDiscount * (feeConfig.fee_percentage / 100)
+        : Number(data.percentage_fee_amount ?? 0)
+
+    // fixed_fee = fee_fixed_amount (per transaction)
+    const fixedFeeAmount =
+      feeConfig && feeConfig.fee_fixed_amount > 0
+        ? feeConfig.fee_fixed_amount
+        : Number(data.fixed_fee_amount ?? 0)
+
+    // total_fee = percentage_fee + fixed_fee
+    const totalFeeAmount = percentageFeeAmount + fixedFeeAmount
+
+    // net_amount = bill_after_discount - total_fee
+    const netAmount = billAfterDiscount - totalFeeAmount
+
     return {
       branch_name: data.branch_name ?? null,
       source_type: data.source_type,
@@ -198,10 +230,10 @@ export class PosAggregatesService {
       discount_amount: data.discount_amount ?? 0,
       tax_amount: data.tax_amount ?? 0,
       service_charge_amount: data.service_charge_amount ?? 0,
-      percentage_fee_amount: data.percentage_fee_amount ?? 0,
-      fixed_fee_amount: data.fixed_fee_amount ?? 0,
-      total_fee_amount: data.total_fee_amount ?? 0,
-      net_amount: data.net_amount,
+      percentage_fee_amount: percentageFeeAmount,
+      fixed_fee_amount: fixedFeeAmount,
+      total_fee_amount: totalFeeAmount,
+      net_amount: netAmount,
       currency: data.currency ?? "IDR",
       journal_id: null,
       is_reconciled: false,
@@ -214,7 +246,40 @@ export class PosAggregatesService {
   }
 
   /**
+   * Get payment method with fee configuration
+   * Looks up payment method by ID and returns fee config
+   */
+  private async getPaymentMethodFeeConfig(
+    paymentMethodId: number,
+  ): Promise<{
+    fee_percentage: number
+    fee_fixed_amount: number
+    fee_fixed_per_transaction: boolean
+  } | null> {
+    try {
+      const paymentMethod = await paymentMethodsRepository.findById(paymentMethodId)
+      if (!paymentMethod) {
+        logInfo("Payment method not found for fee calculation", { payment_method_id: paymentMethodId })
+        return null
+      }
+
+      return {
+        fee_percentage: (paymentMethod as any).fee_percentage ?? 0,
+        fee_fixed_amount: (paymentMethod as any).fee_fixed_amount ?? 0,
+        fee_fixed_per_transaction: (paymentMethod as any).fee_fixed_per_transaction ?? false,
+      }
+    } catch (error) {
+      logError("Failed to get payment method fee config", {
+        payment_method_id: paymentMethodId,
+        error: (error as Error).message,
+      })
+      return null
+    }
+  }
+
+  /**
    * Create new aggregated transaction
+   * Automatically calculates fee from payment method configuration
    */
   async createTransaction(
     data: CreateAggregatedTransactionDto,
@@ -255,11 +320,16 @@ export class PosAggregatesService {
       );
     }
 
-    logInfo("Creating aggregated transaction", {
+    // Get fee configuration from payment method
+    const feeConfig = await this.getPaymentMethodFeeConfig(resolvedPaymentMethodId);
+
+    logInfo("Creating aggregated transaction with fee calculation", {
       source_type: data.source_type,
       source_id: data.source_id,
       source_ref: data.source_ref,
       payment_method_id: resolvedPaymentMethodId,
+      fee_percentage: feeConfig?.fee_percentage ?? 0,
+      fee_fixed_amount: feeConfig?.fee_fixed_amount ?? 0,
     });
 
     // Create a modified data object without payment_method_id (will be passed separately)
@@ -268,6 +338,7 @@ export class PosAggregatesService {
     const insertData = this.toInsertData(
       dataWithoutPaymentMethod,
       resolvedPaymentMethodId,
+      feeConfig ?? undefined,
     );
     return posAggregatesRepository.create(insertData);
   }

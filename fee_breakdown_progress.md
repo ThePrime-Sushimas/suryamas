@@ -12,6 +12,7 @@
 - [x] **Orchestrator** - Update `transformToReconciliationAggregate` dan types
 - [x] **Database Migration** - Buat file migration untuk menambah kolom di database
 - [x] **Frontend Table** - Tambah kolom fee breakdown di PosAggregatesTable
+- [x] **FEE CALCULATION FIX** - Fee sekarang dihitung dari payment method saat create transaction
 
 ---
 

@@ -53,12 +53,14 @@ function normalizePaymentMethodName(name: string): string {
  * Mengambil semua payment methods yang needed dalam 1 query
  * TIDAK fallback ke CASH - jika tidak ditemukan, akan ditandai sebagai failed
  * Note: companyId parameter kept for future use but lookup is global
+ * 
+ * 🔥 ALSO FETCHES FEE CONFIGURATION for automatic fee calculation
  */
 async function resolvePaymentMethodsBatch(
   paymentMethodNames: string[],
   _companyId?: string // Not used - lookup is global
-): Promise<Map<string, { id: number; isFallback: boolean; name: string }>> {
-  const result = new Map<string, { id: number; isFallback: boolean; name: string }>()
+): Promise<Map<string, { id: number; isFallback: boolean; name: string; fee_percentage: number; fee_fixed_amount: number; fee_fixed_per_transaction: boolean }>> {
+  const result = new Map<string, { id: number; isFallback: boolean; name: string; fee_percentage: number; fee_fixed_amount: number; fee_fixed_per_transaction: boolean }>()
   
   if (paymentMethodNames.length === 0) return result
 
@@ -67,9 +69,10 @@ async function resolvePaymentMethodsBatch(
   
   // Batch query - cari semua payment methods yang needed (global, tidak per company)
   // Payment method lookup dibuat global untuk menghindari mismatch nama
+  // 🔥 INCLUDE FEE COLUMNS untuk fee calculation
   const { data: allPaymentMethods, error } = await supabase
     .from('payment_methods')
-    .select('id, name, code, is_active, coa_account_id, company_id')
+    .select('id, name, code, is_active, coa_account_id, company_id, fee_percentage, fee_fixed_amount, fee_fixed_per_transaction')
     .eq('is_active', true)
 
   if (error) {
@@ -78,7 +81,17 @@ async function resolvePaymentMethodsBatch(
   }
 
   // Create normalized map from all payment methods
-  interface PaymentMethodRow { id: number; name: string; code: string; is_active: boolean; coa_account_id: string; company_id: string }
+  interface PaymentMethodRow { 
+    id: number; 
+    name: string; 
+    code: string; 
+    is_active: boolean; 
+    coa_account_id: string; 
+    company_id: string;
+    fee_percentage: number;
+    fee_fixed_amount: number;
+    fee_fixed_per_transaction: boolean;
+  }
   const foundMap = new Map<string, PaymentMethodRow>()
   for (const pm of allPaymentMethods || []) {
     const key = normalizePaymentMethodName(pm.name)
@@ -97,10 +110,17 @@ async function resolvePaymentMethodsBatch(
   for (const name of uniqueNames) {
     const pm = foundMap.get(name)
     if (pm) {
-      result.set(name, { id: pm.id, isFallback: false, name: pm.name })
+      result.set(name, { 
+        id: pm.id, 
+        isFallback: false, 
+        name: pm.name,
+        fee_percentage: pm.fee_percentage || 0,
+        fee_fixed_amount: pm.fee_fixed_amount || 0,
+        fee_fixed_per_transaction: pm.fee_fixed_per_transaction || false,
+      })
     } else {
       // DO NOT fallback - mark as not found
-      result.set(name, { id: 0, isFallback: false, name: name })
+      result.set(name, { id: 0, isFallback: false, name: name, fee_percentage: 0, fee_fixed_amount: 0, fee_fixed_per_transaction: false })
       logWarn('Payment method not found - will be marked as failed', { name })
     }
   }
@@ -301,6 +321,9 @@ export async function generateAggregatedTransactionsOptimized(
             discount_amount: 0,
             tax_amount: 0,
             service_charge_amount: 0,
+            percentage_fee_amount: 0,
+            fixed_fee_amount: 0,
+            total_fee_amount: 0,
             net_amount: 0,
             currency: 'IDR',
             journal_id: null,
@@ -325,7 +348,34 @@ export async function generateAggregatedTransactionsOptimized(
         const discountAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.discount || 0), 0)
         const billDiscountAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.bill_discount || 0), 0)
         const taxAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.tax || 0), 0)
-        const netAmount = groupLines.reduce((sum: number, line: any) => sum + Number(line.total_after_bill_discount || line.total || 0), 0)
+        
+        // Bill after discount = gross + tax - discount
+        const billAfterDiscount = grossAmount + taxAmount - (discountAmount + billDiscountAmount)
+        
+        // 🔥 CALCULATE FEE from payment method configuration
+        // percentage_fee = bill_after_discount × fee_percentage / 100
+        const percentageFeeAmount = pmResult.fee_percentage > 0
+          ? billAfterDiscount * (pmResult.fee_percentage / 100)
+          : 0
+        
+        // fixed_fee = fee_fixed_amount (per transaction)
+        const fixedFeeAmount = pmResult.fee_fixed_amount || 0
+        
+        // total_fee = percentage + fixed
+        const totalFeeAmount = percentageFeeAmount + fixedFeeAmount
+        
+        // Net amount = bill after discount - total fee
+        const netAmount = billAfterDiscount - totalFeeAmount
+
+        logInfo('Fee calculated for transaction', {
+          source_ref: sourceRef,
+          bill_after_discount: billAfterDiscount,
+          fee_percentage: pmResult.fee_percentage,
+          percentage_fee: percentageFeeAmount,
+          fixed_fee: fixedFeeAmount,
+          total_fee: totalFeeAmount,
+          net_amount: netAmount
+        })
 
         // Prepare insert data
         const insertData = {
@@ -339,6 +389,9 @@ export async function generateAggregatedTransactionsOptimized(
           discount_amount: discountAmount + billDiscountAmount,
           tax_amount: taxAmount,
           service_charge_amount: 0,
+          percentage_fee_amount: percentageFeeAmount,
+          fixed_fee_amount: fixedFeeAmount,
+          total_fee_amount: totalFeeAmount,
           net_amount: netAmount,
           currency: 'IDR',
           journal_id: null,
@@ -366,6 +419,9 @@ export async function generateAggregatedTransactionsOptimized(
             discount_amount: 0,
             tax_amount: 0,
             service_charge_amount: 0,
+            percentage_fee_amount: 0,
+            fixed_fee_amount: 0,
+            total_fee_amount: 0,
             net_amount: 0,
             currency: 'IDR',
             journal_id: null,
