@@ -61,11 +61,11 @@ export interface AggregatedTransaction {
   discount_amount: number; // discount + bill_discount from pos_import_lines
   tax_amount: number; // tax from pos_import_lines
   service_charge_amount: number; // service_charge from pos_import_lines
-  bill_after_discount: number; // subtotal + tax - discount (before fee)
+bill_after_discount: number; // subtotal + tax - discount (before fee)
   percentage_fee_amount: number; // Fee from percentage (bill_after_discount × fee_percentage / 100)
   fixed_fee_amount: number; // Fixed fee (per transaction or per total)
   total_fee_amount: number; // Total fee (percentage_fee + fixed_fee)
-  net_amount: number; // bill_after_discount - total_fee_amount (final amount after fee)
+  nett_amount: number; // bill_after_discount - total_fee_amount (final amount after fee)
   currency: string; // Default: 'IDR'
   journal_id: string | null;
   is_reconciled: boolean; // Default: false
@@ -104,11 +104,11 @@ export interface AggregatedTransactionListItem extends Pick<
   | "discount_amount"
   | "tax_amount"
   | "service_charge_amount"
-  | "bill_after_discount"
+| "bill_after_discount"
   | "percentage_fee_amount"
   | "fixed_fee_amount"
   | "total_fee_amount"
-  | "net_amount"
+  | "nett_amount"
   | "currency"
   | "status"
   | "is_reconciled"
@@ -140,11 +140,11 @@ export interface CreateAggregatedTransactionDto {
   discount_amount?: number; // discount + bill_discount from pos_import_lines
   tax_amount?: number; // tax from pos_import_lines
   service_charge_amount?: number; // service_charge from pos_import_lines
-  bill_after_discount?: number; // Calculated: gross + tax - discount
+bill_after_discount?: number; // Calculated: gross + tax - discount
   percentage_fee_amount?: number; // Calculated from payment method
   fixed_fee_amount?: number; // Calculated from payment method
   total_fee_amount?: number; // Sum of percentage and fixed fees
-  net_amount: number; // Calculated: bill_after_discount - total_fee
+  nett_amount: number; // Calculated: bill_after_discount - total_fee
   currency?: string; // Default: 'IDR'
   status?: AggregatedTransactionStatus; // Default: 'READY'
 }
@@ -164,11 +164,11 @@ export interface UpdateAggregatedTransactionDto {
   discount_amount?: number;
   tax_amount?: number;
   service_charge_amount?: number;
-  bill_after_discount?: number;
+bill_after_discount?: number;
   percentage_fee_amount?: number;
   fixed_fee_amount?: number;
   total_fee_amount?: number;
-  net_amount?: number;
+  nett_amount?: number;
   currency?: string;
   status?: AggregatedTransactionStatus;
   is_reconciled?: boolean;
@@ -179,7 +179,6 @@ export interface UpdateAggregatedTransactionDto {
  * Query parameters for listing aggregated transactions
  */
 export interface AggregatedTransactionFilterParams {
-  company_id?: string;
   branch_name?: string | null;
   branch_names?: string[] | string; // Multiple branches (checkbox method) - also accepts comma-separated string
   source_type?: AggregatedTransactionSourceType;
@@ -203,7 +202,7 @@ export interface AggregatedTransactionSortParams {
   field:
     | "transaction_date"
     | "gross_amount"
-    | "net_amount"
+    | "nett_amount"
     | "created_at"
     | "updated_at";
   order: "asc" | "desc";
@@ -219,7 +218,7 @@ export interface AggregatedTransactionSummary {
   total_tax_amount: number;
   total_service_charge_amount: number;
   total_bill_after_discount: number;
-  total_net_amount: number;
+  total_nett_amount: number;
   by_status?: Record<AggregatedTransactionStatus, number>;
   by_payment_method?: Record<number, number>;
 }

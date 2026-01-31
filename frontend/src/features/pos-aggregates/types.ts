@@ -35,7 +35,6 @@ export type AggregatedTransactionSourceType = "POS";
  */
 export interface AggregatedTransaction {
   id: string;
-  company_id: string;
   branch_name: string | null;
   source_type: AggregatedTransactionSourceType;
   source_id: string;
@@ -50,7 +49,7 @@ export interface AggregatedTransaction {
   percentage_fee_amount: number;
   fixed_fee_amount: number;
   total_fee_amount: number;
-  net_amount: number;
+  nett_amount: number;
   currency: string;
   journal_id: string | null;
   is_reconciled: boolean;
@@ -83,7 +82,6 @@ export interface AggregatedTransactionWithDetails extends AggregatedTransaction 
  */
 export interface AggregatedTransactionListItem {
   id: string;
-  company_id: string;
   branch_name: string | null;
   source_type: AggregatedTransactionSourceType;
   source_id: string;
@@ -98,7 +96,7 @@ export interface AggregatedTransactionListItem {
   percentage_fee_amount: number;
   fixed_fee_amount: number;
   total_fee_amount: number;
-  net_amount: number;
+  nett_amount: number;
   currency: string;
   journal_id: string | null;
   is_reconciled: boolean;
@@ -108,7 +106,6 @@ export interface AggregatedTransactionListItem {
   deleted_at?: string | null;
   deleted_by?: string | null;
   version: number;
-  company_name?: string;
   payment_method_name?: string;
   journal_number?: string;
   failed_reason?: string | null;
@@ -124,7 +121,6 @@ export interface AggregatedTransactionListItem {
  * All fields are optional except the required ones
  */
 export interface CreateAggregatedTransactionDto {
-  company_id: string;
   branch_name?: string | null;
   source_type?: AggregatedTransactionSourceType;
   source_id: string;
@@ -139,7 +135,7 @@ export interface CreateAggregatedTransactionDto {
   percentage_fee_amount?: number;
   fixed_fee_amount?: number;
   total_fee_amount?: number;
-  net_amount: number;
+  nett_amount: number;
   currency?: string;
   status?: AggregatedTransactionStatus;
 }
@@ -163,7 +159,7 @@ export interface UpdateAggregatedTransactionDto {
   percentage_fee_amount?: number;
   fixed_fee_amount?: number;
   total_fee_amount?: number;
-  net_amount?: number;
+  nett_amount?: number;
   currency?: string;
   status?: AggregatedTransactionStatus;
   is_reconciled?: boolean;
@@ -247,7 +243,7 @@ export interface AggregatedTransactionSortParams {
   field:
     | "transaction_date"
     | "gross_amount"
-    | "net_amount"
+    | "nett_amount"
     | "created_at"
     | "updated_at";
   order: "asc" | "desc";
@@ -287,7 +283,7 @@ export interface AggregatedTransactionSummary {
   total_tax_amount: number;
   total_service_charge_amount: number;
   total_bill_after_discount: number;
-  total_net_amount: number;
+  total_nett_amount: number;
   by_status?: Record<AggregatedTransactionStatus, number>;
   by_payment_method?: Record<number, number>;
 }

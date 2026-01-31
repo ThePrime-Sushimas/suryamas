@@ -34,10 +34,11 @@ export const createAggregatedTransactionSchema = z.object({
     }),
     payment_method_id: paymentMethodIdSchema,
     gross_amount: z.number().min(0, 'Gross amount must be non-negative'),
-    discount_amount: z.number().min(0, 'Discount amount must be non-negative').default(0),
+discount_amount: z.number().min(0, 'Discount amount must be non-negative').default(0),
     tax_amount: z.number().min(0, 'Tax amount must be non-negative').default(0),
     service_charge_amount: z.number().min(0, 'Service charge amount must be non-negative').default(0),
-    net_amount: z.number().min(0, 'Net amount must be non-negative'),
+    bill_after_discount: z.number().min(0, 'Bill after discount must be non-negative').optional(),
+    nett_amount: z.number().min(0, 'Nett amount must be non-negative'),
     currency: z.string().min(1, 'Currency is required').max(10).default('IDR'),
     status: z.enum(['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED'])
       .default('READY'),
@@ -61,9 +62,10 @@ export const updateAggregatedTransactionSchema = z.object({
     payment_method_id: z.number().int().positive().optional(),
     gross_amount: z.number().min(0).optional(),
     discount_amount: z.number().min(0).optional(),
-    tax_amount: z.number().min(0).optional(),
+tax_amount: z.number().min(0).optional(),
     service_charge_amount: z.number().min(0).optional(),
-    net_amount: z.number().min(0).optional(),
+    bill_after_discount: z.number().min(0).optional(),
+    nett_amount: z.number().min(0).optional(),
     currency: z.string().min(1).max(10).optional(),
     status: z.enum(['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED'])
       .optional(),
@@ -102,7 +104,6 @@ export const aggregatedTransactionListQuerySchema = z.object({
   query: z.object({
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().max(100).default(10),
-    company_id: z.string().uuid().optional(),
     branch_name: z.string().optional(),
     branch_names: branchNamesSchema,
     source_type: z.enum(['POS']).optional(),
@@ -117,8 +118,8 @@ export const aggregatedTransactionListQuerySchema = z.object({
     has_journal: z.coerce.boolean().optional(),
     search: z.string().optional(),
     show_deleted: z.coerce.boolean().default(false),
-    // Sort parameters
-    sort: z.enum(['transaction_date', 'gross_amount', 'net_amount', 'created_at', 'updated_at']).optional(),
+// Sort parameters
+    sort: z.enum(['transaction_date', 'gross_amount', 'nett_amount', 'created_at', 'updated_at']).optional(),
     order: z.enum(['asc', 'desc']).optional(),
   }),
 })

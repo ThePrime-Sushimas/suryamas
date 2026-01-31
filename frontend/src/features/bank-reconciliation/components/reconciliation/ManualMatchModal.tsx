@@ -13,7 +13,8 @@ import {
 } from "lucide-react";
 import type { BankStatementWithMatch } from "../../types/bank-reconciliation.types";
 import { posAggregatesApi } from "@/features/pos-aggregates/api/posAggregates.api";
-import type { AggregatedTransactionListItem } from "@/features/pos-aggregates/types";
+import type { AggregatedTransactionListItem, AggregatedTransactionFilterParams } from "@/features/pos-aggregates/types";
+
 
 interface ManualMatchModalProps {
   item: BankStatementWithMatch | null;
@@ -41,15 +42,19 @@ export function ManualMatchModal({
   const [overrideDifference, setOverrideDifference] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
+
+
   const handleSearch = useCallback(async () => {
     setIsSearching(true);
     try {
-      // Search for unreconciled aggregates around the same date
-      const result = await posAggregatesApi.list(1, 20, null, {
+      // Build filter for unreconciled aggregates
+      const filter: AggregatedTransactionFilterParams = {
         is_reconciled: false,
         search: search || undefined,
-        // Optional: filter by date range around the statement date
-      });
+      }
+
+      // Search for unreconciled aggregates around the same date
+      const result = await posAggregatesApi.list(1, 20, null, filter);
       setAggregates(result.data);
     } catch (err) {
       console.error("Failed to fetch aggregates:", err);
@@ -83,7 +88,7 @@ export function ManualMatchModal({
         <div className="w-screen max-w-2xl animate-in slide-in-from-right duration-300">
           <div className="flex h-full flex-col bg-white dark:bg-gray-900 shadow-2xl">
             {/* Header */}
-            <div className="relative bg-gradient-to-br from-blue-600 to-indigo-700 px-6 py-8">
+            <div className="relative bg-linear-to-br from-blue-600 to-indigo-700 px-6 py-8">
               {/* Abstract shapes */}
               <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
               <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 bg-blue-400/20 rounded-full blur-2xl" />
@@ -146,7 +151,7 @@ export function ManualMatchModal({
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs text-gray-500">Deskripsi</p>
-                        <p className="text-sm text-gray-700 dark:text-gray-300 break-words leading-relaxed">
+                        <p className="text-sm text-gray-700 dark:text-gray-300 wrap-break-word leading-relaxed">
                           {statement?.description}
                         </p>
                       </div>
@@ -223,12 +228,12 @@ export function ManualMatchModal({
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t-2 border-purple-300 dark:border-purple-700">
                         <span className="font-bold text-gray-700 dark:text-gray-300">
-                          Net Amount:
+                          Nett Amount:
                         </span>
                         <span className="font-bold text-lg text-purple-900 dark:text-purple-300">
                           {(
                             aggregates.find((a) => a.id === selectedId)
-                              ?.net_amount || 0
+                              ?.nett_amount || 0
                           ).toLocaleString("id-ID", {
                             style: "currency",
                             currency: "IDR",

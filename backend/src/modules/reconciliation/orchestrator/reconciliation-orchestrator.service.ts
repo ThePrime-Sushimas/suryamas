@@ -271,7 +271,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     try {
       const { data: aggData, error: aggError } = await supabase
         .from("aggregated_transactions")
-        .select("is_reconciled, net_amount")
+        .select("is_reconciled, nett_amount")
         .gte("transaction_date", startDate)
         .lte("transaction_date", endDate)
         .is("deleted_at", null);
@@ -297,7 +297,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
 
       // Calculate totals
       const totalNetAmount =
-        aggData?.reduce((sum, agg) => sum + (Number(agg.net_amount) || 0), 0) ||
+        aggData?.reduce((sum, agg) => sum + (Number(agg.nett_amount) || 0), 0) ||
         0;
       const totalBankAmount =
         stmtData?.reduce(
@@ -346,7 +346,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
   ): ReconciliationAggregate {
     return {
       id: agg.id,
-      nett_amount: Number(agg.net_amount),
+      nett_amount: Number(agg.nett_amount),
       transaction_date: agg.transaction_date,
       reference_number: agg.source_ref, // Mapping source_ref to reference_number
       payment_method_id: agg.payment_method_id,
@@ -355,6 +355,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
       percentage_fee_amount: Number(agg.percentage_fee_amount || 0),
       fixed_fee_amount: Number(agg.fixed_fee_amount || 0),
       total_fee_amount: Number(agg.total_fee_amount || 0),
+      bill_after_discount: Number(agg.bill_after_discount || 0),
       transaction_count: 1, // Individual transaction record
       reconciliation_status: agg.is_reconciled ? "RECONCILED" : "PENDING",
     };
@@ -413,10 +414,10 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
         throw error;
       }
 
-      // Calculate confidence score for each potential match
+// Calculate confidence score for each potential match
       const potentialMatches = (data || []).map((agg) => {
-        const nettAmount = Number(agg.net_amount);
-        const amountDiff = Math.abs(nettAmount - statementAmount);
+        const netAmount = Number(agg.net_amount);
+        const amountDiff = Math.abs(netAmount - statementAmount);
         const dateDiff =
           Math.abs(
             new Date(agg.transaction_date).getTime() - statementDate.getTime(),

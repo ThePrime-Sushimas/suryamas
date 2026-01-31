@@ -10,7 +10,11 @@ export interface AggregatedTransaction {
   discount_amount: number;
   tax_amount: number;
   service_charge_amount: number;
-  net_amount: number;
+  bill_after_discount: number;
+  percentage_fee_amount: number;
+  fixed_fee_amount: number;
+  total_fee_amount: number;
+  nett_amount: number;
   currency: string;
   journal_id?: string;
   is_reconciled: boolean;
@@ -32,6 +36,7 @@ export interface ReconciliationAggregate {
   percentage_fee_amount: number;
   fixed_fee_amount: number;
   total_fee_amount: number;
+  bill_after_discount: number;
   transaction_count: number;
   reconciliation_status: string;
   confidence_score?: number;

@@ -89,10 +89,11 @@ export interface BankStatementWithMatch {
   credit_amount: number;
   is_reconciled: boolean;
   reconciliation_id?: string;
-  matched_aggregate?: {
+matched_aggregate?: {
     id: string;
     gross_amount: number;
     nett_amount: number;
+    bill_after_discount: number;
     payment_type: string;
   };
 }

@@ -44,7 +44,7 @@ export class BankReconciliationRepository {
     return data || [];
   }
 
-  /**
+/**
    * Get bank statements by date range with optional filtering and joined data
    */
   async getByDateRange(
@@ -53,6 +53,7 @@ export class BankReconciliationRepository {
     endDate: Date,
     bankAccountId?: number,
   ): Promise<any[]> {
+    // First get bank statements
     let query = supabase
       .from("bank_statements")
       .select(
@@ -83,7 +84,55 @@ export class BankReconciliationRepository {
     });
 
     if (error) throw error;
-    return data || [];
+    
+    // Get reconciled statement IDs
+    const reconciledStatements = (data || []).filter(s => s.reconciliation_id);
+    
+    if (reconciledStatements.length === 0) {
+      return data || [];
+    }
+    
+    // Get aggregated transactions for reconciled statements
+    const aggregateIds = reconciledStatements.map(s => s.reconciliation_id);
+    const { data: aggregates, error: aggError } = await supabase
+      .from("aggregated_transactions")
+      .select(`
+        id,
+        gross_amount,
+        nett_amount,
+        bill_after_discount,
+        payment_methods!left (
+          name,
+          code
+        )
+      `)
+      .in("id", aggregateIds);
+
+    if (aggError) throw aggError;
+    
+    // Create aggregate lookup map
+    const aggregateMap = new Map(
+      (aggregates || []).map(a => {
+        const pm = Array.isArray(a.payment_methods) ? a.payment_methods[0] : a.payment_methods;
+        return [
+          a.id,
+          {
+            id: a.id,
+            gross_amount: a.gross_amount,
+            nett_amount: a.nett_amount,
+            bill_after_discount: a.bill_after_discount,
+            payment_method_name: pm?.name,
+            payment_type: pm?.code,
+          },
+        ];
+      })
+    );
+    
+    // Transform data to include matched_aggregate
+    return (data || []).map(row => ({
+      ...row,
+      matched_aggregate: row.reconciliation_id ? aggregateMap.get(row.reconciliation_id) || null : null,
+    }));
   }
 
   /**

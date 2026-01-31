@@ -216,8 +216,8 @@ export class PosAggregatesService {
     // total_fee = percentage_fee + fixed_fee
     const totalFeeAmount = percentageFeeAmount + fixedFeeAmount
 
-    // net_amount = bill_after_discount - total_fee
-    const netAmount = billAfterDiscount - totalFeeAmount
+// nett_amount = bill_after_discount - total_fee
+    const nettAmount = billAfterDiscount - totalFeeAmount
 
     return {
       branch_name: data.branch_name ?? null,
@@ -234,7 +234,7 @@ export class PosAggregatesService {
       percentage_fee_amount: percentageFeeAmount,
       fixed_fee_amount: fixedFeeAmount,
       total_fee_amount: totalFeeAmount,
-      net_amount: netAmount,
+      nett_amount: nettAmount,
       currency: data.currency ?? "IDR",
       journal_id: null,
       is_reconciled: false,
@@ -446,11 +446,11 @@ export class PosAggregatesService {
       discount_amount: updates.discount_amount,
       tax_amount: updates.tax_amount,
       service_charge_amount: updates.service_charge_amount,
-      bill_after_discount: updates.bill_after_discount,
+bill_after_discount: updates.bill_after_discount,
       percentage_fee_amount: updates.percentage_fee_amount,
       fixed_fee_amount: updates.fixed_fee_amount,
       total_fee_amount: updates.total_fee_amount,
-      net_amount: updates.net_amount,
+      nett_amount: updates.nett_amount,
       currency: updates.currency,
       status: updates.status,
       is_reconciled: updates.is_reconciled,

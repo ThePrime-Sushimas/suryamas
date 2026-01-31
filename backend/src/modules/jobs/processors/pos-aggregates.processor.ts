@@ -310,7 +310,7 @@ export async function generateAggregatedTransactionsOptimized(
           // Payment method NOT FOUND - mark as FAILED
           const errorMsg = `Payment method "${firstLine.payment_method}" tidak ditemukan di database`
           
-          const failedData = {
+const failedData = {
             branch_name: firstLine.branch?.trim() || null,
             source_type: 'POS' as AggregatedTransactionSourceType,
             source_id: posImportId,
@@ -325,7 +325,7 @@ export async function generateAggregatedTransactionsOptimized(
             percentage_fee_amount: 0,
             fixed_fee_amount: 0,
             total_fee_amount: 0,
-            net_amount: 0,
+            nett_amount: 0,
             currency: 'IDR',
             journal_id: null,
             is_reconciled: false,
@@ -365,8 +365,8 @@ export async function generateAggregatedTransactionsOptimized(
         // total_fee = percentage + fixed
         const totalFeeAmount = percentageFeeAmount + fixedFeeAmount
         
-        // Net amount = bill after discount - total fee
-        const netAmount = billAfterDiscount - totalFeeAmount
+// Nett amount = bill after discount - total fee
+        const nettAmount = billAfterDiscount - totalFeeAmount
 
         logInfo('Fee calculated for transaction', {
           source_ref: sourceRef,
@@ -378,7 +378,7 @@ export async function generateAggregatedTransactionsOptimized(
           percentage_fee: percentageFeeAmount,
           fixed_fee: fixedFeeAmount,
           total_fee: totalFeeAmount,
-          net_amount: netAmount
+          nett_amount: nettAmount
         })
 
         // Prepare insert data
@@ -397,7 +397,7 @@ export async function generateAggregatedTransactionsOptimized(
           percentage_fee_amount: percentageFeeAmount,
           fixed_fee_amount: fixedFeeAmount,
           total_fee_amount: totalFeeAmount,
-          net_amount: netAmount,
+          nett_amount: nettAmount,
           currency: 'IDR',
           journal_id: null,
           is_reconciled: false,
@@ -410,7 +410,7 @@ export async function generateAggregatedTransactionsOptimized(
 
         insertDataArray.push({ data: insertData, sourceRef })
 
-      } catch (error) {
+} catch (error) {
         logError('Failed to prepare transaction', { source_ref: sourceRef, error })
         failedRecords.push({
           data: {
@@ -428,7 +428,7 @@ export async function generateAggregatedTransactionsOptimized(
             percentage_fee_amount: 0,
             fixed_fee_amount: 0,
             total_fee_amount: 0,
-            net_amount: 0,
+            nett_amount: 0,
             currency: 'IDR',
             journal_id: null,
             is_reconciled: false,

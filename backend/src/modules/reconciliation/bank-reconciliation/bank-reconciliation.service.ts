@@ -142,7 +142,7 @@ export class BankReconciliationService {
       100,
     );
 
-    // Priority 2: Amount + Exact Date
+// Priority 2: Amount + Exact Date
     this.processMatching(
       remainingStatements,
       remainingAggregates,
@@ -152,7 +152,7 @@ export class BankReconciliationService {
         const sDate = new Date(s.transaction_date).toDateString();
         const aDate = new Date(a.transaction_date).toDateString();
         return (
-          Math.abs(sAmount - a.nett_amount) <=
+          Math.abs(sAmount - a.net_amount) <=
             matchingCriteria.amountTolerance && sDate === aDate
         );
       },
@@ -171,7 +171,7 @@ export class BankReconciliationService {
         const aDate = new Date(a.transaction_date).getTime();
         const dayDiff = Math.abs(sDate - aDate) / (1000 * 3600 * 24);
         return (
-          Math.abs(sAmount - a.nett_amount) <=
+          Math.abs(sAmount - a.net_amount) <=
             matchingCriteria.amountTolerance &&
           dayDiff <= matchingCriteria.dateBufferDays
         );
@@ -236,7 +236,7 @@ export class BankReconciliationService {
       const statement = statements[i];
       const matchIdx = aggregates.findIndex((agg) => predicate(statement, agg));
 
-      if (matchIdx !== -1) {
+if (matchIdx !== -1) {
         const agg = aggregates[matchIdx];
         matches.push({
           aggregateId: agg.id,
@@ -244,7 +244,7 @@ export class BankReconciliationService {
           matchScore: score,
           matchCriteria: criteriaName,
           difference: Math.abs(
-            statement.credit_amount - statement.debit_amount - agg.nett_amount,
+            statement.credit_amount - statement.debit_amount - agg.net_amount,
           ),
         });
 

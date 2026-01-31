@@ -272,9 +272,9 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                       -{formatCurrency(transaction.total_fee_amount)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-right">
+<td className="px-4 py-3 whitespace-nowrap text-right">
                     <span className="text-sm font-bold text-green-700">
-                      {formatCurrency(transaction.net_amount)}
+                      {formatCurrency(transaction.nett_amount)}
                     </span>
                   </td>
 

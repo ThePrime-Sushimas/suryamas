@@ -242,7 +242,7 @@ export function BankReconciliationPage() {
             disabled={isLoading}
             className="group relative flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl text-sm font-bold hover:bg-blue-700 shadow-xl shadow-blue-500/20 active:scale-95 transition-all overflow-hidden disabled:opacity-50"
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+            <div className="absolute inset-0 bg-linear-to-r from-blue-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
             {isLoading ? (
               <RefreshCw className="w-4 h-4 animate-spin" />
             ) : (
@@ -278,7 +278,7 @@ export function BankReconciliationPage() {
               </span>
             </div>
             {account.stats.unreconciled > 0 && (
-              <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full min-w-[1.25rem] h-5 flex items-center justify-center shadow-lg shadow-rose-500/20">
+              <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full min-w-5 h-5 flex items-center justify-center shadow-lg shadow-rose-500/20">
                 {account.stats.unreconciled}
               </span>
             )}
