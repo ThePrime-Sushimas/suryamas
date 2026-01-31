@@ -29,6 +29,9 @@ export interface ReconciliationAggregate {
   payment_method_id: number;
   payment_method_name?: string;
   gross_amount: number;
+  percentage_fee_amount: number;
+  fixed_fee_amount: number;
+  total_fee_amount: number;
   transaction_count: number;
   reconciliation_status: string;
   confidence_score?: number;

@@ -154,6 +154,91 @@ export function ManualMatchModal({
                   </div>
                 </div>
 
+                {/* Fee Breakdown (if aggregate selected) */}
+                {selectedId && aggregates.find((a) => a.id === selectedId) && (
+                  <div className="bg-purple-50/50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-800 rounded-2xl p-5 space-y-3">
+                    <h4 className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-3">
+                      Breakdown Fee POS
+                    </h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600 dark:text-gray-400">
+                          Gross Amount:
+                        </span>
+                        <span className="font-semibold text-gray-900 dark:text-white">
+                          {(
+                            aggregates.find((a) => a.id === selectedId)
+                              ?.gross_amount || 0
+                          ).toLocaleString("id-ID", {
+                            style: "currency",
+                            currency: "IDR",
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600 dark:text-gray-400">
+                          Percentage Fee:
+                        </span>
+                        <span className="font-medium text-purple-700 dark:text-purple-400">
+                          -{" "}
+                          {(
+                            aggregates.find((a) => a.id === selectedId)
+                              ?.percentage_fee_amount || 0
+                          ).toLocaleString("id-ID", {
+                            style: "currency",
+                            currency: "IDR",
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600 dark:text-gray-400">
+                          Fixed Fee:
+                        </span>
+                        <span className="font-medium text-purple-700 dark:text-purple-400">
+                          -{" "}
+                          {(
+                            aggregates.find((a) => a.id === selectedId)
+                              ?.fixed_fee_amount || 0
+                          ).toLocaleString("id-ID", {
+                            style: "currency",
+                            currency: "IDR",
+                          })}
+                        </span>
+                      </div>
+                      <div className="h-px bg-purple-200 dark:bg-purple-800 my-2" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600 dark:text-gray-400">
+                          Total Fee:
+                        </span>
+                        <span className="font-bold text-purple-700 dark:text-purple-400">
+                          -{" "}
+                          {(
+                            aggregates.find((a) => a.id === selectedId)
+                              ?.total_fee_amount || 0
+                          ).toLocaleString("id-ID", {
+                            style: "currency",
+                            currency: "IDR",
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t-2 border-purple-300 dark:border-purple-700">
+                        <span className="font-bold text-gray-700 dark:text-gray-300">
+                          Net Amount:
+                        </span>
+                        <span className="font-bold text-lg text-purple-900 dark:text-purple-300">
+                          {(
+                            aggregates.find((a) => a.id === selectedId)
+                              ?.net_amount || 0
+                          ).toLocaleString("id-ID", {
+                            style: "currency",
+                            currency: "IDR",
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Difference Analysis */}
                 {selectedId && (
                   <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800 rounded-2xl p-5 animate-in slide-in-from-top-2 duration-300">

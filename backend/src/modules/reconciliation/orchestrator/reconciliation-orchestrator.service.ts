@@ -352,6 +352,9 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
       payment_method_id: agg.payment_method_id,
       payment_method_name: agg.payment_methods?.name,
       gross_amount: Number(agg.gross_amount),
+      percentage_fee_amount: Number(agg.percentage_fee_amount || 0),
+      fixed_fee_amount: Number(agg.fixed_fee_amount || 0),
+      total_fee_amount: Number(agg.total_fee_amount || 0),
       transaction_count: 1, // Individual transaction record
       reconciliation_status: agg.is_reconciled ? "RECONCILED" : "PENDING",
     };
