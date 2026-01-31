@@ -46,6 +46,7 @@ export interface AggregatedTransaction {
   discount_amount: number;
   tax_amount: number;
   service_charge_amount: number;
+  bill_after_discount: number;
   percentage_fee_amount: number;
   fixed_fee_amount: number;
   total_fee_amount: number;
@@ -93,6 +94,7 @@ export interface AggregatedTransactionListItem {
   discount_amount: number;
   tax_amount: number;
   service_charge_amount: number;
+  bill_after_discount: number;
   percentage_fee_amount: number;
   fixed_fee_amount: number;
   total_fee_amount: number;
@@ -133,6 +135,7 @@ export interface CreateAggregatedTransactionDto {
   discount_amount?: number;
   tax_amount?: number;
   service_charge_amount?: number;
+  bill_after_discount?: number;
   percentage_fee_amount?: number;
   fixed_fee_amount?: number;
   total_fee_amount?: number;
@@ -156,6 +159,7 @@ export interface UpdateAggregatedTransactionDto {
   discount_amount?: number;
   tax_amount?: number;
   service_charge_amount?: number;
+  bill_after_discount?: number;
   percentage_fee_amount?: number;
   fixed_fee_amount?: number;
   total_fee_amount?: number;
@@ -282,6 +286,7 @@ export interface AggregatedTransactionSummary {
   total_discount_amount: number;
   total_tax_amount: number;
   total_service_charge_amount: number;
+  total_bill_after_discount: number;
   total_net_amount: number;
   by_status?: Record<AggregatedTransactionStatus, number>;
   by_payment_method?: Record<number, number>;

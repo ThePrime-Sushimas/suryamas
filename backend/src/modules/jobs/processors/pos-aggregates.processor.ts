@@ -321,6 +321,7 @@ export async function generateAggregatedTransactionsOptimized(
             discount_amount: 0,
             tax_amount: 0,
             service_charge_amount: 0,
+            bill_after_discount: 0,
             percentage_fee_amount: 0,
             fixed_fee_amount: 0,
             total_fee_amount: 0,
@@ -369,6 +370,9 @@ export async function generateAggregatedTransactionsOptimized(
 
         logInfo('Fee calculated for transaction', {
           source_ref: sourceRef,
+          gross_amount: grossAmount,
+          discount_amount: discountAmount + billDiscountAmount,
+          tax_amount: taxAmount,
           bill_after_discount: billAfterDiscount,
           fee_percentage: pmResult.fee_percentage,
           percentage_fee: percentageFeeAmount,
@@ -389,6 +393,7 @@ export async function generateAggregatedTransactionsOptimized(
           discount_amount: discountAmount + billDiscountAmount,
           tax_amount: taxAmount,
           service_charge_amount: 0,
+          bill_after_discount: billAfterDiscount,
           percentage_fee_amount: percentageFeeAmount,
           fixed_fee_amount: fixedFeeAmount,
           total_fee_amount: totalFeeAmount,
@@ -419,6 +424,7 @@ export async function generateAggregatedTransactionsOptimized(
             discount_amount: 0,
             tax_amount: 0,
             service_charge_amount: 0,
+            bill_after_discount: 0,
             percentage_fee_amount: 0,
             fixed_fee_amount: 0,
             total_fee_amount: 0,

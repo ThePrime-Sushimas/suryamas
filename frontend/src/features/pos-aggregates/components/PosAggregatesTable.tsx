@@ -165,6 +165,9 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Total Fee
               </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Nett Amount
+              </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
@@ -251,7 +254,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right">
                     <span className="text-sm font-bold text-gray-900">
-                      {formatCurrency(transaction.net_amount)}
+                      {formatCurrency(transaction.bill_after_discount)}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right">
@@ -267,6 +270,11 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                   <td className="px-4 py-3 whitespace-nowrap text-right">
                     <span className="text-sm font-medium text-purple-700">
                       -{formatCurrency(transaction.total_fee_amount)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-right">
+                    <span className="text-sm font-bold text-green-700">
+                      {formatCurrency(transaction.net_amount)}
                     </span>
                   </td>
 

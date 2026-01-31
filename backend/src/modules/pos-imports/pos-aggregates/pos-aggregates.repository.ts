@@ -54,6 +54,7 @@ export class PosAggregatesRepository {
         discount_amount,
         tax_amount,
         service_charge_amount,
+        bill_after_discount,
         percentage_fee_amount,
         fixed_fee_amount,
         total_fee_amount,
@@ -592,6 +593,7 @@ export class PosAggregatesRepository {
     total_discount_amount: number
     total_tax_amount: number
     total_service_charge_amount: number
+    total_bill_after_discount: number
     total_net_amount: number
   }> {
     let dbQuery = supabase
@@ -619,7 +621,7 @@ export class PosAggregatesRepository {
     // Then get the sum aggregations
     let allDataQuery = supabase
       .from('aggregated_transactions')
-      .select('gross_amount, discount_amount, tax_amount, service_charge_amount, net_amount')
+      .select('gross_amount, discount_amount, tax_amount, service_charge_amount, bill_after_discount, net_amount')
       .is('deleted_at', null)
 
     if (dateFrom) allDataQuery = allDataQuery.gte('transaction_date', dateFrom)
@@ -644,8 +646,9 @@ export class PosAggregatesRepository {
       discount_amount: (acc.discount_amount || 0) + Number(row.discount_amount || 0),
       tax_amount: (acc.tax_amount || 0) + Number(row.tax_amount || 0),
       service_charge_amount: (acc.service_charge_amount || 0) + Number(row.service_charge_amount || 0),
+      bill_after_discount: (acc.bill_after_discount || 0) + Number(row.bill_after_discount || 0),
       net_amount: (acc.net_amount || 0) + Number(row.net_amount || 0),
-    }), { gross_amount: 0, discount_amount: 0, tax_amount: 0, service_charge_amount: 0, net_amount: 0 })
+    }), { gross_amount: 0, discount_amount: 0, tax_amount: 0, service_charge_amount: 0, bill_after_discount: 0, net_amount: 0 })
 
     return {
       total_count: count || 0,
@@ -653,6 +656,7 @@ export class PosAggregatesRepository {
       total_discount_amount: totals.discount_amount,
       total_tax_amount: totals.tax_amount,
       total_service_charge_amount: totals.service_charge_amount,
+      total_bill_after_discount: totals.bill_after_discount,
       total_net_amount: totals.net_amount,
     }
   }
@@ -723,6 +727,7 @@ export class PosAggregatesRepository {
       discount_amount: Number(row.discount_amount),
       tax_amount: Number(row.tax_amount),
       service_charge_amount: Number(row.service_charge_amount),
+      bill_after_discount: Number(row.bill_after_discount || 0),
       percentage_fee_amount: Number(row.percentage_fee_amount || 0),
       fixed_fee_amount: Number(row.fixed_fee_amount || 0),
       total_fee_amount: Number(row.total_fee_amount || 0),
@@ -761,6 +766,7 @@ export class PosAggregatesRepository {
       discount_amount: Number(row.discount_amount),
       tax_amount: Number(row.tax_amount),
       service_charge_amount: Number(row.service_charge_amount),
+      bill_after_discount: Number(row.bill_after_discount || 0),
       percentage_fee_amount: Number(row.percentage_fee_amount || 0),
       fixed_fee_amount: Number(row.fixed_fee_amount || 0),
       total_fee_amount: Number(row.total_fee_amount || 0),

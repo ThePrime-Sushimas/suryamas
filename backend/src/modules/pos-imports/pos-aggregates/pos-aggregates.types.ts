@@ -38,7 +38,11 @@ export type AggregatedTransactionSourceType = "POS";
  * | discount_amount | discount + bill_discount | Total discount |
  * | tax_amount | tax | Tax amount |
  * | service_charge_amount | service_charge | Service charge amount |
- * | net_amount | - | subtotal + tax + service_charge - (discount + bill_discount) |
+ * | bill_after_discount | - | subtotal + tax - discount (before fee) |
+ * | percentage_fee_amount | - | Fee from percentage (bill_after_discount × fee_percentage / 100) |
+ * | fixed_fee_amount | - | Fixed fee (per transaction or per total) |
+ * | total_fee_amount | - | Total fee (percentage_fee + fixed_fee) |
+ * | nett_amount | - | bill_after_discount - total_fee_amount (final amount) |
  * | currency | - | Fixed: 'IDR' |
  * | journal_id | - | Nullable, set when journal created |
  * | is_reconciled | - | Default: false |
@@ -57,10 +61,11 @@ export interface AggregatedTransaction {
   discount_amount: number; // discount + bill_discount from pos_import_lines
   tax_amount: number; // tax from pos_import_lines
   service_charge_amount: number; // service_charge from pos_import_lines
-  percentage_fee_amount: number; // Fee from percentage (gross_amount × fee_percentage / 100)
+  bill_after_discount: number; // subtotal + tax - discount (before fee)
+  percentage_fee_amount: number; // Fee from percentage (bill_after_discount × fee_percentage / 100)
   fixed_fee_amount: number; // Fixed fee (per transaction or per total)
   total_fee_amount: number; // Total fee (percentage_fee + fixed_fee)
-  net_amount: number; // subtotal + tax + service_charge - (discount + bill_discount) - total_fee_amount
+  net_amount: number; // bill_after_discount - total_fee_amount (final amount after fee)
   currency: string; // Default: 'IDR'
   journal_id: string | null;
   is_reconciled: boolean; // Default: false
@@ -99,6 +104,7 @@ export interface AggregatedTransactionListItem extends Pick<
   | "discount_amount"
   | "tax_amount"
   | "service_charge_amount"
+  | "bill_after_discount"
   | "percentage_fee_amount"
   | "fixed_fee_amount"
   | "total_fee_amount"
@@ -134,10 +140,11 @@ export interface CreateAggregatedTransactionDto {
   discount_amount?: number; // discount + bill_discount from pos_import_lines
   tax_amount?: number; // tax from pos_import_lines
   service_charge_amount?: number; // service_charge from pos_import_lines
+  bill_after_discount?: number; // Calculated: gross + tax - discount
   percentage_fee_amount?: number; // Calculated from payment method
   fixed_fee_amount?: number; // Calculated from payment method
   total_fee_amount?: number; // Sum of percentage and fixed fees
-  net_amount: number; // Calculated: gross + tax + service - discount - total_fee
+  net_amount: number; // Calculated: bill_after_discount - total_fee
   currency?: string; // Default: 'IDR'
   status?: AggregatedTransactionStatus; // Default: 'READY'
 }
@@ -157,6 +164,7 @@ export interface UpdateAggregatedTransactionDto {
   discount_amount?: number;
   tax_amount?: number;
   service_charge_amount?: number;
+  bill_after_discount?: number;
   percentage_fee_amount?: number;
   fixed_fee_amount?: number;
   total_fee_amount?: number;
@@ -210,6 +218,7 @@ export interface AggregatedTransactionSummary {
   total_discount_amount: number;
   total_tax_amount: number;
   total_service_charge_amount: number;
+  total_bill_after_discount: number;
   total_net_amount: number;
   by_status?: Record<AggregatedTransactionStatus, number>;
   by_payment_method?: Record<number, number>;
