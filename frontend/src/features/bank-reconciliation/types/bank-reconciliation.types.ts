@@ -58,7 +58,7 @@ export interface ReconciliationSummary {
 export interface PotentialMatch {
   id: string;
   gross_amount: number;
-  nett_amount: number;
+  net_amount: number;
   payment_type: string;
   payment_method_name: string;
 }
@@ -80,7 +80,7 @@ export interface BankStatementWithMatch {
   matched_aggregate?: {
     id: string;
     gross_amount: number;
-    nett_amount: number;
+    net_amount: number;
     payment_type: string;
     payment_method_name?: string;
   };
