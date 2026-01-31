@@ -11,6 +11,7 @@
 - [x] **Service** - Update `toInsertData` untuk fee breakdown
 - [x] **Orchestrator** - Update `transformToReconciliationAggregate` dan types
 - [x] **Database Migration** - Buat file migration untuk menambah kolom di database
+- [x] **Frontend Table** - Tambah kolom fee breakdown di PosAggregatesTable
 
 ---
 
@@ -34,6 +35,11 @@
 - [x] d. Tambah indexes untuk performance
 - [x] e. Tambah rollback script
 
+### Step 4: Frontend Table ✅
+- [x] a. Tambah 3 kolom fee di header table
+- [x] b. Tambah fee data cells dengan format warna ungu
+- [x] c. Format: -Rp XXX (menunjukkan pengurangan)
+
 ---
 
 ## File Changes Summary
@@ -56,8 +62,10 @@
    - Migration file baru
 
 ### Frontend
-1. `frontend/src/features/pos-aggregates/types.ts` ✅ DONE
-2. `frontend/src/features/bank-reconciliation/components/reconciliation/ManualMatchModal.tsx` ✅ DONE
+1. `frontend/src/features/pos-aggregates/types.ts` ✅
+2. `frontend/src/features/bank-reconciliation/components/reconciliation/ManualMatchModal.tsx` ✅
+3. `frontend/src/features/pos-aggregates/components/PosAggregatesTable.tsx` ✅
+   - Tambah kolom Fee (%), Fixed Fee, Total Fee
 
 ---
 
@@ -73,7 +81,7 @@
 
 2. **Test Fee Calculation Integration**
    - Test dengan data baru yang punya fee
-   - Verify fee breakdown ditampilkan dengan benar
+   - Verify fee breakdown ditampilkan dengan benar di table dan modal
 
 3. **Update Existing Data (Optional)**
    - Run script untuk update existing records dengan fee yang dihitung ulang
