@@ -48,20 +48,33 @@ export function ManualMatchModal({
     setIsSearching(true);
     try {
       // Build filter for unreconciled aggregates
+      // Include date range around statement date (±3 days) for better matching
+      const dateFrom = item?.transaction_date
+        ? new Date(item.transaction_date)
+        : new Date();
+      dateFrom.setDate(dateFrom.getDate() - 3);
+
+      const dateTo = item?.transaction_date
+        ? new Date(item.transaction_date)
+        : new Date();
+      dateTo.setDate(dateTo.getDate() + 3);
+
       const filter: AggregatedTransactionFilterParams = {
         is_reconciled: false,
         search: search || undefined,
+        transaction_date_from: dateFrom.toISOString().split('T')[0],
+        transaction_date_to: dateTo.toISOString().split('T')[0],
       }
 
       // Search for unreconciled aggregates around the same date
-      const result = await posAggregatesApi.list(1, 20, null, filter);
+      const result = await posAggregatesApi.list(1, 50, null, filter);
       setAggregates(result.data);
     } catch (err) {
       console.error("Failed to fetch aggregates:", err);
     } finally {
       setIsSearching(false);
     }
-  }, [search]);
+  }, [search, item?.transaction_date]);
 
   useEffect(() => {
     if (isOpen && item) {

@@ -119,10 +119,16 @@ export class BankReconciliationService {
     );
 
     // 2. Get aggregates (expected net) from orchestrator
+    // Expand date range to include date buffer for fuzzy matching
+    const bufferStart = new Date(startDate);
+    bufferStart.setDate(bufferStart.getDate() - matchingCriteria.dateBufferDays);
+    const bufferEnd = new Date(endDate);
+    bufferEnd.setDate(bufferEnd.getDate() + matchingCriteria.dateBufferDays);
+
     const aggregates = await this.orchestratorService.getAggregatesByDateRange(
       companyId,
-      startDate,
-      endDate,
+      bufferStart,
+      bufferEnd,
     );
 
     const matches: ReconciliationMatch[] = [];
@@ -152,7 +158,7 @@ export class BankReconciliationService {
         const sDate = new Date(s.transaction_date).toDateString();
         const aDate = new Date(a.transaction_date).toDateString();
         return (
-          Math.abs(sAmount - a.net_amount) <=
+          Math.abs(sAmount - a.nett_amount) <=
             matchingCriteria.amountTolerance && sDate === aDate
         );
       },
@@ -171,7 +177,7 @@ export class BankReconciliationService {
         const aDate = new Date(a.transaction_date).getTime();
         const dayDiff = Math.abs(sDate - aDate) / (1000 * 3600 * 24);
         return (
-          Math.abs(sAmount - a.net_amount) <=
+          Math.abs(sAmount - a.nett_amount) <=
             matchingCriteria.amountTolerance &&
           dayDiff <= matchingCriteria.dateBufferDays
         );
@@ -244,7 +250,7 @@ if (matchIdx !== -1) {
           matchScore: score,
           matchCriteria: criteriaName,
           difference: Math.abs(
-            statement.credit_amount - statement.debit_amount - agg.net_amount,
+            statement.credit_amount - statement.debit_amount - agg.nett_amount,
           ),
         });
 

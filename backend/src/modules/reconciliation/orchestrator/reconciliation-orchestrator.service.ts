@@ -401,8 +401,8 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
         .lte("transaction_date", maxDateStr)
         .is("deleted_at", null)
         .eq("is_reconciled", false) // Only unmatched
-        .gte("net_amount", statementAmount - tolerance)
-        .lte("net_amount", statementAmount + tolerance)
+        .gte("nett_amount", statementAmount - tolerance)
+        .lte("nett_amount", statementAmount + tolerance)
         .order("transaction_date", { ascending: false })
         .limit(10);
 
@@ -416,7 +416,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
 
 // Calculate confidence score for each potential match
       const potentialMatches = (data || []).map((agg) => {
-        const netAmount = Number(agg.net_amount);
+        const netAmount = Number(agg.nett_amount);
         const amountDiff = Math.abs(netAmount - statementAmount);
         const dateDiff =
           Math.abs(

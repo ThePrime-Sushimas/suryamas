@@ -196,7 +196,7 @@ export const FailedTransactionsTable: React.FC<FailedTransactionsTableProps> = (
                   {/* Amount */}
                   <td className="px-4 py-3 whitespace-nowrap text-right">
                     <span className="text-sm font-medium text-gray-900">
-                      {formatCurrency(transaction.net_amount)}
+                      {formatCurrency(transaction.nett_amount)}
                     </span>
                   </td>
 

@@ -565,7 +565,7 @@ export async function generateJournalsOptimized(
         // ==============================
         // Step 4.2: Calculate Totals
         // ==============================
-        const totalAmount = groupTransactions.reduce((sum, tx) => sum + Number(tx.net_amount), 0)
+        const totalAmount = groupTransactions.reduce((sum, tx) => sum + Number(tx.nett_amount), 0)
         const transactionIds = groupTransactions.map(tx => tx.id)
 
         // ==============================
@@ -588,7 +588,7 @@ export async function generateJournalsOptimized(
           if (!coaGroups.has(coaId)) {
             coaGroups.set(coaId, { amount: 0, paymentMethodName: pm?.name })
           }
-          coaGroups.get(coaId)!.amount += Number(tx.net_amount)
+          coaGroups.get(coaId)!.amount += Number(tx.nett_amount)
         }
 
         if (coaGroups.size === 0) {
