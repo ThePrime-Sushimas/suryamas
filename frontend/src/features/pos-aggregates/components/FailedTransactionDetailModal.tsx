@@ -199,7 +199,7 @@ export const FailedTransactionDetailModal: React.FC<FailedTransactionDetailModal
                       </div>
                       <div className="border-t pt-2 flex justify-between">
                         <span className="text-sm font-medium text-gray-900">Net Amount</span>
-                        <span className="text-sm font-bold text-gray-900">{formatCurrency(selectedTransaction.net_amount)}</span>
+                        <span className="text-sm font-bold text-gray-900">{formatCurrency(selectedTransaction.nett_amount)}</span>
                       </div>
                     </div>
                   </div>

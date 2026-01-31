@@ -7,7 +7,6 @@
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import { useForm, Controller } from 'react-hook-form'
-import { useBranchContextStore } from '@/features/branch_context'
 import { useBranchesStore } from '@/features/branches/store/branches.store'
 import { posAggregatesApi } from '../api/posAggregates.api'
 import type { AggregatedTransaction, CreateAggregatedTransactionDto, UpdateAggregatedTransactionDto, PaymentMethodOption } from '../types'
@@ -57,7 +56,6 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
   onCancel,
   isLoading = false,
 }) => {
-  const currentBranch = useBranchContextStore((s) => s.currentBranch)
   const { branches, fetchBranches, loading: loadingBranches } = useBranchesStore()
   const [showErrors, setShowErrors] = useState(false)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([])
@@ -74,7 +72,6 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
     setValue,
   } = useForm<CreateAggregatedTransactionDto>({
     defaultValues: {
-      company_id: currentBranch?.company_id || '',
       branch_name: null,
       source_type: 'POS',
       source_id: '',
@@ -85,7 +82,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
       discount_amount: 0,
       tax_amount: 0,
       service_charge_amount: 0,
-      net_amount: 0,
+      nett_amount: 0,
       currency: 'IDR',
       status: 'READY',
     },
@@ -126,7 +123,6 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
   useEffect(() => {
     if (transaction) {
       reset({
-        company_id: transaction.company_id,
         branch_name: transaction.branch_name,
         source_type: transaction.source_type,
         source_id: transaction.source_id,
@@ -137,13 +133,12 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
         discount_amount: transaction.discount_amount,
         tax_amount: transaction.tax_amount,
         service_charge_amount: transaction.service_charge_amount,
-        net_amount: transaction.net_amount,
+        nett_amount: transaction.nett_amount,
         currency: transaction.currency,
         status: transaction.status,
       })
     } else {
       reset({
-        company_id: currentBranch?.company_id || '',
         branch_name: null,
         source_type: 'POS',
         source_id: '',
@@ -154,12 +149,12 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
         discount_amount: 0,
         tax_amount: 0,
         service_charge_amount: 0,
-        net_amount: 0,
+        nett_amount: 0,
         currency: 'IDR',
         status: 'READY',
       })
     }
-  }, [transaction, reset, currentBranch?.company_id])
+  }, [transaction, reset])
 
   // Form submission handler
   const handleFormSubmit = useCallback(async (data: CreateAggregatedTransactionDto) => {
@@ -167,15 +162,14 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
     
     const submitData: CreateAggregatedTransactionDto | UpdateAggregatedTransactionDto = {
       ...data,
-      company_id: data.company_id || currentBranch?.company_id,
-      net_amount: netAmount,
+      nett_amount: netAmount,
       payment_method_id: typeof data.payment_method_id === 'string' && parseInt(data.payment_method_id) 
         ? parseInt(data.payment_method_id) 
         : (data.payment_method_id as number),
     }
 
     await onSubmit(submitData)
-  }, [onSubmit, netAmount, currentBranch?.company_id])
+  }, [onSubmit, netAmount])
 
   // Handle cancel
   const handleCancel = useCallback(() => {
@@ -185,9 +179,6 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
-      {/* Hidden company_id field */}
-      <input type="hidden" {...register('company_id')} />
-
       {/* Source Information Section */}
       <div className="bg-gray-50 rounded-lg p-4">
         <h3 className="text-sm font-semibold text-gray-700 mb-3">Informasi Sumber</h3>
@@ -444,7 +435,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700"
               />
             </div>
-            <input type="hidden" {...register('net_amount', { valueAsNumber: true })} />
+            <input type="hidden" {...register('nett_amount', { valueAsNumber: true })} />
             <p className="mt-1 text-xs text-gray-500">Otomatis dihitung</p>
           </div>
         </div>

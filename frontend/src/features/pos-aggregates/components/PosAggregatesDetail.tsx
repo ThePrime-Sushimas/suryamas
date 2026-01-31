@@ -79,7 +79,7 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({ transa
           </div>
           <div className="text-right">
             <div className="text-2xl font-bold text-gray-900">
-              {formatCurrency(transaction.net_amount)}
+              {formatCurrency(transaction.nett_amount)}
             </div>
             <div className="text-sm text-gray-500">Jumlah Bersih</div>
           </div>
@@ -225,7 +225,7 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({ transa
           <div className="text-center p-4 bg-green-50 rounded-lg border-2 border-green-200">
             <div className="text-sm text-green-700 mb-1">Jumlah Bersih</div>
             <div className="text-xl font-bold text-green-700">
-              {formatCurrency(transaction.net_amount)}
+              {formatCurrency(transaction.nett_amount)}
             </div>
           </div>
         </div>

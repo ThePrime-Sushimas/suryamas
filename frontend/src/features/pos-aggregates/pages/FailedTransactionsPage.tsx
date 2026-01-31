@@ -307,7 +307,7 @@ export const FailedTransactionsPage: React.FC = () => {
                         {tx.branch_name || '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-right font-medium">
-                        {formatCurrency(tx.net_amount)}
+                        {formatCurrency(tx.nett_amount)}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(tx.status)}`}>
