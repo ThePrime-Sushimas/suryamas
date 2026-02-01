@@ -587,13 +587,16 @@ bill_after_discount,
     dateFrom?: string,
     dateTo?: string,
     branchNames?: string[]
-): Promise<{
+  ): Promise<{
     total_count: number
     total_gross_amount: number
     total_discount_amount: number
     total_tax_amount: number
     total_service_charge_amount: number
     total_bill_after_discount: number
+    total_percentage_fee_amount: number
+    total_fixed_fee_amount: number
+    total_fee_amount: number
     total_nett_amount: number
   }> {
     let dbQuery = supabase
@@ -603,7 +606,7 @@ bill_after_discount,
 
     if (dateFrom) dbQuery = dbQuery.gte('transaction_date', dateFrom)
     if (dateTo) dbQuery = dbQuery.lte('transaction_date', dateTo)
-    
+
     // Use case-insensitive ilike for branch names
     if (branchNames && branchNames.length > 0) {
       const orConditions = branchNames.map(b => `branch_name.ilike.%${b}%`).join(',')
@@ -621,12 +624,12 @@ bill_after_discount,
     // Then get the sum aggregations
     let allDataQuery = supabase
       .from('aggregated_transactions')
-.select('gross_amount, discount_amount, tax_amount, service_charge_amount, bill_after_discount, nett_amount')
+      .select('gross_amount, discount_amount, tax_amount, service_charge_amount, bill_after_discount, percentage_fee_amount, fixed_fee_amount, total_fee_amount, nett_amount')
       .is('deleted_at', null)
 
     if (dateFrom) allDataQuery = allDataQuery.gte('transaction_date', dateFrom)
     if (dateTo) allDataQuery = allDataQuery.lte('transaction_date', dateTo)
-    
+
     // Use case-insensitive ilike for branch names
     if (branchNames && branchNames.length > 0) {
       const orConditions = branchNames.map(b => `branch_name.ilike.%${b}%`).join(',')
@@ -640,15 +643,28 @@ bill_after_discount,
       throw new DatabaseError('Failed to get summary data', { cause: allDataError })
     }
 
-// Calculate sums in JavaScript
+    // Calculate sums in JavaScript
     const totals = (allData || []).reduce((acc, row) => ({
       gross_amount: (acc.gross_amount || 0) + Number(row.gross_amount || 0),
       discount_amount: (acc.discount_amount || 0) + Number(row.discount_amount || 0),
       tax_amount: (acc.tax_amount || 0) + Number(row.tax_amount || 0),
       service_charge_amount: (acc.service_charge_amount || 0) + Number(row.service_charge_amount || 0),
       bill_after_discount: (acc.bill_after_discount || 0) + Number(row.bill_after_discount || 0),
+      percentage_fee_amount: (acc.percentage_fee_amount || 0) + Number(row.percentage_fee_amount || 0),
+      fixed_fee_amount: (acc.fixed_fee_amount || 0) + Number(row.fixed_fee_amount || 0),
+      total_fee_amount: (acc.total_fee_amount || 0) + Number(row.total_fee_amount || 0),
       nett_amount: (acc.nett_amount || 0) + Number(row.nett_amount || 0),
-    }), { gross_amount: 0, discount_amount: 0, tax_amount: 0, service_charge_amount: 0, bill_after_discount: 0, nett_amount: 0 })
+    }), {
+      gross_amount: 0,
+      discount_amount: 0,
+      tax_amount: 0,
+      service_charge_amount: 0,
+      bill_after_discount: 0,
+      percentage_fee_amount: 0,
+      fixed_fee_amount: 0,
+      total_fee_amount: 0,
+      nett_amount: 0
+    })
 
     return {
       total_count: count || 0,
@@ -657,6 +673,9 @@ bill_after_discount,
       total_tax_amount: totals.tax_amount,
       total_service_charge_amount: totals.service_charge_amount,
       total_bill_after_discount: totals.bill_after_discount,
+      total_percentage_fee_amount: totals.percentage_fee_amount,
+      total_fixed_fee_amount: totals.fixed_fee_amount,
+      total_fee_amount: totals.total_fee_amount,
       total_nett_amount: totals.nett_amount,
     }
   }

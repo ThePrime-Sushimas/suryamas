@@ -218,6 +218,9 @@ export interface AggregatedTransactionSummary {
   total_tax_amount: number;
   total_service_charge_amount: number;
   total_bill_after_discount: number;
+  total_percentage_fee_amount: number;
+  total_fixed_fee_amount: number;
+  total_fee_amount: number;
   total_nett_amount: number;
   by_status?: Record<AggregatedTransactionStatus, number>;
   by_payment_method?: Record<number, number>;
