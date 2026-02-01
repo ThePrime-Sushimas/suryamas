@@ -65,7 +65,7 @@ export function ManualMatchModal({
       }
 
       // Search for unreconciled aggregates with filters
-      const result = await posAggregatesApi.list(1, 100, null, filter);
+      const result = await posAggregatesApi.list(1, 500, null, filter);
       setAggregates(result.data);
     } catch (err) {
       console.error("Failed to fetch aggregates:", err);

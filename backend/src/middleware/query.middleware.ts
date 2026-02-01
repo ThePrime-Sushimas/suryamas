@@ -26,7 +26,7 @@ export const queryMiddleware = (options: QueryMiddlewareOptions = {}) => {
       const noPagination = req.query.no_pagination === 'true'
       if (pagination && !noPagination) {
         const page = Math.max(1, parseInt(req.query.page as string) || 1)
-        const limit = Math.max(1, Math.min(1000, parseInt(req.query.limit as string) || 10))
+        const limit = Math.max(1, parseInt(req.query.limit as string) || 10)
         req.pagination = { page, limit }
       }
 

@@ -103,7 +103,7 @@ const paymentMethodIdsSchema = z.union([
 export const aggregatedTransactionListQuerySchema = z.object({
   query: z.object({
     page: z.coerce.number().int().positive().default(1),
-    limit: z.coerce.number().int().positive().max(100).default(10),
+    limit: z.coerce.number().int().positive().default(500),
     branch_name: z.string().optional(),
     branch_names: branchNamesSchema,
     source_type: z.enum(['POS']).optional(),
