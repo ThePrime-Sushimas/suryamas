@@ -194,20 +194,24 @@ export class PosAggregatesService {
     AggregatedTransaction,
     "id" | "created_at" | "updated_at" | "version"
   > {
-    // Calculate bill after discount = gross + tax - discount
+    // Calculate bill after discount = gross + tax + service_charge - discount
     const billAfterDiscount =
       Number(data.gross_amount) +
-      Number(data.tax_amount ?? 0) -
+      Number(data.tax_amount ?? 0) +
+      Number(data.service_charge_amount ?? 0) -
       Number(data.discount_amount ?? 0)
 
-    // Calculate fee from payment method configuration
+    // Calculate percentage fee from payment method configuration
     // percentage_fee = bill_after_discount × fee_percentage / 100
     const percentageFeeAmount =
       feeConfig && feeConfig.fee_percentage > 0
         ? billAfterDiscount * (feeConfig.fee_percentage / 100)
         : Number(data.percentage_fee_amount ?? 0)
 
-    // fixed_fee = fee_fixed_amount (per transaction)
+    // Calculate fixed fee from payment method configuration
+    // fee_fixed_per_transaction = true: fixed fee per transaction
+    // fee_fixed_per_transaction = false: fixed fee is total amount based (handled at settlement level)
+    // For per-transaction calculation, we use fee_fixed_amount directly
     const fixedFeeAmount =
       feeConfig && feeConfig.fee_fixed_amount > 0
         ? feeConfig.fee_fixed_amount
@@ -216,7 +220,7 @@ export class PosAggregatesService {
     // total_fee = percentage_fee + fixed_fee
     const totalFeeAmount = percentageFeeAmount + fixedFeeAmount
 
-// nett_amount = bill_after_discount - total_fee
+    // nett_amount = bill_after_discount - total_fee
     const nettAmount = billAfterDiscount - totalFeeAmount
 
     return {
