@@ -167,7 +167,7 @@ const calculateDifference = (item: BankStatementWithMatch) => {
                       )}
                     </span>
                     <span
-                      className="text-xs text-gray-500 truncate max-w-[250px]"
+                      className="text-xs text-gray-500 max-w-[500px]"
                       title={item.description}
                     >
                       {item.description || "No description"}
