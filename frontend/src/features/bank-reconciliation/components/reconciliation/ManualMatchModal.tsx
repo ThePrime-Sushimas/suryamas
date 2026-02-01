@@ -42,8 +42,6 @@ export function ManualMatchModal({
   const [overrideDifference, setOverrideDifference] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
-
-
   const handleSearch = useCallback(async () => {
     setIsSearching(true);
     try {
@@ -60,14 +58,13 @@ export function ManualMatchModal({
       dateTo.setDate(dateTo.getDate() + 3);
 
       const filter: AggregatedTransactionFilterParams = {
+        // Fix type coercion: filter akan dikirim sebagai string "false"
+        // karena axios menconvert boolean ke "false" string yang diparse sebagai true oleh z.coerce.boolean()
         is_reconciled: false,
-        search: search || undefined,
-        transaction_date_from: dateFrom.toISOString().split('T')[0],
-        transaction_date_to: dateTo.toISOString().split('T')[0],
       }
 
-      // Search for unreconciled aggregates around the same date
-      const result = await posAggregatesApi.list(1, 50, null, filter);
+      // Search for unreconciled aggregates (semua data)
+      const result = await posAggregatesApi.list(1, 100, null, filter);
       setAggregates(result.data);
     } catch (err) {
       console.error("Failed to fetch aggregates:", err);

@@ -76,7 +76,7 @@ export function AutoMatchDialog({
           </div>
         </div>
 
-        <div className="p-8 -mt-6 bg-white dark:bg-gray-900 rounded-t-[32px] relative z-10 space-y-6">
+        <div className="p-8 -mt-6 bg-white dark:bg-gray-900 rounded-t-4xl relative z-10 space-y-6">
           {/* Period Card */}
           <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 rounded-2xl p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -186,7 +186,7 @@ export function AutoMatchDialog({
             onClick={handleConfirm}
             className="group relative px-10 py-3 bg-blue-600 text-white rounded-2xl text-sm font-extrabold hover:bg-blue-700 shadow-xl shadow-blue-500/20 active:scale-95 disabled:opacity-50 transition-all flex items-center gap-2 overflow-hidden"
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+            <div className="absolute inset-0 bg-linear-to-r from-blue-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
             {isLoading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (

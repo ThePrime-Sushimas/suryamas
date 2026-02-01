@@ -114,7 +114,12 @@ export const aggregatedTransactionListQuerySchema = z.object({
     transaction_date_from: z.string().optional(),
     transaction_date_to: z.string().optional(),
     status: z.enum(['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED']).optional(),
-    is_reconciled: z.coerce.boolean().optional(),
+    // Fix: handle boolean coercion properly - string "false" should be false, not true
+    is_reconciled: z.union([
+      z.boolean(),
+      z.literal('true'),
+      z.literal('false'),
+    ]).optional().transform((val) => val === 'true' ? true : val === 'false' ? false : val),
     has_journal: z.coerce.boolean().optional(),
     search: z.string().optional(),
     show_deleted: z.coerce.boolean().default(false),
