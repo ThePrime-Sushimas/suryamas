@@ -353,14 +353,21 @@ const failedData = {
         // Bill after discount = gross + tax - discount
         const billAfterDiscount = grossAmount + taxAmount - (discountAmount + billDiscountAmount)
         
+        // 🔥 Calculate transaction count dari unique bill_number dalam grup
+        const uniqueBillNumbers = new Set(groupLines.map((line: any) => line.bill_number))
+        const transactionCount = uniqueBillNumbers.size
+        
         // 🔥 CALCULATE FEE from payment method configuration
         // percentage_fee = bill_after_discount × fee_percentage / 100
         const percentageFeeAmount = pmResult.fee_percentage > 0
           ? billAfterDiscount * (pmResult.fee_percentage / 100)
           : 0
         
-        // fixed_fee = fee_fixed_amount (per transaction)
-        const fixedFeeAmount = pmResult.fee_fixed_amount || 0
+        // fixed_fee = fee_fixed_amount × transaction_count (jika fee_fixed_per_transaction = true)
+        //            fee_fixed_amount (jika fee_fixed_per_transaction = false)
+        const fixedFeeAmount = pmResult.fee_fixed_per_transaction
+          ? transactionCount * (pmResult.fee_fixed_amount || 0)
+          : (pmResult.fee_fixed_amount || 0)
         
         // total_fee = percentage + fixed
         const totalFeeAmount = percentageFeeAmount + fixedFeeAmount
