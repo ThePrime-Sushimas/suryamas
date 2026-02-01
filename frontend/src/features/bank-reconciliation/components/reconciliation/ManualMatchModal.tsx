@@ -261,7 +261,7 @@ export function ManualMatchModal({
                           {(
                             bankAmount -
                             (aggregates.find((a) => a.id === selectedId)
-                              ?.gross_amount || 0)
+                              ?.nett_amount || 0)
                           ).toLocaleString("id-ID")}
                         </span>
                       </div>
@@ -335,10 +335,10 @@ export function ManualMatchModal({
                           )}
                         </div>
                         <div className="flex items-center justify-between">
-                          <p
+                        <p
                             className={`font-bold ${selectedId === agg.id ? "text-white" : "text-gray-900 dark:text-white"}`}
                           >
-                            {(agg.gross_amount ?? 0).toLocaleString("id-ID")}
+                            {(agg.nett_amount ?? 0).toLocaleString("id-ID")}
                           </p>
                           <span
                             className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${selectedId === agg.id ? "bg-white/20 text-white" : "bg-gray-100 dark:bg-gray-700 text-gray-500"}`}
