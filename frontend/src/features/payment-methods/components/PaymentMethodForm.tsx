@@ -454,7 +454,7 @@ export const PaymentMethodForm = ({
               </label>
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              ✓ Per tx: Gojek, OVO, Grab
+              ✓ Per tx: Gojek
               <br />
               ✗ Per total: QRIS, Card, EDC
             </p>
