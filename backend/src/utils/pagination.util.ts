@@ -34,7 +34,7 @@ export const calculateOffset = (page: number, limit: number): number => {
 
 export const getPaginationParams = (query: Record<string, unknown>) => {
   const page = Math.max(1, Number(query.page) || 1)
-  const limit = Math.min(100, Math.max(1, Number(query.limit) || 10))
+  const limit = Math.max(1, Number(query.limit) || 500)
   const offset = calculateOffset(page, limit)
   return { page, limit, offset }
 }
