@@ -108,3 +108,110 @@ export interface DiscrepancyItem {
   reason: 'NO_MATCH' | 'AMOUNT_MISMATCH' | 'DATE_ANOMALY';
   severity: 'HIGH' | 'MEDIUM' | 'LOW';
 }
+
+// =====================================================
+// MULTI-MATCH FEATURE TYPES
+// =====================================================
+
+/**
+ * Status untuk multi-match groups
+ */
+export enum ReconciliationGroupStatus {
+  PENDING = 'PENDING',
+  RECONCILED = 'RECONCILED',
+  DISCREPANCY = 'DISCREPANCY',
+  UNDO = 'UNDO'
+}
+
+/**
+ * Reconciliation group for multi-match (1 POS = N Bank Statements)
+ */
+export interface ReconciliationGroup {
+  id: string;
+  company_id: string;
+  aggregate_id: string;
+  total_bank_amount: number;
+  aggregate_amount: number;
+  difference: number;
+  status: ReconciliationGroupStatus;
+  notes?: string;
+  reconciled_by?: string;
+  reconciled_at?: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+  aggregate?: AggregatedTransactionInfo;
+  details?: ReconciliationGroupDetail[];
+}
+
+/**
+ * Detail dari group - menyimpan relasi antara statement dan group
+ */
+export interface ReconciliationGroupDetail {
+  id: string;
+  group_id: string;
+  statement_id: string;
+  amount: number;
+  created_at: string;
+  statement?: BankStatementInfo;
+}
+
+/**
+ * Info singkat aggregate untuk response
+ */
+export interface AggregatedTransactionInfo {
+  id: string;
+  transaction_date: string;
+  gross_amount: number;
+  nett_amount: number;
+  payment_method_name: string;
+  merchant_name?: string;
+}
+
+/**
+ * Info singkat bank statement untuk response
+ */
+export interface BankStatementInfo {
+  id: string;
+  transaction_date: string;
+  description: string;
+  debit_amount: number;
+  credit_amount: number;
+  amount?: number; // Calculated: credit - debit
+}
+
+/**
+ * Request untuk create multi-match
+ */
+export interface MultiMatchRequestDto {
+  companyId: string;
+  aggregateId: string;
+  statementIds: string[];
+  notes?: string;
+  overrideDifference?: boolean;
+}
+
+/**
+ * Result dari create multi-match
+ */
+export interface MultiMatchResultDto {
+  success: boolean;
+  groupId: string;
+  aggregateId: string;
+  statementIds: string[];
+  totalBankAmount: number;
+  aggregateAmount: number;
+  difference: number;
+  differencePercent: number;
+}
+
+/**
+ * Suggestion untuk multi-match
+ */
+export interface MultiMatchSuggestion {
+  statements: BankStatementInfo[];
+  totalAmount: number;
+  matchPercentage: number;
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  reason: string;
+}

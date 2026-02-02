@@ -11,6 +11,9 @@ import type { ValidatedAuthRequest } from "../../../middleware/validation.middle
 import {
   manualReconcileSchema,
   autoMatchSchema,
+  multiMatchSchema,
+  multiMatchGroupQuerySchema,
+  multiMatchSuggestionsQuerySchema,
 } from "./bank-reconciliation.schema";
 import {
   AlreadyReconciledError,
@@ -217,6 +220,154 @@ export class BankReconciliationController {
         companyId as string,
         id as string,
       );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+
+  // =====================================================
+  // MULTI-MATCH CONTROLLER METHODS
+  // =====================================================
+
+  /**
+   * Create multi-match (1 POS = N Bank Statements)
+   */
+  async createMultiMatch(
+    req: ValidatedAuthRequest<typeof multiMatchSchema>,
+    res: Response,
+  ): Promise<void> {
+    try {
+      const validated = req.validated.body;
+      const userId = req.user?.id;
+
+      const result = await this.service.createMultiMatch(
+        validated.companyId,
+        validated.aggregateId,
+        validated.statementIds,
+        userId,
+        validated.notes,
+        validated.overrideDifference,
+      );
+
+      res.status(201).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+        code: "MULTI_MATCH_FAILED",
+      });
+    }
+  }
+
+  /**
+   * Undo multi-match
+   */
+  async undoMultiMatch(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { groupId } = req.params;
+      const userId = req.user?.id;
+
+      await this.service.undoMultiMatch(groupId as string, userId);
+
+      res.status(200).json({
+        success: true,
+        message: "Multi-match berhasil dibatalkan",
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+        code: "UNDO_MULTI_MATCH_FAILED",
+      });
+    }
+  }
+
+  /**
+   * Get suggested statements for grouping
+   */
+  async getSuggestedGroupStatements(
+    req: AuthenticatedQueryRequest,
+    res: Response,
+  ): Promise<void> {
+    try {
+      const { companyId, aggregateId, tolerancePercent, dateToleranceDays, maxStatements } = req.query;
+
+      if (!companyId || !aggregateId) {
+        throw new Error("Company ID dan Aggregate ID wajib diisi");
+      }
+
+      const result = await this.service.getSuggestedGroupStatements(
+        companyId as string,
+        aggregateId as string,
+        tolerancePercent ? parseFloat(tolerancePercent as string) : undefined,
+        dateToleranceDays ? parseInt(dateToleranceDays as string) : undefined,
+        maxStatements ? parseInt(maxStatements as string) : undefined,
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+
+  /**
+   * Get all multi-match groups
+   */
+  async getReconciliationGroups(
+    req: AuthenticatedQueryRequest,
+    res: Response,
+  ): Promise<void> {
+    try {
+      const { companyId, startDate, endDate } = req.query;
+
+      const result = await this.service.getReconciliationGroups(
+        companyId as string,
+        new Date(startDate as string),
+        new Date(endDate as string),
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+
+  /**
+   * Get details of a multi-match group
+   */
+  async getMultiMatchGroup(req: Request, res: Response): Promise<void> {
+    try {
+      const { groupId } = req.params;
+      const { companyId } = req.query;
+
+      if (!companyId) {
+        throw new Error("Company ID wajib diisi");
+      }
+
+      const result = await this.service.getMultiMatchGroup(groupId as string);
 
       res.status(200).json({
         success: true,

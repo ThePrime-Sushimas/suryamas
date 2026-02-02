@@ -336,6 +336,227 @@ export class BankReconciliationRepository {
 
     if (error) throw error;
   }
+
+  // =====================================================
+  // MULTI-MATCH REPOSITORY METHODS
+  // =====================================================
+
+  /**
+   * Create a reconciliation group with multiple statements
+   */
+  async createReconciliationGroup(data: {
+    companyId: string;
+    aggregateId: string;
+    statementIds: string[];
+    totalBankAmount: number;
+    aggregateAmount: number;
+    difference: number;
+    notes?: string;
+    reconciledBy?: string;
+  }): Promise<string> {
+    const { data: group, error } = await supabase
+      .from("bank_reconciliation_groups")
+      .insert({
+        company_id: data.companyId,
+        aggregate_id: data.aggregateId,
+        total_bank_amount: data.totalBankAmount,
+        aggregate_amount: data.aggregateAmount,
+        difference: data.difference,
+        notes: data.notes,
+        reconciled_by: data.reconciledBy,
+        reconciled_at: new Date().toISOString(),
+        status: Math.abs(data.difference) <= 100 ? 'RECONCILED' : 'DISCREPANCY',
+      })
+      .select("id")
+      .single();
+
+    if (error) throw error;
+    return group.id;
+  }
+
+  /**
+   * Add statements to a reconciliation group
+   */
+  async addStatementsToGroup(
+    groupId: string,
+    statements: Array<{ statementId: string; amount: number }>
+  ): Promise<void> {
+    const details = statements.map(s => ({
+      group_id: groupId,
+      statement_id: s.statementId,
+      amount: s.amount,
+    }));
+
+    const { error } = await supabase
+      .from("bank_reconciliation_group_details")
+      .insert(details);
+
+    if (error) throw error;
+  }
+
+  /**
+   * Get reconciliation group by ID with all details
+   */
+  async getReconciliationGroupById(groupId: string): Promise<any> {
+    const { data, error } = await supabase
+      .from("bank_reconciliation_groups")
+      .select(`
+        *,
+        aggregated_transactions (
+          id,
+          transaction_date,
+          gross_amount,
+          nett_amount,
+          payment_methods!left (
+            name
+          ),
+          merchant_name
+        ),
+        bank_reconciliation_group_details (
+          *,
+          bank_statements (
+            id,
+            transaction_date,
+            description,
+            debit_amount,
+            credit_amount
+          )
+        )
+      `)
+      .eq("id", groupId)
+      .is("deleted_at", null)
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  /**
+   * Mark statements as reconciled with a group
+   */
+  async markStatementsAsReconciledWithGroup(
+    statementIds: string[],
+    groupId: string
+  ): Promise<void> {
+    const { error } = await supabase
+      .from("bank_statements")
+      .update({
+        is_reconciled: true,
+        reconciled_at: new Date().toISOString(),
+        reconciliation_group_id: groupId,
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", statementIds);
+
+    if (error) throw error;
+  }
+
+  /**
+   * Undo reconciliation - reset statements and soft delete group
+   */
+  async undoReconciliationGroup(groupId: string): Promise<void> {
+    // Get group first to get statement IDs
+    const group = await this.getReconciliationGroupById(groupId);
+    if (!group) throw new Error("Group not found");
+
+    // Reset statements
+    const statementIds = (group.bank_reconciliation_group_details || [])
+      .map((d: any) => d.statement_id);
+
+    if (statementIds.length > 0) {
+      const { error } = await supabase
+        .from("bank_statements")
+        .update({
+          is_reconciled: false,
+          reconciled_at: null,
+          reconciliation_group_id: null,
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", statementIds);
+
+      if (error) throw error;
+    }
+
+    // Soft delete group
+    const { error } = await supabase
+      .from("bank_reconciliation_groups")
+      .update({
+        deleted_at: new Date().toISOString(),
+        status: 'UNDO',
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", groupId);
+
+    if (error) throw error;
+  }
+
+  /**
+   * Check if aggregate is already part of a group
+   */
+  async isAggregateInGroup(aggregateId: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from("bank_reconciliation_groups")
+      .select("id")
+      .eq("aggregate_id", aggregateId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (error) throw error;
+    return !!data;
+  }
+
+  /**
+   * Get unreconciled statements by date range for suggestion algorithm
+   */
+  async getUnreconciledStatementsForSuggestion(
+    companyId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<any[]> {
+    const { data, error } = await supabase
+      .from("bank_statements")
+      .select("id, transaction_date, description, debit_amount, credit_amount")
+      .eq("company_id", companyId)
+      .gte("transaction_date", startDate.toISOString().split("T")[0])
+      .lte("transaction_date", endDate.toISOString().split("T")[0])
+      .eq("is_reconciled", false)
+      .is("deleted_at", null)
+      .order("transaction_date", { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  /**
+   * Get all reconciliation groups for a company
+   */
+  async getReconciliationGroups(
+    companyId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<any[]> {
+    const { data, error } = await supabase
+      .from("bank_reconciliation_groups")
+      .select(`
+        *,
+        aggregated_transactions (
+          id,
+          transaction_date,
+          gross_amount,
+          nett_amount,
+          payment_methods!left (name),
+          merchant_name
+        )
+      `)
+      .eq("company_id", companyId)
+      .gte("created_at", startDate.toISOString())
+      .lte("created_at", endDate.toISOString())
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  }
 }
 
 export const bankReconciliationRepository = new BankReconciliationRepository();

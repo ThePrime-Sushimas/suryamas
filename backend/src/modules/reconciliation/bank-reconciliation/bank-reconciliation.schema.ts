@@ -64,3 +64,51 @@ export type ManualReconcileInput = z.infer<typeof manualReconcileSchema>;
 export type AutoMatchInput = z.infer<typeof autoMatchSchema>;
 export type GetStatementsQueryInput = z.infer<typeof getStatementsQuerySchema>;
 export type GetSummaryQueryInput = z.infer<typeof getSummaryQuerySchema>;
+
+// =====================================================
+// MULTI-MATCH SCHEMAS
+// =====================================================
+
+/**
+ * Schema for multi-match request
+ */
+export const multiMatchSchema = z.object({
+  body: z.object({
+    companyId: z.string().uuid("Invalid company ID"),
+    aggregateId: z.coerce.string().min(1, "Aggregate ID is required"),
+    statementIds: z.array(
+      z.string().uuid("Statement ID must be a valid UUID"),
+      { message: "Statement IDs must be valid UUIDs" }
+    ).min(1, "At least one statement ID is required"),
+    notes: z.string().max(500).optional(),
+    overrideDifference: z.boolean().optional().default(false),
+  }),
+});
+
+/**
+ * Schema for multi-match groups query
+ */
+export const multiMatchGroupQuerySchema = z.object({
+  query: z.object({
+    companyId: z.string().uuid("Invalid company ID"),
+    startDate: z.string().date("Invalid start date format"),
+    endDate: z.string().date("Invalid end date format"),
+  }),
+});
+
+/**
+ * Schema for suggestions query
+ */
+export const multiMatchSuggestionsQuerySchema = z.object({
+  query: z.object({
+    companyId: z.string().uuid("Invalid company ID"),
+    aggregateId: z.coerce.string().min(1, "Aggregate ID is required"),
+    tolerancePercent: z.coerce.number().min(0).max(1).optional(),
+    dateToleranceDays: z.coerce.number().int().min(0).max(30).optional(),
+    maxStatements: z.coerce.number().int().min(1).max(20).optional(),
+  }),
+});
+
+export type MultiMatchInput = z.infer<typeof multiMatchSchema>;
+export type MultiMatchGroupQueryInput = z.infer<typeof multiMatchGroupQuerySchema>;
+export type MultiMatchSuggestionsInput = z.infer<typeof multiMatchSuggestionsQuerySchema>;
