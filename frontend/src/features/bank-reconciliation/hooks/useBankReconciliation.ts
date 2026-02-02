@@ -6,7 +6,11 @@ import type {
   ManualReconcileRequest,
   BankAccountStatus,
   PotentialMatch,
+  ReconciliationGroup,
+  MultiMatchSuggestion,
+  MultiMatchRequest,
 } from "../types/bank-reconciliation.types";
+import type { AggregatedTransactionListItem } from "@/features/pos-aggregates/types";
 import { bankReconciliationApi } from "../api/bank-reconciliation.api";
 
 export function useBankReconciliation(companyId: string) {
@@ -21,6 +25,21 @@ export function useBankReconciliation(companyId: string) {
   const [bankAccounts, setBankAccounts] = useState<BankAccountStatus[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // =====================================================
+  // MULTI-MATCH STATE
+  // =====================================================
+  const [reconciliationGroups, setReconciliationGroups] = useState<
+    ReconciliationGroup[]
+  >([]);
+  const [multiMatchSuggestions, setMultiMatchSuggestions] = useState<
+    MultiMatchSuggestion[]
+  >([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [selectedStatementIds, setSelectedStatementIds] = useState<string[]>([]);
+  const [selectedAggregate, setSelectedAggregate] = useState<
+    AggregatedTransactionListItem | null
+  >(null);
 
   const fetchSummary = useCallback(
     async (startDate: string, endDate: string) => {
@@ -145,7 +164,124 @@ export function useBankReconciliation(companyId: string) {
     [companyId, potentialMatchesMap],
   );
 
+  // =====================================================
+  // MULTI-MATCH METHODS
+  // =====================================================
+
+  const createMultiMatch = useCallback(
+    async (payload: Omit<MultiMatchRequest, "companyId">) => {
+      setIsLoading(true);
+      try {
+        await bankReconciliationApi.createMultiMatch({
+          ...payload,
+          companyId,
+        });
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error ? err.message : "Multi-match failed",
+        );
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [companyId],
+  );
+
+  const undoMultiMatch = useCallback(async (groupId: string) => {
+    setIsLoading(true);
+    try {
+      await bankReconciliationApi.undoMultiMatch(groupId);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Failed to undo multi-match",
+      );
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const fetchSuggestedGroupStatements = useCallback(
+    async (aggregateId: string) => {
+      setIsLoadingSuggestions(true);
+      try {
+        const suggestions = await bankReconciliationApi.getSuggestedGroupStatements(
+          companyId,
+          aggregateId,
+        );
+        setMultiMatchSuggestions(suggestions);
+        return suggestions;
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to fetch suggestions",
+        );
+        throw err;
+      } finally {
+        setIsLoadingSuggestions(false);
+      }
+    },
+    [companyId],
+  );
+
+  const fetchReconciliationGroups = useCallback(
+    async (startDate: string, endDate: string) => {
+      setIsLoading(true);
+      try {
+        const groups = await bankReconciliationApi.getReconciliationGroups({
+          companyId,
+          startDate,
+          endDate,
+        });
+        setReconciliationGroups(groups);
+        return groups;
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to fetch reconciliation groups",
+        );
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [companyId],
+  );
+
+  const getMultiMatchGroup = useCallback(
+    async (groupId: string) => {
+      setIsLoading(true);
+      try {
+        const group = await bankReconciliationApi.getMultiMatchGroup(
+          groupId,
+          companyId,
+        );
+        return group;
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to fetch group details",
+        );
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [companyId],
+  );
+
+  const clearMultiMatchSuggestions = useCallback(() => {
+    setMultiMatchSuggestions([]);
+    setSelectedStatementIds([]);
+    setSelectedAggregate(null);
+  }, []);
+
   return {
+    // Existing state and methods
     summary,
     statements,
     bankAccounts,
@@ -159,5 +295,24 @@ export function useBankReconciliation(companyId: string) {
     fetchPotentialMatches,
     potentialMatchesMap,
     isLoadingMatches,
+
+    // =====================================================
+    // MULTI-MATCH STATE & METHODS
+    // =====================================================
+    reconciliationGroups,
+    multiMatchSuggestions,
+    isLoadingSuggestions,
+    selectedStatementIds,
+    setSelectedStatementIds,
+    selectedAggregate,
+    setSelectedAggregate,
+
+    // Multi-match methods
+    createMultiMatch,
+    undoMultiMatch,
+    fetchSuggestedGroupStatements,
+    fetchReconciliationGroups,
+    getMultiMatchGroup,
+    clearMultiMatchSuggestions,
   };
 }

@@ -8,6 +8,10 @@ import type {
   BankAccountStatus,
   BankStatementWithMatch,
   PotentialMatch,
+  ReconciliationGroup,
+  MultiMatchSuggestion,
+  MultiMatchRequest,
+  MultiMatchResult,
 } from "../types/bank-reconciliation.types";
 
 export const bankReconciliationApi = {
@@ -77,6 +81,79 @@ export const bankReconciliationApi = {
   ): Promise<PotentialMatch[]> {
     const response = await api.get(
       `/reconciliation/bank/statements/${statementId}/potential-matches`,
+      { params: { companyId } },
+    );
+    return response.data.data;
+  },
+
+  // =====================================================
+  // MULTI-MATCH API METHODS
+  // =====================================================
+
+  /**
+   * Create multi-match (1 POS = N Bank Statements)
+   */
+  async createMultiMatch(
+    payload: MultiMatchRequest & { companyId: string },
+  ): Promise<MultiMatchResult> {
+    const response = await api.post("/reconciliation/bank/multi-match", payload);
+    return response.data.data;
+  },
+
+  /**
+   * Undo multi-match
+   */
+  async undoMultiMatch(groupId: string): Promise<void> {
+    await api.delete(`/reconciliation/bank/multi-match/${groupId}`);
+  },
+
+  /**
+   * Get suggested statements for grouping
+   */
+  async getSuggestedGroupStatements(
+    companyId: string,
+    aggregateId: string,
+    options?: {
+      tolerancePercent?: number;
+      dateToleranceDays?: number;
+      maxStatements?: number;
+    },
+  ): Promise<MultiMatchSuggestion[]> {
+    const response = await api.get(
+      "/reconciliation/bank/multi-match/suggestions",
+      {
+        params: {
+          companyId,
+          aggregateId,
+          ...options,
+        },
+      },
+    );
+    return response.data.data;
+  },
+
+  /**
+   * Get all multi-match groups
+   */
+  async getReconciliationGroups(
+    params: GetSummaryParams,
+  ): Promise<ReconciliationGroup[]> {
+    const response = await api.get(
+      "/reconciliation/bank/multi-match/groups",
+      { params },
+    );
+    return response.data.data;
+  },
+
+  /**
+   * Get single group details
+   */
+  async getMultiMatchGroup(
+    groupId: string,
+    companyId: string,
+  ): Promise<ReconciliationGroup> {
+    const response = await api.get(
+      `/reconciliation/bank/multi-match/${groupId}`,
       { params: { companyId } },
     );
     return response.data.data;

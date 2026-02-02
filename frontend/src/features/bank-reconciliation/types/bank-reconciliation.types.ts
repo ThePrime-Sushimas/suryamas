@@ -141,3 +141,113 @@ export interface BankAccountStatus {
     unreconciled: number;
   };
 }
+
+// =====================================================
+// MULTI-MATCH TYPES
+// =====================================================
+
+/**
+ * Status untuk reconciliation group
+ */
+export type ReconciliationGroupStatus = 
+  | 'PENDING' 
+  | 'RECONCILED' 
+  | 'DISCREPANCY' 
+  | 'UNDO';
+
+export const ReconciliationGroupStatusMap = {
+  PENDING: 'PENDING',
+  RECONCILED: 'RECONCILED',
+  DISCREPANCY: 'DISCREPANCY',
+  UNDO: 'UNDO',
+} as const;
+
+/**
+ * Reconciliation group untuk multi-match
+ */
+export interface ReconciliationGroup {
+  id: string;
+  company_id: string;
+  aggregate_id: string;
+  total_bank_amount: number;
+  aggregate_amount: number;
+  difference: number;
+  status: ReconciliationGroupStatus;
+  notes?: string;
+  reconciled_by?: string;
+  reconciled_at?: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+  
+  // Joined data
+  aggregate?: {
+    id: string;
+    transaction_date: string;
+    gross_amount: number;
+    nett_amount: number;
+    payment_method_name: string;
+    merchant_name?: string;
+  };
+  details?: Array<{
+    id: string;
+    statement_id: string;
+    amount: number;
+    statement?: {
+      id: string;
+      transaction_date: string;
+      description: string;
+      debit_amount: number;
+      credit_amount: number;
+    };
+  }>;
+}
+
+/**
+ * Suggestion untuk multi-match
+ */
+export interface MultiMatchSuggestion {
+  statements: Array<{
+    id: string;
+    transaction_date: string;
+    description: string;
+    debit_amount: number;
+    credit_amount: number;
+    amount: number;
+  }>;
+  totalAmount: number;
+  matchPercentage: number;
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  reason: string;
+}
+
+/**
+ * Request untuk create multi-match
+ */
+export interface MultiMatchRequest {
+  aggregateId: string;
+  statementIds: string[];
+  notes?: string;
+  overrideDifference?: boolean;
+}
+
+/**
+ * Result dari create multi-match
+ */
+export interface MultiMatchResult {
+  success: boolean;
+  groupId: string;
+  aggregateId: string;
+  statementIds: string[];
+  totalBankAmount: number;
+  aggregateAmount: number;
+  difference: number;
+  differencePercent: number;
+}
+
+/**
+ * Extended BankStatement dengan amount calculated field
+ */
+export interface BankStatementWithAmount extends BankStatementWithMatch {
+  amount: number;
+}

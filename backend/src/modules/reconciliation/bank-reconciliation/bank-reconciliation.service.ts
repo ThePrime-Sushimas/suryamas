@@ -423,10 +423,6 @@ if (matchIdx !== -1) {
       throw new Error("Aggregate tidak ditemukan");
     }
 
-    if (aggregate.company_id !== companyId) {
-      throw new Error("Aggregate tidak milik company ini");
-    }
-
     const existingGroup = await this.repository.isAggregateInGroup(aggregateId);
     if (existingGroup) {
       throw new Error("Aggregate sudah menjadi bagian dari group");
