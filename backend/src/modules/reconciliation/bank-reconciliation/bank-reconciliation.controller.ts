@@ -37,6 +37,7 @@ export class BankReconciliationController {
         validated.statementId,
         userId,
         validated.notes,
+        validated.overrideDifference,
       );
 
       res.status(200).json({
@@ -44,7 +45,7 @@ export class BankReconciliationController {
         data: result,
       });
     } catch (error: any) {
-      let status = 400;
+            let status = 400;
       if (error instanceof AlreadyReconciledError) status = 409;
       if (error instanceof DifferenceThresholdExceededError) status = 422;
 

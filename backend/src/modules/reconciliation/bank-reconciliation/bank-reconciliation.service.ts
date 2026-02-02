@@ -37,6 +37,7 @@ export class BankReconciliationService {
     statementId: string,
     userId?: string,
     notes?: string,
+    overrideDifference?: boolean,
   ): Promise<any> {
     const statement = await this.repository.findById(statementId);
     if (!statement) {
@@ -66,6 +67,7 @@ export class BankReconciliationService {
       statementId,
       aggregateId,
       notes,
+      overrideDifference,
     };
   }
 
