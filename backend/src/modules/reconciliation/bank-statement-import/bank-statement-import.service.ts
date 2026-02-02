@@ -1900,6 +1900,17 @@ export class BankStatementImportService {
     bankAccountId: number,
     importId?: number
   ): Promise<{ validRows: any[]; invalidRows: ParsedRow[]; validationErrors: any[] }> {
+    // Get import record to get file_name for source_file
+    let importRecord: any = null
+    if (importId) {
+      const { data } = await supabase
+        .from('bank_statement_imports')
+        .select('file_name')
+        .eq('id', importId)
+        .maybeSingle()
+      importRecord = data
+    }
+
     const validRows: any[] = []
     const invalidRows: ParsedRow[] = []
     const validationErrors: any[] = []
@@ -1936,6 +1947,7 @@ export class BankStatementImportService {
           row_number: row.row_number,
           is_pending: row.is_pending,
           transaction_type: row.transaction_type,
+          source_file: importRecord?.file_name || null,
         })
       } catch (error: any) {
         invalidRows.push(row)
