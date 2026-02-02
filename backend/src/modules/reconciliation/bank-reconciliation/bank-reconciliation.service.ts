@@ -60,6 +60,17 @@ export class BankReconciliationService {
     );
 
     // 3. Audit Trail
+    await this.repository.logAction({
+      companyId: statement.company_id,
+      userId,
+      action: "MANUAL_RECONCILE",
+      statementId,
+      aggregateId,
+      details: {
+        notes,
+        overrideDifference,
+      },
+    });
 
     return {
       success: true,
@@ -83,14 +94,22 @@ export class BankReconciliationService {
     await this.repository.undoReconciliation(statementId);
 
     // Update status in POS Aggregates (Reset to PENDING)
-    if (statement.aggregate_id) {
+    if (statement.reconciliation_id) {
       await this.orchestratorService.updateReconciliationStatus(
-        statement.aggregate_id,
+        statement.reconciliation_id,
         "PENDING",
       );
     }
 
     // Audit Trail
+    await this.repository.logAction({
+      companyId: statement.company_id,
+      userId,
+      action: "UNDO",
+      statementId,
+      aggregateId: statement.reconciliation_id,
+      details: {},
+    });
   }
 
   /**
