@@ -223,12 +223,22 @@ export class BankReconciliationRepository {
     statementId: string,
     aggregateId: string,
   ): Promise<void> {
+    // Get aggregate to extract payment_method_id
+    const { data: aggregate, error: aggError } = await supabase
+      .from("aggregated_transactions")
+      .select("payment_method_id")
+      .eq("id", aggregateId)
+      .maybeSingle();
+
+    if (aggError) throw aggError;
+
     const { error } = await supabase
       .from("bank_statements")
       .update({
         is_reconciled: true,
         reconciled_at: new Date().toISOString(),
         reconciliation_id: aggregateId,
+        payment_method_id: aggregate?.payment_method_id || null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", statementId);
