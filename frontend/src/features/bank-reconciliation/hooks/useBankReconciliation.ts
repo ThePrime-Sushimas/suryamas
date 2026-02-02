@@ -98,7 +98,7 @@ export function useBankReconciliation(companyId: string) {
       setIsLoading(true);
       try {
         await bankReconciliationApi.manualReconcile({ ...payload, companyId });
-        // Refresh discrepancies (using current date logic in the page)
+        // Note: Refresh is handled by the calling page using dateRange
       } catch (err: unknown) {
         setError(
           err instanceof Error ? err.message : "Manual reconciliation failed",

@@ -297,11 +297,37 @@ if (matchIdx !== -1) {
       bankAccountId,
     );
 
-    return statements.map((s) => ({
-      ...s,
-      amount: s.credit_amount - s.debit_amount,
-      potentialMatches: [], // Suggestions are now lazy-loaded
-    }));
+    return statements.map((s) => {
+      const isReconciled = s.is_reconciled;
+      const bankAmount = s.credit_amount - s.debit_amount;
+      const hasMatch = !!s.matched_aggregate;
+      const difference = hasMatch
+        ? Math.abs(bankAmount - s.matched_aggregate.nett_amount)
+        : 0;
+
+      // Determine status based on reconciliation state
+      let status: BankReconciliationStatus = BankReconciliationStatus.UNRECONCILED;
+      if (isReconciled) {
+        if (difference === 0) {
+          status = s.reconciliation_id 
+            ? BankReconciliationStatus.MANUALLY_MATCHED 
+            : BankReconciliationStatus.AUTO_MATCHED;
+        } else if (difference <= this.config.differenceThreshold) {
+          status = BankReconciliationStatus.AUTO_MATCHED;
+        } else {
+          status = BankReconciliationStatus.DISCREPANCY;
+        }
+      } else {
+        status = hasMatch ? BankReconciliationStatus.PENDING : BankReconciliationStatus.UNRECONCILED;
+      }
+
+      return {
+        ...s,
+        amount: bankAmount,
+        status,
+        potentialMatches: [],
+      };
+    });
   }
 
   /**
