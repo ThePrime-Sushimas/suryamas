@@ -47,8 +47,13 @@ export function AutoMatchDialog({
   };
 
   const modalContent = (
-    <div className="modal modal-open bg-black/40 backdrop-blur-sm">
-      <div className="modal-box max-w-lg bg-white dark:bg-gray-900 p-0 rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="modal-box max-w-lg w-full bg-white dark:bg-gray-900 p-0 rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 relative">
         <div className="relative overflow-hidden bg-linear-to-br from-blue-600 to-indigo-700 p-8 pb-12">
           {/* Abstract shapes */}
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
@@ -197,7 +202,6 @@ export function AutoMatchDialog({
           </button>
         </div>
       </div>
-      <div className="modal-backdrop" onClick={onClose}></div>
     </div>
   );
 
