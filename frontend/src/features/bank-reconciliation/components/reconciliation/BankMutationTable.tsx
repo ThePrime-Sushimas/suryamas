@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Search,
   ArrowRight,
@@ -8,11 +8,17 @@ import {
   HelpCircle,
   Sparkles,
   RefreshCw,
+  Link2,
+  Link2Off,
+  Square,
+  CheckSquare,
+  X,
 } from "lucide-react";
 import type {
   BankStatementWithMatch,
   BankReconciliationStatus,
   PotentialMatch,
+  ReconciliationGroup,
 } from "../../types/bank-reconciliation.types";
 
 interface BankMutationTableProps {
@@ -23,6 +29,10 @@ interface BankMutationTableProps {
   onQuickMatch: (item: BankStatementWithMatch, aggregateId: string) => void;
   onCheckMatches?: (statementId: string) => void;
   onUndo: (statementId: string) => void;
+  // Multi-match props
+  onMultiMatch?: (items: BankStatementWithMatch[]) => void;
+  reconciliationGroups?: ReconciliationGroup[];
+  showMultiMatch?: boolean;
 }
 
 export function BankMutationTable({
@@ -33,27 +43,48 @@ export function BankMutationTable({
   onQuickMatch,
   onCheckMatches,
   onUndo,
+  // Multi-match props
+  onMultiMatch,
+  reconciliationGroups = [],
+  showMultiMatch = true,
 }: BankMutationTableProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<
     "ALL" | "UNRECONCILED" | "RECONCILED" | "DISCREPANCY"
   >("ALL");
 
-  const filteredItems = items.filter((item) => {
-    const matchesSearch =
-      item.description?.toLowerCase().includes(search.toLowerCase()) ||
-      item.reference_number?.toLowerCase().includes(search.toLowerCase());
+  // Multi-match selection state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedStatementIds, setSelectedStatementIds] = useState<string[]>([]);
 
-    if (filter === "ALL") return matchesSearch;
-    if (filter === "UNRECONCILED")
-      return (
-        matchesSearch && !item.is_reconciled && item.status !== "DISCREPANCY"
-      );
-    if (filter === "RECONCILED") return matchesSearch && item.is_reconciled;
-    if (filter === "DISCREPANCY")
-      return matchesSearch && item.status === "DISCREPANCY";
-    return matchesSearch;
-  });
+  // Build a map of statement ID -> group info
+  const statementGroupMap = useMemo(() => {
+    const map: Record<string, ReconciliationGroup> = {};
+    reconciliationGroups.forEach((group) => {
+      group.details?.forEach((detail) => {
+        map[detail.statement_id] = group;
+      });
+    });
+    return map;
+  }, [reconciliationGroups]);
+
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      const matchesSearch =
+        item.description?.toLowerCase().includes(search.toLowerCase()) ||
+        item.reference_number?.toLowerCase().includes(search.toLowerCase());
+
+      if (filter === "ALL") return matchesSearch;
+      if (filter === "UNRECONCILED")
+        return (
+          matchesSearch && !item.is_reconciled && item.status !== "DISCREPANCY"
+        );
+      if (filter === "RECONCILED") return matchesSearch && item.is_reconciled;
+      if (filter === "DISCREPANCY")
+        return matchesSearch && item.status === "DISCREPANCY";
+      return matchesSearch;
+    });
+  }, [items, search, filter]);
 
   const getStatusBadge = (status: BankReconciliationStatus) => {
     switch (status) {
@@ -84,14 +115,121 @@ export function BankMutationTable({
     }
   };
 
-const calculateDifference = (item: BankStatementWithMatch) => {
+  const calculateDifference = (item: BankStatementWithMatch) => {
     if (!item.is_reconciled || !item.matched_aggregate) return 0;
     const bankAmount = item.credit_amount - item.debit_amount;
     return Math.abs(bankAmount - item.matched_aggregate.nett_amount);
   };
 
+  // Multi-match helper functions
+  const toggleSelectionMode = () => {
+    setSelectionMode(!selectionMode);
+    if (!selectionMode) {
+      setSelectedStatementIds([]);
+    }
+  };
+
+  const handleRowSelect = (statementId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedStatementIds((prev) => [...prev, statementId]);
+    } else {
+      setSelectedStatementIds((prev) => prev.filter((id) => id !== statementId));
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedStatementIds.length === filteredItems.length) {
+      setSelectedStatementIds([]);
+    } else {
+      setSelectedStatementIds(filteredItems.map((item) => item.id));
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedStatementIds([]);
+  };
+
+  const handleMultiMatchClick = () => {
+    if (onMultiMatch && selectedStatementIds.length > 0) {
+      const selectedItems = items.filter((item) =>
+        selectedStatementIds.includes(item.id)
+      );
+      onMultiMatch(selectedItems);
+    }
+  };
+
+  const getSelectedTotal = () => {
+    return selectedStatementIds.reduce((sum, id) => {
+      const item = items.find((i) => i.id === id);
+      if (!item) return sum;
+      return sum + (item.credit_amount || 0) - (item.debit_amount || 0);
+    }, 0);
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+      {/* Multi-Match Selection Bar */}
+      {selectionMode && (
+        <div className="bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-800 px-5 py-4">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSelectAll}
+                  className="p-1 hover:bg-indigo-100 dark:hover:bg-indigo-800 rounded transition-colors"
+                >
+                  {selectedStatementIds.length === filteredItems.length &&
+                  filteredItems.length > 0 ? (
+                    <CheckSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  ) : (
+                    <Square className="w-5 h-5 text-indigo-400" />
+                  )}
+                </button>
+                <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">
+                  {selectedStatementIds.length} selected
+                </span>
+              </div>
+              <button
+                onClick={handleClearSelection}
+                className="text-xs text-indigo-500 hover:text-indigo-700 dark:text-indigo-400"
+              >
+                Clear
+              </button>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="text-sm">
+                <span className="text-indigo-600 dark:text-indigo-400">Total: </span>
+                <span className="font-bold text-indigo-700 dark:text-indigo-300">
+                  {getSelectedTotal().toLocaleString("id-ID", {
+                    style: "currency",
+                    currency: "IDR",
+                    maximumFractionDigits: 0,
+                  })}
+                </span>
+              </div>
+
+              <button
+                onClick={handleMultiMatchClick}
+                disabled={selectedStatementIds.length === 0 || !onMultiMatch}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-500/20"
+              >
+                <Link2 className="w-4 h-4" />
+                Multi-Match ({selectedStatementIds.length})
+              </button>
+
+              <button
+                onClick={toggleSelectionMode}
+                className="p-2 hover:bg-indigo-100 dark:hover:bg-indigo-800 rounded-xl transition-colors"
+              >
+                <X className="w-5 h-5 text-indigo-500" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
       <div className="p-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between flex-wrap gap-4">
         <div>
           <h3 className="text-lg font-bold text-gray-900 dark:text-white">
@@ -103,6 +241,20 @@ const calculateDifference = (item: BankStatementWithMatch) => {
         </div>
 
         <div className="flex items-center gap-3">
+          {showMultiMatch && onMultiMatch && (
+            <button
+              onClick={toggleSelectionMode}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                selectionMode
+                  ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
+                  : "bg-gray-50 text-gray-600 dark:bg-gray-900 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+              }`}
+            >
+              <Link2Off className="w-4 h-4" />
+              Select for Multi-Match
+            </button>
+          )}
+
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -139,6 +291,21 @@ const calculateDifference = (item: BankStatementWithMatch) => {
         <table className="w-full text-left">
           <thead>
             <tr className="bg-gray-50/50 dark:bg-gray-900/50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              {selectionMode && (
+                <th className="w-12 px-4 py-4 text-center">
+                  <button
+                    onClick={handleSelectAll}
+                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                  >
+                    {selectedStatementIds.length === filteredItems.length &&
+                    filteredItems.length > 0 ? (
+                      <CheckSquare className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    ) : (
+                      <Square className="w-4 h-4 text-gray-400" />
+                    )}
+                  </button>
+                </th>
+              )}
               <th className="px-6 py-4">Tanggal & Deskripsi</th>
               <th className="px-6 py-4 text-right">Debit</th>
               <th className="px-6 py-4 text-right">Kredit</th>
@@ -149,126 +316,165 @@ const calculateDifference = (item: BankStatementWithMatch) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-            {filteredItems.map((item) => (
-              <tr
-                key={item.id}
-                className="hover:bg-gray-50/50 dark:hover:bg-gray-900/30 transition-colors group"
-              >
-                <td className="px-6 py-4">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      {new Date(item.transaction_date).toLocaleDateString(
-                        "id-ID",
-                        {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        },
-                      )}
-                    </span>
-                    <span
-                      className="text-xs text-gray-500 max-w-[500px]"
-                      title={item.description}
-                    >
-                      {item.description || "No description"}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <span className="text-sm font-medium text-rose-600">
-                    {item.debit_amount > 0
-                      ? item.debit_amount.toLocaleString("id-ID")
-                      : "-"}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <span className="text-sm font-medium text-green-600">
-                    {item.credit_amount > 0
-                      ? item.credit_amount.toLocaleString("id-ID")
-                      : "-"}
-                  </span>
-                </td>
-<td className="px-6 py-4 text-right">
-                  <span className="text-sm text-gray-600 dark:text-gray-400 font-mono">
-                    {item.matched_aggregate
-                      ? item.matched_aggregate.nett_amount.toLocaleString(
-                          "id-ID",
-                        )
-                      : "-"}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <span
-                    className={`text-sm font-bold ${calculateDifference(item) === 0 ? "text-gray-400" : "text-rose-600"}`}
-                  >
-                    {calculateDifference(item) > 0
-                      ? calculateDifference(item).toLocaleString("id-ID")
-                      : "-"}
-                  </span>
-                </td>
-                <td className="px-6 py-4">{getStatusBadge(item.status)}</td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {!item.is_reconciled && (
-                      <>
-                        {(potentialMatchesMap[item.id]?.length ?? 0) > 0 ? (
-<button
-                            onClick={() =>
-                              onQuickMatch(
-                                item,
-                                potentialMatchesMap[item.id]![0].id,
-                              )
-                            }
-                            className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-all shadow-sm"
-                            title={`Cocokkan dengan ${potentialMatchesMap[item.id]![0].payment_method_name}`}
-                          >
-                            <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                            Match{" "}
-                            {potentialMatchesMap[
-                              item.id
-                            ]![0].nett_amount.toLocaleString("id-ID")}
-                          </button>
+            {filteredItems.map((item) => {
+              const isSelected = selectedStatementIds.includes(item.id);
+              const groupInfo = statementGroupMap[item.id];
+              const isInGroup = !!groupInfo;
+
+              return (
+                <tr
+                  key={item.id}
+                  className={`
+                    transition-colors
+                    ${isSelected ? "bg-indigo-50/50 dark:bg-indigo-900/20" : "hover:bg-gray-50/50 dark:hover:bg-gray-900/30"}
+                    ${isInGroup ? "opacity-60" : ""}
+                  `}
+                >
+                  {selectionMode && (
+                    <td className="px-4 py-4 text-center">
+                      <button
+                        onClick={() => handleRowSelect(item.id, !isSelected)}
+                        disabled={isInGroup}
+                        className="p-1 hover:bg-indigo-100 dark:hover:bg-indigo-800 rounded transition-colors disabled:opacity-30"
+                      >
+                        {isSelected ? (
+                          <CheckSquare className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                         ) : (
-                          <button
-                            onClick={() => onCheckMatches?.(item.id)}
-                            disabled={isLoadingMatches[item.id]}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg text-xs font-bold hover:bg-gray-100 transition-all disabled:opacity-50"
-                          >
-                            {isLoadingMatches[item.id] ? (
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Sparkles className="w-3.5 h-3.5 text-blue-500" />
-                            )}
-                            Saran
-                          </button>
+                          <Square className="w-4 h-4 text-gray-400" />
                         )}
-                      </>
-                    )}
-                    {item.is_reconciled ? (
-                      <button
-                        onClick={() => onUndo(item.id)}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-xs font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                      >
-                        <Undo2 className="w-3.5 h-3.5" />
-                        Revert
                       </button>
-                    ) : (
-                      <button
-                        onClick={() => onManualMatch(item)}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 shadow-sm hover:shadow-blue-500/20 transition-all"
+                    </td>
+                  )}
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          {new Date(item.transaction_date).toLocaleDateString(
+                            "id-ID",
+                            {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            },
+                          )}
+                        </span>
+                        {isInGroup && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 rounded text-[10px] font-bold">
+                            <Link2 className="w-3 h-3" />
+                            Grouped
+                          </span>
+                        )}
+                      </div>
+                      <span
+                        className="text-xs text-gray-500 max-w-[400px] truncate"
+                        title={item.description}
                       >
-                        Match
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {items.length === 0 && (
+                        {item.description || "No description"}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <span className="text-sm font-medium text-rose-600">
+                      {item.debit_amount > 0
+                        ? item.debit_amount.toLocaleString("id-ID")
+                        : "-"}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <span className="text-sm font-medium text-green-600">
+                      {item.credit_amount > 0
+                        ? item.credit_amount.toLocaleString("id-ID")
+                        : "-"}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <span className="text-sm text-gray-600 dark:text-gray-400 font-mono">
+                      {item.matched_aggregate
+                        ? item.matched_aggregate.nett_amount.toLocaleString(
+                            "id-ID",
+                          )
+                        : "-"}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <span
+                      className={`text-sm font-bold ${calculateDifference(item) === 0 ? "text-gray-400" : "text-rose-600"}`}
+                    >
+                      {calculateDifference(item) > 0
+                        ? calculateDifference(item).toLocaleString("id-ID")
+                        : "-"}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">{getStatusBadge(item.status)}</td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {!item.is_reconciled && !isInGroup && (
+                        <>
+                          {(potentialMatchesMap[item.id]?.length ?? 0) > 0 ? (
+                            <button
+                              onClick={() =>
+                                onQuickMatch(
+                                  item,
+                                  potentialMatchesMap[item.id]![0].id,
+                                )
+                              }
+                              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-all shadow-sm"
+                              title={`Cocokkan dengan ${potentialMatchesMap[item.id]![0].payment_method_name}`}
+                            >
+                              <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                              Match{" "}
+                              {potentialMatchesMap[
+                                item.id
+                              ]![0].nett_amount.toLocaleString("id-ID")}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => onCheckMatches?.(item.id)}
+                              disabled={isLoadingMatches[item.id]}
+                              className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg text-xs font-bold hover:bg-gray-100 transition-all disabled:opacity-50"
+                            >
+                              {isLoadingMatches[item.id] ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                              )}
+                              Saran
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {item.is_reconciled && !isInGroup && (
+                        <button
+                          onClick={() => onUndo(item.id)}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-xs font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                        >
+                          <Undo2 className="w-3.5 h-3.5" />
+                          Revert
+                        </button>
+                      )}
+                      {!item.is_reconciled && !isInGroup && (
+                        <button
+                          onClick={() => onManualMatch(item)}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 shadow-sm hover:shadow-blue-500/20 transition-all"
+                        >
+                          Match
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {isInGroup && (
+                        <span className="text-xs text-indigo-500 dark:text-indigo-400 font-medium">
+                          In Group
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {filteredItems.length === 0 && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={selectionMode ? 8 : 7}
                   className="px-6 py-12 text-center text-gray-500"
                 >
                   <CheckCircle className="w-10 h-10 text-green-500 mx-auto mb-3 opacity-20" />
@@ -285,3 +491,4 @@ const calculateDifference = (item: BankStatementWithMatch) => {
     </div>
   );
 }
+

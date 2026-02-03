@@ -187,7 +187,6 @@ export interface ReconciliationGroup {
     gross_amount: number;
     nett_amount: number;
     payment_method_name: string;
-    merchant_name?: string;
   };
   details?: Array<{
     id: string;
