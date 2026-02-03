@@ -19,7 +19,13 @@ import {
   AlreadyReconciledError,
   DifferenceThresholdExceededError,
   NoMatchFoundError,
+  FetchStatementError,
+  StatementNotFoundError,
+  DatabaseConnectionError,
+  ReconciliationError,
 } from "./bank-reconciliation.errors";
+import { logError } from "../../../config/logger";
+import { getPaginationParams } from "../../../utils/pagination.util";
 
 export class BankReconciliationController {
   constructor(private readonly service: BankReconciliationService) {}
@@ -48,9 +54,22 @@ export class BankReconciliationController {
         data: result,
       });
     } catch (error: any) {
-            let status = 400;
+      let status = 400;
       if (error instanceof AlreadyReconciledError) status = 409;
       if (error instanceof DifferenceThresholdExceededError) status = 422;
+      
+      // Handle fetch/statement errors
+      if (error instanceof FetchStatementError || 
+          error instanceof StatementNotFoundError ||
+          error instanceof DatabaseConnectionError) {
+        status = 503; // Service unavailable for database issues
+      }
+
+      logError("Reconciliation error", { 
+        endpoint: '/reconcile', 
+        error: error.message,
+        code: error.code 
+      });
 
       res.status(status).json({
         success: false,
@@ -75,10 +94,19 @@ export class BankReconciliationController {
         message: "Reconciliation undone successfully",
       });
     } catch (error: any) {
-      res.status(400).json({
+      logError("Undo reconciliation error", { 
+        statementId: req.params?.statementId,
+        error: error.message 
+      });
+      
+      let status = 400;
+      if (error instanceof StatementNotFoundError) status = 404;
+      if (error instanceof DatabaseConnectionError) status = 503;
+
+      res.status(status).json({
         success: false,
         message: error.message,
-        code: "UNDO_FAILED",
+        code: error.code || "UNDO_FAILED",
       });
     }
   }
@@ -108,7 +136,15 @@ export class BankReconciliationController {
         data: result,
       });
     } catch (error: any) {
-      res.status(400).json({
+      logError("Auto-match error", { 
+        error: error.message,
+        code: error.code 
+      });
+      
+      let status = 400;
+      if (error instanceof DatabaseConnectionError) status = 503;
+
+      res.status(status).json({
         success: false,
         message: error.message,
         code: error.code || "AUTO_MATCH_FAILED",
@@ -127,21 +163,40 @@ export class BankReconciliationController {
       const validated = (req as any).validated?.query || req.query;
       const { companyId, startDate, endDate, bankAccountId } = validated;
 
+      // Get pagination params from middleware or query
+      const pagination = (req as any).pagination || getPaginationParams(req.query);
+      const { limit, offset } = pagination;
+
       const result = await this.service.getStatements(
         companyId,
         new Date(startDate),
         new Date(endDate),
         bankAccountId ? parseInt(bankAccountId) : undefined,
+        limit,
+        offset,
       );
 
       res.status(200).json({
         success: true,
-        data: result,
+        data: result.data,
+        pagination: result.pagination,
       });
     } catch (error: any) {
-      res.status(400).json({
+      logError("Get statements error", { 
+        query: req.query,
+        error: error.message,
+        code: error.code 
+      });
+      
+      let status = 400;
+      if (error instanceof FetchStatementError || error instanceof DatabaseConnectionError) {
+        status = 503;
+      }
+
+      res.status(status).json({
         success: false,
         message: error.message,
+        code: error.code || "FETCH_STATEMENTS_FAILED",
       });
     }
   }
@@ -158,7 +213,6 @@ export class BankReconciliationController {
       const { companyId, startDate, endDate } = validated;
 
       const result = await this.service.getBankAccountsStatus(
-        companyId,
         new Date(startDate),
         new Date(endDate),
       );
@@ -168,9 +222,18 @@ export class BankReconciliationController {
         data: result,
       });
     } catch (error: any) {
-      res.status(400).json({
+      logError("Get bank accounts status error", { 
+        error: error.message,
+        code: error.code 
+      });
+      
+      let status = 400;
+      if (error instanceof DatabaseConnectionError) status = 503;
+
+      res.status(status).json({
         success: false,
         message: error.message,
+        code: error.code || "FETCH_ACCOUNTS_FAILED",
       });
     }
   }
@@ -197,9 +260,20 @@ export class BankReconciliationController {
         data: result,
       });
     } catch (error: any) {
-      res.status(400).json({
+      logError("Get reconciliation summary error", { 
+        error: error.message,
+        code: error.code 
+      });
+      
+      let status = 400;
+      if (error instanceof DatabaseConnectionError || error instanceof FetchStatementError) {
+        status = 503;
+      }
+
+      res.status(status).json({
         success: false,
         message: error.message,
+        code: error.code || "FETCH_SUMMARY_FAILED",
       });
     }
   }
@@ -213,7 +287,7 @@ export class BankReconciliationController {
       const { companyId } = req.query;
 
       if (!companyId) {
-        throw new Error("Company ID is required");
+        throw new ReconciliationError("Company ID is required", "MISSING_COMPANY_ID");
       }
 
       const result = await this.service.getPotentialMatches(
@@ -226,9 +300,22 @@ export class BankReconciliationController {
         data: result,
       });
     } catch (error: any) {
-      res.status(400).json({
+      logError("Get potential matches error", { 
+        statementId: req.params?.id,
+        error: error.message,
+        code: error.code 
+      });
+      
+      let status = 400;
+      if (error instanceof StatementNotFoundError) status = 404;
+      if (error instanceof FetchStatementError || error instanceof DatabaseConnectionError) {
+        status = 503;
+      }
+
+      res.status(status).json({
         success: false,
         message: error.message,
+        code: error.code || "FETCH_MATCHES_FAILED",
       });
     }
   }
@@ -262,10 +349,18 @@ export class BankReconciliationController {
         data: result,
       });
     } catch (error: any) {
-      res.status(400).json({
+      logError("Create multi-match error", { 
+        error: error.message,
+        code: error.code 
+      });
+      
+      let status = 400;
+      if (error instanceof DatabaseConnectionError) status = 503;
+
+      res.status(status).json({
         success: false,
         message: error.message,
-        code: "MULTI_MATCH_FAILED",
+        code: error.code || "MULTI_MATCH_FAILED",
       });
     }
   }
@@ -285,10 +380,19 @@ export class BankReconciliationController {
         message: "Multi-match berhasil dibatalkan",
       });
     } catch (error: any) {
-      res.status(400).json({
+      logError("Undo multi-match error", { 
+        groupId: req.params?.groupId,
+        error: error.message,
+        code: error.code 
+      });
+      
+      let status = 400;
+      if (error instanceof DatabaseConnectionError) status = 503;
+
+      res.status(status).json({
         success: false,
         message: error.message,
-        code: "UNDO_MULTI_MATCH_FAILED",
+        code: error.code || "UNDO_MULTI_MATCH_FAILED",
       });
     }
   }
@@ -304,7 +408,7 @@ export class BankReconciliationController {
       const { companyId, aggregateId, tolerancePercent, dateToleranceDays, maxStatements } = req.query;
 
       if (!companyId || !aggregateId) {
-        throw new Error("Company ID dan Aggregate ID wajib diisi");
+        throw new ReconciliationError("Company ID dan Aggregate ID wajib diisi", "MISSING_PARAMS");
       }
 
       const result = await this.service.getSuggestedGroupStatements(
@@ -320,9 +424,20 @@ export class BankReconciliationController {
         data: result,
       });
     } catch (error: any) {
-      res.status(400).json({
+      logError("Get suggested group statements error", { 
+        error: error.message,
+        code: error.code 
+      });
+      
+      let status = 400;
+      if (error instanceof FetchStatementError || error instanceof DatabaseConnectionError) {
+        status = 503;
+      }
+
+      res.status(status).json({
         success: false,
         message: error.message,
+        code: error.code || "FETCH_SUGGESTIONS_FAILED",
       });
     }
   }
@@ -348,9 +463,18 @@ export class BankReconciliationController {
         data: result,
       });
     } catch (error: any) {
-      res.status(400).json({
+      logError("Get reconciliation groups error", { 
+        error: error.message,
+        code: error.code 
+      });
+      
+      let status = 400;
+      if (error instanceof DatabaseConnectionError) status = 503;
+
+      res.status(status).json({
         success: false,
         message: error.message,
+        code: error.code || "FETCH_GROUPS_FAILED",
       });
     }
   }
@@ -364,7 +488,7 @@ export class BankReconciliationController {
       const { companyId } = req.query;
 
       if (!companyId) {
-        throw new Error("Company ID wajib diisi");
+        throw new ReconciliationError("Company ID wajib diisi", "MISSING_COMPANY_ID");
       }
 
       const result = await this.service.getMultiMatchGroup(groupId as string);
@@ -374,14 +498,24 @@ export class BankReconciliationController {
         data: result,
       });
     } catch (error: any) {
-      res.status(400).json({
+      logError("Get multi-match group error", { 
+        groupId: req.params?.groupId,
+        error: error.message,
+        code: error.code 
+      });
+      
+      let status = 400;
+      if (error instanceof DatabaseConnectionError) status = 503;
+
+      res.status(status).json({
         success: false,
         message: error.message,
+        code: error.code || "FETCH_GROUP_FAILED",
       });
     }
   }
 }
 
 export const bankReconciliationController = new BankReconciliationController(
-  bankReconciliationService,
+  bankReconciliationService
 );

@@ -41,11 +41,12 @@ export const autoMatchSchema = z.object({
  */
 export const getStatementsQuerySchema = z.object({
   query: z.object({
-    companyId: z.string().uuid("Invalid company ID"),
     startDate: z.string().date("Invalid start date format"),
     endDate: z.string().date("Invalid end date format"),
     bankAccountId: z.coerce.number().int().positive().optional(),
     threshold: z.coerce.number().min(0).optional(),
+    limit: z.coerce.number().int().min(1).max(1000).optional().default(1000),
+    offset: z.coerce.number().int().min(0).optional().default(0),
   }),
 });
 
@@ -54,7 +55,6 @@ export const getStatementsQuerySchema = z.object({
  */
 export const getSummaryQuerySchema = z.object({
   query: z.object({
-    companyId: z.string().uuid("Invalid company ID"),
     startDate: z.string().date("Invalid start date format"),
     endDate: z.string().date("Invalid end date format"),
   }),

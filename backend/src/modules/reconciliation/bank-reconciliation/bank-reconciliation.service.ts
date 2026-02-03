@@ -11,8 +11,6 @@ import {
 } from "./bank-reconciliation.types";
 import {
   AlreadyReconciledError,
-  NoMatchFoundError,
-  DifferenceThresholdExceededError,
 } from "./bank-reconciliation.errors";
 import { getReconciliationConfig } from "./bank-reconciliation.config";
 import { IReconciliationOrchestratorService } from "../orchestrator/reconciliation-orchestrator.types";
@@ -73,7 +71,6 @@ export class BankReconciliationService {
 
     // 3. Audit Trail
     await this.repository.logAction({
-      companyId: statement.company_id,
       userId,
       action: "MANUAL_RECONCILE",
       statementId,
@@ -115,7 +112,6 @@ export class BankReconciliationService {
 
     // Audit Trail
     await this.repository.logAction({
-      companyId: statement.company_id,
       userId,
       action: "UNDO",
       statementId,
@@ -143,7 +139,6 @@ export class BankReconciliationService {
 
     // 1. Get unreconciled statements (possibly in batches)
     const statements = await this.repository.getUnreconciledBatch(
-      companyId,
       startDate,
       endDate,
       this.config.autoMatchBatchSize,
@@ -234,7 +229,6 @@ export class BankReconciliationService {
       });
 
       await this.repository.logAction({
-        companyId,
         userId,
         action: "AUTO_MATCH",
         statementId: match.statementId,
@@ -301,15 +295,25 @@ if (matchIdx !== -1) {
     startDate: Date,
     endDate: Date,
     bankAccountId?: number,
-  ): Promise<any[]> {
-    const statements = await this.repository.getByDateRange(
-      companyId,
-      startDate,
-      endDate,
-      bankAccountId,
-    );
+    limit: number = 100,
+    offset: number = 0,
+  ): Promise<{ data: any[]; pagination: any }> {
+    const [statements, total] = await Promise.all([
+      this.repository.getByDateRange(
+        startDate,
+        endDate,
+        bankAccountId,
+        limit,
+        offset,
+      ),
+      this.repository.getByDateRangeCount(
+        startDate,
+        endDate,
+        bankAccountId,
+      ),
+    ]);
 
-    return statements.map((s) => {
+    const data = statements.map((s) => {
       const isReconciled = s.is_reconciled;
       const bankAmount = s.credit_amount - s.debit_amount;
       const hasMatch = !!s.matched_aggregate;
@@ -340,6 +344,21 @@ if (matchIdx !== -1) {
         potentialMatches: [],
       };
     });
+
+    const page = Math.floor(offset / limit) + 1;
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
   }
 
   /**
@@ -366,11 +385,10 @@ if (matchIdx !== -1) {
    * Get reconciliation summary per bank account
    */
   async getBankAccountsStatus(
-    companyId: string,
     startDate: Date,
     endDate: Date,
   ): Promise<any[]> {
-    return this.repository.getBankAccountsStatus(companyId, startDate, endDate);
+    return this.repository.getBankAccountsStatus( startDate, endDate);
   }
 
   /**
@@ -462,7 +480,6 @@ if (matchIdx !== -1) {
 
     // 5. Create reconciliation group
     const groupId = await this.repository.createReconciliationGroup({
-      companyId,
       aggregateId,
       statementIds,
       totalBankAmount,
@@ -492,7 +509,7 @@ if (matchIdx !== -1) {
 
     // 9. Log audit trail
     await this.repository.logAction({
-      companyId,
+      
       userId,
       action: "MANUAL_RECONCILE" as any,
       aggregateId,
@@ -549,7 +566,6 @@ if (matchIdx !== -1) {
 
     // Audit trail
     await this.repository.logAction({
-      companyId: group.company_id,
       userId,
       action: "UNDO" as any,
       aggregateId: group.aggregate_id,
@@ -588,7 +604,6 @@ if (matchIdx !== -1) {
 
     // Get candidate statements
     const statements = await this.repository.getUnreconciledStatementsForSuggestion(
-      companyId,
       startDate,
       endDate,
     );
@@ -739,7 +754,7 @@ if (matchIdx !== -1) {
     startDate: Date,
     endDate: Date,
   ): Promise<any[]> {
-    return this.repository.getReconciliationGroups(companyId, startDate, endDate);
+    return this.repository.getReconciliationGroups( startDate, endDate);
   }
 
   /**
