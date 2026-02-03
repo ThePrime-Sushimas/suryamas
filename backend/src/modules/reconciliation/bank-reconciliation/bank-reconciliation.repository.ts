@@ -77,11 +77,21 @@ export class BankReconciliationRepository {
 
   /**
    * Get bank statements by date range with optional filtering and joined data
+   * When dates are not provided, queries overall date range across all imports
    */
   async getByDateRange(
-    startDate: Date,
-    endDate: Date,
+    startDate?: Date,
+    endDate?: Date,
     bankAccountId?: number,
+    options?: {
+      status?: 'RECONCILED' | 'UNRECONCILED' | 'DISCREPANCY';
+      search?: string;
+      isReconciled?: boolean;
+      sortField?: string;
+      sortOrder?: 'asc' | 'desc';
+      limit?: number;
+      offset?: number;
+    },
   ): Promise<any[]> {
     try {
       let query = supabase
@@ -100,22 +110,59 @@ export class BankReconciliationRepository {
         )
       `,
         )
-        .gte("transaction_date", startDate.toISOString().split("T")[0])
-        .lte("transaction_date", endDate.toISOString().split("T")[0])
         .is("deleted_at", null);
 
+      // Apply date range filters if provided
+      if (startDate) {
+        query = query.gte("transaction_date", startDate.toISOString().split("T")[0]);
+      }
+      if (endDate) {
+        query = query.lte("transaction_date", endDate.toISOString().split("T")[0]);
+      }
+
+      // Apply bank account filter
       if (bankAccountId) {
         query = query.eq("bank_account_id", bankAccountId);
       }
 
-      const { data, error } = await query.order("transaction_date", {
-        ascending: false,
-      });
+      // Apply status filter
+      if (options?.status === 'RECONCILED') {
+        query = query.eq("is_reconciled", true);
+      } else if (options?.status === 'UNRECONCILED') {
+        query = query.eq("is_reconciled", false);
+      }
+      // DISCREPANCY requires special handling (reconciled but with difference)
+
+      // Apply isReconciled filter (overrides status if both provided)
+      if (options?.isReconciled !== undefined) {
+        query = query.eq("is_reconciled", options.isReconciled);
+      }
+
+      // Apply search filter on description or reference_number
+      if (options?.search) {
+        const searchTerm = `%${options.search}%`;
+        query = query.or(`description.ilike.${searchTerm},reference_number.ilike.${searchTerm}`);
+      }
+
+      // Apply sorting
+      const sortField = options?.sortField || 'transaction_date';
+      const sortOrder = options?.sortOrder || 'desc';
+      query = query.order(sortField, { ascending: sortOrder === 'asc' });
+
+      // Apply pagination
+      if (options?.limit) {
+        query = query.limit(options.limit);
+      }
+      if (options?.offset) {
+        query = query.range(options.offset, options.offset + (options.limit || 100) - 1);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         logError("Error fetching bank statements", {          
-          startDate: startDate.toISOString(), 
-          endDate: endDate.toISOString(),
+          startDate: startDate?.toISOString(), 
+          endDate: endDate?.toISOString(),
           error: error.message 
         });
         throw error;
@@ -127,8 +174,8 @@ export class BankReconciliationRepository {
       }));
     } catch (error: any) {
       logError("Error fetching statements by date range", {        
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
+        startDate: startDate?.toISOString(),
+        endDate: endDate?.toISOString(),
         error: error.message
       });
       throw error;

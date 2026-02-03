@@ -260,14 +260,24 @@ export class BankReconciliationService {
   }
 
   async getStatements(
-    startDate: Date,
-    endDate: Date,
+    startDate?: Date,
+    endDate?: Date,
     bankAccountId?: number,
+    options?: {
+      status?: 'RECONCILED' | 'UNRECONCILED' | 'DISCREPANCY';
+      search?: string;
+      isReconciled?: boolean;
+      sortField?: string;
+      sortOrder?: 'asc' | 'desc';
+      limit?: number;
+      offset?: number;
+    },
   ): Promise<any[]> {
     const statements = await this.repository.getByDateRange(
       startDate,
       endDate,
       bankAccountId,
+      options,
     );
 
     return statements.map((s) => {
@@ -293,13 +303,18 @@ export class BankReconciliationService {
         status = hasMatch ? BankReconciliationStatus.PENDING : BankReconciliationStatus.UNRECONCILED;
       }
 
+      // Apply status filter at service level for DISCREPANCY
+      if (options?.status === 'DISCREPANCY' && status !== BankReconciliationStatus.DISCREPANCY) {
+        return null;
+      }
+
       return {
         ...s,
         amount: bankAmount,
         status,
         potentialMatches: [],
       };
-    });
+    }).filter((s): s is NonNullable<typeof s> => s !== null);
   }
 
   async getPotentialMatches(

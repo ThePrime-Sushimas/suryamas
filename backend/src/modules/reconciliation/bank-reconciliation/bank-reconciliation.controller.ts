@@ -146,17 +146,40 @@ export class BankReconciliationController {
   ): Promise<void> {
     try {
       const validated = (req as any).validated?.query || req.query;
-      const { startDate, endDate, bankAccountId } = validated;
+      const { startDate, endDate, bankAccountId, status, search, isReconciled, limit: queryLimit } = validated;
+
+      // Get sort params from query middleware
+      const sortField = req.sort?.field || 'transaction_date';
+      const sortOrder = req.sort?.order || 'desc';
+      
+      // Calculate offset from pagination - use a large limit if no pagination
+      const page = req.pagination?.page || 1;
+      const limit = req.pagination?.limit || 10000; // Large limit to get all data
+      const offset = (page - 1) * limit;
 
       const result = await this.service.getStatements(
-        new Date(startDate),
-        new Date(endDate),
+        startDate ? new Date(startDate) : undefined,
+        endDate ? new Date(endDate) : undefined,
         bankAccountId ? parseInt(bankAccountId) : undefined,
+        {
+          status,
+          search,
+          isReconciled: isReconciled === 'true' ? true : isReconciled === 'false' ? false : undefined,
+          sortField,
+          sortOrder,
+          limit,
+          offset,
+        },
       );
 
       res.status(200).json({
         success: true,
         data: result,
+        pagination: {
+          page,
+          limit,
+          total: result.length, // For now, return length as total
+        },
       });
     } catch (error: any) {
       logError("Get statements error", { 
@@ -185,6 +208,15 @@ export class BankReconciliationController {
     try {
       const validated = (req as any).validated?.query || req.query;
       const { startDate, endDate } = validated;
+
+      // Dates are optional - if not provided, return empty
+      if (!startDate || !endDate) {
+        res.status(200).json({
+          success: true,
+          data: [],
+        });
+        return;
+      }
 
       const result = await this.service.getBankAccountsStatus(
         new Date(startDate),
@@ -219,6 +251,25 @@ export class BankReconciliationController {
     try {
       const validated = (req as any).validated?.query || req.query;
       const { startDate, endDate } = validated;
+
+      // Dates are optional - if not provided, return empty summary
+      if (!startDate || !endDate) {
+        res.status(200).json({
+          success: true,
+          data: {
+            period: { startDate: '', endDate: '' },
+            totalAggregates: 0,
+            totalStatements: 0,
+            autoMatched: 0,
+            manuallyMatched: 0,
+            discrepancies: 0,
+            unreconciled: 0,
+            totalDifference: 0,
+            percentageReconciled: 0,
+          },
+        });
+        return;
+      }
 
       const result = await this.service.getSummary(
         new Date(startDate),
@@ -394,6 +445,15 @@ export class BankReconciliationController {
   ): Promise<void> {
     try {
       const { startDate, endDate } = req.query;
+
+      // Dates are optional - if not provided, return empty
+      if (!startDate || !endDate) {
+        res.status(200).json({
+          success: true,
+          data: [],
+        });
+        return;
+      }
 
       const result = await this.service.getReconciliationGroups(
         new Date(startDate as string),

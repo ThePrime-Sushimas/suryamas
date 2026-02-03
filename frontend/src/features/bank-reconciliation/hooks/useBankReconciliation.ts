@@ -12,8 +12,13 @@ import type {
 } from "../types/bank-reconciliation.types";
 import type { AggregatedTransactionListItem } from "@/features/pos-aggregates/types";
 import { bankReconciliationApi } from "../api/bank-reconciliation.api";
+import type { BankStatementFilterParams } from "../api/bank-reconciliation.api";
+import type { BankStatementFilter, BankStatementFilterStatus } from "../components/BankReconciliationFilters";
 
-export function useBankReconciliation(companyId: string) {
+// Re-export types for backward compatibility
+export type { BankStatementFilter, BankStatementFilterStatus }
+
+export function useBankReconciliation() {
   const [summary, setSummary] = useState<ReconciliationSummary | null>(null);
   const [statements, setStatements] = useState<BankStatementWithMatch[]>([]);
   const [potentialMatchesMap, setPotentialMatchesMap] = useState<
@@ -25,6 +30,10 @@ export function useBankReconciliation(companyId: string) {
   const [bankAccounts, setBankAccounts] = useState<BankAccountStatus[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Filter state
+  const [filter, setFilterState] = useState<BankStatementFilter>({});
+  const [isFilterApplied, setIsFilterApplied] = useState(false);
 
   // =====================================================
   // MULTI-MATCH STATE
@@ -46,9 +55,8 @@ export function useBankReconciliation(companyId: string) {
       setIsLoading(true);
       try {
         const [summaryData, accountsData] = await Promise.all([
-          bankReconciliationApi.getSummary({ companyId, startDate, endDate }),
+          bankReconciliationApi.getSummary({ startDate, endDate }),
           bankReconciliationApi.getBankAccountsStatus({
-            companyId,
             startDate,
             endDate,
           }),
@@ -63,20 +71,22 @@ export function useBankReconciliation(companyId: string) {
         setIsLoading(false);
       }
     },
-    [companyId],
+    [],
   );
 
   const fetchStatements = useCallback(
-    async (startDate: string, endDate: string, bankAccountId?: number) => {
+    async (startDate?: string, endDate?: string, bankAccountId?: number) => {
       setIsLoading(true);
       try {
-        const data = await bankReconciliationApi.getStatements({
-          companyId,
+        // Build params with optional dates
+        const params: BankStatementFilterParams = {
           startDate,
           endDate,
           bankAccountId,
-        });
-        setStatements(data);
+        };
+
+        const result = await bankReconciliationApi.getStatementsDirect(params);
+        setStatements(result.data);
       } catch (err: unknown) {
         setError(
           err instanceof Error ? err.message : "Failed to fetch statements",
@@ -85,14 +95,78 @@ export function useBankReconciliation(companyId: string) {
         setIsLoading(false);
       }
     },
-    [companyId],
+    [],
   );
+
+  // Fetch statements with full filter support
+  const fetchStatementsWithFilters = useCallback(
+    async (filters: BankStatementFilter) => {
+      setIsLoading(true);
+      try {
+        // Get first selected bank account ID if multiple selected
+        const bankAccountId = filters.bankAccountIds && filters.bankAccountIds.length > 0
+          ? filters.bankAccountIds[0]
+          : undefined;
+
+        // Only send valid status values (not empty string)
+        const validStatuses = ['RECONCILED', 'UNRECONCILED', 'DISCREPANCY'] as const;
+        const statusParam = validStatuses.includes(filters.status as typeof validStatuses[number]) 
+          ? filters.status as 'RECONCILED' | 'UNRECONCILED' | 'DISCREPANCY'
+          : undefined;
+
+        const params: BankStatementFilterParams = {
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+          bankAccountId,
+          status: statusParam,
+          search: filters.search,
+          isReconciled: filters.isReconciled,
+          sort: filters.sort || 'transaction_date',
+          order: filters.order || 'desc',
+          page: filters.page || 1,
+          limit: filters.limit || 10000, // Default to large limit to get all data
+        };
+
+        const result = await bankReconciliationApi.getStatementsDirect(params);
+        setStatements(result.data);
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error ? err.message : "Failed to fetch statements",
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
+
+  // Set filter state
+  const setFilter = useCallback((updates: Partial<BankStatementFilter> | BankStatementFilter | ((prev: BankStatementFilter) => Partial<BankStatementFilter>)) => {
+    setFilterState(prev => {
+      if (typeof updates === 'function') {
+        const partialUpdates = updates(prev);
+        return { ...prev, ...partialUpdates };
+      }
+      return { ...prev, ...updates };
+    });
+  }, []);
+
+  // Clear filter state
+  const clearFilter = useCallback(() => {
+    setFilterState({});
+    setIsFilterApplied(false);
+  }, []);
+
+  // Set filter applied flag
+  const setFilterApplied = useCallback((applied: boolean) => {
+    setIsFilterApplied(applied);
+  }, []);
 
   const autoMatch = useCallback(
     async (payload: Omit<AutoMatchRequest, "companyId">) => {
       setIsLoading(true);
       try {
-        await bankReconciliationApi.autoMatch({ ...payload, companyId });
+        await bankReconciliationApi.autoMatch({ ...payload });
         // Refresh summary and statements after auto-match
         await Promise.all([
           fetchSummary(payload.startDate, payload.endDate),
@@ -109,15 +183,14 @@ export function useBankReconciliation(companyId: string) {
         setIsLoading(false);
       }
     },
-    [companyId, fetchSummary, fetchStatements],
+    [fetchSummary, fetchStatements],
   );
 
   const manualReconcile = useCallback(
     async (payload: Omit<ManualReconcileRequest, "companyId">) => {
       setIsLoading(true);
       try {
-        await bankReconciliationApi.manualReconcile({ ...payload, companyId });
-        // Note: Refresh is handled by the calling page using dateRange
+        await bankReconciliationApi.manualReconcile({ ...payload });
       } catch (err: unknown) {
         setError(
           err instanceof Error ? err.message : "Manual reconciliation failed",
@@ -127,7 +200,7 @@ export function useBankReconciliation(companyId: string) {
         setIsLoading(false);
       }
     },
-    [companyId],
+    [],
   );
 
   const undoReconciliation = useCallback(async (statementId: string) => {
@@ -150,10 +223,7 @@ export function useBankReconciliation(companyId: string) {
 
       setIsLoadingMatches((prev) => ({ ...prev, [statementId]: true }));
       try {
-        const matches = await bankReconciliationApi.getPotentialMatches(
-          statementId,
-          companyId,
-        );
+        const matches = await bankReconciliationApi.getPotentialMatches(statementId);
         setPotentialMatchesMap((prev) => ({ ...prev, [statementId]: matches }));
       } catch (err: unknown) {
         console.error("Failed to fetch potential matches:", err);
@@ -161,7 +231,7 @@ export function useBankReconciliation(companyId: string) {
         setIsLoadingMatches((prev) => ({ ...prev, [statementId]: false }));
       }
     },
-    [companyId, potentialMatchesMap],
+    [potentialMatchesMap],
   );
 
   // =====================================================
@@ -172,10 +242,7 @@ export function useBankReconciliation(companyId: string) {
     async (payload: Omit<MultiMatchRequest, "companyId">) => {
       setIsLoading(true);
       try {
-        await bankReconciliationApi.createMultiMatch({
-          ...payload,
-          companyId,
-        });
+        await bankReconciliationApi.createMultiMatch({ ...payload });
       } catch (err: unknown) {
         setError(
           err instanceof Error ? err.message : "Multi-match failed",
@@ -185,7 +252,7 @@ export function useBankReconciliation(companyId: string) {
         setIsLoading(false);
       }
     },
-    [companyId],
+    [],
   );
 
   const undoMultiMatch = useCallback(async (groupId: string) => {
@@ -206,10 +273,7 @@ export function useBankReconciliation(companyId: string) {
     async (aggregateId: string) => {
       setIsLoadingSuggestions(true);
       try {
-        const suggestions = await bankReconciliationApi.getSuggestedGroupStatements(
-          companyId,
-          aggregateId,
-        );
+        const suggestions = await bankReconciliationApi.getSuggestedGroupStatements(aggregateId);
         setMultiMatchSuggestions(suggestions);
         return suggestions;
       } catch (err: unknown) {
@@ -223,7 +287,7 @@ export function useBankReconciliation(companyId: string) {
         setIsLoadingSuggestions(false);
       }
     },
-    [companyId],
+    [],
   );
 
   const fetchReconciliationGroups = useCallback(
@@ -231,7 +295,6 @@ export function useBankReconciliation(companyId: string) {
       setIsLoading(true);
       try {
         const groups = await bankReconciliationApi.getReconciliationGroups({
-          companyId,
           startDate,
           endDate,
         });
@@ -248,17 +311,14 @@ export function useBankReconciliation(companyId: string) {
         setIsLoading(false);
       }
     },
-    [companyId],
+    [],
   );
 
   const getMultiMatchGroup = useCallback(
     async (groupId: string) => {
       setIsLoading(true);
       try {
-        const group = await bankReconciliationApi.getMultiMatchGroup(
-          groupId,
-          companyId,
-        );
+        const group = await bankReconciliationApi.getMultiMatchGroup(groupId);
         return group;
       } catch (err: unknown) {
         setError(
@@ -271,7 +331,7 @@ export function useBankReconciliation(companyId: string) {
         setIsLoading(false);
       }
     },
-    [companyId],
+    [],
   );
 
   const clearMultiMatchSuggestions = useCallback(() => {
@@ -297,6 +357,16 @@ export function useBankReconciliation(companyId: string) {
     isLoadingMatches,
 
     // =====================================================
+    // FILTER STATE & METHODS
+    // =====================================================
+    filter,
+    setFilter,
+    clearFilter,
+    isFilterApplied,
+    setFilterApplied,
+    fetchStatementsWithFilters,
+
+    // =====================================================
     // MULTI-MATCH STATE & METHODS
     // =====================================================
     reconciliationGroups,
@@ -316,3 +386,4 @@ export function useBankReconciliation(companyId: string) {
     clearMultiMatchSuggestions,
   };
 }
+

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 /**
  * Zod schemas for Bank Reconciliation module
+ * Note: companyId is handled by branch context middleware, not required in request
  */
 
 /**
@@ -9,7 +10,6 @@ import { z } from "zod";
  */
 export const manualReconcileSchema = z.object({
   body: z.object({
-    companyId: z.string().uuid("Invalid company ID"),
     aggregateId: z.coerce.string().min(1, "Aggregate ID is required"),
     statementId: z.coerce.string().min(1, "Statement ID is required"),
     notes: z.string().max(500).optional(),
@@ -22,7 +22,6 @@ export const manualReconcileSchema = z.object({
  */
 export const autoMatchSchema = z.object({
   body: z.object({
-    companyId: z.string().uuid("Invalid company ID"),
     startDate: z.string().date("Invalid start date format"),
     endDate: z.string().date("Invalid end date format"),
     bankAccountId: z.number().int().positive().optional(),
@@ -38,25 +37,34 @@ export const autoMatchSchema = z.object({
 
 /**
  * Schema for bank statements query
+ * Dates are optional - when not provided, queries overall date range across all imports
  */
 export const getStatementsQuerySchema = z.object({
   query: z.object({
-    startDate: z.string().date("Invalid start date format"),
-    endDate: z.string().date("Invalid end date format"),
+    // Optional date range - queries overall date range when not provided
+    startDate: z.string().date("Invalid start date format").optional(),
+    endDate: z.string().date("Invalid end date format").optional(),
+    // Bank account filter
     bankAccountId: z.coerce.number().int().positive().optional(),
-    threshold: z.coerce.number().min(0).optional(),
-    limit: z.coerce.number().int().min(1).max(1000).optional().default(1000),
+    // Status filter (RECONCILED, UNRECONCILED, DISCREPANCY)
+    status: z.enum(['RECONCILED', 'UNRECONCILED', 'DISCREPANCY']).optional(),
+    // Search filter
+    search: z.string().optional(),
+    // Reconciliation status filter (alias for status)
+    isReconciled: z.coerce.boolean().optional(),
+    // Pagination - allow larger limit for showing all data
+    limit: z.coerce.number().int().min(1).max(50000).optional().default(10000),
     offset: z.coerce.number().int().min(0).optional().default(0),
   }),
 });
 
 /**
- * Schema for summary query
+ * Schema for summary query - dates are optional
  */
 export const getSummaryQuerySchema = z.object({
   query: z.object({
-    startDate: z.string().date("Invalid start date format"),
-    endDate: z.string().date("Invalid end date format"),
+    startDate: z.string().date("Invalid start date format").optional(),
+    endDate: z.string().date("Invalid end date format").optional(),
   }),
 });
 
@@ -74,7 +82,6 @@ export type GetSummaryQueryInput = z.infer<typeof getSummaryQuerySchema>;
  */
 export const multiMatchSchema = z.object({
   body: z.object({
-    companyId: z.string().uuid("Invalid company ID"),
     aggregateId: z.coerce.string().min(1, "Aggregate ID is required"),
     statementIds: z.array(
       z.string().uuid("Statement ID must be a valid UUID"),
@@ -86,13 +93,12 @@ export const multiMatchSchema = z.object({
 });
 
 /**
- * Schema for multi-match groups query
+ * Schema for multi-match groups query - dates are optional
  */
 export const multiMatchGroupQuerySchema = z.object({
   query: z.object({
-    companyId: z.string().uuid("Invalid company ID"),
-    startDate: z.string().date("Invalid start date format"),
-    endDate: z.string().date("Invalid end date format"),
+    startDate: z.string().date("Invalid start date format").optional(),
+    endDate: z.string().date("Invalid end date format").optional(),
   }),
 });
 
@@ -101,7 +107,6 @@ export const multiMatchGroupQuerySchema = z.object({
  */
 export const multiMatchSuggestionsQuerySchema = z.object({
   query: z.object({
-    companyId: z.string().uuid("Invalid company ID"),
     aggregateId: z.coerce.string().min(1, "Aggregate ID is required"),
     tolerancePercent: z.coerce.number().min(0).max(1).optional(),
     dateToleranceDays: z.coerce.number().int().min(0).max(30).optional(),

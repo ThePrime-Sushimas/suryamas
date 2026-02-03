@@ -76,12 +76,26 @@ function StatCard({
 }
 
 interface ReconciliationSummaryProps {
-  summary: ReconciliationSummary;
+  summary: ReconciliationSummary | null;
 }
 
 export function ReconciliationSummaryCards({
   summary,
 }: ReconciliationSummaryProps) {
+  // Handle null summary
+  if (!summary) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm animate-pulse">
+            <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   // Provide default values to prevent undefined errors
   const safeSummary = {
     totalStatements: summary.totalStatements ?? 0,

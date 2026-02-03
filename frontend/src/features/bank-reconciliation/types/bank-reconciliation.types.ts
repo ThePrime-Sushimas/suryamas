@@ -102,7 +102,6 @@ export interface DiscrepancyItem {
  * DTOs for API requests
  */
 export interface ManualReconcileRequest {
-  companyId: string;
   aggregateId: string;
   statementId: string;
   notes?: string;
@@ -110,7 +109,6 @@ export interface ManualReconcileRequest {
 }
 
 export interface AutoMatchRequest {
-  companyId: string;
   startDate: string;
   endDate: string;
   bankAccountId?: number;
@@ -118,7 +116,6 @@ export interface AutoMatchRequest {
 }
 
 export interface GetSummaryParams {
-  companyId: string;
   startDate: string;
   endDate: string;
 }

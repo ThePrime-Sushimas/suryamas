@@ -14,6 +14,19 @@ import type {
   MultiMatchResult,
 } from "../types/bank-reconciliation.types";
 
+export interface BankStatementFilterParams {
+  startDate?: string;
+  endDate?: string;
+  bankAccountId?: number;
+  status?: 'RECONCILED' | 'UNRECONCILED' | 'DISCREPANCY';
+  search?: string;
+  isReconciled?: boolean;
+  sort?: string;
+  order?: 'asc' | 'desc';
+  page?: number;
+  limit?: number;
+}
+
 export const bankReconciliationApi = {
   /**
    * Get reconciliation summary for a date range
@@ -25,6 +38,7 @@ export const bankReconciliationApi = {
 
   /**
    * Get all bank statements with reconciliation info
+   * Supports optional date range and filters
    */
   async getStatements(
     params: GetStatementsParams,
@@ -33,6 +47,18 @@ export const bankReconciliationApi = {
       params,
     });
     return response.data.data;
+  },
+
+  /**
+   * Get bank statements with direct query (supports optional dates)
+   */
+  async getStatementsDirect(
+    params: BankStatementFilterParams,
+  ): Promise<{ data: BankStatementWithMatch[]; pagination?: { page: number; limit: number } }> {
+    const response = await api.get("/reconciliation/bank/statements", {
+      params,
+    });
+    return response.data;
   },
 
   /**
@@ -77,11 +103,10 @@ export const bankReconciliationApi = {
    */
   async getPotentialMatches(
     statementId: string,
-    companyId: string,
   ): Promise<PotentialMatch[]> {
     const response = await api.get(
       `/reconciliation/bank/statements/${statementId}/potential-matches`,
-      { params: { companyId } },
+      
     );
     return response.data.data;
   },
@@ -94,7 +119,7 @@ export const bankReconciliationApi = {
    * Create multi-match (1 POS = N Bank Statements)
    */
   async createMultiMatch(
-    payload: MultiMatchRequest & { companyId: string },
+    payload: MultiMatchRequest,
   ): Promise<MultiMatchResult> {
     const response = await api.post("/reconciliation/bank/multi-match", payload);
     return response.data.data;
@@ -110,8 +135,7 @@ export const bankReconciliationApi = {
   /**
    * Get suggested statements for grouping
    */
-  async getSuggestedGroupStatements(
-    companyId: string,
+  async getSuggestedGroupStatements(    
     aggregateId: string,
     options?: {
       tolerancePercent?: number;
@@ -123,7 +147,6 @@ export const bankReconciliationApi = {
       "/reconciliation/bank/multi-match/suggestions",
       {
         params: {
-          companyId,
           aggregateId,
           ...options,
         },
@@ -150,11 +173,9 @@ export const bankReconciliationApi = {
    */
   async getMultiMatchGroup(
     groupId: string,
-    companyId: string,
   ): Promise<ReconciliationGroup> {
     const response = await api.get(
       `/reconciliation/bank/multi-match/${groupId}`,
-      { params: { companyId } },
     );
     return response.data.data;
   },

@@ -1,13 +1,16 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import type {
+  AggregatedTransactionListItem,
+  AggregatedTransactionFilterParams,
+} from "@/features/pos-aggregates/types";
+import { posAggregatesApi } from "@/features/pos-aggregates/api/posAggregates.api";
+import { useState, useCallback, useEffect } from "react";
 import {
   Sparkles,
   RefreshCw,
-  Calendar as CalendarIcon,
-  ChevronLeft,
-  ChevronRight,
   ShieldCheck,
   LayoutGrid,
   X,
+  Filter,
 } from "lucide-react";
 import { ReconciliationSummaryCards } from "../components/reconciliation/ReconciliationSummary";
 import { BankMutationTable } from "../components/reconciliation/BankMutationTable";
@@ -15,21 +18,16 @@ import { ManualMatchModal } from "../components/reconciliation/ManualMatchModal"
 import { AutoMatchDialog } from "../components/reconciliation/AutoMatchDialog";
 import { MultiMatchModal } from "../components/reconciliation/MultiMatchModal";
 import { MultiMatchGroupList } from "../components/reconciliation/MultiMatchGroupList";
+import { BankReconciliationFilters, type BankStatementFilter } from "../components/BankReconciliationFilters";
 import { useBankReconciliation } from "../hooks/useBankReconciliation";
-import { useBranchContextStore } from "@/features/branch_context/store/branchContext.store";
 import type {
   BankStatementWithMatch,
   AutoMatchRequest,
 } from "../types/bank-reconciliation.types";
-import type {
-  AggregatedTransactionListItem,
-  AggregatedTransactionFilterParams,
-} from "@/features/pos-aggregates/types";
-import { posAggregatesApi } from "@/features/pos-aggregates/api/posAggregates.api";
 
 export function BankReconciliationPage() {
-  const { currentBranch } = useBranchContextStore();
-  const companyId = currentBranch?.company_id || "";
+  // companyId is now handled by the branch context middleware on backend
+  // No need to pass companyId explicitly
 
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [isAutoMatchOpen, setIsAutoMatchOpen] = useState(false);
@@ -41,12 +39,13 @@ export function BankReconciliationPage() {
   const [selectedAggregateForMultiMatch, setSelectedAggregateForMultiMatch] = useState<AggregatedTransactionListItem | null>(null);
   const [showGroupList, setShowGroupList] = useState(true);
 
-  // Track if initial data has been loaded
-  const initialDataLoaded = useRef(false);
+  // Track if user has applied filters (useState instead of useRef)
+  const [filtersApplied, setFiltersApplied] = useState(false);
 
+  // Default date range (empty - user must apply filters)
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().setDate(1)).toISOString().split("T")[0],
-    endDate: new Date().toISOString().split("T")[0],
+    startDate: '',
+    endDate: '',
   });
 
   const {
@@ -55,13 +54,17 @@ export function BankReconciliationPage() {
     bankAccounts,
     isLoading,
     fetchSummary,
-    fetchStatements,
+    fetchStatementsWithFilters,
     autoMatch,
     manualReconcile,
     undoReconciliation,
     fetchPotentialMatches,
     potentialMatchesMap,
     isLoadingMatches,
+    // Filter state
+    filter,
+    setFilter,
+    clearFilter,
     // Multi-match
     reconciliationGroups,
     multiMatchSuggestions,
@@ -70,62 +73,58 @@ export function BankReconciliationPage() {
     fetchReconciliationGroups,
     createMultiMatch,
     undoMultiMatch,
-  } = useBankReconciliation(companyId);
+  } = useBankReconciliation();
 
-  // Handle month navigation
-  const handlePrevMonth = useCallback(() => {
-    const start = new Date(dateRange.startDate);
-    start.setMonth(start.getMonth() - 1);
-    start.setDate(1);
-    const end = new Date(start);
-    end.setMonth(end.getMonth() + 1);
-    end.setDate(0);
-    setDateRange({
-      startDate: start.toISOString().split("T")[0],
-      endDate: end.toISOString().split("T")[0],
-    });
-    // Reset flag for new date range
-    initialDataLoaded.current = false;
-  }, [dateRange.startDate]);
+  // Handle apply filters
+  const handleApplyFilters = useCallback((filters: BankStatementFilter) => {
+    // Update filter state
+    setFilter(filters);
+    setFiltersApplied(true);
 
-  const handleNextMonth = useCallback(() => {
-    const start = new Date(dateRange.startDate);
-    start.setMonth(start.getMonth() + 1);
-    start.setDate(1);
-    const end = new Date(start);
-    end.setMonth(end.getMonth() + 1);
-    end.setDate(0);
-    setDateRange({
-      startDate: start.toISOString().split("T")[0],
-      endDate: end.toISOString().split("T")[0],
-    });
-    // Reset flag for new date range
-    initialDataLoaded.current = false;
-  }, [dateRange.startDate]);
-
-  // Initial data load - only once per company/date range
-  useEffect(() => {
-    if (companyId && !initialDataLoaded.current) {
-      initialDataLoaded.current = true;
-      
-      // Use setTimeout to break synchronous updates
-      const timer = setTimeout(() => {
-        fetchSummary(dateRange.startDate, dateRange.endDate);
-        fetchStatements(dateRange.startDate, dateRange.endDate);
-        fetchReconciliationGroups(dateRange.startDate, dateRange.endDate);
-      }, 100);
-      
-      return () => clearTimeout(timer);
+    // Update date range for other functions
+    if (filters.startDate || filters.endDate) {
+      setDateRange({
+        startDate: filters.startDate || '',
+        endDate: filters.endDate || '',
+      });
     }
-  }, [companyId, dateRange.startDate, dateRange.endDate, fetchSummary, fetchStatements, fetchReconciliationGroups]);
+
+    // Fetch statements with filters
+    fetchStatementsWithFilters(filters);
+    
+    // Also fetch summary and groups if dates are provided
+    if (filters.startDate && filters.endDate) {
+      fetchSummary(filters.startDate, filters.endDate);
+      fetchReconciliationGroups(filters.startDate, filters.endDate);
+    }
+  }, [setFilter, fetchStatementsWithFilters, fetchSummary, fetchReconciliationGroups]);
+
+  // Handle clear filters
+  const handleClearFilters = useCallback(() => {
+    clearFilter();
+    setFiltersApplied(false);
+    setDateRange({ startDate: '', endDate: '' });
+  }, [clearFilter]);
 
   // Refresh data function
   const refreshData = useCallback(() => {
-    if (!companyId) return;
-    fetchSummary(dateRange.startDate, dateRange.endDate);
-    fetchStatements(dateRange.startDate, dateRange.endDate, selectedAccountId || undefined);
-    fetchReconciliationGroups(dateRange.startDate, dateRange.endDate);
-  }, [companyId, dateRange.startDate, dateRange.endDate, selectedAccountId, fetchSummary, fetchStatements, fetchReconciliationGroups]);
+    ;
+    
+    // Use current filter state for refresh
+    const currentFilter = {
+      ...filter,
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      bankAccountIds: selectedAccountId ? [selectedAccountId] : undefined,
+    };
+    
+    fetchStatementsWithFilters(currentFilter);
+    
+    if (dateRange.startDate && dateRange.endDate) {
+      fetchSummary(dateRange.startDate, dateRange.endDate);
+      fetchReconciliationGroups(dateRange.startDate, dateRange.endDate);
+    }
+  }, [filter, dateRange.startDate, dateRange.endDate, selectedAccountId, fetchStatementsWithFilters, fetchSummary, fetchReconciliationGroups]);
 
   // Set initial selected account if not set
   useEffect(() => {
@@ -295,30 +294,6 @@ export function BankReconciliationPage() {
         </div>
 
         <div className="flex items-center gap-3 self-end md:self-auto">
-          <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-800 rounded-2xl p-1 shadow-sm">
-            <button
-              onClick={handlePrevMonth}
-              className="p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4 text-gray-400" />
-            </button>
-            <div className="px-4 py-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
-              <CalendarIcon className="w-4 h-4 text-blue-500" />
-              <span>
-                {new Date(dateRange.startDate).toLocaleDateString("id-ID", {
-                  month: "long",
-                  year: "numeric",
-                })}
-              </span>
-            </div>
-            <button
-              onClick={handleNextMonth}
-              className="p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors"
-            >
-              <ChevronRight className="w-4 h-4 text-gray-400" />
-            </button>
-          </div>
-
           <button
             onClick={() => setIsAutoMatchOpen(true)}
             disabled={isLoading}
@@ -335,15 +310,26 @@ export function BankReconciliationPage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      {summary && <ReconciliationSummaryCards summary={summary} />}
+      {/* Summary Cards - Only show if filters applied with dates */}
+      {filtersApplied && dateRange.startDate && dateRange.endDate && (
+        <ReconciliationSummaryCards summary={summary} />
+      )}
 
       {/* Bank Account Tabs */}
       <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 overflow-x-auto scrollbar-none pb-px">
         {bankAccounts.map((account) => (
           <button
             key={account.id}
-            onClick={() => setSelectedAccountId(account.id)}
+            onClick={() => {
+              setSelectedAccountId(account.id);
+              // Refetch when switching accounts
+              if (filtersApplied) {
+                fetchStatementsWithFilters({
+                  ...filter,
+                  bankAccountIds: [account.id],
+                });
+              }
+            }}
             className={`px-6 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap flex items-center gap-3 ${
               selectedAccountId === account.id
                 ? "border-blue-600 text-blue-600 bg-blue-50/30 dark:bg-blue-900/10"
@@ -365,26 +351,48 @@ export function BankReconciliationPage() {
         ))}
       </div>
 
+      {/* Filters Section */}
+      <BankReconciliationFilters
+        bankAccounts={bankAccounts}
+        onApplyFilters={handleApplyFilters}
+        onClearFilters={handleClearFilters}
+        isLoading={isLoading}
+      />
+
       {/* Main Content Area - with sidebar for groups */}
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Left column - Main content */}
         <div className="flex-1">
-          <BankMutationTable
-            items={statements}
-            potentialMatchesMap={potentialMatchesMap}
-            isLoadingMatches={isLoadingMatches}
-            onManualMatch={handleManualMatchClick}
-            onQuickMatch={handleQuickMatch}
-            onCheckMatches={fetchPotentialMatches}
-            onUndo={handleUndo}
-            onMultiMatch={handleMultiMatchFromTable}
-            reconciliationGroups={reconciliationGroups}
-            showMultiMatch={true}
-          />
+          {!filtersApplied ? (
+            // Empty state - show message
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-12 text-center">
+              <Filter className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-gray-700 dark:text-gray-300 mb-2">
+                Pilih Filter untuk Melihat Data
+              </h3>
+              <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                Silakan pilih rentang tanggal dan filter lainnya, kemudian klik 
+                "Terapkan Filter" untuk menampilkan data mutasi bank.
+              </p>
+            </div>
+          ) : (
+            <BankMutationTable
+              items={statements}
+              potentialMatchesMap={potentialMatchesMap}
+              isLoadingMatches={isLoadingMatches}
+              onManualMatch={handleManualMatchClick}
+              onQuickMatch={handleQuickMatch}
+              onCheckMatches={fetchPotentialMatches}
+              onUndo={handleUndo}
+              onMultiMatch={handleMultiMatchFromTable}
+              reconciliationGroups={reconciliationGroups}
+              showMultiMatch={true}
+            />
+          )}
         </div>
 
         {/* Right column - Sidebar with Multi-Match Groups */}
-        {showGroupList && (
+        {showGroupList && filtersApplied && (
           <div className="w-full lg:w-96 shrink-0">
             <div className="sticky top-6">
               <MultiMatchGroupList
@@ -398,13 +406,13 @@ export function BankReconciliationPage() {
       </div>
 
       {/* Toggle Sidebar Button */}
-      {!showGroupList && (
+      {showGroupList && filtersApplied && (
         <button
-          onClick={() => setShowGroupList(true)}
+          onClick={() => setShowGroupList(false)}
           className="fixed bottom-6 right-6 p-4 bg-indigo-600 text-white rounded-full shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 transition-all z-40"
-          title="Tampilkan Multi-Match Groups"
+          title="Sembunyikan Multi-Match Groups"
         >
-          <LayoutGrid className="w-6 h-6" />
+          <X className="w-6 h-6" />
         </button>
       )}
 
