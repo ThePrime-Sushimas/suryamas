@@ -150,13 +150,45 @@ export class AuthController {
   resetPassword = withValidated(async (req: ResetPasswordReq, res: Response) => {
     try {
       const { password } = req.validated.body
+      const recoveryToken = req.headers['x-supabase-recovery-token'] as string || req.validated.body.recovery_token
 
-      const { error } = await supabase.auth.updateUser({
-        password
+      if (!recoveryToken) {
+        throw new Error('Recovery token is required')
+      }
+
+      // The token from Supabase reset URL is an access_token
+      // We need to set the session using this token first
+      const { data: sessionData, error: setSessionError } = await supabase.auth.setSession({
+        access_token: recoveryToken,
+        refresh_token: recoveryToken // Use the same token as refresh token for recovery flow
       })
 
-      if (error) {
-        throw new Error(error.message)
+      if (setSessionError) {
+        // If setSession fails, try to get the user directly
+        const { data: { user }, error: getUserError } = await supabase.auth.getUser(recoveryToken)
+        
+        if (getUserError || !user) {
+          throw new Error('Invalid or expired recovery token')
+        }
+
+        // Use admin API to update password (requires service role key)
+        const { error: updateError } = await supabase.auth.admin.updateUserById(
+          user.id,
+          { password }
+        )
+
+        if (updateError) {
+          throw new Error(updateError.message)
+        }
+      } else {
+        // Update password with the session
+        const { error: updateError } = await supabase.auth.updateUser({
+          password
+        })
+
+        if (updateError) {
+          throw new Error(updateError.message)
+        }
       }
 
       sendSuccess(res, null, 'Password updated successfully')

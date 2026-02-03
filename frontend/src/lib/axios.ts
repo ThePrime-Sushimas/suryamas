@@ -8,6 +8,7 @@ const PUBLIC_ENDPOINTS = [
   '/auth/refresh',
   '/auth/forgot-password',
   '/auth/logout',
+  '/auth/reset-password',
 ]
 
 const BRANCH_AGNOSTIC_ENDPOINTS = [

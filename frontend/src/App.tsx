@@ -391,6 +391,8 @@ function App() {
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/reset-password " element={<ResetPasswordPage />} />
+              <Route path="/reset-password%20" element={<ResetPasswordPage />} />
 
               {/* Protected Routes - With Layout */}
               <Route
