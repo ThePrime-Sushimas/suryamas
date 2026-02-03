@@ -25,14 +25,10 @@ import {
   ReconciliationError,
 } from "./bank-reconciliation.errors";
 import { logError } from "../../../config/logger";
-import { getPaginationParams } from "../../../utils/pagination.util";
 
 export class BankReconciliationController {
   constructor(private readonly service: BankReconciliationService) {}
 
-  /**
-   * Reconcile a single POS aggregate with bank statement
-   */
   async reconcile(
     req: ValidatedAuthRequest<typeof manualReconcileSchema>,
     res: Response,
@@ -58,11 +54,10 @@ export class BankReconciliationController {
       if (error instanceof AlreadyReconciledError) status = 409;
       if (error instanceof DifferenceThresholdExceededError) status = 422;
       
-      // Handle fetch/statement errors
       if (error instanceof FetchStatementError || 
           error instanceof StatementNotFoundError ||
           error instanceof DatabaseConnectionError) {
-        status = 503; // Service unavailable for database issues
+        status = 503;
       }
 
       logError("Reconciliation error", { 
@@ -79,9 +74,6 @@ export class BankReconciliationController {
     }
   }
 
-  /**
-   * Undo reconciliation
-   */
   async undo(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { statementId } = req.params;
@@ -111,9 +103,6 @@ export class BankReconciliationController {
     }
   }
 
-  /**
-   * Run auto-matching for all unreconciled items
-   */
   async autoMatch(
     req: ValidatedAuthRequest<typeof autoMatchSchema>,
     res: Response,
@@ -123,7 +112,6 @@ export class BankReconciliationController {
       const userId = req.user?.id;
 
       const result = await this.service.autoMatch(
-        validated.companyId,
         new Date(validated.startDate),
         new Date(validated.endDate),
         validated.bankAccountId,
@@ -152,34 +140,23 @@ export class BankReconciliationController {
     }
   }
 
-  /**
-   * Get all bank statements with reconciliation info
-   */
   async getStatements(
     req: AuthenticatedQueryRequest,
     res: Response,
   ): Promise<void> {
     try {
       const validated = (req as any).validated?.query || req.query;
-      const { companyId, startDate, endDate, bankAccountId } = validated;
-
-      // Get pagination params from middleware or query
-      const pagination = (req as any).pagination || getPaginationParams(req.query);
-      const { limit, offset } = pagination;
+      const { startDate, endDate, bankAccountId } = validated;
 
       const result = await this.service.getStatements(
-        companyId,
         new Date(startDate),
         new Date(endDate),
         bankAccountId ? parseInt(bankAccountId) : undefined,
-        limit,
-        offset,
       );
 
       res.status(200).json({
         success: true,
-        data: result.data,
-        pagination: result.pagination,
+        data: result,
       });
     } catch (error: any) {
       logError("Get statements error", { 
@@ -201,16 +178,13 @@ export class BankReconciliationController {
     }
   }
 
-  /**
-   * Get reconciliation status per bank account
-   */
   async getBankAccountsStatus(
     req: AuthenticatedQueryRequest,
     res: Response,
   ): Promise<void> {
     try {
       const validated = (req as any).validated?.query || req.query;
-      const { companyId, startDate, endDate } = validated;
+      const { startDate, endDate } = validated;
 
       const result = await this.service.getBankAccountsStatus(
         new Date(startDate),
@@ -238,19 +212,15 @@ export class BankReconciliationController {
     }
   }
 
-  /**
-   * Get reconciliation summary
-   */
   async getSummary(
     req: AuthenticatedQueryRequest,
     res: Response,
   ): Promise<void> {
     try {
       const validated = (req as any).validated?.query || req.query;
-      const { companyId, startDate, endDate } = validated;
+      const { startDate, endDate } = validated;
 
       const result = await this.service.getSummary(
-        companyId,
         new Date(startDate),
         new Date(endDate),
       );
@@ -278,20 +248,11 @@ export class BankReconciliationController {
     }
   }
 
-  /**
-   * Get potential matches for a specific bank statement
-   */
   async getPotentialMatches(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { companyId } = req.query;
-
-      if (!companyId) {
-        throw new ReconciliationError("Company ID is required", "MISSING_COMPANY_ID");
-      }
 
       const result = await this.service.getPotentialMatches(
-        companyId as string,
         id as string,
       );
 
@@ -320,13 +281,6 @@ export class BankReconciliationController {
     }
   }
 
-  // =====================================================
-  // MULTI-MATCH CONTROLLER METHODS
-  // =====================================================
-
-  /**
-   * Create multi-match (1 POS = N Bank Statements)
-   */
   async createMultiMatch(
     req: ValidatedAuthRequest<typeof multiMatchSchema>,
     res: Response,
@@ -336,7 +290,6 @@ export class BankReconciliationController {
       const userId = req.user?.id;
 
       const result = await this.service.createMultiMatch(
-        validated.companyId,
         validated.aggregateId,
         validated.statementIds,
         userId,
@@ -365,9 +318,6 @@ export class BankReconciliationController {
     }
   }
 
-  /**
-   * Undo multi-match
-   */
   async undoMultiMatch(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { groupId } = req.params;
@@ -397,22 +347,18 @@ export class BankReconciliationController {
     }
   }
 
-  /**
-   * Get suggested statements for grouping
-   */
   async getSuggestedGroupStatements(
     req: AuthenticatedQueryRequest,
     res: Response,
   ): Promise<void> {
     try {
-      const { companyId, aggregateId, tolerancePercent, dateToleranceDays, maxStatements } = req.query;
+      const { aggregateId, tolerancePercent, dateToleranceDays, maxStatements } = req.query;
 
-      if (!companyId || !aggregateId) {
-        throw new ReconciliationError("Company ID dan Aggregate ID wajib diisi", "MISSING_PARAMS");
+      if (!aggregateId) {
+        throw new ReconciliationError("Aggregate ID wajib diisi", "MISSING_PARAMS");
       }
 
       const result = await this.service.getSuggestedGroupStatements(
-        companyId as string,
         aggregateId as string,
         tolerancePercent ? parseFloat(tolerancePercent as string) : undefined,
         dateToleranceDays ? parseInt(dateToleranceDays as string) : undefined,
@@ -442,18 +388,14 @@ export class BankReconciliationController {
     }
   }
 
-  /**
-   * Get all multi-match groups
-   */
   async getReconciliationGroups(
     req: AuthenticatedQueryRequest,
     res: Response,
   ): Promise<void> {
     try {
-      const { companyId, startDate, endDate } = req.query;
+      const { startDate, endDate } = req.query;
 
       const result = await this.service.getReconciliationGroups(
-        companyId as string,
         new Date(startDate as string),
         new Date(endDate as string),
       );
@@ -479,17 +421,9 @@ export class BankReconciliationController {
     }
   }
 
-  /**
-   * Get details of a multi-match group
-   */
   async getMultiMatchGroup(req: Request, res: Response): Promise<void> {
     try {
       const { groupId } = req.params;
-      const { companyId } = req.query;
-
-      if (!companyId) {
-        throw new ReconciliationError("Company ID wajib diisi", "MISSING_COMPANY_ID");
-      }
 
       const result = await this.service.getMultiMatchGroup(groupId as string);
 
@@ -519,3 +453,4 @@ export class BankReconciliationController {
 export const bankReconciliationController = new BankReconciliationController(
   bankReconciliationService
 );
+

@@ -82,11 +82,8 @@ export class BankReconciliationRepository {
     startDate: Date,
     endDate: Date,
     bankAccountId?: number,
-    limit: number = 1000,
-    offset: number = 0,
   ): Promise<any[]> {
     try {
-      // First get bank statements with limit
       let query = supabase
         .from("bank_statements")
         .select(
@@ -111,24 +108,19 @@ export class BankReconciliationRepository {
         query = query.eq("bank_account_id", bankAccountId);
       }
 
-      // Add pagination
-      const { data, error } = await query
-        .order("transaction_date", { ascending: false })
-        .range(offset, offset + limit - 1);
+      const { data, error } = await query.order("transaction_date", {
+        ascending: false,
+      });
 
       if (error) {
         logError("Error fetching bank statements", {          
           startDate: startDate.toISOString(), 
           endDate: endDate.toISOString(),
-          limit,
-          offset,
           error: error.message 
         });
         throw error;
       }
       
-      // For now, return statements without matched_aggregate to avoid the fetch error
-      // TODO: Implement proper aggregate matching later
       return (data || []).map(row => ({
         ...row,
         matched_aggregate: null,
@@ -137,43 +129,6 @@ export class BankReconciliationRepository {
       logError("Error fetching statements by date range", {        
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
-        limit,
-        offset,
-        error: error.message
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Get bank statements count by date range
-   */
-  async getByDateRangeCount(
-    startDate: Date,
-    endDate: Date,
-    bankAccountId?: number,
-  ): Promise<number> {
-    try {
-      let query = supabase
-        .from("bank_statements")
-        .select("*", { count: "exact", head: true })
-        .gte("transaction_date", startDate.toISOString().split("T")[0])
-        .lte("transaction_date", endDate.toISOString().split("T")[0])
-        .is("deleted_at", null);
-
-      if (bankAccountId) {
-        query = query.eq("bank_account_id", bankAccountId);
-      }
-
-      const { count, error } = await query;
-
-      if (error) {
-        throw error;
-      }
-
-      return count || 0;
-    } catch (error: any) {
-      logError("Error counting statements by date range", {
         error: error.message
       });
       throw error;
@@ -211,7 +166,6 @@ export class BankReconciliationRepository {
         return acc;
       }, {});
 
-      // Get account details
       const accountIds = Object.keys(stats).map((id) => parseInt(id));
       if (accountIds.length === 0) return [];
 
@@ -285,7 +239,6 @@ export class BankReconciliationRepository {
     aggregateId: string,
   ): Promise<void> {
     try {
-      // Get aggregate to extract payment_method_id
       const { data: aggregate, error: aggError } = await supabase
         .from("aggregated_transactions")
         .select("payment_method_id")
@@ -409,7 +362,6 @@ export class BankReconciliationRepository {
       }
     } catch (error: any) {
       logError("Error logging reconciliation action", { action: data.action, error: error.message });
-      // Don't throw for logging errors - it's not critical
     }
   }
 
@@ -584,11 +536,9 @@ export class BankReconciliationRepository {
    */
   async undoReconciliationGroup(groupId: string): Promise<void> {
     try {
-      // Get group first to get statement IDs
       const group = await this.getReconciliationGroupById(groupId);
       if (!group) throw new Error("Group not found");
 
-      // Reset statements
       const statementIds = (group.bank_reconciliation_group_details || [])
         .map((d: any) => d.statement_id);
 
@@ -608,7 +558,6 @@ export class BankReconciliationRepository {
         }
       }
 
-      // Soft delete group
       const { error } = await supabase
         .from("bank_reconciliation_groups")
         .update({

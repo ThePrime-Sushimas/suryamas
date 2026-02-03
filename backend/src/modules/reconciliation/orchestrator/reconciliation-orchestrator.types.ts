@@ -18,7 +18,7 @@ export interface AggregatedTransaction {
   currency: string;
   journal_id?: string;
   is_reconciled: boolean;
-  status: 'READY' | 'FAILED' | 'RECONCILED' | 'PENDING' | 'DISCREPANCY'; // Extending the enum for reconciliation flow
+  status: 'READY' | 'FAILED' | 'RECONCILED' | 'PENDING' | 'DISCREPANCY';
   created_at: string;
   updated_at: string;
   deleted_at?: string;
@@ -45,8 +45,8 @@ export interface ReconciliationAggregate {
 }
 
 export interface IReconciliationOrchestratorService {
-  getAggregatesForDate(companyId: string, date: Date): Promise<ReconciliationAggregate[]>;
-  getAggregatesByDateRange(companyId: string, startDate: Date, endDate: Date): Promise<ReconciliationAggregate[]>;
+  getAggregatesForDate(date: Date): Promise<ReconciliationAggregate[]>;
+  getAggregatesByDateRange(startDate: Date, endDate: Date): Promise<ReconciliationAggregate[]>;
   getAggregate(id: string): Promise<AggregatedTransaction>;
   updateReconciliationStatus(
     aggregateId: string, 
@@ -54,9 +54,8 @@ export interface IReconciliationOrchestratorService {
     statementId?: string,
     reconciledBy?: string
   ): Promise<void>;
-  getReconciliationSummary(companyId: string, startDate: Date, endDate: Date): Promise<any>;
+  getReconciliationSummary(startDate: Date, endDate: Date): Promise<any>;
   findPotentialAggregatesForStatement(
-    companyId: string,
     statementAmount: number,
     statementDate: Date,
     tolerance?: number,
@@ -70,3 +69,4 @@ export interface IReconciliationOrchestratorService {
     }>
   ): Promise<void>;
 }
+

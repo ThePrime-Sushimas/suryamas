@@ -7,23 +7,16 @@ import {
 } from "./reconciliation-orchestrator.types";
 
 export class ReconciliationOrchestratorService implements IReconciliationOrchestratorService {
-  /**
-   * Get aggregated transactions for a specific company and date
-   * with additional data needed for reconciliation
-   */
   async getAggregatesForDate(
-    companyId: string,
     date: Date,
   ): Promise<ReconciliationAggregate[]> {
     const dateStr = date.toISOString().split("T")[0];
     logInfo("Fetching aggregated transactions for reconciliation", {
-      companyId,
       date: dateStr,
       action: "get_aggregates_for_date",
     });
 
     try {
-      // Query dengan join ke payment_methods untuk mendapatkan payment method name
       const { data, error } = await supabase
         .from("aggregated_transactions")
         .select(
@@ -36,8 +29,6 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
           )
         `,
         )
-        // Assuming company_id is linked via something or we filter by date and payment methods
-        // For now, let's keep the filter simple as per DDL
         .eq("transaction_date", dateStr)
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
@@ -58,7 +49,6 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
         return [];
       }
 
-      // Transform data ke format reconciliation
       return data.map((agg) => this.transformToReconciliationAggregate(agg));
     } catch (error) {
       logError("Failed to get aggregated transactions", {
@@ -70,11 +60,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     }
   }
 
-  /**
-   * Get aggregates within a date range (for reconciliation summary)
-   */
   async getAggregatesByDateRange(
-    companyId: string,
     startDate: Date,
     endDate: Date,
   ): Promise<ReconciliationAggregate[]> {
@@ -82,7 +68,6 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     const endDateStr = endDate.toISOString().split("T")[0];
 
     logInfo("Fetching aggregated transactions for date range", {
-      companyId,
       startDate: startDateStr,
       endDate: endDateStr,
     });
@@ -129,9 +114,6 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     }
   }
 
-  /**
-   * Get a single aggregate by ID with all details
-   */
   async getAggregate(id: string): Promise<AggregatedTransaction> {
     logDebug("Fetching single aggregated transaction", { aggregateId: id });
 
@@ -152,7 +134,6 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
 
       if (error) {
         if (error.code === "PGRST116") {
-          // Record not found
           logError("Aggregated transaction not found", { aggregateId: id });
           throw new Error(`Aggregated transaction ${id} not found`);
         }
@@ -173,10 +154,6 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     }
   }
 
-  /**
-   * Update reconciliation status of an aggregate
-   * This is called when a match is confirmed
-   */
   async updateReconciliationStatus(
     aggregateId: string,
     status: "PENDING" | "RECONCILED" | "DISCREPANCY",
@@ -193,14 +170,8 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     try {
       const updateData: any = {
         is_reconciled: status === "RECONCILED",
-        // In this schema, 'status' column is 'READY', 'FAILED', etc.
-        // We'll keep 'status' logic if applicable but 'is_reconciled' is the primary flag.
         updated_at: new Date().toISOString(),
       };
-
-      // If needed, we could store reconciled metadata in a separate table or
-      // check if aggregated_transactions should have these columns.
-      // For now we map to the primary 'is_reconciled' field.
 
       const { error } = await supabase
         .from("aggregated_transactions")
@@ -235,11 +206,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     }
   }
 
-  /**
-   * Get reconciliation summary statistics for a period
-   */
   async getReconciliationSummary(
-    companyId: string,
     startDate: Date,
     endDate: Date,
   ): Promise<any> {
@@ -247,11 +214,9 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     const endDateStr = endDate.toISOString().split("T")[0];
 
     try {
-      // Get summary
-      return await this.getSummaryFallback(companyId, startDateStr, endDateStr);
+      return await this.getSummaryFallback(startDateStr, endDateStr);
     } catch (error) {
       logError("Error getting reconciliation summary", {
-        companyId,
         startDate: startDateStr,
         endDate: endDateStr,
         error: (error as Error).message,
@@ -260,11 +225,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     }
   }
 
-  /**
-   * Summary calculation for aggregated_transactions
-   */
   private async getSummaryFallback(
-    companyId: string,
     startDate: string,
     endDate: string,
   ): Promise<any> {
@@ -287,7 +248,6 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
 
       if (stmtError) throw stmtError;
 
-      // Calculate aggregated totals
       const totalAggregates = aggData?.length || 0;
       const reconciledAggregates =
         aggData?.filter((agg) => agg.is_reconciled).length || 0;
@@ -295,7 +255,6 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
       const reconciledStatements =
         stmtData?.filter((stmt) => stmt.is_reconciled).length || 0;
 
-      // Calculate totals
       const totalNetAmount =
         aggData?.reduce((sum, agg) => sum + (Number(agg.nett_amount) || 0), 0) ||
         0;
@@ -308,10 +267,8 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
           0,
         ) || 0;
 
-      // Calculate difference
       const totalDifference = Math.abs(totalNetAmount - totalBankAmount);
 
-      // Calculate percentage reconciled (based on statements matched)
       const percentageReconciled =
         totalStatements > 0
           ? (reconciledStatements / totalStatements) * 100
@@ -324,7 +281,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
         },
         totalAggregates,
         totalStatements,
-        autoMatched: 0, // Will be populated by auto-match process
+        autoMatched: 0,
         manuallyMatched: reconciledStatements,
         discrepancies: totalStatements - reconciledStatements,
         unreconciled: totalStatements - reconciledStatements,
@@ -338,9 +295,6 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     }
   }
 
-  /**
-   * Transform database record to reconciliation format
-   */
   private transformToReconciliationAggregate(
     agg: any,
   ): ReconciliationAggregate {
@@ -348,7 +302,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
       id: agg.id,
       nett_amount: Number(agg.nett_amount),
       transaction_date: agg.transaction_date,
-      reference_number: agg.source_ref, // Mapping source_ref to reference_number
+      reference_number: agg.source_ref,
       payment_method_id: agg.payment_method_id,
       payment_method_name: agg.payment_methods?.name,
       gross_amount: Number(agg.gross_amount),
@@ -356,16 +310,12 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
       fixed_fee_amount: Number(agg.fixed_fee_amount || 0),
       total_fee_amount: Number(agg.total_fee_amount || 0),
       bill_after_discount: Number(agg.bill_after_discount || 0),
-      transaction_count: 1, // Individual transaction record
+      transaction_count: 1,
       reconciliation_status: agg.is_reconciled ? "RECONCILED" : "PENDING",
     };
   }
 
-  /**
-   * Find potential aggregated transactions for a bank statement
-   */
   async findPotentialAggregatesForStatement(
-    companyId: string,
     statementAmount: number,
     statementDate: Date,
     tolerance: number = 0.01,
@@ -388,7 +338,6 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     });
 
     try {
-      // First, try exact match with tolerance
       const { data, error } = await supabase
         .from("aggregated_transactions")
         .select(
@@ -400,7 +349,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
         .gte("transaction_date", minDateStr)
         .lte("transaction_date", maxDateStr)
         .is("deleted_at", null)
-        .eq("is_reconciled", false) // Only unmatched
+        .eq("is_reconciled", false)
         .gte("nett_amount", statementAmount - tolerance)
         .lte("nett_amount", statementAmount + tolerance)
         .order("transaction_date", { ascending: false })
@@ -414,7 +363,6 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
         throw error;
       }
 
-// Calculate confidence score for each potential match
       const potentialMatches = (data || []).map((agg) => {
         const netAmount = Number(agg.nett_amount);
         const amountDiff = Math.abs(netAmount - statementAmount);
@@ -424,7 +372,6 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
           ) /
           (1000 * 3600 * 24);
 
-        // Calculate confidence score (0-100)
         let score = 100;
         score -= (amountDiff / (statementAmount || 1)) * 100 * 10;
         score -= dateDiff * 5;
@@ -451,9 +398,6 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     }
   }
 
-  /**
-   * Batch update reconciliation status
-   */
   async bulkUpdateReconciliationStatus(
     updates: Array<{
       aggregateId: string;
@@ -499,3 +443,4 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
 
 export const reconciliationOrchestratorService =
   new ReconciliationOrchestratorService();
+

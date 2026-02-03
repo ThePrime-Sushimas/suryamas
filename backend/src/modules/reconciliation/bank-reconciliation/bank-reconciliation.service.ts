@@ -11,6 +11,8 @@ import {
 } from "./bank-reconciliation.types";
 import {
   AlreadyReconciledError,
+  NoMatchFoundError,
+  DifferenceThresholdExceededError,
 } from "./bank-reconciliation.errors";
 import { getReconciliationConfig } from "./bank-reconciliation.config";
 import { IReconciliationOrchestratorService } from "../orchestrator/reconciliation-orchestrator.types";
@@ -23,14 +25,11 @@ import { reconciliationOrchestratorService } from "../orchestrator/reconciliatio
 export class BankReconciliationService {
   private readonly config = getReconciliationConfig();
 
-  /**
-   * Configuration for multi-match
-   */
   private readonly multiMatchConfig = {
-    defaultTolerancePercent: 0.05, // 5%
+    defaultTolerancePercent: 0.05,
     defaultDateToleranceDays: 2,
     defaultMaxStatements: 5,
-    differenceThreshold: 100, // Rp 100 tolerance
+    differenceThreshold: 100,
   };
 
   constructor(
@@ -39,9 +38,6 @@ export class BankReconciliationService {
     private readonly feeReconciliationService: FeeReconciliationService,
   ) {}
 
-  /**
-   * Reconcile a single POS aggregate with a bank statement
-   */
   async reconcile(
     aggregateId: string,
     statementId: string,
@@ -58,10 +54,8 @@ export class BankReconciliationService {
       throw new AlreadyReconciledError(statementId);
     }
 
-    // 1. Mark as reconciled in DB
     await this.repository.markAsReconciled(statementId, aggregateId);
 
-    // 2. Update status in POS Aggregates (Bidirectional sync)
     await this.orchestratorService.updateReconciliationStatus(
       aggregateId,
       "RECONCILED",
@@ -69,7 +63,6 @@ export class BankReconciliationService {
       userId,
     );
 
-    // 3. Audit Trail
     await this.repository.logAction({
       userId,
       action: "MANUAL_RECONCILE",
@@ -91,9 +84,6 @@ export class BankReconciliationService {
     };
   }
 
-  /**
-   * Undo reconciliation for a statement
-   */
   async undo(statementId: string, userId?: string): Promise<void> {
     const statement = await this.repository.findById(statementId);
     if (!statement) {
@@ -102,7 +92,6 @@ export class BankReconciliationService {
 
     await this.repository.undoReconciliation(statementId);
 
-    // Update status in POS Aggregates (Reset to PENDING)
     if (statement.reconciliation_id) {
       await this.orchestratorService.updateReconciliationStatus(
         statement.reconciliation_id,
@@ -110,7 +99,6 @@ export class BankReconciliationService {
       );
     }
 
-    // Audit Trail
     await this.repository.logAction({
       userId,
       action: "UNDO",
@@ -120,11 +108,7 @@ export class BankReconciliationService {
     });
   }
 
-  /**
-   * Auto-match multiple aggregates with statements using tiered priority logic
-   */
   async autoMatch(
-    companyId: string,
     startDate: Date,
     endDate: Date,
     bankAccountId?: number,
@@ -137,7 +121,6 @@ export class BankReconciliationService {
       ...criteria,
     };
 
-    // 1. Get unreconciled statements (possibly in batches)
     const statements = await this.repository.getUnreconciledBatch(
       startDate,
       endDate,
@@ -146,15 +129,12 @@ export class BankReconciliationService {
       bankAccountId,
     );
 
-    // 2. Get aggregates (expected net) from orchestrator
-    // Expand date range to include date buffer for fuzzy matching
     const bufferStart = new Date(startDate);
     bufferStart.setDate(bufferStart.getDate() - matchingCriteria.dateBufferDays);
     const bufferEnd = new Date(endDate);
     bufferEnd.setDate(bufferEnd.getDate() + matchingCriteria.dateBufferDays);
 
     const aggregates = await this.orchestratorService.getAggregatesByDateRange(
-      companyId,
       bufferStart,
       bufferEnd,
     );
@@ -163,7 +143,6 @@ export class BankReconciliationService {
     const remainingStatements = [...statements];
     const remainingAggregates = [...aggregates];
 
-    // Priority 1: Exact Reference Number Match
     this.processMatching(
       remainingStatements,
       remainingAggregates,
@@ -176,7 +155,6 @@ export class BankReconciliationService {
       100,
     );
 
-// Priority 2: Amount + Exact Date
     this.processMatching(
       remainingStatements,
       remainingAggregates,
@@ -194,7 +172,6 @@ export class BankReconciliationService {
       90,
     );
 
-    // Priority 3: Amount + Date Buffer
     this.processMatching(
       remainingStatements,
       remainingAggregates,
@@ -214,7 +191,6 @@ export class BankReconciliationService {
       80,
     );
 
-    // 5. Apply matches and log them
     const bulkUpdates: any[] = [];
     for (const match of matches) {
       await this.repository.markAsReconciled(
@@ -240,7 +216,6 @@ export class BankReconciliationService {
       });
     }
 
-    // Bulk update POS aggregates
     if (bulkUpdates.length > 0) {
       await this.orchestratorService.bulkUpdateReconciliationStatus(
         bulkUpdates,
@@ -254,9 +229,6 @@ export class BankReconciliationService {
     };
   }
 
-  /**
-   * Helper to process matching logic for a specific priority tiered approach
-   */
   private processMatching(
     statements: any[],
     aggregates: any[],
@@ -269,7 +241,7 @@ export class BankReconciliationService {
       const statement = statements[i];
       const matchIdx = aggregates.findIndex((agg) => predicate(statement, agg));
 
-if (matchIdx !== -1) {
+      if (matchIdx !== -1) {
         const agg = aggregates[matchIdx];
         matches.push({
           aggregateId: agg.id,
@@ -287,33 +259,18 @@ if (matchIdx !== -1) {
     }
   }
 
-  /**
-   * Get all bank statements for a period with reconciliation info
-   */
   async getStatements(
-    companyId: string,
     startDate: Date,
     endDate: Date,
     bankAccountId?: number,
-    limit: number = 100,
-    offset: number = 0,
-  ): Promise<{ data: any[]; pagination: any }> {
-    const [statements, total] = await Promise.all([
-      this.repository.getByDateRange(
-        startDate,
-        endDate,
-        bankAccountId,
-        limit,
-        offset,
-      ),
-      this.repository.getByDateRangeCount(
-        startDate,
-        endDate,
-        bankAccountId,
-      ),
-    ]);
+  ): Promise<any[]> {
+    const statements = await this.repository.getByDateRange(
+      startDate,
+      endDate,
+      bankAccountId,
+    );
 
-    const data = statements.map((s) => {
+    return statements.map((s) => {
       const isReconciled = s.is_reconciled;
       const bankAmount = s.credit_amount - s.debit_amount;
       const hasMatch = !!s.matched_aggregate;
@@ -321,7 +278,6 @@ if (matchIdx !== -1) {
         ? Math.abs(bankAmount - s.matched_aggregate.nett_amount)
         : 0;
 
-      // Determine status based on reconciliation state
       let status: BankReconciliationStatus = BankReconciliationStatus.UNRECONCILED;
       if (isReconciled) {
         if (difference === 0) {
@@ -344,28 +300,9 @@ if (matchIdx !== -1) {
         potentialMatches: [],
       };
     });
-
-    const page = Math.floor(offset / limit) + 1;
-    const totalPages = Math.ceil(total / limit);
-
-    return {
-      data,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
-      },
-    };
   }
 
-  /**
-   * Fetch potential matches for a single bank statement
-   */
   async getPotentialMatches(
-    companyId: string,
     statementId: string,
   ): Promise<any[]> {
     const s = await this.repository.findById(statementId);
@@ -373,7 +310,6 @@ if (matchIdx !== -1) {
 
     const sAmount = s.credit_amount - s.debit_amount;
     return this.orchestratorService.findPotentialAggregatesForStatement(
-      companyId,
       sAmount,
       new Date(s.transaction_date),
       this.config.amountTolerance,
@@ -381,34 +317,23 @@ if (matchIdx !== -1) {
     );
   }
 
-  /**
-   * Get reconciliation summary per bank account
-   */
   async getBankAccountsStatus(
     startDate: Date,
     endDate: Date,
   ): Promise<any[]> {
-    return this.repository.getBankAccountsStatus( startDate, endDate);
+    return this.repository.getBankAccountsStatus(startDate, endDate);
   }
 
-  /**
-   * Get reconciliation summary
-   */
   async getSummary(
-    companyId: string,
     startDate: Date,
     endDate: Date,
   ): Promise<any> {
     return this.orchestratorService.getReconciliationSummary(
-      companyId,
       startDate,
       endDate,
     );
   }
 
-  /**
-   * Calculate difference between POS and bank
-   */
   calculateDifference(
     aggregateAmount: number,
     statementAmount: number,
@@ -420,22 +345,13 @@ if (matchIdx !== -1) {
     return { absolute, percentage };
   }
 
-  // =====================================================
-  // MULTI-MATCH SERVICE METHODS
-  // =====================================================
-
-  /**
-   * Create multi-match: 1 POS Aggregate with N Bank Statements
-   */
   async createMultiMatch(
-    companyId: string,
     aggregateId: string,
     statementIds: string[],
     userId?: string,
     notes?: string,
     overrideDifference?: boolean,
   ): Promise<MultiMatchResultDto> {
-    // 1. Validate aggregate exists and is unreconciled
     const aggregate = await this.orchestratorService.getAggregate(aggregateId);
     if (!aggregate) {
       throw new Error("Aggregate tidak ditemukan");
@@ -446,19 +362,17 @@ if (matchIdx !== -1) {
       throw new Error("Aggregate sudah menjadi bagian dari group");
     }
 
-    // 2. Validate all statements exist and are unreconciled
     const statements = await Promise.all(
       statementIds.map(id => this.repository.findById(id))
     );
 
     const invalidStatements = statements.filter(
-      (s) => !s || s.company_id !== companyId || s.is_reconciled
+      (s) => !s || s.is_reconciled
     );
     if (invalidStatements.length > 0) {
       throw new Error("Beberapa statement tidak valid atau sudah dicocokkan");
     }
 
-    // 3. Calculate totals
     const totalBankAmount = statements.reduce((sum, s) => {
       const amount = (s.credit_amount || 0) - (s.debit_amount || 0);
       return sum + amount;
@@ -470,7 +384,6 @@ if (matchIdx !== -1) {
       ? Math.abs(difference) / aggregateAmount
       : 0;
 
-    // 4. Check if difference is within tolerance OR override is true
     const isWithinTolerance = differencePercent <= this.multiMatchConfig.defaultTolerancePercent;
     if (!isWithinTolerance && !overrideDifference) {
       throw new Error(
@@ -478,7 +391,6 @@ if (matchIdx !== -1) {
       );
     }
 
-    // 5. Create reconciliation group
     const groupId = await this.repository.createReconciliationGroup({
       aggregateId,
       statementIds,
@@ -489,17 +401,14 @@ if (matchIdx !== -1) {
       reconciledBy: userId,
     });
 
-    // 6. Create group details
     const statementDetails = statements.map(s => ({
       statementId: s.id,
       amount: (s.credit_amount || 0) - (s.debit_amount || 0),
     }));
     await this.repository.addStatementsToGroup(groupId, statementDetails);
 
-    // 7. Mark all statements as reconciled with group
     await this.repository.markStatementsAsReconciledWithGroup(statementIds, groupId);
 
-    // 8. Update aggregate reconciliation status
     await this.orchestratorService.updateReconciliationStatus(
       aggregateId,
       "RECONCILED",
@@ -507,9 +416,7 @@ if (matchIdx !== -1) {
       userId,
     );
 
-    // 9. Log audit trail
     await this.repository.logAction({
-      
       userId,
       action: "MANUAL_RECONCILE" as any,
       aggregateId,
@@ -537,9 +444,6 @@ if (matchIdx !== -1) {
     };
   }
 
-  /**
-   * Undo multi-match
-   */
   async undoMultiMatch(
     groupId: string,
     userId?: string,
@@ -553,10 +457,8 @@ if (matchIdx !== -1) {
       throw new Error("Group sudah di-undo");
     }
 
-    // Undo di repository
     await this.repository.undoReconciliationGroup(groupId);
 
-    // Reset aggregate status
     if (group.aggregate_id) {
       await this.orchestratorService.updateReconciliationStatus(
         group.aggregate_id,
@@ -564,7 +466,6 @@ if (matchIdx !== -1) {
       );
     }
 
-    // Audit trail
     await this.repository.logAction({
       userId,
       action: "UNDO" as any,
@@ -576,11 +477,7 @@ if (matchIdx !== -1) {
     });
   }
 
-  /**
-   * Get suggested statements for grouping
-   */
   async getSuggestedGroupStatements(
-    companyId: string,
     aggregateId: string,
     tolerancePercent?: number,
     dateToleranceDays?: number,
@@ -595,20 +492,17 @@ if (matchIdx !== -1) {
     const days = dateToleranceDays ?? this.multiMatchConfig.defaultDateToleranceDays;
     const max = maxStatements ?? this.multiMatchConfig.defaultMaxStatements;
 
-    // Get date range with tolerance
     const aggregateDate = new Date(aggregate.transaction_date);
     const startDate = new Date(aggregateDate);
     startDate.setDate(startDate.getDate() - days);
     const endDate = new Date(aggregateDate);
     endDate.setDate(endDate.getDate() + days);
 
-    // Get candidate statements
     const statements = await this.repository.getUnreconciledStatementsForSuggestion(
       startDate,
       endDate,
     );
 
-    // Run suggestion algorithm
     const suggestions = this.findStatementCombinations(
       statements,
       aggregate.nett_amount,
@@ -619,9 +513,6 @@ if (matchIdx !== -1) {
     return suggestions;
   }
 
-  /**
-   * Knapsack-style algorithm to find statement combinations
-   */
   private findStatementCombinations(
     statements: any[],
     targetAmount: number,
@@ -634,7 +525,6 @@ if (matchIdx !== -1) {
       amount: (s.credit_amount || 0) - (s.debit_amount || 0),
     }));
 
-    // Group by MID if available
     const midGroups = new Map<string, any[]>();
     amounts.forEach(stmt => {
       const mid = this.extractMID(stmt.description);
@@ -646,7 +536,6 @@ if (matchIdx !== -1) {
       }
     });
 
-    // Priority 1: Find combinations with same MID
     for (const [mid, stmts] of midGroups) {
       const combos = this.findExactMatchCombinations(
         stmts,
@@ -667,7 +556,6 @@ if (matchIdx !== -1) {
       });
     }
 
-    // Priority 2: Fallback - find combinations without MID
     const nonMidStatements = amounts.filter(s => !this.extractMID(s.description));
     const fallbackCombos = this.findExactMatchCombinations(
       nonMidStatements,
@@ -687,7 +575,6 @@ if (matchIdx !== -1) {
       });
     });
 
-    // Sort by confidence and match percentage
     return suggestions.sort((a, b) => {
       const confidenceOrder = { HIGH: 3, MEDIUM: 2, LOW: 1 };
       if (confidenceOrder[a.confidence] !== confidenceOrder[b.confidence]) {
@@ -697,9 +584,6 @@ if (matchIdx !== -1) {
     });
   }
 
-  /**
-   * Find combinations that match target amount within tolerance
-   */
   private findExactMatchCombinations(
     statements: any[],
     targetAmount: number,
@@ -711,7 +595,6 @@ if (matchIdx !== -1) {
     const minAmount = targetAmount - tolerance;
     const maxAmount = targetAmount + tolerance;
 
-    // Simple recursive combination finder (optimized for small N)
     const findCombos = (index: number, current: any[], currentSum: number) => {
       if (current.length > maxStatements) return;
       if (currentSum >= minAmount && currentSum <= maxAmount) {
@@ -729,7 +612,6 @@ if (matchIdx !== -1) {
 
     findCombos(0, [], 0);
 
-    // Sort by closeness to target
     return results.sort((a, b) => {
       const sumA = a.reduce((s: number, st: any) => s + st.amount, 0);
       const sumB = b.reduce((s: number, st: any) => s + st.amount, 0);
@@ -737,29 +619,19 @@ if (matchIdx !== -1) {
     }).slice(0, 10);
   }
 
-  /**
-   * Extract MID from description
-   */
   private extractMID(description: string): string | null {
     const midRegex = /MID[:\s]*([0-9]+)/i;
     const match = description.match(midRegex);
     return match ? match[1] : null;
   }
 
-  /**
-   * Get all reconciliation groups
-   */
   async getReconciliationGroups(
-    companyId: string,
     startDate: Date,
     endDate: Date,
   ): Promise<any[]> {
-    return this.repository.getReconciliationGroups( startDate, endDate);
+    return this.repository.getReconciliationGroups(startDate, endDate);
   }
 
-  /**
-   * Get single group with details
-   */
   async getMultiMatchGroup(groupId: string): Promise<any> {
     return this.repository.getReconciliationGroupById(groupId);
   }
@@ -770,3 +642,4 @@ export const bankReconciliationService = new BankReconciliationService(
   reconciliationOrchestratorService,
   feeReconciliationService,
 );
+
