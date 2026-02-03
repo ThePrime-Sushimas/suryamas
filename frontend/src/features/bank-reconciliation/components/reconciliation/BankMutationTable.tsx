@@ -366,7 +366,7 @@ export function BankMutationTable({
                         )}
                       </div>
                       <span
-                        className="text-xs text-gray-500 max-w-[400px] truncate"
+                        className="text-xs text-gray-500 max-w-[400px]"
                         title={item.description}
                       >
                         {item.description || "No description"}
