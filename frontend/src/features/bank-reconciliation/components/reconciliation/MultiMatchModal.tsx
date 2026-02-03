@@ -101,7 +101,7 @@ export function MultiMatchModal({
     return statements.filter(
       (s) =>
         s.description?.toLowerCase().includes(searchLower) ||
-        s.id.toLowerCase().includes(searchLower),
+        String(s.id).toLowerCase().includes(searchLower),
     );
   }, [statements, search]);
 
