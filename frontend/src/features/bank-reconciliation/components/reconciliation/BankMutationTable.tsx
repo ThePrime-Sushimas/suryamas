@@ -407,7 +407,7 @@ export function BankMutationTable({
                   </td>
                   <td className="px-6 py-4">{getStatusBadge(item.status)}</td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-2 group-hover/row:opacity-100 transition-opacity">
                       {!item.is_reconciled && !isInGroup && (
                         <>
                           {(potentialMatchesMap[item.id]?.length ?? 0) > 0 ? (
@@ -418,7 +418,7 @@ export function BankMutationTable({
                                   potentialMatchesMap[item.id]![0].id,
                                 )
                               }
-                              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-all shadow-sm"
+                              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-all shadow-sm"
                               title={`Cocokkan dengan ${potentialMatchesMap[item.id]![0].payment_method_name}`}
                             >
                               <Sparkles className="w-3.5 h-3.5 animate-pulse" />
@@ -431,12 +431,12 @@ export function BankMutationTable({
                             <button
                               onClick={() => onCheckMatches?.(item.id)}
                               disabled={isLoadingMatches[item.id]}
-                              className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg text-xs font-bold hover:bg-gray-100 transition-all disabled:opacity-50"
+                              className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-lg text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all disabled:opacity-50"
                             >
                               {isLoadingMatches[item.id] ? (
                                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                               ) : (
-                                <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                                <Sparkles className="w-3.5 h-3.5" />
                               )}
                               Saran
                             </button>

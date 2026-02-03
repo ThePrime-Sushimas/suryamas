@@ -78,6 +78,8 @@ export class BankReconciliationRepository {
   /**
    * Get bank statements by date range with optional filtering and joined data
    * When dates are not provided, queries overall date range across all imports
+   * 
+   * NOTE: This method fetches matched_aggregate data separately for statements with reconciliation_id
    */
   async getByDateRange(
     startDate?: Date,
@@ -168,9 +170,50 @@ export class BankReconciliationRepository {
         throw error;
       }
       
+      // Get all reconciliation_ids from statements
+      const statementsWithReconciliation = (data || []).filter(s => s.reconciliation_id);
+      const aggregateIds = [...new Set(statementsWithReconciliation.map(s => s.reconciliation_id))];
+      
+      // Fetch aggregates in batch if there are any
+      let aggregateMap: Record<string, any> = {};
+      if (aggregateIds.length > 0) {
+        try {
+          const { data: aggregates, error: aggError } = await supabase
+            .from("aggregated_transactions")
+            .select(`
+              id,
+              transaction_date,
+              gross_amount,
+              nett_amount,
+              payment_methods!inner (
+                name
+              )
+            `)
+            .in("id", aggregateIds);
+
+          if (aggError) {
+            logError("Error fetching aggregates", { error: aggError.message });
+          } else if (aggregates) {
+            aggregateMap = aggregates.reduce((acc: Record<string, any>, agg: any) => {
+              acc[agg.id] = agg;
+              return acc;
+            }, {});
+          }
+        } catch (e: any) {
+          logError("Error in aggregate fetch", { error: e.message });
+        }
+      }
+      
+      // Map data to include matched_aggregate
       return (data || []).map(row => ({
         ...row,
-        matched_aggregate: null,
+        matched_aggregate: row.reconciliation_id && aggregateMap[row.reconciliation_id] ? {
+          id: aggregateMap[row.reconciliation_id].id,
+          transaction_date: aggregateMap[row.reconciliation_id].transaction_date,
+          gross_amount: aggregateMap[row.reconciliation_id].gross_amount,
+          nett_amount: aggregateMap[row.reconciliation_id].nett_amount,
+          payment_method_name: aggregateMap[row.reconciliation_id].payment_methods?.name || null,
+        } : null,
       }));
     } catch (error: any) {
       logError("Error fetching statements by date range", {        

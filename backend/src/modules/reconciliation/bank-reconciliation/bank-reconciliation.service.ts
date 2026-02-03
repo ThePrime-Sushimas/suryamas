@@ -283,6 +283,7 @@ export class BankReconciliationService {
     return statements.map((s) => {
       const isReconciled = s.is_reconciled;
       const bankAmount = s.credit_amount - s.debit_amount;
+      // matched_aggregate is now populated from the repository join
       const hasMatch = !!s.matched_aggregate;
       const difference = hasMatch
         ? Math.abs(bankAmount - s.matched_aggregate.nett_amount)
@@ -312,6 +313,7 @@ export class BankReconciliationService {
         ...s,
         amount: bankAmount,
         status,
+        // matched_aggregate already populated from repository
         potentialMatches: [],
       };
     }).filter((s): s is NonNullable<typeof s> => s !== null);
