@@ -165,7 +165,6 @@ export interface AggregatedTransactionInfo {
   gross_amount: number;
   nett_amount: number;
   payment_method_name: string;
-  merchant_name?: string;
 }
 
 /**

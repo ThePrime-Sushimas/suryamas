@@ -397,7 +397,7 @@ export class BankReconciliationRepository {
   /**
    * Get reconciliation group by ID with all details
    */
-  async getReconciliationGroupById(groupId: string): Promise<any> {
+async getReconciliationGroupById(groupId: string): Promise<any> {
     const { data, error } = await supabase
       .from("bank_reconciliation_groups")
       .select(`
@@ -409,8 +409,7 @@ export class BankReconciliationRepository {
           nett_amount,
           payment_methods!left (
             name
-          ),
-          merchant_name
+          )
         ),
         bank_reconciliation_group_details (
           *,
@@ -530,7 +529,7 @@ export class BankReconciliationRepository {
   /**
    * Get all reconciliation groups for a company
    */
-  async getReconciliationGroups(
+async getReconciliationGroups(
     companyId: string,
     startDate: Date,
     endDate: Date
@@ -544,8 +543,7 @@ export class BankReconciliationRepository {
           transaction_date,
           gross_amount,
           nett_amount,
-          payment_methods!left (name),
-          merchant_name
+          payment_methods!left (name)
         )
       `)
       .eq("company_id", companyId)
