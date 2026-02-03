@@ -339,6 +339,10 @@ export class BankReconciliationService {
     return this.repository.getBankAccountsStatus(startDate, endDate);
   }
 
+  async getAllBankAccounts(): Promise<any[]> {
+    return this.repository.getAllBankAccounts();
+  }
+
   async getSummary(
     startDate: Date,
     endDate: Date,

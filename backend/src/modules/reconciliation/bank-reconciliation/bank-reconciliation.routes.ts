@@ -97,6 +97,34 @@ router.get(
 );
 
 /**
+ * @route GET /api/v1/reconciliation/bank/bank-accounts
+ * @desc Get all bank accounts (no date filter needed)
+ */
+router.get(
+  "/bank-accounts",
+  canView("bank_reconciliation"),
+  (req, res) =>
+    bankReconciliationController.getBankAccounts(
+      req as AuthenticatedQueryRequest,
+      res,
+    ),
+);
+
+/**
+ * @route GET /api/v1/reconciliation/bank/bank-accounts/all
+ * @desc Get all bank accounts without date filter - for filter dropdown
+ */
+router.get(
+  "/bank-accounts/all",
+  canView("bank_reconciliation"),
+  (req, res) =>
+    bankReconciliationController.getAllBankAccounts(
+      req as AuthenticatedQueryRequest,
+      res,
+    ),
+);
+
+/**
  * @route GET /api/v1/reconciliation/bank/bank-accounts/status
  * @desc Get reconciliation status per bank account
  */

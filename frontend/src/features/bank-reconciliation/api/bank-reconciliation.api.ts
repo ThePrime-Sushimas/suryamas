@@ -75,6 +75,16 @@ export const bankReconciliationApi = {
   },
 
   /**
+   * Get all bank accounts without date filter - for filter dropdown
+   */
+  async getAllBankAccounts(): Promise<BankAccountStatus[]> {
+    const response = await api.get(
+      "/reconciliation/bank/bank-accounts/all",
+    );
+    return response.data.data;
+  },
+
+  /**
    * Trigger the auto-matching algorithm
    */
   async autoMatch(

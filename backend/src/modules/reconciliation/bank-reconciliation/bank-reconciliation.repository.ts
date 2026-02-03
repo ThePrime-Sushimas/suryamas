@@ -183,6 +183,51 @@ export class BankReconciliationRepository {
   }
 
   /**
+   * Get all bank accounts without any date filter
+   * Used for filter dropdown - always returns all accounts regardless of transactions
+   */
+  async getAllBankAccounts(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from("bank_accounts")
+        .select(
+          `
+          id,
+          account_name,
+          account_number,
+          banks (
+            bank_name,
+            bank_code
+          )
+        `,
+        )
+        .is("deleted_at", null)
+        .order("account_name", { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      // Return with default stats (zeros)
+      return (data || []).map((acc) => ({
+        ...acc,
+        stats: {
+          total: 0,
+          unreconciled: 0,
+        },
+      }));
+    } catch (error: any) {
+      logError("Error fetching all bank accounts", {
+        error: error.message,
+      });
+      throw new DatabaseConnectionError(
+        "fetching all bank accounts",
+        error.message,
+      );
+    }
+  }
+
+  /**
    * Get list of bank accounts with reconciliation summaries for a period
    */
   async getBankAccountsStatus(

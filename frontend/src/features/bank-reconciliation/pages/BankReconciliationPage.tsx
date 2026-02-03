@@ -55,6 +55,7 @@ export function BankReconciliationPage() {
     isLoading,
     fetchSummary,
     fetchStatementsWithFilters,
+    fetchAllBankAccounts,
     autoMatch,
     manualReconcile,
     undoReconciliation,
@@ -74,6 +75,11 @@ export function BankReconciliationPage() {
     createMultiMatch,
     undoMultiMatch,
   } = useBankReconciliation();
+
+  // Fetch all bank accounts on mount (for filter dropdown)
+  useEffect(() => {
+    fetchAllBankAccounts();
+  }, [fetchAllBankAccounts]);
 
   // Handle apply filters
   const handleApplyFilters = useCallback((filters: BankStatementFilter) => {

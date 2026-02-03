@@ -74,6 +74,17 @@ export function useBankReconciliation() {
     [],
   );
 
+  // Fetch all bank accounts for filter dropdown (no date filter needed)
+  const fetchAllBankAccounts = useCallback(async () => {
+    try {
+      const accounts = await bankReconciliationApi.getAllBankAccounts();
+      setBankAccounts(accounts);
+    } catch (err: unknown) {
+      console.error("Failed to fetch bank accounts:", err);
+      // Silently fail - don't set error state for this
+    }
+  }, []);
+
   const fetchStatements = useCallback(
     async (startDate?: string, endDate?: string, bankAccountId?: number) => {
       setIsLoading(true);
@@ -349,6 +360,7 @@ export function useBankReconciliation() {
     error,
     fetchSummary,
     fetchStatements,
+    fetchAllBankAccounts,
     autoMatch,
     manualReconcile,
     undoReconciliation,

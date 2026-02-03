@@ -244,6 +244,34 @@ export class BankReconciliationController {
     }
   }
 
+  async getAllBankAccounts(
+    req: AuthenticatedQueryRequest,
+    res: Response,
+  ): Promise<void> {
+    try {
+      const result = await this.service.getAllBankAccounts();
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      logError("Get all bank accounts error", { 
+        error: error.message,
+        code: error.code 
+      });
+      
+      let status = 400;
+      if (error instanceof DatabaseConnectionError) status = 503;
+
+      res.status(status).json({
+        success: false,
+        message: error.message,
+        code: error.code || "FETCH_ACCOUNTS_FAILED",
+      });
+    }
+  }
+
   async getSummary(
     req: AuthenticatedQueryRequest,
     res: Response,
