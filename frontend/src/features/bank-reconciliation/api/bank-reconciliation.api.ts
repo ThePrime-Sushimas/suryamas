@@ -178,7 +178,7 @@ export const bankReconciliationApi = {
     return response.data.data;
   },
 
-  /**
+/**
    * Get single group details
    */
   async getMultiMatchGroup(
@@ -186,6 +186,43 @@ export const bankReconciliationApi = {
   ): Promise<ReconciliationGroup> {
     const response = await api.get(
       `/reconciliation/bank/multi-match/${groupId}`,
+    );
+    return response.data.data;
+  },
+
+  // =====================================================
+  // REVERSE MATCHING API METHODS
+  // Used for matching from Pos Aggregates page
+  // =====================================================
+
+  /**
+   * Get all unreconciled bank statements (for reverse matching modal)
+   */
+  async getUnreconciledStatements(
+    bankAccountId?: number,
+  ): Promise<BankStatementWithMatch[]> {
+    const params = bankAccountId ? { bankAccountId } : {};
+    const response = await api.get(
+      "/reconciliation/bank/statements/unreconciled",
+      { params },
+    );
+    return response.data.data;
+  },
+
+  /**
+   * Find bank statements by amount (for reverse matching)
+   */
+  async findStatementsByAmount(
+    amount: number,
+    tolerance?: number,
+  ): Promise<BankStatementWithMatch[]> {
+    const params: { amount: number; tolerance?: number } = { amount };
+    if (tolerance !== undefined) {
+      params.tolerance = tolerance;
+    }
+    const response = await api.get(
+      "/reconciliation/bank/statements/find-by-amount",
+      { params },
     );
     return response.data.data;
   },

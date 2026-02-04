@@ -536,6 +536,102 @@ export class BankReconciliationController {
       });
     }
   }
+
+  // =====================================================
+  // REVERSE MATCHING ENDPOINTS
+  // =====================================================
+
+  async getUnreconciledStatements(
+    req: AuthenticatedQueryRequest,
+    res: Response,
+  ): Promise<void> {
+    try {
+      const { bankAccountId } = req.query;
+
+      // Get all bank accounts for the company
+      const accounts = await this.service.getAllBankAccounts();
+      
+      // Get unreconciled statements - either for specific account or all accounts
+      const statements = await this.service.getUnreconciledStatements(
+        bankAccountId ? parseInt(bankAccountId as string) : undefined
+      );
+
+      res.status(200).json({
+        success: true,
+        data: statements,
+      });
+    } catch (error: any) {
+      logError("Get unreconciled statements error", { 
+        query: req.query,
+        error: error.message,
+        code: error.code 
+      });
+      
+      let status = 400;
+      if (error instanceof DatabaseConnectionError) status = 503;
+
+      res.status(status).json({
+        success: false,
+        message: error.message,
+        code: error.code || "FETCH_UNRECONCILED_FAILED",
+      });
+    }
+  }
+
+  async findStatementsByAmount(
+    req: AuthenticatedQueryRequest,
+    res: Response,
+  ): Promise<void> {
+    try {
+      const { amount, tolerance } = req.query;
+
+      if (!amount) {
+        res.status(400).json({
+          success: false,
+          message: "Amount parameter is required",
+          code: "MISSING_AMOUNT",
+        });
+        return;
+      }
+
+      const amountNum = parseFloat(amount as string);
+      const toleranceNum = tolerance ? parseFloat(tolerance as string) : undefined;
+
+      if (isNaN(amountNum) || amountNum <= 0) {
+        res.status(400).json({
+          success: false,
+          message: "Amount must be a valid positive number",
+          code: "INVALID_AMOUNT",
+        });
+        return;
+      }
+
+      const statements = await this.service.findStatementsByAmount(
+        amountNum,
+        toleranceNum
+      );
+
+      res.status(200).json({
+        success: true,
+        data: statements,
+      });
+    } catch (error: any) {
+      logError("Find statements by amount error", { 
+        query: req.query,
+        error: error.message,
+        code: error.code 
+      });
+      
+      let status = 400;
+      if (error instanceof DatabaseConnectionError) status = 503;
+
+      res.status(status).json({
+        success: false,
+        message: error.message,
+        code: error.code || "FIND_BY_AMOUNT_FAILED",
+      });
+    }
+  }
 }
 
 export const bankReconciliationController = new BankReconciliationController(

@@ -166,6 +166,34 @@ router.get(
 );
 
 /**
+ * @route GET /api/v1/reconciliation/bank/statements/unreconciled
+ * @desc Get unreconciled bank statements (for reverse matching modal)
+ */
+router.get(
+  "/statements/unreconciled",
+  canView("bank_reconciliation"),
+  (req, res) =>
+    bankReconciliationController.getUnreconciledStatements(
+      req as AuthenticatedQueryRequest,
+      res,
+    ),
+);
+
+/**
+ * @route GET /api/v1/reconciliation/bank/statements/find-by-amount
+ * @desc Find bank statements by amount (for reverse matching)
+ */
+router.get(
+  "/statements/find-by-amount",
+  canView("bank_reconciliation"),
+  (req, res) =>
+    bankReconciliationController.findStatementsByAmount(
+      req as AuthenticatedQueryRequest,
+      res,
+    ),
+);
+
+/**
  * @route POST /api/v1/reconciliation/bank/undo/:statementId
  * @desc Undo a previous reconciliation
  */

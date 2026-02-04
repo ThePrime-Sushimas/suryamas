@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useCallback, useMemo } from 'react'
-import { Edit2, Trash2, RotateCcw, CheckCircle, FileText, Eye } from 'lucide-react'
+import { Edit2, Trash2, RotateCcw, CheckCircle, FileText, Eye, Building2 } from 'lucide-react'
 import { TableSkeleton } from '@/components/ui/Skeleton'
 import { PosAggregatesStatusBadge } from './PosAggregatesStatusBadge'
 import type { AggregatedTransactionListItem } from '../types'
@@ -51,6 +51,7 @@ interface PosAggregatesTableProps {
   onRestore: (id: string, sourceRef: string) => void
   onReconcile: (id: string) => void
   onViewDetail: (id: string) => void
+  onSelectBankMutation: (transaction: AggregatedTransactionListItem) => void
   onToggleSelection: (id: string) => void
   onToggleAllSelection: () => void
 }
@@ -72,6 +73,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
   onRestore,
   onReconcile,
   onViewDetail,
+  onSelectBankMutation,
   onToggleSelection,
   onToggleAllSelection,
 }) => {
@@ -327,6 +329,20 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                           title="Lihat Detail"
                         >
                           <Eye className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      {/* Select Bank Mutation - untuk transaksi yang belum direkonsiliasi */}
+                      {!isDeleted && !transaction.is_reconciled && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onSelectBankMutation(transaction)
+                          }}
+                          className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                          title="Pilih Mutasi Bank"
+                        >
+                          <Building2 className="w-4 h-4" />
                         </button>
                       )}
 

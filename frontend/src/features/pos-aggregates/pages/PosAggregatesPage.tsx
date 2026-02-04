@@ -17,11 +17,14 @@ import { PosAggregatesForm } from '../components/PosAggregatesForm'
 import { PosAggregatesSummary } from '../components/PosAggregatesSummary'
 import { GenerateFromImportModal } from '../components/GenerateFromImportModal'
 import { GenerateJournalModal } from '../components/GenerateJournalModal'
+import { BankMutationSelectorModal } from '../components/BankMutationSelectorModal'
+import { bankReconciliationApi } from '@/features/bank-reconciliation/api/bank-reconciliation.api'
 import type { 
   AggregatedTransaction, 
   CreateAggregatedTransactionDto, 
   UpdateAggregatedTransactionDto 
 } from '../types'
+import type { AggregatedTransactionListItem } from '../types'
 
 // =============================================================================
 // PROPS (None for main page)
@@ -169,6 +172,43 @@ export const PosAggregatesPage: React.FC = () => {
     ? (transactions.find((tx) => tx.id === editingId) as AggregatedTransaction | undefined) || null 
     : null
 
+  // State for Bank Mutation Selector Modal
+  const [selectedTransactionForMatch, setSelectedTransactionForMatch] = useState<AggregatedTransactionListItem | null>(null)
+  const [showMutationSelector, setShowMutationSelector] = useState(false)
+  const [isMatching, setIsMatching] = useState(false)
+
+  // Handle select bank mutation
+  const handleSelectBankMutation = useCallback((transaction: AggregatedTransactionListItem) => {
+    setSelectedTransactionForMatch(transaction)
+    setShowMutationSelector(true)
+  }, [])
+
+  // Handle confirm bank mutation match
+  const handleConfirmMutationMatch = useCallback(async (statementId: string) => {
+    if (!selectedTransactionForMatch) return
+
+    setIsMatching(true)
+    try {
+      await bankReconciliationApi.manualReconcile({
+        aggregateId: selectedTransactionForMatch.id,
+        statementId,
+      })
+      toast.success(`Transaksi "${selectedTransactionForMatch.source_ref}" berhasil dicocokkan dengan mutasi bank`)
+      
+      // Refresh data
+      fetchTransactions()
+      fetchSummary()
+      
+      // Close modal
+      setShowMutationSelector(false)
+      setSelectedTransactionForMatch(null)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal mencocokkan transaksi')
+    } finally {
+      setIsMatching(false)
+    }
+  }, [selectedTransactionForMatch, toast, fetchTransactions, fetchSummary])
+
   // Pagination info
   const showingStart = (page - 1) * limit + 1
   const showingEnd = Math.min(page * limit, total)
@@ -285,6 +325,7 @@ export const PosAggregatesPage: React.FC = () => {
             onRestore={handleRestore}
             onReconcile={handleReconcile}
             onViewDetail={handleViewDetail}
+            onSelectBankMutation={handleSelectBankMutation}
             onToggleSelection={(id) => usePosAggregatesStore.getState().toggleSelection(id)}
             onToggleAllSelection={() => usePosAggregatesStore.getState().toggleAllSelection()}
           />
@@ -333,6 +374,18 @@ export const PosAggregatesPage: React.FC = () => {
           fetchTransactions()
           fetchSummary()
         }}
+      />
+
+      {/* Bank Mutation Selector Modal */}
+      <BankMutationSelectorModal
+        isOpen={showMutationSelector}
+        onClose={() => {
+          setShowMutationSelector(false)
+          setSelectedTransactionForMatch(null)
+        }}
+        onConfirm={handleConfirmMutationMatch}
+        aggregate={selectedTransactionForMatch}
+        isLoading={isMatching}
       />
     </div>
   )

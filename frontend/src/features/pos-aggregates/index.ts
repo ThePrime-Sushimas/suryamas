@@ -37,6 +37,8 @@ export { PosAggregatesDetail } from './components/PosAggregatesDetail'
 export { FailedTransactionsTable } from './components/FailedTransactionsTable'
 export { FailedTransactionDetailModal } from './components/FailedTransactionDetailModal'
 export { GenerateJournalModal } from './components/GenerateJournalModal'
+export { GenerateFromImportModal } from './components/GenerateFromImportModal'
+export { BankMutationSelectorModal } from './components/BankMutationSelectorModal'
 
 // =============================================================================
 // PAGES

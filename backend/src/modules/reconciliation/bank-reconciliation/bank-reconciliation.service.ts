@@ -21,6 +21,7 @@ import {
   feeReconciliationService,
 } from "../fee-reconciliation/fee-reconciliation.service";
 import { reconciliationOrchestratorService } from "../orchestrator/reconciliation-orchestrator.service";
+import { logError } from "../../../config/logger";
 
 export class BankReconciliationService {
   private readonly config = getReconciliationConfig();
@@ -655,6 +656,149 @@ export class BankReconciliationService {
 
   async getMultiMatchGroup(groupId: string): Promise<any> {
     return this.repository.getReconciliationGroupById(groupId);
+  }
+
+  // =====================================================
+  // REVERSE MATCHING METHODS
+  // =====================================================
+
+  /**
+   * Get all unreconciled bank statements
+   * Used for reverse matching modal in Pos Aggregates
+   */
+  async getUnreconciledStatements(bankAccountId?: number): Promise<any[]> {
+    try {
+      // Get today's date as default
+      const today = new Date();
+      const startDate = new Date(today.getFullYear(), today.getMonth(), 1); // Start of month
+      const endDate = today;
+
+      let statements: any[];
+
+      if (bankAccountId) {
+        statements = await this.repository.getUnreconciledBatch(
+          startDate,
+          endDate,
+          10000, // Large limit
+          0,
+          bankAccountId
+        );
+      } else {
+        // Get from all accounts - we need to fetch all
+        const accounts = await this.repository.getAllBankAccounts();
+        const allStatements: any[] = [];
+
+        for (const account of accounts) {
+          const accountStatements = await this.repository.getUnreconciledBatch(
+            startDate,
+            endDate,
+            10000,
+            0,
+            account.id
+          );
+          allStatements.push(...accountStatements);
+        }
+
+        statements = allStatements;
+      }
+
+      // Transform to include computed fields
+      return statements.map(s => {
+        const bankAmount = (s.credit_amount || 0) - (s.debit_amount || 0);
+        return {
+          ...s,
+          amount: bankAmount,
+          status: BankReconciliationStatus.UNRECONCILED,
+          is_reconciled: false,
+          matched_aggregate: null,
+          potentialMatches: [],
+        };
+      });
+    } catch (error: any) {
+      logError("Error getting unreconciled statements for reverse matching", {
+        bankAccountId,
+        error: error.message
+      });
+      throw new Error("Gagal mengambil data mutasi bank yang belum dicocokkan");
+    }
+  }
+
+  /**
+   * Find bank statements by amount (for reverse matching)
+   * Searches for statements with similar amounts to help match with POS aggregates
+   */
+  async findStatementsByAmount(
+    targetAmount: number,
+    tolerancePercent: number = 0.05 // 5% default tolerance
+  ): Promise<any[]> {
+    try {
+      // Get today's date as default
+      const today = new Date();
+      const startDate = new Date(today.getFullYear(), today.getMonth(), 1); // Start of month
+      const endDate = today;
+
+      // Get all unreconciled statements
+      const accounts = await this.repository.getAllBankAccounts();
+      const allStatements: any[] = [];
+
+      for (const account of accounts) {
+        const accountStatements = await this.repository.getUnreconciledBatch(
+          startDate,
+          endDate,
+          10000,
+          0,
+          account.id
+        );
+        allStatements.push(...accountStatements);
+      }
+
+      // Calculate tolerance
+      const tolerance = targetAmount * tolerancePercent;
+      const minAmount = targetAmount - tolerance;
+      const maxAmount = targetAmount + tolerance;
+
+      // Filter statements by amount range
+      const matchingStatements = allStatements.filter(s => {
+        const bankAmount = (s.credit_amount || 0) - (s.debit_amount || 0);
+        return bankAmount >= minAmount && bankAmount <= maxAmount;
+      });
+
+      // Sort by closest match first
+      matchingStatements.sort((a, b) => {
+        const amountA = Math.abs(((a.credit_amount || 0) - (a.debit_amount || 0)) - targetAmount);
+        const amountB = Math.abs(((b.credit_amount || 0) - (b.debit_amount || 0)) - targetAmount);
+        return amountA - amountB;
+      });
+
+      // Limit results
+      const limitedResults = matchingStatements.slice(0, 50);
+
+      // Transform to include computed fields
+      return limitedResults.map(s => {
+        const bankAmount = (s.credit_amount || 0) - (s.debit_amount || 0);
+        const difference = Math.abs(bankAmount - targetAmount);
+        const matchPercentage = 1 - (difference / targetAmount);
+
+        return {
+          ...s,
+          amount: bankAmount,
+          targetAmount,
+          difference,
+          matchPercentage: Math.round(matchPercentage * 100) / 100,
+          status: BankReconciliationStatus.UNRECONCILED,
+          is_reconciled: false,
+          matched_aggregate: null,
+          potentialMatches: [],
+        };
+      });
+    } catch (error: any) {
+      logError("Error finding statements by amount", {
+        targetAmount,
+        tolerancePercent,
+        error: error.message
+      });
+      throw new Error("Gagal mencari mutasi bank berdasarkan nominal");
+    }
   }
 }
 
