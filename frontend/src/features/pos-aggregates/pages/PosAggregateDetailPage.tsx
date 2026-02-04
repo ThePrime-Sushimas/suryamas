@@ -6,12 +6,15 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
-import { ArrowLeft, Loader2, Edit2, Trash2, RotateCcw, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Loader2, Edit2, Trash2, RotateCcw, CheckCircle, Building2 } from 'lucide-react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePosAggregatesStore } from '../store/posAggregates.store'
 import { useToast } from '@/contexts/ToastContext'
 import { useBranchContextStore } from '@/features/branch_context'
 import { PosAggregatesDetail } from '../components/PosAggregatesDetail'
+import { BankMutationSelectorModal } from '../components/BankMutationSelectorModal'
+import { bankReconciliationApi } from '../../bank-reconciliation/api/bank-reconciliation.api'
+import type { AggregatedTransactionListItem } from '../types'
 
 // =============================================================================
 // COMPONENT
@@ -40,6 +43,8 @@ export const PosAggregateDetailPage: React.FC = () => {
 
   const [initialLoad, setInitialLoad] = useState(true)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [showMutationSelector, setShowMutationSelector] = useState(false)
+  const [isMatching, setIsMatching] = useState(false)
 
   // Fetch transaction on mount
   useEffect(() => {
@@ -112,6 +117,41 @@ export const PosAggregateDetailPage: React.FC = () => {
       toast.error('Gagal merekonsiliasi transaksi')
     }
   }, [id, reconcileTransaction, toast, currentBranch?.employee_id, fetchTransactionById, fetchSummary])
+
+  // Handle open mutation selector
+  const handleOpenMutationSelector = useCallback(() => {
+    if (!selectedTransaction || selectedTransaction.is_reconciled) {
+      toast.warning('Transaksi sudah direkonsiliasi')
+      return
+    }
+    setShowMutationSelector(true)
+  }, [selectedTransaction, toast])
+
+  // Handle confirm bank mutation match
+  const handleConfirmMutationMatch = useCallback(async (statementId: string) => {
+    if (!id || !selectedTransaction) return
+
+    try {
+      setIsMatching(true)
+      await bankReconciliationApi.manualReconcile({
+        aggregateId: id,
+        statementId,
+      })
+      toast.success('Berhasil dicocokkan dengan mutasi bank')
+      
+      // Refresh data
+      await fetchTransactionById(id)
+      await fetchTransactions()
+      await fetchSummary()
+      
+      setShowMutationSelector(false)
+    } catch (error) {
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      toast.error(err.response?.data?.message || err.message || 'Gagal mencocokkan mutasi bank')
+    } finally {
+      setIsMatching(false)
+    }
+  }, [id, selectedTransaction, fetchTransactionById, fetchTransactions, fetchSummary, toast])
 
   // Loading state
   if (initialLoad) {
@@ -199,6 +239,16 @@ export const PosAggregateDetailPage: React.FC = () => {
                   Rekonsiliasi
                 </button>
               )}
+              {/* Tombol Pilih Mutasi Bank */}
+              {!selectedTransaction.is_reconciled && (
+                <button
+                  onClick={handleOpenMutationSelector}
+                  className="px-3 py-2 text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
+                >
+                  <Building2 className="w-4 h-4" />
+                  Pilih Mutasi Bank
+                </button>
+              )}
               <button
                 onClick={() => navigate(`/pos-aggregates/${id}/edit`)}
                 className="px-3 py-2 text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
@@ -267,6 +317,15 @@ export const PosAggregateDetailPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Bank Mutation Selector Modal */}
+      <BankMutationSelectorModal
+        isOpen={showMutationSelector}
+        onClose={() => setShowMutationSelector(false)}
+        onConfirm={handleConfirmMutationMatch}
+        aggregate={selectedTransaction as AggregatedTransactionListItem}
+        isLoading={isMatching}
+      />
     </div>
   )
 }
