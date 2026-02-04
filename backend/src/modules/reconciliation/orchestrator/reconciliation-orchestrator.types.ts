@@ -32,6 +32,7 @@ export interface ReconciliationAggregate {
   reference_number?: string;
   payment_method_id: number;
   payment_method_name?: string;
+  branch_name?: string;
   gross_amount: number;
   percentage_fee_amount: number;
   fixed_fee_amount: number;

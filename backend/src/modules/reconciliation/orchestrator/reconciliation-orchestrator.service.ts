@@ -305,6 +305,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
       reference_number: agg.source_ref,
       payment_method_id: agg.payment_method_id,
       payment_method_name: agg.payment_methods?.name,
+      branch_name: agg.branch_name || null,
       gross_amount: Number(agg.gross_amount),
       percentage_fee_amount: Number(agg.percentage_fee_amount || 0),
       fixed_fee_amount: Number(agg.fixed_fee_amount || 0),

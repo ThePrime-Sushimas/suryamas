@@ -61,6 +61,7 @@ export interface PotentialMatch {
   nett_amount: number;
   payment_type: string;
   payment_method_name: string;
+  branch_name?: string;
 }
 
 /**

@@ -174,11 +174,17 @@ export function BankReconciliationPage() {
     item: BankStatementWithMatch,
     aggregateId: string,
   ) => {
-    if (
-      confirm(
-        `Cocokkan transaksi ini dengan ${item.potentialMatches?.[0]?.payment_method_name} senilai ${item.potentialMatches?.[0]?.nett_amount.toLocaleString("id-ID")}?`,
-      )
-    ) {
+    const potentialMatch = potentialMatchesMap[item.id]?.[0];
+    const paymentMethodName = potentialMatch?.payment_method_name || 'Payment Gateway';
+    const branchName = potentialMatch?.branch_name || '';
+    const amount = potentialMatch?.nett_amount || 0;
+    
+    // Format message dengan branch name
+    const message = branchName 
+      ? `Cocokkan transaksi ini dengan ${paymentMethodName} (${branchName}) senilai ${amount.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}?`
+      : `Cocokkan transaksi ini dengan ${paymentMethodName} (${branchName}) senilai ${amount.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}?`;
+    
+    if (confirm(message)) {
       try {
         await manualReconcile({
           aggregateId,
