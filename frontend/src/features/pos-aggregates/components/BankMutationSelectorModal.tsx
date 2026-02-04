@@ -378,7 +378,7 @@ export function BankMutationSelectorModal({
                             </span>
                           )}
                         </div>
-                        <p className="text-gray-900 dark:text-white font-medium truncate">
+                        <p className="text-gray-900 dark:text-white font-medium">
                           {statement.description || '-'}
                         </p>
                         {statement.reference_number && (
