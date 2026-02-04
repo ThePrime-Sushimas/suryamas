@@ -42,8 +42,8 @@ export const autoMatchSchema = z.object({
 export const getStatementsQuerySchema = z.object({
   query: z.object({
     // Optional date range - queries overall date range when not provided
-    startDate: z.string().date("Invalid start date format").optional(),
-    endDate: z.string().date("Invalid end date format").optional(),
+    startDate: z.string().datetime().optional().or(z.literal('').transform(() => undefined)),
+    endDate: z.string().datetime().optional().or(z.literal('').transform(() => undefined)),
     // Bank account filter
     bankAccountId: z.coerce.number().int().positive().optional(),
     // Status filter (RECONCILED, UNRECONCILED, DISCREPANCY)
@@ -63,8 +63,8 @@ export const getStatementsQuerySchema = z.object({
  */
 export const getSummaryQuerySchema = z.object({
   query: z.object({
-    startDate: z.string().date("Invalid start date format").optional(),
-    endDate: z.string().date("Invalid end date format").optional(),
+    startDate: z.string().datetime().optional().or(z.literal('').transform(() => undefined)),
+    endDate: z.string().datetime().optional().or(z.literal('').transform(() => undefined)),
   }),
 });
 
@@ -97,8 +97,8 @@ export const multiMatchSchema = z.object({
  */
 export const multiMatchGroupQuerySchema = z.object({
   query: z.object({
-    startDate: z.string().date("Invalid start date format").optional(),
-    endDate: z.string().date("Invalid end date format").optional(),
+    startDate: z.string().datetime().optional().or(z.literal('').transform(() => undefined)),
+    endDate: z.string().datetime().optional().or(z.literal('').transform(() => undefined)),
   }),
 });
 

@@ -182,7 +182,7 @@ export function BankReconciliationPage() {
     // Format message dengan branch name
     const message = branchName 
       ? `Cocokkan transaksi ini dengan ${paymentMethodName} (${branchName}) senilai ${amount.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}?`
-      : `Cocokkan transaksi ini dengan ${paymentMethodName} (${branchName}) senilai ${amount.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}?`;
+      : `Cocokkan transaksi ini dengan ${paymentMethodName} senilai ${amount.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}?`;
     
     if (confirm(message)) {
       try {
@@ -193,7 +193,15 @@ export function BankReconciliationPage() {
         });
         refreshData();
       } catch (err) {
-        console.error("Quick match error:", err);
+        // Tangani error 409 (AlreadyReconciled)
+        const axiosErr = err as { response?: { data?: { code?: string; message?: string }; status?: number }; message?: string };
+        if (axiosErr.response?.data?.code === 'ALREADY_RECONCILED' || axiosErr.response?.status === 409) {
+          alert('Transaksi ini sudah pernah dicocokkan sebelumnya. Data akan diperbarui.');
+          refreshData();
+        } else {
+          console.error("Quick match error:", err);
+          alert(`Gagal melakukan match: ${axiosErr.response?.data?.message || axiosErr.message || 'Terjadi kesalahan'}`);
+        }
       }
     }
   };
