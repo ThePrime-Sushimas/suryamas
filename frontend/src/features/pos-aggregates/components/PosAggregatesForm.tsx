@@ -82,6 +82,9 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
       discount_amount: 0,
       tax_amount: 0,
       service_charge_amount: 0,
+      percentage_fee_amount: 0,
+      fixed_fee_amount: 0,
+      total_fee_amount: 0,
       nett_amount: 0,
       currency: 'IDR',
       status: 'READY',
@@ -92,10 +95,21 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
   const watchedFields = watch(['gross_amount', 'discount_amount', 'tax_amount', 'service_charge_amount'])
   const [grossAmount, discountAmount, taxAmount, serviceChargeAmount] = watchedFields.map((v) => parseFloat(String(v)) || 0)
 
-  // Calculate net amount automatically
-  const netAmount = useMemo(() => {
-    return grossAmount + taxAmount + serviceChargeAmount - discountAmount
-  }, [grossAmount, taxAmount, serviceChargeAmount, discountAmount])
+  // Fee fields (read-only, from backend)
+  const percentageFeeAmount = transaction?.percentage_fee_amount || 0
+  const fixedFeeAmount = transaction?.fixed_fee_amount || 0
+  const totalFeeAmount = transaction?.total_fee_amount || 0
+  
+  // Calculate percentage for display
+  const percentageFeeDisplay = useMemo(() => {
+    if (grossAmount > 0) {
+      return ((percentageFeeAmount / grossAmount) * 100).toFixed(2)
+    }
+    return '0'
+  }, [grossAmount, percentageFeeAmount])
+
+  // Net amount from backend (already calculated correctly)
+  const netAmount = transaction?.nett_amount || 0
 
   // Fetch branches on mount
   useEffect(() => {
@@ -133,6 +147,9 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
         discount_amount: transaction.discount_amount,
         tax_amount: transaction.tax_amount,
         service_charge_amount: transaction.service_charge_amount,
+        percentage_fee_amount: transaction.percentage_fee_amount,
+        fixed_fee_amount: transaction.fixed_fee_amount,
+        total_fee_amount: transaction.total_fee_amount,
         nett_amount: transaction.nett_amount,
         currency: transaction.currency,
         status: transaction.status,
@@ -149,6 +166,9 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
         discount_amount: 0,
         tax_amount: 0,
         service_charge_amount: 0,
+        percentage_fee_amount: 0,
+        fixed_fee_amount: 0,
+        total_fee_amount: 0,
         nett_amount: 0,
         currency: 'IDR',
         status: 'READY',
@@ -162,14 +182,13 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
     
     const submitData: CreateAggregatedTransactionDto | UpdateAggregatedTransactionDto = {
       ...data,
-      nett_amount: netAmount,
       payment_method_id: typeof data.payment_method_id === 'string' && parseInt(data.payment_method_id) 
         ? parseInt(data.payment_method_id) 
         : (data.payment_method_id as number),
     }
 
     await onSubmit(submitData)
-  }, [onSubmit, netAmount])
+  }, [onSubmit])
 
   // Handle cancel
   const handleCancel = useCallback(() => {
@@ -437,6 +456,81 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
             </div>
             <input type="hidden" {...register('nett_amount', { valueAsNumber: true })} />
             <p className="mt-1 text-xs text-gray-500">Otomatis dihitung</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Fee Details Section */}
+      <div className="bg-purple-50 rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-purple-700 mb-3">Detail Biaya (Fee)</h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Percentage Fee (Rp) - Read-only (from payment method) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fee Amount (Rp)
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
+              <input
+                type="text"
+                value={formatRupiah(percentageFeeAmount)}
+                readOnly
+                className="w-full pl-10 pr-3 py-2 border border-purple-300 rounded-lg bg-purple-100 text-purple-700"
+              />
+            </div>
+            <p className="mt-1 text-xs text-purple-600">
+              ({percentageFeeDisplay}% dari gross)
+            </p>
+          </div>
+
+          {/* Fixed Fee - Read-only (from payment method) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fixed Fee
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
+              <input
+                type="text"
+                value={formatRupiah(fixedFeeAmount)}
+                readOnly
+                className="w-full pl-10 pr-3 py-2 border border-purple-300 rounded-lg bg-purple-100 text-purple-700"
+              />
+            </div>
+          </div>
+
+          {/* Total Fee (Read-only) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Total Fee
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
+              <input
+                type="text"
+                value={formatRupiah(totalFeeAmount)}
+                readOnly
+                className="w-full pl-10 pr-3 py-2 border border-purple-300 rounded-lg bg-purple-200 text-purple-800 font-medium"
+              />
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Otomatis dari Payment Method</p>
+          </div>
+
+          {/* Bill After Discount (Reference) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Bill After Discount
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
+              <input
+                type="text"
+                value={formatRupiah(grossAmount + taxAmount + serviceChargeAmount - discountAmount)}
+                readOnly
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700"
+              />
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Referensi</p>
           </div>
         </div>
       </div>
