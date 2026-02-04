@@ -12,7 +12,6 @@ import {
   X,
   Filter,
 } from "lucide-react";
-import { ReconciliationSummaryCards } from "../components/reconciliation/ReconciliationSummary";
 import { BankMutationTable } from "../components/reconciliation/BankMutationTable";
 import { ManualMatchModal } from "../components/reconciliation/ManualMatchModal";
 import { AutoMatchDialog } from "../components/reconciliation/AutoMatchDialog";
@@ -49,11 +48,9 @@ export function BankReconciliationPage() {
   });
 
   const {
-    summary,
     statements,
     bankAccounts,
     isLoading,
-    fetchSummary,
     fetchStatementsWithFilters,
     fetchAllBankAccounts,
     autoMatch,
@@ -98,12 +95,11 @@ export function BankReconciliationPage() {
     // Fetch statements with filters
     fetchStatementsWithFilters(filters);
     
-    // Also fetch summary and groups if dates are provided
+    // Also fetch groups if dates are provided
     if (filters.startDate && filters.endDate) {
-      fetchSummary(filters.startDate, filters.endDate);
       fetchReconciliationGroups(filters.startDate, filters.endDate);
     }
-  }, [setFilter, fetchStatementsWithFilters, fetchSummary, fetchReconciliationGroups]);
+  }, [setFilter, fetchStatementsWithFilters, fetchReconciliationGroups]);
 
   // Handle clear filters
   const handleClearFilters = useCallback(() => {
@@ -114,8 +110,6 @@ export function BankReconciliationPage() {
 
   // Refresh data function
   const refreshData = useCallback(() => {
-    ;
-    
     // Use current filter state for refresh
     const currentFilter = {
       ...filter,
@@ -127,10 +121,9 @@ export function BankReconciliationPage() {
     fetchStatementsWithFilters(currentFilter);
     
     if (dateRange.startDate && dateRange.endDate) {
-      fetchSummary(dateRange.startDate, dateRange.endDate);
       fetchReconciliationGroups(dateRange.startDate, dateRange.endDate);
     }
-  }, [filter, dateRange.startDate, dateRange.endDate, selectedAccountId, fetchStatementsWithFilters, fetchSummary, fetchReconciliationGroups]);
+  }, [filter, dateRange.startDate, dateRange.endDate, selectedAccountId, fetchStatementsWithFilters, fetchReconciliationGroups]);
 
   // Set initial selected account if not set
   useEffect(() => {
@@ -315,11 +308,6 @@ export function BankReconciliationPage() {
           </button>
         </div>
       </div>
-
-      {/* Summary Cards - Only show if filters applied with dates */}
-      {filtersApplied && dateRange.startDate && dateRange.endDate && (
-        <ReconciliationSummaryCards summary={summary} />
-      )}
 
       {/* Bank Account Tabs */}
       <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 overflow-x-auto scrollbar-none pb-px">
