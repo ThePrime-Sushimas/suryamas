@@ -246,6 +246,7 @@ export interface BankStatementAnalysis {
   date_range_end: string
   preview: BankStatementPreviewRow[]
   duplicates?: BankStatementDuplicate[]
+  duplicate_count?: number  // Added for frontend duplicate count display
   column_mapping: BankStatementColumnMapping
   errors?: any[]
   warnings?: string[]

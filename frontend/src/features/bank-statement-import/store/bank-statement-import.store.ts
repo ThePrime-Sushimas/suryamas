@@ -448,12 +448,17 @@ export const useBankStatementImportStore = create<BankStatementImportState>((set
     try {
       await bankStatementImportApi.confirm(currentImport.id, { skip_duplicates: skipDuplicates })
 
+      // Clear analyze result first to hide modal
+      set({
+        analyzeResult: null,
+        currentImport: null,
+      })
+
       // Refresh list
       await get().fetchImports()
 
       set({
         loading: { ...get().loading, confirm: false },
-        showAnalysisModal: false,
         showConfirmModal: false,
       })
     } catch (error) {

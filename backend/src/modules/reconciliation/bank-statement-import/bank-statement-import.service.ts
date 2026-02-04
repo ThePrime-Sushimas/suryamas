@@ -254,6 +254,7 @@ export class BankStatementImportService {
         date_range_end: dateRangeEnd,
         preview,
         duplicates,
+        duplicate_count: duplicates.length,
         column_mapping: columnMapping,
         errors: validationErrors,
         warnings: this.generateWarnings(duplicates, invalidRows),
@@ -574,12 +575,15 @@ export class BankStatementImportService {
 
     const summary = await this.repository.getSummaryByImportId(importId)
 
-    // Get preview - first try from storage (for ANALYZED status), then from statements (for COMPLETED status)
+    // Calculate duplicate_count based on import status
+    let duplicateCount = 0
     let preview: BankStatementPreviewRow[] | undefined
-    
+
     // Try from Supabase Storage first (for ANALYZED status)
     try {
       const rows = await this.retrieveTemporaryData(importId)
+      
+      // Generate preview
       preview = this.generatePreview(
         rows.slice(0, 10).map((r) => ({
           ...r,
@@ -589,6 +593,23 @@ export class BankStatementImportService {
         })),
         10
       )
+
+      // Calculate duplicates from temporary data for ANALYZED status
+      if (importRecord.status === IMPORT_STATUS.ANALYZED) {
+        const { validRows } = await this.validateRows(
+          rows,
+          companyId,
+          importRecord.bank_account_id,
+          importId
+        )
+        const duplicates = await this.detectDuplicates(
+          validRows,
+          companyId,
+          importRecord.bank_account_id
+        )
+        duplicateCount = duplicates.length
+        logInfo('BankStatementImport: Calculated duplicate count from temporary data', { importId, duplicateCount })
+      }
     } catch {
       // Fallback: get from statements in database (for COMPLETED status)
       try {
@@ -621,7 +642,7 @@ export class BankStatementImportService {
         total_credit: summary.total_credit,
         total_debit: summary.total_debit,
         reconciled_count: summary.reconciled_count,
-        duplicate_count: 0,
+        duplicate_count: duplicateCount,
         preview,
       },
     }

@@ -26,27 +26,34 @@ interface AnalysisModalProps {
   result: BankStatementAnalysisResult | null
   onConfirm: (skipDuplicates: boolean) => Promise<void>
   onCancel: () => void
-  isLoading: boolean
 }
 
 export function AnalysisModal({
   result,
   onConfirm,
   onCancel,
-  isLoading,
 }: AnalysisModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('summary')
   const [skipDuplicates, setSkipDuplicates] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   if (!result) return null
 
-  const { import: imp, summary, stats, warnings: resultWarnings, duplicates: resultDuplicates } = result
+  const { import: imp, summary, stats, warnings: resultWarnings, duplicates: resultDuplicates, analysis } = result
+
+  // Calculate duplicate count
+  // Endpoint /upload returns: analysis.duplicate_count or analysis.duplicates.length
+  // Endpoint /summary returns: summary.duplicate_count or duplicates array
+  const duplicateCount = analysis?.duplicate_count 
+    ?? analysis?.duplicates?.length 
+    ?? resultDuplicates?.length 
+    ?? summary?.duplicate_count 
+    ?? stats?.duplicate_rows 
+    ?? 0
 
   // Use summary or stats for data
   const total_rows = summary?.total_statements || stats?.total_rows || 0
   const valid_rows = stats?.valid_rows || 0
-  // Calculate invalid from total - valid - duplicate
-  const duplicateCount = stats?.duplicate_rows || resultDuplicates?.length || 0
   const invalid_rows = stats?.invalid_rows || 0
   
   // Calculate pending (rows that are not valid and not invalid)
@@ -59,13 +66,35 @@ export function AnalysisModal({
   // Calculate percentages
   const validPercentage = total_rows > 0 ? Math.round((valid_rows / total_rows) * 100) : 0
 
+  // Handle confirm with processing state
+  const handleConfirm = async (skipDuplicatesValue: boolean) => {
+    setIsProcessing(true)
+    try {
+      await onConfirm(skipDuplicatesValue)
+      // Modal akan ditutup oleh parent component setelah berhasil
+    } catch (error) {
+      console.error('Import failed:', error)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  // Handle cancel - always works even during processing
+  const handleCancel = () => {
+    if (!isProcessing) {
+      onCancel()
+    }
+  }
 
   const modalContent = (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
+      <div 
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm" 
+        onClick={handleCancel}
+      />
       <div className="relative w-full max-w-5xl bg-white dark:bg-gray-900 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Loading Overlay */}
-        {isLoading && (
+        {isProcessing && (
           <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md z-50 flex items-center justify-center">
             <div className="text-center">
               <div className="relative inline-block">
@@ -111,9 +140,9 @@ export function AnalysisModal({
                 </div>
               </div>
               <button
-                onClick={onCancel}
-                disabled={isLoading}
+                onClick={handleCancel}
                 className="p-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-xl transition-colors"
+                title="Tutup"
               >
                 <XCircle className="w-5 h-5 text-white" />
               </button>
@@ -263,7 +292,7 @@ export function AnalysisModal({
                   type="checkbox"
                   checked={skipDuplicates}
                   onChange={(e) => setSkipDuplicates(e.target.checked)}
-                  disabled={isLoading || duplicateCount === 0}
+                  disabled={isProcessing}
                   className="peer h-5 w-5 cursor-pointer appearance-none rounded-lg border-2 border-gray-300 bg-white checked:border-blue-600 checked:bg-blue-600 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700"
                 />
                 <CheckCircle2 
@@ -287,8 +316,8 @@ export function AnalysisModal({
               <button
                 type="button"
                 className="px-5 py-2.5 rounded-xl font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-sm flex-1 sm:flex-none"
-                onClick={onCancel}
-                disabled={isLoading}
+                onClick={handleCancel}
+                disabled={isProcessing}
               >
                 Batal
               </button>
@@ -297,30 +326,30 @@ export function AnalysisModal({
                 <button
                   type="button"
                   className="px-6 py-2.5 rounded-xl font-semibold text-white text-sm shadow-lg shadow-blue-500/25 flex items-center gap-2 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 transition-all transform hover:scale-105 active:scale-95 flex-1 sm:flex-none"
-                  disabled={isLoading}
-                  onClick={() => onConfirm(true)}
+                  disabled={isProcessing}
+                  onClick={() => handleConfirm(true)}
                 >
-                  {isLoading ? (
+                  {isProcessing ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <FileCheck className="w-4 h-4" />
                   )}
-                  {isLoading ? 'Memproses...' : 'Import & Lewati Duplikat'}
+                  {isProcessing ? 'Memproses...' : 'Import & Lewati Duplikat'}
                   <ArrowRight className="w-4 h-4 ml-1" />
                 </button>
               ) : (
                 <button
                   type="button"
                   className="px-6 py-2.5 rounded-xl font-semibold text-white text-sm shadow-lg shadow-blue-500/25 flex items-center gap-2 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 transition-all transform hover:scale-105 active:scale-95 flex-1 sm:flex-none"
-                  disabled={isLoading}
-                  onClick={() => onConfirm(false)}
+                  disabled={isProcessing}
+                  onClick={() => handleConfirm(false)}
                 >
-                  {isLoading ? (
+                  {isProcessing ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <Upload className="w-4 h-4" />
                   )}
-                  {isLoading ? 'Memproses...' : 'Import Semua Data'}
+                  {isProcessing ? 'Memproses...' : 'Import Semua Data'}
                   <ArrowRight className="w-4 h-4 ml-1" />
                 </button>
               )}

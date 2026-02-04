@@ -62,6 +62,7 @@ export interface BankStatementAnalysis {
   date_range_end: string
   preview: unknown[]
   duplicates?: BankStatementDuplicateRow[]
+  duplicate_count?: number  // Added for frontend duplicate count display
   column_mapping: Record<string, string>
   errors?: unknown[]
   warnings?: string[]

@@ -522,7 +522,6 @@ export function BankStatementImportListPage() {
         result={analyzeResult}
         onConfirm={handleConfirm}
         onCancel={closeAnalysisModal}
-        isLoading={loading.confirm}
       />
 
       {/* Delete Confirmation Modal */}
