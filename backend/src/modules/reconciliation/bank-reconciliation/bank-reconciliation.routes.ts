@@ -104,7 +104,7 @@ router.get(
   "/bank-accounts",
   canView("bank_reconciliation"),
   (req, res) =>
-    bankReconciliationController.getBankAccounts(
+    bankReconciliationController.getAllBankAccounts(
       req as AuthenticatedQueryRequest,
       res,
     ),
