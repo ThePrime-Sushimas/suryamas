@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Search,
   ArrowRight,
@@ -13,6 +13,8 @@ import {
   Square,
   CheckSquare,
   X,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import type {
   BankStatementWithMatch,
@@ -52,6 +54,19 @@ export function BankMutationTable({
   const [filter, setFilter] = useState<
     "ALL" | "UNRECONCILED" | "RECONCILED" | "DISCREPANCY"
   >("ALL");
+
+  // Toggle hide debit column - default ON (debit hidden), persisted in localStorage
+  const [hideDebit, setHideDebit] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('bankReconciliationHideDebit');
+      return saved !== null ? saved === 'true' : true;
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('bankReconciliationHideDebit', String(hideDebit));
+  }, [hideDebit]);
 
   // Multi-match selection state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -166,6 +181,14 @@ export function BankMutationTable({
     }, 0);
   };
 
+  // Calculate colspan based on visible columns
+  const getColspan = () => {
+    let cols = 5; // Tanggal, Kredit, POS Match, Selisih, Status, Aksi = 6, minus selection mode
+    if (selectionMode) cols += 1; // Selection checkbox column
+    if (!hideDebit) cols += 1; // Debit column
+    return cols;
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
       {/* Multi-Match Selection Bar */}
@@ -241,6 +264,29 @@ export function BankMutationTable({
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Toggle Hide Debit Button */}
+          <button
+            onClick={() => setHideDebit(!hideDebit)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-all ${
+              hideDebit
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                : "bg-gray-50 text-gray-600 dark:bg-gray-900 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+            }`}
+            title={hideDebit ? "Tampilkan kolom Debit" : "Sembunyikan kolom Debit"}
+          >
+            {hideDebit ? (
+              <>
+                <EyeOff className="w-4 h-4" />
+                <span className="hidden sm:inline">Debit</span>
+              </>
+            ) : (
+              <>
+                <Eye className="w-4 h-4" />
+                <span className="hidden sm:inline">Debit</span>
+              </>
+            )}
+          </button>
+
           {showMultiMatch && onMultiMatch && (
             <button
               onClick={toggleSelectionMode}
@@ -251,7 +297,7 @@ export function BankMutationTable({
               }`}
             >
               <Link2Off className="w-4 h-4" />
-              Select for Multi-Match
+              <span className="hidden sm:inline">Select for Multi-Match</span>
             </button>
           )}
 
@@ -307,7 +353,7 @@ export function BankMutationTable({
                 </th>
               )}
               <th className="px-6 py-4">Tanggal & Deskripsi</th>
-              <th className="px-6 py-4 text-right">Debit</th>
+              {!hideDebit && <th className="px-6 py-4 text-right">Debit</th>}
               <th className="px-6 py-4 text-right">Kredit</th>
               <th className="px-6 py-4 text-right">POS Match</th>
               <th className="px-6 py-4 text-right">Selisih</th>
@@ -373,13 +419,15 @@ export function BankMutationTable({
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <span className="text-sm font-medium text-rose-600">
-                      {item.debit_amount > 0
-                        ? item.debit_amount.toLocaleString("id-ID")
-                        : "-"}
-                    </span>
-                  </td>
+                  {!hideDebit && (
+                    <td className="px-6 py-4 text-right">
+                      <span className="text-sm font-medium text-rose-600">
+                        {item.debit_amount > 0
+                          ? item.debit_amount.toLocaleString("id-ID")
+                          : "-"}
+                      </span>
+                    </td>
+                  )}
                   <td className="px-6 py-4 text-right">
                     <span className="text-sm font-medium text-green-600">
                       {item.credit_amount > 0
@@ -474,7 +522,7 @@ export function BankMutationTable({
             {filteredItems.length === 0 && (
               <tr>
                 <td
-                  colSpan={selectionMode ? 8 : 7}
+                  colSpan={getColspan()}
                   className="px-6 py-12 text-center text-gray-500"
                 >
                   <CheckCircle className="w-10 h-10 text-green-500 mx-auto mb-3 opacity-20" />
