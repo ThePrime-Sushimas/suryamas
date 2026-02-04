@@ -31,7 +31,10 @@ export function BankReconciliationPage() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [isAutoMatchOpen, setIsAutoMatchOpen] = useState(false);
   const [selectedStatement, setSelectedStatement] = useState<BankStatementWithMatch | null>(null);
-  
+
+  // Auto-match preview state
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+
   // Multi-match state
   const [isMultiMatchModalOpen, setIsMultiMatchModalOpen] = useState(false);
   const [multiMatchSelectedStatements, setMultiMatchSelectedStatements] = useState<BankStatementWithMatch[]>([]);
@@ -134,6 +137,28 @@ export function BankReconciliationPage() {
       return () => clearTimeout(timeoutId);
     }
   }, [bankAccounts, selectedAccountId]);
+
+  const handleAutoMatchPreview = async () => {
+    setIsLoadingPreview(true);
+
+    const unreconciledStatements = statements.filter(s => !s.is_reconciled);
+
+    // Fetch potential matches for all unreconciled statements
+    const fetchPromises = unreconciledStatements.map(async (statement) => {
+      try {
+        await fetchPotentialMatches(statement.id);
+        return true;
+      } catch (err) {
+        console.error(`Error fetching matches for ${statement.id}:`, err);
+        return false;
+      }
+    });
+
+    await Promise.all(fetchPromises);
+    setIsLoadingPreview(false);
+  };
+
+
 
   const handleAutoMatch = async (payload: Omit<AutoMatchRequest, "companyId">) => {
     try {
@@ -308,12 +333,12 @@ export function BankReconciliationPage() {
 
         <div className="flex items-center gap-3 self-end md:self-auto">
           <button
-            onClick={() => setIsAutoMatchOpen(true)}
-            disabled={isLoading}
+            onClick={handleAutoMatchPreview}
+            disabled={isLoading || isLoadingPreview}
             className="group relative flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl text-sm font-bold hover:bg-blue-700 shadow-xl shadow-blue-500/20 active:scale-95 transition-all overflow-hidden disabled:opacity-50"
           >
             <div className="absolute inset-0 bg-linear-to-r from-blue-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-            {isLoading ? (
+            {isLoadingPreview ? (
               <RefreshCw className="w-4 h-4 animate-spin" />
             ) : (
               <Sparkles className="w-4 h-4" />

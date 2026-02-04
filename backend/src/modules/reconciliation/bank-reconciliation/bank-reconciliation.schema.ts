@@ -1,6 +1,58 @@
 import { z } from "zod";
 
 /**
+ * Custom datetime schema that accepts both:
+ * - ISO 8601 datetime format (e.g., "2025-01-15T00:00:00.000Z")
+ * - Simple date format (e.g., "2025-01-15")
+ */
+const datetimeFormat = z.string().refine(
+  (val) => {
+    // Check if it's a valid ISO datetime or simple date format
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
+      // ISO datetime format
+      return !isNaN(Date.parse(val));
+    }
+    // Simple date format YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+      return !isNaN(Date.parse(val + 'T00:00:00.000Z'));
+    }
+    return false;
+  },
+  {
+    message: "Invalid date format. Expected ISO datetime (YYYY-MM-DDTHH:mm:ss.sssZ) or simple date (YYYY-MM-DD)",
+  }
+).transform((val) => {
+  // Normalize to ISO datetime format
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+    return val + 'T00:00:00.000Z';
+  }
+  return val;
+});
+
+/**
+ * Simple date schema that accepts both date and datetime formats
+ */
+const dateFormat = z.string().refine(
+  (val) => {
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
+      return !isNaN(Date.parse(val));
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+      return !isNaN(Date.parse(val + 'T00:00:00.000Z'));
+    }
+    return false;
+  },
+  {
+    message: "Invalid date format. Expected YYYY-MM-DD or ISO datetime",
+  }
+).transform((val) => {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+    return val + 'T00:00:00.000Z';
+  }
+  return val;
+});
+
+/**
  * Zod schemas for Bank Reconciliation module
  * Note: companyId is handled by branch context middleware, not required in request
  */
@@ -22,8 +74,8 @@ export const manualReconcileSchema = z.object({
  */
 export const autoMatchSchema = z.object({
   body: z.object({
-    startDate: z.string().date("Invalid start date format"),
-    endDate: z.string().date("Invalid end date format"),
+    startDate: dateFormat,
+    endDate: dateFormat,
     bankAccountId: z.number().int().positive().optional(),
     matchingCriteria: z
       .object({
@@ -42,8 +94,8 @@ export const autoMatchSchema = z.object({
 export const getStatementsQuerySchema = z.object({
   query: z.object({
     // Optional date range - queries overall date range when not provided
-    startDate: z.string().datetime().optional().or(z.literal('').transform(() => undefined)),
-    endDate: z.string().datetime().optional().or(z.literal('').transform(() => undefined)),
+    startDate: datetimeFormat.optional().or(z.literal('').transform(() => undefined)),
+    endDate: datetimeFormat.optional().or(z.literal('').transform(() => undefined)),
     // Bank account filter
     bankAccountId: z.coerce.number().int().positive().optional(),
     // Status filter (RECONCILED, UNRECONCILED, DISCREPANCY)
@@ -63,8 +115,8 @@ export const getStatementsQuerySchema = z.object({
  */
 export const getSummaryQuerySchema = z.object({
   query: z.object({
-    startDate: z.string().datetime().optional().or(z.literal('').transform(() => undefined)),
-    endDate: z.string().datetime().optional().or(z.literal('').transform(() => undefined)),
+    startDate: datetimeFormat.optional().or(z.literal('').transform(() => undefined)),
+    endDate: datetimeFormat.optional().or(z.literal('').transform(() => undefined)),
   }),
 });
 
@@ -97,8 +149,8 @@ export const multiMatchSchema = z.object({
  */
 export const multiMatchGroupQuerySchema = z.object({
   query: z.object({
-    startDate: z.string().datetime().optional().or(z.literal('').transform(() => undefined)),
-    endDate: z.string().datetime().optional().or(z.literal('').transform(() => undefined)),
+    startDate: datetimeFormat.optional().or(z.literal('').transform(() => undefined)),
+    endDate: datetimeFormat.optional().or(z.literal('').transform(() => undefined)),
   }),
 });
 

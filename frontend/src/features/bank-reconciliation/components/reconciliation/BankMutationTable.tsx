@@ -459,20 +459,24 @@ export function BankMutationTable({
                       {!item.is_reconciled && !isInGroup && (
                         <>
                           {(potentialMatchesMap[item.id]?.length ?? 0) > 0 ? (
-                            <button
-                              onClick={() => {
-                                const match = potentialMatchesMap[item.id]?.[0];
-                                if (match?.id) {
-                                  onQuickMatch(item, match.id);
-                                }
-                              }}
-                              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-all shadow-sm"
-                              title={`Cocokkan dengan ${potentialMatchesMap[item.id]?.[0]?.payment_method_name || 'Payment Gateway'}${potentialMatchesMap[item.id]?.[0]?.branch_name ? ` (${potentialMatchesMap[item.id]?.[0]?.branch_name})` : ''} senilai ${(potentialMatchesMap[item.id]?.[0]?.nett_amount || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`}
-                            >
-                              <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                              Match{" "}
-                              {(potentialMatchesMap[item.id]?.[0]?.nett_amount || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold shadow-sm">
+                                <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                                Saran: {(potentialMatchesMap[item.id]?.[0]?.nett_amount || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}
+                              </div>
+                              <button
+                                onClick={() => {
+                                  const match = potentialMatchesMap[item.id]?.[0];
+                                  if (match?.id) {
+                                    onQuickMatch(item, match.id);
+                                  }
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm"
+                                title={`Cocokkan dengan ${potentialMatchesMap[item.id]?.[0]?.payment_method_name || 'Payment Gateway'}${potentialMatchesMap[item.id]?.[0]?.branch_name ? ` (${potentialMatchesMap[item.id]?.[0]?.branch_name})` : ''} senilai ${(potentialMatchesMap[item.id]?.[0]?.nett_amount || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`}
+                              >
+                                Match
+                              </button>
+                            </div>
                           ) : (
                             <button
                               onClick={() => onCheckMatches?.(item.id)}
