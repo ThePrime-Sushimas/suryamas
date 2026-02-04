@@ -61,8 +61,9 @@ export function AnalysisModal({
 
 
   const modalContent = (
-    <div className="modal modal-open backdrop-blur-sm bg-black/40">
-      <div className="modal-box max-w-5xl bg-white dark:bg-gray-900 rounded-3xl p-0 shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative w-full max-w-5xl bg-white dark:bg-gray-900 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Loading Overlay */}
         {isLoading && (
           <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md z-50 flex items-center justify-center">
@@ -188,9 +189,10 @@ export function AnalysisModal({
         </div>
 
         {/* Content Area */}
-        <div className="p-6 bg-white dark:bg-gray-900">
-          {/* Tab Navigation - Enhanced */}
-          <div className="flex gap-2 border-b border-gray-100 dark:border-gray-800 pb-1 mb-6 overflow-x-auto scrollbar-thin">
+        <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-900">
+          <div className="p-6">
+            {/* Tab Navigation - Enhanced */}
+            <div className="flex gap-2 border-b border-gray-100 dark:border-gray-800 pb-1 mb-6 overflow-x-auto scrollbar-thin">
             <button
               className={`
                 px-5 py-2.5 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap
@@ -248,6 +250,7 @@ export function AnalysisModal({
             {activeTab === 'summary' && <AnalysisSummary result={result} />}
             {activeTab === 'preview' && <AnalysisPreview previewData={preview} validRows={valid_rows} />}
             {activeTab === 'warnings' && <AnalysisWarnings warnings={warnings} duplicateCount={duplicateCount} />}
+          </div>
           </div>
         </div>
 
@@ -325,7 +328,6 @@ export function AnalysisModal({
           </div>
         </div>
       </div>
-      <div className="modal-backdrop bg-black/40 backdrop-blur-sm" onClick={onCancel} />
     </div>
   )
 
