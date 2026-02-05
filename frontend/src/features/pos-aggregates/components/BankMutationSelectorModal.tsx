@@ -335,13 +335,13 @@ export function BankMutationSelectorModal({
 
   const modalContent = (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      className="fixed inset-0 z-1000 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget && !loadingStates.confirm) onClose();
       }}
     >
       <div 
-        className="modal-box max-w-4xl w-full bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 relative max-h-[85vh] flex flex-col"
+        className="modal-box max-w-4xl w-full bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 relative max-h-[85vh] flex flex-col z-1001"
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
@@ -377,31 +377,50 @@ export function BankMutationSelectorModal({
               </button>
             </div>
 
-            {/* Aggregate Info */}
+            {/* Aggregate Info - Detailed Breakdown */}
             {aggregate && (
               <div className="mt-4 p-4 bg-white/10 backdrop-blur-md rounded-xl border border-white/10">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-blue-100/60 text-xs font-medium uppercase tracking-wider">
-                      Transaksi POS Dipilih
-                    </p>
-                    <p className="text-white font-semibold mt-1">
-                      {aggregate.source_ref}
-                    </p>
-                    <p className="text-blue-100/80 text-sm mt-0.5">
-                      {aggregate.payment_method_name || 'Payment Gateway'}
-                    </p>
+                <p className="text-blue-100/60 text-xs font-medium uppercase tracking-wider mb-3">
+                  Detail Transaksi Agregat
+                </p>
+                
+                {/* Detailed Breakdown Table */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-blue-100/60">Total Transaksi:</span>
+                    <span className="text-white font-medium">{formatCurrency(aggregate.gross_amount)}</span>
                   </div>
-                  <div className="text-right">
-                    <p className="text-blue-100/60 text-xs font-medium uppercase tracking-wider">
-                      Nominal POS
-                    </p>
-                    <p className="text-white font-bold text-xl mt-1">
-                      {formatCurrency(aggregate.nett_amount)}
-                    </p>
-                    <p className="text-blue-100/80 text-sm mt-0.5">
-                      {formatDate(aggregate.transaction_date)}
-                    </p>
+                  <div className="flex justify-between">
+                    <span className="text-blue-100/60">Tax:</span>
+                    <span className="text-white font-medium">{formatCurrency(aggregate.tax_amount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-blue-100/60">Discount:</span>
+                    <span className="text-white font-medium">{formatCurrency(aggregate.discount_amount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-blue-100/60">Service Charge:</span>
+                    <span className="text-white font-medium">{formatCurrency(aggregate.service_charge_amount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-blue-100/60">Bill After Discount:</span>
+                    <span className="text-white font-medium">{formatCurrency(aggregate.bill_after_discount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-blue-100/60">Fee (%):</span>
+                    <span className="text-white font-medium">{formatCurrency(aggregate.percentage_fee_amount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-blue-100/60">Fixed Fee:</span>
+                    <span className="text-white font-medium">{formatCurrency(aggregate.fixed_fee_amount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-blue-100/60">Total Fee:</span>
+                    <span className="text-white font-medium">{formatCurrency(aggregate.total_fee_amount)}</span>
+                  </div>
+                  <div className="flex justify-between col-span-2 sm:col-span-3 pt-2 border-t border-white/10">
+                    <span className="text-blue-100/80 font-semibold">Nett Amount:</span>
+                    <span className="text-white font-bold text-lg">{formatCurrency(aggregate.nett_amount)}</span>
                   </div>
                 </div>
               </div>
@@ -409,8 +428,8 @@ export function BankMutationSelectorModal({
           </div>
         </div>
 
-        {/* Search and Filters */}
-        <div className="p-4 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
+{/* Search and Filters */}
+        <div className="w-full shrink-0 p-4 relative z-20">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -453,9 +472,9 @@ export function BankMutationSelectorModal({
           </div>
         </div>
 
-        {/* Content */}
+{/* Content - Tinggi minimum tetap, tidak menyusut saat list pendek , DONT CHANGE THIS*/}
         <div 
-          className="flex-1 overflow-y-auto p-4"
+          className="flex-1 overflow-y-auto p-4 relative min-h-[200px] max-h-[calc(85vh-420px)]" //JANGAN GANTI NI, DONT CHANGE THIS//
           role="listbox"
           aria-label="Daftar mutasi bank"
           onKeyDown={handleKeyNavigation}
@@ -498,17 +517,6 @@ export function BankMutationSelectorModal({
             </div>
           ) : (
             <div className="space-y-2">
-              {/* Best Match Suggestion */}
-              {bestMatch && bestMatch.matchPercentage && bestMatch.matchPercentage >= 0.95 && (
-                <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-xl">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                    <p className="text-green-700 dark:text-green-400 font-medium text-sm">
-                      Rekomendasi: Match Terbaik
-                    </p>
-                  </div>
-                </div>
-              )}
 
               {/* Statements List */}
               {filteredStatements.map((statement) => {
