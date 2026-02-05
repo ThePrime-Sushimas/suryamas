@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import ReactDOM from "react-dom";
 import {
   X,
@@ -10,16 +10,12 @@ import {
   ArrowRight,
   RefreshCw,
 } from "lucide-react";
-import type {
-  BankStatementWithMatch,
-  MultiMatchSuggestion,
-} from "../../types/bank-reconciliation.types";
+import type { BankStatementWithMatch } from "../../types/bank-reconciliation.types";
 import type { AggregatedTransactionListItem } from "@/features/pos-aggregates/types";
 
 interface MultiMatchModalProps {
   aggregate: AggregatedTransactionListItem | null;
   statements: BankStatementWithMatch[];
-  suggestions?: MultiMatchSuggestion[];
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (
@@ -28,7 +24,6 @@ interface MultiMatchModalProps {
     overrideDifference: boolean,
   ) => Promise<void>;
   isLoading?: boolean;
-  onLoadSuggestions?: (aggregateId: string) => void;
   initialStatements?: BankStatementWithMatch[];
   onFindAggregate?: (statementIds: string[]) => Promise<AggregatedTransactionListItem | null>;
 }
@@ -36,32 +31,24 @@ interface MultiMatchModalProps {
 export function MultiMatchModal({
   aggregate,
   statements,
-  suggestions = [],
   isOpen,
   onClose,
   onConfirm,
   isLoading = false,
-  onLoadSuggestions,
   initialStatements = [],
   onFindAggregate,
 }: MultiMatchModalProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [overrideDifference, setOverrideDifference] = useState(false);
-  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState<number>(-1);
   const [search, setSearch] = useState("");
   const [mode, setMode] = useState<"aggregate-first" | "statements-first">("aggregate-first");
   const [isFindingAggregate, setIsFindingAggregate] = useState(false);
-  
-  // Track apakah suggestions sudah di-fetch untuk aggregate ini
-  const loadedSuggestionsForAggregate = useRef<string | null>(null);
 
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       setSelectedIds([]);
       setOverrideDifference(false);
-      setActiveSuggestionIndex(-1);
-      loadedSuggestionsForAggregate.current = null;
       if (initialStatements.length > 0) {
         setMode("statements-first");
         // Ensure all IDs are strings
@@ -71,28 +58,6 @@ export function MultiMatchModal({
       }
     }
   }, [isOpen, initialStatements]);
-
-  // Load suggestions when modal opens with aggregate
-  useEffect(() => {
-    if (isOpen && aggregate && mode === "aggregate-first" && onLoadSuggestions) {
-      // Hanya fetch jika belum pernah di-fetch untuk aggregate ini
-      if (loadedSuggestionsForAggregate.current !== aggregate.id) {
-        loadedSuggestionsForAggregate.current = aggregate.id;
-        onLoadSuggestions(aggregate.id);
-      }
-    }
-  }, [isOpen, aggregate, mode, onLoadSuggestions]);
-
-  // Auto-select first suggestion if available
-  useEffect(() => {
-    if (suggestions.length > 0 && activeSuggestionIndex === -1 && mode === "aggregate-first") {
-      setTimeout(() => {
-        setActiveSuggestionIndex(0);
-        // Ensure all IDs are strings
-        setSelectedIds(suggestions[0].statements.map((s) => String(s.id)));
-      }, 0);
-    }
-  }, [suggestions, activeSuggestionIndex, mode]);
 
   // Filter statements by search
   const filteredStatements = useMemo(() => {
@@ -117,19 +82,12 @@ export function MultiMatchModal({
   const differencePercent = aggregateAmount !== 0 ? Math.abs(difference) / aggregateAmount * 100 : 0;
   const isWithinTolerance = differencePercent <= 5;
 
-  const handleApplySuggestion = (suggestion: MultiMatchSuggestion, index: number) => {
-    setActiveSuggestionIndex(index);
-    // Ensure all IDs are strings
-    setSelectedIds(suggestion.statements.map((s) => String(s.id)));
-  };
-
   const handleToggleStatement = (statementId: string) => {
     setSelectedIds((prev) =>
       prev.includes(statementId)
         ? prev.filter((id) => id !== statementId)
         : [...prev, statementId],
     );
-    setActiveSuggestionIndex(-1);
   };
 
   const handleSelectAll = () => {
@@ -138,7 +96,6 @@ export function MultiMatchModal({
     } else {
       setSelectedIds(filteredStatements.map((s) => s.id));
     }
-    setActiveSuggestionIndex(-1);
   };
 
   const handleFindAggregate = async () => {
@@ -282,62 +239,6 @@ export function MultiMatchModal({
                   </div>
                 )}
 
-                {/* Suggestions Section */}
-                {isAggregateMode && suggestions.length > 0 && (
-                  <div className="space-y-3">
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                      <SparklesIcon className="w-4 h-4" />
-                      Suggested Matches
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {suggestions.slice(0, 4).map((suggestion, index) => (
-                        <div
-                          key={index}
-                          onClick={() => handleApplySuggestion(suggestion, index)}
-                          className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                            activeSuggestionIndex === index
-                              ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20"
-                              : "border-gray-100 dark:border-gray-800 hover:border-indigo-300"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                                suggestion.confidence === "HIGH"
-                                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                  : suggestion.confidence === "MEDIUM"
-                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                                  : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
-                              }`}>
-                                {suggestion.confidence}
-                              </span>
-                              <span className="text-xs text-gray-500">{suggestion.reason}</span>
-                            </div>
-                            <span className="text-sm font-bold text-indigo-600">
-                              {suggestion.statements.length} statements
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
-                              Total:{" "}
-                              <span className="font-semibold text-gray-900 dark:text-white">
-                                {suggestion.totalAmount.toLocaleString("id-ID", {
-                                  maximumFractionDigits: 0,
-                                })}
-                              </span>
-                            </span>
-                            <span className={`text-sm font-bold ${
-                              suggestion.matchPercentage >= 0.95 ? "text-green-600" : "text-amber-600"
-                            }`}>
-                              {(suggestion.matchPercentage * 100).toFixed(1)}% match
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {/* Bank Statements Selection */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
@@ -400,8 +301,8 @@ export function MultiMatchModal({
                                 <input
                                   type="checkbox"
                                   checked={isSelected}
-                                  onChange={() => {}}
-                                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                  onChange={() => handleToggleStatement(statement.id)}
+                                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                                 />
                               </td>
                               <td className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">
@@ -529,14 +430,6 @@ export function MultiMatchModal({
       </div>
     </div>,
     document.body,
-  );
-}
-
-function SparklesIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-    </svg>
   );
 }
 

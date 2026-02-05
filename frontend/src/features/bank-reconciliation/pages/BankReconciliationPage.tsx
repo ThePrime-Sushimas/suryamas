@@ -68,9 +68,6 @@ export function BankReconciliationPage() {
     clearFilter,
     // Multi-match
     reconciliationGroups,
-    multiMatchSuggestions,
-    isLoadingSuggestions,
-    fetchSuggestedGroupStatements,
     fetchReconciliationGroups,
     createMultiMatch,
     undoMultiMatch,
@@ -243,10 +240,6 @@ export function BankReconciliationPage() {
     setMultiMatchSelectedStatements(items);
     setSelectedAggregateForMultiMatch(null);
     setIsMultiMatchModalOpen(true);
-  };
-
-  const handleLoadSuggestions = async (aggregateId: string) => {
-    await fetchSuggestedGroupStatements(aggregateId);
   };
 
   const handleFindAggregateForMultiMatch = async (
@@ -469,7 +462,6 @@ export function BankReconciliationPage() {
       <MultiMatchModal
         aggregate={selectedAggregateForMultiMatch}
         statements={unreconciledStatements}
-        suggestions={multiMatchSuggestions}
         isOpen={isMultiMatchModalOpen}
         onClose={() => {
           setIsMultiMatchModalOpen(false);
@@ -477,8 +469,7 @@ export function BankReconciliationPage() {
           setSelectedAggregateForMultiMatch(null);
         }}
         onConfirm={handleMultiMatchConfirm}
-        isLoading={isLoadingSuggestions || isLoading}
-        onLoadSuggestions={handleLoadSuggestions}
+        isLoading={isLoading}
         initialStatements={multiMatchSelectedStatements}
         onFindAggregate={handleFindAggregateForMultiMatch}
       />
