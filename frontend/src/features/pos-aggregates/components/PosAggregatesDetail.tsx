@@ -9,8 +9,8 @@
 import React from 'react'
 import { 
   FileText, Calendar, Building, CreditCard, Clock, 
-  CheckCircle, Building2, DollarSign, TrendingUp, 
-  TrendingDown, Percent, Shield, AlertCircle, 
+  CheckCircle, Building2, TrendingUp, 
+  Shield, AlertCircle, 
   History, Trash2, User, Printer
 } from 'lucide-react'
 import type { AggregatedTransactionWithDetails } from '../types'
@@ -168,122 +168,93 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({ transa
       </div>
 
       {/* ========================================
-          AMOUNT SUMMARY - CORRECT FLOW
+          AMOUNT SUMMARY - SIMPLE CLEAN DESIGN
           ======================================== */}
-      <div className="bg-white rounded-2xl shadow-lg p-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-3">
-          <div className="p-2 bg-green-100 rounded-lg">
-            <DollarSign className="w-5 h-5 text-green-600" />
-          </div>
-          Ringkasan Transaksi
-        </h3>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 className="text-base font-semibold text-gray-900 mb-4">Ringkasan Transaksi</h3>
         
-        {/* Gross Amount + Tax - Discount = Bill After Discount */}
-        <div className="space-y-3 mb-8">
+        {/* List Style - Simple & Clean */}
+        <div className="space-y-2">
           {/* Gross Amount */}
-          <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
-            <div className="flex items-center gap-3">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
-              <div>
-                <div className="font-semibold text-gray-900">Gross Amount</div>
-                <div className="text-xs text-gray-500">Total sebelum potongan</div>
-              </div>
+          <div className="flex items-center justify-between py-2">
+            <div>
+              <div className="text-sm text-gray-600">Gross Amount</div>
+              <div className="text-xs text-gray-400">Total sebelum potongan</div>
             </div>
-            <div className="text-xl font-bold text-gray-900">
+            <div className="text-sm font-medium text-gray-900">
               {formatCurrency(transaction.gross_amount)}
             </div>
           </div>
 
-          {/* Tax (+) */}
+          {/* Tax */}
           {transaction.tax_amount > 0 && (
-            <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg ml-4">
-              <div className="flex items-center gap-3">
-                <TrendingUp className="w-4 h-4 text-blue-500" />
-                <span className="text-blue-700">Pajak</span>
-              </div>
-              <span className="font-semibold text-blue-700">
+            <div className="flex items-center justify-between py-2 pl-4 border-l-2 border-gray-200">
+              <div className="text-sm text-gray-600">Pajak</div>
+              <div className="text-sm font-medium text-gray-900">
                 +{formatCurrency(transaction.tax_amount)}
-              </span>
+              </div>
             </div>
           )}
 
-          {/* Service Charge (+) */}
+          {/* Service Charge */}
           {transaction.service_charge_amount > 0 && (
-            <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg ml-4">
-              <div className="flex items-center gap-3">
-                <TrendingUp className="w-4 h-4 text-purple-500" />
-                <span className="text-purple-700">Service Charge</span>
-              </div>
-              <span className="font-semibold text-purple-700">
+            <div className="flex items-center justify-between py-2 pl-4 border-l-2 border-gray-200">
+              <div className="text-sm text-gray-600">Service Charge</div>
+              <div className="text-sm font-medium text-gray-900">
                 +{formatCurrency(transaction.service_charge_amount)}
-              </span>
+              </div>
             </div>
           )}
 
-          {/* Discount (-) */}
+          {/* Discount */}
           {transaction.discount_amount > 0 && (
-            <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg ml-4">
-              <div className="flex items-center gap-3">
-                <TrendingDown className="w-4 h-4 text-red-500" />
-                <span className="text-red-700">Discount</span>
-              </div>
-              <span className="font-semibold text-red-700">
+            <div className="flex items-center justify-between py-2 pl-4 border-l-2 border-gray-200">
+              <div className="text-sm text-gray-600">Discount</div>
+              <div className="text-sm font-medium text-gray-900">
                 -{formatCurrency(transaction.discount_amount)}
-              </span>
+              </div>
             </div>
           )}
 
           {/* Bill After Discount */}
-          <div className="flex items-center justify-between p-4 bg-amber-50 rounded-lg border-2 border-amber-300">
-            <div className="font-bold text-amber-800">Bill After Discount</div>
-            <div className="text-xl font-bold text-amber-800">
+          <div className="flex items-center justify-between py-3 border-t-2 border-gray-200 mt-2">
+            <div className="text-sm font-semibold text-gray-800">Bill After Discount</div>
+            <div className="text-base font-semibold text-gray-900">
               {formatCurrency(transaction.bill_after_discount)}
             </div>
           </div>
         </div>
 
         {/* Fee Breakdown */}
-        <div className="border-t border-gray-200 pt-6 mb-8">
-          <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-3">
-            <div className="p-2 bg-indigo-100 rounded-lg">
-              <Percent className="w-4 h-4 text-indigo-600" />
-            </div>
-            Fee Breakdown
-            <span className="ml-auto text-sm font-normal text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+        <div className="mt-6 pt-4 border-t border-gray-200">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-semibold text-gray-700">Fee Breakdown</h4>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
               {feePercentage}% dari gross
             </span>
-          </h4>
+          </div>
           
-          <div className="space-y-3">
+          <div className="space-y-2">
             {/* Percentage Fee */}
-            <div className="flex items-center justify-between p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-              <div>
-                <div className="font-medium text-indigo-700">Percentage Fee</div>
-                <div className="text-xs text-indigo-500">Berdasarkan gross amount</div>
-              </div>
-              <div className="font-semibold text-indigo-700">
+            <div className="flex items-center justify-between py-2">
+              <div className="text-sm text-gray-600">Percentage Fee</div>
+              <div className="text-sm font-medium text-gray-900">
                 -{formatCurrency(transaction.percentage_fee_amount)}
               </div>
             </div>
 
             {/* Fixed Fee */}
-            <div className="flex items-center justify-between p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-              <div>
-                <div className="font-medium text-indigo-700">Fixed Fee</div>
-                <div className="text-xs text-indigo-500">Biaya tetap per transaksi</div>
-              </div>
-              <div className="font-semibold text-indigo-700">
+            <div className="flex items-center justify-between py-2">
+              <div className="text-sm text-gray-600">Fixed Fee</div>
+              <div className="text-sm font-medium text-gray-900">
                 -{formatCurrency(transaction.fixed_fee_amount)}
               </div>
             </div>
 
             {/* Total Fee */}
-            <div className="flex items-center justify-between p-4 bg-indigo-100 rounded-lg border-2 border-indigo-300">
-              <div>
-                <div className="font-bold text-indigo-800">Total Fee</div>
-                <div className="text-xs text-indigo-600">Total biaya transaksi</div>
-              </div>
-              <div className="text-xl font-bold text-indigo-800">
+            <div className="flex items-center justify-between py-2 border-t border-gray-200 mt-2">
+              <div className="text-sm font-semibold text-gray-800">Total Fee</div>
+              <div className="text-sm font-semibold text-gray-900">
                 -{formatCurrency(transaction.total_fee_amount)}
               </div>
             </div>
@@ -291,18 +262,15 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({ transa
         </div>
 
         {/* Amount Settled - Final Result */}
-        <div className="flex items-center justify-between p-5 bg-linear-to-r from-green-50 to-emerald-50 rounded-xl border-l-4 border-green-500 shadow-lg">
-          <div className="flex items-center gap-4">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <DollarSign className="w-5 h-5 text-green-600" />
-            </div>
+        <div className="mt-6 pt-4 border-t-2 border-gray-300">
+          <div className="flex items-center justify-between">
             <div>
-              <div className="font-bold text-gray-900">Amount Settled</div>
-              <div className="text-sm text-gray-600">Jumlah yang akan disetorkan ke rekening</div>
+              <div className="text-base font-semibold text-gray-900">Amount Settled</div>
+              <div className="text-xs text-gray-500">Jumlah yang akan disetorkan ke rekening</div>
             </div>
-          </div>
-          <div className="text-2xl lg:text-3xl font-bold text-green-700">
-            {formatCurrency(transaction.nett_amount)}
+            <div className="text-xl font-bold text-gray-900">
+              {formatCurrency(transaction.nett_amount)}
+            </div>
           </div>
         </div>
       </div>
