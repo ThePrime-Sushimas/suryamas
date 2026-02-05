@@ -166,9 +166,11 @@ bill_after_discount,
 
   /**
    * Find single aggregated transaction by ID
+   * Join dengan bank_statements melalui reconciliation_id (ada di bank_statements)
    */
   async findById(id: string): Promise<AggregatedTransactionWithDetails | null> {
-    const { data, error } = await supabase
+    // First get the aggregated transaction
+    const { data: aggData, error: aggError } = await supabase
       .from('aggregated_transactions')
       .select(`
         *,
@@ -179,11 +181,37 @@ bill_after_discount,
       .is('deleted_at', null)
       .maybeSingle()
 
-    if (error) throw new DatabaseError('Failed to fetch aggregated transaction', { cause: error })
+    if (aggError) throw new DatabaseError('Failed to fetch aggregated transaction', { cause: aggError })
+    if (!aggData) return null
 
-    if (!data) return null
+    // Then get the bank statement via reconciliation_id (ada di bank_statements)
+    const { data: bankData, error: bankError } = await supabase
+      .from('bank_statements')
+      .select(`
+        id,
+        transaction_date,
+        description,
+        debit_amount,
+        credit_amount,
+        reconciled_at,
+        bank_accounts(
+          account_name,
+          account_number,
+          banks(
+            bank_name,
+            bank_code
+          )
+        )
+      `)
+      .eq('reconciliation_id', id)
+      .is('deleted_at', null)
+      .maybeSingle()
 
-    return this.mapToWithDetails(data)
+    if (bankError) {
+      console.error('Error fetching bank statement:', bankError)
+    }
+
+    return this.mapToWithDetails(aggData, bankData || null)
   }
 
   /**
@@ -768,42 +796,56 @@ bill_after_discount: Number(row.bill_after_discount || 0),
 
   /**
    * Map database row to WithDetails
+   * @param aggData - aggregated transaction data from database
+   * @param bankData - bank statement data (nullable, jika belum direkonsiliasi)
    */
-  private mapToWithDetails(row: Record<string, unknown>): AggregatedTransactionWithDetails {
-    const paymentMethod = Array.isArray(row.payment_methods) ? row.payment_methods[0] : row.payment_methods
-    const journal = Array.isArray(row.journal) ? row.journal[0] : row.journal
+  private mapToWithDetails(aggData: Record<string, unknown>, bankData: Record<string, unknown> | null): AggregatedTransactionWithDetails {
+    const paymentMethod = Array.isArray(aggData.payment_methods) ? aggData.payment_methods[0] : aggData.payment_methods
+    const journal = Array.isArray(aggData.journal) ? aggData.journal[0] : aggData.journal
+
+    // Extract nested bank data dari bank statement
+    const bankAccount = Array.isArray(bankData?.bank_accounts) ? bankData.bank_accounts[0] : bankData?.bank_accounts
+    const bank = Array.isArray(bankAccount?.banks) ? bankAccount.banks[0] : bankAccount?.banks
 
     return {
-      id: row.id as string,
-      branch_name: row.branch_name as string | null,
-      source_type: row.source_type as AggregatedTransactionSourceType,
-      source_id: row.source_id as string,
-      source_ref: row.source_ref as string,
-      transaction_date: row.transaction_date as string,
-      payment_method_id: row.payment_method_id as number,
-      gross_amount: Number(row.gross_amount),
-      discount_amount: Number(row.discount_amount),
-      tax_amount: Number(row.tax_amount),
-      service_charge_amount: Number(row.service_charge_amount),
-bill_after_discount: Number(row.bill_after_discount || 0),
-      percentage_fee_amount: Number(row.percentage_fee_amount || 0),
-      fixed_fee_amount: Number(row.fixed_fee_amount || 0),
-      total_fee_amount: Number(row.total_fee_amount || 0),
-      nett_amount: Number(row.nett_amount),
-      currency: row.currency as string,
-      journal_id: row.journal_id as string | null,
-      is_reconciled: row.is_reconciled as boolean,
-      created_at: row.created_at as string,
-      updated_at: row.updated_at as string,
-      deleted_at: row.deleted_at as string | null,
-      deleted_by: row.deleted_by as string | null,
-      version: row.version as number,
-      status: row.status as AggregatedTransactionStatus,
+      id: aggData.id as string,
+      branch_name: aggData.branch_name as string | null,
+      source_type: aggData.source_type as AggregatedTransactionSourceType,
+      source_id: aggData.source_id as string,
+      source_ref: aggData.source_ref as string,
+      transaction_date: aggData.transaction_date as string,
+      payment_method_id: aggData.payment_method_id as number,
+      gross_amount: Number(aggData.gross_amount),
+      discount_amount: Number(aggData.discount_amount),
+      tax_amount: Number(aggData.tax_amount),
+      service_charge_amount: Number(aggData.service_charge_amount),
+      bill_after_discount: Number(aggData.bill_after_discount || 0),
+      percentage_fee_amount: Number(aggData.percentage_fee_amount || 0),
+      fixed_fee_amount: Number(aggData.fixed_fee_amount || 0),
+      total_fee_amount: Number(aggData.total_fee_amount || 0),
+      nett_amount: Number(aggData.nett_amount),
+      currency: aggData.currency as string,
+      journal_id: aggData.journal_id as string | null,
+      is_reconciled: aggData.is_reconciled as boolean,
+      created_at: aggData.created_at as string,
+      updated_at: aggData.updated_at as string,
+      deleted_at: aggData.deleted_at as string | null,
+      deleted_by: aggData.deleted_by as string | null,
+      version: aggData.version as number,
+      status: aggData.status as AggregatedTransactionStatus,
       payment_method_code: (paymentMethod as Record<string, unknown>)?.code as string | undefined,
       payment_method_name: (paymentMethod as Record<string, unknown>)?.name as string | undefined,
       journal: journal as AggregatedTransactionWithDetails['journal'],
-      failed_at: row.failed_at as string | null,
-      failed_reason: row.failed_reason as string | null,
+      failed_at: aggData.failed_at as string | null,
+      failed_reason: aggData.failed_reason as string | null,
+      // Bank mutation / reconciliation details
+      bank_mutation_id: bankData?.id as string | null,
+      bank_mutation_date: bankData?.transaction_date as string | null,
+      bank_name: (bank as Record<string, unknown>)?.bank_name as string | null,
+      bank_account_name: bankAccount?.account_name as string | null,
+      bank_account_number: bankAccount?.account_number as string | null,
+      reconciled_at: bankData?.reconciled_at as string | null,
+      reconciled_by: aggData.reconciled_by as string | null,
     }
   }
 }

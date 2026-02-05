@@ -6,7 +6,7 @@
  */
 
 import React from 'react'
-import { FileText, Calendar, Building, CreditCard, Clock, CheckCircle } from 'lucide-react'
+import { FileText, Calendar, Building, CreditCard, Clock, CheckCircle, Building2 } from 'lucide-react'
 import type { AggregatedTransactionWithDetails } from '../types'
 
 // =============================================================================
@@ -194,7 +194,7 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({ transa
 
       {/* Amount Details */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">          
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           Rincian Jumlah
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -226,6 +226,38 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({ transa
             <div className="text-sm text-green-700 mb-1">Jumlah Bersih</div>
             <div className="text-xl font-bold text-green-700">
               {formatCurrency(transaction.nett_amount)}
+            </div>
+          </div>
+        </div>
+
+        {/* Bill After Discount */}
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="text-center p-4 bg-amber-50 rounded-lg border border-amber-200">
+            <div className="text-sm text-amber-600 mb-1">Bill After Discount</div>
+            <div className="text-xl font-bold text-amber-700">
+              {formatCurrency(transaction.bill_after_discount)}
+            </div>
+          </div>
+        </div>
+
+        {/* Fee Breakdown */}
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="text-center p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+            <div className="text-sm text-indigo-600 mb-1">Fee (%)</div>
+            <div className="text-lg font-semibold text-indigo-700">
+              -{formatCurrency(transaction.percentage_fee_amount)}
+            </div>
+          </div>
+          <div className="text-center p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+            <div className="text-sm text-indigo-600 mb-1">Fixed Fee</div>
+            <div className="text-lg font-semibold text-indigo-700">
+              -{formatCurrency(transaction.fixed_fee_amount)}
+            </div>
+          </div>
+          <div className="text-center p-4 bg-indigo-100 rounded-lg border-2 border-indigo-200">
+            <div className="text-sm text-indigo-700 mb-1 font-medium">Total Fee</div>
+            <div className="text-xl font-bold text-indigo-800">
+              -{formatCurrency(transaction.total_fee_amount)}
             </div>
           </div>
         </div>
@@ -264,6 +296,77 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({ transa
           </dl>
         </div>
       )}
+
+      {/* Bank Reconciliation Info */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Building2 className="w-5 h-5 text-gray-500" />
+          Rekonsiliasi Bank
+        </h3>
+        {transaction.is_reconciled ? (
+          <dl className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
+                <dt className="text-sm font-medium text-gray-500">Tanggal Mutasi Bank</dt>
+                <dd className="col-span-2 text-sm text-gray-900">
+                  {transaction.bank_mutation_date 
+                    ? formatDate(transaction.bank_mutation_date)
+                    : '-'}
+                </dd>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <dt className="text-sm font-medium text-gray-500">Nama Bank</dt>
+                <dd className="col-span-2 text-sm text-gray-900">
+                  {transaction.bank_name || '-'}
+                </dd>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
+                <dt className="text-sm font-medium text-gray-500">Nama Rekening</dt>
+                <dd className="col-span-2 text-sm text-gray-900">
+                  {transaction.bank_account_name || '-'}
+                </dd>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <dt className="text-sm font-medium text-gray-500">Nomor Rekening</dt>
+                <dd className="col-span-2 text-sm text-gray-900 font-mono">
+                  {transaction.bank_account_number || '-'}
+                </dd>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
+                <dt className="text-sm font-medium text-gray-500">ID Mutasi Bank</dt>
+                <dd className="col-span-2 text-sm text-gray-900 font-mono">
+                  {transaction.bank_mutation_id || '-'}
+                </dd>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <dt className="text-sm font-medium text-gray-500">Tanggal Rekonsiliasi</dt>
+                <dd className="col-span-2 text-sm text-gray-900">
+                  {transaction.reconciled_at 
+                    ? formatDateTime(transaction.reconciled_at)
+                    : '-'}
+                </dd>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
+                <dt className="text-sm font-medium text-gray-500">Direkonsiliasi Oleh</dt>
+                <dd className="col-span-2 text-sm text-gray-900">
+                  {transaction.reconciled_by || '-'}
+                </dd>
+              </div>
+            </div>
+          </dl>
+        ) : (
+          <div className="flex items-center gap-2 text-gray-500">
+            <Clock className="w-5 h-5" />
+            <span>Belum Direkonsiliasi</span>
+          </div>
+        )}
+      </div>
 
       {/* Audit Info */}
       <div className="bg-white rounded-lg shadow p-6">

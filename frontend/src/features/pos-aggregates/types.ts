@@ -74,6 +74,14 @@ export interface AggregatedTransactionWithDetails extends AggregatedTransaction 
   payment_method_name?: string;
   journal_number?: string;
   journal_status?: string;
+  // Bank mutation / reconciliation details
+  bank_mutation_id?: string | null;
+  bank_mutation_date?: string | null;
+  bank_name?: string | null;
+  bank_account_name?: string | null;
+  bank_account_number?: string | null;
+  reconciled_at?: string | null;
+  reconciled_by?: string | null;
 }
 
 /**
