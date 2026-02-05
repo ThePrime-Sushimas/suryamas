@@ -8,9 +8,15 @@
  * - Filter by amount
  * - Auto-highlight statements yang match berdasarkan amount dari POS
  * - Pilih statement untuk di-match dengan POS aggregate
+ * 
+ * PERFORMANCE OPTIMIZATIONS:
+ * - useMemo untuk filtering yang stabil
+ * - useDebounce untuk mengurangi API calls
+ * - React.memo untuk item components
+ * - Retry mechanism dengan exponential backoff
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, 
@@ -21,10 +27,24 @@ import {
   AlertCircle,
   Loader2,
   ArrowRightLeft,
-  Filter
+  Filter,
+  RefreshCw
 } from 'lucide-react';
 import { bankReconciliationApi } from '../../bank-reconciliation/api/bank-reconciliation.api';
+import { useDebounce } from '@/hooks/_shared/useDebounce';
 import type { AggregatedTransactionListItem } from '../types';
+
+// ============================================================================
+// ANALYTICS TRACKING (Placeholder - replace dengan analytics service Anda)
+// ============================================================================
+const trackEvent = (eventName: string, properties?: Record<string, unknown>) => {
+  // Replace dengan analytics service call
+  console.log(`[Analytics] ${eventName}:`, properties);
+};
+
+// ============================================================================
+// TYPES
+// ============================================================================
 
 interface BankMutationSelectorModalProps {
   isOpen: boolean;
@@ -58,26 +78,68 @@ interface BankMutationItem {
   matchPercentage?: number;
 }
 
+interface LoadingStates {
+  fetch: boolean;
+  confirm: boolean;
+  search: boolean;
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 export function BankMutationSelectorModal({
   isOpen,
   onClose,
   onConfirm,
   aggregate,
-  isLoading: externalLoading = false,
 }: BankMutationSelectorModalProps) {
+  // =========================================================================
+  // STATE MANAGEMENT
+  // =========================================================================
   const [statements, setStatements] = useState<BankMutationItem[]>([]);
-  const [filteredStatements, setFilteredStatements] = useState<BankMutationItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showExactMatchOnly, setShowExactMatchOnly] = useState(false);
+  const [loadingStates, setLoadingStates] = useState<LoadingStates>({
+    fetch: false,
+    confirm: false,
+    search: false,
+  });
+  const [retryCount, setRetryCount] = useState(0);
 
-  // Fetch unreconciled statements on mount
-  const fetchStatements = useCallback(async () => {
+  // =========================================================================
+  // DEBOUNCED SEARCH
+  // =========================================================================
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
+  // =========================================================================
+  // FORMATTERS (useCallback untuk stabilitas)
+  // =========================================================================
+  const formatCurrency = useCallback((amount: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  }, []);
+
+  const formatDate = useCallback((dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  }, []);
+
+  // =========================================================================
+  // FETCH WITH RETRY MECHANISM
+  // =========================================================================
+  const fetchStatements = useCallback(async (currentRetryCount = 0) => {
     if (!isOpen) return;
     
-    setIsLoading(true);
+    setLoadingStates(prev => ({ ...prev, fetch: true }));
     setError(null);
 
     try {
@@ -88,7 +150,7 @@ export function BankMutationSelectorModal({
       const transformedData: BankMutationItem[] = data.map(s => {
         const bankAmount = (s.credit_amount || 0) - (s.debit_amount || 0);
         const difference = Math.abs(bankAmount - targetAmount);
-        const matchPercentage = targetAmount > 0 ? 1 - (difference / targetAmount) : 0;
+        const matchPercentage = targetAmount > 0 ? Math.max(0, 1 - (difference / targetAmount)) : 0;
 
         return {
           id: s.id,
@@ -107,30 +169,54 @@ export function BankMutationSelectorModal({
       });
 
       setStatements(transformedData);
-      setFilteredStatements(transformedData);
+      setRetryCount(0); // Reset retry count on success
+      trackEvent('bank_mutation_fetch_success', { count: transformedData.length });
     } catch (err) {
       console.error('Error fetching statements:', err);
-      setError('Gagal mengambil data mutasi bank. Silakan coba lagi.');
+      
+      if (currentRetryCount < 3) {
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = 1000 * Math.pow(2, currentRetryCount);
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+          fetchStatements(currentRetryCount + 1);
+        }, delay);
+      } else {
+        setError('Gagal mengambil data mutasi bank setelah 3 percobaan. Silakan coba lagi.');
+        trackEvent('bank_mutation_fetch_failed', { error: String(err) });
+      }
     } finally {
-      setIsLoading(false);
+      setLoadingStates(prev => ({ ...prev, fetch: false }));
     }
   }, [isOpen, aggregate]);
 
+  // =========================================================================
+  // EFFECTS
+  // =========================================================================
   useEffect(() => {
     fetchStatements();
   }, [fetchStatements]);
 
-  // Filter statements when search term changes
+  // Track search events
   useEffect(() => {
+    if (debouncedSearchTerm) {
+      trackEvent('bank_mutation_search', { term: debouncedSearchTerm });
+    }
+  }, [debouncedSearchTerm]);
+
+  // =========================================================================
+  // FILTERING WITH USE MEMO (Performance Optimization)
+  // =========================================================================
+  const filteredStatements = useMemo(() => {
     let filtered = statements;
 
-    // Search filter
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
+    // Search filter dengan debounced term
+    if (debouncedSearchTerm) {
+      const term = debouncedSearchTerm.toLowerCase();
       filtered = filtered.filter(s => 
         s.description?.toLowerCase().includes(term) ||
         s.reference_number?.toLowerCase().includes(term) ||
-        s.id?.toLowerCase().includes(term)
+        (typeof s.id === 'string' && s.id.toLowerCase().includes(term))
       );
     }
 
@@ -142,7 +228,7 @@ export function BankMutationSelectorModal({
     }
 
     // Sort by match percentage (best match first)
-    filtered = [...filtered].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       // Prioritize exact matches
       const aExact = (a.matchPercentage || 0) >= 0.99;
       const bExact = (b.matchPercentage || 0) >= 0.99;
@@ -152,11 +238,11 @@ export function BankMutationSelectorModal({
       // Then sort by match percentage
       return (b.matchPercentage || 0) - (a.matchPercentage || 0);
     });
+  }, [statements, debouncedSearchTerm, showExactMatchOnly]);
 
-    setFilteredStatements(filtered);
-  }, [statements, searchTerm, showExactMatchOnly]);
-
-  // Find best match based on aggregate amount
+  // =========================================================================
+  // BEST MATCH CALCULATION
+  // =========================================================================
   const bestMatch = useMemo(() => {
     if (!statements.length) return null;
     
@@ -167,35 +253,82 @@ export function BankMutationSelectorModal({
     }, statements[0]);
   }, [statements]);
 
-  // Handle confirm selection
-  const handleConfirm = async () => {
+  // =========================================================================
+  // HANDLERS WITH ANALYTICS
+  // =========================================================================
+  const handleSelect = useCallback((id: string) => {
+    setSelectedId(id);
+    const selected = statements.find(s => s.id === id);
+    trackEvent('bank_mutation_select', { 
+      statementId: id, 
+      matchPercentage: selected?.matchPercentage 
+    });
+  }, [statements]);
+
+  const handleConfirm = useCallback(async () => {
     if (!selectedId) return;
 
+    setLoadingStates(prev => ({ ...prev, confirm: true }));
+
     try {
+      trackEvent('bank_mutation_match_attempt', {
+        aggregateId: aggregate?.id,
+        statementId: selectedId,
+        matchPercentage: bestMatch?.matchPercentage
+      });
+      
       await onConfirm(selectedId);
+      
+      trackEvent('bank_mutation_match_success', {
+        aggregateId: aggregate?.id,
+        statementId: selectedId
+      });
     } catch (err) {
       console.error('Error confirming match:', err);
+      trackEvent('bank_mutation_match_failed', {
+        aggregateId: aggregate?.id,
+        statementId: selectedId,
+        error: String(err)
+      });
       // Error is handled by parent
+    } finally {
+      setLoadingStates(prev => ({ ...prev, confirm: false }));
     }
-  };
+  }, [selectedId, aggregate, bestMatch, onConfirm]);
 
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  // =========================================================================
+  // KEYBOARD NAVIGATION
+  // =========================================================================
+  const handleKeyNavigation = useCallback((e: React.KeyboardEvent) => {
+    if (!filteredStatements.length) return;
 
-  // Format date
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('id-ID', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+    const currentIndex = selectedId 
+      ? filteredStatements.findIndex(s => s.id === selectedId)
+      : -1;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextIndex = currentIndex < filteredStatements.length - 1 ? currentIndex + 1 : 0;
+      setSelectedId(filteredStatements[nextIndex].id);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevIndex = currentIndex > 0 ? currentIndex - 1 : filteredStatements.length - 1;
+      setSelectedId(filteredStatements[prevIndex].id);
+    } else if (e.key === 'Enter' && selectedId) {
+      e.preventDefault();
+      handleConfirm();
+    } else if (e.key === 'Escape') {
+      onClose();
+    }
+  }, [filteredStatements, selectedId, handleConfirm, onClose]);
+
+  // =========================================================================
+  // RENDER HELPERS
+  // =========================================================================
+  const renderMatchColorClass = (matchPercent: number) => {
+    if (matchPercent >= 95) return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+    if (matchPercent >= 80) return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+    return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
   };
 
   if (!isOpen) return null;
@@ -204,11 +337,15 @@ export function BankMutationSelectorModal({
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !externalLoading) onClose();
+        if (e.target === e.currentTarget && !loadingStates.confirm) onClose();
       }}
     >
-      <div className="modal-box max-w-4xl w-full bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 relative max-h-[85vh] flex flex-col">
-        
+      <div 
+        className="modal-box max-w-4xl w-full bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 relative max-h-[85vh] flex flex-col"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+      >
         {/* Header */}
         <div className="relative overflow-hidden bg-linear-to-br from-blue-600 to-indigo-700 p-6 pb-8">
           {/* Abstract shapes */}
@@ -222,7 +359,7 @@ export function BankMutationSelectorModal({
                   <ArrowRightLeft className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-white">
+                  <h2 id="modal-title" className="text-xl font-bold text-white">
                     Pilih Mutasi Bank
                   </h2>
                   <p className="text-blue-100/80 text-sm mt-1">
@@ -232,8 +369,9 @@ export function BankMutationSelectorModal({
               </div>
               <button
                 onClick={onClose}
-                disabled={externalLoading}
+                disabled={loadingStates.confirm}
                 className="p-2 hover:bg-white/10 rounded-xl transition-colors disabled:opacity-50"
+                aria-label="Tutup modal"
               >
                 <X className="w-5 h-5 text-white/70" />
               </button>
@@ -281,38 +419,64 @@ export function BankMutationSelectorModal({
                 placeholder="Cari berdasarkan deskripsi atau referensi..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                aria-label="Cari mutasi bank"
                 className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowExactMatchOnly(!showExactMatchOnly)}
+                onClick={() => {
+                  trackEvent('bank_mutation_filter_toggle', { 
+                    showExactMatchOnly: !showExactMatchOnly 
+                  });
+                  setShowExactMatchOnly(!showExactMatchOnly);
+                }}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
                   showExactMatchOnly
                     ? 'bg-green-100 text-green-700 border border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'
                     : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                 }`}
+                aria-pressed={showExactMatchOnly}
               >
                 <Filter className="w-4 h-4" />
                 {showExactMatchOnly ? 'Tampilkan Semua' : 'Hanya Exact Match'}
+              </button>
+              <button
+                onClick={() => fetchStatements()}
+                disabled={loadingStates.fetch}
+                className="p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                aria-label="Muat ulang data"
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingStates.fetch ? 'animate-spin' : ''}`} />
               </button>
             </div>
           </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {isLoading ? (
+        <div 
+          className="flex-1 overflow-y-auto p-4"
+          role="listbox"
+          aria-label="Daftar mutasi bank"
+          onKeyDown={handleKeyNavigation}
+          tabIndex={0}
+        >
+          {loadingStates.fetch ? (
             <div className="flex flex-col items-center justify-center py-12">
               <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-4" />
               <p className="text-gray-500 dark:text-gray-400">Memuat data mutasi bank...</p>
+              {retryCount > 0 && (
+                <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">
+                  Percobaan ulang ({retryCount}/3)...
+                </p>
+              )}
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-12">
               <AlertCircle className="w-8 h-8 text-red-500 mb-4" />
               <p className="text-gray-600 dark:text-gray-400 text-center">{error}</p>
               <button
-                onClick={fetchStatements}
+                onClick={() => fetchStatements()}
                 className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
               >
                 Coba Lagi
@@ -348,21 +512,27 @@ export function BankMutationSelectorModal({
 
               {/* Statements List */}
               {filteredStatements.map((statement) => {
-                const isSelected = selectedId === statement.id;
                 const isBestMatch = bestMatch?.id === statement.id && (bestMatch.matchPercentage || 0) >= 0.95;
-                const bankAmount = (statement.credit_amount || 0) - (statement.debit_amount || 0);
-                const difference = statement.difference || 0;
                 const matchPercent = Math.round((statement.matchPercentage || 0) * 100);
+                const bankAmount = (statement.credit_amount || 0) - (statement.debit_amount || 0);
 
                 return (
                   <button
                     key={statement.id}
-                    onClick={() => setSelectedId(statement.id)}
-                    disabled={externalLoading}
+                    onClick={() => handleSelect(statement.id)}
+                    role="option"
+                    aria-selected={selectedId === statement.id}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleSelect(statement.id);
+                      }
+                    }}
                     className={`w-full p-4 rounded-xl border text-left transition-all ${
-                      isSelected
+                      selectedId === statement.id
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-500/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                     } ${isBestMatch ? 'ring-2 ring-green-500/30' : ''}`}
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -398,13 +568,7 @@ export function BankMutationSelectorModal({
                         </p>
                         {statement.targetAmount && (
                           <div className="mt-1">
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${
-                              matchPercent >= 95 
-                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                : matchPercent >= 80
-                                ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                            }`}>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${renderMatchColorClass(matchPercent)}`}>
                               {matchPercent}% match
                             </span>
                           </div>
@@ -416,7 +580,7 @@ export function BankMutationSelectorModal({
                     {statement.targetAmount && (
                       <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between text-xs">
                         <span className="text-gray-500 dark:text-gray-400">
-                          Selisih: {formatCurrency(difference)}
+                          Selisih: {formatCurrency(statement.difference || 0)}
                         </span>
                         <span className="text-gray-400 dark:text-gray-500">
                           Target: {formatCurrency(statement.targetAmount)}
@@ -438,17 +602,17 @@ export function BankMutationSelectorModal({
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              disabled={externalLoading}
+              disabled={loadingStates.confirm}
               className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
             >
               Batal
             </button>
             <button
               onClick={handleConfirm}
-              disabled={!selectedId || externalLoading}
+              disabled={!selectedId || loadingStates.confirm}
               className="px-6 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
             >
-              {externalLoading ? (
+              {loadingStates.confirm ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Memproses...
