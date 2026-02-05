@@ -367,11 +367,13 @@ export class BankReconciliationController {
     try {
       const validated = req.validated.body;
       const userId = req.user?.id;
+      const companyId = (req as any).context?.company_id;
 
       const result = await this.service.createMultiMatch(
         validated.aggregateId,
         validated.statementIds,
         userId,
+        companyId,
         validated.notes,
         validated.overrideDifference,
       );
@@ -637,4 +639,3 @@ export class BankReconciliationController {
 export const bankReconciliationController = new BankReconciliationController(
   bankReconciliationService
 );
-

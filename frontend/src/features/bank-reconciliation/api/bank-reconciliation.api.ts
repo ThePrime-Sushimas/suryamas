@@ -131,7 +131,12 @@ export const bankReconciliationApi = {
   async createMultiMatch(
     payload: MultiMatchRequest,
   ): Promise<MultiMatchResult> {
-    const response = await api.post("/reconciliation/bank/multi-match", payload);
+    // Remove duplicate statement IDs before sending
+    const deduplicatedPayload = {
+      ...payload,
+      statementIds: [...new Set(payload.statementIds)],
+    };
+    const response = await api.post("/reconciliation/bank/multi-match", deduplicatedPayload);
     return response.data.data;
   },
 

@@ -371,9 +371,13 @@ export class BankReconciliationService {
     aggregateId: string,
     statementIds: string[],
     userId?: string,
+    companyId?: string,
     notes?: string,
     overrideDifference?: boolean,
   ): Promise<MultiMatchResultDto> {
+    // Remove duplicate statement IDs
+    const uniqueStatementIds = [...new Set(statementIds)];
+    
     const aggregate = await this.orchestratorService.getAggregate(aggregateId);
     if (!aggregate) {
       throw new Error("Aggregate tidak ditemukan");
@@ -385,7 +389,7 @@ export class BankReconciliationService {
     }
 
     const statements = await Promise.all(
-      statementIds.map(id => this.repository.findById(id))
+      uniqueStatementIds.map(id => this.repository.findById(id))
     );
 
     const invalidStatements = statements.filter(
@@ -415,12 +419,13 @@ export class BankReconciliationService {
 
     const groupId = await this.repository.createReconciliationGroup({
       aggregateId,
-      statementIds,
+      statementIds: uniqueStatementIds,
       totalBankAmount,
       aggregateAmount,
       difference,
       notes,
       reconciledBy: userId,
+      companyId,
     });
 
     const statementDetails = statements.map(s => ({
@@ -429,7 +434,7 @@ export class BankReconciliationService {
     }));
     await this.repository.addStatementsToGroup(groupId, statementDetails);
 
-    await this.repository.markStatementsAsReconciledWithGroup(statementIds, groupId);
+    await this.repository.markStatementsAsReconciledWithGroup(uniqueStatementIds, groupId);
 
     await this.orchestratorService.updateReconciliationStatus(
       aggregateId,
@@ -444,7 +449,7 @@ export class BankReconciliationService {
       aggregateId,
       details: {
         groupId,
-        statementIds,
+        statementIds: uniqueStatementIds,
         totalBankAmount,
         aggregateAmount,
         difference,
@@ -458,7 +463,7 @@ export class BankReconciliationService {
       success: true,
       groupId,
       aggregateId,
-      statementIds,
+      statementIds: uniqueStatementIds,
       totalBankAmount,
       aggregateAmount,
       difference,
@@ -807,4 +812,3 @@ export const bankReconciliationService = new BankReconciliationService(
   reconciliationOrchestratorService,
   feeReconciliationService,
 );
-

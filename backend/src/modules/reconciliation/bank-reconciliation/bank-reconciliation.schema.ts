@@ -136,9 +136,11 @@ export const multiMatchSchema = z.object({
   body: z.object({
     aggregateId: z.coerce.string().min(1, "Aggregate ID is required"),
     statementIds: z.array(
-      z.string().uuid("Statement ID must be a valid UUID"),
-      { message: "Statement IDs must be valid UUIDs" }
-    ).min(1, "At least one statement ID is required"),
+      z.string().min(1, "Statement ID is required"),
+      { message: "Statement IDs are required" }
+    )
+      .min(1, "At least one statement ID is required")
+      .transform((ids) => [...new Set(ids)]), // Remove duplicates
     notes: z.string().max(500).optional(),
     overrideDifference: z.boolean().optional().default(false),
   }),

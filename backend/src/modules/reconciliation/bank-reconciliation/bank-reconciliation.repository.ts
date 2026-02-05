@@ -539,12 +539,14 @@ export class BankReconciliationRepository {
     difference: number;
     notes?: string;
     reconciledBy?: string;
+    companyId?: string;
   }): Promise<string> {
     try {
       const { data: group, error } = await supabase
         .from("bank_reconciliation_groups")
         .insert({
           aggregate_id: data.aggregateId,
+          company_id: data.companyId,
           total_bank_amount: data.totalBankAmount,
           aggregate_amount: data.aggregateAmount,
           difference: data.difference,
@@ -805,4 +807,3 @@ export class BankReconciliationRepository {
 }
 
 export const bankReconciliationRepository = new BankReconciliationRepository();
-
