@@ -312,8 +312,14 @@ export function BankStatementImportListPage() {
                 <ImportProgressCard
                   key={imp.id}
                   importData={jobData}
-                  onCancel={(id) => console.log('Cancel import:', id)}
-                  onRetry={(id) => console.log('Retry import:', id)}
+                  onCancel={(id) => {
+                    // Handle cancel - could call cancelImport from store
+                    console.debug('Cancel import requested:', id)
+                  }}
+                  onRetry={(id) => {
+                    // Handle retry - could call retryImport from store
+                    console.debug('Retry import requested:', id)
+                  }}
                 />
               )
             })}

@@ -142,7 +142,6 @@ export function AnalysisModal({
       await onConfirm(skipDuplicatesValue)
       // Modal akan ditutup oleh parent component setelah berhasil
     } catch (err) {
-      console.error('Import failed:', err)
       setLocalError(err instanceof Error ? err.message : 'Gagal memulai import. Silakan coba lagi.')
     } finally {
       setIsProcessing(false)

@@ -53,8 +53,7 @@ export function UploadModal({
     try {
       const accounts = await bankAccountsApi.getByOwner('company', companyId)
       setBankAccounts(accounts || [])
-    } catch (err) {
-      console.error('Failed to fetch bank accounts:', err)
+    } catch {
       setBankAccounts([])
     } finally {
       setLoadingAccounts(false)

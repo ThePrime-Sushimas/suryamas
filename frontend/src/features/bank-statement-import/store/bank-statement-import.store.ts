@@ -212,29 +212,35 @@ function getErrorMessage(error: unknown): string {
 
   if (axios.isAxiosError(error)) {
     // PRIORITY 1: Check for context.userMessage first (from our backend errors)
-    if (error.response?.data?.context?.userMessage) {
-      return error.response.data.context.userMessage
+    if (error.response?.data && typeof error.response.data === 'object' && 'context' in error.response.data) {
+      const contextData = error.response.data.context as Record<string, unknown>
+      if (contextData && typeof contextData.userMessage === 'string') {
+        return contextData.userMessage
+      }
     }
     
     // PRIORITY 2: Check for error response message
-    if (error.response?.data?.message) {
-      const serverMessage = Array.isArray(error.response.data.message) 
-        ? error.response.data.message.join(', ')
-        : error.response.data.message
-      
-      // Try to find matching error mapping
-      const mapping = ERROR_MAPPINGS.find(m => 
-        typeof m.pattern === 'string' 
-          ? serverMessage.toLowerCase().includes(m.pattern.toLowerCase())
-          : m.pattern.test(serverMessage)
-      )
+    if (error.response?.data && typeof error.response.data === 'object') {
+      const data = error.response.data
+      if ('message' in data) {
+        const serverMessage = Array.isArray(data.message) 
+          ? data.message.join(', ')
+          : (data.message as string)
+        
+        // Try to find matching error mapping
+        const mapping = ERROR_MAPPINGS.find(m => 
+          typeof m.pattern === 'string' 
+            ? serverMessage.toLowerCase().includes(m.pattern.toLowerCase())
+            : m.pattern.test(serverMessage)
+        )
 
-      if (mapping) {
-        return mapping.userMessage
+        if (mapping) {
+          return mapping.userMessage
+        }
+        
+        // Return server message if no mapping found
+        return serverMessage
       }
-      
-      // Return server message if no mapping found
-      return serverMessage
     }
     
     // PRIORITY 3: Handle other axios error cases

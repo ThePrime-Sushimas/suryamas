@@ -45,7 +45,7 @@ export function BankAccountSelect({
       const accounts = await bankAccountsApi.getByOwner('company', companyId)
       setBankAccounts(accounts || [])
     } catch {
-      console.error('Failed to fetch bank accounts')
+      // Error handled silently - UI will show empty state
       setBankAccounts([])
     } finally {
       setLoading(false)

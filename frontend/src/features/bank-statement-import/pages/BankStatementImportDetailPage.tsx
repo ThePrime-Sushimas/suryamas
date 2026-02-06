@@ -77,13 +77,9 @@ function BankStatementImportDetailPageContent() {
     try {
       setLoading(true)
       setError(null)
-      console.log('Fetching data for ID:', numericId)
 
       // First, try to get summary which includes preview
       const summaryRes = await bankStatementImportApi.getSummary(numericId)
-      console.log('Summary received:', summaryRes)
-      console.log('Import data:', summaryRes.import)
-      
       setAnalysisResult(summaryRes)
       setImportData(summaryRes.import)
       setLoading(false)
@@ -91,7 +87,6 @@ function BankStatementImportDetailPageContent() {
       // Fetch all data without pagination
       try {
         const totalRows = summaryRes.import?.total_rows || 0
-        // Use limit = 0 or total_rows to get all data
         const fetchLimit = totalRows > 0 ? totalRows : 0
         const previewRes = await bankStatementImportApi.getPreview(numericId, fetchLimit)
         // Sort by transaction_date descending (newest first), then by row_number for same dates
@@ -104,15 +99,10 @@ function BankStatementImportDetailPageContent() {
           return a.row_number - b.row_number
         }) || []
         setPreviewRows(sortedRows)
-        console.log('All data fetched:', sortedRows.length, 'rows out of', previewRes.total_rows)
-      } catch (previewErr) {
-        console.warn('Could not fetch preview:', previewErr)
+      } catch {
         setPreviewRows(null)
       }
-      
-      console.log('States updated')
     } catch (err) {
-      console.error('Error fetching data:', err)
       setError(err instanceof Error ? err.message : 'Gagal memuat data')
       setLoading(false)
     }
