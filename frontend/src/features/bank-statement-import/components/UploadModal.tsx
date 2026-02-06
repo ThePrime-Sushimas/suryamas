@@ -142,6 +142,9 @@ export function UploadModal({
       return
     }
 
+    // Clear previous error before attempting upload
+    setError(null)
+
     try {
       await onUpload(file, bankAccountId)
       toast.success(`File "${file.name}" berhasil diupload dan sedang dianalisis.`)
@@ -154,9 +157,11 @@ export function UploadModal({
       let errorMessage = 'Gagal mengupload file'
       
       if (axios.isAxiosError(e)) {
-        const errorData = e.response?.data as { context?: { userMessage?: string }; message?: string | string[] } | undefined
+        const errorData = e.response?.data as { context?: { userMessage?: string }; message?: string | string[]; error?: string } | undefined
         if (errorData?.context?.userMessage) {
           errorMessage = errorData.context.userMessage
+        } else if (errorData?.error) {
+          errorMessage = errorData.error
         } else if (typeof errorData?.message === 'string') {
           errorMessage = errorData.message
         } else if (Array.isArray(errorData?.message)) {
@@ -228,6 +233,23 @@ export function UploadModal({
         
         {/* Body Content */}
         <div className="p-6 space-y-6 bg-white dark:bg-gray-900">
+          {/* Error Alert - Displayed prominently at top */}
+          {error && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 animate-in slide-in-from-top-2 fade-in duration-200">
+              <div className="flex items-start gap-3">
+                <div className="bg-red-100 dark:bg-red-900/30 p-2 rounded-lg shrink-0">
+                  <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-red-800 dark:text-red-300">Gagal Upload</h4>
+                  <p className="text-sm text-red-700 dark:text-red-400 mt-1">{error}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Bank Account Selection */}
           <div className="space-y-2">
             <BankAccountSelect
@@ -279,38 +301,42 @@ export function UploadModal({
 
           {/* Error Guidance - Enhanced */}
           {error && (
-            <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl">
+            <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl">
               <div className="flex items-start gap-3">
-                <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg shrink-0">
-                  <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="bg-amber-100 dark:bg-amber-900/30 p-2 rounded-lg shrink-0">
+                  <svg className="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
                 <div>
-                  <p className="font-medium text-blue-800 dark:text-blue-300">Tips</p>
-                  <ul className="mt-1 text-sm text-blue-700 dark:text-blue-400 space-y-1">
-                    {error.includes('Excel') && (
+                  <p className="font-medium text-amber-800 dark:text-amber-300">Saran Perbaikan</p>
+                  <ul className="mt-1 text-sm text-amber-700 dark:text-amber-400 space-y-1">
+                    {error.toLowerCase().includes('excel') || error.toLowerCase().includes('format') ? (
                       <>
                         <li>• Pastikan file berformat .xlsx atau .xls</li>
                         <li>• File CSV juga didukung (.csv)</li>
                       </>
-                    )}
-                    {error.includes('50MB') && (
+                    ) : error.toLowerCase().includes('50mb') || error.toLowerCase().includes('besar') ? (
                       <>
                         <li>• Kompres file menggunakan WinZip atau similar</li>
                         <li>• Bagi file besar menjadi beberapa bagian</li>
                       </>
-                    )}
-                    {error.includes('kosong') && (
+                    ) : error.toLowerCase().includes('kosong') || error.toLowerCase().includes('empty') ? (
                       <>
                         <li>• Cek apakah file sudah disimpan dengan benar</li>
                         <li>• Pastikan file berisi data transaksi bank</li>
                       </>
-                    )}
-                    {error.includes('duplikat') && (
+                    ) : error.toLowerCase().includes('duplikat') || error.toLowerCase().includes('sudah') || error.toLowerCase().includes('already') ? (
                       <>
                         <li>• File sudah pernah diupload sebelumnya</li>
                         <li>• Gunakan file yang berbeda atau hapus import lama</li>
+                        <li>• Periksa daftar import di halaman utama</li>
+                      </>
+                    ) : (
+                      <>
+                        <li>• Cek koneksi internet Anda</li>
+                        <li>• Refresh halaman dan coba lagi</li>
+                        <li>• Hubungi administrator jika masalah berlanjut</li>
                       </>
                     )}
                   </ul>
@@ -362,4 +388,3 @@ export function UploadModal({
     </div>
   )
 }
-

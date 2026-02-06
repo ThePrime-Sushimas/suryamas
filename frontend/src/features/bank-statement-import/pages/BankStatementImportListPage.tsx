@@ -120,11 +120,9 @@ export function BankStatementImportListPage() {
   }, [importsArray, filters])
 
   const handleUpload = async (file: File, bankAccountId: string) => {
-    try {
-      await uploadFile(file, bankAccountId)
-    } catch {
-      // Error sudah ditangani oleh store dan ditampilkan sebagai toast dari UploadModal
-    }
+    // Error akan ditangani oleh store dan ditampilkan di UploadModal
+    // Re-throw agar UploadModal tahu status upload
+    return await uploadFile(file, bankAccountId)
   }
 
   const handleConfirm = async (skipDuplicates: boolean) => {

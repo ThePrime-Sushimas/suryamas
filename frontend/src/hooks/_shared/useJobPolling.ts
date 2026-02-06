@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import api from '@/lib/axios'
 
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
 
@@ -58,20 +59,8 @@ export function useJobPolling(options: UseJobPollingOptions = {}): UseJobPolling
 
   // Fetch job status
   const fetchJobStatus = useCallback(async (jobId: string) => {
-    // Use the jobs API from bank-statement-import or create a generic one
-    // For now, we'll use a generic approach via the API
-    const response = await fetch(`/api/v1/jobs/${jobId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch job status: ${response.statusText}`)
-    }
-
-    const data = await response.json()
-    return data.data as JobData
+    const response = await api.get(`/jobs/${jobId}`)
+    return response.data.data as JobData
   }, [])
 
   // Poll job status
@@ -195,25 +184,17 @@ export function useBankStatementImportJob(importId: number, options: UseJobPolli
   // Start import and get job ID
   const startImport = useCallback(async (skipDuplicates: boolean = false) => {
     try {
-      // Use the API to confirm import - adjust based on actual API structure
-      const response = await fetch(`/api/v1/bank-statement-imports/${importId}/confirm`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ skip_duplicates: skipDuplicates }),
+      // Use axios to confirm import
+      const response = await api.post(`/bank-statement-imports/${importId}/confirm`, {
+        skip_duplicates: skipDuplicates,
       })
       
-      if (!response.ok) {
-        throw new Error(`Failed to start import: ${response.statusText}`)
-      }
+      const jobId = response.data.data?.job_id
       
-      const data = await response.json()
-      
-      if (data.data?.job_id) {
-        setJobId(data.data.job_id)
-        jobPolling.startPolling(data.data.job_id)
-        return data.data.job_id
+      if (jobId) {
+        setJobId(jobId)
+        jobPolling.startPolling(jobId)
+        return jobId
       }
       
       throw new Error('No job_id returned from confirm import')
