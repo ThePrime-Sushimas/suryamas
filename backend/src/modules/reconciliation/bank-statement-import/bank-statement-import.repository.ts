@@ -187,10 +187,13 @@ export class BankStatementImportRepository {
    * Soft delete import
    */
   async delete(id: number, userId: string): Promise<void> {
-    // Try to update with deleted_by, but if column doesn't exist, just set deleted_at
+    // Try to update with deleted_by first
     const { error } = await supabase
       .from('bank_statement_imports')
-      .update({ deleted_at: new Date().toISOString() })
+      .update({ 
+        deleted_at: new Date().toISOString(),
+        deleted_by: userId 
+      })
       .eq('id', id)
 
     // If the update failed due to deleted_by column not existing, try without it
@@ -397,6 +400,7 @@ export class BankStatementImportRepository {
       transaction_date: t.transaction_date,
       debit_amount: t.debit_amount,
       credit_amount: t.credit_amount,
+      description: t.description || ''
     }))
 
     // Remove duplicates from dateAmountPairs to reduce query size
@@ -427,7 +431,21 @@ export class BankStatementImportRepository {
       }
 
       if (data && data.length > 0) {
-        allDuplicates.push(...data as BankStatement[])
+        // Filter by description similarity if description is provided
+        // This helps catch duplicates even when reference numbers are empty
+        if (pair.description && pair.description.length > 10) {
+          const similarDuplicates = (data as BankStatement[]).filter(stmt => {
+            if (!stmt.description) return true // Include if no description to compare
+            const similarity = this.calculateDescriptionSimilarity(
+              pair.description.toLowerCase(),
+              stmt.description.toLowerCase()
+            )
+            return similarity > 0.7 // 70% similarity threshold
+          })
+          allDuplicates.push(...similarDuplicates)
+        } else {
+          allDuplicates.push(...data as BankStatement[])
+        }
       }
     }
 
@@ -437,6 +455,48 @@ export class BankStatementImportRepository {
     )
 
     return uniqueDuplicates
+  }
+
+  /**
+   * Calculate description similarity using simple string comparison
+   * Returns value between 0 and 1 (1 = exact match)
+   */
+  private calculateDescriptionSimilarity(desc1: string, desc2: string): number {
+    if (!desc1 || !desc2) return 0
+    if (desc1 === desc2) return 1
+
+    // Normalize descriptions
+    const normalize = (s: string) => s
+      .replace(/\s+/g, ' ')
+      .replace(/[^\w\s]/g, '')
+      .trim()
+    
+    const n1 = normalize(desc1)
+    const n2 = normalize(desc2)
+
+    if (n1 === n2) return 1
+
+    // Calculate similarity using common substring approach
+    const shorter = n1.length < n2.length ? n1 : n2
+    const longer = n1.length < n2.length ? n2 : n1
+
+    if (shorter.length === 0) return 0
+
+    // Check if shorter is contained in longer
+    if (longer.includes(shorter)) return 0.9
+
+    // Calculate word overlap
+    const words1 = new Set(shorter.split(' ').filter(w => w.length > 2))
+    const words2 = longer.split(' ').filter(w => w.length > 2)
+    
+    if (words1.size === 0) return 0
+
+    let matches = 0
+    for (const word of words1) {
+      if (words2.includes(word)) matches++
+    }
+
+    return matches / words1.size
   }
 
   /**

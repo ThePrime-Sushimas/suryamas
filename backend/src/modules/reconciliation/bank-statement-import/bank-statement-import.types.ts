@@ -103,7 +103,7 @@ export interface BankStatementImport {
   date_range_end?: string
   
   // Job reference
-  job_id?: number
+  job_id?: string
   
   // Error tracking
   error_message?: string
@@ -164,6 +164,7 @@ export interface UpdateBankStatementImportDto {
   failed_rows?: number
   date_range_start?: string
   date_range_end?: string
+  job_id?: string
   error_message?: string
   analysis_data?: {
     preview?: BankStatementPreviewRow[]

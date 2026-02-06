@@ -31,7 +31,7 @@ export interface BankStatementImport {
   updated_at: string
   error_message?: string
   error_details?: Record<string, unknown> | null
-  job_id?: number | null
+  job_id?: string | null
   // Analysis data stored in database
   analysis_data?: {
     preview?: BankStatementPreviewRow[]
@@ -119,4 +119,3 @@ export interface BankStatementImportFilters {
   dateTo?: string
   search?: string
 }
-

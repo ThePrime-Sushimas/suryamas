@@ -26,16 +26,19 @@ interface AnalysisModalProps {
   result: BankStatementAnalysisResult | null
   onConfirm: (skipDuplicates: boolean) => Promise<void>
   onCancel: () => void
+  error?: string | null
 }
 
 export function AnalysisModal({
   result,
   onConfirm,
   onCancel,
+  error,
 }: AnalysisModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('summary')
   const [skipDuplicates, setSkipDuplicates] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
 
   // Process result data with useMemo before any early returns
   const processedData = useMemo(() => {
@@ -134,11 +137,13 @@ export function AnalysisModal({
   // Handle confirm with processing state
   const handleConfirm = async (skipDuplicatesValue: boolean) => {
     setIsProcessing(true)
+    setLocalError(null)
     try {
       await onConfirm(skipDuplicatesValue)
       // Modal akan ditutup oleh parent component setelah berhasil
-    } catch (error) {
-      console.error('Import failed:', error)
+    } catch (err) {
+      console.error('Import failed:', err)
+      setLocalError(err instanceof Error ? err.message : 'Gagal memulai import. Silakan coba lagi.')
     } finally {
       setIsProcessing(false)
     }
@@ -146,9 +151,7 @@ export function AnalysisModal({
 
   // Handle cancel - always works even during processing
   const handleCancel = () => {
-    if (!isProcessing) {
-      onCancel()
-    }
+    onCancel()
   }
 
   const modalContent = (
@@ -160,7 +163,7 @@ export function AnalysisModal({
       <div className="relative w-full max-w-5xl bg-white dark:bg-gray-900 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Loading Overlay */}
         {isProcessing && (
-          <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md z-40 flex items-center justify-center">
             <div className="text-center">
               <div className="relative inline-block">
                 <div className="w-20 h-20 rounded-full border-4 border-blue-100 dark:border-blue-900/30 animate-pulse"></div>
@@ -180,6 +183,14 @@ export function AnalysisModal({
                 />
               </div>
               <p className="text-xs text-gray-400 mt-2">{validPercentage}% Selesai</p>
+              
+              {/* Cancel button during processing */}
+              <button
+                onClick={handleCancel}
+                className="mt-6 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Tutup & Lihat Progress
+              </button>
             </div>
           </div>
         )}
@@ -206,7 +217,7 @@ export function AnalysisModal({
               </div>
               <button
                 onClick={handleCancel}
-                className="p-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-xl transition-colors"
+                className="p-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-xl transition-colors z-50 relative"
                 title="Tutup"
               >
                 <XCircle className="w-5 h-5 text-white" />
@@ -285,6 +296,19 @@ export function AnalysisModal({
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-900">
           <div className="p-6">
+            {/* Error Display */}
+            {(localError || error) && (
+              <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-red-900 dark:text-red-400">Terjadi Kesalahan</h4>
+                    <p className="text-sm text-red-700 dark:text-red-400 mt-1">{localError || error}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Tab Navigation - Enhanced */}
             <div className="flex gap-2 border-b border-gray-100 dark:border-gray-800 pb-1 mb-6 overflow-x-auto scrollbar-thin">
             <button

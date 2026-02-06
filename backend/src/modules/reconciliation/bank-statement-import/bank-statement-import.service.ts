@@ -378,9 +378,10 @@ export class BankStatementImportService {
       throw new Error('Failed to create job')
     }
 
-    // Update import status
+    // Update import status and job_id
     await this.repository.update(importId, {
       status: IMPORT_STATUS.IMPORTING,
+      job_id: job.id,
     })
 
     logInfo('BankStatementImport: Job created', {

@@ -580,6 +580,7 @@ export function BankStatementImportListPage() {
         result={analyzeResult}
         onConfirm={handleConfirm}
         onCancel={closeAnalysisModal}
+        error={errors.confirm}
       />
 
       {/* Delete Confirmation Modal */}
