@@ -8,7 +8,7 @@
  * - Consistent error code format
  */
 
-import { AppError, ValidationError, NotFoundError, ConflictError } from '../../../utils/error-handler.util'
+import { AppError, ValidationError, NotFoundError, ConflictError } from '../../../utils/errors.base'
 
 // ============================================================================
 // CUSTOM ERROR CLASS

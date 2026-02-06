@@ -2,6 +2,18 @@ import { Response } from 'express'
 import { ZodError } from '@/lib/openapi'
 import { sendError } from './response.util'
 import { logError } from '../config/logger'
+
+// Import base error classes first (before any type checks)
+import {
+  AppError,
+  DatabaseError,
+  ValidationError,
+  NotFoundError,
+  ConflictError,
+  BusinessRuleError
+} from './errors.base'
+
+// Import module-specific errors (after base classes to avoid circular dependencies)
 import { SupplierProductError } from '../modules/supplier-products/supplier-products.errors'
 import { ChartOfAccountError } from '../modules/accounting/chart-of-accounts/chart-of-accounts.errors'
 import { AccountingPurposeError } from '../modules/accounting/accounting-purposes/accounting-purposes.errors'
@@ -16,48 +28,14 @@ import {
 } from '../modules/pricelists/pricelists.errors'
 import { BankStatementImportError } from '../modules/reconciliation/bank-statement-import/bank-statement-import.errors'
 
-export class AppError extends Error {
-  constructor(
-    message: string,
-    public readonly statusCode: number,
-    public readonly code: string,
-    public readonly context?: any,
-    public readonly cause?: Error
-  ) {
-    super(message)
-    this.name = this.constructor.name
-    Error.captureStackTrace(this, this.constructor)
-  }
-}
-
-export class DatabaseError extends AppError {
-  constructor(message: string, options?: { cause?: Error; context?: any }) {
-    super(message, 500, 'DATABASE_ERROR', options?.context, options?.cause)
-  }
-}
-
-export class ValidationError extends AppError {
-  constructor(message: string, context?: any) {
-    super(message, 400, 'VALIDATION_ERROR', context)
-  }
-}
-
-export class NotFoundError extends AppError {
-  constructor(message: string, context?: any) {
-    super(message, 404, 'NOT_FOUND', context)
-  }
-}
-
-export class ConflictError extends AppError {
-  constructor(message: string, context?: any) {
-    super(message, 409, 'CONFLICT', context)
-  }
-}
-
-export class BusinessRuleError extends AppError {
-  constructor(message: string, context?: any) {
-    super(message, 422, 'BUSINESS_RULE_VIOLATION', context)
-  }
+// Re-export base error classes for convenience
+export {
+  AppError,
+  DatabaseError,
+  ValidationError,
+  NotFoundError,
+  ConflictError,
+  BusinessRuleError
 }
 
 export const handleError = (res: Response, error: unknown): void => {
@@ -116,21 +94,22 @@ export const handleError = (res: Response, error: unknown): void => {
   if (error instanceof SupplierProductError) {
     logError(error.code, {
       message: error.message,
-      details: error.details
+      details: (error as any).details
     })
-    sendError(res, error.message, error.statusCode)
+    sendError(res, error.message, (error as any).statusCode)
     return
   }
 
   // Custom AppError with full context
   if (error instanceof AppError) {
-    logError(error.code, {
-      message: error.message,
-      context: error.context,
-      cause: error.cause?.message
+    const appError = error as AppError
+    logError(appError.code, {
+      message: appError.message,
+      context: appError.context,
+      cause: appError.cause?.message
     })
     // Send error with context for frontend user-friendly messages
-    sendError(res, error.message, error.statusCode, { context: error.context })
+    sendError(res, appError.message, appError.statusCode, { context: appError.context })
     return
   }
 
@@ -155,3 +134,4 @@ export const handleError = (res: Response, error: unknown): void => {
   logError('UNKNOWN_ERROR', { error })
   sendError(res, 'Internal server error', 500)
 }
+
