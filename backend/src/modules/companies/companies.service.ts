@@ -46,11 +46,11 @@ export class CompaniesService {
       if (error.code === '23505') {
         if (error.message?.includes('company_code') || error.constraint?.includes('company_code')) {
           logError('Duplicate company code', { company_code: data.company_code })
-          throw CompanyErrors.CODE_EXISTS()
+          throw CompanyErrors.CODE_EXISTS(data.company_code)
         }
         if (error.message?.includes('npwp') || error.constraint?.includes('npwp')) {
           logError('Duplicate NPWP', { npwp: data.npwp })
-          throw CompanyErrors.NPWP_EXISTS()
+          throw CompanyErrors.NPWP_EXISTS(data.npwp)
         }
       }
       logError('Failed to create company', { error: error.message, user: userId })
@@ -123,7 +123,7 @@ export class CompaniesService {
     }
 
     if (!CompanyConfig.STATUSES.includes(status as any)) {
-      throw CompanyErrors.INVALID_STATUS([...CompanyConfig.STATUSES])
+      throw new Error(`Invalid status: ${status}. Valid statuses: ${CompanyConfig.STATUSES.join(', ')}`)
     }
 
     await this.repository.bulkUpdateStatus(ids, status)

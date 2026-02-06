@@ -1,7 +1,7 @@
 import { supabase } from '../../config/supabase'
 import { MetricUnit, CreateMetricUnitDto, UpdateMetricUnitDto } from './metricUnits.types'
 import { METRIC_UNIT_CONFIG } from './metricUnits.constants'
-import { DuplicateMetricUnitError } from './metricUnits.errors'
+import { DuplicateMetricUnitError } from './metric-units.errors'
 
 export class MetricUnitsRepository {
   private readonly tableName = METRIC_UNIT_CONFIG.TABLE_NAME

@@ -35,6 +35,7 @@ export interface CreatePricelistDto {
   valid_from: string
   valid_to?: string | null
   is_active?: boolean
+  created_by?: string
 }
 
 export interface UpdatePricelistDto {
@@ -43,6 +44,7 @@ export interface UpdatePricelistDto {
   valid_from?: string
   valid_to?: string | null
   is_active?: boolean
+  updated_by?: string
 }
 
 export interface PricelistListQuery {

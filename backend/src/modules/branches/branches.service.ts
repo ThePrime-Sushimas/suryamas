@@ -49,7 +49,7 @@ export class BranchesService {
 
   async create(dto: CreateBranchInput, userId?: string): Promise<Branch> {
     const existing = await branchesRepository.findByBranchCode(dto.branch_code)
-    if (existing) throw BranchErrors.CODE_EXISTS()
+    if (existing) throw BranchErrors.CODE_EXISTS(dto.branch_code)
 
     const data: CreateBranchDto = {
       company_id: dto.company_id,

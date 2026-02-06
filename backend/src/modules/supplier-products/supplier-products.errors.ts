@@ -1,101 +1,208 @@
+/**
+ * Supplier Products Error Classes
+ * Module-specific error classes untuk supplier-products operations
+ * 
+ * Design Principles:
+ * - Extend dari BaseError classes untuk konsistensi
+ * - Bilingual support (Indonesian + English)
+ * - Actionable error messages dengan guidance
+ */
+
+import { 
+  NotFoundError, 
+  ConflictError, 
+  ValidationError,
+  BusinessRuleError,
+  DatabaseError
+} from '../../utils/errors.base'
+
+// ============================================================================
+// BASE ERROR CLASS
+// ============================================================================
+
 export class SupplierProductError extends Error {
   constructor(
-    public readonly code: string,
+    public code: string,
     message: string,
-    public readonly statusCode: number,
-    public readonly details?: any
+    public statusCode: number = 400
   ) {
     super(message)
-    this.name = this.constructor.name
-    Error.captureStackTrace(this, this.constructor)
+    this.name = 'SupplierProductError'
   }
 }
 
-export class SupplierProductNotFoundError extends SupplierProductError {
-  constructor(id: string) {
-    super('SUPPLIER_PRODUCT_NOT_FOUND', `Supplier product with ID '${id}' not found`, 404)
+// ============================================================================
+// NOT FOUND ERRORS
+// ============================================================================
+
+export class SupplierProductNotFoundError extends NotFoundError {
+  constructor(id?: string) {
+    super('supplier_product', id)
+    this.name = 'SupplierProductNotFoundError'
   }
 }
 
-export class DuplicateSupplierProductError extends SupplierProductError {
+// ============================================================================
+// CONFLICT ERRORS
+// ============================================================================
+
+export class DuplicateSupplierProductError extends ConflictError {
   constructor(supplierId: string, productId: string) {
     super(
-      'DUPLICATE_SUPPLIER_PRODUCT', 
-      `Product '${productId}' already exists for supplier '${supplierId}'`, 
-      409,
-      { supplier_id: supplierId, product_id: productId }
+      `Product already linked to this supplier`,
+      { conflictType: 'duplicate', supplierId, productId }
     )
+    this.name = 'DuplicateSupplierProductError'
   }
 }
 
-export class InvalidSupplierError extends SupplierProductError {
-  constructor(supplierId: string, reason: 'not_found' | 'inactive' | 'deleted' = 'not_found') {
-    const messages = {
-      not_found: `Supplier with ID '${supplierId}' not found`,
-      inactive: `Supplier with ID '${supplierId}' is inactive`,
-      deleted: `Supplier with ID '${supplierId}' has been deleted`
-    }
-    super('INVALID_SUPPLIER', messages[reason], 400, { supplier_id: supplierId, reason })
-  }
-}
-
-export class InvalidProductError extends SupplierProductError {
-  constructor(productId: string, reason: 'not_found' | 'inactive' | 'deleted' = 'not_found') {
-    const messages = {
-      not_found: `Product with ID '${productId}' not found`,
-      inactive: `Product with ID '${productId}' is inactive`,
-      deleted: `Product with ID '${productId}' has been deleted`
-    }
-    super('INVALID_PRODUCT', messages[reason], 400, { product_id: productId, reason })
-  }
-}
-
-export class InvalidPriceError extends SupplierProductError {
-  constructor(price: number, min: number, max: number) {
+export class SupplierProductCodeExistsError extends ConflictError {
+  constructor(code: string) {
     super(
-      'INVALID_PRICE', 
-      `Price ${price} is invalid. Must be between ${min} and ${max}`, 
-      422,
-      { price, min, max }
+      `Supplier product with code '${code}' already exists`,
+      { conflictType: 'duplicate', code }
     )
+    this.name = 'SupplierProductCodeExistsError'
   }
 }
 
-export class InvalidCurrencyError extends SupplierProductError {
-  constructor(currency: string, validCurrencies: string[]) {
+// ============================================================================
+// VALIDATION ERRORS
+// ============================================================================
+
+export class InvalidSupplierProductPriceError extends ValidationError {
+  constructor(price: number) {
     super(
-      'INVALID_CURRENCY', 
-      `Currency '${currency}' is not supported. Valid currencies: ${validCurrencies.join(', ')}`, 
-      422,
-      { currency, valid_currencies: validCurrencies }
+      `Price must be greater than or equal to 0, got ${price}`,
+      { price, minimum: 0 }
     )
+    this.name = 'InvalidSupplierProductPriceError'
   }
 }
 
-export class BulkOperationLimitError extends SupplierProductError {
-  constructor(limit: number, attempted: number) {
+export class InvalidSupplierProductQuantityError extends ValidationError {
+  constructor(quantity: number) {
     super(
-      'BULK_OPERATION_LIMIT_EXCEEDED',
-      `Bulk operation limit exceeded. Maximum ${limit} items, attempted ${attempted}`,
-      400,
-      { limit, attempted }
+      `Minimum order quantity must be greater than 0, got ${quantity}`,
+      { quantity, minimum: 1 }
     )
+    this.name = 'InvalidSupplierProductQuantityError'
   }
 }
 
-export class MaxPreferredSuppliersError extends SupplierProductError {
-  constructor(productId: string, maxAllowed: number) {
+export class SupplierProductValidationError extends ValidationError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, details)
+    this.name = 'SupplierProductValidationError'
+  }
+}
+
+// ============================================================================
+// BUSINESS RULE ERRORS
+// ============================================================================
+
+export class SupplierProductInUseError extends BusinessRuleError {
+  constructor(id: string, usageCount: number) {
     super(
-      'MAX_PREFERRED_SUPPLIERS_EXCEEDED',
-      `Product '${productId}' already has maximum ${maxAllowed} preferred suppliers`,
-      422,
-      { product_id: productId, max_allowed: maxAllowed }
+      `Supplier product cannot be deleted as it is being used in ${usageCount} orders`,
+      { rule: 'supplier_product_in_use', supplierProductId: id, usageCount }
     )
+    this.name = 'SupplierProductInUseError'
   }
 }
 
-export class SupplierProductValidationError extends SupplierProductError {
-  constructor(message: string, details?: any) {
-    super('SUPPLIER_PRODUCT_VALIDATION_ERROR', message, 422, details)
+export class InactiveSupplierProductError extends BusinessRuleError {
+  constructor(id: string) {
+    super(
+      `Cannot use inactive supplier product`,
+      { rule: 'inactive_supplier_product', supplierProductId: id }
+    )
+    this.name = 'InactiveSupplierProductError'
   }
 }
+
+export class InvalidSupplierError extends BusinessRuleError {
+  constructor(supplierId: string, _reason?: string) {
+    super(
+      `Invalid supplier: ${supplierId}`,
+      { rule: 'invalid_supplier', supplierId }
+    )
+    this.name = 'InvalidSupplierError'
+  }
+}
+
+export class InvalidProductError extends BusinessRuleError {
+  constructor(productId: string, _reason?: string) {
+    super(
+      `Invalid product: ${productId}`,
+      { rule: 'invalid_product', productId }
+    )
+    this.name = 'InvalidProductError'
+  }
+}
+
+export class MaxPreferredSuppliersError extends BusinessRuleError {
+  constructor(productId: string, maxCount: number) {
+    super(
+      `Product ${productId} already has ${maxCount} preferred suppliers`,
+      { rule: 'max_preferred_suppliers', productId, maxCount }
+    )
+    this.name = 'MaxPreferredSuppliersError'
+  }
+}
+
+export class BulkOperationLimitError extends BusinessRuleError {
+  constructor(limit: number, _actual?: number) {
+    super(
+      `Bulk operation exceeds maximum limit of ${limit} items`,
+      { rule: 'bulk_operation_limit', limit }
+    )
+    this.name = 'BulkOperationLimitError'
+  }
+}
+
+export class InvalidCurrencyError extends BusinessRuleError {
+  constructor(currency: string, _validCurrencies?: string[]) {
+    super(
+      `Unsupported currency: ${currency}`,
+      { rule: 'invalid_currency', currency }
+    )
+    this.name = 'InvalidCurrencyError'
+  }
+}
+
+// ============================================================================
+// DATABASE ERRORS
+// ============================================================================
+
+export class SupplierProductOperationError extends DatabaseError {
+  constructor(operation: string, error?: string) {
+    super(
+      `Failed to ${operation} supplier product`,
+      { code: `SUPPLIER_PRODUCT_${operation.toUpperCase()}_FAILED`, context: { operation, error } }
+    )
+    this.name = 'SupplierProductOperationError'
+  }
+}
+
+// ============================================================================
+// ERROR FACTORY (CONVENIENCE METHODS)
+// ============================================================================
+
+export const SupplierProductErrors = {
+  NOT_FOUND: (id?: string) => new SupplierProductNotFoundError(id),
+  DUPLICATE: (supplierId: string, productId: string) => 
+    new DuplicateSupplierProductError(supplierId, productId),
+  CODE_EXISTS: (code: string) => new SupplierProductCodeExistsError(code),
+  INVALID_PRICE: (price: number) => new InvalidSupplierProductPriceError(price),
+  INVALID_QUANTITY: (quantity: number) => new InvalidSupplierProductQuantityError(quantity),
+  VALIDATION_ERROR: (message: string, details?: Record<string, unknown>) => 
+    new SupplierProductValidationError(message, details),
+  IN_USE: (id: string, usageCount?: number) => 
+    new SupplierProductInUseError(id, usageCount || 0),
+  INACTIVE: (id: string) => new InactiveSupplierProductError(id),
+  CREATE_FAILED: (error?: string) => new SupplierProductOperationError('create', error),
+  UPDATE_FAILED: (error?: string) => new SupplierProductOperationError('update', error),
+  DELETE_FAILED: (error?: string) => new SupplierProductOperationError('delete', error),
+}
+

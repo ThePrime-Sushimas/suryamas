@@ -182,7 +182,7 @@ export class FiscalPeriodsRepository {
           code: error.code,
           company_id: companyId
         })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('findAll', error)
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('findAll', error.message)
       }
       
       if (countError) {
@@ -190,7 +190,7 @@ export class FiscalPeriodsRepository {
           error: countError.message, 
           company_id: companyId 
         })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('count', countError)
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('count', countError.message)
       }
       
       const result = { data: data || [], total: count || 0 }
@@ -202,12 +202,12 @@ export class FiscalPeriodsRepository {
         total: result.total 
       })
       
-      return result
+return result
     } catch (error) {
       if (error instanceof FiscalPeriodError) {
         throw error
       }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('findAll', error as Error)
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('findAll', error instanceof Error ? error.message : String(error))
     }
   }
 
@@ -238,7 +238,7 @@ export class FiscalPeriodsRepository {
           id, 
           company_id: companyId 
         })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('findById', error)
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('findById', error.message)
       }
       
       if (data) {
@@ -251,7 +251,7 @@ export class FiscalPeriodsRepository {
       if (error instanceof FiscalPeriodError) {
         throw error
       }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('findById', error as Error)
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('findById', (error as Error).message)
     }
   }
 
@@ -282,7 +282,7 @@ export class FiscalPeriodsRepository {
           period, 
           company_id: companyId 
         })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('findByCompanyAndPeriod', error)
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('findByCompanyAndPeriod', error.message)
       }
       
       if (data) {
@@ -295,7 +295,7 @@ export class FiscalPeriodsRepository {
       if (error instanceof FiscalPeriodError) {
         throw error
       }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('findByCompanyAndPeriod', error as Error)
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('findByCompanyAndPeriod', (error as Error).message)
     }
   }
 
@@ -319,7 +319,7 @@ export class FiscalPeriodsRepository {
           company_id: companyId,
           ids_count: ids.length
         })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('findByIds', error)
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('findByIds', error.message)
       }
       
       logInfo('Repository findByIds success', { 
@@ -333,7 +333,7 @@ export class FiscalPeriodsRepository {
       if (error instanceof FiscalPeriodError) {
         throw error
       }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('findByIds', error as Error)
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('findByIds', (error as Error).message)
     }
   }
 
@@ -379,7 +379,8 @@ export class FiscalPeriodsRepository {
           throw FiscalPeriodErrors.PERIOD_EXISTS(data.period, data.company_id)
         }
         
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('create', error)
+        
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('create', error.message)
       }
       
       this.invalidateCache('list:')
@@ -397,7 +398,7 @@ export class FiscalPeriodsRepository {
       if (error instanceof FiscalPeriodError) {
         throw error
       }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('create', error as Error)
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('create', (error as Error).message)
     }
   }
 
@@ -427,7 +428,7 @@ export class FiscalPeriodsRepository {
           id,
           company_id: companyId
         })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('update', error)
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('update', error.message)
       }
       
       if (data) {
@@ -445,7 +446,7 @@ export class FiscalPeriodsRepository {
       if (error instanceof FiscalPeriodError) {
         throw error
       }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('update', error as Error)
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('update', (error as Error).message)
     }
   }
 
@@ -479,7 +480,7 @@ export class FiscalPeriodsRepository {
           id, 
           company_id: companyId 
         })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('closePeriod', error)
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('closePeriod', error.message)
       }
       
       if (!data) {
@@ -496,7 +497,7 @@ export class FiscalPeriodsRepository {
       if (error instanceof FiscalPeriodError) {
         throw error
       }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('closePeriod', error as Error)
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('closePeriod', (error as Error).message)
     }
   }
 
@@ -523,7 +524,7 @@ export class FiscalPeriodsRepository {
           id, 
           company_id: companyId 
         })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('softDelete', error)
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('softDelete', error.message)
       }
       
       this.invalidateCache('list:')
@@ -534,7 +535,7 @@ export class FiscalPeriodsRepository {
       if (error instanceof FiscalPeriodError) {
         throw error
       }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('softDelete', error as Error)
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('softDelete', (error as Error).message)
     }
   }
 
@@ -561,7 +562,7 @@ export class FiscalPeriodsRepository {
           company_id: companyId,
           ids_count: ids.length
         })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('bulkDelete', error)
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('bulkDelete', error.message)
       }
       
       this.invalidateCache('list:')
@@ -574,7 +575,7 @@ export class FiscalPeriodsRepository {
       if (error instanceof FiscalPeriodError) {
         throw error
       }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('bulkDelete', error as Error)
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('bulkDelete', (error as Error).message)
     }
   }
 
@@ -601,7 +602,7 @@ export class FiscalPeriodsRepository {
           id, 
           company_id: companyId 
         })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('restore', error)
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('restore', error.message)
       }
       
       this.invalidateCache('list:')
@@ -612,7 +613,7 @@ export class FiscalPeriodsRepository {
       if (error instanceof FiscalPeriodError) {
         throw error
       }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('restore', error as Error)
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('restore', (error as Error).message)
     }
   }
 
@@ -639,7 +640,7 @@ export class FiscalPeriodsRepository {
           company_id: companyId,
           ids_count: ids.length
         })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('bulkRestore', error)
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('bulkRestore', error.message)
       }
       
       this.invalidateCache('list:')
@@ -652,7 +653,7 @@ export class FiscalPeriodsRepository {
       if (error instanceof FiscalPeriodError) {
         throw error
       }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('bulkRestore', error as Error)
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('bulkRestore', (error as Error).message)
     }
   }
 
@@ -686,7 +687,7 @@ export class FiscalPeriodsRepository {
           company_id: companyId,
           limit: safeLimit
         })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('exportData', error)
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('exportData', error.message)
       }
       
       logInfo('Repository exportData success', { 
@@ -699,7 +700,7 @@ export class FiscalPeriodsRepository {
       if (error instanceof FiscalPeriodError) {
         throw error
       }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('exportData', error as Error)
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('exportData', (error as Error).message)
     }
   }
 

@@ -29,7 +29,7 @@ export class PricelistsService {
     return pricelistsRepository.create({
       ...data,
       created_by: userId,
-    })
+    } as CreatePricelistDto & { created_by?: string })
   }
 
   async updatePricelist(id: string, data: UpdatePricelistDto, userId?: string): Promise<Pricelist> {
@@ -54,7 +54,7 @@ export class PricelistsService {
     const updated = await pricelistsRepository.updateById(id, {
       ...data,
       updated_by: userId,
-    })
+    } as UpdatePricelistDto & { updated_by?: string })
 
     if (!updated) {
       throw new PricelistNotFoundError(id)
@@ -69,7 +69,7 @@ export class PricelistsService {
       throw new PricelistNotFoundError(id)
     }
 
-    await pricelistsRepository.softDelete(id, userId)
+    await pricelistsRepository.softDelete(id)
   }
 
   async getPricelistById(id: string): Promise<PricelistWithRelations> {
@@ -111,7 +111,7 @@ export class PricelistsService {
 
   async restorePricelist(id: string, userId?: string): Promise<Pricelist> {
     try {
-      const pricelist = await pricelistsRepository.restorePricelist(id, userId)
+      const pricelist = await pricelistsRepository.restorePricelist(id)
       return pricelist
     } catch (error: any) {
       if (error.message.includes('active pricelist already exists')) {

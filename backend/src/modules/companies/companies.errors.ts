@@ -1,24 +1,236 @@
-export class CompanyError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-    public statusCode: number = 400
-  ) {
-    super(message)
-    this.name = 'CompanyError'
+/**
+ * Companies Module Error Classes
+ * Module-specific error classes untuk companies operations
+ * 
+ * Design Principles:
+ * - Extend dari BaseError classes untuk konsistensi
+ * - Bilingual support (Indonesian + English)
+ * - Actionable error messages dengan guidance
+ */
+
+import { 
+  NotFoundError, 
+  ConflictError, 
+  ValidationError,
+  BusinessRuleError,
+  DatabaseError
+} from '../../utils/errors.base'
+
+// ============================================================================
+// BASE ERROR CLASS - Using AppError via BusinessRuleError/ValidationError
+// ============================================================================
+
+// ============================================================================
+// NOT FOUND ERRORS
+// ============================================================================
+
+export class CompanyNotFoundError extends NotFoundError {
+  constructor(id?: string | number) {
+    super('company', id)
+    this.name = 'CompanyNotFoundError'
   }
 }
 
-export const CompanyErrors = {
-  NOT_FOUND: () => new CompanyError('COMPANY_NOT_FOUND', 'Company not found', 404),
-  CODE_EXISTS: () => new CompanyError('COMPANY_CODE_EXISTS', 'Company code already exists', 409),
-  NPWP_EXISTS: () => new CompanyError('NPWP_EXISTS', 'NPWP already registered', 409),
-  INVALID_TYPE: (types: string[]) => new CompanyError('INVALID_TYPE', `Invalid company type. Must be one of: ${types.join(', ')}`, 400),
-  INVALID_STATUS: (statuses: string[]) => new CompanyError('INVALID_STATUS', `Invalid status. Must be one of: ${statuses.join(', ')}`, 400),
-  INVALID_EMAIL: () => new CompanyError('INVALID_EMAIL', 'Invalid email format', 400),
-  INVALID_PHONE: () => new CompanyError('INVALID_PHONE', 'Invalid phone format', 400),
-  INVALID_URL: () => new CompanyError('INVALID_URL', 'Invalid website URL format', 400),
-  REQUIRED_FIELD: (field: string) => new CompanyError('REQUIRED_FIELD', `${field} is required`, 400),
-  CREATE_FAILED: () => new CompanyError('CREATE_FAILED', 'Failed to create company', 500),
-  UPDATE_FAILED: () => new CompanyError('UPDATE_FAILED', 'Failed to update company', 500),
+export class CompanyCodeNotFoundError extends NotFoundError {
+  constructor(code: string) {
+    super('company_code', { code })
+    this.name = 'CompanyCodeNotFoundError'
+  }
 }
+
+// ============================================================================
+// CONFLICT ERRORS
+// ============================================================================
+
+export class CompanyCodeAlreadyExistsError extends ConflictError {
+  constructor(code: string) {
+    super(
+      `Company code '${code}' already exists`,
+      { conflictType: 'duplicate', companyCode: code }
+    )
+    this.name = 'CompanyCodeAlreadyExistsError'
+  }
+}
+
+export class NPWPAlreadyExistsError extends ConflictError {
+  constructor(npwp: string) {
+    super(
+      `NPWP '${npwp}' already registered`,
+      { conflictType: 'duplicate', npwp }
+    )
+    this.name = 'NPWPAlreadyExistsError'
+  }
+}
+
+export class CompanyEmailAlreadyExistsError extends ConflictError {
+  constructor(email: string) {
+    super(
+      `Company email '${email}' already exists`,
+      { conflictType: 'duplicate', email }
+    )
+    this.name = 'CompanyEmailAlreadyExistsError'
+  }
+}
+
+// ============================================================================
+// VALIDATION ERRORS
+// ============================================================================
+
+export class InvalidCompanyTypeError extends ValidationError {
+  constructor(type: string, validTypes?: string[]) {
+    super(
+      `Invalid company type: ${type}`,
+      { type, validTypes }
+    )
+    this.name = 'InvalidCompanyTypeError'
+  }
+}
+
+export class InvalidCompanyStatusError extends ValidationError {
+  constructor(status: string, validStatuses?: string[]) {
+    super(
+      `Invalid status: ${status}`,
+      { status, validStatuses }
+    )
+    this.name = 'InvalidCompanyStatusError'
+  }
+}
+
+export class InvalidCompanyEmailError extends ValidationError {
+  constructor(email: string) {
+    super(
+      `Invalid email format: ${email}`,
+      { email }
+    )
+    this.name = 'InvalidCompanyEmailError'
+  }
+}
+
+export class InvalidCompanyPhoneError extends ValidationError {
+  constructor(phone: string) {
+    super(
+      `Invalid phone format: ${phone}`,
+      { phone }
+    )
+    this.name = 'InvalidCompanyPhoneError'
+  }
+}
+
+export class InvalidCompanyURLError extends ValidationError {
+  constructor(url: string) {
+    super(
+      `Invalid website URL format: ${url}`,
+      { url }
+    )
+    this.name = 'InvalidCompanyURLError'
+  }
+}
+
+export class RequiredFieldError extends ValidationError {
+  constructor(field: string) {
+    super(
+      `${field} is required`,
+      { field }
+    )
+    this.name = 'RequiredFieldError'
+  }
+}
+
+// ============================================================================
+// BUSINESS RULE ERRORS
+// ============================================================================
+
+export class CompanyInactiveError extends BusinessRuleError {
+  constructor(id: string | number, companyName?: string) {
+    super(
+      `Company '${companyName || id}' is inactive`,
+      { rule: 'company_active', companyId: id, companyName }
+    )
+    this.name = 'CompanyInactiveError'
+  }
+}
+
+export class CannotDeleteDefaultCompanyError extends BusinessRuleError {
+  constructor(companyName: string) {
+    super(
+      `Cannot delete default company '${companyName}'`,
+      { rule: 'default_company_deletion', companyName }
+    )
+    this.name = 'CannotDeleteDefaultCompanyError'
+  }
+}
+
+export class CannotDeactivateCompanyWithBranchesError extends BusinessRuleError {
+  constructor(id: string | number, branchCount: number) {
+    super(
+      `Cannot deactivate company with ${branchCount} active branches`,
+      { rule: 'company_with_branches', companyId: id, branchCount }
+    )
+    this.name = 'CannotDeactivateCompanyWithBranchesError'
+  }
+}
+
+// ============================================================================
+// DATABASE ERRORS
+// ============================================================================
+
+export class CompanyCreateFailedError extends DatabaseError {
+  constructor(error?: string) {
+    super(
+      'Failed to create company',
+      { code: 'COMPANY_CREATE_FAILED', context: { error } }
+    )
+    this.name = 'CompanyCreateFailedError'
+  }
+}
+
+export class CompanyUpdateFailedError extends DatabaseError {
+  constructor(id: string | number, error?: string) {
+    super(
+      `Failed to update company ${id}`,
+      { code: 'COMPANY_UPDATE_FAILED', context: { companyId: id, error } }
+    )
+    this.name = 'CompanyUpdateFailedError'
+  }
+}
+
+export class CompanyDeleteFailedError extends DatabaseError {
+  constructor(id: string | number, error?: string) {
+    super(
+      `Failed to delete company ${id}`,
+      { code: 'COMPANY_DELETE_FAILED', context: { companyId: id, error } }
+    )
+    this.name = 'CompanyDeleteFailedError'
+  }
+}
+
+// ============================================================================
+// ERROR FACTORY (CONVENIENCE METHODS)
+// ============================================================================
+
+export const CompanyErrors = {
+  NOT_FOUND: (id?: string | number) => new CompanyNotFoundError(id),
+  CODE_NOT_FOUND: (code: string) => new CompanyCodeNotFoundError(code),
+  CODE_EXISTS: (code?: string) => new CompanyCodeAlreadyExistsError(code || 'unknown'),
+  NPWP_EXISTS: (npwp?: string | null) => new NPWPAlreadyExistsError(npwp || 'unknown'),
+  EMAIL_EXISTS: (email: string) => new CompanyEmailAlreadyExistsError(email),
+  INVALID_TYPE: (type: string, validTypes?: string[]) => 
+    new InvalidCompanyTypeError(type, validTypes),
+  INVALID_STATUS: (status: string, _validStatuses?: string[]) => 
+    new InvalidCompanyStatusError(status),
+  INVALID_EMAIL: (email: string) => new InvalidCompanyEmailError(email),
+  INVALID_PHONE: (phone: string) => new InvalidCompanyPhoneError(phone),
+  INVALID_URL: (url: string) => new InvalidCompanyURLError(url),
+  REQUIRED_FIELD: (field: string) => new RequiredFieldError(field),
+  INACTIVE: (id: string | number, companyName?: string) => 
+    new CompanyInactiveError(id, companyName),
+  DELETE_DEFAULT: (companyName: string) => new CannotDeleteDefaultCompanyError(companyName),
+  DEACTIVATE_WITH_BRANCHES: (id: string | number, count: number) => 
+    new CannotDeactivateCompanyWithBranchesError(id, count),
+  CREATE_FAILED: (error?: string) => new CompanyCreateFailedError(error),
+  UPDATE_FAILED: (id?: string | number, error?: string) => 
+    new CompanyUpdateFailedError(id || 'unknown', error),
+  DELETE_FAILED: (id: string | number, error?: string) => 
+    new CompanyDeleteFailedError(id, error),
+}
+

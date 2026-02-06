@@ -1,298 +1,204 @@
-export class AggregatedTransactionError extends Error {
+/**
+ * POS Aggregates Error Classes
+ * Module-specific error classes untuk pos-aggregates operations
+ * 
+ * Design Principles:
+ * - Extend dari BaseError classes untuk konsistensi
+ * - Bilingual support (Indonesian + English)
+ * - Actionable error messages dengan guidance
+ */
+
+import { 
+  NotFoundError, 
+  ConflictError, 
+  ValidationError,
+  BusinessRuleError,
+  DatabaseError
+} from '../../../utils/errors.base'
+
+// ============================================================================
+// BASE ERROR CLASS
+// ============================================================================
+
+export class PosAggregateError extends Error {
   constructor(
     public code: string,
     message: string,
-    public statusCode: number,
-    public details?: Record<string, any>
+    public statusCode: number = 400
   ) {
     super(message)
-    this.name = 'AggregatedTransactionError'
+    this.name = 'PosAggregateError'
   }
 }
 
-export const AggregatedTransactionErrors = {
-  /**
-   * Transaction not found
-   */
-  NOT_FOUND: (id?: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_NOT_FOUND',
-      id ? `Aggregated transaction with ID '${id}' not found` : 'Aggregated transaction not found',
-      404
-    ),
+// ============================================================================
+// NOT FOUND ERRORS
+// ============================================================================
 
-  /**
-   * Duplicate source (source_type, source_id, source_ref)
-   */
-  DUPLICATE_SOURCE: (sourceType: string, sourceId: string, sourceRef: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_DUPLICATE_SOURCE',
-      `Transaction already exists for source_type='${sourceType}', source_id='${sourceId}', source_ref='${sourceRef}'`,
-      409,
-      { source_type: sourceType, source_id: sourceId, source_ref: sourceRef }
-    ),
-
-  /**
-   * Database error
-   */
-  DATABASE_ERROR: (message: string, error: any) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_DATABASE_ERROR',
-      message,
-      500,
-      { original_error: error?.message || error }
-    ),
-
-  /**
-   * Company not found
-   */
-  COMPANY_NOT_FOUND: (id: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_COMPANY_NOT_FOUND',
-      `Company with ID '${id}' not found`,
-      400,
-      { company_id: id }
-    ),
-
-  /**
-   * Company is inactive
-   */
-  COMPANY_INACTIVE: (id: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_COMPANY_INACTIVE',
-      `Company with ID '${id}' is inactive or closed`,
-      400,
-      { company_id: id }
-    ),
-
-  /**
-   * Branch not found
-   */
-  BRANCH_NOT_FOUND: (id: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_BRANCH_NOT_FOUND',
-      `Branch with ID '${id}' not found`,
-      400,
-      { branch_id: id }
-    ),
-
-  /**
-   * Branch is inactive
-   */
-  BRANCH_INACTIVE: (id: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_BRANCH_INACTIVE',
-      `Branch with ID '${id}' is inactive`,
-      400,
-      { branch_id: id }
-    ),
-
-  /**
-   * Payment method not found
-   */
-  PAYMENT_METHOD_NOT_FOUND: (id: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_PAYMENT_METHOD_NOT_FOUND',
-      `Payment method with ID '${id}' not found`,
-      400,
-      { payment_method_id: id }
-    ),
-
-  /**
-   * Payment method is inactive
-   */
-  PAYMENT_METHOD_INACTIVE: (id: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_PAYMENT_METHOD_INACTIVE',
-      `Payment method with ID '${id}' is inactive`,
-      400,
-      { payment_method_id: id }
-    ),
-
-  /**
-   * Invalid status transition
-   */
-  INVALID_STATUS_TRANSITION: (currentStatus: string, newStatus: string, reason?: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_INVALID_STATUS_TRANSITION',
-      reason || `Cannot transition from '${currentStatus}' to '${newStatus}'`,
-      400,
-      { current_status: currentStatus, new_status: newStatus }
-    ),
-
-  /**
-   * Version conflict (optimistic locking)
-   */
-  VERSION_CONFLICT: (id: string, expectedVersion: number, actualVersion: number) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_VERSION_CONFLICT',
-      `Transaction '${id}' was modified by another request. Expected version: ${expectedVersion}, Current version: ${actualVersion}`,
-      409,
-      { transaction_id: id, expected_version: expectedVersion, actual_version: actualVersion }
-    ),
-
-  /**
-   * Cannot delete completed transaction
-   */
-  CANNOT_DELETE_COMPLETED: (id: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_CANNOT_DELETE_COMPLETED',
-      `Cannot delete transaction '${id}' with status COMPLETED`,
-      400,
-      { transaction_id: id }
-    ),
-
-  /**
-   * Transaction already active (not deleted)
-   */
-  ALREADY_ACTIVE: (id: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_ALREADY_ACTIVE',
-      `Transaction '${id}' is already active`,
-      400,
-      { transaction_id: id }
-    ),
-
-  /**
-   * Transaction already reconciled
-   */
-  ALREADY_RECONCILED: (id: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_ALREADY_RECONCILED',
-      `Transaction '${id}' is already reconciled`,
-      400,
-      { transaction_id: id }
-    ),
-
-  /**
-   * No journal assigned to transaction
-   */
-  NO_JOURNAL_ASSIGNED: (id: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_NO_JOURNAL_ASSIGNED',
-      `No journal has been assigned to transaction '${id}'`,
-      400,
-      { transaction_id: id }
-    ),
-
-  /**
-   * Journal already assigned
-   */
-  JOURNAL_ALREADY_ASSIGNED: (id: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_JOURNAL_ALREADY_ASSIGNED',
-      `Transaction '${id}' already has a journal assigned`,
-      400,
-      { transaction_id: id }
-    ),
-
-  /**
-   * Invalid net amount calculation
-   */
-  INVALID_NET_AMOUNT: (calculated: number, provided: number) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_INVALID_NET_AMOUNT',
-      `Net amount mismatch. Calculated: ${calculated}, Provided: ${provided}`,
-      400,
-      { calculated_net_amount: calculated, provided_net_amount: provided }
-    ),
-
-  /**
-   * Journal not found
-   */
-  JOURNAL_NOT_FOUND: (id: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_JOURNAL_NOT_FOUND',
-      `Journal with ID '${id}' not found`,
-      400,
-      { journal_id: id }
-    ),
-
-  /**
-   * Cannot update reconciled transaction
-   */
-  CANNOT_UPDATE_RECONCILED: (id: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_CANNOT_UPDATE_RECONCILED',
-      `Cannot update transaction '${id}' as it has been reconciled`,
-      400,
-      { transaction_id: id }
-    ),
-
-  /**
-   * Cannot delete transaction with journal
-   */
-  CANNOT_DELETE_WITH_JOURNAL: (id: string, journalId: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_CANNOT_DELETE_WITH_JOURNAL',
-      `Cannot delete transaction '${id}' as it has associated journal '${journalId}'`,
-      400,
-      { transaction_id: id, journal_id: journalId }
-    ),
-
-  /**
-   * Aggregation failed
-   */
-  AGGREGATION_FAILED: (posImportId: string, reason: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_AGGREGATION_FAILED',
-      `Failed to aggregate transactions from import '${posImportId}': ${reason}`,
-      500,
-      { pos_import_id: posImportId }
-    ),
-
-  /**
-   * No transactions to aggregate
-   */
-  NO_TRANSACTIONS_TO_AGGREGATE: (posImportId: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_NO_TRANSACTIONS',
-      `No transactions found to aggregate from import '${posImportId}'`,
-      400,
-      { pos_import_id: posImportId }
-    ),
-
-  /**
-   * Journal generation failed
-   */
-  JOURNAL_GENERATION_FAILED: (reason: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_JOURNAL_GENERATION_FAILED',
-      `Failed to generate journal: ${reason}`,
-      500,
-      { reason }
-    ),
-
-  /**
-   * Batch reconciliation failed
-   */
-  BATCH_RECONCILIATION_FAILED: (successCount: number, failedCount: number, errors: string[]) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_BATCH_RECONCILIATION_FAILED',
-      `Batch reconciliation completed with ${successCount} success and ${failedCount} failures`,
-      400,
-      { success_count: successCount, failed_count: failedCount, errors }
-    ),
-
-  /**
-   * Invalid transaction date
-   */
-  INVALID_TRANSACTION_DATE: (date: string) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_INVALID_DATE',
-      `Invalid transaction date: '${date}'`,
-      400,
-      { transaction_date: date }
-    ),
-
-  /**
-   * Net amount must be non-negative
-   */
-  NET_AMOUNT_NEGATIVE: (amount: number) =>
-    new AggregatedTransactionError(
-      'AGGREGATED_TRANSACTION_NEGATIVE_NET_AMOUNT',
-      `Net amount cannot be negative: ${amount}`,
-      400,
-      { net_amount: amount }
-    ),
+export class PosAggregateNotFoundError extends NotFoundError {
+  constructor(id?: string) {
+    super('pos_aggregate', id)
+    this.name = 'PosAggregateNotFoundError'
+  }
 }
+
+// ============================================================================
+// CONFLICT ERRORS
+// ============================================================================
+
+export class PosAggregateDuplicatePeriodError extends ConflictError {
+  constructor(periodKey: string) {
+    super(
+      `Aggregate for period '${periodKey}' already exists`,
+      { conflictType: 'duplicate', periodKey }
+    )
+    this.name = 'PosAggregateDuplicatePeriodError'
+  }
+}
+
+// ============================================================================
+// VALIDATION ERRORS
+// ============================================================================
+
+export class PosAggregateInvalidPeriodError extends ValidationError {
+  constructor(period: string) {
+    super(
+      `Invalid aggregation period: ${period}`,
+      { period }
+    )
+    this.name = 'PosAggregateInvalidPeriodError'
+  }
+}
+
+export class PosAggregateInvalidDateRangeError extends ValidationError {
+  constructor(startDate: string, endDate: string) {
+    super(
+      `Invalid date range: ${startDate} to ${endDate}`,
+      { startDate, endDate }
+    )
+    this.name = 'PosAggregateInvalidDateRangeError'
+  }
+}
+
+export class PosAggregateValidationError extends ValidationError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, details)
+    this.name = 'PosAggregateValidationError'
+  }
+}
+
+// ============================================================================
+// BUSINESS RULE ERRORS
+// ============================================================================
+
+export class PosAggregateAlreadyProcessedError extends BusinessRuleError {
+  constructor(periodKey: string) {
+    super(
+      `Aggregate for period '${periodKey}' has already been processed`,
+      { rule: 'aggregate_already_processed', periodKey }
+    )
+    this.name = 'PosAggregateAlreadyProcessedError'
+  }
+}
+
+export class PosAggregateInUseError extends BusinessRuleError {
+  constructor(id: string, usageCount: number) {
+    super(
+      `Cannot delete aggregate as it is being referenced by ${usageCount} records`,
+      { rule: 'aggregate_in_use', aggregateId: id, usageCount }
+    )
+    this.name = 'PosAggregateInUseError'
+  }
+}
+
+export class PosAggregateInvalidStatusError extends BusinessRuleError {
+  constructor(status: string, validStatuses?: string[]) {
+    super(
+      `Invalid status: ${status}`,
+      { rule: 'invalid_status', status, validStatuses }
+    )
+    this.name = 'PosAggregateInvalidStatusError'
+  }
+}
+
+// ============================================================================
+// DATABASE ERRORS
+// ============================================================================
+
+export class PosAggregateGenerationError extends DatabaseError {
+  constructor(error?: string) {
+    super(
+      'Failed to generate POS aggregate',
+      { code: 'POS_AGGREGATE_GENERATION_FAILED', context: { error } }
+    )
+    this.name = 'PosAggregateGenerationError'
+  }
+}
+
+export class PosAggregateOperationError extends DatabaseError {
+  constructor(operation: string, error?: string) {
+    super(
+      `Failed to ${operation} POS aggregate`,
+      { code: `POS_AGGREGATE_${operation.toUpperCase()}_FAILED`, context: { operation, error } }
+    )
+    this.name = 'PosAggregateOperationError'
+  }
+}
+
+// ============================================================================
+// ERROR FACTORY (CONVENIENCE METHODS)
+// ============================================================================
+
+export const PosAggregateErrors = {
+  NOT_FOUND: (id?: string) => new PosAggregateNotFoundError(id),
+  
+  // Conflict
+  DUPLICATE_PERIOD: (periodKey: string) => new PosAggregateDuplicatePeriodError(periodKey),
+  
+  // Validation
+  INVALID_PERIOD: (period: string) => new PosAggregateInvalidPeriodError(period),
+  INVALID_DATE_RANGE: (startDate: string, endDate: string) => 
+    new PosAggregateInvalidDateRangeError(startDate, endDate),
+  VALIDATION_ERROR: (message: string, details?: Record<string, unknown>) => 
+    new PosAggregateValidationError(message, details),
+  
+  // Business rules
+  ALREADY_PROCESSED: (periodKey: string) => new PosAggregateAlreadyProcessedError(periodKey),
+  IN_USE: (id: string, usageCount?: number) => new PosAggregateInUseError(id, usageCount || 0),
+  
+  // Database
+  GENERATION_FAILED: (error?: string) => new PosAggregateGenerationError(error),
+  CREATE_FAILED: (error?: string) => new PosAggregateOperationError('create', error),
+  UPDATE_FAILED: (error?: string) => new PosAggregateOperationError('update', error),
+  DELETE_FAILED: (error?: string) => new PosAggregateOperationError('delete', error),
+}
+
+// ============================================================================
+// ADDITIONAL ERROR CLASSES (FOR COMPATIBILITY)
+// ============================================================================
+
+// Static error factory methods for compatibility
+export const AggregatedTransactionError = {
+  DATABASE_ERROR: (message?: string, error?: any) => new PosAggregateGenerationError(error?.message || message),
+  BRANCH_NOT_FOUND: (id?: string) => new PosAggregateNotFoundError(id),
+  BRANCH_INACTIVE: (id: string) => new PosAggregateValidationError(`Branch ${id} is inactive`, { branchId: id }),
+  PAYMENT_METHOD_NOT_FOUND: (id?: string) => new PosAggregateNotFoundError(id),
+  PAYMENT_METHOD_INACTIVE: (id: string) => new PosAggregateValidationError(`Payment method ${id} is inactive`, { paymentMethodId: id }),
+  INVALID_STATUS_TRANSITION: (currentStatus: string, targetStatus: string) => 
+    new PosAggregateInvalidStatusError(currentStatus),
+DUPLICATE_SOURCE: (periodKey?: string) => new PosAggregateDuplicatePeriodError(periodKey || 'unknown'),
+  NOT_FOUND: (id?: string) => new PosAggregateNotFoundError(id),
+  VERSION_CONFLICT: (id?: string, expected?: number, actual?: number) => new ConflictError(
+    'Version conflict', 
+    { conflictType: 'concurrency', aggregateId: id, expectedVersion: expected, actualVersion: actual }
+  ),
+  CANNOT_DELETE_COMPLETED: (id?: string) => new PosAggregateAlreadyProcessedError(id || 'completed'),
+  ALREADY_ACTIVE: (id: string) => new PosAggregateAlreadyProcessedError(id),
+  ALREADY_RECONCILED: (id: string) => new PosAggregateAlreadyProcessedError(id),
+NO_JOURNAL_ASSIGNED: () => new PosAggregateValidationError('No journal entry assigned'),
+  JOURNAL_ALREADY_ASSIGNED: (id: string) => new PosAggregateValidationError(`Journal already assigned to ${id}`, { aggregateId: id }),
+}
+
+// Alias for compatibility
+export const AggregatedTransactionErrors = AggregatedTransactionError
+

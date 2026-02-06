@@ -1,3 +1,26 @@
+/**
+ * Accounting Purposes Error Classes
+ * Module-specific error classes untuk accounting purposes operations
+ * 
+ * Design Principles:
+ * - Extend dari BaseError classes untuk konsistensi
+ * - Bilingual support (Indonesian + English)
+ * - Actionable error messages dengan guidance
+ */
+
+import { 
+  NotFoundError, 
+  ConflictError, 
+  ValidationError,
+  BusinessRuleError,
+  PermissionError,
+  DatabaseError
+} from '../../../utils/errors.base'
+
+// ============================================================================
+// BASE ERROR CLASS
+// ============================================================================
+
 export class AccountingPurposeError extends Error {
   constructor(
     message: string, 
@@ -12,77 +35,160 @@ export class AccountingPurposeError extends Error {
   }
 }
 
-export const AccountingPurposeErrors = {
-  NOT_FOUND: (id: string) => new AccountingPurposeError(
-    `Accounting purpose with ID ${id} not found. Please verify the ID and try again.`, 
-    404, 
-    'PURPOSE_NOT_FOUND',
-    'CLIENT_ERROR'
-  ),
-  
-  CODE_EXISTS: (code: string, companyId: string) => new AccountingPurposeError(
-    `Purpose code '${code}' already exists in this company. Please use a different code.`, 
-    409, 
-    'PURPOSE_CODE_EXISTS',
-    'CLIENT_ERROR'
-  ),
-  
-  SYSTEM_PURPOSE_READONLY: () => new AccountingPurposeError(
-    'System purposes are read-only and cannot be modified or deleted. Please contact your administrator if changes are needed.', 
-    403, 
-    'SYSTEM_PURPOSE_READONLY',
-    'CLIENT_ERROR'
-  ),
-  
-  COMPANY_ACCESS_DENIED: (companyId: string) => new AccountingPurposeError(
-    `Access denied to company ${companyId}. Please verify your permissions.`, 
-    403, 
-    'COMPANY_ACCESS_DENIED',
-    'CLIENT_ERROR'
-  ),
-  
-  INVALID_APPLIED_TO: (appliedTo: string) => new AccountingPurposeError(
-    `Invalid applied_to value: ${appliedTo}. Must be one of: SALES, PURCHASE, CASH, BANK, INVENTORY.`, 
-    400, 
-    'INVALID_APPLIED_TO',
-    'CLIENT_ERROR'
-  ),
-  
-  CREATE_FAILED: (cause?: Error) => new AccountingPurposeError(
-    'Failed to create accounting purpose. Please try again or contact support if the problem persists.', 
-    500, 
-    'CREATE_FAILED',
-    'SERVER_ERROR',
-    cause
-  ),
-  
-  UPDATE_FAILED: (cause?: Error) => new AccountingPurposeError(
-    'Failed to update accounting purpose. Please try again or contact support if the problem persists.', 
-    500, 
-    'UPDATE_FAILED',
-    'SERVER_ERROR',
-    cause
-  ),
+// ============================================================================
+// NOT FOUND ERRORS
+// ============================================================================
 
-  REPOSITORY_ERROR: (operation: string, cause?: Error) => new AccountingPurposeError(
-    `Database operation '${operation}' failed. Please try again or contact support if the problem persists.`,
-    500,
-    'REPOSITORY_ERROR',
-    'SERVER_ERROR',
-    cause
-  ),
-
-  VALIDATION_ERROR: (field: string, message: string) => new AccountingPurposeError(
-    `Validation failed for field '${field}': ${message}`,
-    400,
-    'VALIDATION_ERROR',
-    'CLIENT_ERROR'
-  ),
-
-  BULK_OPERATION_LIMIT_EXCEEDED: (operation: string, limit: number, actual: number) => new AccountingPurposeError(
-    `Bulk ${operation} operation limit exceeded. Maximum allowed: ${limit}, requested: ${actual}.`,
-    400,
-    'BULK_OPERATION_LIMIT_EXCEEDED',
-    'CLIENT_ERROR'
-  )
+export class AccountingPurposeNotFoundError extends NotFoundError {
+  constructor(id: string) {
+    super('accounting_purpose', id)
+    this.name = 'AccountingPurposeNotFoundError'
+  }
 }
+
+// ============================================================================
+// CONFLICT ERRORS
+// ============================================================================
+
+export class PurposeCodeExistsError extends ConflictError {
+  constructor(code: string, companyId: string) {
+    super(
+      `Purpose code '${code}' already exists in this company`,
+      { conflictType: 'duplicate', code, companyId }
+    )
+    this.name = 'PurposeCodeExistsError'
+  }
+}
+
+// ============================================================================
+// VALIDATION ERRORS
+// ============================================================================
+
+export class InvalidAppliedToError extends ValidationError {
+  constructor(appliedTo: string, validValues: string[]) {
+    super(
+      `Invalid applied_to value: ${appliedTo}. Must be one of: ${validValues.join(', ')}`,
+      { appliedTo, validValues }
+    )
+    this.name = 'InvalidAppliedToError'
+  }
+}
+
+export class PurposeValidationError extends ValidationError {
+  constructor(field: string, message: string) {
+    super(message, { field })
+    this.name = 'PurposeValidationError'
+  }
+}
+
+export class BulkOperationLimitExceededError extends ValidationError {
+  constructor(operation: string, limit: number, actual: number) {
+    super(
+      `Bulk ${operation} operation limit exceeded. Maximum allowed: ${limit}, requested: ${actual}`,
+      { operation, limit, actual }
+    )
+    this.name = 'BulkOperationLimitExceededError'
+  }
+}
+
+// ============================================================================
+// BUSINESS RULE ERRORS
+// ============================================================================
+
+export class SystemPurposeReadonlyError extends BusinessRuleError {
+  constructor() {
+    super(
+      'System purposes are read-only and cannot be modified or deleted',
+      { rule: 'system_purpose_readonly' }
+    )
+    this.name = 'SystemPurposeReadonlyError'
+  }
+}
+
+export class PurposeInUseError extends BusinessRuleError {
+  constructor(id: string, usageCount: number) {
+    super(
+      `Accounting purpose cannot be deleted as it is being used by ${usageCount} transactions`,
+      { rule: 'purpose_in_use', purposeId: id, usageCount }
+    )
+    this.name = 'PurposeInUseError'
+  }
+}
+
+// ============================================================================
+// PERMISSION ERRORS
+// ============================================================================
+
+export class CompanyAccessDeniedError extends PermissionError {
+  constructor(companyId: string) {
+    super(
+      `Access denied to company ${companyId}`,
+      { permission: 'company_access', resource: 'company', resourceId: companyId }
+    )
+    this.name = 'CompanyAccessDeniedError'
+  }
+}
+
+// ============================================================================
+// DATABASE ERRORS
+// ============================================================================
+
+export class PurposeCreateFailedError extends DatabaseError {
+  constructor(cause?: Error) {
+    super(
+      'Failed to create accounting purpose',
+      { code: 'PURPOSE_CREATE_FAILED', cause }
+    )
+    this.name = 'PurposeCreateFailedError'
+  }
+}
+
+export class PurposeUpdateFailedError extends DatabaseError {
+  constructor(cause?: Error) {
+    super(
+      'Failed to update accounting purpose',
+      { code: 'PURPOSE_UPDATE_FAILED', cause }
+    )
+    this.name = 'PurposeUpdateFailedError'
+  }
+}
+
+export class PurposeDeleteFailedError extends DatabaseError {
+  constructor(cause?: Error) {
+    super(
+      'Failed to delete accounting purpose',
+      { code: 'PURPOSE_DELETE_FAILED', cause }
+    )
+    this.name = 'PurposeDeleteFailedError'
+  }
+}
+
+export class PurposeRepositoryError extends DatabaseError {
+  constructor(operation: string, cause?: Error) {
+    super(
+      `Database operation '${operation}' failed`,
+      { code: 'PURPOSE_REPOSITORY_ERROR', context: { operation }, cause }
+    )
+    this.name = 'PurposeRepositoryError'
+  }
+}
+
+// ============================================================================
+// ERROR FACTORY (CONVENIENCE METHODS)
+// ============================================================================
+
+export const AccountingPurposeErrors = {
+  NOT_FOUND: (id: string) => new AccountingPurposeNotFoundError(id),
+  CODE_EXISTS: (code: string, companyId: string) => new PurposeCodeExistsError(code, companyId),
+  SYSTEM_PURPOSE_READONLY: () => new SystemPurposeReadonlyError(),
+  COMPANY_ACCESS_DENIED: (companyId: string) => new CompanyAccessDeniedError(companyId),
+  INVALID_APPLIED_TO: (appliedTo: string, _validValues?: string[]) => 
+    new InvalidAppliedToError(appliedTo, _validValues || []),
+  CREATE_FAILED: (cause?: Error) => new PurposeCreateFailedError(cause),
+  UPDATE_FAILED: (cause?: Error) => new PurposeUpdateFailedError(cause),
+  REPOSITORY_ERROR: (operation: string, cause?: Error) => new PurposeRepositoryError(operation, cause),
+  VALIDATION_ERROR: (field: string, message: string) => new PurposeValidationError(field, message),
+  BULK_OPERATION_LIMIT_EXCEEDED: (operation: string, limit: number, actual: number) => 
+    new BulkOperationLimitExceededError(operation, limit, actual),
+}
+

@@ -187,7 +187,7 @@ export class PaymentMethodsService {
 
         const paymentMethod = await this.repository.updateWithUser(id, data, userId, trx)
         if (!paymentMethod) {
-          throw PaymentMethodErrors.UPDATE_FAILED()
+          throw PaymentMethodErrors.UPDATE_FAILED(id)
         }
 
         await AuditService.log('UPDATE', 'payment_methods', id.toString(), userId, existing, paymentMethod)

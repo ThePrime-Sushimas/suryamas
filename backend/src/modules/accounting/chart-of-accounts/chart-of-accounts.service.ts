@@ -51,7 +51,7 @@ export class ChartOfAccountsService {
         // Validate account code uniqueness
         const existingAccount = await this.repository.findByCode(data.company_id, data.account_code, trx)
         if (existingAccount) {
-          throw ChartOfAccountErrors.CODE_EXISTS(data.account_code, data.company_id)
+          throw ChartOfAccountErrors.CODE_EXISTS(data.account_code)
         }
 
         // Validate parent account if provided
@@ -89,15 +89,15 @@ export class ChartOfAccountsService {
           throw ChartOfAccountErrors.HEADER_CANNOT_BE_POSTABLE()
         }
 
-        // Validate normal balance
+// Validate normal balance
         const debitAccounts = ChartOfAccountConfig.DEBIT_ACCOUNTS
         const creditAccounts = ChartOfAccountConfig.CREDIT_ACCOUNTS
         
         if (debitAccounts.includes(data.account_type) && data.normal_balance !== 'DEBIT') {
-          throw ChartOfAccountErrors.INVALID_NORMAL_BALANCE(data.account_type, data.normal_balance)
+          throw ChartOfAccountErrors.INVALID_NORMAL_BALANCE(data.account_type, data.normal_balance, 'DEBIT')
         }
         if (creditAccounts.includes(data.account_type) && data.normal_balance !== 'CREDIT') {
-          throw ChartOfAccountErrors.INVALID_NORMAL_BALANCE(data.account_type, data.normal_balance)
+          throw ChartOfAccountErrors.INVALID_NORMAL_BALANCE(data.account_type, data.normal_balance, 'CREDIT')
         }
 
         const trimmedData: CreateChartOfAccountDTO = {
@@ -122,7 +122,7 @@ export class ChartOfAccountsService {
         if (error.code === '23505') {
           if (error.message?.includes('account_code') || error.constraint?.includes('account_code')) {
             logError('Duplicate account code', { account_code: data.account_code })
-            throw ChartOfAccountErrors.CODE_EXISTS(data.account_code, data.company_id)
+            throw ChartOfAccountErrors.CODE_EXISTS(data.account_code)
           }
         }
         logError('Failed to create chart of account', { 
@@ -396,19 +396,19 @@ export class ChartOfAccountsService {
         if (skipDuplicates) {
           const existingAccount = await this.repository.findByCode(companyId, row.account_code)
           if (existingAccount) {
-            throw ChartOfAccountErrors.CODE_EXISTS(row.account_code, companyId)
+            throw ChartOfAccountErrors.CODE_EXISTS(row.account_code)
           }
         }
 
-        // Validate normal balance for account type
+// Validate normal balance for account type
         const debitAccounts = ChartOfAccountConfig.DEBIT_ACCOUNTS
         const creditAccounts = ChartOfAccountConfig.CREDIT_ACCOUNTS
         
         if (debitAccounts.includes(row.account_type) && row.normal_balance !== 'DEBIT') {
-          throw ChartOfAccountErrors.INVALID_NORMAL_BALANCE(row.account_type, row.normal_balance)
+          throw ChartOfAccountErrors.INVALID_NORMAL_BALANCE(row.account_type, row.normal_balance, 'DEBIT')
         }
         if (creditAccounts.includes(row.account_type) && row.normal_balance !== 'CREDIT') {
-          throw ChartOfAccountErrors.INVALID_NORMAL_BALANCE(row.account_type, row.normal_balance)
+          throw ChartOfAccountErrors.INVALID_NORMAL_BALANCE(row.account_type, row.normal_balance, 'CREDIT')
         }
 
         await this.repository.create({

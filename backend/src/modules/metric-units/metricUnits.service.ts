@@ -3,7 +3,7 @@ import { MetricUnit, CreateMetricUnitDto, UpdateMetricUnitDto } from './metricUn
 import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
 import { AuditService } from '../../services/audit.service'
 import { METRIC_UNIT_CONFIG } from './metricUnits.constants'
-import { MetricUnitNotFoundError, DuplicateMetricUnitError } from './metricUnits.errors'
+import { MetricUnitNotFoundError, DuplicateMetricUnitError } from './metric-units.errors'
 import { logError, logWarn } from '../../config/logger'
 
 export class MetricUnitsService {

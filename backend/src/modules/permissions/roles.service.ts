@@ -11,7 +11,7 @@ import { AuditService } from '../../services/audit.service'
 import { PermissionsCache } from './permissions.cache'
 import { logInfo, logError } from '../../config/logger'
 import { createDefaultPermissions } from '../../utils/permissions.util'
-import { ConflictError, OperationalError } from './permissions.errors'
+import { ConflictError, PermissionsError } from './permissions.errors'
 import type { CreateRoleDto } from './permissions.types'
 
 export class RolesService {
@@ -64,7 +64,7 @@ export class RolesService {
       // Use bulk insert to avoid N+1 query
       const success = await this.permissionsRepo.bulkCreate(permissions)
       if (!success) {
-        throw new OperationalError('Failed to create default permissions', 500)
+        throw new PermissionsError('DEFAULT_PERMISSIONS_FAILED', 'Failed to create default permissions', 500)
       }
 
       if (createdBy) {
@@ -83,8 +83,8 @@ export class RolesService {
       return role
     } catch (error: any) {
       logError('Failed to create role', { error: error.message })
-      if (error instanceof OperationalError) throw error
-      throw new OperationalError(error.message || 'Failed to create role', 500)
+      if (error instanceof PermissionsError) throw error
+      throw new PermissionsError('ROLE_CREATE_ERROR', error.message || 'Failed to create role', 500)
     }
   }
 

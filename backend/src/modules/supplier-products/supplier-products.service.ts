@@ -34,9 +34,14 @@ export class SupplierProductsService {
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
   constructor(
-    private repository: SupplierProductsRepository = supplierProductsRepository,
-    private auditService: typeof AuditService = AuditService
+    private repository: SupplierProductsRepository = supplierProductsRepository
   ) {}
+
+  private async logAudit(action: string, entityType: string, entityId: string, userId?: string, oldData?: any, newData?: any): Promise<void> {
+    if (userId) {
+      await AuditService.log(action, entityType, entityId, userId, oldData, newData)
+    }
+  }
 
   /**
    * List supplier products with pagination and filtering
@@ -134,7 +139,7 @@ export class SupplierProductsService {
 
     // Audit logging
     if (userId) {
-      await this.auditService.log('CREATE', 'supplier_product', supplierProduct.id, userId, undefined, supplierProduct)
+      await this.logAudit('CREATE', 'supplier_product', supplierProduct.id, userId, undefined, supplierProduct)
     }
 
     logInfo('Supplier product created', { 
@@ -175,7 +180,7 @@ export class SupplierProductsService {
 
     // Audit logging
     if (userId) {
-      await this.auditService.log('UPDATE', 'supplier_product', id, userId, existing, dto)
+      await this.logAudit('UPDATE', 'supplier_product', id, userId, existing, dto)
     }
 
     logInfo('Supplier product updated', { id, userId })
@@ -195,7 +200,7 @@ export class SupplierProductsService {
 
     // Audit logging
     if (userId) {
-      await this.auditService.log('DELETE', 'supplier_product', id, userId, existing)
+      await this.logAudit('DELETE', 'supplier_product', id, userId, existing)
     }
 
     logInfo('Supplier product deleted', { id, userId })
@@ -212,7 +217,7 @@ export class SupplierProductsService {
 
     // Audit logging
     if (userId) {
-      await this.auditService.log('RESTORE', 'supplier_product', id, userId, undefined, restored)
+      await this.logAudit('RESTORE', 'supplier_product', id, userId, undefined, restored)
     }
 
     logInfo('Supplier product restored', { id, userId })
@@ -227,7 +232,7 @@ export class SupplierProductsService {
     await this.repository.bulkRestore(ids)
 
     if (userId) {
-      await this.auditService.log('RESTORE', 'supplier_product', ids.join(','), userId)
+      await this.logAudit('RESTORE', 'supplier_product', ids.join(','), userId)
     }
 
     logInfo('Bulk restore supplier products', { count: ids.length, userId })
@@ -245,7 +250,7 @@ export class SupplierProductsService {
 
     // Audit logging
     if (userId) {
-      await this.auditService.log('DELETE', 'supplier_product', ids.join(','), userId)
+      await this.logAudit('DELETE', 'supplier_product', ids.join(','), userId)
     }
 
     logInfo('Bulk delete supplier products', { count: ids.length, userId })

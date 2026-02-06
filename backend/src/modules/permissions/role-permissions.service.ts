@@ -7,7 +7,7 @@ import { RolePermissionsRepository } from './role-permissions.repository'
 import { PermissionService as CorePermissionService } from '../../services/permission.service'
 import { PermissionsCache } from './permissions.cache'
 import { logError } from '../../config/logger'
-import { OperationalError } from './permissions.errors'
+import { PermissionsError } from './permissions.errors'
 import type { UpdateRolePermissionsDto, PermissionMatrix } from './permissions.types'
 
 export class RolePermissionsService {
@@ -39,8 +39,8 @@ export class RolePermissionsService {
       return result
     } catch (error: any) {
       logError('Failed to update role permission', { error: error.message })
-      if (error instanceof OperationalError) throw error
-      throw new OperationalError(error.message || 'Failed to update role permission', 500)
+      if (error instanceof PermissionsError) throw error
+      throw new PermissionsError('PERMISSION_UPDATE_ERROR', error.message || 'Failed to update role permission', 500)
     }
   }
 
@@ -55,12 +55,12 @@ export class RolePermissionsService {
   }
 
   async getMyPermissions(userId: string): Promise<PermissionMatrix> {
-    if (!userId) throw new OperationalError('User ID required', 400)
+    if (!userId) throw new PermissionsError('USER_ID_REQUIRED', 'User ID required', 400)
     
     try {
       // Get employee by user_id
       const employee = await this.repository.getEmployeeByUserId(userId)
-      if (!employee) throw new OperationalError('Employee not found', 404)
+      if (!employee) throw new PermissionsError('EMPLOYEE_NOT_FOUND', 'Employee not found', 404)
 
       // Get employee's role from employee_branches (use first active branch)
       const roleId = await this.repository.getEmployeeRoleId(employee.id)
@@ -85,8 +85,8 @@ export class RolePermissionsService {
       return result
     } catch (error: any) {
       logError('Failed to get user permissions', { error: error.message, userId })
-      if (error instanceof OperationalError) throw error
-      throw new OperationalError('Failed to get user permissions', 500)
+      if (error instanceof PermissionsError) throw error
+      throw new PermissionsError('GET_PERMISSIONS_ERROR', 'Failed to get user permissions', 500)
     }
   }
 }

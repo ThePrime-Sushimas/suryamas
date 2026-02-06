@@ -7,7 +7,7 @@ import { ModulesRepository } from './modules.repository'
 import { PermissionService as CorePermissionService } from '../../services/permission.service'
 import { PermissionsCache } from './permissions.cache'
 import { logError } from '../../config/logger'
-import { OperationalError } from './permissions.errors'
+import { PermissionsError } from './permissions.errors'
 import type { CreateModuleDto } from './permissions.types'
 
 export class ModulesService {
@@ -45,15 +45,15 @@ export class ModulesService {
         dto.description ?? ''
       )
       if (!module) {
-        throw new OperationalError('Failed to create module', 500)
+        throw new PermissionsError('MODULE_CREATE_FAILED', 'Failed to create module', 500)
       }
       PermissionsCache.invalidateModules()
       await CorePermissionService.invalidateAllCache()
       return module
     } catch (error: any) {
       logError('Failed to create module', { error: error.message })
-      if (error instanceof OperationalError) throw error
-      throw new OperationalError(error.message || 'Failed to create module', 500)
+      if (error instanceof PermissionsError) throw error
+      throw new PermissionsError('MODULE_CREATE_ERROR', error.message || 'Failed to create module', 500)
     }
   }
 

@@ -104,8 +104,7 @@ export class PricelistsRepository {
     companyId: string,
     supplierId: string,
     productId: string,
-    uomId: string,
-    excludeId?: string
+    uomId: string
   ): Promise<Pricelist | null> {
     let query = supabase
       .from('pricelists')
@@ -118,17 +117,13 @@ export class PricelistsRepository {
       .in('status', ['APPROVED'])
       .is('deleted_at', null)
 
-    if (excludeId) {
-      query = query.neq('id', excludeId)
-    }
-
     const { data, error } = await query.maybeSingle()
 
     if (error) throw new Error(error.message)
     return data
   }
 
-  async create(data: CreatePricelistDto & { created_by?: string }): Promise<Pricelist> {
+  async create(data: CreatePricelistDto): Promise<Pricelist> {
     const insertData = {
       company_id: data.company_id,
       supplier_id: data.supplier_id,

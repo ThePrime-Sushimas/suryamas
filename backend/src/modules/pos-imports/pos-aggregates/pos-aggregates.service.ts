@@ -317,12 +317,8 @@ export class PosAggregatesService {
       data.source_ref,
     );
 
-    if (exists) {
-      throw AggregatedTransactionErrors.DUPLICATE_SOURCE(
-        data.source_type,
-        data.source_id,
-        data.source_ref,
-      );
+if (exists) {
+      throw AggregatedTransactionErrors.DUPLICATE_SOURCE();
     }
 
     // Get fee configuration from payment method
@@ -551,8 +547,8 @@ bill_after_discount: updates.bill_after_discount,
       throw AggregatedTransactionErrors.ALREADY_RECONCILED(id);
     }
 
-    if (!existing.journal_id) {
-      throw AggregatedTransactionErrors.NO_JOURNAL_ASSIGNED(id);
+if (!existing.journal_id) {
+      throw AggregatedTransactionErrors.NO_JOURNAL_ASSIGNED();
     }
 
     logInfo("Reconciling transaction", { id, reconciled_by: reconciledBy });

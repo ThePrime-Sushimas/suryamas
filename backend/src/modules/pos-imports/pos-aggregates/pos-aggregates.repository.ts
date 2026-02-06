@@ -272,14 +272,10 @@ bill_after_discount,
       .select()
       .single()
 
-    if (error) {
+if (error) {
       // Check for unique constraint violation
       if (error.code === '23505') {
-        throw AggregatedTransactionErrors.DUPLICATE_SOURCE(
-          data.source_type,
-          data.source_id,
-          data.source_ref
-        )
+        throw AggregatedTransactionErrors.DUPLICATE_SOURCE()
       }
       throw new DatabaseError('Failed to create aggregated transaction', { cause: error })
     }

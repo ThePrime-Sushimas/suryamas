@@ -22,7 +22,12 @@ export { RolePermissionsRepository } from './role-permissions.repository'
 export { PermissionsCache } from './permissions.cache'
 
 // Errors
-export { OperationalError, NotFoundError, ConflictError, ValidationError } from './permissions.errors'
+export { 
+  PermissionsError as OperationalError, 
+  NotFoundError, 
+  ConflictError, 
+  ValidationError 
+} from './permissions.errors'
 
 // Types
 export * from './permissions.types'
