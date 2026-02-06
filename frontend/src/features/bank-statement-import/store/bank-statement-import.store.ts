@@ -508,10 +508,36 @@ export const useBankStatementImportStore = create<BankStatementImportState>((set
     
     set({ loading: { ...get().loading, delete: true } })
     try {
-      // Delete each import one by one
-      await Promise.all(ids.map(id => bankStatementImportApi.delete(id)))
+      // Sequential deletion untuk better error handling
+      // Jika satu gagal, yang lain tetap diproses
+      const errors: string[] = []
+      for (const id of ids) {
+        try {
+          await bankStatementImportApi.delete(id)
+        } catch (err) {
+          const errorMsg = getErrorMessage(err)
+          errors.push(`ID ${id}: ${errorMsg}`)
+          // Continue dengan item berikutnya
+        }
+      }
+      
+      // Refresh list setelah semua operasi selesai
       await get().fetchImports()
+      
+      // Clear selection
       set({ selectedIds: new Set<number>() })
+      
+      // Jika ada errors, throw agar UI bisa menampilkan feedback
+      if (errors.length > 0) {
+        const errorMessage = `${errors.length} dari ${ids.length} item gagal dihapus. ${errors.join('; ')}`
+        set({
+          errors: {
+            ...get().errors,
+            general: errorMessage,
+          },
+        })
+        throw new Error(errorMessage)
+      }
     } finally {
       set({ loading: { ...get().loading, delete: false } })
     }

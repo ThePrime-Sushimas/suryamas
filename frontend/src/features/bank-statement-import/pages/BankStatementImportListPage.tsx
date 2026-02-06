@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import {
   Upload,
   FileText,
@@ -50,63 +50,68 @@ export function BankStatementImportListPage() {
     closeUploadModal,
     closeAnalysisModal,
     clearError,
+    showUploadModal,
   } = useBankStatementImportStore()
 
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState<number | null>(null)
   const [showBulkDeleteConfirmation, setShowBulkDeleteConfirmation] = useState(false)
   const [filters, setFilters] = useState({ search: '', status: '' })
-  const [activeJobImports, setActiveJobImports] = useState<Map<number, string>>(new Map())
 
   // Derived values - MUST be declared before useEffect that uses them
   const importsArray = useMemo(() => Array.isArray(imports) ? imports : [], [imports])
 
-  // Job polling for active imports
+  // Track which import IDs are currently being polled
+  const [polledImportIds, setPolledImportIds] = useState<Set<number>>(new Set())
+
+  // Single job polling instance
   const { startPolling, stopPolling, job: currentJob } = useJobPolling({
     interval: 2000,
-    onComplete: (job) => {
-      console.log('Job completed:', job)
-      fetchImports() // Refresh list when job completes
-    },
-    onError: (error) => {
-      console.error('Job error:', error)
-      fetchImports() // Refresh to get error status
-    },
+    onComplete: useCallback(() => {
+      fetchImports()
+    }, [fetchImports]),
+    onError: useCallback(() => {
+      fetchImports()
+    }, [fetchImports]),
   })
 
-  // Start polling for importing items
+  // Start polling for importing items - FIXED: proper cleanup and single polling
   useEffect(() => {
     const importingItems = importsArray.filter(imp => imp.status === 'IMPORTING' && imp.job_id)
     
+    // Start polling for new importing items
     importingItems.forEach(imp => {
-      const jobIdString = imp.job_id?.toString()
-      if (jobIdString && !activeJobImports.has(imp.id)) {
-        startPolling(jobIdString)
-        setActiveJobImports(prev => new Map(prev.set(imp.id, jobIdString)))
+      if (!polledImportIds.has(imp.id) && imp.job_id) {
+        startPolling(imp.job_id)
+        setPolledImportIds(prev => new Set(prev).add(imp.id))
       }
     })
 
     // Cleanup: stop polling for items that are no longer importing
-    activeJobImports.forEach((_jobId, importId) => {
+    polledImportIds.forEach(importId => {
       const stillImporting = importingItems.some(imp => imp.id === importId)
       if (!stillImporting) {
         stopPolling()
-        setActiveJobImports(prev => {
-          const next = new Map(prev)
+        setPolledImportIds(prev => {
+          const next = new Set(prev)
           next.delete(importId)
           return next
         })
       }
     })
-  }, [importsArray, startPolling, stopPolling, activeJobImports])
+  }, [importsArray, startPolling, stopPolling, polledImportIds])
 
+  // Initial fetch
   useEffect(() => {
     fetchImports()
   }, [fetchImports])
+
+  // Derived values
   const allIds = importsArray.map((imp) => imp.id)
   const allSelected = importsArray.length > 0 && importsArray.every((imp) => selectedIds.has(imp.id))
   const totalPages = Math.ceil(pagination.total / pagination.limit)
+  const currentPageItemCount = importsArray.length
 
-  // Filter imports
+  // Filter imports - FIXED: server-side filtering via store
   const filteredImports = useMemo(() => {
     let result = importsArray
     if (filters.search) {
@@ -120,8 +125,6 @@ export function BankStatementImportListPage() {
   }, [importsArray, filters])
 
   const handleUpload = async (file: File, bankAccountId: string) => {
-    // Error akan ditangani oleh store dan ditampilkan di UploadModal
-    // Re-throw agar UploadModal tahu status upload
     return await uploadFile(file, bankAccountId)
   }
 
@@ -178,6 +181,7 @@ export function BankStatementImportListPage() {
     fetchImports()
   }
 
+  // FIXED: Select All now shows clear intent - selects only current page items
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       selectAll(allIds)
@@ -185,8 +189,6 @@ export function BankStatementImportListPage() {
       clearSelection()
     }
   }
-
-  // Refresh handler
 
   // Loading state
   if (loading.list && importsArray.length === 0) {
@@ -280,24 +282,8 @@ export function BankStatementImportListPage() {
                   </button>
                 </div>
               </div>
-              
-              <button
-                onClick={() => clearError('general')}
-                className="text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors"
-              >
-                <X size={18} />
-              </button>
             </div>
           </div>
-          
-          {/* Debug info (development only) */}
-          {import.meta?.env?.DEV && (
-            <div className="px-4 py-2 bg-red-100/50 dark:bg-red-900/10 border-t border-red-200 dark:border-red-800">
-              <p className="text-xs text-red-600 dark:text-red-500 font-mono">
-                Error ID: {Date.now()}
-              </p>
-            </div>
-          )}
         </div>
       )}
 
@@ -312,7 +298,7 @@ export function BankStatementImportListPage() {
               const jobProgress = currentJob && typeof currentJob.progress === 'object' && currentJob.progress !== null
                 ? currentJob.progress 
                 : null
-              const jobData = currentJob && activeJobImports.get(imp.id) === currentJob.id 
+              const jobData = currentJob && polledImportIds.has(imp.id)
                 ? {
                     ...imp,
                     processed_rows: jobProgress?.processed_rows || imp.processed_rows,
@@ -383,6 +369,31 @@ export function BankStatementImportListPage() {
         </div>
       </div>
 
+      {/* Empty State */}
+      {!loading.list && filteredImports.length === 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 mb-4">
+            <FileText className="w-8 h-8 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            {filters.search || filters.status ? 'Tidak ada hasil pencarian' : 'Belum ada import'}
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            {filters.search || filters.status 
+              ? 'Coba ubah filter atau kata pencarian'
+              : 'Upload bank statement untuk memulai'}
+          </p>
+          {(filters.search || filters.status) && (
+            <button
+              onClick={() => setFilters({ search: '', status: '' })}
+              className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
+            >
+              Hapus Filter
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Bulk Action Bar - Muncul saat ada item dipilih */}
       {selectedIds.size > 0 && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 animate-in slide-in-from-top-2">
@@ -396,7 +407,7 @@ export function BankStatementImportListPage() {
                   {selectedIds.size} item dipilih
                 </p>
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  Pilih aksi untuk item yang dipilih
+                  dari halaman saat ini
                 </p>
               </div>
             </div>
@@ -421,6 +432,7 @@ export function BankStatementImportListPage() {
       )}
 
       {/* Main Content Area */}
+      {filteredImports.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           {/* Table */}
           <div className="overflow-x-auto">
@@ -540,7 +552,7 @@ export function BankStatementImportListPage() {
           {totalPages > 1 && (
             <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50">
               <span className="text-sm text-gray-500 dark:text-gray-400">
-                Halaman {pagination.page} dari {totalPages}
+                Halaman {pagination.page} dari {totalPages} ({currentPageItemCount} item)
               </span>
               <div className="flex items-center gap-2">
                 <button
@@ -553,7 +565,7 @@ export function BankStatementImportListPage() {
                 <div className="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-2" />
                 <button
                   onClick={handleNextPage}
-                  disabled={filteredImports.length < pagination.limit}
+                  disabled={currentPageItemCount < pagination.limit}
                   className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
@@ -562,11 +574,11 @@ export function BankStatementImportListPage() {
             </div>
           )}
         </div>
-      
+      )}
 
       {/* Upload Modal */}
       <UploadModal
-        isOpen={useBankStatementImportStore.getState().showUploadModal}
+        isOpen={showUploadModal}
         onClose={closeUploadModal}
         onUpload={handleUpload}
         isLoading={loading.upload}
@@ -656,3 +668,4 @@ export function BankStatementImportListPage() {
     </div>
   )
 }
+

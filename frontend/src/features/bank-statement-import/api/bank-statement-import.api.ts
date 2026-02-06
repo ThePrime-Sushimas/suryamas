@@ -6,7 +6,8 @@ import type {
   BankStatementPreviewRow,
 } from '../types/bank-statement-import.types'
 
-interface ListResponse {
+// List response structure from backend - consistent pagination structure
+interface PaginatedImportResponse {
   data: BankStatementImport[]
   total: number
   page: number
@@ -17,12 +18,11 @@ interface ListResponse {
 }
 
 export const bankStatementImportApi = {
-  async list(params: { page?: number; limit?: number } & BankStatementImportFilters = {}): Promise<ListResponse> {
+  async list(params: { page?: number; limit?: number } & BankStatementImportFilters = {}): Promise<PaginatedImportResponse> {
     const response = await api.get('/bank-statement-imports', {
       params,
     })
     // Backend returns: { success: true, data: { data: [...], total, page, limit, ... } }
-    // So response.data.data = array of imports with pagination
     return response.data.data
   },
 
@@ -47,7 +47,7 @@ export const bankStatementImportApi = {
     return response.data.data
   },
 
-  async confirm(id: number, payload: { skip_duplicates: boolean }): Promise<{ job_id?: string }> {
+  async confirm(id: number, payload: { skip_duplicates: boolean }): Promise<{ job_id: string }> {
     const response = await api.post(`/bank-statement-imports/${id}/confirm`, payload)
     return response.data.data
   },
@@ -56,7 +56,7 @@ export const bankStatementImportApi = {
     await api.post(`/bank-statement-imports/${id}/cancel`)
   },
 
-  async retry(id: number): Promise<{ job_id?: string }> {
+  async retry(id: number): Promise<{ job_id: string }> {
     const response = await api.post(`/bank-statement-imports/${id}/retry`)
     return response.data.data
   },

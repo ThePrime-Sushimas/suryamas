@@ -24,14 +24,13 @@ export interface BankStatementImport {
   failed_rows: number
   date_range_start?: string
   date_range_end?: string
-  // Frontend alias fields for compatibility
-  date_from?: string
-  date_to?: string
   created_at: string
   updated_at: string
   error_message?: string
   error_details?: Record<string, unknown> | null
-  job_id?: string | null
+  // job_id is a string from backend (UUID), not nullable
+  // API response returns: { job_id: "uuid-string" }
+  job_id?: string
   // Analysis data stored in database
   analysis_data?: {
     preview?: BankStatementPreviewRow[]
