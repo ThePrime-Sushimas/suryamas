@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import ReactDOM from 'react-dom'
 import {
   AlertTriangle,
@@ -37,31 +37,96 @@ export function AnalysisModal({
   const [skipDuplicates, setSkipDuplicates] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
 
+  // Process result data with useMemo before any early returns
+  const processedData = useMemo(() => {
+    if (!result) {
+      return {
+        imp: null,
+        duplicateCount: 0,
+        total_rows: 0,
+        valid_rows: 0,
+        invalid_rows: 0,
+        pendingCount: 0,
+        preview: [],
+        duplicates: [],
+        invalidRows: [],
+        warnings: [],
+      }
+    }
+
+    const { import: imp, summary, stats, warnings: resultWarnings, duplicates: resultDuplicates, analysis } = result
+
+    // Calculate duplicate count
+    const duplicateCount = analysis?.duplicate_count 
+      ?? analysis?.duplicates?.length 
+      ?? resultDuplicates?.length 
+      ?? summary?.duplicate_count 
+      ?? stats?.duplicate_rows 
+      ?? 0
+
+    // Use summary or stats for data
+    const total_rows = summary?.total_statements || stats?.total_rows || 0
+    const valid_rows = stats?.valid_rows || 0
+    const invalid_rows = stats?.invalid_rows || 0
+    
+    // Calculate pending (rows that are not valid and not invalid)
+    const pendingCount = total_rows - valid_rows - invalid_rows
+    
+    // For preview, use analysis.preview (from upload) or summary.preview (from summary endpoint)
+    const rawPreview = analysis?.preview || summary?.preview || []
+    const warnings = resultWarnings || []
+    
+    // Get duplicates and invalid rows for preview
+    const duplicates = analysis?.duplicates || resultDuplicates || []
+    const invalidRows = analysis?.errors || []
+    
+    // Get row numbers that are duplicates
+    const duplicateRowNumbers = new Set<number>()
+    duplicates.forEach((dup: unknown) => {
+      const d = dup as { row_numbers?: number[]; row_number?: number }
+      if (d.row_numbers && Array.isArray(d.row_numbers)) {
+        d.row_numbers.forEach(num => duplicateRowNumbers.add(num))
+      } else if (d.row_number) {
+        duplicateRowNumbers.add(d.row_number)
+      }
+    })
+    
+    // Filter preview to only show valid (non-duplicate) rows
+    const preview = Array.isArray(rawPreview) 
+      ? rawPreview.filter((row: unknown) => {
+          const r = row as { row_number?: number }
+          return !duplicateRowNumbers.has(r.row_number || 0)
+        })
+      : []
+
+    return {
+      imp,
+      duplicateCount,
+      total_rows,
+      valid_rows,
+      invalid_rows,
+      pendingCount,
+      preview,
+      duplicates,
+      invalidRows,
+      warnings,
+    }
+  }, [result])
+
   if (!result) return null
 
-  const { import: imp, summary, stats, warnings: resultWarnings, duplicates: resultDuplicates, analysis } = result
-
-  // Calculate duplicate count
-  // Endpoint /upload returns: analysis.duplicate_count or analysis.duplicates.length
-  // Endpoint /summary returns: summary.duplicate_count or duplicates array
-  const duplicateCount = analysis?.duplicate_count 
-    ?? analysis?.duplicates?.length 
-    ?? resultDuplicates?.length 
-    ?? summary?.duplicate_count 
-    ?? stats?.duplicate_rows 
-    ?? 0
-
-  // Use summary or stats for data
-  const total_rows = summary?.total_statements || stats?.total_rows || 0
-  const valid_rows = stats?.valid_rows || 0
-  const invalid_rows = stats?.invalid_rows || 0
-  
-  // Calculate pending (rows that are not valid and not invalid)
-  const pendingCount = total_rows - valid_rows - invalid_rows
-  
-  // For preview, use summary.preview
-  const preview = summary?.preview || []
-  const warnings = resultWarnings || []
+  const { 
+    imp, 
+    duplicateCount, 
+    total_rows, 
+    valid_rows, 
+    invalid_rows, 
+    pendingCount, 
+    preview, 
+    duplicates, 
+    invalidRows, 
+    warnings 
+  } = processedData
 
   // Calculate percentages
   const validPercentage = total_rows > 0 ? Math.round((valid_rows / total_rows) * 100) : 0
@@ -156,11 +221,11 @@ export function AnalysisModal({
                 </div>
                 <div className="min-w-0">
                   <p className="font-bold text-gray-900 dark:text-white truncate text-lg">
-                    {imp.file_name}
+                    {imp?.file_name || '-'}
                   </p>
                   <div className="flex items-center gap-3 mt-1.5">
                     <span className="text-xs font-mono text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                      {formatFileSize(imp.file_size || 0)}
+                      {formatFileSize(imp?.file_size || 0)}
                     </span>
                     <span className="text-xs text-gray-400">•</span>
                     <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
@@ -277,7 +342,13 @@ export function AnalysisModal({
           {/* Tab Content */}
           <div className="min-h-[300px]">
             {activeTab === 'summary' && <AnalysisSummary result={result} />}
-            {activeTab === 'preview' && <AnalysisPreview previewData={preview} validRows={valid_rows} />}
+            {activeTab === 'preview' && (
+              <AnalysisPreview 
+                previewData={preview} 
+                duplicates={duplicates}
+                invalidRows={invalidRows}
+              />
+            )}
             {activeTab === 'warnings' && <AnalysisWarnings warnings={warnings} duplicateCount={duplicateCount} />}
           </div>
           </div>
@@ -362,4 +433,3 @@ export function AnalysisModal({
 
   return ReactDOM.createPortal(modalContent, document.body)
 }
-
