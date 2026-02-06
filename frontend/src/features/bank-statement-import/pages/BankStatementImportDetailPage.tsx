@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -9,7 +9,11 @@ import {
   Upload,
   Loader2,
   Maximize2,
-  X
+  X,
+  Eye,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle
 } from 'lucide-react'
 import { bankStatementImportApi } from '../api/bank-statement-import.api'
 import { StatusBadge } from '../components/common/StatusBadge'
@@ -48,6 +52,9 @@ function BankStatementImportDetailPageContent() {
   const [showDescriptionModal, setShowDescriptionModal] = useState(false)
   const [selectedDescription, setSelectedDescription] = useState<string>('')
   const [selectedRowInfo, setSelectedRowInfo] = useState<{ rowNumber: number; date: string } | null>(null)
+  
+  // Tab state for preview
+  const [activePreviewTab, setActivePreviewTab] = useState<'all' | 'valid' | 'duplicate' | 'invalid'>('all')
 
   // Go back handler
   const goBack = () => {
@@ -154,6 +161,42 @@ function BankStatementImportDetailPageContent() {
 
   // Check if can import (status is ANALYZED)
   const canImport = importData?.status === 'ANALYZED'
+
+  // Get duplicate row numbers for filtering
+  const duplicateRowNumbers = useMemo(() => {
+    const rowNums = new Set<number>()
+    analysisResult?.duplicates?.forEach((dup: unknown) => {
+      const d = dup as { row_numbers?: number[]; row_number?: number }
+      if (d.row_numbers && Array.isArray(d.row_numbers)) {
+        d.row_numbers.forEach(num => rowNums.add(num))
+      } else if (d.row_number) {
+        rowNums.add(d.row_number)
+      }
+    })
+    return rowNums
+  }, [analysisResult?.duplicates])
+
+  // Filter preview rows based on active tab
+  const filteredPreviewRows = useMemo(() => {
+    if (!previewRows) return []
+    
+    switch (activePreviewTab) {
+      case 'valid':
+        return previewRows.filter(row => row.is_valid && !duplicateRowNumbers.has(row.row_number))
+      case 'duplicate':
+        return previewRows.filter(row => duplicateRowNumbers.has(row.row_number))
+      case 'invalid':
+        return previewRows.filter(row => !row.is_valid)
+      case 'all':
+      default:
+        return previewRows
+    }
+  }, [previewRows, activePreviewTab, duplicateRowNumbers])
+
+  // Count rows by status
+  const validCount = previewRows?.filter(row => row.is_valid && !duplicateRowNumbers.has(row.row_number)).length || 0
+  const duplicateCount = previewRows?.filter(row => duplicateRowNumbers.has(row.row_number)).length || 0
+  const invalidCount = previewRows?.filter(row => !row.is_valid).length || 0
 
   // Open description modal
   const openDescriptionModal = (description: string, rowNumber: number, date: string) => {
@@ -477,26 +520,124 @@ function BankStatementImportDetailPageContent() {
         </div>
       )}
 
-      {/* Analysis Preview */}
+      {/* Analysis Preview with Tabs */}
       {(() => {
-        // Use previewRows state first, fallback to analysisResult.summary.preview
-        const preview = previewRows || analysisResult?.summary?.preview
-        if (!preview || preview.length === 0) return null
+        if (!previewRows || previewRows.length === 0) return null
         
         return (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Pratinjau Data
                 </h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Menampilkan semua {importData.total_rows?.toLocaleString() || 0} data
+                  Menampilkan {filteredPreviewRows.length.toLocaleString()} dari {importData.total_rows?.toLocaleString() || 0} data
                 </p>
               </div>
             </div>
+            
+            {/* Tab Navigation */}
+            <div className="flex gap-2 overflow-x-auto scrollbar-thin">
+              <button
+                onClick={() => setActivePreviewTab('all')}
+                className={`
+                  px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap
+                  ${activePreviewTab === 'all' 
+                    ? 'bg-linear-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' 
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }
+                `}
+              >
+                <Eye className="w-4 h-4" />
+                Semua
+                <span className={`
+                  text-xs px-2 py-0.5 rounded-full font-bold
+                  ${activePreviewTab === 'all' 
+                    ? 'bg-white/20 text-white' 
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                  }
+                `}>
+                  {previewRows.length}
+                </span>
+              </button>
+              
+              <button
+                onClick={() => setActivePreviewTab('valid')}
+                className={`
+                  px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap
+                  ${activePreviewTab === 'valid' 
+                    ? 'bg-linear-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/25' 
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }
+                `}
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Valid
+                <span className={`
+                  text-xs px-2 py-0.5 rounded-full font-bold
+                  ${activePreviewTab === 'valid' 
+                    ? 'bg-white/20 text-white' 
+                    : 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300'
+                  }
+                `}>
+                  {validCount}
+                </span>
+              </button>
+              
+              {duplicateCount > 0 && (
+                <button
+                  onClick={() => setActivePreviewTab('duplicate')}
+                  className={`
+                    px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap
+                    ${activePreviewTab === 'duplicate' 
+                      ? 'bg-linear-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25' 
+                      : 'text-amber-600 hover:text-amber-700 dark:text-amber-500 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/10'
+                    }
+                  `}
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  Duplikat
+                  <span className={`
+                    text-xs px-2 py-0.5 rounded-full font-bold
+                    ${activePreviewTab === 'duplicate' 
+                      ? 'bg-white/20 text-white' 
+                      : 'bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-300'
+                    }
+                  `}>
+                    {duplicateCount}
+                  </span>
+                </button>
+              )}
+              
+              {invalidCount > 0 && (
+                <button
+                  onClick={() => setActivePreviewTab('invalid')}
+                  className={`
+                    px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap
+                    ${activePreviewTab === 'invalid' 
+                      ? 'bg-linear-to-r from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-500/25' 
+                      : 'text-rose-600 hover:text-rose-700 dark:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/10'
+                    }
+                  `}
+                >
+                  <XCircle className="w-4 h-4" />
+                  Invalid
+                  <span className={`
+                    text-xs px-2 py-0.5 rounded-full font-bold
+                    ${activePreviewTab === 'invalid' 
+                      ? 'bg-white/20 text-white' 
+                      : 'bg-rose-100 dark:bg-rose-800 text-rose-700 dark:text-rose-300'
+                    }
+                  `}>
+                    {invalidCount}
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
+          
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-700">
@@ -519,43 +660,67 @@ function BankStatementImportDetailPageContent() {
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Saldo
                   </th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Status
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {preview.map((row, index) => (
-                  <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                      {row.row_number}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                      {row.transaction_date
-                        ? format(new Date(row.transaction_date), 'dd/MM/yyyy', { locale: idLocale })
-                        : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-sm truncate">
-                      <button
-                        onClick={() => openDescriptionModal(row.description || '-', row.row_number, row.transaction_date)}
-                        className="flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors w-full"
-                      >
-                        <span className="truncate flex-1 text-left">
-                          {row.description || '-'}
+                {filteredPreviewRows.map((row, index) => {
+                  const isDuplicate = duplicateRowNumbers.has(row.row_number)
+                  const status = !row.is_valid ? 'INVALID' : isDuplicate ? 'DUPLICATE' : 'VALID'
+                  
+                  return (
+                    <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                        {row.row_number}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                        {row.transaction_date
+                          ? format(new Date(row.transaction_date), 'dd/MM/yyyy', { locale: idLocale })
+                          : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-sm truncate">
+                        <button
+                          onClick={() => openDescriptionModal(row.description || '-', row.row_number, row.transaction_date)}
+                          className="flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors w-full"
+                        >
+                          <span className="truncate flex-1 text-left">
+                            {row.description || '-'}
+                          </span>
+                          {(row.description || '').length > 50 && (
+                            <Maximize2 className="w-4 h-4 shrink-0 opacity-50" />
+                          )}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-mono text-red-600 dark:text-red-400">
+                        {row.debit_amount > 0 ? formatCurrency(row.debit_amount) : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-mono text-green-600 dark:text-green-400">
+                        {row.credit_amount > 0 ? formatCurrency(row.credit_amount) : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-mono text-gray-900 dark:text-white">
+                        {row.balance !== undefined && row.balance !== null ? formatCurrency(row.balance) : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`
+                          inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold
+                          ${status === 'VALID' 
+                            ? 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300' 
+                            : status === 'DUPLICATE'
+                              ? 'bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-300'
+                              : 'bg-rose-100 dark:bg-rose-800 text-rose-700 dark:text-rose-300'
+                          }
+                        `}>
+                          {status === 'VALID' && <CheckCircle2 className="w-3 h-3" />}
+                          {status === 'DUPLICATE' && <AlertTriangle className="w-3 h-3" />}
+                          {status === 'INVALID' && <XCircle className="w-3 h-3" />}
+                          {status}
                         </span>
-                        {(row.description || '').length > 50 && (
-                          <Maximize2 className="w-4 h-4 shrink-0 opacity-50" />
-                        )}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right font-mono text-red-600 dark:text-red-400">
-                      {row.debit_amount > 0 ? formatCurrency(row.debit_amount) : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right font-mono text-green-600 dark:text-green-400">
-                      {row.credit_amount > 0 ? formatCurrency(row.credit_amount) : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right font-mono text-gray-900 dark:text-white">
-                      {row.balance !== undefined && row.balance !== null ? formatCurrency(row.balance) : '-'}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -627,4 +792,3 @@ export function BankStatementImportDetailPage() {
 }
 
 export default BankStatementImportDetailPage
-
