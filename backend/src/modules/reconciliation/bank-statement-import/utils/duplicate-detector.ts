@@ -192,8 +192,119 @@ export class DuplicateDetector {
 
     return duplicates
   }
+
+  /**
+   * Detect duplicates within the same file (intra-file duplicates)
+   * This catches duplicates that exist in the uploaded file itself
+   */
+  detectIntraFileDuplicates(
+    rows: ParsedBankStatementRow[],
+    threshold?: number
+  ): BankStatementDuplicate[] {
+    const duplicates: BankStatementDuplicate[] = []
+    const matchThreshold = threshold || this.threshold
+    const processedRows: ParsedBankStatementRow[] = []
+
+    for (const row of rows) {
+      // Check against previously processed rows in the same file
+      for (const processedRow of processedRows) {
+        const matchScore = this.calculateIntraFileMatchScore(row, processedRow)
+
+        if (matchScore >= matchThreshold) {
+          const debitAmount = typeof row.debit_amount === 'number'
+            ? row.debit_amount
+            : parseFloat(String(row.debit_amount || 0))
+          const creditAmount = typeof row.credit_amount === 'number'
+            ? row.credit_amount
+            : parseFloat(String(row.credit_amount || 0))
+
+          duplicates.push({
+            reference_number: row.reference_number || processedRow.reference_number,
+            transaction_date: String(row.transaction_date),
+            debit_amount: debitAmount,
+            credit_amount: creditAmount,
+            existing_import_id: 0, // 0 indicates intra-file duplicate
+            existing_statement_id: 0, // 0 indicates intra-file duplicate
+            row_numbers: [row.row_number, processedRow.row_number],
+          })
+        }
+      }
+
+      // Add current row to processed rows
+      processedRows.push(row)
+    }
+
+    // Remove duplicate entries (keep unique combinations)
+    const uniqueDuplicates = duplicates.filter((dup, index, self) =>
+      index === self.findIndex((d) =>
+        d.transaction_date === dup.transaction_date &&
+        d.debit_amount === dup.debit_amount &&
+        d.credit_amount === dup.credit_amount &&
+        d.reference_number === dup.reference_number
+      )
+    )
+
+    if (uniqueDuplicates.length > 0) {
+      logWarn('DuplicateDetector: Found intra-file duplicates', { count: uniqueDuplicates.length })
+    }
+
+    return uniqueDuplicates
+  }
+
+  /**
+   * Calculate match score for intra-file comparison
+   * More strict than cross-file comparison
+   */
+  private calculateIntraFileMatchScore(
+    row1: ParsedBankStatementRow,
+    row2: ParsedBankStatementRow
+  ): number {
+    let score = 0
+
+    // Date match (35 points) - must be exact
+    if (String(row1.transaction_date) === String(row2.transaction_date)) {
+      score += 35
+    }
+
+    // Amount match (45 points) - must be exact
+    const row1Debit = typeof row1.debit_amount === 'number'
+      ? row1.debit_amount
+      : parseFloat(String(row1.debit_amount || 0))
+    const row1Credit = typeof row1.credit_amount === 'number'
+      ? row1.credit_amount
+      : parseFloat(String(row1.credit_amount || 0))
+    const row2Debit = typeof row2.debit_amount === 'number'
+      ? row2.debit_amount
+      : parseFloat(String(row2.debit_amount || 0))
+    const row2Credit = typeof row2.credit_amount === 'number'
+      ? row2.credit_amount
+      : parseFloat(String(row2.credit_amount || 0))
+
+    if (row1Debit === row2Debit && row1Credit === row2Credit) {
+      score += 45
+    }
+
+    // Reference number match (20 points)
+    if (row1.reference_number && row2.reference_number &&
+        row1.reference_number === row2.reference_number) {
+      score += 20
+    }
+
+    // Description similarity (10 points) - higher weight for intra-file
+    if (row1.description && row2.description) {
+      const similarity = this.calculateStringSimilarity(
+        String(row1.description).toLowerCase(),
+        String(row2.description).toLowerCase()
+      )
+      // Require high similarity for intra-file duplicates
+      if (similarity > 0.8) {
+        score += 10
+      }
+    }
+
+    return Math.min(score, 100)
+  }
 }
 
 // Export singleton instance
 export const duplicateDetector = new DuplicateDetector()
-

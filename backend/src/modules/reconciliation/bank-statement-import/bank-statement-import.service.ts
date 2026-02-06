@@ -36,6 +36,7 @@ import {
   BANK_PARSING_CONFIG,
   PENDING_TRANSACTION,
 } from './bank-statement-import.constants'
+import { duplicateDetector } from './utils/duplicate-detector'
 import * as XLSX from 'xlsx'
 import fs from 'fs/promises'
 import path from 'path'
@@ -210,12 +211,28 @@ export class BankStatementImportService {
         bankAccountId
       )
 
-      // Check for duplicates
-      const duplicates = await this.detectDuplicates(
+      // Check for duplicates against existing database records
+      const existingDuplicates = await this.detectDuplicates(
         validRows,
         companyId,
         bankAccountId
       )
+
+      // Check for intra-file duplicates (duplicates within the same file)
+      const intraFileDuplicates = duplicateDetector.detectIntraFileDuplicates(
+        validRows.map(r => ({
+          row_number: r.row_number,
+          transaction_date: r.transaction_date,
+          reference_number: r.reference_number,
+          description: r.description,
+          debit_amount: r.debit_amount,
+          credit_amount: r.credit_amount,
+          is_valid: true,
+        }))
+      )
+
+      // Merge duplicates (existing + intra-file)
+      const duplicates = [...existingDuplicates, ...intraFileDuplicates]
 
       // Calculate date range
       const dates = validRows.map(r => new Date(r.transaction_date))
@@ -399,14 +416,31 @@ export class BankStatementImportService {
 
     // Filter duplicates if requested
     if (skipDuplicates) {
-      const duplicates = await this.detectDuplicates(
+      // Check for duplicates against existing database records
+      const existingDuplicates = await this.detectDuplicates(
         validRows,
         companyId,
         importRecord.bank_account_id
       )
 
+      // Check for intra-file duplicates
+      const intraFileDuplicates = duplicateDetector.detectIntraFileDuplicates(
+        validRows.map(r => ({
+          row_number: r.row_number,
+          transaction_date: r.transaction_date,
+          reference_number: r.reference_number,
+          description: r.description,
+          debit_amount: r.debit_amount,
+          credit_amount: r.credit_amount,
+          is_valid: true,
+        }))
+      )
+
+      // Merge all duplicates
+      const allDuplicates = [...existingDuplicates, ...intraFileDuplicates]
+
       const duplicateKeys = new Set(
-        duplicates.map(d => `${d.transaction_date}-${d.reference_number || ''}-${d.debit_amount}-${d.credit_amount}`)
+        allDuplicates.map(d => `${d.transaction_date}-${d.reference_number || ''}-${d.debit_amount}-${d.credit_amount}`)
       )
 
       rowsToInsert = validRows.filter(r => {
@@ -419,6 +453,8 @@ export class BankStatementImportService {
         original_count: validRows.length,
         after_filter: rowsToInsert.length,
         skipped: validRows.length - rowsToInsert.length,
+        existing_duplicates: existingDuplicates.length,
+        intra_file_duplicates: intraFileDuplicates.length,
       })
     }
 
@@ -2001,40 +2037,18 @@ export class BankStatementImportService {
 
     const existingStatements = await this.repository.checkDuplicates(transactions)
 
-    const duplicates: BankStatementDuplicate[] = []
+    // Use the duplicate detector for more robust matching
+    const parsedRows = rows.map(r => ({
+      row_number: r.row_number,
+      transaction_date: r.transaction_date,
+      reference_number: r.reference_number,
+      description: r.description,
+      debit_amount: r.debit_amount,
+      credit_amount: r.credit_amount,
+      is_valid: true,
+    }))
 
-    for (const row of rows) {
-      for (const existing of existingStatements) {
-        const isMatch =
-          row.transaction_date === existing.transaction_date &&
-          row.debit_amount === existing.debit_amount &&
-          row.credit_amount === existing.credit_amount &&
-          (row.reference_number === existing.reference_number || !row.reference_number)
-
-        if (isMatch) {
-          duplicates.push({
-            reference_number: row.reference_number,
-            transaction_date: row.transaction_date,
-            debit_amount: row.debit_amount,
-            credit_amount: row.credit_amount,
-            existing_import_id: existing.import_id || 0,
-            existing_statement_id: existing.id,
-            row_numbers: [row.row_number],
-          })
-        }
-      }
-    }
-
-    const uniqueDuplicates = duplicates.filter((dup, index, self) =>
-      index === self.findIndex(d =>
-        d.transaction_date === dup.transaction_date &&
-        d.debit_amount === dup.debit_amount &&
-        d.credit_amount === dup.credit_amount &&
-        d.reference_number === dup.reference_number
-      )
-    )
-
-    return uniqueDuplicates
+    return duplicateDetector.detectDuplicates(parsedRows, existingStatements)
   }
 
   /**
@@ -2147,4 +2161,3 @@ export const bankStatementImportService = (
 ): BankStatementImportService => {
   return new BankStatementImportService(repository)
 }
-

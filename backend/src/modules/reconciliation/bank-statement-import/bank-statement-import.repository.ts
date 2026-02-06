@@ -385,25 +385,58 @@ export class BankStatementImportRepository {
 
   /**
    * Check for duplicate transactions
+   * Improved to handle empty reference_numbers and match by date + amount + description similarity
    */
-  async checkDuplicates(transactions: { reference_number?: string; transaction_date: string; debit_amount: number; credit_amount: number }[]): Promise<BankStatement[]> {
+  async checkDuplicates(transactions: { reference_number?: string; transaction_date: string; debit_amount: number; credit_amount: number; description?: string }[]): Promise<BankStatement[]> {
     if (transactions.length === 0) return []
 
-    const conditions = transactions.map(t => `reference_number.eq.${t.reference_number || ''},transaction_date.eq.${t.transaction_date},debit_amount.eq.${t.debit_amount},credit_amount.eq.${t.credit_amount}`)
+    // Build conditions for duplicate checking
+    // We check for exact matches on: date + debit + credit
+    // Reference number is used if available, but not required
+    const dateAmountPairs = transactions.map(t => ({
+      transaction_date: t.transaction_date,
+      debit_amount: t.debit_amount,
+      credit_amount: t.credit_amount,
+    }))
 
-    const { data, error } = await supabase
-      .from('bank_statements')
-      .select('id, reference_number, transaction_date, credit_amount, debit_amount, import_id')
-      .or(conditions.join(','))
-      .is('deleted_at', null)
-      .limit(100)
+    // Remove duplicates from dateAmountPairs to reduce query size
+    const uniquePairs = dateAmountPairs.filter((pair, index, self) =>
+      index === self.findIndex(p => 
+        p.transaction_date === pair.transaction_date &&
+        p.debit_amount === pair.debit_amount &&
+        p.credit_amount === pair.credit_amount
+      )
+    )
 
-    if (error) {
-      logError('BankStatementImportRepository.checkDuplicates error', { error: error.message })
-      return []
+    // Query for each unique pair
+    const allDuplicates: BankStatement[] = []
+    
+    for (const pair of uniquePairs) {
+      const { data, error } = await supabase
+        .from('bank_statements')
+        .select('id, reference_number, transaction_date, credit_amount, debit_amount, import_id, description')
+        .eq('transaction_date', pair.transaction_date)
+        .eq('debit_amount', pair.debit_amount)
+        .eq('credit_amount', pair.credit_amount)
+        .is('deleted_at', null)
+        .limit(50)
+
+      if (error) {
+        logError('BankStatementImportRepository.checkDuplicates error', { error: error.message, pair })
+        continue
+      }
+
+      if (data && data.length > 0) {
+        allDuplicates.push(...data as BankStatement[])
+      }
     }
 
-    return (data || []) as BankStatement[]
+    // Remove duplicates from results
+    const uniqueDuplicates = allDuplicates.filter((dup, index, self) =>
+      index === self.findIndex(d => d.id === dup.id)
+    )
+
+    return uniqueDuplicates
   }
 
   /**
