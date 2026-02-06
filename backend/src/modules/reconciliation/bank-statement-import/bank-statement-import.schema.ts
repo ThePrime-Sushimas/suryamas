@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod'
-import { IMPORT_STATUS, TRANSACTION_TYPE } from './bank-statement-import.constants'
+import { IMPORT_STATUS, TRANSACTION_TYPE, FILE_UPLOAD } from './bank-statement-import.constants'
 import { BankStatementImportErrors } from './bank-statement-import.errors'
 
 // ============================================================================
@@ -38,26 +38,17 @@ export const validateUploadedFile = (file: Express.Multer.File | undefined): voi
     throw BankStatementImportErrors.NO_FILE_UPLOADED()
   }
 
-  const allowedMimeTypes = [
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-excel',
-    'text/csv',
-    'application/csv',
-  ]
-  
-  if (!allowedMimeTypes.includes(file.mimetype)) {
+  if (!FILE_UPLOAD.ALLOWED_MIME_TYPES.includes(file.mimetype)) {
     throw BankStatementImportErrors.INVALID_FILE_TYPE()
   }
 
-  const maxSize = 50 * 1024 * 1024
-  if (file.size > maxSize) {
-    throw BankStatementImportErrors.FILE_TOO_LARGE(50)
+  if (file.size > FILE_UPLOAD.MAX_SIZE) {
+    throw BankStatementImportErrors.FILE_TOO_LARGE(FILE_UPLOAD.MAX_SIZE / (1024 * 1024))
   }
 
-  const allowedExtensions = ['.xlsx', '.xls', '.csv']
   const fileExtension = file.originalname.toLowerCase().slice(file.originalname.lastIndexOf('.'))
   
-  if (!allowedExtensions.includes(fileExtension)) {
+  if (!FILE_UPLOAD.ALLOWED_EXTENSIONS.includes(fileExtension)) {
     throw BankStatementImportErrors.INVALID_FILE_TYPE()
   }
 }
@@ -76,7 +67,7 @@ export const confirmBankStatementImportSchema = z.object({
   body: z.object({
     skip_duplicates: z.boolean().optional().default(false),
     dry_run: z.boolean().optional().default(false),
-  }),
+  }).strict(),
 })
 
 // ============================================================================

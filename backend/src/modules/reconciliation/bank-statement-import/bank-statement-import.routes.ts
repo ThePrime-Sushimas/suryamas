@@ -24,22 +24,16 @@ import {
   listImportsQuerySchema,
   getImportStatementsSchema,
 } from './bank-statement-import.schema'
+import { FILE_UPLOAD } from './bank-statement-import.constants'
 
 // Configure multer for file upload
 const upload = multer({
   dest: '/tmp/uploads',
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB
+    fileSize: FILE_UPLOAD.MAX_SIZE, // 50MB from constants
   },
   fileFilter: (req, file, cb) => {
-    const allowedMimeTypes = [
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-excel',
-      'text/csv',
-      'application/csv',
-    ]
-
-    if (allowedMimeTypes.includes(file.mimetype)) {
+    if (FILE_UPLOAD.ALLOWED_MIME_TYPES.includes(file.mimetype)) {
       cb(null, true)
     } else {
       cb(new Error('Invalid file type. Only Excel (.xlsx, .xls) or CSV (.csv) files are allowed.'))

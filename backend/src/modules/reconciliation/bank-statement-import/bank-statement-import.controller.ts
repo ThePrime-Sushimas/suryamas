@@ -12,9 +12,11 @@ import { withValidated } from '../../../utils/handler'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../../types/request.types'
 import { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
 import crypto from 'crypto'
-import fs from 'fs/promises'
+import { createReadStream } from 'fs'
+import { readFile } from 'fs/promises'
 import { validateUploadedFile } from './bank-statement-import.schema'
 import { BankStatementImportStatus } from './bank-statement-import.types'
+import { BankStatementImportErrors } from './bank-statement-import.errors'
 import {
   uploadBankStatementSchema,
   confirmBankStatementImportSchema,
@@ -23,6 +25,7 @@ import {
   listImportsQuerySchema,
   getImportStatementsSchema,
 } from './bank-statement-import.schema'
+import type { ListImportsQueryInput } from './bank-statement-import.schema'
 
 export type UploadBankStatementReq = ValidatedAuthRequest<typeof uploadBankStatementSchema>
 export type ConfirmImportReq = ValidatedAuthRequest<typeof confirmBankStatementImportSchema>
@@ -44,24 +47,26 @@ export class BankStatementImportController {
    */
   upload = async (req: UploadBankStatementReq, res: Response): Promise<void> => {
     try {
+      // Validate file exists first
+      if (!req.file) {
+        throw BankStatementImportErrors.NO_FILE_UPLOADED()
+      }
+
       validateUploadedFile(req.file)
 
       const { bank_account_id } = req.validated.body
       const companyId = String(req.context?.company_id)
       const userId = String(req.user?.id)
 
-      const fileBuffer = await fs.readFile(req.file!.path)
-      const fileHash = crypto
-        .createHash('sha256')
-        .update(fileBuffer)
-        .digest('hex')
+      // Calculate file hash using streaming for better performance
+      const fileHash = await this.calculateFileHash(req.file.path)
 
       const fileResult = {
-        file_name: req.file!.originalname,
-        file_size: req.file!.size,
-        file_path: req.file!.path,
+        file_name: req.file.originalname,
+        file_size: req.file.size,
+        file_path: req.file.path,
         file_hash: fileHash,
-        mime_type: req.file!.mimetype,
+        mime_type: req.file.mimetype,
       }
 
       const result = await this.service.analyzeFile(
@@ -78,6 +83,28 @@ export class BankStatementImportController {
     } catch (error: any) {
       handleError(res, error)
     }
+  }
+
+  /**
+   * Calculate file hash using streaming for memory efficiency
+   */
+  private async calculateFileHash(filePath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const hash = crypto.createHash('sha256')
+      const stream = createReadStream(filePath, {
+        highWaterMark: 1024 * 1024, // 1MB chunks for efficiency
+      })
+
+      stream.on('data', (chunk: Buffer | string) => {
+        if (Buffer.isBuffer(chunk)) {
+          hash.update(chunk)
+        } else {
+          hash.update(Buffer.from(chunk))
+        }
+      })
+      stream.on('end', () => resolve(hash.digest('hex')))
+      stream.on('error', reject)
+    })
   }
 
   /**
@@ -120,18 +147,26 @@ export class BankStatementImportController {
   list = async (req: ListImportsReq, res: Response): Promise<void> => {
     try {
       const companyId = String(req.context?.company_id)
-      const validated = (req as any).validated?.query || req.query
+      
+      // Get validated query params from validation middleware or use defaults
+      const query = (req as any).validated?.query || {}
+      
+      // Parse pagination with defaults and limits
+      const page = Math.max(1, Number(query.page) || 1)
+      const limit = Math.min(100, Math.max(1, Number(query.limit) || 50))
+      const sortField = req.sort?.field || 'created_at'
+      const sortOrder = req.sort?.order || 'desc'
 
       const result = await this.service.listImports(
         companyId,
-        { page: Number(validated.page) || 1, limit: Math.min(Number(validated.limit) || 10, 100) },
-        req.sort || { field: 'created_at', order: 'desc' },
+        { page, limit },
+        { field: sortField, order: sortOrder },
         {
-          bank_account_id: validated.bank_account_id,
-          status: validated.status,
-          date_from: validated.date_from,
-          date_to: validated.date_to,
-          search: validated.search,
+          bank_account_id: query.bank_account_id ? Number(query.bank_account_id) : undefined,
+          status: query.status,
+          date_from: query.date_from,
+          date_to: query.date_to,
+          search: query.search,
         }
       )
 
@@ -171,12 +206,18 @@ export class BankStatementImportController {
       const idParam = req.params.id
       const importId = parseInt(Array.isArray(idParam) ? idParam[0] : idParam, 10)
       const companyId = String(req.context?.company_id)
-      const validated = (req as any).validated?.query || req.query
+      
+      // Get validated query params from validation middleware or use defaults
+      const query = (req as any).validated?.query || {}
+      
+      // Parse pagination with defaults and limits
+      const page = Math.max(1, Number(query.page) || 1)
+      const limit = Math.min(100, Math.max(1, Number(query.limit) || 50))
 
       const result = await this.service.getImportStatements(
         importId,
         companyId,
-        { page: Number(validated.page) || 1, limit: Math.min(Number(validated.limit) || 10, 100) }
+        { page, limit }
       )
 
       sendSuccess(res, result, 'Statements retrieved successfully', 200)
@@ -279,7 +320,7 @@ export class BankStatementImportController {
    * GET /api/v1/bank-statement-imports/:id/preview
    * 
    * Query params:
-   * - limit: Number of rows to return. Default 10. Use 0 to get all rows.
+   * - limit: Number of rows to return. Default 10. Maximum 10000 rows.
    */
   preview = async (req: PreviewReq, res: Response): Promise<void> => {
     try {
@@ -294,9 +335,10 @@ export class BankStatementImportController {
         return handleError(res, new Error('Invalid import ID'))
       }
 
-      // Allow limit = 0 to get all rows
-      // If limit is 0, getImportPreview will return all rows
-      const limit = isNaN(limitParam) ? 10 : limitParam
+      // Parse limit with boundaries (default 10, max 10000 to prevent memory issues)
+      const limit = isNaN(limitParam) 
+        ? 10 
+        : Math.min(10000, Math.max(1, limitParam))
 
       const preview = await this.service.getImportPreview(
         importId,

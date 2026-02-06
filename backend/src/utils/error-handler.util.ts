@@ -14,6 +14,7 @@ import {
   PricelistNotDraftError,
   DuplicateRestoreError
 } from '../modules/pricelists/pricelists.errors'
+import { BankStatementImportError } from '../modules/reconciliation/bank-statement-import/bank-statement-import.errors'
 
 export class AppError extends Error {
   constructor(
@@ -60,6 +61,18 @@ export class BusinessRuleError extends AppError {
 }
 
 export const handleError = (res: Response, error: unknown): void => {
+  // Bank Statement Import custom errors
+  if (error instanceof BankStatementImportError) {
+    logError(error.code, {
+      message: error.message,
+      context: error.context,
+      cause: error.cause?.message
+    })
+    // Send error with context for frontend user-friendly messages
+    sendError(res, error.message, error.statusCode, { context: error.context, code: error.code })
+    return
+  }
+
   // Fiscal Periods custom errors
   if (error instanceof FiscalPeriodError) {
     logError(error.code, { message: error.message })

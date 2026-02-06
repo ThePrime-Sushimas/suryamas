@@ -1447,6 +1447,35 @@ export class BankStatementImportService {
   }
 
   /**
+   * Helper function to check if transaction is pending
+   */
+  private isPendingTransaction(description: string, transactionCode?: string): boolean {
+    // Check for pending indicators in description or transaction code
+    const pendingIndicators = ['PEND', 'PENDING', 'ESTIMATE', 'PROJECTED']
+    
+    if (description.toUpperCase().includes('PEND')) {
+      return true
+    }
+    
+    if (transactionCode && pendingIndicators.some(indicator => 
+      transactionCode.toUpperCase().includes(indicator))) {
+      return true
+    }
+    
+    return false
+  }
+
+  /**
+   * Helper function to parse Mandiri amount
+   */
+  private parseMandiriAmount(val: string): number {
+    if (!val || val === '.00' || val.trim() === '') return 0
+    const cleaned = val.replace(/,/g, '') // Remove thousands separator
+    const num = parseFloat(cleaned)
+    return isNaN(num) ? 0 : num
+  }
+
+  /**
    * Parse single Mandiri row
    */
   private parseMandiriRow(columns: string[], rowNumber: number, rawLine: string): ParsedCSVRow | null {
@@ -1468,20 +1497,11 @@ export class BankStatementImportService {
         const debitStr = columns[7]?.trim()
         const creditStr = columns[8]?.trim()
         
-        const parseAmount = (val: string): number => {
-            if (!val || val === '.00') return 0
-            const cleaned = val.replace(/,/g, '') // Remove thousands separator
-            const num = parseFloat(cleaned)
-            return isNaN(num) ? 0 : num
-        }
+        const debitAmount = this.parseMandiriAmount(debitStr)
+        const creditAmount = this.parseMandiriAmount(creditStr)
         
-        const debitAmount = parseAmount(debitStr)
-        const creditAmount = parseAmount(creditStr)
-        
-        const isPending = awaitPending(transactionDate) // Optional logic helper
-
-        // Helper to check logical pending (Mandiri usually uses specific codes/desc for pending, but here mostly completed)
-        function awaitPending(date: any) { return false } 
+        // Check if transaction is pending
+        const isPending = this.isPendingTransaction(description, transactionCode)
 
         return {
             row_number: rowNumber,
@@ -1489,14 +1509,13 @@ export class BankStatementImportService {
             format: BANK_CSV_FORMAT.BANK_MANDIRI,
             transaction_date: transactionDate as string,
             reference_number: referenceNo,
-            description: description.trim(),
+            description: description.trim().substring(0, 1000),
             debit_amount: debitAmount,
             credit_amount: creditAmount,
-            // Balance not always available in this layout, or maybe 5th col? User example didn't show balance explicitly in header mapping provided effectively
-            // But we can check if there's extra column
+            // Balance not always available in this layout
             balance: undefined, 
-            is_pending: false,
-            transaction_type: undefined,
+            is_pending: isPending,
+            transaction_type: isPending ? PENDING_TRANSACTION.TRANSACTION_TYPE : undefined,
             raw_data: { columns, transactionCode }
         }
 

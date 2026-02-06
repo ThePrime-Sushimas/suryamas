@@ -14,7 +14,7 @@ import {
   BankStatementFilterParams
 } from './bank-statement-import.types'
 import { BankStatementImportErrors } from './bank-statement-import.errors'
-import { logError } from '../../../config/logger'
+import { logError, logWarn } from '../../../config/logger'
 
 // ============================================================================
 // REPOSITORY CLASS
@@ -217,7 +217,7 @@ export class BankStatementImportRepository {
   }
 
   /**
-   * Bulk insert bank statements
+   * Bulk insert bank statements with validation
    * Filters out rows where both debit_amount and credit_amount are 0
    * to prevent constraint violation for chk_amount_not_both_zero
    */
@@ -227,21 +227,21 @@ export class BankStatementImportRepository {
     // Filter out rows where both debit_amount and credit_amount are 0
     // This prevents constraint violation for chk_amount_not_both_zero
     const validStatements = statements.filter(statement => {
-      const debit = statement.debit_amount ?? 0
-      const credit = statement.credit_amount ?? 0
-      return debit !== 0 || credit !== 0
+      const debit = typeof statement.debit_amount === 'number' ? statement.debit_amount : 0
+      const credit = typeof statement.credit_amount === 'number' ? statement.credit_amount : 0
+      return debit > 0 || credit > 0
     })
 
     if (validStatements.length === 0) {
-      logError('BankStatementImportRepository.bulkInsert: No valid statements to insert', {
+      logWarn('BankStatementImportRepository.bulkInsert: No valid statements to insert', {
         originalCount: statements.length,
       })
       return 0
     }
 
-    // Log warning if some rows were filtered out
+    // Log info if some rows were filtered out
     if (validStatements.length < statements.length) {
-      logError('BankStatementImportRepository.bulkInsert: Some rows filtered out', {
+      logWarn('BankStatementImportRepository.bulkInsert: Some rows filtered out', {
         originalCount: statements.length,
         validCount: validStatements.length,
         filteredCount: statements.length - validStatements.length,
@@ -258,10 +258,104 @@ export class BankStatementImportRepository {
         error: error.message,
         statementCount: validStatements.length,
       })
-      throw BankStatementImportErrors.IMPORT_FAILED()
+      throw BankStatementImportErrors.IMPORT_FAILED(error.message)
     }
 
     return (data || []).length
+  }
+
+  /**
+   * Bulk insert with detailed error tracking
+   * Returns both successful count and failed rows for retry logic
+   */
+  async bulkInsertWithDetails(
+    statements: CreateBankStatementDto[]
+  ): Promise<{ inserted: number; failed: CreateBankStatementDto[] }> {
+    if (statements.length === 0) {
+      return { inserted: 0, failed: [] }
+    }
+
+    // Filter valid statements
+    const validStatements: CreateBankStatementDto[] = []
+    const failedStatements: CreateBankStatementDto[] = []
+
+    statements.forEach(statement => {
+      const debit = typeof statement.debit_amount === 'number' ? statement.debit_amount : 0
+      const credit = typeof statement.credit_amount === 'number' ? statement.credit_amount : 0
+      
+      if (debit > 0 || credit > 0) {
+        validStatements.push(statement)
+      } else {
+        failedStatements.push(statement)
+      }
+    })
+
+    if (validStatements.length === 0) {
+      return { inserted: 0, failed: statements }
+    }
+
+    // Try bulk insert first
+    try {
+      const { data, error } = await supabase
+        .from('bank_statements')
+        .insert(validStatements)
+        .select('id')
+
+      if (error) {
+        logError('BankStatementImportRepository.bulkInsertWithDetails error', {
+          error: error.message,
+          statementCount: validStatements.length,
+        })
+        
+        // If bulk insert fails, try individual inserts
+        return this.insertIndividually(validStatements)
+      }
+
+      return { inserted: (data || []).length, failed: failedStatements }
+    } catch (err) {
+      // Fallback to individual inserts on unexpected error
+      logError('BankStatementImportRepository.bulkInsertWithDetails unexpected error', {
+        error: err instanceof Error ? err.message : 'Unknown error',
+      })
+      return this.insertIndividually(validStatements)
+    }
+  }
+
+  /**
+   * Insert statements individually as fallback
+   */
+  private async insertIndividually(
+    statements: CreateBankStatementDto[]
+  ): Promise<{ inserted: number; failed: CreateBankStatementDto[] }> {
+    let inserted = 0
+    const failed: CreateBankStatementDto[] = []
+
+    for (const statement of statements) {
+      try {
+        const { error } = await supabase
+          .from('bank_statements')
+          .insert(statement)
+          .select('id')
+
+        if (error) {
+          failed.push(statement)
+        } else {
+          inserted++
+        }
+      } catch {
+        failed.push(statement)
+      }
+    }
+
+    if (failed.length > 0) {
+      logWarn('BankStatementImportRepository: Some statements failed to insert', {
+        attempted: statements.length,
+        inserted,
+        failed: failed.length,
+      })
+    }
+
+    return { inserted, failed }
   }
 
   /**
