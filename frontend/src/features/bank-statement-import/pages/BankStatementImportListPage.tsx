@@ -12,6 +12,7 @@ import {
   Trash
 } from 'lucide-react'
 import { useBankStatementImportStore } from '../store/bank-statement-import.store'
+import type { BankStatementImport } from '../types/bank-statement-import.types'
 import { TableSkeleton } from '@/components/ui/Skeleton'
 import { StatusBadge } from '../components/common/StatusBadge'
 import { UploadModal } from '../components/UploadModal'
@@ -22,6 +23,7 @@ import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '@/contexts/ToastContext'
+import { useJobPolling } from '@/hooks/_shared/useJobPolling'
 
 export function BankStatementImportListPage() {
   const navigate = useNavigate()
@@ -53,13 +55,53 @@ export function BankStatementImportListPage() {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState<number | null>(null)
   const [showBulkDeleteConfirmation, setShowBulkDeleteConfirmation] = useState(false)
   const [filters, setFilters] = useState({ search: '', status: '' })
+  const [activeJobImports, setActiveJobImports] = useState<Map<number, string>>(new Map())
+
+  // Derived values - MUST be declared before useEffect that uses them
+  const importsArray = useMemo(() => Array.isArray(imports) ? imports : [], [imports])
+
+  // Job polling for active imports
+  const { startPolling, stopPolling, job: currentJob } = useJobPolling({
+    interval: 2000,
+    onComplete: (job) => {
+      console.log('Job completed:', job)
+      fetchImports() // Refresh list when job completes
+    },
+    onError: (error) => {
+      console.error('Job error:', error)
+      fetchImports() // Refresh to get error status
+    },
+  })
+
+  // Start polling for importing items
+  useEffect(() => {
+    const importingItems = importsArray.filter(imp => imp.status === 'IMPORTING' && imp.job_id)
+    
+    importingItems.forEach(imp => {
+      const jobIdString = imp.job_id?.toString()
+      if (jobIdString && !activeJobImports.has(imp.id)) {
+        startPolling(jobIdString)
+        setActiveJobImports(prev => new Map(prev.set(imp.id, jobIdString)))
+      }
+    })
+
+    // Cleanup: stop polling for items that are no longer importing
+    activeJobImports.forEach((_jobId, importId) => {
+      const stillImporting = importingItems.some(imp => imp.id === importId)
+      if (!stillImporting) {
+        stopPolling()
+        setActiveJobImports(prev => {
+          const next = new Map(prev)
+          next.delete(importId)
+          return next
+        })
+      }
+    })
+  }, [importsArray, startPolling, stopPolling, activeJobImports])
 
   useEffect(() => {
     fetchImports()
   }, [fetchImports])
-
-  // Derived values
-  const importsArray = useMemo(() => Array.isArray(imports) ? imports : [], [imports])
   const allIds = importsArray.map((imp) => imp.id)
   const allSelected = importsArray.length > 0 && importsArray.every((imp) => selectedIds.has(imp.id))
   const totalPages = Math.ceil(pagination.total / pagination.limit)
@@ -267,14 +309,30 @@ export function BankStatementImportListPage() {
           {importsArray
             .filter((imp) => imp.status === 'IMPORTING')
             .slice(0, 1)
-            .map((imp) => (
-              <ImportProgressCard
-                key={imp.id}
-                importData={imp}
-                onCancel={(id) => console.log('Cancel import:', id)}
-                onRetry={(id) => console.log('Retry import:', id)}
-              />
-            ))}
+            .map((imp) => {
+              // Merge job data with import data if available
+              const jobProgress = currentJob && typeof currentJob.progress === 'object' && currentJob.progress !== null
+                ? currentJob.progress 
+                : null
+              const jobData = currentJob && activeJobImports.get(imp.id) === currentJob.id 
+                ? {
+                    ...imp,
+                    processed_rows: jobProgress?.processed_rows || imp.processed_rows,
+                    total_rows: jobProgress?.total_rows || imp.total_rows,
+                    status: (currentJob.status === 'completed' ? 'COMPLETED' : 
+                            currentJob.status === 'failed' ? 'FAILED' : 'IMPORTING') as BankStatementImport['status'],
+                  }
+                : imp
+              
+              return (
+                <ImportProgressCard
+                  key={imp.id}
+                  importData={jobData}
+                  onCancel={(id) => console.log('Cancel import:', id)}
+                  onRetry={(id) => console.log('Retry import:', id)}
+                />
+              )
+            })}
         </div>
       )}
 
@@ -599,4 +657,3 @@ export function BankStatementImportListPage() {
     </div>
   )
 }
-

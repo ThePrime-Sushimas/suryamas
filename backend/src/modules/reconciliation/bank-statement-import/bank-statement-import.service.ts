@@ -283,6 +283,19 @@ export class BankStatementImportService {
         total_rows: rows.length,
         date_range_start: dateRangeStart || undefined,
         date_range_end: dateRangeEnd || undefined,
+        analysis_data: {
+          preview: preview,
+          duplicates: duplicates,
+          duplicate_count: duplicates.length,
+          invalid_count: invalidRows.length,
+          column_mapping: columnMapping,
+          date_range: {
+            start: dateRangeStart,
+            end: dateRangeEnd,
+          },
+          warnings: analysis.warnings,
+          analyzed_at: new Date().toISOString(),
+        } as any,
       })
 
       // Store parsed data in Supabase Storage for later processing
