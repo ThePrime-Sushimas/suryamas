@@ -344,7 +344,7 @@ export class BankReconciliationService {
       90,
     );
 
-    findMatches(
+findMatches(
       remainingStatements,
       remainingAggregates,
       (s, a) => {
@@ -352,18 +352,44 @@ export class BankReconciliationService {
         const sDate = new Date(s.transaction_date).getTime();
         const aDate = new Date(a.transaction_date).getTime();
         const dayDiff = Math.abs(sDate - aDate) / (1000 * 3600 * 24);
+        const amountDiff = Math.abs(sAmount - a.nett_amount);
+        
         return (
-          Math.abs(sAmount - a.nett_amount) <=
-            matchingCriteria.amountTolerance &&
+          amountDiff <= matchingCriteria.amountTolerance &&
           dayDiff <= matchingCriteria.dateBufferDays
         );
       },
       "FUZZY_AMOUNT_DATE",
-      80,
+      80, // Base score, will be adjusted in the response
     );
 
     return {
-      matches: matches.sort((a, b) => b.matchScore - a.matchScore),
+      matches: matches.map((m: any) => {
+        // Calculate more accurate score based on amount and date difference
+        let adjustedScore = m.matchScore;
+        if (m.matchCriteria === "FUZZY_AMOUNT_DATE") {
+          const stmtAmount = m.statement.amount;
+          const amountDiff = Math.abs(m.difference);
+          const stmtDate = new Date(m.statement.transaction_date).getTime();
+          const aggDate = new Date(m.aggregate.transaction_date).getTime();
+          const dayDiff = Math.abs(stmtDate - aggDate) / (1000 * 3600 * 24);
+          
+          // If exact amount match, boost score
+          if (amountDiff === 0) {
+            adjustedScore = 95 - (dayDiff * 5); // Max 95, decreases with day difference
+          } else {
+            // Reduce score based on amount difference
+            const amountPenalty = (amountDiff / (stmtAmount || 1)) * 100;
+            adjustedScore = 80 - amountPenalty - (dayDiff * 5);
+          }
+          adjustedScore = Math.max(0, Math.min(100, Math.round(adjustedScore)));
+        }
+        
+        return {
+          ...m,
+          matchScore: adjustedScore,
+        };
+      }).sort((a: any, b: any) => b.matchScore - a.matchScore),
       summary: {
         totalStatements: statements.length,
         matchedStatements: matches.length,

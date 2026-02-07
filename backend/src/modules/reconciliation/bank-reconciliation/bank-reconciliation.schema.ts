@@ -200,7 +200,7 @@ export const autoMatchPreviewSchema = z.object({
 export const autoMatchConfirmSchema = z.object({
   body: z.object({
     statementIds: z.array(
-      z.string().min(1, "Statement ID is required"),
+      z.union([z.string(), z.number()]).transform(val => String(val)),
       { message: "Statement IDs are required" }
     ).min(1, "At least one statement ID is required"),
     matchingCriteria: z
