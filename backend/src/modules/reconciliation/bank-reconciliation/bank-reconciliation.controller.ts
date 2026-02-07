@@ -36,11 +36,13 @@ export class BankReconciliationController {
     try {
       const validated = req.validated.body;
       const userId = req.user?.id;
+      const companyId = (req as any).context?.company_id;
 
       const result = await this.service.reconcile(
         validated.aggregateId,
         validated.statementId,
         userId,
+        companyId,
         validated.notes,
         validated.overrideDifference,
       );
@@ -78,8 +80,9 @@ export class BankReconciliationController {
     try {
       const { statementId } = req.params;
       const userId = req.user?.id;
+      const companyId = (req as any).context?.company_id;
 
-      await this.service.undo(statementId as string, userId);
+      await this.service.undo(statementId as string, userId, companyId);
 
       res.status(200).json({
         success: true,
@@ -110,12 +113,14 @@ export class BankReconciliationController {
     try {
       const validated = req.validated.body;
       const userId = req.user?.id;
+      const companyId = (req as any).context?.company_id;
 
       const result = await this.service.autoMatch(
         new Date(validated.startDate),
         new Date(validated.endDate),
         validated.bankAccountId,
         userId,
+        companyId,
         validated.matchingCriteria,
       );
 
@@ -403,8 +408,9 @@ export class BankReconciliationController {
     try {
       const { groupId } = req.params;
       const userId = req.user?.id;
+      const companyId = (req as any).context?.company_id;
 
-      await this.service.undoMultiMatch(groupId as string, userId);
+      await this.service.undoMultiMatch(groupId as string, userId, companyId);
 
       res.status(200).json({
         success: true,

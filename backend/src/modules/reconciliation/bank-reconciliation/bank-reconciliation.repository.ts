@@ -477,14 +477,16 @@ export class BankReconciliationRepository {
    * Log reconciliation action to audit trail
    */
   async logAction(data: {
+    companyId: string;
     userId?: string;
-    action: "MANUAL_RECONCILE" | "AUTO_MATCH" | "UNDO";
+    action: "MANUAL_RECONCILE" | "AUTO_MATCH" | "UNDO" | "CREATE_MULTI_MATCH" | "UNDO_MULTI_MATCH";
     statementId?: string;
     aggregateId?: string;
     details?: any;
   }): Promise<void> {
     try {
       const { error } = await supabase.from("bank_reconciliation_logs").insert({
+        company_id: data.companyId,
         user_id: data.userId,
         action: data.action,
         statement_id: data.statementId,
@@ -496,7 +498,11 @@ export class BankReconciliationRepository {
         throw error;
       }
     } catch (error: any) {
-      logError("Error logging reconciliation action", { action: data.action, error: error.message });
+      logError("Error logging reconciliation action", { 
+        action: data.action, 
+        companyId: data.companyId,
+        error: error.message 
+      });
     }
   }
 

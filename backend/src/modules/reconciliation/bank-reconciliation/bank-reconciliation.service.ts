@@ -43,6 +43,7 @@ export class BankReconciliationService {
     aggregateId: string,
     statementId: string,
     userId?: string,
+    companyId?: string,
     notes?: string,
     overrideDifference?: boolean,
   ): Promise<any> {
@@ -65,6 +66,7 @@ export class BankReconciliationService {
     );
 
     await this.repository.logAction({
+      companyId: companyId || statement.company_id,
       userId,
       action: "MANUAL_RECONCILE",
       statementId,
@@ -85,7 +87,7 @@ export class BankReconciliationService {
     };
   }
 
-  async undo(statementId: string, userId?: string): Promise<void> {
+  async undo(statementId: string, userId?: string, companyId?: string): Promise<void> {
     const statement = await this.repository.findById(statementId);
     if (!statement) {
       throw new Error("Bank statement not found");
@@ -101,6 +103,7 @@ export class BankReconciliationService {
     }
 
     await this.repository.logAction({
+      companyId: companyId || statement.company_id,
       userId,
       action: "UNDO",
       statementId,
@@ -114,6 +117,7 @@ export class BankReconciliationService {
     endDate: Date,
     bankAccountId?: number,
     userId?: string,
+    companyId?: string,
     criteria?: Partial<MatchingCriteria>,
   ): Promise<any> {
     const matchingCriteria = {
@@ -206,6 +210,7 @@ export class BankReconciliationService {
       });
 
       await this.repository.logAction({
+        companyId: companyId || '',
         userId,
         action: "AUTO_MATCH",
         statementId: match.statementId,
@@ -444,8 +449,9 @@ export class BankReconciliationService {
     );
 
     await this.repository.logAction({
+      companyId: companyId || '',
       userId,
-      action: "MANUAL_RECONCILE" as any,
+      action: "CREATE_MULTI_MATCH",
       aggregateId,
       details: {
         groupId,
@@ -474,6 +480,7 @@ export class BankReconciliationService {
   async undoMultiMatch(
     groupId: string,
     userId?: string,
+    companyId?: string,
   ): Promise<void> {
     const group = await this.repository.getReconciliationGroupById(groupId);
     if (!group) {
@@ -494,8 +501,9 @@ export class BankReconciliationService {
     }
 
     await this.repository.logAction({
+      companyId: companyId || '',
       userId,
-      action: "UNDO" as any,
+      action: "UNDO_MULTI_MATCH",
       aggregateId: group.aggregate_id,
       details: {
         groupId,
