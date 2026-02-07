@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Search,
   ArrowRight,
@@ -15,6 +15,7 @@ import {
   X,
   Eye,
   EyeOff,
+  Info,
 } from "lucide-react";
 import type {
   BankStatementWithMatch,
@@ -22,6 +23,21 @@ import type {
   PotentialMatch,
   ReconciliationGroup,
 } from "../../types/bank-reconciliation.types";
+import {
+  formatDate,
+  formatCurrency,
+  formatNumber,
+  calculateSelectedTotal,
+  getNetAmount,
+} from "../../utils/reconciliation.utils";
+import {
+  STORAGE_KEYS,
+  STATUS_CONFIG,
+} from "../../constants/reconciliation.config";
+
+// =============================================================================
+// TYPES
+// =============================================================================
 
 interface BankMutationTableProps {
   items: BankStatementWithMatch[];
@@ -31,11 +47,16 @@ interface BankMutationTableProps {
   onQuickMatch: (item: BankStatementWithMatch, aggregateId: string) => void;
   onCheckMatches?: (statementId: string) => void;
   onUndo: (statementId: string) => void;
-  // Multi-match props
   onMultiMatch?: (items: BankStatementWithMatch[]) => void;
   reconciliationGroups?: ReconciliationGroup[];
   showMultiMatch?: boolean;
 }
+
+type TableFilter = "ALL" | "UNRECONCILED" | "RECONCILED" | "DISCREPANCY";
+
+// =============================================================================
+// COMPONENT
+// =============================================================================
 
 export function BankMutationTable({
   items,
@@ -45,34 +66,30 @@ export function BankMutationTable({
   onQuickMatch,
   onCheckMatches,
   onUndo,
-  // Multi-match props
   onMultiMatch,
   reconciliationGroups = [],
   showMultiMatch = true,
 }: BankMutationTableProps) {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<
-    "ALL" | "UNRECONCILED" | "RECONCILED" | "DISCREPANCY"
-  >("ALL");
+  const [filter, setFilter] = useState<TableFilter>("ALL");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedStatementIds, setSelectedStatementIds] = useState<string[]>([]);
+  const [showEmptySelectionWarning, setShowEmptySelectionWarning] = useState(false);
 
-  // Toggle hide debit column - default ON (debit hidden), persisted in localStorage
+  // Toggle hide debit column - persisted in localStorage
   const [hideDebit, setHideDebit] = useState(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('bankReconciliationHideDebit');
+      const saved = localStorage.getItem(STORAGE_KEYS.HIDE_DEBIT_COLUMN);
       return saved !== null ? saved === 'true' : true;
     }
     return true;
   });
 
   useEffect(() => {
-    localStorage.setItem('bankReconciliationHideDebit', String(hideDebit));
+    localStorage.setItem(STORAGE_KEYS.HIDE_DEBIT_COLUMN, String(hideDebit));
   }, [hideDebit]);
 
-  // Multi-match selection state
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedStatementIds, setSelectedStatementIds] = useState<string[]>([]);
-
-  // Build a map of statement ID -> group info
+  // Build a map of statement ID -> group info - memoized for O(1) lookup
   const statementGroupMap = useMemo(() => {
     const map: Record<string, ReconciliationGroup> = {};
     reconciliationGroups.forEach((group) => {
@@ -83,111 +100,111 @@ export function BankMutationTable({
     return map;
   }, [reconciliationGroups]);
 
+  // Filter items with proper memoization
   const filteredItems = useMemo(() => {
+    const searchLower = search.toLowerCase();
     return items.filter((item) => {
       const matchesSearch =
-        item.description?.toLowerCase().includes(search.toLowerCase()) ||
-        item.reference_number?.toLowerCase().includes(search.toLowerCase());
+        item.description?.toLowerCase().includes(searchLower) ||
+        item.reference_number?.toLowerCase().includes(searchLower);
 
-      if (filter === "ALL") return matchesSearch;
-      if (filter === "UNRECONCILED")
-        return (
-          matchesSearch && !item.is_reconciled && item.status !== "DISCREPANCY"
-        );
-      if (filter === "RECONCILED") return matchesSearch && item.is_reconciled;
-      if (filter === "DISCREPANCY")
-        return matchesSearch && item.status === "DISCREPANCY";
-      return matchesSearch;
+      switch (filter) {
+        case "UNRECONCILED":
+          return matchesSearch && !item.is_reconciled && item.status !== "DISCREPANCY";
+        case "RECONCILED":
+          return matchesSearch && item.is_reconciled;
+        case "DISCREPANCY":
+          return matchesSearch && item.status === "DISCREPANCY";
+        default:
+          return matchesSearch;
+      }
     });
   }, [items, search, filter]);
 
-  const getStatusBadge = (status: BankReconciliationStatus) => {
-    switch (status) {
-      case "AUTO_MATCHED":
-      case "MANUALLY_MATCHED":
-        return (
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-            <CheckCircle className="w-3 h-3" />
-            Reconciled
-          </div>
-        );
-      case "DISCREPANCY":
-        return (
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">
-            <AlertCircle className="w-3 h-3" />
-            Discrepancy
-          </div>
-        );
-      case "PENDING":
-      case "UNRECONCILED":
-      default:
-        return (
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-            <HelpCircle className="w-3 h-3" />
-            Unreconciled
-          </div>
-        );
-    }
-  };
+  // Memoized total calculation using O(1) lookup
+  const selectedTotal = useMemo(() => {
+    return calculateSelectedTotal(items, selectedStatementIds);
+  }, [items, selectedStatementIds]);
 
-  const calculateDifference = (item: BankStatementWithMatch) => {
+  // Get status badge with proper configuration
+  const getStatusBadge = useCallback((status: BankReconciliationStatus) => {
+    const config = STATUS_CONFIG[status];
+    return (
+      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${config.bg} ${config.color}`}>
+        {status === "AUTO_MATCHED" || status === "MANUALLY_MATCHED" ? (
+          <CheckCircle className="w-3 h-3" />
+        ) : status === "DISCREPANCY" ? (
+          <AlertCircle className="w-3 h-3" />
+        ) : (
+          <HelpCircle className="w-3 h-3" />
+        )}
+        {config.label}
+      </div>
+    );
+  }, []);
+
+  // Calculate difference using nullish coalescing
+  const calculateDifference = useCallback((item: BankStatementWithMatch) => {
     if (!item.is_reconciled || !item.matched_aggregate) return 0;
-    const bankAmount = item.credit_amount - item.debit_amount;
+    const bankAmount = getNetAmount(item.credit_amount, item.debit_amount);
     return Math.abs(bankAmount - item.matched_aggregate.nett_amount);
-  };
+  }, []);
 
-  // Multi-match helper functions
-  const toggleSelectionMode = () => {
-    setSelectionMode(!selectionMode);
-    if (!selectionMode) {
-      setSelectedStatementIds([]);
-    }
-  };
+  // Toggle selection mode
+  const toggleSelectionMode = useCallback(() => {
+    setSelectionMode((prev) => {
+      const newMode = !prev;
+      if (!newMode) {
+        setSelectedStatementIds([]);
+      }
+      return newMode;
+    });
+  }, []);
 
-  const handleRowSelect = (statementId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedStatementIds((prev) => [...prev, statementId]);
-    } else {
-      setSelectedStatementIds((prev) => prev.filter((id) => id !== statementId));
-    }
-  };
+  // Handle row selection
+  const handleRowSelect = useCallback((statementId: string, checked: boolean) => {
+    setSelectedStatementIds((prev) =>
+      checked ? [...prev, statementId] : prev.filter((id) => id !== statementId)
+    );
+    setShowEmptySelectionWarning(false);
+  }, []);
 
-  const handleSelectAll = () => {
+  // Handle select all
+  const handleSelectAll = useCallback(() => {
     if (selectedStatementIds.length === filteredItems.length) {
       setSelectedStatementIds([]);
     } else {
       setSelectedStatementIds(filteredItems.map((item) => item.id));
     }
-  };
+    setShowEmptySelectionWarning(false);
+  }, [filteredItems, selectedStatementIds.length]);
 
-  const handleClearSelection = () => {
+  // Handle clear selection
+  const handleClearSelection = useCallback(() => {
     setSelectedStatementIds([]);
-  };
+  }, []);
 
-  const handleMultiMatchClick = () => {
-    if (onMultiMatch && selectedStatementIds.length > 0) {
+  // Handle multi-match click with validation
+  const handleMultiMatchClick = useCallback(() => {
+    if (selectedStatementIds.length === 0) {
+      setShowEmptySelectionWarning(true);
+      return;
+    }
+    if (onMultiMatch) {
       const selectedItems = items.filter((item) =>
         selectedStatementIds.includes(item.id)
       );
       onMultiMatch(selectedItems);
     }
-  };
-
-  const getSelectedTotal = () => {
-    return selectedStatementIds.reduce((sum, id) => {
-      const item = items.find((i) => i.id === id);
-      if (!item) return sum;
-      return sum + (item.credit_amount || 0) - (item.debit_amount || 0);
-    }, 0);
-  };
+  }, [selectedStatementIds, items, onMultiMatch]);
 
   // Calculate colspan based on visible columns
-  const getColspan = () => {
-    let cols = 5; // Tanggal, Kredit, POS Match, Selisih, Status, Aksi = 6, minus selection mode
-    if (selectionMode) cols += 1; // Selection checkbox column
-    if (!hideDebit) cols += 1; // Debit column
+  const getColspan = useCallback(() => {
+    let cols = 6;
+    if (selectionMode) cols += 1;
+    if (!hideDebit) cols += 1;
     return cols;
-  };
+  }, [selectionMode, hideDebit]);
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
@@ -224,11 +241,7 @@ export function BankMutationTable({
               <div className="text-sm">
                 <span className="text-indigo-600 dark:text-indigo-400">Total: </span>
                 <span className="font-bold text-indigo-700 dark:text-indigo-300">
-                  {getSelectedTotal().toLocaleString("id-ID", {
-                    style: "currency",
-                    currency: "IDR",
-                    maximumFractionDigits: 0,
-                  })}
+                  {formatCurrency(selectedTotal)}
                 </span>
               </div>
 
@@ -249,6 +262,14 @@ export function BankMutationTable({
               </button>
             </div>
           </div>
+
+          {/* Empty Selection Warning */}
+          {showEmptySelectionWarning && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg animate-in slide-in-from-top-2">
+              <Info className="w-4 h-4" />
+              Silakan pilih minimal satu statement terlebih dahulu
+            </div>
+          )}
         </div>
       )}
 
@@ -314,15 +335,7 @@ export function BankMutationTable({
 
           <select
             value={filter}
-            onChange={(e) =>
-              setFilter(
-                e.target.value as
-                  | "ALL"
-                  | "UNRECONCILED"
-                  | "RECONCILED"
-                  | "DISCREPANCY",
-              )
-            }
+            onChange={(e) => setFilter(e.target.value as TableFilter)}
             className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border-none rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-400 focus:ring-2 focus:ring-blue-500 cursor-pointer"
           >
             <option value="ALL">Semua</option>
@@ -366,6 +379,8 @@ export function BankMutationTable({
               const isSelected = selectedStatementIds.includes(item.id);
               const groupInfo = statementGroupMap[item.id];
               const isInGroup = !!groupInfo;
+              const hasPotentialMatch = (potentialMatchesMap[item.id]?.length ?? 0) > 0;
+              const potentialMatch = potentialMatchesMap[item.id]?.[0];
 
               return (
                 <tr
@@ -395,14 +410,7 @@ export function BankMutationTable({
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          {new Date(item.transaction_date).toLocaleDateString(
-                            "id-ID",
-                            {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            },
-                          )}
+                          {formatDate(item.transaction_date)}
                         </span>
                         {isInGroup && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 rounded text-[10px] font-bold">
@@ -415,32 +423,26 @@ export function BankMutationTable({
                         className="text-xs text-gray-500 max-w-[400px]"
                         title={item.description}
                       >
-                        {item.description || "No description"}
+                        {item.description ?? "No description"}
                       </span>
                     </div>
                   </td>
                   {!hideDebit && (
                     <td className="px-6 py-4 text-right">
                       <span className="text-sm font-medium text-rose-600">
-                        {item.debit_amount > 0
-                          ? item.debit_amount.toLocaleString("id-ID")
-                          : "-"}
+                        {item.debit_amount > 0 ? formatNumber(item.debit_amount) : "-"}
                       </span>
                     </td>
                   )}
                   <td className="px-6 py-4 text-right">
                     <span className="text-sm font-medium text-green-600">
-                      {item.credit_amount > 0
-                        ? item.credit_amount.toLocaleString("id-ID")
-                        : "-"}
+                      {item.credit_amount > 0 ? formatNumber(item.credit_amount) : "-"}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <span className="text-sm text-gray-600 dark:text-gray-400 font-mono">
                       {item.matched_aggregate
-                        ? item.matched_aggregate.nett_amount.toLocaleString(
-                            "id-ID",
-                          )
+                        ? formatNumber(item.matched_aggregate.nett_amount)
                         : "-"}
                     </span>
                   </td>
@@ -448,9 +450,7 @@ export function BankMutationTable({
                     <span
                       className={`text-sm font-bold ${calculateDifference(item) === 0 ? "text-gray-400" : "text-rose-600"}`}
                     >
-                      {calculateDifference(item) > 0
-                        ? calculateDifference(item).toLocaleString("id-ID")
-                        : "-"}
+                      {calculateDifference(item) > 0 ? formatNumber(calculateDifference(item)) : "-"}
                     </span>
                   </td>
                   <td className="px-6 py-4">{getStatusBadge(item.status)}</td>
@@ -458,21 +458,20 @@ export function BankMutationTable({
                     <div className="flex items-center justify-end gap-2 group-hover/row:opacity-100 transition-opacity">
                       {!item.is_reconciled && !isInGroup && (
                         <>
-                          {(potentialMatchesMap[item.id]?.length ?? 0) > 0 ? (
+                          {hasPotentialMatch ? (
                             <div className="flex items-center gap-2">
                               <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold shadow-sm">
                                 <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                                Saran: {(potentialMatchesMap[item.id]?.[0]?.nett_amount || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}
+                                {formatNumber(potentialMatch?.nett_amount ?? 0)}
                               </div>
                               <button
                                 onClick={() => {
-                                  const match = potentialMatchesMap[item.id]?.[0];
-                                  if (match?.id) {
-                                    onQuickMatch(item, match.id);
+                                  if (potentialMatch?.id) {
+                                    onQuickMatch(item, potentialMatch.id);
                                   }
                                 }}
                                 className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm"
-                                title={`Cocokkan dengan ${potentialMatchesMap[item.id]?.[0]?.payment_method_name || 'Payment Gateway'}${potentialMatchesMap[item.id]?.[0]?.branch_name ? ` (${potentialMatchesMap[item.id]?.[0]?.branch_name})` : ''} senilai ${(potentialMatchesMap[item.id]?.[0]?.nett_amount || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`}
+                                title={`Cocokkan dengan ${potentialMatch?.payment_method_name ?? 'Payment Gateway'}${potentialMatch?.branch_name ? ` (${potentialMatch.branch_name})` : ''} ${formatCurrency(potentialMatch?.nett_amount ?? 0)}`}
                               >
                                 Match
                               </button>

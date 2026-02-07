@@ -88,18 +88,6 @@ export interface BankStatementWithMatch {
 }
 
 /**
- * Discrepancy report item
- */
-export interface DiscrepancyItem {
-  statementId: string;
-  aggregateId?: string;
-  difference: number;
-  reason: "NO_MATCH" | "AMOUNT_MISMATCH" | "DATE_ANOMALY";
-  severity: "HIGH" | "MEDIUM" | "LOW";
-  statement?: BankStatementWithMatch;
-}
-
-/**
  * DTOs for API requests
  */
 export interface ManualReconcileRequest {
@@ -147,10 +135,10 @@ export interface BankAccountStatus {
 /**
  * Status untuk reconciliation group
  */
-export type ReconciliationGroupStatus = 
-  | 'PENDING' 
-  | 'RECONCILED' 
-  | 'DISCREPANCY' 
+export type ReconciliationGroupStatus =
+  | 'PENDING'
+  | 'RECONCILED'
+  | 'DISCREPANCY'
   | 'UNDO';
 
 export const ReconciliationGroupStatusMap = {
@@ -177,7 +165,7 @@ export interface ReconciliationGroup {
   created_at: string;
   updated_at: string;
   deleted_at?: string;
-  
+
   // Joined data
   aggregate?: {
     id: string;

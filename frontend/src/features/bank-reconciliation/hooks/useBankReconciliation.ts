@@ -13,10 +13,10 @@ import type {
 import type { AggregatedTransactionListItem } from "@/features/pos-aggregates/types";
 import { bankReconciliationApi } from "../api/bank-reconciliation.api";
 import type { BankStatementFilterParams } from "../api/bank-reconciliation.api";
-import type { BankStatementFilter, BankStatementFilterStatus } from "../components/BankReconciliationFilters";
+import type { BankStatementFilter } from "../components/BankReconciliationFilters";
+import { PAGINATION_CONFIG } from "../constants/reconciliation.config";
 
-// Re-export types for backward compatibility
-export type { BankStatementFilter, BankStatementFilterStatus }
+export type { BankStatementFilter }
 
 export function useBankReconciliation() {
   const [summary, setSummary] = useState<ReconciliationSummary | null>(null);
@@ -31,9 +31,23 @@ export function useBankReconciliation() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Filter state
+  // Filter state - centralized in hook (single source of truth)
   const [filter, setFilterState] = useState<BankStatementFilter>({});
   const [isFilterApplied, setIsFilterApplied] = useState(false);
+  const [lastFetchParams, setLastFetchParams] = useState<BankStatementFilterParams | null>(null);
+
+  // Pagination state
+  const [pagination, setPagination] = useState<{
+    page: number;
+    limit: number;
+    total: number;
+    hasMore: boolean;
+  }>({
+    page: 1,
+    limit: PAGINATION_CONFIG.DEFAULT_PAGE_SIZE,
+    total: 0,
+    hasMore: false,
+  });
 
   // =====================================================
   // MULTI-MATCH STATE
@@ -49,6 +63,10 @@ export function useBankReconciliation() {
   const [selectedAggregate, setSelectedAggregate] = useState<
     AggregatedTransactionListItem | null
   >(null);
+
+  // =====================================================
+  // SUMMARY & ACCOUNTS METHODS
+  // =====================================================
 
   const fetchSummary = useCallback(
     async (startDate: string, endDate: string) => {
@@ -81,23 +99,35 @@ export function useBankReconciliation() {
       setBankAccounts(accounts);
     } catch (err: unknown) {
       console.error("Failed to fetch bank accounts:", err);
-      // Silently fail - don't set error state for this
     }
   }, []);
+
+  // =====================================================
+  // STATEMENTS METHODS
+  // =====================================================
 
   const fetchStatements = useCallback(
     async (startDate?: string, endDate?: string, bankAccountId?: number) => {
       setIsLoading(true);
       try {
-        // Build params with optional dates
         const params: BankStatementFilterParams = {
           startDate,
           endDate,
           bankAccountId,
+          page: 1,
+          limit: PAGINATION_CONFIG.DEFAULT_PAGE_SIZE,
         };
 
         const result = await bankReconciliationApi.getStatementsDirect(params);
         setStatements(result.data);
+        
+        const totalItems = (result.pagination as { total?: number } | undefined)?.total ?? result.data.length;
+        setPagination(prev => ({
+          ...prev,
+          page: 1,
+          total: totalItems,
+          hasMore: result.data.length === prev.limit,
+        }));
       } catch (err: unknown) {
         setError(
           err instanceof Error ? err.message : "Failed to fetch statements",
@@ -109,37 +139,72 @@ export function useBankReconciliation() {
     [],
   );
 
-  // Fetch statements with full filter support
+  // Fetch statements with full filter support and proper pagination
   const fetchStatementsWithFilters = useCallback(
-    async (filters: BankStatementFilter) => {
+    async (filters: BankStatementFilter, resetPagination = true) => {
       setIsLoading(true);
       try {
-        // Get first selected bank account ID if multiple selected
         const bankAccountId = filters.bankAccountIds && filters.bankAccountIds.length > 0
           ? filters.bankAccountIds[0]
           : undefined;
 
-        // Only send valid status values (not empty string)
         const validStatuses = ['RECONCILED', 'UNRECONCILED', 'DISCREPANCY'] as const;
         const statusParam = validStatuses.includes(filters.status as typeof validStatuses[number]) 
           ? filters.status as 'RECONCILED' | 'UNRECONCILED' | 'DISCREPANCY'
           : undefined;
 
+        const page = resetPagination ? 1 : pagination.page;
+        const limit = filters.limit || PAGINATION_CONFIG.DEFAULT_PAGE_SIZE;
+
+        const safeStatus = statusParam as 'RECONCILED' | 'UNRECONCILED' | 'DISCREPANCY' | undefined;
+
         const params: BankStatementFilterParams = {
           startDate: filters.startDate,
           endDate: filters.endDate,
           bankAccountId,
-          status: statusParam,
+          status: safeStatus,
           search: filters.search,
           isReconciled: filters.isReconciled,
           sort: filters.sort || 'transaction_date',
           order: filters.order || 'desc',
-          page: filters.page || 1,
-          limit: filters.limit || 10000, // Default to large limit to get all data
+          page,
+          limit,
         };
 
         const result = await bankReconciliationApi.getStatementsDirect(params);
-        setStatements(result.data);
+
+        if (resetPagination) {
+          setStatements(result.data);
+        } else {
+          setStatements(prev => [...prev, ...result.data]);
+        }
+
+        const paginationResult = result.pagination as { total?: number } | undefined;
+        const totalItems = paginationResult?.total ?? result.data.length;
+        setPagination(prev => ({
+          ...prev,
+          page,
+          limit,
+          total: totalItems,
+          hasMore: result.data.length === limit,
+        }));
+
+        const safeParams: BankStatementFilterParams = {
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+          bankAccountId,
+          status: safeStatus,
+          search: filters.search,
+          isReconciled: filters.isReconciled,
+          sort: filters.sort || 'transaction_date',
+          order: filters.order || 'desc',
+          page,
+          limit,
+        };
+        setLastFetchParams(safeParams);
+        
+        setFilterState(filters);
+        setIsFilterApplied(true);
       } catch (err: unknown) {
         setError(
           err instanceof Error ? err.message : "Failed to fetch statements",
@@ -148,24 +213,55 @@ export function useBankReconciliation() {
         setIsLoading(false);
       }
     },
-    [],
+    [pagination.page],
   );
 
-  // Set filter state
-  const setFilter = useCallback((updates: Partial<BankStatementFilter> | BankStatementFilter | ((prev: BankStatementFilter) => Partial<BankStatementFilter>)) => {
-    setFilterState(prev => {
-      if (typeof updates === 'function') {
-        const partialUpdates = updates(prev);
-        return { ...prev, ...partialUpdates };
-      }
-      return { ...prev, ...updates };
-    });
+  // Load more statements for infinite scroll
+  const loadMoreStatements = useCallback(async () => {
+    if (!pagination.hasMore || !lastFetchParams) return;
+
+    setIsLoading(true);
+    try {
+      const nextPage = pagination.page + 1;
+      
+      const params: BankStatementFilterParams = {
+        ...lastFetchParams,
+        page: nextPage,
+        limit: pagination.limit,
+      };
+
+      const result = await bankReconciliationApi.getStatementsDirect(params);
+      setStatements(prev => [...prev, ...result.data]);
+      
+      setPagination(prev => ({
+        ...prev,
+        page: nextPage,
+        hasMore: result.data.length === pagination.limit,
+      }));
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load more statements",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pagination, lastFetchParams]);
+
+  // =====================================================
+  // FILTER METHODS
+  // =====================================================
+
+  const setFilter = useCallback((updates: Partial<BankStatementFilter>) => {
+    setFilterState(prev => ({ ...prev, ...updates }));
   }, []);
 
   // Clear filter state
   const clearFilter = useCallback(() => {
     setFilterState({});
     setIsFilterApplied(false);
+    setLastFetchParams(null);
+    setStatements([]);
+    setPagination(prev => ({ ...prev, page: 1, total: 0, hasMore: false }));
   }, []);
 
   // Set filter applied flag
@@ -173,12 +269,15 @@ export function useBankReconciliation() {
     setIsFilterApplied(applied);
   }, []);
 
+  // =====================================================
+  // RECONCILIATION METHODS
+  // =====================================================
+
   const autoMatch = useCallback(
     async (payload: Omit<AutoMatchRequest, "companyId">) => {
       setIsLoading(true);
       try {
         await bankReconciliationApi.autoMatch({ ...payload });
-        // Refresh summary and statements after auto-match
         await Promise.all([
           fetchSummary(payload.startDate, payload.endDate),
           fetchStatements(
@@ -351,8 +450,11 @@ export function useBankReconciliation() {
     setSelectedAggregate(null);
   }, []);
 
+  // =====================================================
+  // RETURN
+  // =====================================================
+
   return {
-    // Existing state and methods
     summary,
     statements,
     bankAccounts,
@@ -368,19 +470,17 @@ export function useBankReconciliation() {
     potentialMatchesMap,
     isLoadingMatches,
 
-    // =====================================================
-    // FILTER STATE & METHODS
-    // =====================================================
+    // Filter state & methods
     filter,
     setFilter,
     clearFilter,
     isFilterApplied,
     setFilterApplied,
     fetchStatementsWithFilters,
+    loadMoreStatements,
+    pagination,
 
-    // =====================================================
-    // MULTI-MATCH STATE & METHODS
-    // =====================================================
+    // Multi-match state & methods
     reconciliationGroups,
     multiMatchSuggestions,
     isLoadingSuggestions,
@@ -389,7 +489,6 @@ export function useBankReconciliation() {
     selectedAggregate,
     setSelectedAggregate,
 
-    // Multi-match methods
     createMultiMatch,
     undoMultiMatch,
     fetchSuggestedGroupStatements,

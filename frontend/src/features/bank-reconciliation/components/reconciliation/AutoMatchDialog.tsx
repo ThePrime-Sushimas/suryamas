@@ -10,7 +10,7 @@ import {
   CheckCircle2,
   ChevronRight,
 } from "lucide-react";
-import { DEFAULT_MATCHING_CRITERIA } from "../../constants/bank-reconciliation.constants";
+import { DEFAULT_MATCHING_CRITERIA } from "../../constants/reconciliation.config";
 import type {
   AutoMatchRequest,
   MatchingCriteria,

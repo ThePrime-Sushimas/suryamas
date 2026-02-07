@@ -4,7 +4,6 @@ import type {
   AutoMatchRequest,
   ManualReconcileRequest,
   GetSummaryParams,
-  GetStatementsParams,
   BankAccountStatus,
   BankStatementWithMatch,
   PotentialMatch,
@@ -27,25 +26,19 @@ export interface BankStatementFilterParams {
   limit?: number;
 }
 
+export interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+}
+
 export const bankReconciliationApi = {
   /**
    * Get reconciliation summary for a date range
    */
   async getSummary(params: GetSummaryParams): Promise<ReconciliationSummary> {
     const response = await api.get("/reconciliation/bank/summary", { params });
-    return response.data.data;
-  },
-
-  /**
-   * Get all bank statements with reconciliation info
-   * Supports optional date range and filters
-   */
-  async getStatements(
-    params: GetStatementsParams,
-  ): Promise<BankStatementWithMatch[]> {
-    const response = await api.get("/reconciliation/bank/statements", {
-      params,
-    });
     return response.data.data;
   },
 
@@ -116,7 +109,6 @@ export const bankReconciliationApi = {
   ): Promise<PotentialMatch[]> {
     const response = await api.get(
       `/reconciliation/bank/statements/${statementId}/potential-matches`,
-      
     );
     return response.data.data;
   },
@@ -131,7 +123,6 @@ export const bankReconciliationApi = {
   async createMultiMatch(
     payload: MultiMatchRequest,
   ): Promise<MultiMatchResult> {
-    // Remove duplicate statement IDs before sending
     const deduplicatedPayload = {
       ...payload,
       statementIds: [...new Set(payload.statementIds)],
@@ -183,7 +174,7 @@ export const bankReconciliationApi = {
     return response.data.data;
   },
 
-/**
+  /**
    * Get single group details
    */
   async getMultiMatchGroup(
@@ -197,7 +188,6 @@ export const bankReconciliationApi = {
 
   // =====================================================
   // REVERSE MATCHING API METHODS
-  // Used for matching from Pos Aggregates page
   // =====================================================
 
   /**
@@ -232,3 +222,4 @@ export const bankReconciliationApi = {
     return response.data.data;
   },
 };
+
