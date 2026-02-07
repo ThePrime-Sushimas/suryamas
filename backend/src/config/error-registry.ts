@@ -113,7 +113,7 @@ export const ERROR_REGISTRY = {
   },
   MetricUnitError: {
     name: 'MetricUnitError',
-    importPath: '../modules/metric-units/metricUnits.errors',
+    importPath: '../modules/metric-units/metric-units.errors',
     defaultStatusCode: 400,
     category: 'inventory',
   },
@@ -181,6 +181,12 @@ export const ERROR_REGISTRY = {
     name: 'PricelistError',
     importPath: '../modules/pricelists/pricelists.errors',
     defaultStatusCode: 400,
+    category: 'pricing',
+  },
+  PricelistNotFoundError: {
+    name: 'PricelistNotFoundError',
+    importPath: '../modules/pricelists/pricelists.errors',
+    defaultStatusCode: 404,
     category: 'pricing',
   },
 
