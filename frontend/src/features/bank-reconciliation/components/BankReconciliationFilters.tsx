@@ -35,17 +35,11 @@ export interface BankStatementFilter {
 // CONFIGURATION
 // =============================================================================
 
-const STATUS_OPTIONS: { value: BankStatementFilterStatus; label: string }[] = [
-  { value: '', label: 'SEMUA STATUS' },
-  { value: 'RECONCILED', label: 'RECONCILED' },
-  { value: 'UNRECONCILED', label: 'BELUM COCOK' },
-  { value: 'DISCREPANCY', label: 'SELISIH' },
-]
-
-const RECONCILED_OPTIONS: { value: string; label: string }[] = [
-  { value: '', label: 'Semua' },
-  { value: 'true', label: 'Sudah Direkonsiliasi' },
-  { value: 'false', label: 'Belum Direkonsiliasi' },
+// Status options - sesuai dengan BankReconciliationStatus di types
+const STATUS_OPTIONS: { value: BankStatementFilterStatus; label: string; description: string }[] = [
+  { value: '', label: 'ALL STATUS', description: 'Semua data' },
+  { value: 'UNRECONCILED', label: 'UNRECONCILED', description: 'Belum dicocokkan' },
+  { value: 'DISCREPANCY', label: 'DISCREPANCY', description: 'Ada perbedaan nominal' },
 ]
 
 // =============================================================================
@@ -97,14 +91,6 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
     onFiltersChange({ status: value || undefined })
   }
 
-  // Handle reconciled change
-  const handleReconciledChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value
-    onFiltersChange({ 
-      isReconciled: value === '' ? undefined : value === 'true' 
-    })
-  }
-
   // Handle date from change
   const handleDateFromChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onFiltersChange({ startDate: e.target.value || undefined })
@@ -150,9 +136,6 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
       case 'status':
         updates.status = undefined
         break
-      case 'isReconciled':
-        updates.isReconciled = undefined
-        break
       case 'bankAccountIds':
         updates.bankAccountIds = undefined
         break
@@ -166,7 +149,6 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
     filters.startDate ||
     filters.endDate ||
     filters.status ||
-    filters.isReconciled !== undefined ||
     (filters.bankAccountIds && filters.bankAccountIds.length > 0)
 
   return (
@@ -240,16 +222,8 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
               )}
               {filters.status && (
                 <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs">
-                  Status: {filters.status}
+                  Status: {STATUS_OPTIONS.find(o => o.value === filters.status)?.label || filters.status}
                   <button onClick={() => handleClearFilter('status')} className="hover:text-purple-900">
-                    <X size={12} />
-                  </button>
-                </span>
-              )}
-              {filters.isReconciled !== undefined && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-xs">
-                  Rekonsiliasi: {filters.isReconciled ? 'Ya' : 'Tidak'}
-                  <button onClick={() => handleClearFilter('isReconciled')} className="hover:text-amber-900">
                     <X size={12} />
                   </button>
                 </span>
@@ -357,10 +331,10 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
               )}
             </div>
 
-            {/* Status */}
-            <div className="w-44">
+            {/* Status Filter - Sederhana dan Jelas */}
+            <div className="w-48">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Status
+                Status Transaksi
               </label>
               <select
                 value={filters.status || ''}
@@ -368,28 +342,6 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 {STATUS_OPTIONS.map((option) => (
-                  <option key={option.value || 'all'} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Reconciliation Status */}
-            <div className="w-48">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Status Rekonsiliasi
-              </label>
-              <select
-                value={
-                  filters.isReconciled === undefined
-                    ? ''
-                    : filters.isReconciled.toString()
-                }
-                onChange={handleReconciledChange}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                {RECONCILED_OPTIONS.map((option) => (
                   <option key={option.value || 'all'} value={option.value}>
                     {option.label}
                   </option>
