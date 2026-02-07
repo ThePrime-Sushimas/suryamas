@@ -60,7 +60,7 @@ export function ManualMatchModal({
     } finally {
       setIsSearching(false);
     }
-  }, [search, item?.transaction_date]);
+  }, [search]);
 
   useEffect(() => {
     if (isOpen && item) {
