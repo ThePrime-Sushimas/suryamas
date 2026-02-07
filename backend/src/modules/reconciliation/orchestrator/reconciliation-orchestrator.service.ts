@@ -241,12 +241,56 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
 
       const { data: stmtData, error: stmtError } = await supabase
         .from("bank_statements")
-        .select("id, is_reconciled, credit_amount, debit_amount")
+        .select("id, is_reconciled, credit_amount, debit_amount, reconciliation_id")
         .gte("transaction_date", startDate)
         .lte("transaction_date", endDate)
         .is("deleted_at", null);
 
       if (stmtError) throw stmtError;
+
+      // Try to get audit data for autoMatched count (may fail if table doesn't exist)
+      let autoMatched = 0;
+      let manuallyMatched = 0;
+      try {
+        const { data: auditData, error: auditError } = await supabase
+          .from("audit_log")
+          .select("action")
+          .gte("created_at", startDate + "T00:00:00")
+          .lte("created_at", endDate + "T23:59:59")
+          .in("action", ["AUTO_MATCH", "MANUAL_RECONCILE"]);
+
+        if (!auditError && auditData) {
+          autoMatched = auditData.filter(a => a.action === "AUTO_MATCH").length || 0;
+          manuallyMatched = auditData.filter(a => a.action === "MANUAL_RECONCILE").length || 0;
+        }
+      } catch (e) {
+        logDebug("Audit log table not available, defaulting autoMatched to 0");
+      }
+
+      // Try to get discrepancies data (may fail if join doesn't work)
+      let discrepancies = 0;
+      try {
+        const { data: discData, error: discError } = await supabase
+          .from("bank_statements")
+          .select("credit_amount, debit_amount, aggregated_transactions!reconciliation_id(nett_amount)")
+          .gte("transaction_date", startDate)
+          .lte("transaction_date", endDate)
+          .is("deleted_at", null)
+          .eq("is_reconciled", true);
+
+        if (!discError && discData) {
+          const threshold = 100; // difference threshold
+          discrepancies = discData.filter(stmt => {
+            const bankAmount = (stmt.credit_amount || 0) - (stmt.debit_amount || 0);
+            const nett = stmt.aggregated_transactions?.[0]?.nett_amount;
+            if (!nett) return false;
+            const diff = Math.abs(bankAmount - nett);
+            return diff > threshold;
+          }).length || 0;
+        }
+      } catch (e) {
+        logDebug("Discrepancies join not available, defaulting to 0");
+      }
 
       const totalAggregates = aggData?.length || 0;
       const reconciledAggregates =
@@ -254,6 +298,8 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
       const totalStatements = stmtData?.length || 0;
       const reconciledStatements =
         stmtData?.filter((stmt) => stmt.is_reconciled).length || 0;
+
+      const unreconciled = totalStatements - reconciledStatements;
 
       const totalNetAmount =
         aggData?.reduce((sum, agg) => sum + (Number(agg.nett_amount) || 0), 0) ||
@@ -270,8 +316,8 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
       const totalDifference = Math.abs(totalNetAmount - totalBankAmount);
 
       const percentageReconciled =
-        totalStatements > 0
-          ? (reconciledStatements / totalStatements) * 100
+        totalAggregates > 0
+          ? (reconciledAggregates / totalAggregates) * 100
           : 0;
 
       const summary = {
@@ -281,10 +327,10 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
         },
         totalAggregates,
         totalStatements,
-        autoMatched: 0,
-        manuallyMatched: reconciledStatements,
-        discrepancies: totalStatements - reconciledStatements,
-        unreconciled: totalStatements - reconciledStatements,
+        autoMatched,
+        manuallyMatched,
+        discrepancies,
+        unreconciled,
         totalDifference,
         percentageReconciled,
       };

@@ -3,7 +3,7 @@ import type {
   AggregatedTransactionFilterParams,
 } from "@/features/pos-aggregates/types";
 import { posAggregatesApi } from "@/features/pos-aggregates/api/posAggregates.api";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   Sparkles,
   RefreshCw,
@@ -18,7 +18,6 @@ import { ManualMatchModal } from "../components/reconciliation/ManualMatchModal"
 import { AutoMatchDialog } from "../components/reconciliation/AutoMatchDialog";
 import { MultiMatchModal } from "../components/reconciliation/MultiMatchModal";
 import { MultiMatchGroupList } from "../components/reconciliation/MultiMatchGroupList";
-import { ReconciliationSummaryCards } from "../components/reconciliation/ReconciliationSummary";
 import { BankReconciliationFilters, type BankStatementFilter } from "../components/BankReconciliationFilters";
 import { useBankReconciliation } from "../hooks/useBankReconciliation";
 import type {
@@ -26,6 +25,12 @@ import type {
   AutoMatchRequest,
 } from "../types/bank-reconciliation.types";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+
+// Type definitions for better type safety
+type DateRange = {
+  startDate: string;
+  endDate: string;
+};
 
 export function BankReconciliationPage() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
@@ -37,10 +42,12 @@ export function BankReconciliationPage() {
   const [selectedAggregateForMultiMatch, setSelectedAggregateForMultiMatch] = useState<AggregatedTransactionListItem | null>(null);
   const [showGroupList, setShowGroupList] = useState(true);
   const [filtersApplied, setFiltersApplied] = useState(false);
-  const [dateRange, setDateRange] = useState({
+  const [dateRange, setDateRange] = useState<DateRange>({
     startDate: '',
     endDate: '',
   });
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const {
     statements,
@@ -61,7 +68,6 @@ export function BankReconciliationPage() {
     fetchReconciliationGroups,
     createMultiMatch,
     undoMultiMatch,
-    summary,
   } = useBankReconciliation();
 
   // Fetch all bank accounts on mount
@@ -69,7 +75,7 @@ export function BankReconciliationPage() {
     fetchAllBankAccounts();
   }, [fetchAllBankAccounts]);
 
-  // Set initial selected account
+  // Set initial selected account (without auto-apply filters)
   useEffect(() => {
     if (!selectedAccountId && bankAccounts.length > 0) {
       const timeoutId = setTimeout(() => {
@@ -82,6 +88,7 @@ export function BankReconciliationPage() {
   const handleApplyFilters = useCallback((filters: BankStatementFilter) => {
     setFilter(filters);
     setFiltersApplied(true);
+    setError(null);
 
     if (filters.startDate || filters.endDate) {
       setDateRange({
@@ -91,7 +98,7 @@ export function BankReconciliationPage() {
     }
 
     fetchStatementsWithFilters(filters);
-    
+
     if (filters.startDate && filters.endDate) {
       fetchReconciliationGroups(filters.startDate, filters.endDate);
     }
@@ -101,27 +108,56 @@ export function BankReconciliationPage() {
     clearFilter();
     setFiltersApplied(false);
     setDateRange({ startDate: '', endDate: '' });
+    setError(null);
   }, [clearFilter]);
 
-  const refreshData = useCallback(() => {
-    const currentFilter = {
-      ...filter,
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate,
-      bankAccountIds: selectedAccountId ? [selectedAccountId] : undefined,
-    };
-    
-    fetchStatementsWithFilters(currentFilter);
-    
-    if (dateRange.startDate && dateRange.endDate) {
-      fetchReconciliationGroups(dateRange.startDate, dateRange.endDate);
+  const refreshData = useCallback(async () => {
+    setIsRefreshing(true);
+    setError(null);
+    try {
+      const currentFilter = {
+        ...filter,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        bankAccountIds: selectedAccountId ? [selectedAccountId] : undefined,
+      };
+      
+      await fetchStatementsWithFilters(currentFilter);
+      
+      if (dateRange.startDate && dateRange.endDate) {
+        await fetchReconciliationGroups(dateRange.startDate, dateRange.endDate);
+      }
+    } catch (err) {
+      console.error('Failed to refresh data:', err);
+      setError('Gagal memuat data terbaru. Silakan coba lagi.');
+    } finally {
+      setIsRefreshing(false);
     }
   }, [filter, dateRange.startDate, dateRange.endDate, selectedAccountId, fetchStatementsWithFilters, fetchReconciliationGroups]);
 
+  // Memoize unreconciled statements to avoid unnecessary re-computation
+  const unreconciledStatements = useMemo(() => {
+    return statements.filter((s) => !s.is_reconciled);
+  }, [statements]);
+
   const handleAutoMatchPreview = async () => {
     setIsLoadingPreview(true);
-    const unreconciledStatements = statements.filter(s => !s.is_reconciled);
-    const fetchPromises = unreconciledStatements.map(async (statement) => {
+    setError(null);
+    
+    // Filter out statements that already have potential matches loaded
+    const unreconciledStatementsForPreview = statements
+      .filter(s => !s.is_reconciled)
+      .filter(s => !potentialMatchesMap[s.id] || potentialMatchesMap[s.id].length === 0);
+    
+    if (unreconciledStatementsForPreview.length === 0) {
+      setIsLoadingPreview(false);
+      setIsAutoMatchOpen(true);
+      return;
+    }
+    
+    // Limit concurrent requests to 50
+    const statementsToFetch = unreconciledStatementsForPreview.slice(0, 50);
+    const fetchPromises = statementsToFetch.map(async (statement) => {
       try {
         await fetchPotentialMatches(statement.id);
         return true;
@@ -130,8 +166,10 @@ export function BankReconciliationPage() {
         return false;
       }
     });
+    
     await Promise.all(fetchPromises);
     setIsLoadingPreview(false);
+    setIsAutoMatchOpen(true); // Open dialog after preview
   };
 
   const handleAutoMatch = async (payload: Omit<AutoMatchRequest, "companyId">) => {
@@ -280,8 +318,6 @@ export function BankReconciliationPage() {
     }
   };
 
-  const unreconciledStatements = statements.filter((s) => !s.is_reconciled);
-
   return (
     <div className="max-w-[1600px] mx-auto p-6 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Header */}
@@ -299,6 +335,15 @@ export function BankReconciliationPage() {
 
         <div className="flex items-center gap-3 self-end md:self-auto">
           <button
+            onClick={refreshData}
+            disabled={isRefreshing || isLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Memuat...' : 'Refresh'}
+          </button>
+          
+          <button
             onClick={handleAutoMatchPreview}
             disabled={isLoading || isLoadingPreview}
             className="group relative flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl text-sm font-bold hover:bg-blue-700 shadow-xl shadow-blue-500/20 active:scale-95 transition-all overflow-hidden disabled:opacity-50"
@@ -313,6 +358,19 @@ export function BankReconciliationPage() {
           </button>
         </div>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-800 p-4 rounded-2xl flex items-center justify-between">
+          <p className="text-sm text-red-600 dark:text-red-400 font-medium">{error}</p>
+          <button
+            onClick={() => setError(null)}
+            className="p-1 hover:bg-red-100 dark:hover:bg-red-800 rounded-lg transition-colors"
+          >
+            <X className="w-4 h-4 text-red-500" />
+          </button>
+        </div>
+      )}
 
       {/* Bank Account Tabs */}
       <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 overflow-x-auto scrollbar-none pb-px">
@@ -358,13 +416,6 @@ export function BankReconciliationPage() {
         bankAccounts={bankAccounts}
         isLoading={isLoading}
       />
-
-      {/* Summary Cards */}
-      {filtersApplied && summary && (
-        <ErrorBoundary>
-          <ReconciliationSummaryCards summary={summary} />
-        </ErrorBoundary>
-      )}
 
       {/* Tab Navigation */}
       {filtersApplied && (
