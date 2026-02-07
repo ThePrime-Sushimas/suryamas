@@ -22,7 +22,7 @@ import { BankReconciliationFilters, type BankStatementFilter } from "../componen
 import { useBankReconciliation } from "../hooks/useBankReconciliation";
 import type {
   BankStatementWithMatch,
-  AutoMatchRequest,
+  MatchingCriteria,
 } from "../types/bank-reconciliation.types";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 
@@ -55,7 +55,8 @@ export function BankReconciliationPage() {
     isLoading,
     fetchStatementsWithFilters,
     fetchAllBankAccounts,
-    autoMatch,
+    previewAutoMatch,
+    confirmAutoMatch,
     manualReconcile,
     undoReconciliation,
     fetchPotentialMatches,
@@ -144,44 +145,39 @@ export function BankReconciliationPage() {
     setIsLoadingPreview(true);
     setError(null);
     
-    // Filter out statements that already have potential matches loaded
-    const unreconciledStatementsForPreview = statements
-      .filter(s => !s.is_reconciled)
-      .filter(s => !potentialMatchesMap[s.id] || potentialMatchesMap[s.id].length === 0);
-    
-    if (unreconciledStatementsForPreview.length === 0) {
+    if (!dateRange.startDate || !dateRange.endDate) {
+      setError("Silakan pilih rentang tanggal terlebih dahulu");
       setIsLoadingPreview(false);
-      setIsAutoMatchOpen(true);
       return;
     }
     
-    // Limit concurrent requests to 50
-    const statementsToFetch = unreconciledStatementsForPreview.slice(0, 50);
-    const fetchPromises = statementsToFetch.map(async (statement) => {
-      try {
-        await fetchPotentialMatches(statement.id);
-        return true;
-      } catch (err) {
-        console.error(`Error fetching matches for ${statement.id}:`, err);
-        return false;
-      }
-    });
-    
-    await Promise.all(fetchPromises);
+    setIsAutoMatchOpen(true);
     setIsLoadingPreview(false);
-    setIsAutoMatchOpen(true); // Open dialog after preview
   };
 
-  const handleAutoMatch = async (payload: Omit<AutoMatchRequest, "companyId">) => {
+  const handleAutoMatchPreviewApi = async (criteria?: Partial<MatchingCriteria>) => {
+    if (!dateRange.startDate || !dateRange.endDate) {
+      throw new Error("Silakan pilih rentang tanggal terlebih dahulu");
+    }
+    
+    return previewAutoMatch({
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      bankAccountId: selectedAccountId || undefined,
+      matchingCriteria: criteria,
+    });
+  };
+
+  const handleAutoMatch = async (statementIds: string[], criteria?: Partial<MatchingCriteria>) => {
     try {
-      await autoMatch({
-        ...payload,
-        bankAccountId: selectedAccountId || undefined,
+      await confirmAutoMatch({
+        statementIds,
+        matchingCriteria: criteria,
       });
-      setIsAutoMatchOpen(false);
       refreshData();
     } catch (err) {
       console.error("Auto-match error:", err);
+      throw err;
     }
   };
 
@@ -494,6 +490,7 @@ export function BankReconciliationPage() {
         isOpen={isAutoMatchOpen}
         onClose={() => setIsAutoMatchOpen(false)}
         onConfirm={handleAutoMatch}
+        onPreview={handleAutoMatchPreviewApi}
         isLoading={isLoading}
         dateRange={dateRange}
       />

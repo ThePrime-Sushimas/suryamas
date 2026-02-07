@@ -104,6 +104,60 @@ export interface AutoMatchRequest {
   matchingCriteria?: Partial<MatchingCriteria>;
 }
 
+export interface AutoMatchPreviewRequest {
+  startDate: string;
+  endDate: string;
+  bankAccountId?: number;
+  matchingCriteria?: Partial<MatchingCriteria>;
+}
+
+export interface AutoMatchConfirmRequest {
+  statementIds: string[];
+  matchingCriteria?: Partial<MatchingCriteria>;
+}
+
+export interface AutoMatchPreviewMatch {
+  statementId: string;
+  statement: {
+    id: string;
+    transaction_date: string;
+    description: string;
+    reference_number?: string;
+    debit_amount: number;
+    credit_amount: number;
+    amount: number;
+  };
+  aggregate: {
+    id: string;
+    transaction_date: string;
+    nett_amount: number;
+    reference_number?: string;
+    payment_method_name?: string;
+    gross_amount: number;
+  };
+  matchScore: number;
+  matchCriteria: MatchCriteriaType;
+  difference: number;
+}
+
+export interface AutoMatchPreviewResponse {
+  matches: AutoMatchPreviewMatch[];
+  summary: {
+    totalStatements: number;
+    matchedStatements: number;
+    unmatchedStatements: number;
+  };
+  unmatchedStatements: Array<{
+    id: string;
+    transaction_date: string;
+    description: string;
+    reference_number?: string;
+    debit_amount: number;
+    credit_amount: number;
+    amount: number;
+  }>;
+}
+
 export interface GetSummaryParams {
   startDate: string;
   endDate: string;

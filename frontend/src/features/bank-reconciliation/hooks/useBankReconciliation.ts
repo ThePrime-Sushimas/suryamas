@@ -2,7 +2,9 @@ import { useState, useCallback } from "react";
 import type {
   ReconciliationSummary,
   BankStatementWithMatch,
-  AutoMatchRequest,
+  AutoMatchPreviewRequest,
+  AutoMatchConfirmRequest,
+  AutoMatchPreviewResponse,
   ManualReconcileRequest,
   BankAccountStatus,
   PotentialMatch,
@@ -273,27 +275,38 @@ export function useBankReconciliation() {
   // RECONCILIATION METHODS
   // =====================================================
 
-  const autoMatch = useCallback(
-    async (payload: Omit<AutoMatchRequest, "companyId">) => {
+  const previewAutoMatch = useCallback(
+    async (
+      payload: Omit<AutoMatchPreviewRequest, "companyId">,
+    ): Promise<AutoMatchPreviewResponse> => {
       setIsLoading(true);
       try {
-        await bankReconciliationApi.autoMatch({ ...payload });
-        await Promise.all([
-          fetchSummary(payload.startDate, payload.endDate),
-          fetchStatements(
-            payload.startDate,
-            payload.endDate,
-            payload.bankAccountId,
-          ),
-        ]);
+        const result = await bankReconciliationApi.previewAutoMatch({ ...payload });
+        return result;
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Auto-match failed");
+        setError(err instanceof Error ? err.message : "Preview auto-match failed");
         throw err;
       } finally {
         setIsLoading(false);
       }
     },
-    [fetchSummary, fetchStatements],
+    [],
+  );
+
+  const confirmAutoMatch = useCallback(
+    async (payload: Omit<AutoMatchConfirmRequest, "companyId">) => {
+      setIsLoading(true);
+      try {
+        const result = await bankReconciliationApi.confirmAutoMatch({ ...payload });
+        return result;
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Confirm auto-match failed");
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
   );
 
   const manualReconcile = useCallback(
@@ -463,7 +476,8 @@ export function useBankReconciliation() {
     fetchSummary,
     fetchStatements,
     fetchAllBankAccounts,
-    autoMatch,
+    previewAutoMatch,
+    confirmAutoMatch,
     manualReconcile,
     undoReconciliation,
     fetchPotentialMatches,

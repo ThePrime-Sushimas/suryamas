@@ -2,6 +2,9 @@ import api from "@/lib/axios";
 import type {
   ReconciliationSummary,
   AutoMatchRequest,
+  AutoMatchPreviewRequest,
+  AutoMatchConfirmRequest,
+  AutoMatchPreviewResponse,
   ManualReconcileRequest,
   GetSummaryParams,
   BankAccountStatus,
@@ -84,6 +87,26 @@ export const bankReconciliationApi = {
     payload: AutoMatchRequest,
   ): Promise<{ matchedCount: number }> {
     const response = await api.post("/reconciliation/bank/auto-match", payload);
+    return response.data.data;
+  },
+
+  /**
+   * Preview auto-match results without updating database
+   */
+  async previewAutoMatch(
+    payload: AutoMatchPreviewRequest,
+  ): Promise<AutoMatchPreviewResponse> {
+    const response = await api.post("/reconciliation/bank/auto-match/preview", payload);
+    return response.data.data;
+  },
+
+  /**
+   * Confirm and reconcile selected matches only
+   */
+  async confirmAutoMatch(
+    payload: AutoMatchConfirmRequest,
+  ): Promise<{ matched: number; failed: number }> {
+    const response = await api.post("/reconciliation/bank/auto-match/confirm", payload);
     return response.data.data;
   },
 

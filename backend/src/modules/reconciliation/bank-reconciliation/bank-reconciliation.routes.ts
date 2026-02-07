@@ -13,6 +13,8 @@ import { PermissionService } from "../../../services/permission.service";
 import {
   manualReconcileSchema,
   autoMatchSchema,
+  autoMatchPreviewSchema,
+  autoMatchConfirmSchema,
   getStatementsQuerySchema,
   getSummaryQuerySchema,
   multiMatchSchema,
@@ -77,6 +79,38 @@ router.post(
   (req, res) =>
     bankReconciliationController.autoMatch(
       req as ValidatedAuthRequest<typeof autoMatchSchema>,
+      res,
+    ),
+);
+
+/**
+ * @route POST /api/v1/reconciliation/bank/auto-match/preview
+ * @desc Preview auto-matching results without updating database
+ */
+router.post(
+  "/auto-match/preview",
+  canView("bank_reconciliation"),
+  createRateLimit,
+  validateSchema(autoMatchPreviewSchema),
+  (req, res) =>
+    bankReconciliationController.previewAutoMatch(
+      req as ValidatedAuthRequest<typeof autoMatchPreviewSchema>,
+      res,
+    ),
+);
+
+/**
+ * @route POST /api/v1/reconciliation/bank/auto-match/confirm
+ * @desc Confirm and reconcile selected matches
+ */
+router.post(
+  "/auto-match/confirm",
+  canInsert("bank_reconciliation"),
+  createRateLimit,
+  validateSchema(autoMatchConfirmSchema),
+  (req, res) =>
+    bankReconciliationController.confirmAutoMatch(
+      req as ValidatedAuthRequest<typeof autoMatchConfirmSchema>,
       res,
     ),
 );

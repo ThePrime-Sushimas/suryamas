@@ -11,6 +11,8 @@ import type { ValidatedAuthRequest } from "../../../middleware/validation.middle
 import {
   manualReconcileSchema,
   autoMatchSchema,
+  autoMatchPreviewSchema,
+  autoMatchConfirmSchema,
   multiMatchSchema,
   multiMatchGroupQuerySchema,
   multiMatchSuggestionsQuerySchema,
@@ -141,6 +143,78 @@ export class BankReconciliationController {
         success: false,
         message: error.message,
         code: error.code || "AUTO_MATCH_FAILED",
+      });
+    }
+  }
+
+  async previewAutoMatch(
+    req: ValidatedAuthRequest<typeof autoMatchPreviewSchema>,
+    res: Response,
+  ): Promise<void> {
+    try {
+      const validated = req.validated.body;
+
+      const result = await this.service.previewAutoMatch(
+        new Date(validated.startDate),
+        new Date(validated.endDate),
+        validated.bankAccountId,
+        validated.matchingCriteria,
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      logError("Preview auto-match error", { 
+        error: error.message,
+        code: error.code 
+      });
+      
+      let status = 400;
+      if (error instanceof DatabaseConnectionError) status = 503;
+
+      res.status(status).json({
+        success: false,
+        message: error.message,
+        code: error.code || "PREVIEW_AUTO_MATCH_FAILED",
+      });
+    }
+  }
+
+  async confirmAutoMatch(
+    req: ValidatedAuthRequest<typeof autoMatchConfirmSchema>,
+    res: Response,
+  ): Promise<void> {
+    try {
+      const validated = req.validated.body;
+      const userId = req.user?.id;
+      const companyId = (req as any).context?.company_id;
+
+      const result = await this.service.confirmAutoMatch(
+        validated.statementIds,
+        userId,
+        companyId,
+        validated.matchingCriteria,
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      logError("Confirm auto-match error", { 
+        error: error.message,
+        code: error.code 
+      });
+      
+      let status = 400;
+      if (error instanceof DatabaseConnectionError) status = 503;
+
+      res.status(status).json({
+        success: false,
+        message: error.message,
+        code: error.code || "CONFIRM_AUTO_MATCH_FAILED",
       });
     }
   }

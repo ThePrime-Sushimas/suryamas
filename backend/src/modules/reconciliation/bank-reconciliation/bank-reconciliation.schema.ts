@@ -171,3 +171,47 @@ export const multiMatchSuggestionsQuerySchema = z.object({
 export type MultiMatchInput = z.infer<typeof multiMatchSchema>;
 export type MultiMatchGroupQueryInput = z.infer<typeof multiMatchGroupQuerySchema>;
 export type MultiMatchSuggestionsInput = z.infer<typeof multiMatchSuggestionsQuerySchema>;
+
+// =====================================================
+// AUTO-MATCH PREVIEW & CONFIRM SCHEMAS
+// =====================================================
+
+/**
+ * Schema for auto-match preview request (returns matches without updating)
+ */
+export const autoMatchPreviewSchema = z.object({
+  body: z.object({
+    startDate: dateFormat,
+    endDate: dateFormat,
+    bankAccountId: z.number().int().positive().optional(),
+    matchingCriteria: z
+      .object({
+        amountTolerance: z.number().min(0).optional(),
+        dateBufferDays: z.number().int().min(0).max(30).optional(),
+        differenceThreshold: z.number().min(0).optional(),
+      })
+      .optional(),
+  }),
+});
+
+/**
+ * Schema for auto-match confirm request (reconciles selected statements)
+ */
+export const autoMatchConfirmSchema = z.object({
+  body: z.object({
+    statementIds: z.array(
+      z.string().min(1, "Statement ID is required"),
+      { message: "Statement IDs are required" }
+    ).min(1, "At least one statement ID is required"),
+    matchingCriteria: z
+      .object({
+        amountTolerance: z.number().min(0).optional(),
+        dateBufferDays: z.number().int().min(0).max(30).optional(),
+        differenceThreshold: z.number().min(0).optional(),
+      })
+      .optional(),
+  }),
+});
+
+export type AutoMatchPreviewInput = z.infer<typeof autoMatchPreviewSchema>;
+export type AutoMatchConfirmInput = z.infer<typeof autoMatchConfirmSchema>;
