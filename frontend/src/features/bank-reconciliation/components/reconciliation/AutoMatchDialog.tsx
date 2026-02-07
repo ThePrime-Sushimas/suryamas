@@ -500,7 +500,7 @@ function MatchItem({
             </span>
           )}
         </div>
-        <p className="text-sm font-bold text-gray-700 dark:text-gray-200 truncate">
+        <p className="text-sm font-bold text-gray-700 dark:text-gray-200">
           {match.statement.description}
         </p>
         <p className="text-lg font-extrabold text-gray-900 dark:text-white mt-1">
