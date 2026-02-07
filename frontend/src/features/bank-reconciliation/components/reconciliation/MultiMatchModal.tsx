@@ -183,7 +183,7 @@ export function MultiMatchModal({
                       </div>
                       <div>
                         <p className="text-xs text-gray-500">Ref</p>
-                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
                           {aggregate.source_ref}
                         </p>
                       </div>
@@ -308,7 +308,7 @@ export function MultiMatchModal({
                               <td className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">
                                 {statement.transaction_date}
                               </td>
-                              <td className="px-3 py-2 text-sm text-gray-900 dark:text-white max-w-xs truncate">
+                              <td className="px-3 py-2 text-sm text-gray-900 dark:text-white max-w-xs ">
                                 {statement.description || "-"}
                               </td>
                               <td className="px-3 py-2 text-sm font-medium text-right text-gray-900 dark:text-white">
