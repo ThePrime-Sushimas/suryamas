@@ -12,6 +12,7 @@ import {
   X,
   Filter,
   FileText,
+  AlertTriangle,
 } from "lucide-react";
 import { BankMutationTable } from "../components/reconciliation/BankMutationTable";
 import { ManualMatchModal } from "../components/reconciliation/ManualMatchModal";
@@ -66,6 +67,7 @@ export function BankReconciliationPage() {
     setFilter,
     clearFilter,
     reconciliationGroups,
+    reconciliationGroupsError,
     fetchReconciliationGroups,
     createMultiMatch,
     undoMultiMatch,
@@ -463,7 +465,27 @@ export function BankReconciliationPage() {
         {/* Sidebar */}
         {showGroupList && filtersApplied && (
           <div className="w-full lg:w-96 shrink-0">
-            <div className="sticky top-6">
+            <div className="sticky top-6 space-y-4">
+              {/* Error Display for Groups */}
+              {reconciliationGroupsError && (
+                <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-800 p-4 rounded-2xl flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm text-red-600 dark:text-red-400 font-medium">
+                      Gagal memuat Multi-Match Groups
+                    </p>
+                    <p className="text-xs text-red-500 dark:text-red-500 mt-1">
+                      {reconciliationGroupsError}
+                    </p>
+                    <button
+                      onClick={refreshData}
+                      className="text-xs text-red-600 dark:text-red-400 font-semibold mt-2 hover:underline"
+                    >
+                      Coba lagi
+                    </button>
+                  </div>
+                </div>
+              )}
               <MultiMatchGroupList
                 groups={reconciliationGroups}
                 onUndoGroup={handleUndoMultiMatch}

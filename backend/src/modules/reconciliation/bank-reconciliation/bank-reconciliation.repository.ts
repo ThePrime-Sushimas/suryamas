@@ -774,6 +774,8 @@ export class BankReconciliationRepository {
 
   /**
    * Get all reconciliation groups for a company
+   * Filter by aggregated_transactions.transaction_date instead of created_at
+   * to match user's selected date range filter
    */
   async getReconciliationGroups(
     startDate: Date,
@@ -792,15 +794,86 @@ export class BankReconciliationRepository {
           payment_methods!left (name)
         )
       `)
-        .gte("created_at", startDate.toISOString())
-        .lte("created_at", endDate.toISOString())
+        .gte("aggregated_transactions.transaction_date", startDate.toISOString().split('T')[0])
+        .lte("aggregated_transactions.transaction_date", endDate.toISOString().split('T')[0])
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
 
       if (error) {
+        logError("Error fetching reconciliation groups (main query)", {
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          error: error.message
+        });
         throw error;
       }
-      return data || [];
+
+      // Fetch details separately for each group to avoid join issues
+      const groupIds = (data || []).map((group: any) => group.id);
+      let detailsMap: Record<string, any[]> = {};
+
+      if (groupIds.length > 0) {
+        try {
+          const { data: detailsData, error: detailsError } = await supabase
+            .from("bank_reconciliation_group_details")
+            .select(`
+              *,
+              bank_statements (
+                id,
+                transaction_date,
+                description,
+                debit_amount,
+                credit_amount
+              )
+            `)
+            .in("group_id", groupIds);
+
+          if (detailsError) {
+            logError("Error fetching group details", {
+              error: detailsError.message
+            });
+          } else if (detailsData) {
+            // Group details by group_id
+            detailsMap = detailsData.reduce((acc: Record<string, any[]>, detail: any) => {
+              if (!acc[detail.group_id]) {
+                acc[detail.group_id] = [];
+              }
+              acc[detail.group_id].push(detail);
+              return acc;
+            }, {});
+          }
+        } catch (e: any) {
+          logError("Error in details fetch", { error: e.message });
+        }
+      }
+
+      // Transform data to match frontend ReconciliationGroup interface
+      const transformedData = (data || []).map((group: any) => ({
+        ...group,
+        // Rename aggregated_transactions to aggregate for frontend compatibility
+        aggregate: group.aggregated_transactions ? {
+          id: group.aggregated_transactions.id,
+          transaction_date: group.aggregated_transactions.transaction_date,
+          gross_amount: group.aggregated_transactions.gross_amount,
+          nett_amount: group.aggregated_transactions.nett_amount,
+          payment_method_name: group.aggregated_transactions.payment_methods?.name || null,
+        } : undefined,
+        // Map details array from the separate query
+        details: (detailsMap[group.id] || []).map((detail: any) => ({
+          id: detail.id,
+          statement_id: detail.statement_id,
+          amount: detail.amount,
+          statement: detail.bank_statements ? {
+            id: detail.bank_statements.id,
+            transaction_date: detail.bank_statements.transaction_date,
+            description: detail.bank_statements.description,
+            debit_amount: detail.bank_statements.debit_amount,
+            credit_amount: detail.bank_statements.credit_amount,
+          } : undefined,
+        })),
+      }));
+
+      return transformedData;
     } catch (error: any) {
       logError("Error fetching reconciliation groups", {
         startDate: startDate.toISOString(),

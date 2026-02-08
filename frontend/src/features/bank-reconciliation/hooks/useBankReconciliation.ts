@@ -57,6 +57,7 @@ export function useBankReconciliation() {
   const [reconciliationGroups, setReconciliationGroups] = useState<
     ReconciliationGroup[]
   >([]);
+  const [reconciliationGroupsError, setReconciliationGroupsError] = useState<string | null>(null);
   const [multiMatchSuggestions, setMultiMatchSuggestions] = useState<
     MultiMatchSuggestion[]
   >([]);
@@ -415,6 +416,7 @@ export function useBankReconciliation() {
 
   const fetchReconciliationGroups = useCallback(
     async (startDate: string, endDate: string) => {
+      setReconciliationGroupsError(null);
       setIsLoading(true);
       try {
         const groups = await bankReconciliationApi.getReconciliationGroups({
@@ -424,11 +426,9 @@ export function useBankReconciliation() {
         setReconciliationGroups(groups);
         return groups;
       } catch (err: unknown) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to fetch reconciliation groups",
-        );
+        const errorMessage = err instanceof Error ? err.message : "Failed to fetch reconciliation groups";
+        setReconciliationGroupsError(errorMessage);
+        console.error("Error fetching reconciliation groups:", err);
         throw err;
       } finally {
         setIsLoading(false);
@@ -496,6 +496,7 @@ export function useBankReconciliation() {
 
     // Multi-match state & methods
     reconciliationGroups,
+    reconciliationGroupsError,
     multiMatchSuggestions,
     isLoadingSuggestions,
     selectedStatementIds,
