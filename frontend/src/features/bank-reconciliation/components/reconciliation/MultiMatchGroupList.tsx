@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { ReconciliationGroup, ReconciliationGroupStatus } from "../../types/bank-reconciliation.types";
 
-interface MultiMatchGroupListProps {
+interface MultiMatchGroupProps {
   groups: ReconciliationGroup[];
   onUndoGroup: (groupId: string) => Promise<void>;
   isLoading?: boolean;
@@ -45,22 +45,31 @@ export function MultiMatchGroupList({
   groups,
   onUndoGroup,
   isLoading = false,
-}: MultiMatchGroupListProps) {
+}: MultiMatchGroupProps) {
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
   const [undoingGroupId, setUndoingGroupId] = useState<string | null>(null);
 
-  const toggleExpand = (groupId: string) => {
-    setExpandedGroupId((prev) => (prev === groupId ? null : groupId));
-  };
+  // Cleanup: Reset undoingGroupId on unmount
+  useEffect(() => {
+    return () => {
+      setUndoingGroupId(null);
+    };
+  }, []);
 
-  const handleUndo = async (groupId: string) => {
+  const toggleExpand = useCallback((groupId: string) => {
+    setExpandedGroupId((prev) => (prev === groupId ? null : groupId));
+  }, []);
+
+  const handleUndo = useCallback(async (groupId: string) => {
     setUndoingGroupId(groupId);
     try {
       await onUndoGroup(groupId);
+    } catch (error) {
+      console.error("Failed to undo group:", error);
     } finally {
       setUndoingGroupId(null);
     }
-  };
+  }, [onUndoGroup]);
 
   if (isLoading) {
     return (
@@ -126,6 +135,8 @@ export function MultiMatchGroupList({
               {/* Group Header */}
               <button
                 onClick={() => toggleExpand(group.id)}
+                aria-expanded={isExpanded}
+                aria-controls={`group-content-${group.id}`}
                 className="w-full px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
               >
                 <div className="flex items-start justify-between gap-4">
@@ -207,7 +218,10 @@ export function MultiMatchGroupList({
 
               {/* Expanded Content */}
               {isExpanded && (
-                <div className="px-5 py-4 bg-gray-50/50 dark:bg-gray-900/20 border-t border-gray-100 dark:border-gray-800">
+                <div
+                  id={`group-content-${group.id}`}
+                  className="px-5 py-4 bg-gray-50/50 dark:bg-gray-900/20 border-t border-gray-100 dark:border-gray-800"
+                >
                   {/* Aggregate Info */}
                   {group.aggregate && (
                     <div className="mb-4 p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
@@ -221,9 +235,9 @@ export function MultiMatchGroupList({
                         <div>
                           <p className="text-gray-500">Tanggal</p>
                           <p className="font-medium text-gray-900 dark:text-white">
-                            {new Date(group.aggregate.transaction_date).toLocaleDateString(
-                              "id-ID",
-                            )}
+                            {group.aggregate.transaction_date
+                              ? new Date(group.aggregate.transaction_date).toLocaleDateString("id-ID")
+                              : "-"}
                           </p>
                         </div>
                         <div>
