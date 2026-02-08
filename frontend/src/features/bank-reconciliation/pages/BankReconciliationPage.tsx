@@ -71,6 +71,8 @@ export function BankReconciliationPage() {
     fetchReconciliationGroups,
     createMultiMatch,
     undoMultiMatch,
+    pagination,
+    setPage,
   } = useBankReconciliation();
 
   // Fetch all bank accounts on mount
@@ -438,7 +440,7 @@ export function BankReconciliationPage() {
             <FileText className="w-4 h-4" />
             Semua Transaksi
             <span className="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full text-xs">
-              {statements.length}
+              {pagination.total}
             </span>
           </button>
         </div>
@@ -471,6 +473,8 @@ export function BankReconciliationPage() {
                 onMultiMatch={handleMultiMatchFromTable}
                 reconciliationGroups={reconciliationGroups}
                 showMultiMatch={true}
+                pagination={pagination}
+                onPageChange={setPage}
               />
             </ErrorBoundary>
           )}

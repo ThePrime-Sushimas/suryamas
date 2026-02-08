@@ -17,6 +17,7 @@ export { useBankReconciliation } from "./hooks/useBankReconciliation";
 
 // API
 export { bankReconciliationApi } from "./api/bank-reconciliation.api";
+export type { PaginationMeta, BankStatementListResponse } from "./api/bank-reconciliation.api";
 
 // Types
 export * from "./types/bank-reconciliation.types";

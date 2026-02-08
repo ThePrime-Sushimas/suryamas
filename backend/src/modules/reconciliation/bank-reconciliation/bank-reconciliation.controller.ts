@@ -253,12 +253,8 @@ export class BankReconciliationController {
 
       res.status(200).json({
         success: true,
-        data: result,
-        pagination: {
-          page,
-          limit,
-          total: result.length, // For now, return length as total
-        },
+        data: result.data,
+        pagination: result.pagination,
       });
     } catch (error: any) {
       logError("Get statements error", { 

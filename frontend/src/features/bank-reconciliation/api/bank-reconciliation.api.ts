@@ -29,11 +29,19 @@ export interface BankStatementFilterParams {
   limit?: number;
 }
 
-export interface PaginationInfo {
-  page: number;
-  limit: number;
-  total: number;
-  hasMore: boolean;
+// Standard Pagination interface - aligned with backend
+export interface PaginationMeta {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
+}
+
+export interface BankStatementListResponse {
+  data: BankStatementWithMatch[]
+  pagination: PaginationMeta
 }
 
 export const bankReconciliationApi = {
@@ -50,7 +58,7 @@ export const bankReconciliationApi = {
    */
   async getStatementsDirect(
     params: BankStatementFilterParams,
-  ): Promise<{ data: BankStatementWithMatch[]; pagination?: { page: number; limit: number } }> {
+  ): Promise<BankStatementListResponse> {
     const response = await api.get("/reconciliation/bank/statements", {
       params,
     });

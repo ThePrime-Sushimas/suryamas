@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type {
   ReconciliationSummary,
   BankStatementWithMatch,
@@ -14,11 +14,9 @@ import type {
 } from "../types/bank-reconciliation.types";
 import type { AggregatedTransactionListItem } from "@/features/pos-aggregates/types";
 import { bankReconciliationApi } from "../api/bank-reconciliation.api";
-import type { BankStatementFilterParams } from "../api/bank-reconciliation.api";
+import type { PaginationMeta, BankStatementFilterParams } from "../api/bank-reconciliation.api";
 import type { BankStatementFilter } from "../components/BankReconciliationFilters";
 import { PAGINATION_CONFIG } from "../constants/reconciliation.config";
-
-export type { BankStatementFilter }
 
 export function useBankReconciliation() {
   const [summary, setSummary] = useState<ReconciliationSummary | null>(null);
@@ -38,18 +36,21 @@ export function useBankReconciliation() {
   const [isFilterApplied, setIsFilterApplied] = useState(false);
   const [lastFetchParams, setLastFetchParams] = useState<BankStatementFilterParams | null>(null);
 
-  // Pagination state
-  const [pagination, setPagination] = useState<{
-    page: number;
-    limit: number;
-    total: number;
-    hasMore: boolean;
-  }>({
+  // Pagination state - sesuai dengan PaginationMeta dari backend
+  const [pagination, setPagination] = useState<PaginationMeta>({
     page: 1,
     limit: PAGINATION_CONFIG.DEFAULT_PAGE_SIZE,
     total: 0,
-    hasMore: false,
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false,
   });
+
+  // Ref untuk pagination (untuk useCallback tanpa deps)
+  const paginationRef = useRef(pagination);
+  useEffect(() => {
+    paginationRef.current = pagination;
+  }, [pagination]);
 
   // =====================================================
   // MULTI-MATCH STATE
@@ -124,12 +125,14 @@ export function useBankReconciliation() {
         const result = await bankReconciliationApi.getStatementsDirect(params);
         setStatements(result.data);
         
-        const totalItems = (result.pagination as { total?: number } | undefined)?.total ?? result.data.length;
+        const paginationMeta = result.pagination as PaginationMeta;
         setPagination(prev => ({
           ...prev,
           page: 1,
-          total: totalItems,
-          hasMore: result.data.length === prev.limit,
+          total: paginationMeta.total ?? result.data.length,
+          totalPages: paginationMeta.totalPages ?? 1,
+          hasNext: paginationMeta.hasNext ?? result.data.length === prev.limit,
+          hasPrev: paginationMeta.hasPrev ?? false,
         }));
       } catch (err: unknown) {
         setError(
@@ -143,8 +146,8 @@ export function useBankReconciliation() {
   );
 
   // Fetch statements with full filter support and proper pagination
-  const fetchStatementsWithFilters = useCallback(
-    async (filters: BankStatementFilter, resetPagination = true) => {
+const fetchStatementsWithFilters = useCallback(
+async (filters: BankStatementFilter, resetPagination = true) => {
       setIsLoading(true);
       try {
         const bankAccountId = filters.bankAccountIds && filters.bankAccountIds.length > 0
@@ -156,7 +159,7 @@ export function useBankReconciliation() {
           ? filters.status as 'RECONCILED' | 'UNRECONCILED' | 'DISCREPANCY'
           : undefined;
 
-        const page = resetPagination ? 1 : pagination.page;
+        const page = resetPagination ? 1 : paginationRef.current.page;
         const limit = filters.limit || PAGINATION_CONFIG.DEFAULT_PAGE_SIZE;
 
         const safeStatus = statusParam as 'RECONCILED' | 'UNRECONCILED' | 'DISCREPANCY' | undefined;
@@ -182,14 +185,15 @@ export function useBankReconciliation() {
           setStatements(prev => [...prev, ...result.data]);
         }
 
-        const paginationResult = result.pagination as { total?: number } | undefined;
-        const totalItems = paginationResult?.total ?? result.data.length;
+        const paginationMeta = result.pagination as PaginationMeta;
         setPagination(prev => ({
           ...prev,
           page,
           limit,
-          total: totalItems,
-          hasMore: result.data.length === limit,
+          total: paginationMeta.total ?? result.data.length,
+          totalPages: paginationMeta.totalPages ?? 1,
+          hasNext: paginationMeta.hasNext ?? result.data.length === limit,
+          hasPrev: paginationMeta.hasPrev ?? page > 1,
         }));
 
         const safeParams: BankStatementFilterParams = {
@@ -216,39 +220,41 @@ export function useBankReconciliation() {
         setIsLoading(false);
       }
     },
-    [pagination.page],
+    [], // Empty deps - using functional pattern with resetPagination param
   );
 
-  // Load more statements for infinite scroll
-  const loadMoreStatements = useCallback(async () => {
-    if (!pagination.hasMore || !lastFetchParams) return;
+  // Go to specific page
+  const setPage = useCallback(async (page: number) => {
+    if (page < 1 || page > paginationRef.current.totalPages) return;
 
     setIsLoading(true);
     try {
-      const nextPage = pagination.page + 1;
-      
       const params: BankStatementFilterParams = {
         ...lastFetchParams,
-        page: nextPage,
-        limit: pagination.limit,
+        page,
+        limit: paginationRef.current.limit,
       };
 
       const result = await bankReconciliationApi.getStatementsDirect(params);
-      setStatements(prev => [...prev, ...result.data]);
-      
+      setStatements(result.data);
+
+      const paginationMeta = result.pagination as PaginationMeta;
       setPagination(prev => ({
         ...prev,
-        page: nextPage,
-        hasMore: result.data.length === pagination.limit,
+        page,
+        total: paginationMeta.total ?? result.data.length,
+        totalPages: paginationMeta.totalPages ?? 1,
+        hasNext: paginationMeta.hasNext ?? result.data.length === prev.limit,
+        hasPrev: paginationMeta.hasPrev ?? page > 1,
       }));
     } catch (err: unknown) {
       setError(
-        err instanceof Error ? err.message : "Failed to load more statements",
+        err instanceof Error ? err.message : "Failed to fetch page",
       );
     } finally {
       setIsLoading(false);
     }
-  }, [pagination, lastFetchParams]);
+  }, [lastFetchParams]);
 
   // =====================================================
   // FILTER METHODS
@@ -264,7 +270,7 @@ export function useBankReconciliation() {
     setIsFilterApplied(false);
     setLastFetchParams(null);
     setStatements([]);
-    setPagination(prev => ({ ...prev, page: 1, total: 0, hasMore: false }));
+    setPagination(prev => ({ ...prev, page: 1, total: 0, totalPages: 0, hasNext: false, hasPrev: false }));
   }, []);
 
   // Set filter applied flag
@@ -491,7 +497,7 @@ export function useBankReconciliation() {
     isFilterApplied,
     setFilterApplied,
     fetchStatementsWithFilters,
-    loadMoreStatements,
+    setPage,
     pagination,
 
     // Multi-match state & methods

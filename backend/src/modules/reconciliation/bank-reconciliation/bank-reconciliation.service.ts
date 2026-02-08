@@ -22,6 +22,7 @@ import {
 } from "../fee-reconciliation/fee-reconciliation.service";
 import { reconciliationOrchestratorService } from "../orchestrator/reconciliation-orchestrator.service";
 import { logError } from "../../../config/logger";
+import { createPaginatedResponse } from "../../../utils/pagination.util";
 
 export class BankReconciliationService {
   private readonly config = getReconciliationConfig();
@@ -596,15 +597,19 @@ findMatches(
       limit?: number;
       offset?: number;
     },
-  ): Promise<any[]> {
-    const statements = await this.repository.getByDateRange(
+  ): Promise<{ data: any[]; pagination: any }> {
+    const { data: statements, total } = await this.repository.getByDateRange(
       startDate,
       endDate,
       bankAccountId,
       options,
     );
 
-    return statements.map((s) => {
+    const page = options?.offset !== undefined && options?.limit 
+      ? Math.floor(options.offset / options.limit) + 1 
+      : 1;
+
+    const processedData = statements.map((s) => {
       const isReconciled = s.is_reconciled;
       const bankAmount = s.credit_amount - s.debit_amount;
       // matched_aggregate is now populated from the repository join
@@ -616,8 +621,8 @@ findMatches(
       let status: BankReconciliationStatus = BankReconciliationStatus.UNRECONCILED;
       if (isReconciled) {
         if (difference === 0) {
-          status = s.reconciliation_id 
-            ? BankReconciliationStatus.MANUALLY_MATCHED 
+          status = s.reconciliation_id
+            ? BankReconciliationStatus.MANUALLY_MATCHED
             : BankReconciliationStatus.AUTO_MATCHED;
         } else if (difference <= this.config.differenceThreshold) {
           status = BankReconciliationStatus.AUTO_MATCHED;
@@ -628,19 +633,26 @@ findMatches(
         status = hasMatch ? BankReconciliationStatus.PENDING : BankReconciliationStatus.UNRECONCILED;
       }
 
-      // Apply status filter at service level for DISCREPANCY
-      if (options?.status === 'DISCREPANCY' && status !== BankReconciliationStatus.DISCREPANCY) {
-        return null;
-      }
-
       return {
         ...s,
         amount: bankAmount,
         status,
-        // matched_aggregate already populated from repository
         potentialMatches: [],
       };
-    }).filter((s): s is NonNullable<typeof s> => s !== null);
+    });
+
+    // Apply DISCREPANCY filter after processing - need to recalculate total
+    let filteredData = processedData;
+    let finalTotal = total;
+
+    if (options?.status === 'DISCREPANCY') {
+      filteredData = processedData.filter(s => s.status === BankReconciliationStatus.DISCREPANCY);
+      finalTotal = filteredData.length;
+    }
+
+    const limit = options?.limit || 50;
+
+    return createPaginatedResponse(filteredData, finalTotal, page, limit);
   }
 
   async getPotentialMatches(

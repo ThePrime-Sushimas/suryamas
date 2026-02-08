@@ -94,9 +94,9 @@ export class BankReconciliationRepository {
       limit?: number;
       offset?: number;
     },
-  ): Promise<any[]> {
+  ): Promise<{ data: any[]; total: number }> {
     try {
-      let query = supabase
+      let baseQuery = supabase
         .from("bank_statements")
         .select(
           `
@@ -111,55 +111,86 @@ export class BankReconciliationRepository {
           )
         )
       `,
+          { count: 'exact' }
         )
         .is("deleted_at", null);
 
       // Apply date range filters if provided
       if (startDate) {
-        query = query.gte("transaction_date", startDate.toISOString().split("T")[0]);
+        baseQuery = baseQuery.gte("transaction_date", startDate.toISOString().split("T")[0]);
       }
       if (endDate) {
-        query = query.lte("transaction_date", endDate.toISOString().split("T")[0]);
+        baseQuery = baseQuery.lte("transaction_date", endDate.toISOString().split("T")[0]);
       }
 
       // Apply bank account filter
       if (bankAccountId) {
-        query = query.eq("bank_account_id", bankAccountId);
+        baseQuery = baseQuery.eq("bank_account_id", bankAccountId);
       }
 
       // Apply status filter
       if (options?.status === 'RECONCILED') {
-        query = query.eq("is_reconciled", true);
+        baseQuery = baseQuery.eq("is_reconciled", true);
       } else if (options?.status === 'UNRECONCILED') {
-        query = query.eq("is_reconciled", false);
+        baseQuery = baseQuery.eq("is_reconciled", false);
       }
-      // DISCREPANCY requires special handling (reconciled but with difference)
 
       // Apply isReconciled filter (overrides status if both provided)
       if (options?.isReconciled !== undefined) {
-        query = query.eq("is_reconciled", options.isReconciled);
+        baseQuery = baseQuery.eq("is_reconciled", options.isReconciled);
       }
 
       // Apply search filter on description or reference_number
       if (options?.search) {
         const searchTerm = `%${options.search}%`;
-        query = query.or(`description.ilike.${searchTerm},reference_number.ilike.${searchTerm}`);
+        baseQuery = baseQuery.or(`description.ilike.${searchTerm},reference_number.ilike.${searchTerm}`);
+      }
+
+      // Get count query first (same filters as main query)
+      let countQuery = supabase
+        .from("bank_statements")
+        .select('id', { count: 'exact', head: true })
+        .is("deleted_at", null);
+
+      if (startDate) {
+        countQuery = countQuery.gte("transaction_date", startDate.toISOString().split("T")[0]);
+      }
+      if (endDate) {
+        countQuery = countQuery.lte("transaction_date", endDate.toISOString().split("T")[0]);
+      }
+      if (bankAccountId) {
+        countQuery = countQuery.eq("bank_account_id", bankAccountId);
+      }
+      if (options?.status === 'RECONCILED') {
+        countQuery = countQuery.eq("is_reconciled", true);
+      } else if (options?.status === 'UNRECONCILED') {
+        countQuery = countQuery.eq("is_reconciled", false);
+      }
+      if (options?.isReconciled !== undefined) {
+        countQuery = countQuery.eq("is_reconciled", options.isReconciled);
+      }
+      if (options?.search) {
+        const searchTerm = `%${options.search}%`;
+        countQuery = countQuery.or(`description.ilike.${searchTerm},reference_number.ilike.${searchTerm}`);
       }
 
       // Apply sorting
       const sortField = options?.sortField || 'transaction_date';
       const sortOrder = options?.sortOrder || 'desc';
-      query = query.order(sortField, { ascending: sortOrder === 'asc' });
+      baseQuery = baseQuery.order(sortField, { ascending: sortOrder === 'asc' });
 
       // Apply pagination
       if (options?.limit) {
-        query = query.limit(options.limit);
+        baseQuery = baseQuery.limit(options.limit);
       }
       if (options?.offset) {
-        query = query.range(options.offset, options.offset + (options.limit || 100) - 1);
+        baseQuery = baseQuery.range(options.offset, options.offset + (options.limit || 100) - 1);
       }
 
-      const { data, error } = await query;
+      const [{ data, error }, { count, error: countError }] = await Promise.all([
+        baseQuery,
+        countQuery
+      ]);
 
       if (error) {
         logError("Error fetching bank statements", {          
@@ -168,6 +199,10 @@ export class BankReconciliationRepository {
           error: error.message 
         });
         throw error;
+      }
+      
+      if (countError) {
+        logError("Error counting bank statements", { error: countError.message });
       }
       
       // Get all reconciliation_ids from statements
@@ -205,7 +240,7 @@ export class BankReconciliationRepository {
       }
       
       // Map data to include matched_aggregate
-      return (data || []).map(row => ({
+      const mappedData = (data || []).map(row => ({
         ...row,
         matched_aggregate: row.reconciliation_id && aggregateMap[row.reconciliation_id] ? {
           id: aggregateMap[row.reconciliation_id].id,
@@ -215,6 +250,11 @@ export class BankReconciliationRepository {
           payment_method_name: aggregateMap[row.reconciliation_id].payment_methods?.name || null,
         } : null,
       }));
+
+      return { 
+        data: mappedData, 
+        total: count || 0 
+      };
     } catch (error: any) {
       logError("Error fetching statements by date range", {        
         startDate: startDate?.toISOString(),
