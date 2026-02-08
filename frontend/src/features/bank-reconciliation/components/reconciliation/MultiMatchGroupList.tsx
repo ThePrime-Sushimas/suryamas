@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { ReconciliationGroup, ReconciliationGroupStatus } from "../../types/bank-reconciliation.types";
 
-interface MultiMatchGroupProps {
+interface MultiMatchGroupListProps {
   groups: ReconciliationGroup[];
   onUndoGroup: (groupId: string) => Promise<void>;
   isLoading?: boolean;
@@ -41,54 +41,98 @@ const statusConfig: Record<ReconciliationGroupStatus, { color: string; bg: strin
   },
 };
 
+// Utility function untuk formatting konsisten
+const formatCurrency = (amount: number): string => {
+  return amount.toLocaleString("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+};
+
+const formatDate = (dateString: string | undefined): string => {
+  if (!dateString) return "-";
+  return new Date(dateString).toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const formatDateTime = (dateString: string): string => {
+  return new Date(dateString).toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 export function MultiMatchGroupList({
   groups,
   onUndoGroup,
   isLoading = false,
-}: MultiMatchGroupProps) {
+}: MultiMatchGroupListProps) {
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
   const [undoingGroupId, setUndoingGroupId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Cleanup: Reset undoingGroupId on unmount
   useEffect(() => {
     return () => {
       setUndoingGroupId(null);
+      setError(null);
     };
   }, []);
 
   const toggleExpand = useCallback((groupId: string) => {
     setExpandedGroupId((prev) => (prev === groupId ? null : groupId));
+    setError(null); // Clear error ketika expand/collapse
   }, []);
 
   const handleUndo = useCallback(async (groupId: string) => {
     setUndoingGroupId(groupId);
+    setError(null);
     try {
       await onUndoGroup(groupId);
-    } catch (error) {
-      console.error("Failed to undo group:", error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Gagal membatalkan multi-match group";
+      setError(message);
+      console.error("Failed to undo group:", err);
     } finally {
       setUndoingGroupId(null);
     }
   }, [onUndoGroup]);
 
+  // Loading state yang konsisten dengan struktur component
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">
-            Multi-Match Groups
-          </h3>
-          <span className="text-xs text-gray-500">Loading...</span>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4 animate-pulse" />
+          <div className="h-6 w-6 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
         </div>
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 animate-pulse"
-          >
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-3" />
-            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
-          </div>
-        ))}
+        <div className="divide-y divide-gray-100 dark:divide-gray-800">
+          {[1, 2, 3].map((i) => (
+            <div key={`loading-${i}`} className="px-5 py-4 animate-pulse">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded-full" />
+                <div className="h-3 w-24 bg-gray-200 dark:bg-gray-700 rounded" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="h-3 w-12 bg-gray-200 dark:bg-gray-700 rounded mb-1" />
+                  <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded" />
+                </div>
+                <div>
+                  <div className="h-3 w-12 bg-gray-200 dark:bg-gray-700 rounded mb-1" />
+                  <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -120,6 +164,13 @@ export function MultiMatchGroupList({
         </span>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="mx-5 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+        </div>
+      )}
+
       {/* Groups List */}
       <div className="divide-y divide-gray-100 dark:divide-gray-800">
         {groups.map((group) => {
@@ -149,13 +200,7 @@ export function MultiMatchGroupList({
                         {group.status}
                       </span>
                       <span className="text-xs text-gray-400">
-                        {new Date(group.created_at).toLocaleDateString("id-ID", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {formatDateTime(group.created_at)}
                       </span>
                     </div>
 
@@ -165,11 +210,7 @@ export function MultiMatchGroupList({
                           Total Bank
                         </p>
                         <p className="text-sm font-bold text-gray-900 dark:text-white">
-                          {group.total_bank_amount.toLocaleString("id-ID", {
-                            style: "currency",
-                            currency: "IDR",
-                            maximumFractionDigits: 0,
-                          })}
+                          {formatCurrency(group.total_bank_amount)}
                         </p>
                       </div>
                       <div>
@@ -177,11 +218,7 @@ export function MultiMatchGroupList({
                           POS Aggregate
                         </p>
                         <p className="text-sm font-bold text-gray-900 dark:text-white">
-                          {group.aggregate_amount.toLocaleString("id-ID", {
-                            style: "currency",
-                            currency: "IDR",
-                            maximumFractionDigits: 0,
-                          })}
+                          {formatCurrency(group.aggregate_amount)}
                         </p>
                       </div>
                     </div>
@@ -200,11 +237,7 @@ export function MultiMatchGroupList({
                         }`}
                       >
                         {difference >= 0 ? "+" : ""}
-                        {difference.toLocaleString("id-ID", {
-                          style: "currency",
-                          currency: "IDR",
-                          maximumFractionDigits: 0,
-                        })}
+                        {formatCurrency(difference)}
                       </p>
                     </div>
                     {isExpanded ? (
@@ -235,19 +268,13 @@ export function MultiMatchGroupList({
                         <div>
                           <p className="text-gray-500">Tanggal</p>
                           <p className="font-medium text-gray-900 dark:text-white">
-                            {group.aggregate.transaction_date
-                              ? new Date(group.aggregate.transaction_date).toLocaleDateString("id-ID")
-                              : "-"}
+                            {formatDate(group.aggregate.transaction_date)}
                           </p>
                         </div>
                         <div>
                           <p className="text-gray-500">Nett Amount</p>
                           <p className="font-medium text-gray-900 dark:text-white">
-                            {group.aggregate.nett_amount.toLocaleString("id-ID", {
-                              style: "currency",
-                              currency: "IDR",
-                              maximumFractionDigits: 0,
-                            })}
+                            {formatCurrency(group.aggregate.nett_amount)}
                           </p>
                         </div>
                         <div className="col-span-2">
@@ -268,9 +295,11 @@ export function MultiMatchGroupList({
                       </span>
                     </div>
                     {group.details?.map((detail) => {
-                      const statementAmount =
-                        detail.statement?.credit_amount || 0 -
-                        (detail.statement?.debit_amount || 0);
+                      // FIXED BUG: Perhitungan yang benar
+                      const credit = detail.statement?.credit_amount ?? 0;
+                      const debit = detail.statement?.debit_amount ?? 0;
+                      const statementAmount = credit - debit;
+
                       return (
                         <div
                           key={detail.id}
@@ -281,7 +310,7 @@ export function MultiMatchGroupList({
                               {detail.statement?.description || "-"}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {detail.statement?.transaction_date}
+                              {formatDate(detail.statement?.transaction_date)}
                             </p>
                           </div>
                           <p
@@ -291,11 +320,7 @@ export function MultiMatchGroupList({
                                 : "text-rose-600 dark:text-rose-400"
                             }`}
                           >
-                            {Math.abs(statementAmount).toLocaleString("id-ID", {
-                              style: "currency",
-                              currency: "IDR",
-                              maximumFractionDigits: 0,
-                            })}
+                            {formatCurrency(statementAmount)}
                           </p>
                         </div>
                       );
@@ -323,8 +348,7 @@ export function MultiMatchGroupList({
                         )}
                       </span>
                       <span>
-                        {group.reconciled_at &&
-                          new Date(group.reconciled_at).toLocaleString("id-ID")}
+                        {group.reconciled_at && formatDateTime(group.reconciled_at)}
                       </span>
                     </div>
                   )}
