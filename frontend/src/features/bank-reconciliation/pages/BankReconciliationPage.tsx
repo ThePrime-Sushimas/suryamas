@@ -284,6 +284,20 @@ export function BankReconciliationPage() {
     }
   };
 
+  // Load available aggregates untuk pemilihan manual
+  const handleLoadAggregatesForMultiMatch = async (): Promise<AggregatedTransactionListItem[]> => {
+    try {
+      const filter: AggregatedTransactionFilterParams = {
+        is_reconciled: false,
+      };
+      const result = await posAggregatesApi.list(1, 100, null, filter);
+      return result.data;
+    } catch (err) {
+      console.error("Error loading aggregates:", err);
+      return [];
+    }
+  };
+
   const handleMultiMatchConfirm = async (
     aggregateId: string,
     statementIds: string[],
@@ -538,6 +552,7 @@ export function BankReconciliationPage() {
         isLoading={isLoading}
         initialStatements={multiMatchSelectedStatements}
         onFindAggregate={handleFindAggregateForMultiMatch}
+        onLoadAggregates={handleLoadAggregatesForMultiMatch}
       />
 
       {/* Tips */}
