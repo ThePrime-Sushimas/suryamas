@@ -36,6 +36,7 @@ import jobsRoutes from "./modules/jobs/jobs.routes";
 import monitoringRoutes from "./modules/monitoring/monitoring.routes";
 import bankStatementImportRoutes from "./modules/reconciliation/bank-statement-import/bank-statement-import.routes";
 import { setupBankReconciliationModule } from "./modules/reconciliation/bank-reconciliation";
+import { setupSettlementGroupModule } from "./modules/reconciliation/bank-settlement-group";
 import { errorHandler } from "./middleware/error.middleware";
 import { requestLogger } from "./middleware/request-logger.middleware";
 import { generateOpenApiDocument } from "./config/openapi";
@@ -105,6 +106,7 @@ app.use("/api/v1/jobs", jobsRoutes);
 app.use("/api/v1/monitoring", monitoringRoutes);
 app.use("/api/v1/bank-statement-imports", bankStatementImportRoutes);
 app.use("/api/v1/reconciliation/bank", setupBankReconciliationModule().router);
+app.use("/api/v1/settlement-group", setupSettlementGroupModule().router);
 app.use("/api/v1", ownerBankAccountsRouter);
 
 // Error handler

@@ -25,6 +25,12 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 400,
     category: 'reconciliation',
   },
+  SettlementGroupError: {
+    name: 'SettlementGroupError',
+    importPath: '../modules/reconciliation/bank-settlement-group/bank-settlement-group.errors',
+    defaultStatusCode: 400,
+    category: 'reconciliation',
+  },
 
   // ============ ACCOUNTING MODULE ============
   ChartOfAccountError: {
