@@ -223,7 +223,8 @@ export class SettlementGroupService {
   async getAvailableAggregates(options?: {
     startDate?: string;
     endDate?: string;
-    paymentMethodId?: string;
+    bankAccountId?: number;
+    search?: string;
     limit?: number;
     offset?: number;
   }): Promise<{ data: AvailableAggregateDto[]; total: number }> {

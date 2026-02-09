@@ -3,12 +3,29 @@
  * API endpoints for bulk settlement reconciliation
  */
 
-import { Request, Response } from "express";
+import { Response } from "express";
 import {
   settlementGroupService,
   SettlementGroupService,
 } from "./bank-settlement-group.service";
 import type { AuthenticatedRequest, AuthenticatedQueryRequest } from "../../../types/request.types";
+import { ValidatedAuthRequest } from "../../../middleware/validation.middleware";
+import {
+  createSettlementGroupSchema,
+  getSettlementGroupByIdSchema,
+  getSettlementGroupListSchema,
+  undoSettlementGroupSchema,
+  getSettlementGroupAggregatesSchema,
+  getAvailableAggregatesSchema,
+  getSuggestionsSchema,
+  CreateSettlementGroupInput,
+  GetSettlementGroupListInput,
+  UndoSettlementGroupInput,
+  GetSettlementGroupByIdInput,
+  GetSettlementGroupAggregatesInput,
+  GetAvailableAggregatesInput,
+  GetSuggestionsInput,
+} from "./bank-settlement-group.schema";
 import {
   SettlementGroupNotFoundError,
   DuplicateAggregateError,
@@ -27,38 +44,13 @@ export class SettlementGroupController {
  * POST /api/v1/settlement-group/create
  */
   async create(
-    req: AuthenticatedRequest,
+    req: ValidatedAuthRequest<typeof createSettlementGroupSchema>,
     res: Response,
   ): Promise<void> {
     try {
-      const body = req.body as {
-        bankStatementId: string;
-        aggregateIds: string[];
-        notes?: string;
-        overrideDifference?: boolean;
-      };
+      const { bankStatementId, aggregateIds, notes, overrideDifference } = req.validated.body;
       const userId = req.user?.id as string | undefined;
       const companyId = (req as any).context?.company_id as string | undefined;
-
-      const { bankStatementId, aggregateIds, notes, overrideDifference } = body;
-
-      if (!bankStatementId || !aggregateIds || !Array.isArray(aggregateIds)) {
-        res.status(400).json({
-          success: false,
-          message: "bankStatementId dan aggregateIds wajib diisi",
-          code: "VALIDATION_ERROR",
-        });
-        return;
-      }
-
-      if (aggregateIds.length === 0) {
-        res.status(400).json({
-          success: false,
-          message: "Minimal harus ada 1 aggregate",
-          code: "VALIDATION_ERROR",
-        });
-        return;
-      }
 
       const result = await this.service.createSettlementGroup({
         companyId: companyId || '',
@@ -101,9 +93,9 @@ export class SettlementGroupController {
  * Get settlement group by ID
  * GET /api/v1/settlement-group/:id
  */
-  async getById(req: Request, res: Response): Promise<void> {
+  async getById(req: ValidatedAuthRequest<typeof getSettlementGroupByIdSchema>, res: Response): Promise<void> {
     try {
-      const { id } = req.params as { id: string };
+      const { id } = req.validated.params;
 
       const result = await this.service.getSettlementGroup(id);
 
@@ -113,7 +105,7 @@ export class SettlementGroupController {
       });
     } catch (error: any) {
       logError("Get settlement group error", {
-        id: req.params?.id,
+        id: req.validated.params.id,
         error: error.message,
         code: error.code,
       });
@@ -134,17 +126,11 @@ export class SettlementGroupController {
    * GET /api/v1/settlement-group/list
    */
   async getList(
-    req: AuthenticatedQueryRequest,
+    req: ValidatedAuthRequest<typeof getSettlementGroupListSchema>,
     res: Response,
   ): Promise<void> {
     try {
-      const query = req.query;
-      const startDate = query.startDate as string | undefined;
-      const endDate = query.endDate as string | undefined;
-      const status = query.status as string | undefined;
-      const search = query.search as string | undefined;
-      const limit = query.limit ? parseInt(query.limit as string) : 50;
-      const offset = query.offset ? parseInt(query.offset as string) : 0;
+      const { startDate, endDate, status, search, limit, offset } = req.validated.query;
 
       const result = await this.service.listSettlementGroups({
         startDate,
@@ -162,7 +148,7 @@ export class SettlementGroupController {
       });
     } catch (error: any) {
       logError("List settlement groups error", {
-        query: req.query,
+        query: req.validated.query,
         error: error.message,
         code: error.code,
       });
@@ -180,17 +166,17 @@ export class SettlementGroupController {
  * DELETE /api/v1/settlement-group/:id/undo
  */
   async undo(
-    req: AuthenticatedRequest,
+    req: ValidatedAuthRequest<typeof undoSettlementGroupSchema>,
     res: Response,
   ): Promise<void> {
     try {
-      const { id } = req.params as { id: string };
+      const { id } = req.validated.params;
       const userId = req.user?.id as string | null | undefined;
       const companyId = (req as any).context?.company_id as string | null | undefined;
 
       await this.service.undoSettlementGroup(
-        id, 
-        userId ?? undefined, 
+        id,
+        userId ?? undefined,
         companyId ?? undefined
       );
 
@@ -202,7 +188,7 @@ export class SettlementGroupController {
       });
     } catch (error: any) {
       logError("Undo settlement group error", {
-        id: req.params?.id,
+        id: req.validated.params.id,
         error: error.message,
         code: error.code,
       });
@@ -219,26 +205,22 @@ export class SettlementGroupController {
     }
   }
 
-  /**
-   * Get available aggregates for settlement
-   * GET /api/v1/settlement-group/aggregates/available
-   */
+/**
+ * Get available aggregates for settlement
+ * GET /api/v1/settlement-group/aggregates/available
+ */
   async getAvailableAggregates(
-    req: AuthenticatedQueryRequest,
+    req: ValidatedAuthRequest<typeof getAvailableAggregatesSchema>,
     res: Response,
   ): Promise<void> {
     try {
-      const query = req.query;
-      const startDate = query.startDate as string | undefined;
-      const endDate = query.endDate as string | undefined;
-      const paymentMethodId = query.paymentMethodId as string | undefined;
-      const limit = query.limit ? parseInt(query.limit as string) : 100;
-      const offset = query.offset ? parseInt(query.offset as string) : 0;
+      const { startDate, endDate, bankAccountId, search, limit, offset } = req.validated.query;
 
       const result = await this.service.getAvailableAggregates({
         startDate,
         endDate,
-        paymentMethodId,
+        bankAccountId,
+        search,
         limit,
         offset,
       });
@@ -250,7 +232,7 @@ export class SettlementGroupController {
       });
     } catch (error: any) {
       logError("Get available aggregates error", {
-        query: req.query,
+        query: req.validated.query,
         error: error.message,
         code: error.code,
       });
@@ -267,9 +249,9 @@ export class SettlementGroupController {
    * Get aggregates for a specific settlement group
    * GET /api/v1/settlement-group/:id/aggregates
    */
-  async getSettlementAggregates(req: Request, res: Response): Promise<void> {
+  async getSettlementAggregates(req: ValidatedAuthRequest<typeof getSettlementGroupAggregatesSchema>, res: Response): Promise<void> {
     try {
-      const { id } = req.params as { id: string };
+      const { id } = req.validated.params;
 
       const result = await this.service.getSettlementAggregates(id);
 
@@ -279,7 +261,7 @@ export class SettlementGroupController {
       });
     } catch (error: any) {
       logError("Get settlement aggregates error", {
-        id: req.params?.id,
+        id: req.validated.params.id,
         error: error.message,
         code: error.code,
       });
@@ -300,41 +282,15 @@ export class SettlementGroupController {
    * GET /api/v1/settlement-group/suggestions
    */
   async getSuggestedAggregates(
-    req: AuthenticatedQueryRequest,
+    req: ValidatedAuthRequest<typeof getSuggestionsSchema>,
     res: Response,
   ): Promise<void> {
     try {
-      const query = req.query;
-      const targetAmount = query.targetAmount as string | undefined;
-      const startDate = query.startDate as string | undefined;
-      const endDate = query.endDate as string | undefined;
-      const tolerancePercent = query.tolerancePercent as string | undefined;
-      const maxAggregates = query.maxAggregates as string | undefined;
+      const { targetAmount, tolerancePercent, dateToleranceDays, maxResults } = req.validated.query;
 
-      if (!targetAmount) {
-        res.status(400).json({
-          success: false,
-          message: "targetAmount parameter is required",
-          code: "MISSING_PARAMS",
-        });
-        return;
-      }
-
-      const amountNum = parseFloat(targetAmount);
-      if (isNaN(amountNum) || amountNum <= 0) {
-        res.status(400).json({
-          success: false,
-          message: "targetAmount must be a valid positive number",
-          code: "INVALID_PARAMS",
-        });
-        return;
-      }
-
-      const result = await this.service.getSuggestedAggregates(amountNum, {
-        startDate,
-        endDate,
-        tolerancePercent: tolerancePercent ? parseFloat(tolerancePercent) : undefined,
-        maxAggregates: maxAggregates ? parseInt(maxAggregates) : undefined,
+      const result = await this.service.getSuggestedAggregates(targetAmount, {
+        tolerancePercent,
+        maxAggregates: maxResults,
       });
 
       res.status(200).json({
@@ -343,7 +299,7 @@ export class SettlementGroupController {
       });
     } catch (error: any) {
       logError("Get suggested aggregates error", {
-        query: req.query,
+        query: req.validated.query,
         error: error.message,
         code: error.code,
       });

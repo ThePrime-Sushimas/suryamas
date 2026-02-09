@@ -4,11 +4,21 @@ import { authenticate } from "../../../middleware/auth.middleware";
 import { resolveBranchContext } from "../../../middleware/branch-context.middleware";
 import { canView, canInsert } from "../../../middleware/permission.middleware";
 import { queryMiddleware } from "../../../middleware/query.middleware";
+import { validateSchema, ValidatedAuthRequest } from "../../../middleware/validation.middleware";
 import {
   createRateLimit,
   updateRateLimit,
 } from "../../../middleware/rateLimiter.middleware";
 import { PermissionService } from "../../../services/permission.service";
+import {
+  createSettlementGroupSchema,
+  getSettlementGroupListSchema,
+  getSettlementGroupByIdSchema,
+  undoSettlementGroupSchema,
+  getSettlementGroupAggregatesSchema,
+  getAvailableAggregatesSchema,
+  getSuggestionsSchema,
+} from "./bank-settlement-group.schema";
 import type {
   AuthenticatedQueryRequest,
   AuthenticatedRequest,
@@ -47,11 +57,9 @@ router.post(
   "/create",
   canInsert("bank_settlement_group"),
   createRateLimit,
+  validateSchema(createSettlementGroupSchema),
   (req, res) =>
-    settlementGroupController.create(
-      req as AuthenticatedRequest,
-      res,
-    ),
+    settlementGroupController.create(req as ValidatedAuthRequest<typeof createSettlementGroupSchema>, res),
 );
 
 /**
@@ -61,8 +69,9 @@ router.post(
 router.get(
   "/:id",
   canView("bank_settlement_group"),
+  validateSchema(getSettlementGroupByIdSchema),
   (req, res) =>
-    settlementGroupController.getById(req as any, res),
+    settlementGroupController.getById(req as ValidatedAuthRequest<typeof getSettlementGroupByIdSchema>, res),
 );
 
 /**
@@ -72,8 +81,9 @@ router.get(
 router.get(
   "/list",
   canView("bank_settlement_group"),
+  validateSchema(getSettlementGroupListSchema),
   (req, res) =>
-    settlementGroupController.getList(req as AuthenticatedQueryRequest, res),
+    settlementGroupController.getList(req as ValidatedAuthRequest<typeof getSettlementGroupListSchema>, res),
 );
 
 /**
@@ -84,8 +94,9 @@ router.delete(
   "/:id/undo",
   canInsert("bank_settlement_group"),
   updateRateLimit,
+  validateSchema(undoSettlementGroupSchema),
   (req, res) =>
-    settlementGroupController.undo(req as AuthenticatedRequest, res),
+    settlementGroupController.undo(req as ValidatedAuthRequest<typeof undoSettlementGroupSchema>, res),
 );
 
 /**
@@ -95,11 +106,9 @@ router.delete(
 router.get(
   "/aggregates/available",
   canView("bank_settlement_group"),
+  validateSchema(getAvailableAggregatesSchema),
   (req, res) =>
-    settlementGroupController.getAvailableAggregates(
-      req as AuthenticatedQueryRequest,
-      res,
-    ),
+    settlementGroupController.getAvailableAggregates(req as ValidatedAuthRequest<typeof getAvailableAggregatesSchema>, res),
 );
 
 /**
@@ -109,8 +118,9 @@ router.get(
 router.get(
   "/:id/aggregates",
   canView("bank_settlement_group"),
+  validateSchema(getSettlementGroupAggregatesSchema),
   (req, res) =>
-    settlementGroupController.getSettlementAggregates(req as any, res),
+    settlementGroupController.getSettlementAggregates(req as ValidatedAuthRequest<typeof getSettlementGroupAggregatesSchema>, res),
 );
 
 /**
@@ -120,8 +130,9 @@ router.get(
 router.get(
   "/suggestions",
   canView("bank_settlement_group"),
+  validateSchema(getSuggestionsSchema),
   (req, res) =>
-    settlementGroupController.getSuggestedAggregates(req as AuthenticatedQueryRequest, res),
+    settlementGroupController.getSuggestedAggregates(req as ValidatedAuthRequest<typeof getSuggestionsSchema>, res),
 );
 
 export default router;
