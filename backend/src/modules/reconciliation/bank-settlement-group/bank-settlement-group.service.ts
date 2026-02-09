@@ -9,6 +9,7 @@ import {
   CreateSettlementGroupDto,
   CreateSettlementGroupResultDto,
   SettlementGroup,
+  SettlementAggregate,
   AvailableAggregateDto,
 } from "./bank-settlement-group.types";
 import {
@@ -20,7 +21,7 @@ import {
   SettlementAlreadyConfirmedError,
 } from "./bank-settlement-group.errors";
 import { logError, logInfo } from "../../../config/logger";
-import { bankSettlementConfig } from "../../../config/bank-settlement-config";
+import { bankSettlementConfig } from "./bank-settlement-group.config";
 
 export class SettlementGroupService {
   private readonly repository: SettlementGroupRepository;
@@ -128,7 +129,13 @@ export class SettlementGroupService {
     const confirmedAt = new Date().toISOString();
     await this.repository.updateStatus(groupId, status, confirmedAt);
 
-    // 9. Fetch the created group to get settlement_number
+    // 9. Mark aggregates and bank statement as reconciled
+    if (status === SettlementGroupStatus.RECONCILED) {
+      await this.repository.markAggregatesAsReconciled(dto.aggregateIds);
+      await this.repository.markBankStatementAsReconciled(dto.bankStatementId);
+    }
+
+    // 10. Fetch the created group to get settlement_number
     const createdGroup = await this.repository.findById(groupId);
 
     logInfo("Settlement group created successfully", {
@@ -212,11 +219,16 @@ export class SettlementGroupService {
     // Soft delete the settlement group
     await this.repository.softDelete(groupId);
 
-    // Mark aggregates as unreconciled (need to do this separately via orchestrator)
-    // For now, we'll just log this action
+    // Mark aggregates and bank statement as unreconciled
+    const aggregateIds = group.aggregates?.map((agg: SettlementAggregate) => agg.aggregate_id) || [];
+    if (aggregateIds.length > 0) {
+      await this.repository.markAggregatesAsUnreconciled(aggregateIds);
+    }
+    await this.repository.markBankStatementAsUnreconciled(group.bank_statement_id);
+
     logInfo("Settlement group undone successfully", {
       groupId,
-      aggregatesCount: group.aggregates?.length || 0,
+      aggregatesCount: aggregateIds.length,
     });
   }
 

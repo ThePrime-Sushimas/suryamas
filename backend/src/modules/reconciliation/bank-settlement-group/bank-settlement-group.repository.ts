@@ -316,6 +316,78 @@ export class SettlementGroupRepository {
   }
 
   /**
+   * Mark aggregates as reconciled
+   */
+  async markAggregatesAsReconciled(aggregateIds: string[]): Promise<void> {
+    const { error } = await supabase
+      .from('aggregated_transactions')
+      .update({
+        is_reconciled: true,
+        updated_at: new Date().toISOString(),
+      })
+      .in('id', aggregateIds);
+
+    if (error) {
+      logError('Mark aggregates as reconciled error', { aggregateIds, error: error.message });
+      throw new Error(`Failed to mark aggregates as reconciled: ${error.message}`);
+    }
+  }
+
+  /**
+   * Mark bank statement as reconciled
+   */
+  async markBankStatementAsReconciled(statementId: string): Promise<void> {
+    const { error } = await supabase
+      .from('bank_statements')
+      .update({
+        is_reconciled: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', statementId);
+
+    if (error) {
+      logError('Mark bank statement as reconciled error', { statementId, error: error.message });
+      throw new Error(`Failed to mark bank statement as reconciled: ${error.message}`);
+    }
+  }
+
+  /**
+   * Mark aggregates as unreconciled
+   */
+  async markAggregatesAsUnreconciled(aggregateIds: string[]): Promise<void> {
+    const { error } = await supabase
+      .from('aggregated_transactions')
+      .update({
+        is_reconciled: false,
+        updated_at: new Date().toISOString(),
+      })
+      .in('id', aggregateIds);
+
+    if (error) {
+      logError('Mark aggregates as unreconciled error', { aggregateIds, error: error.message });
+      throw new Error(`Failed to mark aggregates as unreconciled: ${error.message}`);
+    }
+  }
+
+  /**
+   * Mark bank statement as unreconciled
+   */
+  async markBankStatementAsUnreconciled(statementId: string): Promise<void> {
+    const { error } = await supabase
+      .from('bank_statements')
+      .update({
+        is_reconciled: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', statementId);
+
+    if (error) {
+      logError('Mark bank statement as unreconciled error', { statementId, error: error.message });
+      throw new Error(`Failed to mark bank statement as unreconciled: ${error.message}`);
+    }
+  }
+
+  /**
    * Soft delete settlement group
    */
   async softDelete(id: string): Promise<void> {

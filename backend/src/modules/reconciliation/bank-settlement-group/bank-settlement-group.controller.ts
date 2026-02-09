@@ -83,11 +83,11 @@ export class SettlementGroupController {
       });
 
       let status = 400;
+      if (error instanceof SettlementGroupNotFoundError) status = 404;
       if (error instanceof StatementAlreadyReconciledError) status = 409;
       if (error instanceof AggregateAlreadyReconciledError) status = 409;
       if (error instanceof DuplicateAggregateError) status = 409;
       if (error instanceof DifferenceThresholdExceededError) status = 422;
-      if (error instanceof SettlementGroupNotFoundError) status = 404;
 
       // Add correlation ID to logs for better tracing
       const correlationId = req.headers['x-correlation-id'] || 'unknown';
