@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { bankSettlementConfig } from "../../../config/bank-settlement-config";
+import { bankSettlementConfig } from "./bank-settlement-group.config";
 
 /**
  * Custom datetime schema that accepts both:
