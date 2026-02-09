@@ -61,7 +61,13 @@ export class SettlementGroupService {
     const bankName = statement.bank_accounts?.banks?.bank_name || undefined;
     const paymentMethod: string | undefined = undefined; // dari statement, bukan bank_accounts
 
-    // 2. Validate all aggregates
+    // 2. Validate aggregate IDs (check for duplicates in request)
+    const uniqueIds = [...new Set(dto.aggregateIds)];
+    if (uniqueIds.length !== dto.aggregateIds.length) {
+      throw new DuplicateAggregateError("DUPLICATE_IN_REQUEST");
+    }
+
+    // 3. Validate all aggregates
     const aggregateDetails = await Promise.all(
       dto.aggregateIds.map(async (aggregateId) => {
         const aggregate = await this.repository.getAggregateById(aggregateId);
@@ -75,7 +81,7 @@ export class SettlementGroupService {
       })
     );
 
-    // 3. Calculate totals
+    // 4. Calculate totals
     const totalAllocatedAmount = aggregateDetails.reduce((sum, agg) => sum + agg.nett_amount, 0);
     const difference = statementAmount - totalAllocatedAmount;
     const differencePercent = statementAmount !== 0 ? Math.abs(difference) / statementAmount : 0;
@@ -259,7 +265,7 @@ export class SettlementGroupService {
 
   /**
    * Calculate suggested aggregates for a statement amount
-   * Uses greedy algorithm to find combinations that match target amount
+   * Uses optimized knapsack-like algorithm to find best combinations
    */
   async getSuggestedAggregates(
     targetAmount: number,
@@ -273,27 +279,126 @@ export class SettlementGroupService {
     const tolerance = options?.tolerancePercent || bankSettlementConfig.suggestionDefaultTolerance;
     const maxAgg = options?.maxAggregates || bankSettlementConfig.suggestionMaxResults;
 
-    // Get available aggregates
+    // Get available aggregates (limit to reasonable size for algorithm)
     const { data: availableAggregates } = await this.repository.getAvailableAggregates({
       startDate: options?.startDate,
       endDate: options?.endDate,
-      limit: 100,
+      limit: Math.min(200, maxAgg * 3), // Get more data for better optimization
     });
 
-    // Sort by closest match to target amount
-    const sorted = [...availableAggregates].sort(
-      (a, b) => Math.abs(a.nett_amount - targetAmount) - Math.abs(b.nett_amount - targetAmount)
-    );
+    // Use optimized algorithm to find best combination
+    return this.findOptimalAggregateCombination(availableAggregates, targetAmount, tolerance, maxAgg);
+  }
 
-    // Simple greedy algorithm: pick aggregates that sum up closest to target
+  /**
+   * Find optimal combination of aggregates that best match target amount
+   * Uses a knapsack-like approach with tolerance
+   */
+  private findOptimalAggregateCombination(
+    aggregates: AvailableAggregateDto[],
+    targetAmount: number,
+    tolerancePercent: number,
+    maxAggregates: number
+  ): AvailableAggregateDto[] {
+    const toleranceAmount = targetAmount * tolerancePercent;
+    const minAcceptable = targetAmount - toleranceAmount;
+    const maxAcceptable = targetAmount + toleranceAmount;
+
+    // Sort by amount (largest first for better greedy start)
+    const sorted = [...aggregates].sort((a, b) => b.nett_amount - a.nett_amount);
+
+    let bestCombination: AvailableAggregateDto[] = [];
+    let bestDifference = Infinity;
+
+    // Try combinations starting with different base aggregates
+    for (let startIdx = 0; startIdx < Math.min(sorted.length, 10); startIdx++) {
+      const combination = this.buildCombinationFromStart(
+        sorted,
+        startIdx,
+        targetAmount,
+        minAcceptable,
+        maxAcceptable,
+        maxAggregates
+      );
+
+      if (combination.length > 0) {
+        const total = combination.reduce((sum, agg) => sum + agg.nett_amount, 0);
+        const difference = Math.abs(total - targetAmount);
+
+        // Update best combination if this is better
+        if (difference < bestDifference ||
+            (difference === bestDifference && combination.length < bestCombination.length)) {
+          bestCombination = combination;
+          bestDifference = difference;
+        }
+
+        // If we found exact match, return immediately
+        if (difference === 0) {
+          break;
+        }
+      }
+    }
+
+    // If no good combination found, fall back to simple greedy
+    if (bestCombination.length === 0) {
+      bestCombination = this.fallbackGreedyAlgorithm(sorted, targetAmount, toleranceAmount, maxAggregates);
+    }
+
+    return bestCombination;
+  }
+
+  /**
+   * Build combination starting from a specific aggregate
+   */
+  private buildCombinationFromStart(
+    sortedAggregates: AvailableAggregateDto[],
+    startIdx: number,
+    targetAmount: number,
+    minAcceptable: number,
+    maxAcceptable: number,
+    maxAggregates: number
+  ): AvailableAggregateDto[] {
+    const combination: AvailableAggregateDto[] = [sortedAggregates[startIdx]];
+    let currentSum = sortedAggregates[startIdx].nett_amount;
+
+    // Add more aggregates that get us closer to target
+    for (let i = 0; i < sortedAggregates.length && combination.length < maxAggregates; i++) {
+      if (i === startIdx) continue; // Skip the starting aggregate
+
+      const candidate = sortedAggregates[i];
+      const potentialSum = currentSum + candidate.nett_amount;
+
+      // Only add if it keeps us within acceptable range
+      if (potentialSum >= minAcceptable && potentialSum <= maxAcceptable) {
+        combination.push(candidate);
+        currentSum = potentialSum;
+
+        // If we're very close to target, stop adding more
+        if (Math.abs(currentSum - targetAmount) / targetAmount < 0.01) { // Within 1%
+          break;
+        }
+      }
+    }
+
+    return combination;
+  }
+
+  /**
+   * Fallback greedy algorithm when optimization fails
+   */
+  private fallbackGreedyAlgorithm(
+    sortedAggregates: AvailableAggregateDto[],
+    targetAmount: number,
+    toleranceAmount: number,
+    maxAggregates: number
+  ): AvailableAggregateDto[] {
     const suggestions: AvailableAggregateDto[] = [];
     let currentSum = 0;
 
-    for (const agg of sorted) {
-      if (suggestions.length >= maxAgg) break;
-      
+    for (const agg of sortedAggregates) {
+      if (suggestions.length >= maxAggregates) break;
+
       const potentialSum = currentSum + agg.nett_amount;
-      const toleranceAmount = targetAmount * tolerance;
 
       // If adding this aggregate doesn't exceed tolerance, include it
       if (potentialSum <= targetAmount + toleranceAmount) {

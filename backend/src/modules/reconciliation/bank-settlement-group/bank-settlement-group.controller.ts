@@ -277,7 +277,12 @@ export class SettlementGroupController {
       res.status(200).json({
         success: true,
         data: result.data,
-        total: result.total,
+        pagination: {
+          total: result.total,
+          page: Math.floor((offset || 0) / (limit || 100)) + 1,
+          pageSize: limit || 100,
+          totalPages: Math.ceil(result.total / (limit || 100))
+        }
       });
     } catch (error: any) {
       logError("Get available aggregates error", {
