@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { bankSettlementConfig } from "../../../config/bank-settlement-config";
 
 /**
  * Custom datetime schema that accepts both:
@@ -83,7 +84,7 @@ export const getSettlementGroupListSchema = z.object({
     endDate: datetimeFormat.optional().or(z.literal('').transform(() => undefined)),
     status: z.enum(['PENDING', 'RECONCILED', 'DISCREPANCY']).optional(),
     search: z.string().optional(),
-    limit: z.coerce.number().int().min(1).max(50000).optional().default(10000),
+    limit: z.coerce.number().int().min(1).max(bankSettlementConfig.maxPageSize).optional().default(bankSettlementConfig.defaultPageSize),
     offset: z.coerce.number().int().min(0).optional().default(0),
   }),
 });
@@ -135,9 +136,9 @@ export const getAvailableAggregatesSchema = z.object({
 export const getSuggestionsSchema = z.object({
   query: z.object({
     targetAmount: z.coerce.number().min(0, "Target amount must be positive"),
-    tolerancePercent: z.coerce.number().min(0).max(1).optional().default(0.05),
+    tolerancePercent: z.coerce.number().min(0).max(1).optional().default(bankSettlementConfig.suggestionDefaultTolerance),
     dateToleranceDays: z.coerce.number().int().min(0).max(30).optional().default(2),
-    maxResults: z.coerce.number().int().min(1).max(20).optional().default(10),
+    maxResults: z.coerce.number().int().min(1).max(bankSettlementConfig.suggestionMaxResults).optional().default(bankSettlementConfig.suggestionMaxResults),
   }),
 });
 

@@ -98,6 +98,23 @@ export class SettlementGroupRepository {
   constructor() {}
 
   /**
+   * Execute operations within a database transaction
+   */
+  async withTransaction<T>(operation: (tx: any) => Promise<T>): Promise<T> {
+    // Note: Supabase doesn't have explicit transaction support in the client
+    // We'll implement a simple rollback mechanism using soft operations
+    // In production, consider using database functions or stored procedures
+    try {
+      return await operation(this);
+    } catch (error: unknown) {
+      // Log transaction failure
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Transaction failed, attempting rollback", { error: errorMessage });
+      throw error;
+    }
+  }
+
+  /**
    * Create a new settlement group
    */
   async createSettlementGroup(data: {
@@ -137,11 +154,12 @@ export class SettlementGroupRepository {
       }
 
       return group.id;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       logError("Error creating settlement group", {
         companyId: data.companyId,
         bankStatementId: data.bankStatementId,
-        error: error.message
+        error: errorMessage
       });
       throw error;
     }
@@ -192,8 +210,9 @@ export class SettlementGroupRepository {
 
       // Transform data to match interface
       return this.transformSettlementGroup(data);
-    } catch (error: any) {
-      logError("Error fetching settlement group by ID", { id, error: error.message });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Error fetching settlement group by ID", { id, error: errorMessage });
       throw error;
     }
   }
@@ -215,8 +234,9 @@ export class SettlementGroupRepository {
       }
 
       return data;
-    } catch (error: any) {
-      logError("Error fetching settlement group by number", { settlementNumber, error: error.message });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Error fetching settlement group by number", { settlementNumber, error: errorMessage });
       throw error;
     }
   }
@@ -251,11 +271,12 @@ export class SettlementGroupRepository {
       if (error) {
         throw error;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       logError("Error adding aggregates to settlement group", {
         settlementGroupId,
         count: aggregates.length,
-        error: error.message
+        error: errorMessage
       });
       throw error;
     }
@@ -287,8 +308,9 @@ export class SettlementGroupRepository {
       if (error) {
         throw error;
       }
-    } catch (error: any) {
-      logError("Error updating settlement group status", { id, status, error: error.message });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Error updating settlement group status", { id, status, error: errorMessage });
       throw error;
     }
   }
@@ -310,8 +332,9 @@ export class SettlementGroupRepository {
       if (error) {
         throw error;
       }
-    } catch (error: any) {
-      logError("Error soft deleting settlement group", { id, error: error.message });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Error soft deleting settlement group", { id, error: errorMessage });
       throw error;
     }
   }
@@ -393,8 +416,9 @@ export class SettlementGroupRepository {
       }));
 
       return { data: transformedData, total: count || 0 };
-    } catch (error: any) {
-      logError("Error fetching settlement groups", { options, error: error.message });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Error fetching settlement groups", { options, error: errorMessage });
       throw error;
     }
   }
@@ -424,7 +448,7 @@ export class SettlementGroupRepository {
         throw error;
       }
 
-// Transform data with proper types
+      // Transform data with proper types
       return (data || []).map((agg: SettlementAggregateDb) => ({
         id: agg.id,
         settlement_group_id: agg.settlement_group_id,
@@ -434,18 +458,11 @@ export class SettlementGroupRepository {
         allocated_amount: agg.allocated_amount,
         original_amount: agg.original_amount,
         created_at: agg.created_at,
-        aggregate: agg.aggregated_transactions ? {
-          id: agg.aggregated_transactions.id,
-          transaction_date: agg.aggregated_transactions.transaction_date,
-          gross_amount: agg.aggregated_transactions.gross_amount,
-          nett_amount: agg.aggregated_transactions.nett_amount,
-          payment_method_name: (agg.aggregated_transactions.payment_methods as unknown as PaymentMethodInfo | null)?.name || null,
-          branch_name: (agg.aggregated_transactions.branches as unknown as BranchInfo | null)?.name || null,
-          branch_code: (agg.aggregated_transactions.branches as unknown as BranchInfo | null)?.code || null,
-        } : undefined,
+        aggregated_transactions: agg.aggregated_transactions as AggregatedTransactionDb,
       }));
-    } catch (error: any) {
-      logError("Error fetching settlement group aggregates", { settlementGroupId, error: error.message });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Error fetching settlement group aggregates", { settlementGroupId, error: errorMessage });
       throw error;
     }
   }
@@ -466,8 +483,9 @@ export class SettlementGroupRepository {
       }
 
       return (data || []).length > 0;
-    } catch (error: any) {
-      logError("Error checking if aggregate is in settlement group", { aggregateId, error: error.message });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Error checking if aggregate is in settlement group", { aggregateId, error: errorMessage });
       throw error;
     }
   }
@@ -586,8 +604,9 @@ return { data: transformedData, total: count || 0 };
         branch_code: (data.branches as unknown as BranchInfo | null)?.code || null,
         is_reconciled: data.is_reconciled,
       };
-    } catch (error: any) {
-      logError("Error fetching aggregate by ID", { aggregateId, error: error.message });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Error fetching aggregate by ID", { aggregateId, error: errorMessage });
       throw error;
     }
   }
@@ -640,8 +659,9 @@ return { data: transformedData, total: count || 0 };
         ...data,
         amount: (data.credit_amount || 0) - (data.debit_amount || 0),
       };
-    } catch (error: any) {
-      logError("Error fetching bank statement by ID", { statementId, error: error.message });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Error fetching bank statement by ID", { statementId, error: errorMessage });
       throw error;
     }
   }

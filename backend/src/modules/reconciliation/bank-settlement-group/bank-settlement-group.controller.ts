@@ -36,13 +36,21 @@ import {
 } from "./bank-settlement-group.errors";
 import { logError, logInfo } from "../../../config/logger";
 
+/**
+ * Settlement Group Controller
+ * API endpoints for bulk settlement reconciliation
+ */
 export class SettlementGroupController {
   constructor(private readonly service: SettlementGroupService) {}
 
-/**
- * Create a new settlement group (BULK SETTLEMENT)
- * POST /api/v1/settlement-group/create
- */
+  /**
+   * Create a new settlement group (BULK SETTLEMENT)
+   * POST /api/v1/settlement-group/create
+   *
+   * @param req Validated request with settlement group data
+   * @param res Express response object
+   * @returns Promise<void>
+   */
   async create(
     req: ValidatedAuthRequest<typeof createSettlementGroupSchema>,
     res: Response,
@@ -81,6 +89,16 @@ export class SettlementGroupController {
       if (error instanceof DifferenceThresholdExceededError) status = 422;
       if (error instanceof SettlementGroupNotFoundError) status = 404;
 
+      // Add correlation ID to logs for better tracing
+      const correlationId = req.headers['x-correlation-id'] || 'unknown';
+      logError("Create settlement group error", {
+        correlationId,
+        error: error.message,
+        code: error.code,
+        userId: req.user?.id,
+        companyId: req.context?.company_id,
+      });
+
       res.status(status).json({
         success: false,
         message: error.message,
@@ -89,10 +107,14 @@ export class SettlementGroupController {
     }
   }
 
-/**
- * Get settlement group by ID
- * GET /api/v1/settlement-group/:id
- */
+  /**
+   * Get settlement group by ID
+   * GET /api/v1/settlement-group/:id
+   *
+   * @param req Validated request with settlement group ID
+   * @param res Express response object
+   * @returns Promise<void>
+   */
   async getById(req: ValidatedAuthRequest<typeof getSettlementGroupByIdSchema>, res: Response): Promise<void> {
     try {
       const { id } = req.validated.params;
@@ -104,10 +126,14 @@ export class SettlementGroupController {
         data: result,
       });
     } catch (error: any) {
+      const correlationId = req.headers['x-correlation-id'] || 'unknown';
       logError("Get settlement group error", {
+        correlationId,
         id: req.validated.params.id,
         error: error.message,
         code: error.code,
+        userId: req.user?.id,
+        companyId: req.context?.company_id,
       });
 
       let status = 400;
@@ -121,9 +147,13 @@ export class SettlementGroupController {
     }
   }
 
-/**
+  /**
    * List settlement groups with filters
    * GET /api/v1/settlement-group/list
+   *
+   * @param req Validated request with query parameters
+   * @param res Express response object
+   * @returns Promise<void>
    */
   async getList(
     req: ValidatedAuthRequest<typeof getSettlementGroupListSchema>,
@@ -161,10 +191,14 @@ export class SettlementGroupController {
     }
   }
 
-/**
- * Undo/rollback a settlement group
- * DELETE /api/v1/settlement-group/:id/undo
- */
+  /**
+   * Undo/rollback a settlement group
+   * DELETE /api/v1/settlement-group/:id/undo
+   *
+   * @param req Validated request with settlement group ID
+   * @param res Express response object
+   * @returns Promise<void>
+   */
   async undo(
     req: ValidatedAuthRequest<typeof undoSettlementGroupSchema>,
     res: Response,
@@ -180,17 +214,28 @@ export class SettlementGroupController {
         companyId ?? undefined
       );
 
-      logInfo("Settlement group undone", { groupId: id });
+      // Add correlation ID to success logs
+      const correlationId = req.headers['x-correlation-id'] || 'unknown';
+      logInfo("Settlement group undone", {
+        correlationId,
+        groupId: id,
+        userId: req.user?.id,
+        companyId: req.context?.company_id,
+      });
 
       res.status(200).json({
         success: true,
         message: "Settlement group berhasil dibatalkan",
       });
     } catch (error: any) {
+      const correlationId = req.headers['x-correlation-id'] || 'unknown';
       logError("Undo settlement group error", {
+        correlationId,
         id: req.validated.params.id,
         error: error.message,
         code: error.code,
+        userId: req.user?.id,
+        companyId: req.context?.company_id,
       });
 
       let status = 400;
@@ -205,10 +250,14 @@ export class SettlementGroupController {
     }
   }
 
-/**
- * Get available aggregates for settlement
- * GET /api/v1/settlement-group/aggregates/available
- */
+  /**
+   * Get available aggregates for settlement
+   * GET /api/v1/settlement-group/aggregates/available
+   *
+   * @param req Validated request with query parameters
+   * @param res Express response object
+   * @returns Promise<void>
+   */
   async getAvailableAggregates(
     req: ValidatedAuthRequest<typeof getAvailableAggregatesSchema>,
     res: Response,
@@ -248,6 +297,10 @@ export class SettlementGroupController {
   /**
    * Get aggregates for a specific settlement group
    * GET /api/v1/settlement-group/:id/aggregates
+   *
+   * @param req Validated request with settlement group ID
+   * @param res Express response object
+   * @returns Promise<void>
    */
   async getSettlementAggregates(req: ValidatedAuthRequest<typeof getSettlementGroupAggregatesSchema>, res: Response): Promise<void> {
     try {

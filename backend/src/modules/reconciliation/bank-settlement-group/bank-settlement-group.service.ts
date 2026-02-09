@@ -20,13 +20,10 @@ import {
   SettlementAlreadyConfirmedError,
 } from "./bank-settlement-group.errors";
 import { logError, logInfo } from "../../../config/logger";
+import { bankSettlementConfig } from "../../../config/bank-settlement-config";
 
 export class SettlementGroupService {
   private readonly repository: SettlementGroupRepository;
-  private readonly config = {
-    defaultTolerancePercent: 0.05, // 5% tolerance
-    differenceThreshold: 100, // Rp 100 difference threshold
-  };
 
   constructor(repository: SettlementGroupRepository) {
     this.repository = repository;
@@ -35,6 +32,12 @@ export class SettlementGroupService {
   /**
    * Create a new settlement group (BULK SETTLEMENT)
    * Maps 1 Bank Statement → Multiple Aggregates
+   *
+   * @param dto - Settlement group creation data
+   * @returns Promise<CreateSettlementGroupResultDto> - Creation result with group details
+   * @throws {StatementAlreadyReconciledError} When bank statement is already reconciled
+   * @throws {AggregateAlreadyReconciledError} When any aggregate is already reconciled
+   * @throws {DifferenceThresholdExceededError} When difference exceeds allowed threshold
    */
   async createSettlementGroup(dto: CreateSettlementGroupDto): Promise<CreateSettlementGroupResultDto> {
     logInfo("Creating settlement group", {
@@ -77,22 +80,22 @@ export class SettlementGroupService {
     const differencePercent = statementAmount !== 0 ? Math.abs(difference) / statementAmount : 0;
 
     // 4. Validate difference threshold
-    const isWithinTolerance = differencePercent <= this.config.defaultTolerancePercent;
-    const isWithinAbsoluteThreshold = Math.abs(difference) <= this.config.differenceThreshold;
+    const isWithinTolerance = differencePercent <= bankSettlementConfig.defaultTolerancePercent;
+    const isWithinAbsoluteThreshold = Math.abs(difference) <= bankSettlementConfig.differenceThreshold;
 
     if (!isWithinTolerance && !isWithinAbsoluteThreshold && !dto.overrideDifference) {
       throw new DifferenceThresholdExceededError(
         difference,
         differencePercent,
-        this.config.defaultTolerancePercent
+        bankSettlementConfig.defaultTolerancePercent
       );
     }
 
     // 5. Determine status
     const isExactMatch = difference === 0;
-    const isWithinAllowedThreshold = differencePercent <= this.config.defaultTolerancePercent || isWithinAbsoluteThreshold;
-    const status = isExactMatch || isWithinAllowedThreshold 
-      ? SettlementGroupStatus.RECONCILED 
+    const isWithinAllowedThreshold = differencePercent <= bankSettlementConfig.defaultTolerancePercent || isWithinAbsoluteThreshold;
+    const status = isExactMatch || isWithinAllowedThreshold
+      ? SettlementGroupStatus.RECONCILED
       : SettlementGroupStatus.DISCREPANCY;
 
     // 6. Create settlement group
@@ -255,8 +258,8 @@ export class SettlementGroupService {
       maxAggregates?: number;
     }
   ): Promise<AvailableAggregateDto[]> {
-    const tolerance = options?.tolerancePercent || 0.05;
-    const maxAgg = options?.maxAggregates || 10;
+    const tolerance = options?.tolerancePercent || bankSettlementConfig.suggestionDefaultTolerance;
+    const maxAgg = options?.maxAggregates || bankSettlementConfig.suggestionMaxResults;
 
     // Get available aggregates
     const { data: availableAggregates } = await this.repository.getAvailableAggregates({
