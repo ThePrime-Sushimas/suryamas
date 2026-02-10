@@ -14,6 +14,10 @@ import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+// Create a client
+const queryClient = new QueryClient();
 
 // Lazy load features
 const EmployeesPage = lazy(() =>
@@ -344,6 +348,11 @@ const BankReconciliationPage = lazy(() =>
     default: m.BankReconciliationPage,
   })),
 );
+const SettlementGroupsPage = lazy(() =>
+  import("./features/bank-reconciliation/settlement-groups/pages/SettlementGroupsPage").then((m) => ({
+    default: m.SettlementGroupsPage,
+  })),
+);
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -382,10 +391,11 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <ToastProvider>
-        <BranchContextErrorBoundary>
-          <BrowserRouter>
-            <Routes>
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <BranchContextErrorBoundary>
+            <BrowserRouter>
+              <Routes>
               {/* Auth Routes - No Layout */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
@@ -1186,13 +1196,24 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="bank-reconciliation/settlement-groups"
+                  element={
+                    <ProtectedRoute>
+                      <Suspense fallback={<LoadingFallback />}>
+                        <SettlementGroupsPage />
+                      </Suspense>
+                    </ProtectedRoute>
+                  }
+                />
               </Route>
             </Routes>
           </BrowserRouter>
         </BranchContextErrorBoundary>
       </ToastProvider>
-    </ErrorBoundary>
-  );
+    </QueryClientProvider>
+  </ErrorBoundary>
+);
 }
 
 export default App;

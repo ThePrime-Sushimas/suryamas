@@ -228,11 +228,18 @@ export default function Layout() {
             icon: <FileSpreadsheet size={16} />,
             module: "bank_statement_imports",
           },
-          {
+{
             id: "bank-reconciliation",
             name: "Bank Reconciliation",
             href: "/bank-reconciliation",
             icon: <ShieldCheck size={16} />,
+            module: "bank_reconciliation",
+          },
+          {
+            id: "settlement-groups",
+            name: "Settlement Groups",
+            href: "/bank-reconciliation/settlement-groups",
+            icon: <FileSpreadsheet size={16} />,
             module: "bank_reconciliation",
           },
         ],
