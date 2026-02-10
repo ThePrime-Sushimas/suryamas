@@ -349,7 +349,7 @@ const BankReconciliationPage = lazy(() =>
   })),
 );
 const SettlementGroupsPage = lazy(() =>
-  import("./features/bank-reconciliation/settlement-groups/pages/SettlementGroupsPage").then((m) => ({
+  import("./features/bank-reconciliation/settlement-groups").then((m) => ({
     default: m.SettlementGroupsPage,
   })),
 );
