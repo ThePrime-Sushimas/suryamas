@@ -4,7 +4,7 @@
  */
 
 import { supabase } from "../../../config/supabase";
-import { logError } from "../../../config/logger";
+import { logError, logInfo } from "../../../config/logger";
 import { SettlementGroupStatus } from "./bank-settlement-group.types";
 
 // =====================================================
@@ -411,7 +411,7 @@ export class SettlementGroupRepository {
         is_reconciled: true,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', statementId);
+      .eq('id', Number(statementId)); // bank_statement_id is bigint
 
     if (error) {
       logError('Mark bank statement as reconciled error', { statementId, error: error.message });
@@ -447,7 +447,7 @@ export class SettlementGroupRepository {
         is_reconciled: false,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', statementId);
+      .eq('id', Number(statementId)); // bank_statement_id is bigint
 
     if (error) {
       logError('Mark bank statement as unreconciled error', { statementId, error: error.message });
@@ -456,33 +456,31 @@ export class SettlementGroupRepository {
   }
 
   /**
-   * Soft delete settlement group
+   * Soft delete settlement group and its aggregates
+   * Only sets deleted_at, does NOT change status (database constraint issue)
    */
   async softDelete(id: string): Promise<void> {
     try {
-      // First try with deleted_at
-      try {
-        const { error } = await supabase
-          .from("bank_settlement_groups")
-          .update({
-            deleted_at: new Date().toISOString(),
-            status: SettlementGroupStatus.UNDO,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", id);
+      const now = new Date().toISOString();
+      
+      // Soft delete aggregates first
+      const { error: aggError } = await supabase
+        .from("bank_settlement_aggregates")
+        .update({
+          deleted_at: now,
+        })
+        .eq("settlement_group_id", id);
 
-        if (!error) return;
-        if (!isMissingColumnError(error)) throw error;
-      } catch (e) {
-        // Column missing, try without it
+      if (aggError) {
+        throw aggError;
       }
 
-      // Fallback without deleted_at column
+      // Soft delete the settlement group
       const { error } = await supabase
         .from("bank_settlement_groups")
         .update({
-          status: SettlementGroupStatus.UNDO,
-          updated_at: new Date().toISOString(),
+          deleted_at: now,
+          updated_at: now,
         })
         .eq("id", id);
 
@@ -499,6 +497,7 @@ export class SettlementGroupRepository {
   /**
    * Get list of settlement groups with pagination and filters
    * Includes aggregates count from bank_settlement_aggregates table
+   * Only returns non-deleted records (deleted_at IS NULL)
    */
   async findAll(options?: {
     startDate?: string;
@@ -509,6 +508,7 @@ export class SettlementGroupRepository {
     offset?: number;
   }): Promise<{ data: any[]; total: number }> {
     try {
+      // Build query with deleted_at filter - always exclude soft-deleted records
       let query = supabase
         .from("bank_settlement_groups")
         .select(
@@ -523,28 +523,8 @@ export class SettlementGroupRepository {
           )
         `,
           { count: 'exact' }
-        );
-
-      // Try with deleted_at first
-      try {
-        query = (supabase
-          .from("bank_settlement_groups")
-          .select(
-            `
-            *,
-            bank_statements (
-              id,
-              transaction_date,
-              description,
-              debit_amount,
-              credit_amount
-            )
-          `,
-            { count: 'exact' }
-          ) as any);
-      } catch (e) {
-        // Column doesn't exist, continue
-      }
+        )
+        .is("deleted_at", null); // Only return non-deleted records
 
       // Apply date range filter on settlement_date
       if (options?.startDate) {
@@ -576,8 +556,10 @@ export class SettlementGroupRepository {
       const { data, error, count } = await query;
 
       if (error) {
+        // If error is about missing deleted_at column, retry without it
         if (isMissingColumnError(error)) {
-          // Retry without deleted_at
+          logInfo("deleted_at column not found, querying without soft delete filter");
+          
           let retryQuery = supabase
             .from("bank_settlement_groups")
             .select(
@@ -641,6 +623,7 @@ export class SettlementGroupRepository {
 
           const transformedData = (retryData || []).map((group: any) => ({
             ...group,
+            deleted_at: null, // Assume not deleted if column doesn't exist
             bank_statement: group.bank_statements ? {
               id: group.bank_statements.id,
               transaction_date: group.bank_statements.transaction_date,
@@ -684,6 +667,7 @@ export class SettlementGroupRepository {
 
       const transformedData = (data || []).map((group: any) => ({
         ...group,
+        deleted_at: group.deleted_at,
         bank_statement: group.bank_statements ? {
           id: group.bank_statements.id,
           transaction_date: group.bank_statements.transaction_date,
@@ -953,6 +937,9 @@ export class SettlementGroupRepository {
     };
   } | null> {
     try {
+      // statementId from settlement group is a string, but bank_statements.id is bigint
+      const statementIdNum = Number(statementId);
+      
       const { data, error } = await supabase
         .from("bank_statements")
         .select(`
@@ -963,7 +950,7 @@ export class SettlementGroupRepository {
             banks (bank_name, bank_code)
           )
         `)
-        .eq("id", statementId)
+        .eq('id', statementIdNum)
         .single();
 
       if (error) {
@@ -976,6 +963,7 @@ export class SettlementGroupRepository {
 
       return {
         ...data,
+        id: String(data.id),
         amount: (data.credit_amount || 0) - (data.debit_amount || 0),
       };
     } catch (error: unknown) {

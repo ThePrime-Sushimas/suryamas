@@ -206,6 +206,7 @@ export class SettlementGroupService {
 
   /**
    * Undo/rollback a settlement group
+   * Uses soft delete via deleted_at instead of status change (database constraint issue)
    */
   async undoSettlementGroup(
     groupId: string,
@@ -219,11 +220,12 @@ export class SettlementGroupService {
       throw new SettlementGroupNotFoundError(groupId);
     }
 
-    if (group.status === SettlementGroupStatus.UNDO) {
+    // Check if already undone (soft deleted)
+    if (group.deleted_at) {
       throw new SettlementAlreadyConfirmedError(groupId);
     }
 
-    // Soft delete the settlement group
+    // Soft delete the settlement group using deleted_at
     await this.repository.softDelete(groupId);
 
     // Mark aggregates and bank statement as unreconciled
