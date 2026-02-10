@@ -94,6 +94,13 @@ interface AggregatedTransactionDb {
   is_reconciled: boolean;
 }
 
+// Helper to check if error is about missing column
+const isMissingColumnError = (error: any): boolean => {
+  return error?.code === '42703' || 
+         error?.message?.includes('deleted_at') ||
+         error?.message?.includes('does not exist');
+};
+
 export class SettlementGroupRepository {
   constructor() {}
 
@@ -101,13 +108,9 @@ export class SettlementGroupRepository {
    * Execute operations within a database transaction
    */
   async withTransaction<T>(operation: (tx: any) => Promise<T>): Promise<T> {
-    // Note: Supabase doesn't have explicit transaction support in the client
-    // We'll implement a simple rollback mechanism using soft operations
-    // In production, consider using database functions or stored procedures
     try {
       return await operation(this);
     } catch (error: unknown) {
-      // Log transaction failure
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       logError("Transaction failed, attempting rollback", { error: errorMessage });
       throw error;
@@ -170,21 +173,10 @@ export class SettlementGroupRepository {
    */
   async findById(id: string): Promise<any> {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("bank_settlement_groups")
         .select(`
           *,
-          bank_settlement_aggregates (
-            *,
-            aggregated_transactions (
-              id,
-              transaction_date,
-              gross_amount,
-              nett_amount,
-              payment_methods!left (name),
-              branches!left (name, code)
-            )
-          ),
           bank_statements (
             id,
             transaction_date,
@@ -197,10 +189,60 @@ export class SettlementGroupRepository {
           )
         `)
         .eq("id", id)
-        .is("deleted_at", null)
         .single();
 
+      // Try with deleted_at first, fallback to without if column missing
+      try {
+        query = (supabase
+          .from("bank_settlement_groups")
+          .select(`
+            *,
+            bank_statements (
+              id,
+              transaction_date,
+              description,
+              debit_amount,
+              credit_amount,
+              bank_accounts (
+                banks (bank_name, bank_code)
+              )
+            )
+          `)
+          .eq("id", id)
+          .is("deleted_at", null) as any);
+      } catch (e) {
+        // Column doesn't exist, continue without it
+      }
+
+      const { data, error } = await query;
+
       if (error) {
+        if (isMissingColumnError(error)) {
+          // Retry without deleted_at check
+          const { data: retryData, error: retryError } = await supabase
+            .from("bank_settlement_groups")
+            .select(`
+              *,
+              bank_statements (
+                id,
+                transaction_date,
+                description,
+                debit_amount,
+                credit_amount,
+                bank_accounts (
+                  banks (bank_name, bank_code)
+                )
+              )
+            `)
+            .eq("id", id)
+            .single();
+          
+          if (retryError) throw retryError;
+          if (!retryData) return null;
+
+          const aggregates = await this.getAggregatesByGroupId(id);
+          return this.transformSettlementGroup(retryData, aggregates);
+        }
         throw error;
       }
 
@@ -208,8 +250,8 @@ export class SettlementGroupRepository {
         return null;
       }
 
-      // Transform data to match interface
-      return this.transformSettlementGroup(data);
+      const aggregates = await this.getAggregatesByGroupId(id);
+      return this.transformSettlementGroup(data, aggregates);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       logError("Error fetching settlement group by ID", { id, error: errorMessage });
@@ -226,10 +268,20 @@ export class SettlementGroupRepository {
         .from("bank_settlement_groups")
         .select("*")
         .eq("settlement_number", settlementNumber)
-        .is("deleted_at", null)
         .single();
 
       if (error) {
+        if (isMissingColumnError(error)) {
+          // Retry without deleted_at check
+          const { data: retryData, error: retryError } = await supabase
+            .from("bank_settlement_groups")
+            .select("*")
+            .eq("settlement_number", settlementNumber)
+            .single();
+          
+          if (retryError) throw retryError;
+          return retryData;
+        }
         throw error;
       }
 
@@ -392,10 +444,27 @@ export class SettlementGroupRepository {
    */
   async softDelete(id: string): Promise<void> {
     try {
+      // First try with deleted_at
+      try {
+        const { error } = await supabase
+          .from("bank_settlement_groups")
+          .update({
+            deleted_at: new Date().toISOString(),
+            status: SettlementGroupStatus.UNDO,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", id);
+
+        if (!error) return;
+        if (!isMissingColumnError(error)) throw error;
+      } catch (e) {
+        // Column missing, try without it
+      }
+
+      // Fallback without deleted_at column
       const { error } = await supabase
         .from("bank_settlement_groups")
         .update({
-          deleted_at: new Date().toISOString(),
           status: SettlementGroupStatus.UNDO,
           updated_at: new Date().toISOString(),
         })
@@ -437,8 +506,28 @@ export class SettlementGroupRepository {
           )
         `,
           { count: 'exact' }
-        )
-        .is("deleted_at", null);
+        );
+
+      // Try with deleted_at first
+      try {
+        query = (supabase
+          .from("bank_settlement_groups")
+          .select(
+            `
+            *,
+            bank_statements (
+              id,
+              transaction_date,
+              description,
+              debit_amount,
+              credit_amount
+            )
+          `,
+            { count: 'exact' }
+          ) as any);
+      } catch (e) {
+        // Column doesn't exist, continue
+      }
 
       // Apply date range filter on settlement_date
       if (options?.startDate) {
@@ -470,10 +559,62 @@ export class SettlementGroupRepository {
       const { data, error, count } = await query;
 
       if (error) {
+        if (isMissingColumnError(error)) {
+          // Retry without deleted_at
+          let retryQuery = supabase
+            .from("bank_settlement_groups")
+            .select(
+              `
+              *,
+              bank_statements (
+                id,
+                transaction_date,
+                description,
+                debit_amount,
+                credit_amount
+              )
+            `,
+              { count: 'exact' }
+            );
+
+          if (options?.startDate) {
+            retryQuery = retryQuery.gte("settlement_date", options.startDate);
+          }
+          if (options?.endDate) {
+            retryQuery = retryQuery.lte("settlement_date", options.endDate);
+          }
+          if (options?.status) {
+            retryQuery = retryQuery.eq("status", options.status);
+          }
+          if (options?.search) {
+            const searchTerm = `%${options.search}%`;
+            retryQuery = retryQuery.or(`settlement_number.ilike.${searchTerm},notes.ilike.${searchTerm}`);
+          }
+
+          const { data: retryData, error: retryError, count: retryCount } = await retryQuery
+            .order("created_at", { ascending: false })
+            .range(offset, offset + limit - 1);
+
+          if (retryError) throw retryError;
+
+          const transformedData = (retryData || []).map((group: any) => ({
+            ...group,
+            bank_statement: group.bank_statements ? {
+              id: group.bank_statements.id,
+              transaction_date: group.bank_statements.transaction_date,
+              description: group.bank_statements.description,
+              debit_amount: group.bank_statements.debit_amount,
+              credit_amount: group.bank_statements.credit_amount,
+              amount: (group.bank_statements.credit_amount || 0) - (group.bank_statements.debit_amount || 0),
+            } : undefined,
+            aggregates: [],
+          }));
+
+          return { data: transformedData, total: retryCount || 0 };
+        }
         throw error;
       }
 
-      // Transform data
       const transformedData = (data || []).map((group: any) => ({
         ...group,
         bank_statement: group.bank_statements ? {
@@ -484,7 +625,7 @@ export class SettlementGroupRepository {
           credit_amount: group.bank_statements.credit_amount,
           amount: (group.bank_statements.credit_amount || 0) - (group.bank_statements.debit_amount || 0),
         } : undefined,
-        aggregates: [], // Will be fetched separately if needed
+        aggregates: [],
       }));
 
       return { data: transformedData, total: count || 0 };
@@ -502,17 +643,7 @@ export class SettlementGroupRepository {
     try {
       const { data, error } = await supabase
         .from("bank_settlement_aggregates")
-        .select(`
-          *,
-          aggregated_transactions (
-            id,
-            transaction_date,
-            gross_amount,
-            nett_amount,
-            payment_methods!left (name),
-            branches!left (name, code)
-          )
-        `)
+        .select("*")
         .eq("settlement_group_id", settlementGroupId)
         .order("created_at", { ascending: true });
 
@@ -520,18 +651,7 @@ export class SettlementGroupRepository {
         throw error;
       }
 
-      // Transform data with proper types
-      return (data || []).map((agg: SettlementAggregateDb) => ({
-        id: agg.id,
-        settlement_group_id: agg.settlement_group_id,
-        aggregate_id: agg.aggregate_id,
-        branch_name: agg.branch_name,
-        branch_code: agg.branch_code,
-        allocated_amount: agg.allocated_amount,
-        original_amount: agg.original_amount,
-        created_at: agg.created_at,
-        aggregated_transactions: agg.aggregated_transactions as AggregatedTransactionDb,
-      }));
+      return data || [];
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       logError("Error fetching settlement group aggregates", { settlementGroupId, error: errorMessage });
@@ -569,10 +689,12 @@ export class SettlementGroupRepository {
     startDate?: string;
     endDate?: string;
     paymentMethodId?: string;
+    search?: string;
     limit?: number;
     offset?: number;
   }): Promise<{ data: any[]; total: number }> {
     try {
+      // Get aggregates without branch columns first
       let query = supabase
         .from("aggregated_transactions")
         .select(
@@ -581,14 +703,13 @@ export class SettlementGroupRepository {
           transaction_date,
           gross_amount,
           nett_amount,
-          payment_methods!left (id, name),
-          branches!left (name, code),
+          payment_method_id,
+          branch_id,
           is_reconciled
         `,
           { count: 'exact' }
         )
-        .eq("is_reconciled", false)
-        .is("deleted_at", null);
+        .eq("is_reconciled", false);
 
       // Apply date range filter
       if (options?.startDate) {
@@ -601,6 +722,11 @@ export class SettlementGroupRepository {
       // Apply payment method filter
       if (options?.paymentMethodId) {
         query = query.eq("payment_method_id", options.paymentMethodId);
+      }
+
+      // Apply search filter
+      if (options?.search) {
+        query = query.ilike("branch_id", `%${options.search}%`);
       }
 
       // Apply sorting and pagination
@@ -618,19 +744,56 @@ export class SettlementGroupRepository {
         throw error;
       }
 
-// Transform data - using any to avoid Supabase nested join type inference issues
+      // Get unique payment_method_ids and branch_ids for batch lookup
+      const paymentMethodIds = [...new Set((data || []).map((agg: any) => agg.payment_method_id).filter(Boolean))];
+      const branchIds = [...new Set((data || []).map((agg: any) => agg.branch_id).filter(Boolean))];
+      
+      let paymentMethodsMap: Record<string, string> = {};
+      let branchesMap: Record<string, { name: string; code: string }> = {};
+      
+      // Get payment methods
+      if (paymentMethodIds.length > 0) {
+        const { data: paymentMethods } = await supabase
+          .from("payment_methods")
+          .select("id, name")
+          .in("id", paymentMethodIds);
+        
+        if (paymentMethods) {
+          paymentMethodsMap = paymentMethods.reduce((acc: Record<string, string>, pm: any) => {
+            acc[pm.id] = pm.name;
+            return acc;
+          }, {});
+        }
+      }
+      
+      // Get branches
+      if (branchIds.length > 0) {
+        const { data: branches } = await supabase
+          .from("branches")
+          .select("id, name, code")
+          .in("id", branchIds);
+        
+        if (branches) {
+          branchesMap = branches.reduce((acc: Record<string, { name: string; code: string }>, b: any) => {
+            acc[b.id] = { name: b.name, code: b.code };
+            return acc;
+          }, {});
+        }
+      }
+
       const transformedData = (data || []).map((agg: any) => ({
         id: agg.id,
         transaction_date: agg.transaction_date,
         gross_amount: agg.gross_amount,
         nett_amount: agg.nett_amount,
-        payment_method_name: (agg.payment_methods as unknown as PaymentMethodInfo | null)?.name || null,
-        branch_name: (agg.branches as unknown as BranchInfo | null)?.name || null,
-        branch_code: (agg.branches as unknown as BranchInfo | null)?.code || null,
+        payment_method_name: paymentMethodsMap[agg.payment_method_id] || null,
+        payment_method_id: agg.payment_method_id,
+        branch_name: branchesMap[agg.branch_id]?.name || null,
+        branch_code: branchesMap[agg.branch_id]?.code || null,
         is_reconciled: agg.is_reconciled,
       }));
 
-return { data: transformedData, total: count || 0 };
+      return { data: transformedData, total: count || 0 };
     } catch (error: any) {
       logError("Error fetching available aggregates", { options, error: error.message });
       throw error;
@@ -642,6 +805,7 @@ return { data: transformedData, total: count || 0 };
    */
   async getAggregateById(aggregateId: string): Promise<any> {
     try {
+      // First get aggregate without joins
       const { data, error } = await supabase
         .from("aggregated_transactions")
         .select(`
@@ -649,12 +813,11 @@ return { data: transformedData, total: count || 0 };
           transaction_date,
           gross_amount,
           nett_amount,
-          payment_methods!left (id, name),
-          branches!left (name, code),
+          payment_method_id,
+          branch_id,
           is_reconciled
         `)
         .eq("id", aggregateId)
-        .is("deleted_at", null)
         .single();
 
       if (error) {
@@ -665,15 +828,49 @@ return { data: transformedData, total: count || 0 };
         return null;
       }
 
+      // Get payment method name separately
+      let paymentMethodName = null;
+      let paymentMethodId = null;
+      
+      if (data.payment_method_id) {
+        const { data: paymentMethod } = await supabase
+          .from("payment_methods")
+          .select("id, name")
+          .eq("id", data.payment_method_id)
+          .single();
+          
+        if (paymentMethod) {
+          paymentMethodName = paymentMethod.name;
+          paymentMethodId = paymentMethod.id;
+        }
+      }
+
+      // Get branch info separately
+      let branchName = null;
+      let branchCode = null;
+      
+      if (data.branch_id) {
+        const { data: branch } = await supabase
+          .from("branches")
+          .select("id, name, code")
+          .eq("id", data.branch_id)
+          .single();
+          
+        if (branch) {
+          branchName = branch.name;
+          branchCode = branch.code;
+        }
+      }
+
       return {
         id: data.id,
         transaction_date: data.transaction_date,
         gross_amount: data.gross_amount,
         nett_amount: data.nett_amount,
-        payment_method_name: (data.payment_methods as unknown as PaymentMethodInfo | null)?.name || null,
-        payment_method_id: (data.payment_methods as unknown as PaymentMethodInfo | null)?.id || null,
-        branch_name: (data.branches as unknown as BranchInfo | null)?.name || null,
-        branch_code: (data.branches as unknown as BranchInfo | null)?.code || null,
+        payment_method_name: paymentMethodName,
+        payment_method_id: paymentMethodId,
+        branch_name: branchName,
+        branch_code: branchCode,
         is_reconciled: data.is_reconciled,
       };
     } catch (error: unknown) {
@@ -715,7 +912,6 @@ return { data: transformedData, total: count || 0 };
           )
         `)
         .eq("id", statementId)
-        .is("deleted_at", null)
         .single();
 
       if (error) {
@@ -726,7 +922,6 @@ return { data: transformedData, total: count || 0 };
         return null;
       }
 
-      // Add computed amount field
       return {
         ...data,
         amount: (data.credit_amount || 0) - (data.debit_amount || 0),
@@ -741,7 +936,7 @@ return { data: transformedData, total: count || 0 };
   /**
    * Transform raw database response to settlement group format
    */
-  private transformSettlementGroup(data: SettlementGroupDb): any {
+  private transformSettlementGroup(data: SettlementGroupDb, aggregates: any[] = []): any {
     const bankStatement = data.bank_statements ? {
       id: data.bank_statements.id,
       transaction_date: data.bank_statements.transaction_date,
@@ -752,7 +947,7 @@ return { data: transformedData, total: count || 0 };
       bank_name: data.bank_statements.bank_accounts?.banks?.bank_name || null,
     } : undefined;
 
-const aggregates = (data.bank_settlement_aggregates || []).map((agg: SettlementAggregateDb) => ({
+    const transformedAggregates = (aggregates || []).map((agg: any) => ({
       id: agg.id,
       settlement_group_id: agg.settlement_group_id,
       aggregate_id: agg.aggregate_id,
@@ -761,15 +956,7 @@ const aggregates = (data.bank_settlement_aggregates || []).map((agg: SettlementA
       allocated_amount: agg.allocated_amount,
       original_amount: agg.original_amount,
       created_at: agg.created_at,
-      aggregate: agg.aggregated_transactions ? {
-        id: agg.aggregated_transactions.id,
-        transaction_date: agg.aggregated_transactions.transaction_date,
-        gross_amount: agg.aggregated_transactions.gross_amount,
-        nett_amount: agg.aggregated_transactions.nett_amount,
-        payment_method_name: (agg.aggregated_transactions.payment_methods as unknown as PaymentMethodInfo | null)?.name || null,
-        branch_name: (agg.aggregated_transactions.branches as unknown as BranchInfo | null)?.name || null,
-        branch_code: (agg.aggregated_transactions.branches as unknown as BranchInfo | null)?.code || null,
-      } : undefined,
+      aggregate: null,
     }));
 
     return {
@@ -791,7 +978,7 @@ const aggregates = (data.bank_settlement_aggregates || []).map((agg: SettlementA
       confirmed_at: data.confirmed_at,
       deleted_at: data.deleted_at,
       bank_statement: bankStatement,
-      aggregates: aggregates,
+      aggregates: transformedAggregates,
     };
   }
 }

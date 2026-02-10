@@ -63,6 +63,19 @@ router.post(
 );
 
 /**
+ * @route GET /api/v1/settlement-group/list
+ * @desc List all settlement groups
+ * NOTE: This route must be defined BEFORE /:id to avoid route conflict
+ */
+router.get(
+  "/list",
+  canView("bank_settlement_group"),
+  validateSchema(getSettlementGroupListSchema),
+  (req, res) =>
+    settlementGroupController.getList(req as ValidatedAuthRequest<typeof getSettlementGroupListSchema>, res),
+);
+
+/**
  * @route GET /api/v1/settlement-group/:id
  * @desc Get settlement group by ID
  */
@@ -72,18 +85,6 @@ router.get(
   validateSchema(getSettlementGroupByIdSchema),
   (req, res) =>
     settlementGroupController.getById(req as ValidatedAuthRequest<typeof getSettlementGroupByIdSchema>, res),
-);
-
-/**
- * @route GET /api/v1/settlement-group/list
- * @desc List all settlement groups
- */
-router.get(
-  "/list",
-  canView("bank_settlement_group"),
-  validateSchema(getSettlementGroupListSchema),
-  (req, res) =>
-    settlementGroupController.getList(req as ValidatedAuthRequest<typeof getSettlementGroupListSchema>, res),
 );
 
 /**

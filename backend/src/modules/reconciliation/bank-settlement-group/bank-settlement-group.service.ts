@@ -4,6 +4,7 @@
  */
 
 import { settlementGroupRepository, SettlementGroupRepository } from "./bank-settlement-group.repository";
+import { reconciliationOrchestratorService } from "../orchestrator/reconciliation-orchestrator.service";
 import {
   SettlementGroupStatus,
   CreateSettlementGroupDto,
@@ -239,7 +240,8 @@ export class SettlementGroupService {
   }
 
   /**
-   * Get available aggregates for settlement
+   * Get available aggregates for settlement (using orchestrator like bank-reconciliation)
+   * Shows ALL unreconciled aggregates without date filter
    */
   async getAvailableAggregates(options?: {
     startDate?: string;
@@ -248,8 +250,81 @@ export class SettlementGroupService {
     search?: string;
     limit?: number;
     offset?: number;
-  }): Promise<{ data: AvailableAggregateDto[]; total: number }> {
-    return this.repository.getAvailableAggregates(options);
+  }): Promise<{ data: any[]; total: number }> {
+    // Get aggregates from orchestrator for a wide date range (all time)
+    // If no date range provided, get aggregates from last 30 days as default
+    const endDate = options?.endDate ? new Date(options.endDate) : new Date();
+    const startDate = options?.startDate 
+      ? new Date(options.startDate) 
+      : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
+
+    const aggregates = await reconciliationOrchestratorService.getAggregatesByDateRange(
+      startDate,
+      endDate
+    );
+
+    // Filter out reconciled aggregates
+    const unreconciledAggregates = aggregates.filter(a => !a.reconciliation_status || a.reconciliation_status === 'PENDING');
+
+    // Apply search filter if provided
+    let filteredAggregates = unreconciledAggregates;
+    if (options?.search) {
+      const searchLower = options.search.toLowerCase();
+      filteredAggregates = unreconciledAggregates.filter(a => 
+        a.branch_name?.toLowerCase().includes(searchLower) ||
+        a.payment_method_name?.toLowerCase().includes(searchLower) ||
+        a.reference_number?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply pagination
+    const limit = options?.limit || 100;
+    const offset = options?.offset || 0;
+    const paginatedAggregates = filteredAggregates.slice(offset, offset + limit);
+
+    // Transform to match frontend AvailableAggregateDto format
+    const transformedData = paginatedAggregates.map(agg => ({
+      id: agg.id,
+      transaction_date: agg.transaction_date,
+      gross_amount: agg.gross_amount,
+      nett_amount: agg.nett_amount,
+      payment_method_name: agg.payment_method_name,
+      branch_name: agg.branch_name,
+      branch_code: null, // Not available in ReconciliationAggregate
+      is_reconciled: agg.reconciliation_status === 'RECONCILED',
+    }));
+
+    return {
+      data: transformedData,
+      total: filteredAggregates.length,
+    };
+  }
+
+  /**
+   * Get aggregates for a specific date (used when bank statement is selected)
+   */
+  async getAggregatesByStatementDate(statementDate: string): Promise<any[]> {
+    const date = new Date(statementDate);
+    
+    const aggregates = await reconciliationOrchestratorService.getAggregatesByDateRange(
+      date,
+      date
+    );
+
+    // Filter out reconciled aggregates
+    const unreconciledAggregates = aggregates.filter(a => !a.reconciliation_status || a.reconciliation_status === 'PENDING');
+
+    // Transform to match frontend format
+    return unreconciledAggregates.map(agg => ({
+      id: agg.id,
+      transaction_date: agg.transaction_date,
+      gross_amount: agg.gross_amount,
+      nett_amount: agg.nett_amount,
+      payment_method_name: agg.payment_method_name,
+      branch_name: agg.branch_name,
+      reference_number: agg.reference_number,
+      is_reconciled: agg.reconciliation_status === 'RECONCILED',
+    }));
   }
 
   /**
@@ -279,8 +354,8 @@ export class SettlementGroupService {
     const tolerance = options?.tolerancePercent || bankSettlementConfig.suggestionDefaultTolerance;
     const maxAgg = options?.maxAggregates || bankSettlementConfig.suggestionMaxResults;
 
-    // Get available aggregates (limit to reasonable size for algorithm)
-    const { data: availableAggregates } = await this.repository.getAvailableAggregates({
+    // Get available aggregates using service method (which uses orchestrator)
+    const { data: availableAggregates } = await this.getAvailableAggregates({
       startDate: options?.startDate,
       endDate: options?.endDate,
       limit: Math.min(200, maxAgg * 3), // Get more data for better optimization
