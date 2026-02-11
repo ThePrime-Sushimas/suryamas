@@ -2,7 +2,7 @@ import { Router } from "express";
 import { settlementGroupController } from "./bank-settlement-group.controller";
 import { authenticate } from "../../../middleware/auth.middleware";
 import { resolveBranchContext } from "../../../middleware/branch-context.middleware";
-import { canView, canInsert } from "../../../middleware/permission.middleware";
+import { canView, canInsert, canUpdate } from "../../../middleware/permission.middleware";
 import { queryMiddleware } from "../../../middleware/query.middleware";
 import { validateSchema, ValidatedAuthRequest } from "../../../middleware/validation.middleware";
 import {
@@ -18,6 +18,8 @@ import {
   getSettlementGroupAggregatesSchema,
   getAvailableAggregatesSchema,
   getSuggestionsSchema,
+  getDeletedSettlementGroupsSchema,
+  restoreSettlementGroupSchema,
 } from "./bank-settlement-group.schema";
 import type {
   AuthenticatedQueryRequest,
@@ -88,11 +90,11 @@ router.get(
 );
 
 /**
- * @route DELETE /api/v1/settlement-group/:id/undo
- * @desc Undo a settlement group
+ * @route DELETE /api/v1/settlement-group/:id/soft-delete
+ * @desc Soft delete a settlement group (mark as deleted, with optional revert of reconciliation status)
  */
 router.delete(
-  "/:id/undo",
+  "/:id/soft-delete",
   canInsert("bank_settlement_group"),
   updateRateLimit,
   validateSchema(undoSettlementGroupSchema),
@@ -134,6 +136,31 @@ router.get(
   validateSchema(getSuggestionsSchema),
   (req, res) =>
     settlementGroupController.getSuggestedAggregates(req as ValidatedAuthRequest<typeof getSuggestionsSchema>, res),
+);
+
+/**
+ * @route GET /api/v1/settlement-group/list/deleted
+ * @desc Get deleted settlement groups (for Trash View)
+ */
+router.get(
+  "/list/deleted",
+  canView("bank_settlement_group"),
+  validateSchema(getDeletedSettlementGroupsSchema),
+  (req, res) =>
+    settlementGroupController.getDeleted(req as ValidatedAuthRequest<typeof getDeletedSettlementGroupsSchema>, res),
+);
+
+/**
+ * @route POST /api/v1/settlement-group/:id/restore
+ * @desc Restore a deleted settlement group
+ */
+router.post(
+  "/:id/restore",
+  canUpdate("bank_settlement_group"), // FIX: Changed from canInsert to canUpdate
+  updateRateLimit,
+  validateSchema(restoreSettlementGroupSchema),
+  (req, res) =>
+    settlementGroupController.restore(req as ValidatedAuthRequest<typeof restoreSettlementGroupSchema>, res),
 );
 
 export default router;

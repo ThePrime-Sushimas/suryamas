@@ -61,3 +61,13 @@ export class CreateSettlementGroupError extends BusinessRuleError {
   }
 }
 
+export class AggregateReconciledElsewhereError extends ConflictError {
+  constructor(details?: string) {
+    super(`Beberapa aggregate sudah di-reconciled dengan settlement group lain${details ? ': ' + details : ''}`, { 
+      details, 
+      conflictType: 'reconciled_elsewhere',
+      code: 'AGGREGATE_RECONCILED_ELSEWHERE' 
+    });
+  }
+}
+

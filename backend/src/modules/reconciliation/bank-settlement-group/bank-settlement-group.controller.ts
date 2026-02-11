@@ -18,6 +18,8 @@ import {
   getSettlementGroupAggregatesSchema,
   getAvailableAggregatesSchema,
   getSuggestionsSchema,
+  getDeletedSettlementGroupsSchema,
+  restoreSettlementGroupSchema,
   CreateSettlementGroupInput,
   GetSettlementGroupListInput,
   UndoSettlementGroupInput,
@@ -25,6 +27,8 @@ import {
   GetSettlementGroupAggregatesInput,
   GetAvailableAggregatesInput,
   GetSuggestionsInput,
+  GetDeletedSettlementGroupsInput,
+  RestoreSettlementGroupInput,
 } from "./bank-settlement-group.schema";
 import {
   SettlementGroupNotFoundError,
@@ -205,27 +209,23 @@ export class SettlementGroupController {
   ): Promise<void> {
     try {
       const { id } = req.validated.params;
-      const userId = req.user?.id as string | null | undefined;
-      const companyId = (req as any).context?.company_id as string | null | undefined;
+      const revertReconciliation = (req.query as any).revertReconciliation === 'true';
 
-      await this.service.undoSettlementGroup(
-        id,
-        userId ?? undefined,
-        companyId ?? undefined
-      );
+      await this.service.undoSettlementGroup(id, { revertReconciliation });
 
       // Add correlation ID to success logs
       const correlationId = req.headers['x-correlation-id'] || 'unknown';
       logInfo("Settlement group undone", {
         correlationId,
         groupId: id,
-        userId: req.user?.id,
-        companyId: req.context?.company_id,
+        revertReconciliation,
       });
 
       res.status(200).json({
         success: true,
-        message: "Settlement group berhasil dibatalkan",
+        message: revertReconciliation
+          ? "Settlement group berhasil dibatalkan dan reconciliation di-revert"
+          : "Settlement group berhasil dihapus (status reconciled tetap)",
       });
     } catch (error: any) {
       const correlationId = req.headers['x-correlation-id'] || 'unknown';
@@ -234,8 +234,6 @@ export class SettlementGroupController {
         id: req.validated.params.id,
         error: error.message,
         code: error.code,
-        userId: req.user?.id,
-        companyId: req.context?.company_id,
       });
 
       let status = 400;
@@ -246,6 +244,86 @@ export class SettlementGroupController {
         success: false,
         message: error.message,
         code: error.code || "UNDO_SETTLEMENT_GROUP_FAILED",
+      });
+    }
+  }
+
+  /**
+   * Get deleted settlement groups (for Trash View)
+   * GET /api/v1/settlement-group/list/deleted
+   *
+   * @param req Validated request with query parameters
+   * @param res Express response object
+   * @returns Promise<void>
+   */
+  async getDeleted(
+    req: ValidatedAuthRequest<typeof getDeletedSettlementGroupsSchema>,
+    res: Response,
+  ): Promise<void> {
+    try {
+      const { limit, offset } = req.validated.query;
+
+      const result = await this.service.getDeletedSettlementGroups({
+        limit,
+        offset,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: result.data,
+        total: result.total,
+      });
+    } catch (error: any) {
+      logError("Get deleted settlement groups error", {
+        query: req.validated.query,
+        error: error.message,
+        code: error.code,
+      });
+
+      res.status(400).json({
+        success: false,
+        message: error.message,
+        code: error.code || "GET_DELETED_SETTLEMENT_GROUPS_FAILED",
+      });
+    }
+  }
+
+  /**
+   * Restore a deleted settlement group
+   * POST /api/v1/settlement-group/:id/restore
+   *
+   * @param req Validated request with settlement group ID
+   * @param res Express response object
+   * @returns Promise<void>
+   */
+  async restore(
+    req: ValidatedAuthRequest<typeof restoreSettlementGroupSchema>,
+    res: Response,
+  ): Promise<void> {
+    try {
+      const { id } = req.validated.params;
+
+      await this.service.restoreSettlementGroup(id);
+
+      res.status(200).json({
+        success: true,
+        message: "Settlement group berhasil dipulihkan",
+      });
+    } catch (error: any) {
+      logError("Restore settlement group error", {
+        id: req.validated.params.id,
+        error: error.message,
+        code: error.code,
+      });
+
+      let status = 400;
+      if (error instanceof SettlementGroupNotFoundError) status = 404;
+      if (error instanceof SettlementAlreadyConfirmedError) status = 409;
+
+      res.status(status).json({
+        success: false,
+        message: error.message,
+        code: error.code || "RESTORE_SETTLEMENT_GROUP_FAILED",
       });
     }
   }

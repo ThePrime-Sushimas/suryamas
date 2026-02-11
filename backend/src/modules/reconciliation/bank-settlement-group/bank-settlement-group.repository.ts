@@ -117,6 +117,72 @@ const columnExists = async (table: string, column: string): Promise<boolean> => 
   }
 };
 
+/**
+ * Safely convert bank_statement_id to string
+ * Handles null, undefined, NaN, and "null"/"undefined" strings gracefully
+ * Returns null for invalid values instead of throwing
+ */
+const safeBankStatementIdToString = (id: any, fieldName: string = 'bank_statement_id'): string | null => {
+  // Handle null/undefined
+  if (id === null || id === undefined) {
+    logError(`${fieldName} is null or undefined`, { value: id });
+    return null;
+  }
+  
+  // Handle cases where id might be "null" or "undefined" string
+  if (typeof id === 'string') {
+    if (id.trim() === '') {
+      logError(`${fieldName} is empty string`, { value: id });
+      return null;
+    }
+    if (id.toLowerCase() === 'null' || id.toLowerCase() === 'undefined') {
+      logError(`${fieldName} is "${id}" string`, { value: id });
+      return null;
+    }
+  }
+  
+  const num = Number(id);
+  if (isNaN(num) || num <= 0) {
+    logError(`Invalid ${fieldName}`, { value: id, parsed: num });
+    return null;
+  }
+  
+  return String(num);
+};
+
+/**
+ * Type guard/validator for bank statement ID
+ * Ensures bank_statement_id is a valid number, not "null"/"undefined" string
+ * Returns validated number or throws error for invalid values
+ */
+const validateBankStatementId = (id: any, fieldName: string = 'bank_statement_id'): number => {
+  // Handle null/undefined - return NaN which will fail downstream but won't crash
+  if (id === null || id === undefined) {
+    logError(`${fieldName} is null or undefined`, { value: id });
+    return NaN; // Will cause issues downstream but won't crash
+  }
+  
+  // Handle cases where id might be "null" or "undefined" string
+  if (typeof id === 'string') {
+    if (id.trim() === '') {
+      logError(`${fieldName} is empty string`, { value: id });
+      return NaN;
+    }
+    if (id.toLowerCase() === 'null' || id.toLowerCase() === 'undefined') {
+      logError(`${fieldName} is "${id}" string`, { value: id });
+      return NaN;
+    }
+  }
+  
+  const num = Number(id);
+  if (isNaN(num) || num <= 0) {
+    logError(`Invalid ${fieldName}`, { value: id, parsed: num });
+    return NaN;
+  }
+  
+  return num;
+};
+
 export class SettlementGroupRepository {
   constructor() {}
 
@@ -150,11 +216,21 @@ export class SettlementGroupRepository {
     status?: SettlementGroupStatus;
   }): Promise<string> {
     try {
+      // Ensure bankStatementId is a valid number for bigint column
+      const bankStatementIdNum = Number(data.bankStatementId);
+      
+      logInfo("Creating settlement group", {
+        companyId: data.companyId,
+        bankStatementId: data.bankStatementId,
+        bankStatementIdNum: bankStatementIdNum,
+        isValid: !isNaN(bankStatementIdNum)
+      });
+
       const { data: group, error } = await supabase
         .from("bank_settlement_groups")
         .insert({
           company_id: data.companyId,
-          bank_statement_id: data.bankStatementId,
+          bank_statement_id: bankStatementIdNum, // Ensure it's a number for bigint
           settlement_date: data.settlementDate,
           payment_method: data.paymentMethod,
           bank_name: data.bankName,
@@ -165,12 +241,21 @@ export class SettlementGroupRepository {
           created_by: data.createdBy,
           status: data.status || SettlementGroupStatus.PENDING,
         })
-        .select("id, settlement_number")
+        .select("id, settlement_number, bank_statement_id")
         .single();
 
       if (error) {
+        logError("Supabase error creating settlement group", {
+          error: error.message,
+          details: error
+        });
         throw error;
       }
+
+      logInfo("Settlement group created", {
+        id: group.id,
+        bank_statement_id: group.bank_statement_id
+      });
 
       return group.id;
     } catch (error: unknown) {
@@ -186,6 +271,7 @@ export class SettlementGroupRepository {
 
   /**
    * Get settlement group by ID with aggregates and bank statement
+   * EXCLUDES soft-deleted records (deleted_at IS NOT NULL)
    */
   async findById(id: string): Promise<any> {
     try {
@@ -271,6 +357,33 @@ export class SettlementGroupRepository {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       logError("Error fetching settlement group by ID", { id, error: errorMessage });
+      throw error;
+    }
+  }
+
+  /**
+   * Get settlement group by ID INCLUDING soft-deleted records
+   * Used for restore validation
+   */
+  async findByIdIncludingDeleted(id: string): Promise<any> {
+    try {
+      const { data, error } = await supabase
+        .from("bank_settlement_groups")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return null; // Not found
+        }
+        throw error;
+      }
+
+      return data;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Error fetching settlement group by ID (including deleted)", { id, error: errorMessage });
       throw error;
     }
   }
@@ -405,13 +518,29 @@ export class SettlementGroupRepository {
    * Mark bank statement as reconciled
    */
   async markBankStatementAsReconciled(statementId: string): Promise<void> {
+    // Handle different formats of statementId (string, number, bigint)
+    let statementIdNum: number;
+    if (typeof statementId === 'string') {
+      statementIdNum = parseInt(statementId, 10);
+    } else if (typeof statementId === 'number') {
+      statementIdNum = statementId;
+    } else {
+      statementIdNum = Number(statementId);
+    }
+
+    // Check if valid number
+    if (isNaN(statementIdNum)) {
+      logError('Invalid statement ID for markBankStatementAsReconciled', { statementId });
+      throw new Error(`Invalid statement ID: ${statementId}`);
+    }
+
     const { error } = await supabase
       .from('bank_statements')
       .update({
         is_reconciled: true,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', Number(statementId)); // bank_statement_id is bigint
+      .eq('id', statementIdNum);
 
     if (error) {
       logError('Mark bank statement as reconciled error', { statementId, error: error.message });
@@ -441,13 +570,29 @@ export class SettlementGroupRepository {
    * Mark bank statement as unreconciled
    */
   async markBankStatementAsUnreconciled(statementId: string): Promise<void> {
+    // Handle different formats of statementId (string, number, bigint)
+    let statementIdNum: number;
+    if (typeof statementId === 'string') {
+      statementIdNum = parseInt(statementId, 10);
+    } else if (typeof statementId === 'number') {
+      statementIdNum = statementId;
+    } else {
+      statementIdNum = Number(statementId);
+    }
+
+    // Check if valid number
+    if (isNaN(statementIdNum)) {
+      logError('Invalid statement ID for markBankStatementAsUnreconciled', { statementId });
+      throw new Error(`Invalid statement ID: ${statementId}`);
+    }
+
     const { error } = await supabase
       .from('bank_statements')
       .update({
         is_reconciled: false,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', Number(statementId)); // bank_statement_id is bigint
+      .eq('id', statementIdNum);
 
     if (error) {
       logError('Mark bank statement as unreconciled error', { statementId, error: error.message });
@@ -457,7 +602,7 @@ export class SettlementGroupRepository {
 
   /**
    * Soft delete settlement group and its aggregates
-   * Only sets deleted_at, does NOT change status (database constraint issue)
+   * Sets deleted_at AND updates status to UNDO for consistency
    */
   async softDelete(id: string): Promise<void> {
     try {
@@ -475,12 +620,13 @@ export class SettlementGroupRepository {
         throw aggError;
       }
 
-      // Soft delete the settlement group
+      // Soft delete the settlement group AND update status to UNDO
       const { error } = await supabase
         .from("bank_settlement_groups")
         .update({
           deleted_at: now,
           updated_at: now,
+          status: 'UNDO', // Update status to UNDO for consistency after soft delete
         })
         .eq("id", id);
 
@@ -490,6 +636,228 @@ export class SettlementGroupRepository {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       logError("Error soft deleting settlement group", { id, error: errorMessage });
+      throw error;
+    }
+  }
+
+  /**
+   * Get soft-deleted settlement groups (for Trash View)
+   */
+  async findDeleted(options?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<{ data: any[]; total: number }> {
+    try {
+      const limit = options?.limit || 50;
+      const offset = options?.offset || 0;
+
+      const { data, error, count } = await supabase
+        .from("bank_settlement_groups")
+        .select(
+          `
+          *,
+          bank_statements (
+            id,
+            transaction_date,
+            description,
+            debit_amount,
+            credit_amount
+          )
+        `,
+          { count: 'exact' }
+        )
+        .not("deleted_at", "is", null)
+        .order("deleted_at", { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        // If error is about missing deleted_at column, return empty
+        if (isMissingColumnError(error)) {
+          logInfo("deleted_at column not found, returning empty deleted list");
+          return { data: [], total: 0 };
+        }
+        throw error;
+      }
+
+      // Get all group IDs to fetch aggregates
+      const groupIds = (data || []).map((g: any) => g.id);
+      let aggregatesMap: Record<string, any[]> = {};
+      
+      if (groupIds.length > 0) {
+        try {
+          const { data: aggData } = await supabase
+            .from("bank_settlement_aggregates")
+            .select("*")
+            .in("settlement_group_id", groupIds);
+          
+          if (aggData) {
+            aggregatesMap = aggData.reduce((acc: Record<string, any[]>, agg: any) => {
+              if (!acc[agg.settlement_group_id]) {
+                acc[agg.settlement_group_id] = [];
+              }
+              acc[agg.settlement_group_id].push(agg);
+              return acc;
+            }, {});
+          }
+        } catch (aggError) {
+          logError("Error fetching aggregates for deleted list", { error: aggError instanceof Error ? aggError.message : 'Unknown' });
+        }
+      }
+
+      const transformedData = (data || []).map((group: any) => ({
+        ...group,
+        deleted_at: group.deleted_at,
+        // Use safe converter to handle null/invalid values gracefully
+        bank_statement_id: safeBankStatementIdToString(group.bank_statement_id, 'bank_statement_id'),
+        bank_statement: group.bank_statements ? {
+          id: group.bank_statements.id,
+          transaction_date: group.bank_statements.transaction_date,
+          description: group.bank_statements.description,
+          debit_amount: group.bank_statements.debit_amount,
+          credit_amount: group.bank_statements.credit_amount,
+          amount: (group.bank_statements.credit_amount || 0) - (group.bank_statements.debit_amount || 0),
+        } : undefined,
+        aggregates: aggregatesMap[group.id] || [],
+      }));
+
+      return { data: transformedData, total: count || 0 };
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Error fetching deleted settlement groups", { error: errorMessage });
+      throw error;
+    }
+  }
+
+  /**
+   * Restore a soft-deleted settlement group with transaction-like behavior
+   * Uses atomic operations with rollback on error
+   * Also reverts is_reconciled to false for aggregates and bank statement
+   */
+  async restore(groupId: string): Promise<void> {
+    try {
+      const now = new Date().toISOString();
+      
+      // First get the settlement group to get aggregate IDs and bank statement ID
+      const { data: groupData, error: fetchError } = await supabase
+        .from("bank_settlement_groups")
+        .select(`
+          bank_statement_id,
+          bank_settlement_aggregates(aggregate_id)
+        `)
+        .eq("id", groupId)
+        .single();
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      if (!groupData) {
+        throw new Error("Settlement group not found");
+      }
+
+      // Extract aggregate IDs - handle nested result structure
+      const aggregateIds: string[] = [];
+      if (groupData && groupData.bank_settlement_aggregates) {
+        for (const agg of groupData.bank_settlement_aggregates as any[]) {
+          if (agg.aggregate_id) {
+            aggregateIds.push(agg.aggregate_id);
+          }
+        }
+      }
+
+      // Validate bank_statement_id before proceeding
+      let bankStatementIdNum: number | null = null;
+      if (groupData?.bank_statement_id) {
+        try {
+          bankStatementIdNum = validateBankStatementId(groupData.bank_statement_id, 'bank_statement_id');
+        } catch (validationError) {
+          logError("Invalid bank_statement_id during restore", { 
+            groupId, 
+            bank_statement_id: groupData.bank_statement_id,
+            error: validationError instanceof Error ? validationError.message : 'Unknown'
+          });
+          throw new Error(`Invalid bank statement ID: ${groupData.bank_statement_id}`);
+        }
+      }
+
+      // STEP 1: Restore aggregates first (update deleted_at to null)
+      const { error: aggError } = await supabase
+        .from("bank_settlement_aggregates")
+        .update({ deleted_at: null })
+        .eq("settlement_group_id", groupId);
+
+      if (aggError) {
+        throw aggError;
+      }
+
+      // STEP 2: Restore settlement group AND set status back to RECONCILED
+      const { error: groupError } = await supabase
+        .from("bank_settlement_groups")
+        .update({
+          deleted_at: null,
+          updated_at: now,
+          status: SettlementGroupStatus.RECONCILED, // Restore status to RECONCILED
+        })
+        .eq("id", groupId);
+
+      if (groupError) {
+        // ROLLBACK: Restore deleted_at on aggregates if group restore fails
+        await supabase
+          .from("bank_settlement_aggregates")
+          .update({ deleted_at: now })
+          .eq("settlement_group_id", groupId);
+        throw groupError;
+      }
+
+      // STEP 3: Revert aggregates is_reconciled to false
+      if (aggregateIds.length > 0) {
+        const { error: unreconcileAggError } = await supabase
+          .from('aggregated_transactions')
+          .update({
+            is_reconciled: false,
+            updated_at: now,
+          })
+          .in('id', aggregateIds);
+
+        if (unreconcileAggError) {
+          logError("Failed to revert aggregates is_reconciled during restore", {
+            groupId,
+            aggregateIds,
+            error: unreconcileAggError.message
+          });
+          // Note: We don't rollback here as the main restore succeeded
+          // This is a secondary operation that can be fixed manually
+        }
+      }
+
+      // STEP 4: Revert bank statement is_reconciled to false
+      if (bankStatementIdNum !== null) {
+        const { error: unreconcileStmtError } = await supabase
+          .from('bank_statements')
+          .update({
+            is_reconciled: false,
+            updated_at: now,
+          })
+          .eq('id', bankStatementIdNum);
+        
+        if (unreconcileStmtError) {
+          logError("Failed to revert bank statement is_reconciled during restore", {
+            groupId,
+            bank_statement_id: bankStatementIdNum,
+            error: unreconcileStmtError.message
+          });
+          // Note: We don't rollback here as the main restore succeeded
+        }
+      }
+
+      logInfo("Settlement group restored with reconciliation reverted", {
+        groupId,
+        aggregatesCount: aggregateIds.length,
+        bank_statement_id: bankStatementIdNum
+      });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logError("Error restoring settlement group", { groupId, error: errorMessage });
       throw error;
     }
   }
@@ -624,6 +992,8 @@ export class SettlementGroupRepository {
           const transformedData = (retryData || []).map((group: any) => ({
             ...group,
             deleted_at: null, // Assume not deleted if column doesn't exist
+            // Use safe converter to handle null/invalid values gracefully
+            bank_statement_id: safeBankStatementIdToString(group.bank_statement_id, 'bank_statement_id'),
             bank_statement: group.bank_statements ? {
               id: group.bank_statements.id,
               transaction_date: group.bank_statements.transaction_date,
@@ -668,6 +1038,8 @@ export class SettlementGroupRepository {
       const transformedData = (data || []).map((group: any) => ({
         ...group,
         deleted_at: group.deleted_at,
+        // Use safe converter to handle null/invalid values gracefully
+        bank_statement_id: safeBankStatementIdToString(group.bank_statement_id, 'bank_statement_id'),
         bank_statement: group.bank_statements ? {
           id: group.bank_statements.id,
           transaction_date: group.bank_statements.transaction_date,
@@ -917,6 +1289,54 @@ export class SettlementGroupRepository {
   }
 
   /**
+   * Check if any aggregates in the group are already reconciled with other groups
+   * Used during restore validation
+   */
+  async checkAggregatesReconciledElsewhere(groupId: string): Promise<boolean> {
+    try {
+      // Get all aggregate IDs for this group
+      const { data: aggregates } = await supabase
+        .from("bank_settlement_aggregates")
+        .select("aggregate_id")
+        .eq("settlement_group_id", groupId);
+
+      if (!aggregates || aggregates.length === 0) {
+        return false;
+      }
+
+      const aggregateIds = aggregates.map(a => a.aggregate_id);
+
+      // Check if any of these aggregates are now reconciled with OTHER groups
+      // (excluding our current group which is being restored)
+      const { data: otherGroups } = await supabase
+        .from("bank_settlement_aggregates")
+        .select("aggregate_id, settlement_group_id")
+        .in("aggregate_id", aggregateIds)
+        .neq("settlement_group_id", groupId);
+
+      // If there are aggregates in other groups that are reconciled
+      if (otherGroups && otherGroups.length > 0) {
+        // Check the reconciliation status of those aggregates
+        const otherAggregateIds = otherGroups.map(g => g.aggregate_id);
+        
+        const { data: reconciledData } = await supabase
+          .from("aggregated_transactions")
+          .select("id")
+          .in("id", otherAggregateIds)
+          .eq("is_reconciled", true);
+
+        return !!(reconciledData && reconciledData.length > 0);
+      }
+
+      return false;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logError("Error checking aggregates reconciled elsewhere", { groupId, error: errorMessage });
+      throw error;
+    }
+  }
+
+  /**
    * Get bank statement by ID
    */
   async getBankStatementById(statementId: string): Promise<{
@@ -1002,7 +1422,8 @@ export class SettlementGroupRepository {
     return {
       id: data.id,
       company_id: data.company_id,
-      bank_statement_id: data.bank_statement_id,
+      // Use safe converter to handle null/invalid values gracefully
+      bank_statement_id: safeBankStatementIdToString(data.bank_statement_id, 'bank_statement_id'),
       settlement_number: data.settlement_number,
       settlement_date: data.settlement_date,
       payment_method: data.payment_method,

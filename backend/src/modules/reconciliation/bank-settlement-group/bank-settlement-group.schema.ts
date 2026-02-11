@@ -149,3 +149,25 @@ export type GetSettlementGroupByIdInput = z.infer<typeof getSettlementGroupByIdS
 export type GetSettlementGroupAggregatesInput = z.infer<typeof getSettlementGroupAggregatesSchema>;
 export type GetAvailableAggregatesInput = z.infer<typeof getAvailableAggregatesSchema>;
 export type GetSuggestionsInput = z.infer<typeof getSuggestionsSchema>;
+
+/**
+ * Schema for get deleted settlement groups query
+ */
+export const getDeletedSettlementGroupsSchema = z.object({
+  query: z.object({
+    limit: z.coerce.number().int().min(1).max(bankSettlementConfig.maxPageSize).optional().default(bankSettlementConfig.defaultPageSize),
+    offset: z.coerce.number().int().min(0).optional().default(0),
+  }),
+});
+
+/**
+ * Schema for restore settlement group request
+ */
+export const restoreSettlementGroupSchema = z.object({
+  params: z.object({
+    id: z.coerce.string().min(1, "Settlement Group ID is required"),
+  }),
+});
+
+export type GetDeletedSettlementGroupsInput = z.infer<typeof getDeletedSettlementGroupsSchema>;
+export type RestoreSettlementGroupInput = z.infer<typeof restoreSettlementGroupSchema>;
