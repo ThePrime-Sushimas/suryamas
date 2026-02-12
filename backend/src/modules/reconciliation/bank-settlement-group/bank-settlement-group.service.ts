@@ -258,8 +258,9 @@ export class SettlementGroupService {
       }
 
       // Mark bank statement as unreconciled if bank_statement_id is valid
-      const bankStatementId = group.bank_statement_id;
-      if (bankStatementId && bankStatementId !== 'undefined' && bankStatementId !== 'null') {
+      // Use safe conversion to handle null/undefined/invalid values gracefully
+      const bankStatementId = this.safeConvertBankStatementId(group.bank_statement_id);
+      if (bankStatementId) {
         try {
           await this.repository.markBankStatementAsUnreconciled(bankStatementId);
           logInfo("Bank statement marked as unreconciled", {
@@ -274,6 +275,11 @@ export class SettlementGroupService {
           });
           // Continue without failing
         }
+      } else {
+        logInfo("Skipping bank statement unreconciliation - invalid or null bank_statement_id", {
+          groupId,
+          original_value: group.bank_statement_id
+        });
       }
     } else {
       logInfo("Revert reconciliation disabled - keeping aggregates and statement as reconciled", {
@@ -286,6 +292,26 @@ export class SettlementGroupService {
       aggregatesCount: group.aggregates?.length || 0,
       revertReconciliation: options?.revertReconciliation,
     });
+  }
+
+  /**
+   * Safely convert bank_statement_id to string, handling null, undefined, and invalid values
+   * Returns null for invalid values instead of throwing
+   */
+  private safeConvertBankStatementId(id: any): string | null {
+    if (id === null || id === undefined) {
+      return null;
+    }
+    if (typeof id === 'string') {
+      if (id.trim() === '' || id.toLowerCase() === 'null' || id.toLowerCase() === 'undefined') {
+        return null;
+      }
+    }
+    const num = Number(id);
+    if (isNaN(num) || num <= 0) {
+      return null;
+    }
+    return String(num);
   }
 
   /**

@@ -123,27 +123,23 @@ const columnExists = async (table: string, column: string): Promise<boolean> => 
  * Returns null for invalid values instead of throwing
  */
 const safeBankStatementIdToString = (id: any, fieldName: string = 'bank_statement_id'): string | null => {
-  // Handle null/undefined
+  // Handle null/undefined - return null without logging (this is a valid outcome)
   if (id === null || id === undefined) {
-    logError(`${fieldName} is null or undefined`, { value: id });
     return null;
   }
   
   // Handle cases where id might be "null" or "undefined" string
   if (typeof id === 'string') {
     if (id.trim() === '') {
-      logError(`${fieldName} is empty string`, { value: id });
       return null;
     }
     if (id.toLowerCase() === 'null' || id.toLowerCase() === 'undefined') {
-      logError(`${fieldName} is "${id}" string`, { value: id });
       return null;
     }
   }
   
   const num = Number(id);
   if (isNaN(num) || num <= 0) {
-    logError(`Invalid ${fieldName}`, { value: id, parsed: num });
     return null;
   }
   
@@ -158,25 +154,21 @@ const safeBankStatementIdToString = (id: any, fieldName: string = 'bank_statemen
 const validateBankStatementId = (id: any, fieldName: string = 'bank_statement_id'): number => {
   // Handle null/undefined - return NaN which will fail downstream but won't crash
   if (id === null || id === undefined) {
-    logError(`${fieldName} is null or undefined`, { value: id });
     return NaN; // Will cause issues downstream but won't crash
   }
   
   // Handle cases where id might be "null" or "undefined" string
   if (typeof id === 'string') {
     if (id.trim() === '') {
-      logError(`${fieldName} is empty string`, { value: id });
       return NaN;
     }
     if (id.toLowerCase() === 'null' || id.toLowerCase() === 'undefined') {
-      logError(`${fieldName} is "${id}" string`, { value: id });
       return NaN;
     }
   }
   
   const num = Number(id);
   if (isNaN(num) || num <= 0) {
-    logError(`Invalid ${fieldName}`, { value: id, parsed: num });
     return NaN;
   }
   
