@@ -45,8 +45,6 @@ export interface SettlementAggregate {
   id: string;
   settlement_group_id: string;
   aggregate_id: string;
-  branch_name?: string;
-  branch_code?: string;
   allocated_amount: number;
   original_amount: number;
   created_at: string;
@@ -62,8 +60,6 @@ export interface AggregatedTransactionInfo {
   gross_amount: number;
   nett_amount: number;
   payment_method_name?: string;
-  branch_name?: string;
-  branch_code?: string;
 }
 
 /**
@@ -152,8 +148,6 @@ export interface AvailableAggregateDto {
   gross_amount: number;
   nett_amount: number;
   payment_method_name?: string;
-  branch_name?: string;
-  branch_code?: string;
   is_reconciled: boolean;
 }
 

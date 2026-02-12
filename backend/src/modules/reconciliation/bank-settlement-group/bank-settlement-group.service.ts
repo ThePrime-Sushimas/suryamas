@@ -127,8 +127,6 @@ export class SettlementGroupService {
     // 7. Add aggregates to group
     const aggregateRecords = aggregateDetails.map((agg) => ({
       aggregateId: agg.id,
-      branchName: agg.branch_name || null,
-      branchCode: agg.branch_code || null,
       allocatedAmount: agg.nett_amount,
       originalAmount: agg.nett_amount,
     }));
@@ -417,8 +415,6 @@ export class SettlementGroupService {
       gross_amount: agg.gross_amount,
       nett_amount: agg.nett_amount,
       payment_method_name: agg.payment_method_name,
-      branch_name: agg.branch_name,
-      branch_code: null, // Not available in ReconciliationAggregate
       is_reconciled: agg.reconciliation_status === 'RECONCILED',
     }));
 

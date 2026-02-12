@@ -54,8 +54,6 @@ interface SettlementAggregateDb {
   id: string;
   settlement_group_id: string;
   aggregate_id: string;
-  branch_name: string | null;
-  branch_code: string | null;
   allocated_amount: number;
   original_amount: number;
   created_at: string;
@@ -421,8 +419,6 @@ export class SettlementGroupRepository {
     settlementGroupId: string,
     aggregates: Array<{
       aggregateId: string;
-      branchName?: string;
-      branchCode?: string;
       allocatedAmount: number;
       originalAmount: number;
     }>
@@ -431,8 +427,6 @@ export class SettlementGroupRepository {
       const records = aggregates.map(agg => ({
         settlement_group_id: settlementGroupId,
         aggregate_id: agg.aggregateId,
-        branch_name: agg.branchName,
-        branch_code: agg.branchCode,
         allocated_amount: agg.allocatedAmount,
         original_amount: agg.originalAmount,
       }));
@@ -1192,8 +1186,6 @@ export class SettlementGroupRepository {
         nett_amount: agg.nett_amount,
         payment_method_name: paymentMethodsMap[agg.payment_method_id] || null,
         payment_method_id: agg.payment_method_id,
-        branch_name: null, // Branch info not available in this schema
-        branch_code: null,
         is_reconciled: agg.is_reconciled,
       }));
 
@@ -1269,8 +1261,6 @@ export class SettlementGroupRepository {
         nett_amount: data.nett_amount,
         payment_method_name: paymentMethodName,
         payment_method_id: paymentMethodId,
-        branch_name: null, // Branch info not available in this schema
-        branch_code: null,
         is_reconciled: data.is_reconciled,
       };
     } catch (error: unknown) {
@@ -1403,8 +1393,6 @@ export class SettlementGroupRepository {
       id: agg.id,
       settlement_group_id: agg.settlement_group_id,
       aggregate_id: agg.aggregate_id,
-      branch_name: agg.branch_name,
-      branch_code: agg.branch_code,
       allocated_amount: agg.allocated_amount,
       original_amount: agg.original_amount,
       created_at: agg.created_at,
