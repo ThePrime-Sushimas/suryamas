@@ -610,7 +610,8 @@ if (error) {
   async getSummary(
     dateFrom?: string,
     dateTo?: string,
-    branchNames?: string[]
+    branchNames?: string[],
+    paymentMethodIds?: number[]
   ): Promise<{
     total_count: number
     total_gross_amount: number
@@ -637,6 +638,11 @@ if (error) {
       dbQuery = dbQuery.or(orConditions)
     }
 
+    // Filter by payment method IDs
+    if (paymentMethodIds && paymentMethodIds.length > 0) {
+      dbQuery = dbQuery.in('payment_method_id', paymentMethodIds)
+    }
+
     // First get the count
     const { count, error: countError } = await dbQuery
 
@@ -658,6 +664,11 @@ if (error) {
     if (branchNames && branchNames.length > 0) {
       const orConditions = branchNames.map(b => `branch_name.ilike.%${b}%`).join(',')
       allDataQuery = allDataQuery.or(orConditions)
+    }
+
+    // Filter by payment method IDs
+    if (paymentMethodIds && paymentMethodIds.length > 0) {
+      allDataQuery = allDataQuery.in('payment_method_id', paymentMethodIds)
     }
 
     const { data: allData, error: allDataError } = await allDataQuery
@@ -711,7 +722,8 @@ if (error) {
   async getStatusCounts(
     dateFrom?: string,
     dateTo?: string,
-    branchNames?: string[]
+    branchNames?: string[],
+    paymentMethodIds?: number[]
   ): Promise<Record<AggregatedTransactionStatus, number>> {
     // Fallback: get counts individually for each status
     const statuses: AggregatedTransactionStatus[] = ['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED']
@@ -743,6 +755,11 @@ if (error) {
       if (branchNames && branchNames.length > 0) {
         const orConditions = branchNames.map(b => `branch_name.ilike.%${b}%`).join(',')
         query = query.or(orConditions)
+      }
+
+      // Filter by payment method IDs
+      if (paymentMethodIds && paymentMethodIds.length > 0) {
+        query = query.in('payment_method_id', paymentMethodIds)
       }
 
       const { count } = await query

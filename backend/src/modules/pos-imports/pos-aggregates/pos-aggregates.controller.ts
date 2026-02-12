@@ -192,7 +192,7 @@ export class PosAggregatesController {
    */
   getSummary = withValidated(async (req: TransactionListQueryReq, res: Response) => {
     try {
-      const { transaction_date_from, transaction_date_to, branch_names } = req.validated.query
+      const { transaction_date_from, transaction_date_to, branch_names, payment_method_ids } = req.validated.query
       
       // Parse branch_names to array if it's a comma-separated string
       let branchNamesArray: string[] | undefined
@@ -204,10 +204,32 @@ export class PosAggregatesController {
         }
       }
       
+      // Parse payment_method_ids to array if it's a comma-separated string
+      let paymentMethodIdsArray: number[] | undefined
+      if (payment_method_ids) {
+        if (Array.isArray(payment_method_ids)) {
+          paymentMethodIdsArray = payment_method_ids
+            .map(id => {
+              const num = Number(id)
+              return isNaN(num) ? undefined : num
+            })
+            .filter((id): id is number => id !== undefined)
+        } else {
+          paymentMethodIdsArray = String(payment_method_ids)
+            .split(',')
+            .map(s => {
+              const num = parseInt(s.trim())
+              return isNaN(num) ? undefined : num
+            })
+            .filter((id): id is number => id !== undefined)
+        }
+      }
+      
       const summary = await posAggregatesService.getSummary(
         transaction_date_from ?? undefined,
         transaction_date_to ?? undefined,
-        branchNamesArray
+        branchNamesArray,
+        paymentMethodIdsArray
       )
       sendSuccess(res, summary, 'Summary retrieved successfully')
     } catch (error: any) {

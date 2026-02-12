@@ -514,6 +514,14 @@ export const posAggregatesApi = {
         if (filter.transaction_date_to) {
           params.transaction_date_to = filter.transaction_date_to
         }
+        // Handle payment_method_ids (can be array or comma-separated string)
+        if (filter.payment_method_ids) {
+          if (Array.isArray(filter.payment_method_ids)) {
+            params.payment_method_ids = filter.payment_method_ids.join(',')
+          } else {
+            params.payment_method_ids = filter.payment_method_ids
+          }
+        }
       }
 
       const res = await api.get<BackendResponse<AggregatedTransactionSummary>>(

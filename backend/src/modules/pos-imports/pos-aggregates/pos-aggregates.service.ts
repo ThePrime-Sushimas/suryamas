@@ -591,11 +591,13 @@ if (!existing.journal_id) {
     dateFrom?: string,
     dateTo?: string,
     branchNames?: string[],
+    paymentMethodIds?: number[],
   ): Promise<AggregatedTransactionSummary> {
     const summary = await posAggregatesRepository.getSummary(
       dateFrom,
       dateTo,
       branchNames,
+      paymentMethodIds,
     );
 
     // Pass filters to getStatusCounts so counts match filtered data
@@ -603,6 +605,7 @@ if (!existing.journal_id) {
       dateFrom,
       dateTo,
       branchNames,
+      paymentMethodIds,
     );
 
     return {
