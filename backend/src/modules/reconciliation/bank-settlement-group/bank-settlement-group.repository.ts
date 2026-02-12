@@ -1319,6 +1319,37 @@ export class SettlementGroupRepository {
   }
 
   /**
+   * Get bank statement ID directly from database for undo operation
+   * Returns raw value without any transformation
+   */
+  async getBankStatementIdRaw(settlementGroupId: string): Promise<string | null> {
+    try {
+      const { data, error } = await supabase
+        .from("bank_settlement_groups")
+        .select("bank_statement_id")
+        .eq("id", settlementGroupId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return null;
+        }
+        throw error;
+      }
+
+      if (data?.bank_statement_id === null || data?.bank_statement_id === undefined) {
+        return null;
+      }
+      
+      return String(data.bank_statement_id);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Error fetching bank_statement_id raw", { settlementGroupId, error: errorMessage });
+      return null;
+    }
+  }
+
+  /**
    * Get bank statement by ID
    */
   async getBankStatementById(statementId: string): Promise<{
