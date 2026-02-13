@@ -1009,7 +1009,7 @@ findMatches(
    * Get all unreconciled bank statements
    * Used for reverse matching modal in Pos Aggregates
    */
-  async getUnreconciledStatements(bankAccountId?: number, search?: string): Promise<any[]> {
+  async getUnreconciledStatements(bankAccountId?: number, search?: string, limit: number = 50, offset: number = 0): Promise<any[]> {
     try {
       // Get today's date as default
       const today = new Date();
@@ -1022,7 +1022,7 @@ findMatches(
         statements = await this.repository.getUnreconciledBatch(
           startDate,
           endDate,
-          10000, // Large limit
+          limit * 10, // Get more data for filtering
           0,
           bankAccountId
         );
@@ -1035,7 +1035,7 @@ findMatches(
           const accountStatements = await this.repository.getUnreconciledBatch(
             startDate,
             endDate,
-            10000,
+            limit * 10,
             0,
             account.id
           );
@@ -1054,8 +1054,11 @@ findMatches(
         );
       }
 
+      // Apply offset and limit after filtering
+      const paginatedStatements = statements.slice(offset, offset + limit);
+
       // Transform to include computed fields
-      return statements.map(s => {
+      return paginatedStatements.map(s => {
         const bankAmount = (s.credit_amount || 0) - (s.debit_amount || 0);
         return {
           ...s,

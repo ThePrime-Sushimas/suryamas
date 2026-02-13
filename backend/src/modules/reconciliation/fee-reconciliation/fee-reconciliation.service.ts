@@ -301,7 +301,6 @@ export class FeeReconciliationService {
         .from('bank_statements')
         .update({
           is_reconciled: true,
-          reconciled_at: new Date().toISOString(),
           reconciliation_id: reconciliationId,
           updated_at: new Date().toISOString(),
           updated_by: approvedBy
@@ -371,7 +370,6 @@ export class FeeReconciliationService {
         .from('bank_statements')
         .update({
           is_reconciled: true,
-          reconciled_at: new Date().toISOString(),
           reconciliation_id: reconciliationId,
           updated_at: new Date().toISOString(),
           updated_by: rejectedBy

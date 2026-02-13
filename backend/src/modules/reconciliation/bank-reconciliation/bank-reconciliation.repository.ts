@@ -414,6 +414,7 @@ export class BankReconciliationRepository {
     aggregateId: string,
   ): Promise<void> {
     try {
+      // Get payment_method_id from aggregate
       const { data: aggregate, error: aggError } = await supabase
         .from("aggregated_transactions")
         .select("payment_method_id")
@@ -424,15 +425,21 @@ export class BankReconciliationRepository {
         throw aggError;
       }
 
+      // Update statement - only use fields that are confirmed to exist
+      const updateData: any = {
+        is_reconciled: true,
+        reconciliation_id: aggregateId,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Only add payment_method_id if aggregate has it
+      if (aggregate?.payment_method_id) {
+        updateData.payment_method_id = aggregate.payment_method_id;
+      }
+
       const { error } = await supabase
         .from("bank_statements")
-        .update({
-          is_reconciled: true,
-          reconciled_at: new Date().toISOString(),
-          reconciliation_id: aggregateId,
-          payment_method_id: aggregate?.payment_method_id || null,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq("id", statementId);
 
       if (error) {
@@ -556,7 +563,6 @@ export class BankReconciliationRepository {
         .update({
           is_reconciled: false,
           reconciliation_id: null,
-          reconciled_at: null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", statementId);
@@ -598,7 +604,7 @@ export class BankReconciliationRepository {
           difference: data.difference,
           notes: data.notes,
           reconciled_by: data.reconciledBy,
-          reconciled_at: new Date().toISOString(),
+          updated_at:new Date().toISOString(),
           status: Math.abs(data.difference) <= 100 ? 'RECONCILED' : 'DISCREPANCY',
         })
         .select("id")
@@ -695,7 +701,6 @@ export class BankReconciliationRepository {
         .from("bank_statements")
         .update({
           is_reconciled: true,
-          reconciled_at: new Date().toISOString(),
           reconciliation_group_id: groupId,
           updated_at: new Date().toISOString(),
         })
@@ -730,7 +735,6 @@ export class BankReconciliationRepository {
           .from("bank_statements")
           .update({
             is_reconciled: false,
-            reconciled_at: null,
             reconciliation_group_id: null,
             updated_at: new Date().toISOString(),
           })
