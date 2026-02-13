@@ -331,6 +331,7 @@ export class SettlementGroupService {
       gross_amount: agg.gross_amount,
       nett_amount: agg.nett_amount,
       payment_method_name: agg.payment_method_name,
+      branch_name: agg.branch_name || null,
       is_reconciled: agg.reconciliation_status === 'RECONCILED',
     }));
 
