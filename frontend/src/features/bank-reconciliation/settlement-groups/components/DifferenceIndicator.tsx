@@ -7,8 +7,8 @@ import React from 'react';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 interface DifferenceIndicatorProps {
-  difference: number;
-  totalAmount: number;
+  difference: number | null | undefined;
+  totalAmount: number | null | undefined;
   showPercentage?: boolean;
   size?: 'sm' | 'md' | 'lg';
 }
@@ -19,6 +19,28 @@ export const DifferenceIndicator: React.FC<DifferenceIndicatorProps> = ({
   showPercentage = true,
   size = 'md',
 }) => {
+  // Handle null/undefined values
+  if (difference === null || difference === undefined || isNaN(difference)) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md border bg-gray-50 border-gray-200 px-2.5 py-1.5 text-sm text-gray-600">
+        -
+      </span>
+    );
+  }
+  
+  if (totalAmount === null || totalAmount === undefined || isNaN(totalAmount) || totalAmount === 0) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md border bg-gray-50 border-gray-200 px-2.5 py-1.5 text-sm text-gray-600">
+        {new Intl.NumberFormat('id-ID', {
+          style: 'currency',
+          currency: 'IDR',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(Math.abs(difference))}
+      </span>
+    );
+  }
+  
   const percentage = totalAmount !== 0 ? Math.abs((difference / totalAmount) * 100) : 0;
   const isPositive = difference > 0;
   const isZero = difference === 0;

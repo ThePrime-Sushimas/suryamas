@@ -265,6 +265,8 @@ export class SettlementGroupRepository {
    */
   async findById(id: string): Promise<any> {
     try {
+      logInfo("findById called", { id });
+
       let query = supabase
         .from("bank_settlement_groups")
         .select(`
@@ -306,12 +308,26 @@ export class SettlementGroupRepository {
         // Column doesn't exist, continue without it
       }
 
-      const { data, error } = await query;
+      let { data, error } = await query;
+
+      // Handle case where data is returned as array instead of object
+      if (Array.isArray(data) && data.length > 0) {
+        logInfo("findById data is array, taking first element", { id, arrayLength: data.length });
+        data = data[0];
+      }
+
+      logInfo("findById raw data", { 
+        id, 
+        hasData: !!data,
+        hasError: !!error,
+        errorMessage: error?.message,
+        dataKeys: data ? Object.keys(data) : []
+      });
 
       if (error) {
         if (isMissingColumnError(error)) {
           // Retry without deleted_at check
-          const { data: retryData, error: retryError } = await supabase
+          let { data: retryData, error: retryError } = await supabase
             .from("bank_settlement_groups")
             .select(`
               *,
@@ -329,8 +345,19 @@ export class SettlementGroupRepository {
             .eq("id", id)
             .single();
           
+          // Handle array response
+          if (Array.isArray(retryData) && retryData.length > 0) {
+            retryData = retryData[0];
+          }
+          
           if (retryError) throw retryError;
           if (!retryData) return null;
+
+          logInfo("findById retry data", { 
+            id, 
+            hasData: !!retryData,
+            dataKeys: retryData ? Object.keys(retryData) : []
+          });
 
           const aggregates = await this.getAggregatesByGroupId(id);
           return this.transformSettlementGroup(retryData, aggregates);
@@ -339,11 +366,23 @@ export class SettlementGroupRepository {
       }
 
       if (!data) {
+        logInfo("findById no data found", { id });
         return null;
       }
 
+      logInfo("findById data found, fetching aggregates", { id });
+
       const aggregates = await this.getAggregatesByGroupId(id);
-      return this.transformSettlementGroup(data, aggregates);
+      const result = this.transformSettlementGroup(data, aggregates);
+
+      logInfo("findById transformed result", { 
+        id, 
+        resultKeys: Object.keys(result),
+        hasSettlementNumber: !!result.settlement_number,
+        settlementNumber: result.settlement_number
+      });
+
+      return result;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       logError("Error fetching settlement group by ID", { id, error: errorMessage });
@@ -816,21 +855,141 @@ export class SettlementGroupRepository {
   }
 
   /**
-   * Get aggregates for a settlement group
+   * Get aggregates for a settlement group WITH full aggregate transaction details
    */
   async getAggregatesByGroupId(settlementGroupId: string): Promise<any[]> {
     try {
-      const { data, error } = await supabase
+      // First get all aggregate IDs for this settlement group
+      const { data: settlementAggregates, error } = await supabase
         .from("bank_settlement_aggregates")
-        .select("*")
+        .select("id, settlement_group_id, aggregate_id, allocated_amount, original_amount, created_at")
         .eq("settlement_group_id", settlementGroupId)
         .order("created_at", { ascending: true });
 
       if (error) {
+        logError("Error fetching settlement aggregates", { 
+          settlementGroupId, 
+          error: error.message 
+        });
         throw error;
       }
 
-      return data || [];
+      if (!settlementAggregates || settlementAggregates.length === 0) {
+        logInfo("No settlement aggregates found", { settlementGroupId });
+        return [];
+      }
+
+      logInfo("Found settlement aggregates", { 
+        settlementGroupId, 
+        count: settlementAggregates.length,
+        sampleAggregateId: settlementAggregates[0]?.aggregate_id
+      });
+
+      // Get all aggregate IDs
+      const aggregateIds = settlementAggregates.map(sa => sa.aggregate_id);
+
+      // Log the IDs we're looking for
+      logInfo("Looking for aggregate IDs", { aggregateIds: aggregateIds.slice(0, 3) });
+
+      // Fetch the full aggregate transaction details - include branch_name since it exists
+      const { data: aggregateTransactions, error: aggError } = await supabase
+        .from("aggregated_transactions")
+        .select("id, transaction_date, gross_amount, nett_amount, payment_method_id, branch_name")
+        .in("id", aggregateIds);
+
+      if (aggError) {
+        logError("Error fetching aggregate transactions", { 
+          settlementGroupId, 
+          error: aggError.message 
+        });
+        // Fallback: return basic data without aggregate details
+        return settlementAggregates.map(sa => ({
+          ...sa,
+          // Convert string to number
+          allocated_amount: parseFloat(String(sa.allocated_amount)) || 0,
+          original_amount: parseFloat(String(sa.original_amount)) || 0,
+          aggregate: null
+        }));
+      }
+
+      logInfo("Found aggregate transactions", { 
+        settlementGroupId, 
+        foundCount: aggregateTransactions?.length || 0,
+        foundIds: aggregateTransactions?.slice(0, 3).map((at: any) => at.id) || []
+      });
+
+      // Create a map for quick lookup - use both string and UUID format
+      const aggregateMap = new Map();
+      if (aggregateTransactions) {
+        aggregateTransactions.forEach((at: any) => {
+          aggregateMap.set(at.id, at);
+          aggregateMap.set(String(at.id), at);
+        });
+      }
+
+      logInfo("Aggregate transactions loaded successfully", { count: aggregateTransactions?.length });
+
+      // Get unique payment method IDs
+      const paymentMethodIds = [...new Set(
+        (aggregateTransactions || [])
+          .map((at: any) => at.payment_method_id)
+          .filter(Boolean)
+      )];
+
+      // Fetch payment methods in batch
+      let paymentMethodsMap: Record<string, string> = {};
+      if (paymentMethodIds.length > 0) {
+        try {
+          const { data: paymentMethods } = await supabase
+            .from("payment_methods")
+            .select("id, name")
+            .in("id", paymentMethodIds);
+          
+          if (paymentMethods) {
+            paymentMethods.forEach((pm: any) => {
+              paymentMethodsMap[pm.id] = pm.name;
+            });
+          }
+        } catch (pmError) {
+          logError("Error fetching payment methods", { 
+            error: pmError instanceof Error ? pmError.message : 'Unknown' 
+          });
+        }
+      }
+
+      // Combine settlement aggregate data with aggregate transaction details
+      const result = settlementAggregates.map(sa => {
+        // Try to find by both original ID and string version
+        let aggData = aggregateMap.get(sa.aggregate_id) || aggregateMap.get(String(sa.aggregate_id));
+        
+        return {
+          id: sa.id,
+          settlement_group_id: sa.settlement_group_id,
+          aggregate_id: sa.aggregate_id,
+          // Convert string to number if needed
+          allocated_amount: parseFloat(String(sa.allocated_amount)) || sa.allocated_amount || 0,
+          original_amount: parseFloat(String(sa.original_amount)) || sa.original_amount || 0,
+          created_at: sa.created_at,
+          aggregate: aggData ? {
+            id: aggData.id,
+            transaction_date: aggData.transaction_date,
+            gross_amount: parseFloat(String(aggData.gross_amount)) || aggData.gross_amount || 0,
+            nett_amount: parseFloat(String(aggData.nett_amount)) || aggData.nett_amount || 0,
+            payment_method_name: paymentMethodsMap[aggData.payment_method_id] || null,
+            payment_method_id: aggData.payment_method_id,
+            // Use branch_name directly from aggregated_transactions table
+            branch_name: aggData.branch_name || null,
+          } : null
+        };
+      });
+
+      logInfo("Fetched settlement aggregates with details", { 
+        settlementGroupId, 
+        count: result.length,
+        withAggregateData: result.filter(r => r.aggregate !== null).length
+      });
+
+      return result;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       logError("Error fetching settlement group aggregates", { settlementGroupId, error: errorMessage });
@@ -884,7 +1043,8 @@ export class SettlementGroupRepository {
           gross_amount,
           nett_amount,
           payment_method_id,
-          is_reconciled
+          is_reconciled,
+          branch_name
         `,
           { count: 'exact' }
         )
@@ -956,6 +1116,7 @@ export class SettlementGroupRepository {
         nett_amount: agg.nett_amount,
         payment_method_name: paymentMethodsMap[agg.payment_method_id] || null,
         payment_method_id: agg.payment_method_id,
+        branch_name: agg.branch_name || null,
         is_reconciled: agg.is_reconciled,
       }));
 
@@ -981,7 +1142,8 @@ export class SettlementGroupRepository {
           gross_amount,
           nett_amount,
           payment_method_id,
-          is_reconciled
+          is_reconciled,
+          branch_name
         `)
         .eq("id", aggregateId)
         .single();
@@ -1031,6 +1193,7 @@ export class SettlementGroupRepository {
         nett_amount: data.nett_amount,
         payment_method_name: paymentMethodName,
         payment_method_id: paymentMethodId,
+        branch_name: data.branch_name || null,
         is_reconciled: data.is_reconciled,
       };
     } catch (error: unknown) {
@@ -1190,6 +1353,8 @@ export class SettlementGroupRepository {
       bank_name: data.bank_statements.bank_accounts?.banks?.bank_name || null,
     } : undefined;
 
+    // Use the aggregates data that was already fetched with full details
+    // The aggregates parameter already contains the transformed data from getAggregatesByGroupId
     const transformedAggregates = (aggregates || []).map((agg: any) => ({
       id: agg.id,
       settlement_group_id: agg.settlement_group_id,
@@ -1197,7 +1362,7 @@ export class SettlementGroupRepository {
       allocated_amount: agg.allocated_amount,
       original_amount: agg.original_amount,
       created_at: agg.created_at,
-      aggregate: null,
+      aggregate: agg.aggregate || null, // Use the aggregate data from getAggregatesByGroupId
     }));
 
     return {

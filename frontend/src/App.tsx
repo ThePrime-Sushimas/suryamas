@@ -353,6 +353,11 @@ const SettlementGroupsPage = lazy(() =>
     default: m.SettlementGroupsPage,
   })),
 );
+const SettlementGroupDetailPage = lazy(() =>
+  import("./features/bank-reconciliation/settlement-groups/pages/SettlementGroupDetailPage").then((m) => ({
+    default: m.default,
+  })),
+);
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -1202,6 +1207,16 @@ function App() {
                     <ProtectedRoute>
                       <Suspense fallback={<LoadingFallback />}>
                         <SettlementGroupsPage />
+                      </Suspense>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="bank-reconciliation/settlement-groups/:id"
+                  element={
+                    <ProtectedRoute>
+                      <Suspense fallback={<LoadingFallback />}>
+                        <SettlementGroupDetailPage />
                       </Suspense>
                     </ProtectedRoute>
                   }

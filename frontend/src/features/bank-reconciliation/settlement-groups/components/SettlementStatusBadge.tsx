@@ -8,18 +8,26 @@ import type { SettlementGroupStatusType } from '../types/settlement-groups.types
 import { SettlementGroupStatusColors, SettlementGroupStatusLabels } from '../types/settlement-groups.types';
 
 interface SettlementStatusBadgeProps {
-  status: SettlementGroupStatusType;
+  status: SettlementGroupStatusType | string | undefined | null;
   size?: 'sm' | 'md' | 'lg';
   showLabel?: boolean;
 }
+
+const defaultColors = {
+  bg: 'bg-gray-100',
+  text: 'text-gray-800',
+  border: 'border-gray-200',
+};
 
 export const SettlementStatusBadge: React.FC<SettlementStatusBadgeProps> = ({
   status,
   size = 'md',
   showLabel = true,
 }) => {
-  const colors = SettlementGroupStatusColors[status as keyof typeof SettlementGroupStatusColors];
-  const label = SettlementGroupStatusLabels[status as keyof typeof SettlementGroupStatusLabels];
+  // Handle undefined, null, or unknown status
+  const safeStatus = status || 'PENDING';
+  const colors = SettlementGroupStatusColors[safeStatus as keyof typeof SettlementGroupStatusColors] || defaultColors;
+  const label = SettlementGroupStatusLabels[safeStatus as keyof typeof SettlementGroupStatusLabels] || safeStatus;
 
   const sizeClasses = {
     sm: 'px-2 py-1 text-xs',

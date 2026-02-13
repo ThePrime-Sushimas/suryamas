@@ -13,6 +13,7 @@ interface AggregateTableProps {
   onViewAggregate?: (aggregateId: string) => void;
   onRemoveAggregate?: (aggregateId: string) => void;
   showActions?: boolean;
+  showAllocatedColumns?: boolean;
   isLoading?: boolean;
 }
 
@@ -21,9 +22,13 @@ export const AggregateTable: React.FC<AggregateTableProps> = ({
   onViewAggregate,
   onRemoveAggregate,
   showActions = true,
+  showAllocatedColumns = true,
   isLoading = false,
 }) => {
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | null | undefined) => {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return '-';
+    }
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
       currency: 'IDR',
@@ -77,14 +82,18 @@ export const AggregateTable: React.FC<AggregateTableProps> = ({
                 Payment Method
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Original Amount
+                Amount
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Allocated Amount
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Difference
-              </th>
+              {showAllocatedColumns && (
+                <>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Allocated Amount
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Difference
+                  </th>
+                </>
+              )}
               {showActions && (
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -94,7 +103,9 @@ export const AggregateTable: React.FC<AggregateTableProps> = ({
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {aggregates.map((aggregate) => {
-              const difference = aggregate.allocated_amount - aggregate.original_amount;
+              const originalAmount = aggregate.original_amount || 0;
+              const allocatedAmount = aggregate.allocated_amount || 0;
+              const difference = allocatedAmount - originalAmount;
 
               return (
                 <tr key={aggregate.id} className="hover:bg-gray-50">
@@ -103,28 +114,29 @@ export const AggregateTable: React.FC<AggregateTableProps> = ({
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      {aggregate.branch_name || aggregate.aggregate?.branch_name || 'N/A'}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {aggregate.branch_code || aggregate.aggregate?.branch_code}
+                      {aggregate.aggregate?.branch_name || aggregate.branch_name || 'N/A'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {aggregate.aggregate?.payment_method_name || 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatCurrency(aggregate.original_amount)}
+                    {formatCurrency(originalAmount)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatCurrency(aggregate.allocated_amount)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <DifferenceIndicator
-                      difference={difference}
-                      totalAmount={aggregate.original_amount}
-                      size="sm"
-                    />
-                  </td>
+                  {showAllocatedColumns && (
+                    <>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatCurrency(allocatedAmount)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <DifferenceIndicator
+                          difference={difference}
+                          totalAmount={originalAmount}
+                          size="sm"
+                        />
+                      </td>
+                    </>
+                  )}
                   {showActions && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center gap-2">
@@ -158,16 +170,20 @@ export const AggregateTable: React.FC<AggregateTableProps> = ({
           <span className="font-medium text-gray-700">Total:</span>
           <div className="flex gap-6">
             <span className="text-gray-600">
-              Original: {formatCurrency(aggregates.reduce((sum, agg) => sum + agg.original_amount, 0))}
+              Amount: {formatCurrency(aggregates.reduce((sum, agg) => sum + (agg.original_amount || 0), 0))}
             </span>
-            <span className="text-gray-600">
-              Allocated: {formatCurrency(aggregates.reduce((sum, agg) => sum + agg.allocated_amount, 0))}
-            </span>
-            <DifferenceIndicator
-              difference={aggregates.reduce((sum, agg) => sum + (agg.allocated_amount - agg.original_amount), 0)}
-              totalAmount={aggregates.reduce((sum, agg) => sum + agg.original_amount, 0)}
-              size="sm"
-            />
+            {showAllocatedColumns && (
+              <>
+                <span className="text-gray-600">
+                  Allocated: {formatCurrency(aggregates.reduce((sum, agg) => sum + (agg.allocated_amount || 0), 0))}
+                </span>
+                <DifferenceIndicator
+                  difference={aggregates.reduce((sum, agg) => sum + ((agg.allocated_amount || 0) - (agg.original_amount || 0)), 0)}
+                  totalAmount={aggregates.reduce((sum, agg) => sum + (agg.original_amount || 0), 0)}
+                  size="sm"
+                />
+              </>
+            )}
           </div>
         </div>
       </div>

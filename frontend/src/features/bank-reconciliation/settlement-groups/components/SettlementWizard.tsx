@@ -482,7 +482,6 @@ const SelectAggregatesStep: React.FC<SelectAggregatesStepProps> = ({
         originalAmount: aggregate.nett_amount || 0,
         selected: true,
         branchName: aggregate.branch_name || undefined,
-        branchCode: aggregate.branch_code || undefined,
         payment_method_name: aggregate.payment_method_name || undefined,
         transaction_date: aggregate.transaction_date,
         nett_amount: aggregate.nett_amount,

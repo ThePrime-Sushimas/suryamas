@@ -3,15 +3,14 @@
  * Main page for managing settlement groups
  */
 
-import React, { useState } from 'react';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { SettlementDashboard } from '../components/SettlementDashboard.tsx';
 import { SettlementWizard } from '../components/SettlementWizard.tsx';
-import { SettlementDetailModal } from '../components/SettlementDetailModal.tsx';
 
 export const SettlementGroupsPage: React.FC = () => {
-  const [showWizard, setShowWizard] = useState(false);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
+  const navigate = useNavigate();
+  const [showWizard, setShowWizard] = React.useState(false);
 
   const handleCreateNew = () => {
     setShowWizard(true);
@@ -27,13 +26,7 @@ export const SettlementGroupsPage: React.FC = () => {
   };
 
   const handleViewDetails = (groupId: string) => {
-    setSelectedGroupId(groupId);
-    setShowDetailModal(true);
-  };
-
-  const handleCloseDetailModal = () => {
-    setSelectedGroupId(null);
-    setShowDetailModal(false);
+    navigate(`/bank-reconciliation/settlement-groups/${groupId}`);
   };
 
   if (showWizard) {
@@ -52,14 +45,6 @@ export const SettlementGroupsPage: React.FC = () => {
           onCreateNew={handleCreateNew}
           onViewDetails={handleViewDetails}
         />
-
-        {showDetailModal && selectedGroupId && (
-          <SettlementDetailModal
-            groupId={selectedGroupId}
-            isOpen={showDetailModal}
-            onClose={handleCloseDetailModal}
-          />
-        )}
       </div>
     </div>
   );
