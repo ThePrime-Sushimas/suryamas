@@ -3,7 +3,7 @@
  * 3-step wizard for creating bulk settlement groups
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { CheckCircle, Circle, ArrowLeft, ArrowRight, Loader2, Search, Building, Calendar, FileText, CreditCard, AlertTriangle } from 'lucide-react';
 import { useSettlementGroupsStore } from '../hooks/useSettlementGroups';
 import { useAvailableBankStatements, useAvailableAggregatesForSettlement, useCreateSettlementGroup } from '../hooks/useSettlementGroups';
@@ -263,9 +263,19 @@ export const SettlementWizard: React.FC<SettlementWizardProps> = ({
 const SelectBankStatementStep: React.FC = () => {
   const { selectedBankStatement, setSelectedBankStatement } = useSettlementGroupsStore();
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounce search input - wait 300ms after user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
   
   const { data: bankStatementsData, isLoading } = useAvailableBankStatements({
-    search: searchTerm || undefined,
+    search: debouncedSearch || undefined,
     limit: 50,
   });
 
@@ -421,11 +431,21 @@ const SelectAggregatesStep: React.FC<SelectAggregatesStepProps> = ({
 
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounce search input - wait 300ms after user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
   
   // Fetch all unreconciled aggregates (no date filter)
   // After bank statement is selected, show ALL aggregates regardless of date
   const { data: aggregatesData, isLoading } = useAvailableAggregatesForSettlement({
-    search: searchTerm || undefined,
+    search: debouncedSearch || undefined,
     limit: 100,
   });
 
