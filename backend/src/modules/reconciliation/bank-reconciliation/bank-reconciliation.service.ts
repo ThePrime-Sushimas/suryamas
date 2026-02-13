@@ -1009,7 +1009,7 @@ findMatches(
    * Get all unreconciled bank statements
    * Used for reverse matching modal in Pos Aggregates
    */
-  async getUnreconciledStatements(bankAccountId?: number): Promise<any[]> {
+  async getUnreconciledStatements(bankAccountId?: number, search?: string): Promise<any[]> {
     try {
       // Get today's date as default
       const today = new Date();
@@ -1045,6 +1045,15 @@ findMatches(
         statements = allStatements;
       }
 
+      // Apply search filter if provided
+      if (search) {
+        const searchLower = search.toLowerCase();
+        statements = statements.filter(s => 
+          s.description?.toLowerCase().includes(searchLower) ||
+          s.reference_number?.toLowerCase().includes(searchLower)
+        );
+      }
+
       // Transform to include computed fields
       return statements.map(s => {
         const bankAmount = (s.credit_amount || 0) - (s.debit_amount || 0);
@@ -1060,6 +1069,7 @@ findMatches(
     } catch (error: any) {
       logError("Error getting unreconciled statements for reverse matching", {
         bankAccountId,
+        search,
         error: error.message
       });
       throw new Error("Gagal mengambil data mutasi bank yang belum dicocokkan");

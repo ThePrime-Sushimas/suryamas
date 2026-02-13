@@ -624,14 +624,15 @@ export class BankReconciliationController {
     res: Response,
   ): Promise<void> {
     try {
-      const { bankAccountId } = req.query;
+      const { bankAccountId, search } = req.query;
 
       // Get all bank accounts for the company
       const accounts = await this.service.getAllBankAccounts();
       
       // Get unreconciled statements - either for specific account or all accounts
       const statements = await this.service.getUnreconciledStatements(
-        bankAccountId ? parseInt(bankAccountId as string) : undefined
+        bankAccountId ? parseInt(bankAccountId as string) : undefined,
+        search as string | undefined
       );
 
       res.status(200).json({
