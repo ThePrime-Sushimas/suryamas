@@ -18,8 +18,6 @@ import {
   getSettlementGroupAggregatesSchema,
   getAvailableAggregatesSchema,
   getSuggestionsSchema,
-  getDeletedSettlementGroupsSchema,
-  restoreSettlementGroupSchema,
 } from "./bank-settlement-group.schema";
 import type {
   AuthenticatedQueryRequest,
@@ -90,16 +88,16 @@ router.get(
 );
 
 /**
- * @route DELETE /api/v1/settlement-group/:id/soft-delete
- * @desc Soft delete a settlement group (mark as deleted, with optional revert of reconciliation status)
+ * @route DELETE /api/v1/settlement-group/:id
+ * @desc Hard delete a settlement group (permanently removes and reverts reconciliation)
  */
 router.delete(
-  "/:id/soft-delete",
+  "/:id",
   canInsert("bank_settlement_group"),
   updateRateLimit,
   validateSchema(undoSettlementGroupSchema),
   (req, res) =>
-    settlementGroupController.undo(req as ValidatedAuthRequest<typeof undoSettlementGroupSchema>, res),
+    settlementGroupController.delete(req as ValidatedAuthRequest<typeof undoSettlementGroupSchema>, res),
 );
 
 /**
@@ -136,31 +134,6 @@ router.get(
   validateSchema(getSuggestionsSchema),
   (req, res) =>
     settlementGroupController.getSuggestedAggregates(req as ValidatedAuthRequest<typeof getSuggestionsSchema>, res),
-);
-
-/**
- * @route GET /api/v1/settlement-group/list/deleted
- * @desc Get deleted settlement groups (for Trash View)
- */
-router.get(
-  "/list/deleted",
-  canView("bank_settlement_group"),
-  validateSchema(getDeletedSettlementGroupsSchema),
-  (req, res) =>
-    settlementGroupController.getDeleted(req as ValidatedAuthRequest<typeof getDeletedSettlementGroupsSchema>, res),
-);
-
-/**
- * @route POST /api/v1/settlement-group/:id/restore
- * @desc Restore a deleted settlement group
- */
-router.post(
-  "/:id/restore",
-  canUpdate("bank_settlement_group"), // FIX: Changed from canInsert to canUpdate
-  updateRateLimit,
-  validateSchema(restoreSettlementGroupSchema),
-  (req, res) =>
-    settlementGroupController.restore(req as ValidatedAuthRequest<typeof restoreSettlementGroupSchema>, res),
 );
 
 export default router;

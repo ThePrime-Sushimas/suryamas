@@ -201,56 +201,20 @@ export const useCreateSettlementGroup = () => {
 };
 
 /**
- * Mutation for soft deleting a settlement group
- * Default: revertReconciliation = true (is_reconciled will be set to false)
+ * Mutation for deleting a settlement group (HARD DELETE)
  */
-export const useSoftDeleteSettlementGroup = () => {
+export const useDeleteSettlementGroup = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, options }: { id: string; options?: { revertReconciliation?: boolean } }) =>
-      // FIX: options?.revertReconciliation ?? true allows user override, defaults to true
-      settlementGroupsApi.softDeleteSettlementGroup(id, { 
-        revertReconciliation: options?.revertReconciliation ?? true 
-      }),
+    mutationFn: (id: string) => settlementGroupsApi.deleteSettlementGroup(id),
     onSuccess: () => {
       // Invalidate and refetch all related queries
       queryClient.invalidateQueries({ queryKey: ['settlement-groups'] });
-      queryClient.invalidateQueries({ queryKey: ['deleted-settlement-groups'] });
       queryClient.invalidateQueries({ queryKey: ['settlement-groups-summary'] });
       queryClient.invalidateQueries({ queryKey: ['available-aggregates'] });
       queryClient.invalidateQueries({ queryKey: ['available-bank-statements'] });
       queryClient.invalidateQueries({ queryKey: ['bank-mutations'] });
-    },
-  });
-};
-
-/**
- * Hook for fetching deleted settlement groups (for Trash View)
- */
-export const useDeletedSettlementGroups = (params?: {
-  limit?: number;
-  offset?: number;
-}) => {
-  return useQuery({
-    queryKey: ['deleted-settlement-groups', params],
-    queryFn: () => settlementGroupsApi.getDeletedSettlementGroups(params),
-    staleTime: 0, // Always refetch
-  });
-};
-
-/**
- * Mutation for restoring deleted settlement group
- */
-export const useRestoreSettlementGroup = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (id: string) => settlementGroupsApi.restoreSettlementGroup(id),
-    onSuccess: () => {
-      // Invalidate and refetch
-      queryClient.invalidateQueries({ queryKey: ['deleted-settlement-groups'] });
-      queryClient.invalidateQueries({ queryKey: ['settlement-groups'] });
     },
   });
 };

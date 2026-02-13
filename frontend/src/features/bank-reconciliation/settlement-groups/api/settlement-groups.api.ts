@@ -76,35 +76,13 @@ export const settlementGroupsApi = {
   },
 
   /**
-   * Soft delete a settlement group
+   * Delete a settlement group (HARD DELETE)
    * @param id - Settlement group ID
-   * @param options - Options for soft delete
-   * @param options.revertReconciliation - If true, will also revert is_reconciled to false
    */
-  async softDeleteSettlementGroup(
-    id: string,
-    options?: { revertReconciliation?: boolean }
+  async deleteSettlementGroup(
+    id: string
   ): Promise<void> {
-    const params = options?.revertReconciliation ? { revertReconciliation: 'true' } : {};
-    await api.delete(`/settlement-group/${id}/soft-delete`, { params });
-  },
-
-  /**
-   * Get deleted settlement groups (for Trash View)
-   */
-  async getDeletedSettlementGroups(params?: {
-    limit?: number;
-    offset?: number;
-  }): Promise<SettlementGroupListResponse> {
-    const response = await api.get("/settlement-group/list/deleted", { params });
-    return response.data as SettlementGroupListResponse;
-  },
-
-  /**
-   * Restore a deleted settlement group
-   */
-  async restoreSettlementGroup(id: string): Promise<void> {
-    await api.post(`/settlement-group/${id}/restore`);
+    await api.delete(`/settlement-group/${id}`);
   },
 
   /**

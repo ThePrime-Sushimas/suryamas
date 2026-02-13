@@ -9,22 +9,17 @@ import { SettlementGroupStatusColors, SettlementGroupStatusLabels } from '../typ
 
 interface SettlementStatusBadgeProps {
   status: SettlementGroupStatusType;
-  deleted_at?: string | null; // Soft delete timestamp for UNDO status
   size?: 'sm' | 'md' | 'lg';
   showLabel?: boolean;
 }
 
 export const SettlementStatusBadge: React.FC<SettlementStatusBadgeProps> = ({
   status,
-  deleted_at,
   size = 'md',
   showLabel = true,
 }) => {
-  // If deleted_at exists, show as UNDO status regardless of status field
-  const displayStatus = deleted_at ? 'UNDO' : status;
-
-  const colors = SettlementGroupStatusColors[displayStatus as keyof typeof SettlementGroupStatusColors];
-  const label = SettlementGroupStatusLabels[displayStatus as keyof typeof SettlementGroupStatusLabels];
+  const colors = SettlementGroupStatusColors[status as keyof typeof SettlementGroupStatusColors];
+  const label = SettlementGroupStatusLabels[status as keyof typeof SettlementGroupStatusLabels];
 
   const sizeClasses = {
     sm: 'px-2 py-1 text-xs',

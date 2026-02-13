@@ -587,33 +587,25 @@ export class SettlementGroupRepository {
   }
 
   /**
-   * Soft delete settlement group and its aggregates
-   * Sets deleted_at AND updates status to UNDO for consistency
+   * Hard delete settlement group and its aggregates
+   * Permanently removes all related data
    */
-  async softDelete(id: string): Promise<void> {
+  async hardDelete(id: string): Promise<void> {
     try {
-      const now = new Date().toISOString();
-      
-      // Soft delete aggregates first
+      // Delete aggregates first (child records)
       const { error: aggError } = await supabase
         .from("bank_settlement_aggregates")
-        .update({
-          deleted_at: now,
-        })
+        .delete()
         .eq("settlement_group_id", id);
 
       if (aggError) {
         throw aggError;
       }
 
-      // Soft delete the settlement group AND update status to UNDO
+      // Delete the settlement group
       const { error } = await supabase
         .from("bank_settlement_groups")
-        .update({
-          deleted_at: now,
-          updated_at: now,
-          status: 'UNDO', // Update status to UNDO for consistency after soft delete
-        })
+        .delete()
         .eq("id", id);
 
       if (error) {
@@ -621,229 +613,7 @@ export class SettlementGroupRepository {
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      logError("Error soft deleting settlement group", { id, error: errorMessage });
-      throw error;
-    }
-  }
-
-  /**
-   * Get soft-deleted settlement groups (for Trash View)
-   */
-  async findDeleted(options?: {
-    limit?: number;
-    offset?: number;
-  }): Promise<{ data: any[]; total: number }> {
-    try {
-      const limit = options?.limit || 50;
-      const offset = options?.offset || 0;
-
-      const { data, error, count } = await supabase
-        .from("bank_settlement_groups")
-        .select(
-          `
-          *,
-          bank_statements (
-            id,
-            transaction_date,
-            description,
-            debit_amount,
-            credit_amount
-          )
-        `,
-          { count: 'exact' }
-        )
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (error) {
-        // If error is about missing deleted_at column, return empty
-        if (isMissingColumnError(error)) {
-          logInfo("deleted_at column not found, returning empty deleted list");
-          return { data: [], total: 0 };
-        }
-        throw error;
-      }
-
-      // Get all group IDs to fetch aggregates
-      const groupIds = (data || []).map((g: any) => g.id);
-      let aggregatesMap: Record<string, any[]> = {};
-      
-      if (groupIds.length > 0) {
-        try {
-          const { data: aggData } = await supabase
-            .from("bank_settlement_aggregates")
-            .select("*")
-            .in("settlement_group_id", groupIds);
-          
-          if (aggData) {
-            aggregatesMap = aggData.reduce((acc: Record<string, any[]>, agg: any) => {
-              if (!acc[agg.settlement_group_id]) {
-                acc[agg.settlement_group_id] = [];
-              }
-              acc[agg.settlement_group_id].push(agg);
-              return acc;
-            }, {});
-          }
-        } catch (aggError) {
-          logError("Error fetching aggregates for deleted list", { error: aggError instanceof Error ? aggError.message : 'Unknown' });
-        }
-      }
-
-      const transformedData = (data || []).map((group: any) => ({
-        ...group,
-        deleted_at: group.deleted_at,
-        // Use safe converter to handle null/invalid values gracefully
-        bank_statement_id: safeBankStatementIdToString(group.bank_statement_id, 'bank_statement_id'),
-        bank_statement: group.bank_statements ? {
-          id: group.bank_statements.id,
-          transaction_date: group.bank_statements.transaction_date,
-          description: group.bank_statements.description,
-          debit_amount: group.bank_statements.debit_amount,
-          credit_amount: group.bank_statements.credit_amount,
-          amount: (group.bank_statements.credit_amount || 0) - (group.bank_statements.debit_amount || 0),
-        } : undefined,
-        aggregates: aggregatesMap[group.id] || [],
-      }));
-
-      return { data: transformedData, total: count || 0 };
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      logError("Error fetching deleted settlement groups", { error: errorMessage });
-      throw error;
-    }
-  }
-
-  /**
-   * Restore a soft-deleted settlement group with transaction-like behavior
-   * Uses atomic operations with rollback on error
-   * Also reverts is_reconciled to false for aggregates and bank statement
-   */
-  async restore(groupId: string): Promise<void> {
-    try {
-      const now = new Date().toISOString();
-      
-      // First get the settlement group to get aggregate IDs and bank statement ID
-      const { data: groupData, error: fetchError } = await supabase
-        .from("bank_settlement_groups")
-        .select(`
-          bank_statement_id,
-          bank_settlement_aggregates(aggregate_id)
-        `)
-        .eq("id", groupId)
-        .single();
-
-      if (fetchError) {
-        throw fetchError;
-      }
-
-      if (!groupData) {
-        throw new Error("Settlement group not found");
-      }
-
-      // Extract aggregate IDs - handle nested result structure
-      const aggregateIds: string[] = [];
-      if (groupData && groupData.bank_settlement_aggregates) {
-        for (const agg of groupData.bank_settlement_aggregates as any[]) {
-          if (agg.aggregate_id) {
-            aggregateIds.push(agg.aggregate_id);
-          }
-        }
-      }
-
-      // Validate bank_statement_id before proceeding
-      let bankStatementIdNum: number | null = null;
-      if (groupData?.bank_statement_id) {
-        try {
-          bankStatementIdNum = validateBankStatementId(groupData.bank_statement_id, 'bank_statement_id');
-        } catch (validationError) {
-          logError("Invalid bank_statement_id during restore", { 
-            groupId, 
-            bank_statement_id: groupData.bank_statement_id,
-            error: validationError instanceof Error ? validationError.message : 'Unknown'
-          });
-          throw new Error(`Invalid bank statement ID: ${groupData.bank_statement_id}`);
-        }
-      }
-
-      // STEP 1: Restore aggregates first (update deleted_at to null)
-      const { error: aggError } = await supabase
-        .from("bank_settlement_aggregates")
-        .update({ deleted_at: null })
-        .eq("settlement_group_id", groupId);
-
-      if (aggError) {
-        throw aggError;
-      }
-
-      // STEP 2: Restore settlement group AND set status back to RECONCILED
-      const { error: groupError } = await supabase
-        .from("bank_settlement_groups")
-        .update({
-          deleted_at: null,
-          updated_at: now,
-          status: SettlementGroupStatus.RECONCILED, // Restore status to RECONCILED
-        })
-        .eq("id", groupId);
-
-      if (groupError) {
-        // ROLLBACK: Restore deleted_at on aggregates if group restore fails
-        await supabase
-          .from("bank_settlement_aggregates")
-          .update({ deleted_at: now })
-          .eq("settlement_group_id", groupId);
-        throw groupError;
-      }
-
-      // STEP 3: Revert aggregates is_reconciled to false
-      if (aggregateIds.length > 0) {
-        const { error: unreconcileAggError } = await supabase
-          .from('aggregated_transactions')
-          .update({
-            is_reconciled: false,
-            updated_at: now,
-          })
-          .in('id', aggregateIds);
-
-        if (unreconcileAggError) {
-          logError("Failed to revert aggregates is_reconciled during restore", {
-            groupId,
-            aggregateIds,
-            error: unreconcileAggError.message
-          });
-          // Note: We don't rollback here as the main restore succeeded
-          // This is a secondary operation that can be fixed manually
-        }
-      }
-
-      // STEP 4: Revert bank statement is_reconciled to false
-      if (bankStatementIdNum !== null) {
-        const { error: unreconcileStmtError } = await supabase
-          .from('bank_statements')
-          .update({
-            is_reconciled: false,
-            updated_at: now,
-          })
-          .eq('id', bankStatementIdNum);
-        
-        if (unreconcileStmtError) {
-          logError("Failed to revert bank statement is_reconciled during restore", {
-            groupId,
-            bank_statement_id: bankStatementIdNum,
-            error: unreconcileStmtError.message
-          });
-          // Note: We don't rollback here as the main restore succeeded
-        }
-      }
-
-      logInfo("Settlement group restored with reconciliation reverted", {
-        groupId,
-        aggregatesCount: aggregateIds.length,
-        bank_statement_id: bankStatementIdNum
-      });
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logError("Error restoring settlement group", { groupId, error: errorMessage });
+      logError("Error hard deleting settlement group", { id, error: errorMessage });
       throw error;
     }
   }

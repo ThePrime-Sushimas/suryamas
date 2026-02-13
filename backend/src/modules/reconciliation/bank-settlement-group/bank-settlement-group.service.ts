@@ -216,131 +216,69 @@ export class SettlementGroupService {
   }
 
   /**
-   * Undo/rollback a settlement group
-   * Uses soft delete via deleted_at instead of status change (database constraint issue)
+   * Delete a settlement group (HARD DELETE)
+   * Permanently removes the settlement group and its aggregates
+   * Also reverts is_reconciled to false for aggregates and bank statement
    * 
    * @param groupId - The settlement group ID
-   * @param options - Optional settings
-   * @param options.revertReconciliation - If true, will also revert is_reconciled to false for aggregates and bank statement
    */
-  async undoSettlementGroup(
+  async deleteSettlementGroup(
     groupId: string,
-    options?: {
-      revertReconciliation?: boolean;
-    }
   ): Promise<void> {
-    logInfo("Undoing settlement group", { groupId, options });
+    logInfo("Deleting settlement group (hard delete)", { groupId });
 
     const group = await this.repository.findById(groupId);
     if (!group) {
       throw new SettlementGroupNotFoundError(groupId);
     }
 
-    // Check if already undone (soft deleted)
-    if (group.deleted_at) {
-      throw new SettlementAlreadyConfirmedError(groupId);
-    }
+    // Get aggregate IDs before deletion
+    const aggregateIds = group.aggregates?.map((agg: SettlementAggregate) => agg.aggregate_id) || [];
+    
+    // Get bank_statement_id for reverting
+    const bankStatementId = await this.repository.getBankStatementIdRaw(groupId);
 
-    // Soft delete the settlement group using deleted_at
-    await this.repository.softDelete(groupId);
+    // Hard delete the settlement group and its aggregates
+    await this.repository.hardDelete(groupId);
 
-    // If revertReconciliation is true, mark aggregates and bank statement as unreconciled
-    if (options?.revertReconciliation === true) {
-      const aggregateIds = group.aggregates?.map((agg: SettlementAggregate) => agg.aggregate_id) || [];
-      if (aggregateIds.length > 0) {
+    // Revert aggregates is_reconciled to false
+    if (aggregateIds.length > 0) {
+      try {
         await this.repository.markAggregatesAsUnreconciled(aggregateIds);
-        logInfo("Aggregates marked as unreconciled", {
+        logInfo("Aggregates marked as unreconciled after hard delete", {
           groupId,
           aggregatesCount: aggregateIds.length
         });
-      }
-
-      // Get bank_statement_id directly from database without transformation
-      const bankStatementId = await this.repository.getBankStatementIdRaw(groupId);
-      if (bankStatementId !== null) {
-        try {
-          await this.repository.markBankStatementAsUnreconciled(bankStatementId);
-          logInfo("Bank statement marked as unreconciled", {
-            groupId,
-            bank_statement_id: bankStatementId
-          });
-        } catch (error) {
-          logError("Failed to mark bank statement as unreconciled during undo", {
-            groupId,
-            bank_statement_id: bankStatementId,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          });
-          // Continue without failing
-        }
-      } else {
-        logInfo("Skipping bank statement unreconciliation - null bank_statement_id", {
-          groupId
+      } catch (error) {
+        logError("Failed to revert aggregates is_reconciled after hard delete", {
+          groupId,
+          aggregateIds,
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
-    } else {
-      logInfo("Revert reconciliation disabled - keeping aggregates and statement as reconciled", {
-        groupId
-      });
     }
 
-    logInfo("Settlement group undone successfully", {
+    // Revert bank statement is_reconciled to false
+    if (bankStatementId !== null) {
+      try {
+        await this.repository.markBankStatementAsUnreconciled(bankStatementId);
+        logInfo("Bank statement marked as unreconciled after hard delete", {
+          groupId,
+          bank_statement_id: bankStatementId
+        });
+      } catch (error) {
+        logError("Failed to revert bank statement is_reconciled after hard delete", {
+          groupId,
+          bank_statement_id: bankStatementId,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+
+    logInfo("Settlement group deleted successfully", {
       groupId,
-      aggregatesCount: group.aggregates?.length || 0,
-      revertReconciliation: options?.revertReconciliation,
+      aggregatesCount: aggregateIds.length,
     });
-  }
-
-  /**
-   * Get soft-deleted settlement groups (for Trash View)
-   */
-  async getDeletedSettlementGroups(options?: {
-    limit?: number;
-    offset?: number;
-  }): Promise<{ data: SettlementGroup[]; total: number }> {
-    logInfo("Fetching deleted settlement groups", { options });
-    
-    const result = await this.repository.findDeleted(options);
-    
-    return {
-      data: result.data,
-      total: result.total,
-    };
-  }
-
-  /**
-   * Restore a soft-deleted settlement group
-   * 
-   * @param groupId - The settlement group ID to restore
-   */
-  async restoreSettlementGroup(groupId: string): Promise<void> {
-    logInfo("Restoring settlement group", { groupId });
-
-    // First check if group exists and is actually deleted (has deleted_at)
-    // Using findByIdIncludingDeleted through repository to maintain clean architecture
-    const groupData = await this.repository.findByIdIncludingDeleted(groupId);
-
-    if (!groupData) {
-      throw new SettlementGroupNotFoundError(groupId);
-    }
-
-    // Verify group is actually deleted (has deleted_at)
-    if (!groupData.deleted_at) {
-      throw new SettlementAlreadyConfirmedError("Group is not deleted");
-    }
-
-    // FIX: Add validation - check if any aggregates are already reconciled elsewhere
-    // This prevents restoring a group when its aggregates have been used in another group
-    const reconciledElsewhere = await this.repository.checkAggregatesReconciledElsewhere(groupId);
-    if (reconciledElsewhere) {
-      throw new AggregateReconciledElsewhereError(
-        "Some aggregates in this group are already reconciled with another group. Cannot restore."
-      );
-    }
-
-    // Restore the group
-    await this.repository.restore(groupId);
-
-    logInfo("Settlement group restored successfully", { groupId });
   }
 
   /**
