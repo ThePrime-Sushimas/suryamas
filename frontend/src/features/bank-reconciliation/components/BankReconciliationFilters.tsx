@@ -38,6 +38,7 @@ export interface BankStatementFilter {
 // Status options - sesuai dengan BankReconciliationStatus di types
 const STATUS_OPTIONS: { value: BankStatementFilterStatus; label: string; description: string }[] = [
   { value: '', label: 'ALL STATUS', description: 'Semua data' },
+  { value: 'RECONCILED', label: 'RECONCILED', description: 'Sudah dicocokkan' },
   { value: 'UNRECONCILED', label: 'UNRECONCILED', description: 'Belum dicocokkan' },
   { value: 'DISCREPANCY', label: 'DISCREPANCY', description: 'Ada perbedaan nominal' },
 ]

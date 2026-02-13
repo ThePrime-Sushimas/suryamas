@@ -642,11 +642,19 @@ findMatches(
     });
 
     // Apply DISCREPANCY filter after processing - need to recalculate total
+    // Also apply RECONCILED filter to exclude DISCREPANCY records
     let filteredData = processedData;
     let finalTotal = total;
 
     if (options?.status === 'DISCREPANCY') {
       filteredData = processedData.filter(s => s.status === BankReconciliationStatus.DISCREPANCY);
+      finalTotal = filteredData.length;
+    } else if (options?.status === 'RECONCILED') {
+      // RECONCILED should include AUTO_MATCHED and MANUALLY_MATCHED but exclude DISCREPANCY
+      filteredData = processedData.filter(s => 
+        s.status === BankReconciliationStatus.AUTO_MATCHED || 
+        s.status === BankReconciliationStatus.MANUALLY_MATCHED
+      );
       finalTotal = filteredData.length;
     }
 
