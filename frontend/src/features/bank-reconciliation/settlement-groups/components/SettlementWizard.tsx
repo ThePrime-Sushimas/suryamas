@@ -160,7 +160,7 @@ export const SettlementWizard: React.FC<SettlementWizardProps> = ({
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-7xl mx-auto p-6">
       {/* Header */}
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">
@@ -201,7 +201,7 @@ export const SettlementWizard: React.FC<SettlementWizardProps> = ({
             {currentStepData.title}
           </h3>
         </div>
-        <div className="p-6">
+        <div className="p-6 overflow-hidden">
           {renderStepContent()}
         </div>
       </div>
@@ -324,7 +324,7 @@ const SelectBankStatementStep: React.FC = () => {
       </div>
 
       {/* Statements Table */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className="border border-gray-200 rounded-lg overflow-hidden w-full">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
@@ -513,7 +513,7 @@ const SelectAggregatesStep: React.FC<SelectAggregatesStepProps> = ({
       </div>
 
       {/* Aggregates Table */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className="border border-gray-200 rounded-lg overflow-hidden w-full">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
