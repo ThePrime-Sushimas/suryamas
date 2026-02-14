@@ -6,6 +6,13 @@ import { useBranchesStore } from '@/features/branches/store/branches.store'
 import { usePaymentMethodsStore } from '@/features/payment-methods/store/paymentMethods.store'
 import { useJobsStore } from '@/features/jobs'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import {
+  PAGINATION_CONFIG,
+  DATE_PRESETS,
+  LOCALE_CONFIG,
+  TABLE_CONFIG,
+  MESSAGE_CONFIG,
+} from '../constants/pos-transactions.constants'
 
 // Lazy loading skeleton component
 const LoadingSkeleton = () => (
@@ -40,13 +47,13 @@ const LoadingSkeleton = () => (
 const ErrorFallback = () => (
   <div className="p-6">
     <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-      <h2 className="text-xl font-bold text-red-600 mb-2">Terjadi Kesalahan</h2>
-      <p className="text-gray-600 mb-4">Gagal memuat halaman transaksi POS. Silakan coba lagi.</p>
+      <h2 className="text-xl font-bold text-red-600 mb-2">{MESSAGE_CONFIG.ERROR_TITLE}</h2>
+      <p className="text-gray-600 mb-4">{MESSAGE_CONFIG.ERROR_MESSAGE}</p>
       <button
         onClick={() => window.location.reload()}
         className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
       >
-        Muat Ulang Halaman
+        {MESSAGE_CONFIG.RELOAD_BUTTON}
       </button>
     </div>
   </div>
@@ -98,7 +105,7 @@ function PosTransactionsContent() {
   const [summary, setSummary] = useState<Summary>({ totalAmount: 0, totalTax: 0, totalDiscount: 0, totalAfterBillDiscount:0, totalBillDiscount:0, totalSubtotal: 0, transactionCount: 0 })
   const [loading, setLoading] = useState(false)
   const [showFilters, setShowFilters] = useState(true)
-  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0 })
+  const [pagination, setPagination] = useState({ page: 1, limit: PAGINATION_CONFIG.DEFAULT_PAGE_SIZE, total: 0 })
   const [filters, setFilters] = useState<PosTransactionFilters>({})
   const [selectedBranches, setSelectedBranches] = useState<string[]>([])
   const [selectedPayments, setSelectedPayments] = useState<string[]>([])
@@ -125,8 +132,8 @@ function PosTransactionsContent() {
 
   useEffect(() => {
     if (currentBranch?.company_id) {
-      fetchBranches(1, 100)
-      fetchPaymentMethods(1, 100)
+      fetchBranches(1, PAGINATION_CONFIG.BRANCHES_PAGE_SIZE)
+      fetchPaymentMethods(1, PAGINATION_CONFIG.PAYMENT_METHODS_PAGE_SIZE)
       // Don't set default date - let user choose
     }
   }, [currentBranch?.company_id, fetchBranches, fetchPaymentMethods])
@@ -219,7 +226,7 @@ function PosTransactionsContent() {
       })
       
       // Show success message
-      alert('Export job created! Check the notification bell for progress.')
+      alert(MESSAGE_CONFIG.EXPORT_SUCCESS)
       
       // Refresh jobs list
       fetchRecentJobs()
@@ -232,28 +239,28 @@ function PosTransactionsContent() {
     }
   }
 
-  const setDatePreset = (preset: 'today' | 'week' | 'month' | 'lastMonth') => {
+  const setDatePreset = (preset: typeof DATE_PRESETS[keyof typeof DATE_PRESETS]) => {
     const today = new Date()
     let dateFrom = ''
     let dateTo = today.toISOString().split('T')[0]
 
     switch (preset) {
-      case 'today': {
+      case DATE_PRESETS.TODAY: {
         dateFrom = dateTo
         break
       }
-      case 'week': {
+      case DATE_PRESETS.WEEK: {
         const weekAgo = new Date(today)
         weekAgo.setDate(today.getDate() - 7)
         dateFrom = weekAgo.toISOString().split('T')[0]
         break
       }
-      case 'month': {
+      case DATE_PRESETS.MONTH: {
         const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
         dateFrom = monthStart.toISOString().split('T')[0]
         break
       }
-      case 'lastMonth': {
+      case DATE_PRESETS.LAST_MONTH: {
         const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1)
         const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0)
         dateFrom = lastMonthStart.toISOString().split('T')[0]
@@ -271,7 +278,7 @@ function PosTransactionsContent() {
     return (
       <div className="p-6">
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-yellow-800">Please select a branch to view transactions</p>
+          <p className="text-yellow-800">{MESSAGE_CONFIG.NO_BRANCH_SELECTED}</p>
         </div>
       </div>
     )
@@ -309,7 +316,7 @@ function PosTransactionsContent() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Amount</p>
-                <p className="text-2xl font-bold text-gray-900">Rp {(summary.totalAmount || 0).toLocaleString('id-ID')}</p>
+                <p className="text-2xl font-bold text-gray-900">Rp {(summary.totalAmount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
               </div>
               <div className="p-3 bg-blue-100 rounded-lg">
                 <DollarSign className="text-blue-600" size={24} />
@@ -320,7 +327,7 @@ function PosTransactionsContent() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Tax</p>
-                <p className="text-2xl font-bold text-gray-900">Rp {(summary.totalTax || 0).toLocaleString('id-ID')}</p>
+                <p className="text-2xl font-bold text-gray-900">Rp {(summary.totalTax || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
               </div>
               <div className="p-3 bg-green-100 rounded-lg">
                 <TrendingUp className="text-green-600" size={24} />
@@ -331,7 +338,7 @@ function PosTransactionsContent() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Bill Discount</p>
-                <p className="text-2xl font-bold text-gray-900">Rp {(summary.totalBillDiscount || 0).toLocaleString('id-ID')}</p>
+                <p className="text-2xl font-bold text-gray-900">Rp {(summary.totalBillDiscount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
               </div>
               <div className="p-3 bg-orange-100 rounded-lg">
                 <Percent className="text-orange-600" size={24} />
@@ -342,7 +349,7 @@ function PosTransactionsContent() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">After Bill Disc</p>
-                <p className="text-2xl font-bold text-green-600">Rp {(summary.totalAfterBillDiscount || 0).toLocaleString('id-ID')}</p>
+                <p className="text-2xl font-bold text-green-600">Rp {(summary.totalAfterBillDiscount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
               </div>
               <div className="p-3 bg-green-100 rounded-lg">
                 <DollarSign className="text-green-600" size={24} />
@@ -353,7 +360,7 @@ function PosTransactionsContent() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Transactions</p>
-                <p className="text-2xl font-bold text-gray-900">{(summary.transactionCount || 0).toLocaleString('id-ID')}</p>
+                <p className="text-2xl font-bold text-gray-900">{(summary.transactionCount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
               </div>
               <div className="p-3 bg-purple-100 rounded-lg">
                 <Receipt className="text-purple-600" size={24} />
@@ -366,10 +373,10 @@ function PosTransactionsContent() {
       {showFilters && (
         <div className="bg-white rounded-lg shadow p-4 space-y-4">
           <div className="flex gap-2">
-            <button onClick={() => setDatePreset('today')} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">Today</button>
-            <button onClick={() => setDatePreset('week')} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">This Week</button>
-            <button onClick={() => setDatePreset('month')} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">This Month</button>
-            <button onClick={() => setDatePreset('lastMonth')} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">Last Month</button>
+            <button onClick={() => setDatePreset(DATE_PRESETS.TODAY)} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">Today</button>
+            <button onClick={() => setDatePreset(DATE_PRESETS.WEEK)} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">This Week</button>
+            <button onClick={() => setDatePreset(DATE_PRESETS.MONTH)} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">This Month</button>
+            <button onClick={() => setDatePreset(DATE_PRESETS.LAST_MONTH)} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">Last Month</button>
           </div>
 
           <div className="grid grid-cols-4 gap-4">
@@ -498,7 +505,7 @@ function PosTransactionsContent() {
         {loading ? (
           <div className="p-12 text-center">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-            <p className="mt-2 text-sm text-gray-600">Loading transactions...</p>
+            <p className="mt-2 text-sm text-gray-600">{TABLE_CONFIG.LOADING_MESSAGE}</p>
           </div>
         ) : (
           <>
@@ -525,7 +532,7 @@ function PosTransactionsContent() {
                   {transactions.length === 0 ? (
                     <tr>
                       <td colSpan={13} className="px-4 py-8 text-center text-gray-500">
-                        Click "Apply Filters" to search transactions
+                        {TABLE_CONFIG.EMPTY_MESSAGE}
                       </td>
                     </tr>
                   ) : (
@@ -537,11 +544,11 @@ function PosTransactionsContent() {
                         <td className="px-4 py-3 text-sm">{tx.menu}</td>
                         <td className="px-4 py-3 text-sm">{tx.payment_method}</td>
                         <td className="px-4 py-3 text-sm text-right">{tx.qty}</td>
-                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.price || 0).toLocaleString('id-ID')}</td>
-                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.subtotal || 0).toLocaleString('id-ID')}</td>
-                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.discount || 0).toLocaleString('id-ID')}</td>
-                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.tax || 0).toLocaleString('id-ID')}</td>
-                        <td className="px-4 py-3 text-sm text-right font-medium">Rp {Number(tx.total || 0).toLocaleString('id-ID')}</td>
+                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.price || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</td>
+                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.subtotal || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</td>
+                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.discount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</td>
+                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.tax || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</td>
+                        <td className="px-4 py-3 text-sm text-right font-medium">Rp {Number(tx.total || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</td>
                         <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">{(tx.bill_discount || 0).toLocaleString()}</td>
                         <td className="px-4 py-3 text-sm text-right font-bold text-green-600">{(tx.total_after_bill_discount || 0).toLocaleString()}</td>
                       </tr>
