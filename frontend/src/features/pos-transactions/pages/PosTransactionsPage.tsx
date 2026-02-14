@@ -6,6 +6,8 @@ import { useBranchesStore } from '@/features/branches/store/branches.store'
 import { usePaymentMethodsStore } from '@/features/payment-methods/store/paymentMethods.store'
 import { useJobsStore } from '@/features/jobs'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { handleError } from '@/lib/errorParser'
+import { useToast } from '@/contexts/ToastContext'
 import {
   PAGINATION_CONFIG,
   DATE_PRESETS,
@@ -101,6 +103,7 @@ function PosTransactionsContent() {
   const { branches, fetchBranches } = useBranchesStore()
   const { paymentMethods, fetchPaymentMethods } = usePaymentMethodsStore()
   const { fetchRecentJobs } = useJobsStore()
+  const toast = useToast()
   const [transactions, setTransactions] = useState<PosTransaction[]>([])
   const [summary, setSummary] = useState<Summary>({ totalAmount: 0, totalTax: 0, totalDiscount: 0, totalAfterBillDiscount:0, totalBillDiscount:0, totalSubtotal: 0, transactionCount: 0 })
   const [loading, setLoading] = useState(false)
@@ -172,7 +175,8 @@ function PosTransactionsContent() {
       }
     } catch (error) {
       if (!abortController.signal.aborted) {
-        console.error('Failed to fetch transactions:', error)
+        // Use centralized error handler (toast is already shown by axios interceptor)
+        handleError(error, { module: 'PosTransactions', action: 'fetchTransactions' }, { showToast: false })
       }
     } finally {
       if (!abortController.signal.aborted) {
@@ -225,15 +229,14 @@ function PosTransactionsContent() {
         paymentMethods: selectedPayments.length > 0 ? selectedPayments.join(',') : undefined
       })
       
-      // Show success message
-      alert(MESSAGE_CONFIG.EXPORT_SUCCESS)
+      // Show success message using toast
+      toast.success(MESSAGE_CONFIG.EXPORT_SUCCESS)
       
       // Refresh jobs list
       fetchRecentJobs()
     } catch (error) {
-      console.error('Failed to export:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create export job'
-      alert(errorMessage)
+      // Use centralized error handler
+      handleError(error, { module: 'PosTransactions', action: 'handleExport' })
     } finally {
       setLoading(false)
     }

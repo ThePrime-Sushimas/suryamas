@@ -1,6 +1,8 @@
 import axios from 'axios'
 import type { InternalAxiosRequestConfig } from 'axios'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
+import { parseApiError, setErrorToast } from './errorParser'
+import { useToast } from '@/contexts/ToastContext'
 
 const PUBLIC_ENDPOINTS = [
   '/auth/login',
@@ -25,6 +27,29 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+})
+
+// Initialize toast for error handling
+let toast: ReturnType<typeof useToast> | null = null
+const getToast = () => {
+  if (!toast) {
+    try {
+      toast = useToast()
+    } catch {
+      // Toast context not available
+    }
+  }
+  return toast
+}
+
+// Set error toast function for centralized error handling
+setErrorToast((message: string) => {
+  const t = getToast()
+  if (t) {
+    t.error(message)
+  } else {
+    console.warn('[Toast not available]:', message)
+  }
 })
 
 // Request interceptor - add auth token and branch context
@@ -96,25 +121,81 @@ api.interceptors.response.use(
     }
     
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
+    const status = error.response?.status
+    const t = getToast()
 
-    // Token expired - try refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true
-      
-      try {
-        const refreshToken = localStorage.getItem('refreshToken')
-        if (refreshToken) {
-          // Call refresh endpoint
-          // const { data } = await axios.post('/auth/refresh', { refreshToken })
-          // localStorage.setItem('token', data.token)
-          // return api(originalRequest)
+    // Handle specific HTTP status codes with centralized messages
+    switch (status) {
+      case 401:
+        // Token expired - try refresh
+        if (!originalRequest._retry) {
+          originalRequest._retry = true
+          
+          try {
+            const refreshToken = localStorage.getItem('refreshToken')
+            if (refreshToken) {
+              // Call refresh endpoint
+              // const { data } = await axios.post('/auth/refresh', { refreshToken })
+              // localStorage.setItem('token', data.token)
+              // return api(originalRequest)
+            }
+          } catch (refreshError) {
+            localStorage.removeItem('token')
+            localStorage.removeItem('refreshToken')
+            
+            // Show toast and redirect
+            if (t) {
+              t.error('Session expired. Please login again.')
+            }
+            setTimeout(() => {
+              window.location.href = '/login'
+            }, 1500)
+            return Promise.reject(refreshError)
+          }
         }
-      } catch (refreshError) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('refreshToken')
-        window.location.href = '/login'
-        return Promise.reject(refreshError)
-      }
+        break
+
+      case 403:
+        // Permission denied - show toast
+        if (t) {
+          t.error('You do not have permission to perform this action.')
+        }
+        break
+
+      case 404:
+        // Resource not found - show toast for mutation requests (POST, PUT, DELETE)
+        const method = originalRequest.method?.toUpperCase()
+        if (method !== 'GET' && t) {
+          const message = parseApiError(error, 'The requested resource was not found.')
+          t.error(message)
+        }
+        break
+
+      case 422:
+      case 409:
+        // Validation/Conflict error - show toast
+        if (t) {
+          const message = parseApiError(error, 'Operation could not be completed.')
+          t.error(message)
+        }
+        break
+
+      case 500:
+      case 502:
+      case 503:
+      case 504:
+        // Server errors - show generic message
+        if (t) {
+          t.error('Server error. Please try again later.')
+        }
+        break
+
+      case 429:
+        // Rate limited - show toast
+        if (t) {
+          t.error('Too many requests. Please wait a moment.')
+        }
+        break
     }
 
     // Retry logic for network errors
