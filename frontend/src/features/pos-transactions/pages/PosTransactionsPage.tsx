@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
-import { Filter, X, Download, TrendingUp, Receipt, DollarSign, Percent, ChevronDown } from 'lucide-react'
+import { Filter, X, Download, ChevronDown } from 'lucide-react'
 import { posTransactionsApi, type PosTransactionFilters } from '../api/pos-transactions.api'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useBranchesStore } from '@/features/branches/store/branches.store'
@@ -308,59 +308,45 @@ function PosTransactionsContent() {
       </div>
 
       {summary.transactionCount > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="bg-white rounded-lg shadow p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total Amount</p>
-                <p className="text-2xl font-bold text-gray-900">Rp {(summary.totalAmount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
-              </div>
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <DollarSign className="text-blue-600" size={24} />
+                <p className="text-xs text-gray-600">Total Amount</p>
+                <p className="text-lg font-bold text-gray-900">Rp {(summary.totalAmount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-white rounded-lg shadow p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total Tax</p>
-                <p className="text-2xl font-bold text-gray-900">Rp {(summary.totalTax || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
-              </div>
-              <div className="p-3 bg-green-100 rounded-lg">
-                <TrendingUp className="text-green-600" size={24} />
+                <p className="text-xs text-gray-600">Total Tax</p>
+                <p className="text-lg font-bold text-gray-900">Rp {(summary.totalTax || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-white rounded-lg shadow p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Bill Discount</p>
-                <p className="text-2xl font-bold text-gray-900">Rp {(summary.totalBillDiscount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
+                <p className="text-xs text-gray-600">Bill Discount</p>
+                <p className="text-lg font-bold text-gray-900">Rp {(summary.totalBillDiscount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
               </div>
-              <div className="p-3 bg-orange-100 rounded-lg">
-                <Percent className="text-orange-600" size={24} />
+
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-600">After Bill Disc</p>
+                <p className="text-lg font-bold text-green-600">Rp {(summary.totalAfterBillDiscount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-white rounded-lg shadow p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">After Bill Disc</p>
-                <p className="text-2xl font-bold text-green-600">Rp {(summary.totalAfterBillDiscount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
-              </div>
-              <div className="p-3 bg-green-100 rounded-lg">
-                <DollarSign className="text-green-600" size={24} />
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Transactions</p>
-                <p className="text-2xl font-bold text-gray-900">{(summary.transactionCount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
-              </div>
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <Receipt className="text-purple-600" size={24} />
+                <p className="text-xs text-gray-600">Transactions</p>
+                <p className="text-lg font-bold text-gray-900">{(summary.transactionCount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
               </div>
             </div>
           </div>
