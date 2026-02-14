@@ -4,6 +4,7 @@ import type {
 } from "@/features/pos-aggregates/types";
 import { posAggregatesApi } from "@/features/pos-aggregates/api/posAggregates.api";
 import { useState, useCallback, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Sparkles,
   RefreshCw,
@@ -26,6 +27,7 @@ import type {
   MatchingCriteria,
 } from "../types/bank-reconciliation.types";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { SettlementGroupList } from "../components/reconciliation/SettlementGroupList";
 
 // Type definitions for better type safety
 type DateRange = {
@@ -34,6 +36,7 @@ type DateRange = {
 };
 
 export function BankReconciliationPage() {
+  const navigate = useNavigate();
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [isAutoMatchOpen, setIsAutoMatchOpen] = useState(false);
   const [selectedStatement, setSelectedStatement] = useState<BankStatementWithMatch | null>(null);
@@ -73,6 +76,12 @@ export function BankReconciliationPage() {
     undoMultiMatch,
     pagination,
     setPage,
+    // Settlement Groups
+    settlementGroups,
+    settlementGroupsError,
+    settlementGroupsTotal,
+    fetchSettlementGroups,
+    deleteSettlementGroup,
   } = useBankReconciliation();
 
   // Fetch all bank accounts on mount
@@ -106,8 +115,15 @@ export function BankReconciliationPage() {
 
     if (filters.startDate && filters.endDate) {
       fetchReconciliationGroups(filters.startDate, filters.endDate);
+      // Fetch Settlement Groups
+      fetchSettlementGroups({
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        limit: 50,
+        offset: 0,
+      });
     }
-  }, [setFilter, fetchStatementsWithFilters, fetchReconciliationGroups]);
+  }, [setFilter, fetchStatementsWithFilters, fetchReconciliationGroups, fetchSettlementGroups]);
 
   const handleClearFilters = useCallback(() => {
     clearFilter();
@@ -131,6 +147,13 @@ export function BankReconciliationPage() {
       
       if (dateRange.startDate && dateRange.endDate) {
         await fetchReconciliationGroups(dateRange.startDate, dateRange.endDate);
+        // Refresh Settlement Groups
+        await fetchSettlementGroups({
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          limit: 50,
+          offset: 0,
+        });
       }
     } catch (err) {
       console.error('Failed to refresh data:', err);
@@ -138,7 +161,7 @@ export function BankReconciliationPage() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [filter, dateRange.startDate, dateRange.endDate, selectedAccountId, fetchStatementsWithFilters, fetchReconciliationGroups]);
+  }, [filter, dateRange.startDate, dateRange.endDate, selectedAccountId, fetchStatementsWithFilters, fetchReconciliationGroups, fetchSettlementGroups]);
 
   // Memoize unreconciled statements to avoid unnecessary re-computation
   const unreconciledStatements = useMemo(() => {
@@ -332,6 +355,27 @@ export function BankReconciliationPage() {
     }
   };
 
+  const handleViewSettlementGroupDetails = (groupId: string) => {
+    navigate(`/bank-reconciliation/settlement-groups/${groupId}`);
+  };
+
+  const handleDeleteSettlementGroup = async (groupId: string) => {
+    try {
+      await deleteSettlementGroup(groupId);
+      // Refresh data after deletion
+      if (dateRange.startDate && dateRange.endDate) {
+        await fetchSettlementGroups({
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          limit: 50,
+          offset: 0,
+        });
+      }
+    } catch (err) {
+      console.error("Delete settlement group error:", err);
+    }
+  };
+
   return (
     <div className="max-w-[1600px] mx-auto p-6 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Header */}
@@ -504,6 +548,17 @@ export function BankReconciliationPage() {
                   </div>
                 </div>
               )}
+              
+              {/* Settlement Groups - 1 Bank Statement → Many Aggregates */}
+              <SettlementGroupList
+                groups={settlementGroups}
+                onViewDetails={handleViewSettlementGroupDetails}
+                onDelete={handleDeleteSettlementGroup}
+                isLoading={isLoading}
+                total={settlementGroupsTotal}
+              />
+              
+              {/* Multi-Match Groups - 1 Aggregate → Many Statements */}
               <MultiMatchGroupList
                 groups={reconciliationGroups}
                 onUndoGroup={handleUndoMultiMatch}

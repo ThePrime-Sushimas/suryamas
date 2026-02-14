@@ -14,6 +14,8 @@ import type {
   MultiMatchSuggestion,
   MultiMatchRequest,
   MultiMatchResult,
+  SettlementGroup,
+  SettlementGroupQueryDto,
 } from "../types/bank-reconciliation.types";
 
 export interface BankStatementFilterParams {
@@ -251,6 +253,37 @@ export const bankReconciliationApi = {
       { params },
     );
     return response.data.data;
+  },
+
+  // =====================================================
+  // SETTLEMENT GROUPS API METHODS (1 Bank Statement → Many Aggregates)
+  // =====================================================
+
+  /**
+   * Get settlement groups list with filters
+   */
+  async getSettlementGroups(
+    params: SettlementGroupQueryDto,
+  ): Promise<{ data: SettlementGroup[]; total: number }> {
+    const response = await api.get("/settlement-group/list", { params });
+    return response.data;
+  },
+
+  /**
+   * Get settlement group by ID
+   */
+  async getSettlementGroupById(
+    id: string,
+  ): Promise<SettlementGroup> {
+    const response = await api.get(`/settlement-group/${id}`);
+    return response.data.data;
+  },
+
+  /**
+   * Delete a settlement group
+   */
+  async deleteSettlementGroup(id: string): Promise<void> {
+    await api.delete(`/settlement-group/${id}`);
   },
 };
 

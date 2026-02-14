@@ -290,3 +290,117 @@ export interface MultiMatchResult {
 export interface BankStatementWithAmount extends BankStatementWithMatch {
   amount: number;
 }
+
+// =====================================================
+// SETTLEMENT GROUPS TYPES (1 Bank Statement → Many Aggregates)
+// =====================================================
+
+/**
+ * Status untuk settlement group (BULK SETTLEMENT)
+ */
+export type SettlementGroupStatus = 
+  | 'PENDING'
+  | 'RECONCILED'
+  | 'DISCREPANCY'
+  | 'UNDO';
+
+export const SettlementGroupStatusMap = {
+  PENDING: 'PENDING',
+  RECONCILED: 'RECONCILED',
+  DISCREPANCY: 'DISCREPANCY',
+  UNDO: 'UNDO',
+} as const;
+
+/**
+ * Settlement Group - 1 Bank Statement → Many Aggregates
+ */
+export interface SettlementGroup {
+  id: string;
+  company_id: string;
+  bank_statement_id: string;
+  settlement_number: string;
+  settlement_date: string;
+  payment_method?: string;
+  bank_name?: string;
+  total_statement_amount: number;
+  total_allocated_amount: number;
+  difference: number;
+  status: SettlementGroupStatus;
+  notes?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+  confirmed_at?: string;
+  deleted_at?: string | null;
+  
+  // Joined data
+  aggregates?: SettlementAggregate[];
+  bank_statement?: BankStatementInfo;
+}
+
+/**
+ * Settlement Aggregate - mapping aggregate ke settlement group
+ */
+export interface SettlementAggregate {
+  id: string;
+  settlement_group_id: string;
+  aggregate_id: string;
+  branch_name?: string;
+  allocated_amount: number;
+  original_amount: number;
+  created_at: string;
+  aggregate?: AggregatedTransactionInfo;
+}
+
+/**
+ * Info singkat aggregate untuk response
+ */
+export interface AggregatedTransactionInfo {
+  id: string;
+  transaction_date: string;
+  gross_amount: number;
+  nett_amount: number;
+  payment_method_name?: string;
+  branch_name?: string;
+}
+
+/**
+ * Info singkat bank statement untuk response
+ */
+export interface BankStatementInfo {
+  id: string;
+  transaction_date: string;
+  description: string;
+  reference_number?: string;
+  debit_amount: number;
+  credit_amount: number;
+  amount?: number;
+  bank_name?: string;
+  payment_method?: string;
+}
+
+/**
+ * Query params untuk list settlement groups
+ */
+export interface SettlementGroupQueryDto {
+  startDate?: string;
+  endDate?: string;
+  status?: SettlementGroupStatus;
+  search?: string;
+  limit?: number;
+  offset?: number;
+  sort?: {
+    field: string;
+    order: 'asc' | 'desc';
+  };
+}
+
+/**
+ * Response paginated untuk list settlement groups
+ */
+export interface SettlementGroupListResponseDto {
+  data: SettlementGroup[];
+  total: number;
+  page: number;
+  limit: number;
+}

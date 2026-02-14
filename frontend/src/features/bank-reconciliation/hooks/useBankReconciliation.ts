@@ -11,6 +11,8 @@ import type {
   ReconciliationGroup,
   MultiMatchSuggestion,
   MultiMatchRequest,
+  SettlementGroup,
+  SettlementGroupQueryDto,
 } from "../types/bank-reconciliation.types";
 import type { AggregatedTransactionListItem } from "@/features/pos-aggregates/types";
 import { bankReconciliationApi } from "../api/bank-reconciliation.api";
@@ -67,6 +69,13 @@ export function useBankReconciliation() {
   const [selectedAggregate, setSelectedAggregate] = useState<
     AggregatedTransactionListItem | null
   >(null);
+
+  // =====================================================
+  // SETTLEMENT GROUPS STATE (1 Bank Statement → Many Aggregates)
+  // =====================================================
+  const [settlementGroups, setSettlementGroups] = useState<SettlementGroup[]>([]);
+  const [settlementGroupsError, setSettlementGroupsError] = useState<string | null>(null);
+  const [settlementGroupsTotal, setSettlementGroupsTotal] = useState(0);
 
   // =====================================================
   // SUMMARY & ACCOUNTS METHODS
@@ -470,6 +479,48 @@ async (filters: BankStatementFilter, resetPagination = true) => {
   }, []);
 
   // =====================================================
+  // SETTLEMENT GROUPS METHODS (1 Bank Statement → Many Aggregates)
+  // =====================================================
+
+  const fetchSettlementGroups = useCallback(
+    async (params: SettlementGroupQueryDto) => {
+      setSettlementGroupsError(null);
+      setIsLoading(true);
+      try {
+        const result = await bankReconciliationApi.getSettlementGroups(params);
+        setSettlementGroups(result.data);
+        setSettlementGroupsTotal(result.total);
+        return result;
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to fetch settlement groups";
+        setSettlementGroupsError(errorMessage);
+        console.error("Error fetching settlement groups:", err);
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
+
+  const deleteSettlementGroup = useCallback(async (id: string) => {
+    setIsLoading(true);
+    try {
+      await bankReconciliationApi.deleteSettlementGroup(id);
+      // Refresh the list after deletion
+      setSettlementGroups(prev => prev.filter(g => g.id !== id));
+      setSettlementGroupsTotal(prev => prev - 1);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Failed to delete settlement group",
+      );
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // =====================================================
   // RETURN
   // =====================================================
 
@@ -516,6 +567,13 @@ async (filters: BankStatementFilter, resetPagination = true) => {
     fetchReconciliationGroups,
     getMultiMatchGroup,
     clearMultiMatchSuggestions,
+
+    // Settlement groups state & methods (1 Bank Statement → Many Aggregates)
+    settlementGroups,
+    settlementGroupsError,
+    settlementGroupsTotal,
+    fetchSettlementGroups,
+    deleteSettlementGroup,
   };
 }
 
