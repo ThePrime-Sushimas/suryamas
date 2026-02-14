@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { Filter, X, Download, TrendingUp, Receipt, DollarSign, Percent, ChevronDown } from 'lucide-react'
 import { posTransactionsApi, type PosTransactionFilters } from '../api/pos-transactions.api'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
@@ -104,6 +104,24 @@ function PosTransactionsContent() {
   const [selectedPayments, setSelectedPayments] = useState<string[]>([])
   const [showBranchDropdown, setShowBranchDropdown] = useState(false)
   const [showPaymentDropdown, setShowPaymentDropdown] = useState(false)
+  
+  // Refs for dropdown click outside detection
+  const branchDropdownRef = useRef<HTMLDivElement>(null)
+  const paymentDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Click outside handler
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target as Node)) {
+        setShowBranchDropdown(false)
+      }
+      if (paymentDropdownRef.current && !paymentDropdownRef.current.contains(event.target as Node)) {
+        setShowPaymentDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   useEffect(() => {
     if (currentBranch?.company_id) {
@@ -375,7 +393,7 @@ function PosTransactionsContent() {
             </div>
             
             {/* Branch Dropdown */}
-            <div className="relative">
+            <div className="relative" ref={branchDropdownRef}>
               <button
                 onClick={() => setShowBranchDropdown(!showBranchDropdown)}
                 className="w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50"
@@ -401,7 +419,7 @@ function PosTransactionsContent() {
             </div>
 
             {/* Payment Method Dropdown */}
-            <div className="relative">
+            <div className="relative" ref={paymentDropdownRef}>
               <button
                 onClick={() => setShowPaymentDropdown(!showPaymentDropdown)}
                 className="w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50"

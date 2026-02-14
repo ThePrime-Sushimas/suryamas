@@ -6,7 +6,7 @@
  * Uses "Apply Filters" pattern - data only fetches when user clicks Apply.
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { usePosAggregatesStore } from '../store/posAggregates.store'
 import { useBranchesStore } from '@/features/branches/store/branches.store'
 import { usePaymentMethodsStore } from '@/features/payment-methods/store/paymentMethods.store'
@@ -59,6 +59,24 @@ export const PosAggregatesFilters: React.FC = () => {
   const [showPaymentDropdown, setShowPaymentDropdown] = useState(false)
   const [showFilters, setShowFilters] = useState(true)
   const [isApplyingFilters, setIsApplyingFilters] = useState(false)
+  
+  // Refs for dropdown click outside detection
+  const branchDropdownRef = useRef<HTMLDivElement>(null)
+  const paymentDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Click outside handler
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target as Node)) {
+        setShowBranchDropdown(false)
+      }
+      if (paymentDropdownRef.current && !paymentDropdownRef.current.contains(event.target as Node)) {
+        setShowPaymentDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
   // Fetch branches and payment methods on mount
   useEffect(() => {
     fetchBranches(1, 100)
@@ -251,7 +269,7 @@ export const PosAggregatesFilters: React.FC = () => {
             </div>
 
             {/* Branch Dropdown */}
-            <div className="relative w-48">
+            <div className="relative w-48" ref={branchDropdownRef}>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Cabang
               </label>
@@ -282,7 +300,7 @@ export const PosAggregatesFilters: React.FC = () => {
             </div>
 
             {/* Payment Method Dropdown */}
-            <div className="relative w-48">
+            <div className="relative w-48" ref={paymentDropdownRef}>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Metode Pembayaran
               </label>
