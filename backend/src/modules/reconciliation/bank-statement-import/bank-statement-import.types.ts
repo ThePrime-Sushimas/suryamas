@@ -62,7 +62,7 @@ export interface BankStatement {
   // Reconciliation status
   is_reconciled: boolean
   reconciled_at?: string
-  reconciliation_id?: number
+  reconciliation_id?: string
   
   // Import metadata
   source_file?: string
