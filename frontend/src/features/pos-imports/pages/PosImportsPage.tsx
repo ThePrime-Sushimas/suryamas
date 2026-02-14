@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { Upload, AlertCircle, Search, X } from 'lucide-react'
 import { usePosImportsStore } from '../store/pos-imports.store'
-import { posImportsApi } from '../api/pos-imports.api'
 import { UploadModal } from '../components/UploadModal'
 import { AnalysisModal } from '../components/AnalysisModal'
 import { PosImportsTable } from '../components/PosImportsTable'
@@ -41,7 +40,8 @@ function PosImportsPageContent() {
     clearAnalyzeResult,
     clearError,
     setFilters,
-    reset
+    reset,
+    exportImport
   } = usePosImportsStore()
 
   // Sync errors from store to toast for visual feedback
@@ -165,7 +165,7 @@ function PosImportsPageContent() {
       try {
         const imp = imports.find(i => i.id === id)
         if (!imp) continue
-        const blob = await posImportsApi.export(id)
+        const blob = await exportImport(id)
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url

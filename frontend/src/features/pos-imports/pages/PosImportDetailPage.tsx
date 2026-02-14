@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, AlertCircle, Download, Search, X } from 'lucide-react'
+import { usePosImportsStore } from '../store/pos-imports.store'
 import { posImportsApi } from '../api/pos-imports.api'
 import { PosImportsErrorBoundary } from '../components/PosImportsErrorBoundary'
 import type { PosImport, PosImportLine } from '../types/pos-imports.types'
@@ -9,6 +10,7 @@ import { POS_IMPORT_DEFAULT_PAGE_SIZE } from '../constants/pos-imports.constants
 function PosImportDetailPageContent() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { exportImport } = usePosImportsStore()
   const [posImport, setPosImport] = useState<PosImport | null>(null)
   const [lines, setLines] = useState<PosImportLine[]>([])
   const [allLinesSummary, setAllLinesSummary] = useState({ 
@@ -65,7 +67,7 @@ function PosImportDetailPageContent() {
     if (!id || !posImport) return
     setExporting(true)
     try {
-      const blob = await posImportsApi.export(id)
+      const blob = await exportImport(id)
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url

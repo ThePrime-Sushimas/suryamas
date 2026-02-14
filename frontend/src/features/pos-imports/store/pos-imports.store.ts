@@ -86,6 +86,9 @@ interface PosImportsState {
   setFilters: (filters: ImportFilters) => void
   setPagination: (page: number, limit?: number) => void
   
+  // Export
+  exportImport: (id: string) => Promise<Blob>
+
   clearAnalyzeResult: () => void
   clearError: (type?: keyof PosImportsState['errors']) => void
   reset: () => void
@@ -432,6 +435,11 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
     const newPagination = { ...get().pagination, page, ...(limit && { limit }) }
     set({ pagination: newPagination })
     get().fetchImports({ page, limit })
+  },
+
+  // Export
+  exportImport: async (id: string): Promise<Blob> => {
+    return await posImportsApi.export(id)
   },
 
   clearAnalyzeResult: () => set({ analyzeResult: null }),
