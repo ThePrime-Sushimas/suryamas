@@ -206,6 +206,9 @@ function PosTransactionsContent() {
     fetchTransactions()
   }
 
+  // Check if date filters are selected (both dateFrom and dateTo required)
+  const isDateFilterValid = Boolean(filters.dateFrom && filters.dateTo)
+
   const handleClearFilters = () => {
     setFilters({})
     setSelectedBranches([])
@@ -466,13 +469,18 @@ function PosTransactionsContent() {
             />
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <button
               onClick={handleApplyFilters}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              disabled={!isDateFilterValid}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              title={!isDateFilterValid ? 'Please select both Date From and Date To' : 'Apply Filters'}
             >
               Apply Filters
             </button>
+            {!isDateFilterValid && (
+              <span className="text-xs text-amber-600">* Select date range to apply filters</span>
+            )}
             <button
               onClick={handleClearFilters}
               className="px-4 py-2 border rounded hover:bg-gray-50"
