@@ -29,6 +29,7 @@ import { useAuthStore } from "@/features/auth";
 import { BranchSwitcher, usePermissionStore } from "@/features/branch_context";
 import { UploadProgressToast } from "@/features/pos-imports/components/UploadProgressToast";
 import { JobNotificationBell } from "@/features/jobs";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 interface MenuItem {
   id: string;
@@ -448,9 +449,9 @@ export default function Layout() {
   const userInitial = user?.full_name?.charAt(0).toUpperCase() || "U";
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-black">
       {/* Top Navigation */}
-      <header className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+      <header className="sticky top-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
@@ -485,7 +486,7 @@ export default function Layout() {
               </Link>
             </div>
 
-            <div className="flex items-center gap-4">
+<div className="flex items-center gap-4">
               <BranchSwitcher />
               <button
                 className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400"
@@ -493,6 +494,7 @@ export default function Layout() {
               >
                 <Search size={20} />
               </button>
+              <ThemeToggle />
               <JobNotificationBell />
 
               {/* Profile Dropdown */}

@@ -22,10 +22,10 @@ const LoadingContent = () => (
   <div className="p-6 space-y-6">
     {/* Header skeleton */}
     <div className="flex items-center justify-between">
-      <div className="h-8 w-48 bg-gray-200 animate-pulse rounded"></div>
+      <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 animate-pulse rounded"></div>
       <div className="flex gap-2">
-        <div className="h-10 w-24 bg-gray-200 animate-pulse rounded"></div>
-        <div className="h-10 w-32 bg-gray-200 animate-pulse rounded"></div>
+        <div className="h-10 w-24 bg-gray-200 dark:bg-gray-700 animate-pulse rounded"></div>
+        <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 animate-pulse rounded"></div>
       </div>
     </div>
     {/* Cards skeleton */}
@@ -42,12 +42,12 @@ const LoadingContent = () => (
 // Error fallback component
 const ErrorFallback = () => (
   <div className="p-6">
-    <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-      <h2 className="text-xl font-bold text-red-600 mb-2">{MESSAGE_CONFIG.ERROR_TITLE}</h2>
-      <p className="text-gray-600 mb-4">{MESSAGE_CONFIG.ERROR_MESSAGE}</p>
+    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+      <h2 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2">{MESSAGE_CONFIG.ERROR_TITLE}</h2>
+      <p className="text-gray-600 dark:text-gray-400 mb-4">{MESSAGE_CONFIG.ERROR_MESSAGE}</p>
       <button
         onClick={() => window.location.reload()}
-        className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+        className="px-4 py-2 bg-red-600 dark:bg-red-600 text-white rounded hover:bg-red-700 dark:hover:bg-red-700"
       >
         {MESSAGE_CONFIG.RELOAD_BUTTON}
       </button>
@@ -277,8 +277,8 @@ function PosTransactionsContent() {
   if (!currentBranch?.company_id) {
     return (
       <div className="p-6">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-yellow-800">{MESSAGE_CONFIG.NO_BRANCH_SELECTED}</p>
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+          <p className="text-yellow-800 dark:text-yellow-300">{MESSAGE_CONFIG.NO_BRANCH_SELECTED}</p>
         </div>
       </div>
     )
@@ -288,13 +288,13 @@ function PosTransactionsContent() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">POS Transactions</h1>
-          <p className="text-sm text-gray-600 mt-1">Consolidated view of all imported transactions</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">POS Transactions</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Consolidated view of all imported transactions</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 border rounded hover:bg-gray-50"
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
             disabled={transactions.length === 0}
           >
             <Download size={16} />
@@ -302,7 +302,7 @@ function PosTransactionsContent() {
           </button>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-4 py-2 border rounded hover:bg-gray-50"
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
           >
             <Filter size={16} />
             {showFilters ? 'Hide' : 'Show'} Filters
@@ -312,44 +312,44 @@ function PosTransactionsContent() {
 
       {summary.transactionCount > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <div className="bg-white rounded-lg shadow p-3">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-700/50 p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-600">Total Amount</p>
-                <p className="text-lg font-bold text-gray-900">Rp {(summary.totalAmount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Total Amount</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-white">Rp {(summary.totalAmount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow p-3">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-700/50 p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-600">Total Tax</p>
-                <p className="text-lg font-bold text-gray-900">Rp {(summary.totalTax || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Total Tax</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-white">Rp {(summary.totalTax || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow p-3">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-700/50 p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-600">Bill Discount</p>
-                <p className="text-lg font-bold text-gray-900">Rp {(summary.totalBillDiscount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Bill Discount</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-white">Rp {(summary.totalBillDiscount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
               </div>
 
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow p-3">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-700/50 p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-600">After Bill Disc</p>
-                <p className="text-lg font-bold text-green-600">Rp {(summary.totalAfterBillDiscount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">After Bill Disc</p>
+                <p className="text-lg font-bold text-green-600 dark:text-green-400">Rp {(summary.totalAfterBillDiscount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow p-3">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-700/50 p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-600">Transactions</p>
-                <p className="text-lg font-bold text-gray-900">{(summary.transactionCount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Transactions</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-white">{(summary.transactionCount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</p>
               </div>
             </div>
           </div>
@@ -357,31 +357,31 @@ function PosTransactionsContent() {
       )}
 
       {showFilters && (
-        <div className="bg-white rounded-lg shadow p-4 space-y-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-700/50 p-4 space-y-4">
           <div className="flex gap-2">
-            <button onClick={() => setDatePreset(DATE_PRESETS.TODAY)} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">Today</button>
-            <button onClick={() => setDatePreset(DATE_PRESETS.WEEK)} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">This Week</button>
-            <button onClick={() => setDatePreset(DATE_PRESETS.MONTH)} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">This Month</button>
-            <button onClick={() => setDatePreset(DATE_PRESETS.LAST_MONTH)} className="px-3 py-1 text-sm border rounded hover:bg-gray-50">Last Month</button>
+            <button onClick={() => setDatePreset(DATE_PRESETS.TODAY)} className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Today</button>
+            <button onClick={() => setDatePreset(DATE_PRESETS.WEEK)} className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">This Week</button>
+            <button onClick={() => setDatePreset(DATE_PRESETS.MONTH)} className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">This Month</button>
+            <button onClick={() => setDatePreset(DATE_PRESETS.LAST_MONTH)} className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Last Month</button>
           </div>
 
           <div className="grid grid-cols-4 gap-4">
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Date From</label>
+              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Date From</label>
               <input
                 type="date"
                 value={filters.dateFrom || ''}
                 onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
-                className="w-full border rounded px-3 py-2 text-sm"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Date To</label>
+              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Date To</label>
               <input
                 type="date"
                 value={filters.dateTo || ''}
                 onChange={(e) => handleFilterChange('dateTo', e.target.value)}
-                className="w-full border rounded px-3 py-2 text-sm"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
             
@@ -389,22 +389,22 @@ function PosTransactionsContent() {
             <div className="relative" ref={branchDropdownRef}>
               <button
                 onClick={() => setShowBranchDropdown(!showBranchDropdown)}
-                className="w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
-                <span>{selectedBranches.length === 0 ? 'All Branches' : `${selectedBranches.length} selected`}</span>
-                <ChevronDown size={16} />
+                <span className="text-gray-900 dark:text-white">{selectedBranches.length === 0 ? 'All Branches' : `${selectedBranches.length} selected`}</span>
+                <ChevronDown size={16} className="text-gray-500 dark:text-gray-400" />
               </button>
               {showBranchDropdown && (
-                <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded shadow-lg max-h-60 overflow-y-auto">
                   {branches.map(b => (
-                    <label key={b.id} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                    <label key={b.id} className="flex items-center px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={selectedBranches.includes(b.branch_name)}
                         onChange={() => handleBranchToggle(b.branch_name)}
                         className="mr-2"
                       />
-                      <span className="text-sm">{b.branch_name}</span>
+                      <span className="text-sm text-gray-900 dark:text-white">{b.branch_name}</span>
                     </label>
                   ))}
                 </div>
@@ -415,22 +415,22 @@ function PosTransactionsContent() {
             <div className="relative" ref={paymentDropdownRef}>
               <button
                 onClick={() => setShowPaymentDropdown(!showPaymentDropdown)}
-                className="w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
-                <span>{selectedPayments.length === 0 ? 'All Payments' : `${selectedPayments.length} selected`}</span>
-                <ChevronDown size={16} />
+                <span className="text-gray-900 dark:text-white">{selectedPayments.length === 0 ? 'All Payments' : `${selectedPayments.length} selected`}</span>
+                <ChevronDown size={16} className="text-gray-500 dark:text-gray-400" />
               </button>
               {showPaymentDropdown && (
-                <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded shadow-lg max-h-60 overflow-y-auto">
                   {paymentMethods.map(pm => (
-                    <label key={pm.id} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                    <label key={pm.id} className="flex items-center px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={selectedPayments.includes(pm.name)}
                         onChange={() => handlePaymentToggle(pm.name)}
                         className="mr-2"
                       />
-                      <span className="text-sm">{pm.name}</span>
+                      <span className="text-sm text-gray-900 dark:text-white">{pm.name}</span>
                     </label>
                   ))}
                 </div>
@@ -444,28 +444,28 @@ function PosTransactionsContent() {
               value={filters.salesNumber || ''}
               onChange={(e) => handleFilterChange('salesNumber', e.target.value)}
               placeholder="Sales Number"
-              className="border rounded px-3 py-2 text-sm"
+              className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
             <input
               type="text"
               value={filters.billNumber || ''}
               onChange={(e) => handleFilterChange('billNumber', e.target.value)}
               placeholder="Bill Number"
-              className="border rounded px-3 py-2 text-sm"
+              className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
             <input
               type="text"
               value={filters.menuName || ''}
               onChange={(e) => handleFilterChange('menuName', e.target.value)}
               placeholder="Menu Name"
-              className="border rounded px-3 py-2 text-sm"
+              className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
             <input
               type="text"
               value={filters.menuCategory || ''}
               onChange={(e) => handleFilterChange('menuCategory', e.target.value)}
               placeholder="Menu Category"
-              className="border rounded px-3 py-2 text-sm"
+              className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
 
@@ -479,11 +479,11 @@ function PosTransactionsContent() {
               Apply Filters
             </button>
             {!isDateFilterValid && (
-              <span className="text-xs text-amber-600">* Select date range to apply filters</span>
+              <span className="text-xs text-amber-600 dark:text-amber-500">* Select date range to apply filters</span>
             )}
             <button
               onClick={handleClearFilters}
-              className="px-4 py-2 border rounded hover:bg-gray-50"
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
             >
               <X size={16} className="inline mr-1" />
               Clear
@@ -492,56 +492,56 @@ function PosTransactionsContent() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-700/50">
         {loading ? (
           <div className="p-12 text-center">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-            <p className="mt-2 text-sm text-gray-600">{TABLE_CONFIG.LOADING_MESSAGE}</p>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{TABLE_CONFIG.LOADING_MESSAGE}</p>
           </div>
         ) : (
           <>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bill Number</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Menu</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Price</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Subtotal</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Discount</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tax</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Bill Discount</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total After Bill Disc</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Bill Number</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Branch</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Menu</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Payment</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Qty</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Price</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Subtotal</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Discount</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tax</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Bill Discount</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total After Bill Disc</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {transactions.length === 0 ? (
                     <tr>
-                      <td colSpan={13} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={13} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                         {TABLE_CONFIG.EMPTY_MESSAGE}
                       </td>
                     </tr>
                   ) : (
                     transactions.map((tx) => (
-                      <tr key={tx.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm font-medium">{tx.bill_number}</td>
-                        <td className="px-4 py-3 text-sm">{new Date(tx.sales_date).toLocaleDateString()}</td>
-                        <td className="px-4 py-3 text-sm">{tx.branch}</td>
-                        <td className="px-4 py-3 text-sm">{tx.menu}</td>
-                        <td className="px-4 py-3 text-sm">{tx.payment_method}</td>
-                        <td className="px-4 py-3 text-sm text-right">{tx.qty}</td>
-                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.price || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</td>
-                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.subtotal || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</td>
-                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.discount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</td>
-                        <td className="px-4 py-3 text-sm text-right">Rp {Number(tx.tax || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</td>
-                        <td className="px-4 py-3 text-sm text-right font-medium">Rp {Number(tx.total || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</td>
-                        <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">{(tx.bill_discount || 0).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-sm text-right font-bold text-green-600">{(tx.total_after_bill_discount || 0).toLocaleString()}</td>
+                      <tr key={tx.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{tx.bill_number}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{new Date(tx.sales_date).toLocaleDateString()}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{tx.branch}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{tx.menu}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{tx.payment_method}</td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">{tx.qty}</td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">Rp {Number(tx.price || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">Rp {Number(tx.subtotal || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">Rp {Number(tx.discount || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">Rp {Number(tx.tax || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</td>
+                        <td className="px-4 py-3 text-sm text-right font-medium text-gray-900 dark:text-white">Rp {Number(tx.total || 0).toLocaleString(LOCALE_CONFIG.CURRENCY_LOCALE)}</td>
+                        <td className="px-4 py-3 text-sm text-right text-red-600 dark:text-red-400 font-medium">{(tx.bill_discount || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-sm text-right font-bold text-green-600 dark:text-green-400">{(tx.total_after_bill_discount || 0).toLocaleString()}</td>
                       </tr>
                     ))
                   )}
@@ -550,8 +550,8 @@ function PosTransactionsContent() {
             </div>
 
             {totalPages > 1 && (
-              <div className="p-4 border-t flex items-center justify-between">
-                <p className="text-sm text-gray-600">
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
                   Showing {(pagination.page - 1) * pagination.limit + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} transactions
                 </p>
                 <div className="flex gap-2">
@@ -562,11 +562,11 @@ function PosTransactionsContent() {
                       fetchTransactions(newPage)
                     }}
                     disabled={pagination.page === 1}
-                    className="px-3 py-1 border rounded disabled:opacity-50"
+                    className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                   >
                     Previous
                   </button>
-                  <span className="px-3 py-1">
+                  <span className="px-3 py-1 text-gray-700 dark:text-gray-300">
                     Page {pagination.page} of {totalPages}
                   </span>
                   <button
@@ -576,7 +576,7 @@ function PosTransactionsContent() {
                       fetchTransactions(newPage)
                     }}
                     disabled={pagination.page === totalPages}
-                    className="px-3 py-1 border rounded disabled:opacity-50"
+                    className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                   >
                     Next
                   </button>
