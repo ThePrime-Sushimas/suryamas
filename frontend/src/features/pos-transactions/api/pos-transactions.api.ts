@@ -24,8 +24,9 @@ export interface PosTransactionFilters {
 }
 
 export const posTransactionsApi = {
-  list: async (params: { page?: number; limit?: number } & PosTransactionFilters) => {
-    const response = await axios.get('/pos-transactions', { params })
+  list: async (params: { page?: number; limit?: number } & PosTransactionFilters, options?: { signal?: AbortSignal }) => {
+    const config = options?.signal ? { signal: options.signal } : {}
+    const response = await axios.get('/pos-transactions', { params, ...config })
     return response.data
   },
   

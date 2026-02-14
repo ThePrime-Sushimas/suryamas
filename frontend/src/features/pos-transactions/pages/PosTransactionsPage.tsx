@@ -113,36 +113,50 @@ function PosTransactionsContent() {
     }
   }, [currentBranch?.company_id, fetchBranches, fetchPaymentMethods])
 
-  const fetchTransactions = useCallback(async () => {
+  const fetchTransactions = useCallback(async (pageOverride?: number) => {
     if (!currentBranch?.company_id) return
     
+    const abortController = new AbortController()
     setLoading(true)
+    
     try {
+      const currentPage = pageOverride ?? pagination.page
+      
       const result = await posTransactionsApi.list({ 
-        page: pagination.page, 
+        page: currentPage, 
         limit: pagination.limit,
         ...filters,
-        // If nothing selected = select all (don't send filter)
         branches: selectedBranches.length > 0 ? selectedBranches.join(',') : undefined,
         paymentMethods: selectedPayments.length > 0 ? selectedPayments.join(',') : undefined
+      }, {
+        signal: abortController.signal
       })
-      setTransactions(result.data?.data || [])
-      setPagination(prev => ({ ...prev, total: result.data?.total || 0 }))
-      setSummary(result.data?.summary || { 
-        totalAmount: 0, 
-        totalTax: 0, 
-        totalDiscount: 0, 
-        totalBillDiscount: 0,
-        totalAfterBillDiscount: 0,
-        totalSubtotal: 0, 
-        transactionCount: 0 
-      })
+      
+      if (!abortController.signal.aborted) {
+        setTransactions(result.data?.data || [])
+        setPagination(prev => ({ ...prev, total: result.data?.total || 0 }))
+        setSummary(result.data?.summary || { 
+          totalAmount: 0, 
+          totalTax: 0, 
+          totalDiscount: 0, 
+          totalBillDiscount: 0,
+          totalAfterBillDiscount: 0,
+          totalSubtotal: 0, 
+          transactionCount: 0 
+        })
+      }
     } catch (error) {
-      console.error('Failed to fetch transactions:', error)
+      if (!abortController.signal.aborted) {
+        console.error('Failed to fetch transactions:', error)
+      }
     } finally {
-      setLoading(false)
+      if (!abortController.signal.aborted) {
+        setLoading(false)
+      }
     }
-  }, [currentBranch?.company_id, pagination.page, pagination.limit, filters, selectedBranches, selectedPayments])
+    
+    return () => abortController.abort()
+  }, [currentBranch?.company_id, pagination.limit, filters, selectedBranches, selectedPayments])
 
   const handleFilterChange = (key: keyof PosTransactionFilters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value || undefined }))
@@ -527,8 +541,9 @@ function PosTransactionsContent() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
-                      setPagination(p => ({ ...p, page: Math.max(1, p.page - 1) }))
-                      fetchTransactions()
+                      const newPage = Math.max(1, pagination.page - 1)
+                      setPagination(p => ({ ...p, page: newPage }))
+                      fetchTransactions(newPage)
                     }}
                     disabled={pagination.page === 1}
                     className="px-3 py-1 border rounded disabled:opacity-50"
@@ -540,8 +555,9 @@ function PosTransactionsContent() {
                   </span>
                   <button
                     onClick={() => {
-                      setPagination(p => ({ ...p, page: Math.min(totalPages, p.page + 1) }))
-                      fetchTransactions()
+                      const newPage = Math.min(totalPages, pagination.page + 1)
+                      setPagination(p => ({ ...p, page: newPage }))
+                      fetchTransactions(newPage)
                     }}
                     disabled={pagination.page === totalPages}
                     className="px-3 py-1 border rounded disabled:opacity-50"
