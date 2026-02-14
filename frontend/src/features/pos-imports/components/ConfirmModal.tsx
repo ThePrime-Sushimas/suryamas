@@ -102,47 +102,47 @@ export const ConfirmModal = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="text-lg font-semibold">{title}</h3>
-          <button onClick={onCancel} disabled={isLoading} className="text-gray-400 hover:text-gray-600">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
+          <button onClick={onCancel} disabled={isLoading} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
             <X size={20} />
           </button>
         </div>
 
         <div className="p-6 space-y-4">
-          <p className="text-gray-700">{message}</p>
+          <p className="text-gray-700 dark:text-gray-300">{message}</p>
           
           {/* Business Context Display */}
           {contextData && Object.keys(contextData).length > 0 && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2 text-sm">Details:</h4>
+            <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2 text-sm">Details:</h4>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 {contextData.id && (
                   <div>
-                    <span className="text-gray-600">ID:</span>{' '}
-                    <code className="bg-gray-100 px-1 rounded text-xs">{contextData.id}</code>
+                    <span className="text-gray-600 dark:text-gray-400">ID:</span>{' '}
+                    <code className="bg-gray-100 dark:bg-gray-600 px-1 rounded text-xs">{contextData.id}</code>
                   </div>
                 )}
                 {contextData.name && (
                   <div>
-                    <span className="text-gray-600">Name:</span> {contextData.name}
+                    <span className="text-gray-600 dark:text-gray-400">Name:</span> {contextData.name}
                   </div>
                 )}
                 {contextData.type && (
                   <div>
-                    <span className="text-gray-600">Type:</span> {contextData.type}
+                    <span className="text-gray-600 dark:text-gray-400">Type:</span> {contextData.type}
                   </div>
                 )}
                 {contextData.date && (
                   <div>
-                    <span className="text-gray-600">Date:</span> {contextData.date}
+                    <span className="text-gray-600 dark:text-gray-400">Date:</span> {contextData.date}
                   </div>
                 )}
                 {contextData.amount !== undefined && (
                   <div>
-                    <span className="text-gray-600">Amount:</span>{' '}
-                    <span className="font-medium">{contextData.amount}</span>
+                    <span className="text-gray-600 dark:text-gray-400">Amount:</span>{' '}
+                    <span className="font-medium text-gray-900 dark:text-white">{contextData.amount}</span>
                   </div>
                 )}
               </div>
@@ -152,19 +152,19 @@ export const ConfirmModal = ({
           {/* Reason Input for Critical Actions */}
           {requireReason && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Reason <span className="text-red-500">*</span>
               </label>
               <textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder={reasonPlaceholder}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 rows={3}
                 disabled={isLoading}
               />
               {reason.trim().length > 0 && reason.trim().length < 10 && (
-                <p className="text-xs text-red-600 mt-1">
+                <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                   Reason must be at least 10 characters (current: {reason.trim().length})
                 </p>
               )}
@@ -173,10 +173,10 @@ export const ConfirmModal = ({
           
           {/* Permission Warning */}
           {requiredPermission && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
               <div className="flex items-start gap-2">
                 <AlertTriangle className="text-yellow-500 shrink-0 mt-0.5" size={16} />
-                <p className="text-xs text-yellow-700">
+                <p className="text-xs text-yellow-700 dark:text-yellow-400">
                   This action requires <span className="font-medium">{requiredPermission.action}</span> permission on <span className="font-medium">{requiredPermission.module}</span> module.
                 </p>
               </div>
@@ -185,12 +185,12 @@ export const ConfirmModal = ({
           
           {/* Financial Impact Warning (Phase 2) */}
           {financialImpact && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
               <div className="flex items-start gap-2">
                 <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={18} />
                 <div className="text-sm flex-1">
-                  <p className="font-medium text-red-900 mb-2">⚠️ Financial Impact Warning</p>
-                  <ul className="text-red-700 space-y-1">
+                  <p className="font-medium text-red-900 dark:text-red-400 mb-2">⚠️ Financial Impact Warning</p>
+                  <ul className="text-red-700 dark:text-red-400 space-y-1">
                     {financialImpact.affectedTransactions !== undefined && (
                       <li>• {financialImpact.affectedTransactions} transaction(s) will be affected</li>
                     )}
@@ -213,11 +213,11 @@ export const ConfirmModal = ({
           )}
         </div>
 
-        <div className="flex justify-end gap-3 p-4 border-t bg-gray-50">
+        <div className="flex justify-end gap-3 p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
           <button
             onClick={onCancel}
             disabled={isLoading}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
           >
             {cancelText}
           </button>

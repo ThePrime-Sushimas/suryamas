@@ -73,20 +73,20 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="text-lg font-semibold">Upload POS Data</h3>
-          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Upload POS Data</h3>
+          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
             <X size={20} />
           </button>
         </div>
 
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Select Excel File <span className="text-red-500">*</span>
             </label>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+            <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -98,33 +98,33 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
               />
               <label htmlFor="file-upload" className="cursor-pointer">
                 <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-600">
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                   Click to upload or drag and drop
                 </p>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Excel files only (max {POS_IMPORT_MAX_FILE_SIZE_MB}MB)
                 </p>
               </label>
             </div>
             {file && (
-              <div className="mt-2 p-2 bg-blue-50 rounded flex items-center justify-between">
-                <span className="text-sm text-gray-700 truncate">{file.name}</span>
+              <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded flex items-center justify-between">
+                <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{file.name}</span>
                 <button
                   onClick={() => {
                     setFile(null)
                     if (fileInputRef.current) fileInputRef.current.value = ''
                   }}
                   disabled={isLoading}
-                  className="text-red-500 hover:text-red-700"
+                  className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                 >
                   <X size={16} />
                 </button>
               </div>
             )}
             {error && (
-              <div className="mt-2 p-2 bg-red-50 rounded flex items-start gap-2">
+              <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded flex items-start gap-2">
                 <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
-                <span className="text-sm text-red-600">{error}</span>
+                <span className="text-sm text-red-600 dark:text-red-400">{error}</span>
               </div>
             )}
           </div>
@@ -132,22 +132,22 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
           {isLoading && (
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">
+                <span className="text-gray-600 dark:text-gray-400">
                   {uploadProgress === 100 ? 'Analyzing...' : 'Uploading...'}
                 </span>
                 <div className="text-right">
-                  <div className="font-medium text-blue-600">{uploadProgress}%</div>
+                  <div className="font-medium text-blue-600 dark:text-blue-400">{uploadProgress}%</div>
                 </div>
               </div>
               
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                 <div 
                   className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${uploadProgress}%` }}
                 />
               </div>
               
-              <div className="grid grid-cols-3 gap-2 text-xs text-gray-500">
+              <div className="grid grid-cols-3 gap-2 text-xs text-gray-500 dark:text-gray-400">
                 <div>
                   <div className="font-medium">File Size</div>
                   <div>{((file?.size || 0) / 1024 / 1024).toFixed(2)} MB</div>
@@ -165,16 +165,16 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
               </div>
               
               {uploadProgress === 100 && (
-                <p className="text-xs text-gray-500 text-center">
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
                   Analyzing {file?.name} for duplicates and validation...
                 </p>
               )}
             </div>
           )}
 
-          <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-xs text-gray-600 font-medium mb-1">Required Columns:</p>
-            <ul className="text-xs text-gray-500 space-y-0.5">
+          <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+            <p className="text-xs text-gray-600 dark:text-gray-400 font-medium mb-1">Required Columns:</p>
+            <ul className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
               <li>• Bill Number</li>
               <li>• Sales Number</li>
               <li>• Sales Date</li>
@@ -183,10 +183,10 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 p-4 border-t bg-gray-50">
+        <div className="flex justify-end gap-3 p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
           <button
             onClick={handleClose}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
           >
             {isLoading ? 'Close' : 'Cancel'}
           </button>

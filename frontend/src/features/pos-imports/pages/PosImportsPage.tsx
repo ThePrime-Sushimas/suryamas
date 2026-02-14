@@ -183,12 +183,12 @@ function PosImportsPageContent() {
   if (!currentBranch?.company_id) {
     return (
       <div className="p-6">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
           <div className="flex items-start gap-3">
             <AlertCircle className="text-yellow-500 shrink-0 mt-0.5" size={20} />
             <div>
-              <h3 className="font-medium text-yellow-900">Branch Required</h3>
-              <p className="text-sm text-yellow-700 mt-1">
+              <h3 className="font-medium text-yellow-900 dark:text-yellow-300">Branch Required</h3>
+              <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
                 Please select a branch to manage POS imports
               </p>
             </div>
@@ -202,8 +202,8 @@ function PosImportsPageContent() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">POS Imports</h1>
-          <p className="text-sm text-gray-600 mt-1">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">POS Imports</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
             Import and manage POS transaction data from Excel files
           </p>
         </div>
@@ -217,7 +217,7 @@ function PosImportsPageContent() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-700/50 p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
@@ -226,12 +226,12 @@ function PosImportsPageContent() {
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
               placeholder="Search file name..."
-              className="w-full pl-9 pr-9 py-2 border rounded text-sm"
+              className="w-full pl-9 pr-9 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
             {filters.search && (
               <button
                 onClick={() => setFilters({ ...filters, search: '' })}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 <X size={16} />
               </button>
@@ -240,7 +240,7 @@ function PosImportsPageContent() {
           <select
             value={filters.status}
             onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-            className="w-full border rounded px-3 py-2 text-sm"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             <option value="">All Status</option>
             <option value="PENDING">Pending</option>
@@ -251,13 +251,13 @@ function PosImportsPageContent() {
             <option value="FAILED">Failed</option>
           </select>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
               {filteredImports.length} of {imports.length} imports
             </span>
             {(filters.search || filters.status) && (
               <button
                 onClick={() => setFilters({ search: '', status: '' })}
-                className="text-sm text-blue-600 hover:text-blue-800"
+                className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
               >
                 Clear Filters
               </button>
@@ -267,16 +267,16 @@ function PosImportsPageContent() {
       </div>
 
       {errors.general && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
           <div className="flex items-start gap-3">
             <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={20} />
             <div className="flex-1">
-              <h3 className="font-medium text-red-900">Error</h3>
-              <p className="text-sm text-red-700 mt-1">{errors.general}</p>
+              <h3 className="font-medium text-red-900 dark:text-red-400">Error</h3>
+              <p className="text-sm text-red-700 dark:text-red-400 mt-1">{errors.general}</p>
             </div>
             <button
               onClick={() => clearError('general')}
-              className="text-red-500 hover:text-red-700"
+              className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
             >
               ×
             </button>
@@ -292,7 +292,7 @@ function PosImportsPageContent() {
               {
                 label: 'Clear Selection',
                 onClick: clearSelection,
-                className: 'px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300'
+                className: 'px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600'
               },
               {
                 label: 'Confirm Selected',
@@ -315,11 +315,11 @@ function PosImportsPageContent() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-700/50">
         {loading.list ? (
           <div className="p-12 text-center">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-            <p className="mt-2 text-sm text-gray-600">Loading imports...</p>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Loading imports...</p>
           </div>
         ) : (
           <PosImportsTable

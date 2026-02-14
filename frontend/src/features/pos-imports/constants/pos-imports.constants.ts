@@ -16,10 +16,10 @@ export const POS_IMPORT_UPLOAD_COOLDOWN_MS = 5000 // 5 seconds
 
 // Status colors
 export const STATUS_COLORS = {
-  PENDING: 'bg-gray-100 text-gray-800',
-  ANALYZED: 'bg-blue-100 text-blue-800',
-  IMPORTED: 'bg-green-100 text-green-800',
-  MAPPED: 'bg-purple-100 text-purple-800',
-  POSTED: 'bg-indigo-100 text-indigo-800',
-  FAILED: 'bg-red-100 text-red-800'
+  PENDING: 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300',
+  ANALYZED: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
+  IMPORTED: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
+  MAPPED: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300',
+  POSTED: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300',
+  FAILED: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
 } as const
