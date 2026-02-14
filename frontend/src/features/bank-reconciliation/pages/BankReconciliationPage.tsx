@@ -78,7 +78,6 @@ export function BankReconciliationPage() {
     setPage,
     // Settlement Groups
     settlementGroups,
-    settlementGroupsError,
     settlementGroupsTotal,
     fetchSettlementGroups,
     deleteSettlementGroup,
