@@ -20,7 +20,7 @@ function PosImportsPageContent() {
   const user = useAuthStore(s => s.user)
   const toast = useToast()
   const prevCompanyIdRef = useRef<string | undefined>(undefined)
-  
+
   const {
     imports,
     analyzeResult,
@@ -44,7 +44,20 @@ function PosImportsPageContent() {
     reset
   } = usePosImportsStore()
 
-  // Check if can confirm selected
+  // Sync errors from store to toast for visual feedback
+  useEffect(() => {
+    if (errors.general) {
+      toast.error(errors.general)
+      clearError('general')
+    }
+  }, [errors.general, toast, clearError])
+
+  useEffect(() => {
+    if (errors.upload) {
+      toast.error(errors.upload)
+    }
+  }, [errors.upload, toast])
+
   const canConfirmSelected = useMemo(() => {
     return Array.from(selectedIds).some(id => {
       const imp = imports.find(i => i.id === id)
@@ -330,6 +343,8 @@ function PosImportsPageContent() {
         onUpload={handleUpload}
         isLoading={loading.list || !!activeUpload}
         uploadProgress={uploadProgress}
+        error={errors.upload}
+        onClearError={() => clearError('upload')}
       />
 
       <AnalysisModal

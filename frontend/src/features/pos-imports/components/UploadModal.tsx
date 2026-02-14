@@ -10,11 +10,13 @@ interface UploadModalProps {
   onUpload: (file: File, branchId: string) => Promise<void>
   isLoading: boolean
   uploadProgress: number
+  error?: string | null
+  onClearError?: () => void
 }
 
-export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgress }: UploadModalProps) => {
+export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgress, error, onClearError }: UploadModalProps) => {
   const [file, setFile] = useState<File | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [validationError, setValidationError] = useState<string | null>(null)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const currentBranch = useBranchContextStore(s => s.currentBranch)
@@ -26,17 +28,20 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
     if (!selectedFile) return
 
     if (!selectedFile.name.match(/\.(xlsx|xls)$/i)) {
-      setError('Please select an Excel file (.xlsx or .xls)')
+      setValidationError('Please select an Excel file (.xlsx or .xls)')
+      onClearError?.()
       return
     }
 
     if (selectedFile.size > POS_IMPORT_MAX_FILE_SIZE_BYTES) {
-      setError(`File size must be less than ${POS_IMPORT_MAX_FILE_SIZE_MB}MB`)
+      setValidationError(`File size must be less than ${POS_IMPORT_MAX_FILE_SIZE_MB}MB`)
+      onClearError?.()
       return
     }
 
     setFile(selectedFile)
-    setError(null)
+    setValidationError(null)
+    onClearError?.()
   }
 
   const handleUpload = async () => {
@@ -45,10 +50,11 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
     try {
       await onUpload(file, currentBranch.branch_id)
       setFile(null)
-      setError(null)
+      onClearError?.()
       if (fileInputRef.current) fileInputRef.current.value = ''
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Upload failed')
+    } catch (err) {
+      // Error is handled by parent through store, just log for debugging
+      console.error('Upload error:', err)
     }
   }
 
@@ -58,7 +64,8 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
       return
     }
     setFile(null)
-    setError(null)
+    setValidationError(null)
+    onClearError?.()
     if (fileInputRef.current) fileInputRef.current.value = ''
     onClose()
   }
@@ -66,7 +73,8 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
   const confirmClose = () => {
     setShowCloseConfirm(false)
     setFile(null)
-    setError(null)
+    setValidationError(null)
+    onClearError?.()
     if (fileInputRef.current) fileInputRef.current.value = ''
     onClose()
   }
@@ -121,7 +129,13 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
                 </button>
               </div>
             )}
-            {error && (
+            {validationError && (
+              <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded flex items-start gap-2">
+                <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
+                <span className="text-sm text-red-600 dark:text-red-400">{validationError}</span>
+              </div>
+            )}
+            {error && !validationError && (
               <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded flex items-start gap-2">
                 <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
                 <span className="text-sm text-red-600 dark:text-red-400">{error}</span>
