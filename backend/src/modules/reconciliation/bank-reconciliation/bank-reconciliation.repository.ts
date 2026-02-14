@@ -35,7 +35,10 @@ export class BankReconciliationRepository {
       if (error instanceof StatementNotFoundError) {
         throw error;
       }
-      logError("Error fetching statement by ID", { statementId: id, error: error.message });
+      logError("Error fetching statement by ID", {
+        statementId: id,
+        error: error.message,
+      });
       throw new FetchStatementError(id, error.message);
     }
   }
@@ -43,10 +46,7 @@ export class BankReconciliationRepository {
   /**
    * Get unreconciled bank statements for a company on a specific date
    */
-  async getUnreconciled(
-    startDate: Date,
-    endDate?: Date,
-  ): Promise<any[]> {
+  async getUnreconciled(startDate: Date, endDate?: Date): Promise<any[]> {
     const end = endDate || startDate;
 
     try {
@@ -66,19 +66,19 @@ export class BankReconciliationRepository {
 
       return data || [];
     } catch (error: any) {
-      logError("Error fetching unreconciled statements", { 
-        startDate: startDate.toISOString(), 
+      logError("Error fetching unreconciled statements", {
+        startDate: startDate.toISOString(),
         endDate: end.toISOString(),
-        error: error.message 
+        error: error.message,
       });
-      throw new FetchStatementError('unreconciled-list', error.message);
+      throw new FetchStatementError("unreconciled-list", error.message);
     }
   }
 
   /**
    * Get bank statements by date range with optional filtering and joined data
    * When dates are not provided, queries overall date range across all imports
-   * 
+   *
    * NOTE: This method fetches matched_aggregate data separately for statements with reconciliation_id
    */
   async getByDateRange(
@@ -86,11 +86,11 @@ export class BankReconciliationRepository {
     endDate?: Date,
     bankAccountId?: number,
     options?: {
-      status?: 'RECONCILED' | 'UNRECONCILED' | 'DISCREPANCY';
+      status?: "RECONCILED" | "UNRECONCILED" | "DISCREPANCY";
       search?: string;
       isReconciled?: boolean;
       sortField?: string;
-      sortOrder?: 'asc' | 'desc';
+      sortOrder?: "asc" | "desc";
       limit?: number;
       offset?: number;
     },
@@ -111,16 +111,22 @@ export class BankReconciliationRepository {
           )
         )
       `,
-          { count: 'exact' }
+          { count: "exact" },
         )
         .is("deleted_at", null);
 
       // Apply date range filters if provided
       if (startDate) {
-        baseQuery = baseQuery.gte("transaction_date", startDate.toISOString().split("T")[0]);
+        baseQuery = baseQuery.gte(
+          "transaction_date",
+          startDate.toISOString().split("T")[0],
+        );
       }
       if (endDate) {
-        baseQuery = baseQuery.lte("transaction_date", endDate.toISOString().split("T")[0]);
+        baseQuery = baseQuery.lte(
+          "transaction_date",
+          endDate.toISOString().split("T")[0],
+        );
       }
 
       // Apply bank account filter
@@ -131,11 +137,11 @@ export class BankReconciliationRepository {
       // Apply status filter
       // Note: DISCREPANCY status is calculated in service layer based on difference threshold
       // For database query, we only filter by is_reconciled and let service handle the status
-      if (options?.status === 'RECONCILED') {
+      if (options?.status === "RECONCILED") {
         baseQuery = baseQuery.eq("is_reconciled", true);
-      } else if (options?.status === 'UNRECONCILED') {
+      } else if (options?.status === "UNRECONCILED") {
         baseQuery = baseQuery.eq("is_reconciled", false);
-      } else if (options?.status === 'DISCREPANCY') {
+      } else if (options?.status === "DISCREPANCY") {
         // DISCREPANCY: reconciled but has amount difference - filtered in service
         // For now, just get all reconciled records
         baseQuery = baseQuery.eq("is_reconciled", true);
@@ -149,29 +155,37 @@ export class BankReconciliationRepository {
       // Apply search filter on description or reference_number
       if (options?.search) {
         const searchTerm = `%${options.search}%`;
-        baseQuery = baseQuery.or(`description.ilike.${searchTerm},reference_number.ilike.${searchTerm}`);
+        baseQuery = baseQuery.or(
+          `description.ilike.${searchTerm},reference_number.ilike.${searchTerm}`,
+        );
       }
 
       // Get count query first (same filters as main query)
       let countQuery = supabase
         .from("bank_statements")
-        .select('id', { count: 'exact', head: true })
+        .select("id", { count: "exact", head: true })
         .is("deleted_at", null);
 
       if (startDate) {
-        countQuery = countQuery.gte("transaction_date", startDate.toISOString().split("T")[0]);
+        countQuery = countQuery.gte(
+          "transaction_date",
+          startDate.toISOString().split("T")[0],
+        );
       }
       if (endDate) {
-        countQuery = countQuery.lte("transaction_date", endDate.toISOString().split("T")[0]);
+        countQuery = countQuery.lte(
+          "transaction_date",
+          endDate.toISOString().split("T")[0],
+        );
       }
       if (bankAccountId) {
         countQuery = countQuery.eq("bank_account_id", bankAccountId);
       }
-      if (options?.status === 'RECONCILED') {
+      if (options?.status === "RECONCILED") {
         countQuery = countQuery.eq("is_reconciled", true);
-      } else if (options?.status === 'UNRECONCILED') {
+      } else if (options?.status === "UNRECONCILED") {
         countQuery = countQuery.eq("is_reconciled", false);
-      } else if (options?.status === 'DISCREPANCY') {
+      } else if (options?.status === "DISCREPANCY") {
         // DISCREPANCY: reconciled but has amount difference - filtered in service
         // For now, just get all reconciled records
         countQuery = countQuery.eq("is_reconciled", true);
@@ -181,51 +195,66 @@ export class BankReconciliationRepository {
       }
       if (options?.search) {
         const searchTerm = `%${options.search}%`;
-        countQuery = countQuery.or(`description.ilike.${searchTerm},reference_number.ilike.${searchTerm}`);
+        countQuery = countQuery.or(
+          `description.ilike.${searchTerm},reference_number.ilike.${searchTerm}`,
+        );
       }
 
       // Apply sorting
-      const sortField = options?.sortField || 'transaction_date';
-      const sortOrder = options?.sortOrder || 'desc';
-      baseQuery = baseQuery.order(sortField, { ascending: sortOrder === 'asc' });
+      const sortField = options?.sortField || "transaction_date";
+      const sortOrder = options?.sortOrder || "desc";
+      baseQuery = baseQuery.order(sortField, {
+        ascending: sortOrder === "asc",
+      });
 
       // Apply pagination
       if (options?.limit) {
         baseQuery = baseQuery.limit(options.limit);
       }
       if (options?.offset) {
-        baseQuery = baseQuery.range(options.offset, options.offset + (options.limit || 100) - 1);
+        baseQuery = baseQuery.range(
+          options.offset,
+          options.offset + (options.limit || 100) - 1,
+        );
       }
 
-      const [{ data, error }, { count, error: countError }] = await Promise.all([
-        baseQuery,
-        countQuery
-      ]);
+      const [{ data, error }, { count, error: countError }] = await Promise.all(
+        [baseQuery, countQuery],
+      );
 
       if (error) {
-        logError("Error fetching bank statements", {          
-          startDate: startDate?.toISOString(), 
+        logError("Error fetching bank statements", {
+          startDate: startDate?.toISOString(),
           endDate: endDate?.toISOString(),
-          error: error.message 
+          error: error.message,
         });
         throw error;
       }
-      
+
       if (countError) {
-        logError("Error counting bank statements", { error: countError.message });
+        logError("Error counting bank statements", {
+          error: countError.message,
+        });
       }
-      
+
       // Get all reconciliation_ids from statements
-      const statementsWithReconciliation = (data || []).filter(s => s.reconciliation_id);
-      const aggregateIds = [...new Set(statementsWithReconciliation.map(s => s.reconciliation_id))];
-      
+      const statementsWithReconciliation = (data || []).filter(
+        (s) => s.reconciliation_id,
+      );
+      const aggregateIds = [
+        ...new Set(
+          statementsWithReconciliation.map((s) => s.reconciliation_id),
+        ),
+      ];
+
       // Fetch aggregates in batch if there are any
       let aggregateMap: Record<string, any> = {};
       if (aggregateIds.length > 0) {
         try {
           const { data: aggregates, error: aggError } = await supabase
             .from("aggregated_transactions")
-            .select(`
+            .select(
+              `
               id,
               transaction_date,
               gross_amount,
@@ -233,43 +262,53 @@ export class BankReconciliationRepository {
               payment_methods!inner (
                 name
               )
-            `)
+            `,
+            )
             .in("id", aggregateIds);
 
           if (aggError) {
             logError("Error fetching aggregates", { error: aggError.message });
           } else if (aggregates) {
-            aggregateMap = aggregates.reduce((acc: Record<string, any>, agg: any) => {
-              acc[agg.id] = agg;
-              return acc;
-            }, {});
+            aggregateMap = aggregates.reduce(
+              (acc: Record<string, any>, agg: any) => {
+                acc[agg.id] = agg;
+                return acc;
+              },
+              {},
+            );
           }
         } catch (e: any) {
           logError("Error in aggregate fetch", { error: e.message });
         }
       }
-      
+
       // Map data to include matched_aggregate
-      const mappedData = (data || []).map(row => ({
+      const mappedData = (data || []).map((row) => ({
         ...row,
-        matched_aggregate: row.reconciliation_id && aggregateMap[row.reconciliation_id] ? {
-          id: aggregateMap[row.reconciliation_id].id,
-          transaction_date: aggregateMap[row.reconciliation_id].transaction_date,
-          gross_amount: aggregateMap[row.reconciliation_id].gross_amount,
-          nett_amount: aggregateMap[row.reconciliation_id].nett_amount,
-          payment_method_name: aggregateMap[row.reconciliation_id].payment_methods?.name || null,
-        } : null,
+        matched_aggregate:
+          row.reconciliation_id && aggregateMap[row.reconciliation_id]
+            ? {
+                id: aggregateMap[row.reconciliation_id].id,
+                transaction_date:
+                  aggregateMap[row.reconciliation_id].transaction_date,
+                gross_amount: aggregateMap[row.reconciliation_id].gross_amount,
+                nett_amount: aggregateMap[row.reconciliation_id].nett_amount,
+                payment_method_name:
+                  aggregateMap[row.reconciliation_id].payment_methods?.name ||
+                  null,
+              }
+            : null,
       }));
 
-      return { 
-        data: mappedData, 
-        total: count || 0 
+      return {
+        data: mappedData,
+        total: count || 0,
       };
     } catch (error: any) {
-      logError("Error fetching statements by date range", {        
+      logError("Error fetching statements by date range", {
         startDate: startDate?.toISOString(),
         endDate: endDate?.toISOString(),
-        error: error.message
+        error: error.message,
       });
       throw error;
     }
@@ -323,10 +362,7 @@ export class BankReconciliationRepository {
   /**
    * Get list of bank accounts with reconciliation summaries for a period
    */
-  async getBankAccountsStatus(
-    startDate: Date,
-    endDate: Date,
-  ): Promise<any[]> {
+  async getBankAccountsStatus(startDate: Date, endDate: Date): Promise<any[]> {
     try {
       const { data, error } = await supabase
         .from("bank_statements")
@@ -379,9 +415,12 @@ export class BankReconciliationRepository {
       }));
     } catch (error: any) {
       logError("Error fetching bank accounts status", {
-        error: error.message
+        error: error.message,
       });
-      throw new DatabaseConnectionError('fetching bank accounts status', error.message);
+      throw new DatabaseConnectionError(
+        "fetching bank accounts status",
+        error.message,
+      );
     }
   }
 
@@ -391,6 +430,7 @@ export class BankReconciliationRepository {
   async updateStatus(
     id: string,
     status: BankReconciliationStatus,
+    userId?: string,
   ): Promise<void> {
     try {
       const isReconciled = ![
@@ -399,19 +439,28 @@ export class BankReconciliationRepository {
         BankReconciliationStatus.DISCREPANCY,
       ].includes(status);
 
+      const updateData: any = {
+        is_reconciled: isReconciled,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (userId) {
+        updateData.updated_by = userId;
+      }
+
       const { error } = await supabase
         .from("bank_statements")
-        .update({
-          is_reconciled: isReconciled,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq("id", id);
 
       if (error) {
         throw error;
       }
     } catch (error: any) {
-      logError("Error updating statement status", { statementId: id, error: error.message });
+      logError("Error updating statement status", {
+        statementId: id,
+        error: error.message,
+      });
       throw new FetchStatementError(id, error.message);
     }
   }
@@ -422,6 +471,7 @@ export class BankReconciliationRepository {
   async markAsReconciled(
     statementId: string,
     aggregateId: string,
+    userId?: string,
   ): Promise<void> {
     try {
       // Get payment_method_id from aggregate
@@ -447,6 +497,11 @@ export class BankReconciliationRepository {
         updateData.payment_method_id = aggregate.payment_method_id;
       }
 
+      // Add updated_by if userId is provided
+      if (userId) {
+        updateData.updated_by = userId;
+      }
+
       const { error } = await supabase
         .from("bank_statements")
         .update(updateData)
@@ -456,7 +511,11 @@ export class BankReconciliationRepository {
         throw error;
       }
     } catch (error: any) {
-      logError("Error marking statement as reconciled", { statementId, aggregateId, error: error.message });
+      logError("Error marking statement as reconciled", {
+        statementId,
+        aggregateId,
+        error: error.message,
+      });
       throw new FetchStatementError(statementId, error.message);
     }
   }
@@ -467,22 +526,35 @@ export class BankReconciliationRepository {
   async bulkUpdateReconciliationStatus(
     ids: string[],
     isReconciled: boolean,
+    userId?: string,
   ): Promise<void> {
     try {
+      const updateData: any = {
+        is_reconciled: isReconciled,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (userId) {
+        updateData.updated_by = userId;
+      }
+
       const { error } = await supabase
         .from("bank_statements")
-        .update({
-          is_reconciled: isReconciled,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .in("id", ids);
 
       if (error) {
         throw error;
       }
     } catch (error: any) {
-      logError("Error bulk updating reconciliation status", { count: ids.length, error: error.message });
-      throw new DatabaseConnectionError('bulk update reconciliation status', error.message);
+      logError("Error bulk updating reconciliation status", {
+        count: ids.length,
+        error: error.message,
+      });
+      throw new DatabaseConnectionError(
+        "bulk update reconciliation status",
+        error.message,
+      );
     }
   }
 
@@ -524,9 +596,9 @@ export class BankReconciliationRepository {
         endDate: endDate.toISOString(),
         limit,
         offset,
-        error: error.message
+        error: error.message,
       });
-      throw new FetchStatementError('batch-fetch', error.message);
+      throw new FetchStatementError("batch-fetch", error.message);
     }
   }
 
@@ -536,7 +608,12 @@ export class BankReconciliationRepository {
   async logAction(data: {
     companyId: string;
     userId?: string;
-    action: "MANUAL_RECONCILE" | "AUTO_MATCH" | "UNDO" | "CREATE_MULTI_MATCH" | "UNDO_MULTI_MATCH";
+    action:
+      | "MANUAL_RECONCILE"
+      | "AUTO_MATCH"
+      | "UNDO"
+      | "CREATE_MULTI_MATCH"
+      | "UNDO_MULTI_MATCH";
     statementId?: string;
     aggregateId?: string;
     details?: any;
@@ -555,10 +632,10 @@ export class BankReconciliationRepository {
         throw error;
       }
     } catch (error: any) {
-      logError("Error logging reconciliation action", { 
-        action: data.action, 
+      logError("Error logging reconciliation action", {
+        action: data.action,
         companyId: data.companyId,
-        error: error.message 
+        error: error.message,
       });
     }
   }
@@ -566,22 +643,34 @@ export class BankReconciliationRepository {
   /**
    * Undo reconciliation for a specific statement
    */
-  async undoReconciliation(statementId: string): Promise<void> {
+  async undoReconciliation(
+    statementId: string,
+    userId?: string,
+  ): Promise<void> {
     try {
+      const updateData: any = {
+        is_reconciled: false,
+        reconciliation_id: null,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (userId) {
+        updateData.updated_by = userId;
+      }
+
       const { error } = await supabase
         .from("bank_statements")
-        .update({
-          is_reconciled: false,
-          reconciliation_id: null,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq("id", statementId);
 
       if (error) {
         throw error;
       }
     } catch (error: any) {
-      logError("Error undoing reconciliation", { statementId, error: error.message });
+      logError("Error undoing reconciliation", {
+        statementId,
+        error: error.message,
+      });
       throw new FetchStatementError(statementId, error.message);
     }
   }
@@ -614,8 +703,9 @@ export class BankReconciliationRepository {
           difference: data.difference,
           notes: data.notes,
           reconciled_by: data.reconciledBy,
-          updated_at:new Date().toISOString(),
-          status: Math.abs(data.difference) <= 100 ? 'RECONCILED' : 'DISCREPANCY',
+          updated_at: new Date().toISOString(),
+          status:
+            Math.abs(data.difference) <= 100 ? "RECONCILED" : "DISCREPANCY",
         })
         .select("id")
         .single();
@@ -625,7 +715,10 @@ export class BankReconciliationRepository {
       }
       return group.id;
     } catch (error: any) {
-      throw new DatabaseConnectionError('creating reconciliation group', error.message);
+      throw new DatabaseConnectionError(
+        "creating reconciliation group",
+        error.message,
+      );
     }
   }
 
@@ -634,10 +727,10 @@ export class BankReconciliationRepository {
    */
   async addStatementsToGroup(
     groupId: string,
-    statements: Array<{ statementId: string; amount: number }>
+    statements: Array<{ statementId: string; amount: number }>,
   ): Promise<void> {
     try {
-      const details = statements.map(s => ({
+      const details = statements.map((s) => ({
         group_id: groupId,
         statement_id: s.statementId,
         amount: s.amount,
@@ -651,8 +744,14 @@ export class BankReconciliationRepository {
         throw error;
       }
     } catch (error: any) {
-      logError("Error adding statements to group", { groupId, error: error.message });
-      throw new DatabaseConnectionError('adding statements to group', error.message);
+      logError("Error adding statements to group", {
+        groupId,
+        error: error.message,
+      });
+      throw new DatabaseConnectionError(
+        "adding statements to group",
+        error.message,
+      );
     }
   }
 
@@ -663,7 +762,8 @@ export class BankReconciliationRepository {
     try {
       const { data, error } = await supabase
         .from("bank_reconciliation_groups")
-        .select(`
+        .select(
+          `
         *,
         aggregated_transactions (
           id,
@@ -684,7 +784,8 @@ export class BankReconciliationRepository {
             credit_amount
           )
         )
-      `)
+      `,
+        )
         .eq("id", groupId)
         .is("deleted_at", null)
         .single();
@@ -694,7 +795,10 @@ export class BankReconciliationRepository {
       }
       return data;
     } catch (error: any) {
-      logError("Error fetching reconciliation group", { groupId, error: error.message });
+      logError("Error fetching reconciliation group", {
+        groupId,
+        error: error.message,
+      });
       throw new FetchStatementError(`group-${groupId}`, error.message);
     }
   }
@@ -704,50 +808,67 @@ export class BankReconciliationRepository {
    */
   async markStatementsAsReconciledWithGroup(
     statementIds: string[],
-    groupId: string
+    groupId: string,
+    userId?: string,
   ): Promise<void> {
     try {
+      const updateData: any = {
+        is_reconciled: true,
+        reconciliation_group_id: groupId,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (userId) {
+        updateData.updated_by = userId;
+      }
+
       const { error } = await supabase
         .from("bank_statements")
-        .update({
-          is_reconciled: true,
-          reconciliation_group_id: groupId,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .in("id", statementIds);
 
       if (error) {
         throw error;
       }
     } catch (error: any) {
-      logError("Error marking statements as reconciled with group", { 
-        count: statementIds.length, 
-        groupId, 
-        error: error.message 
+      logError("Error marking statements as reconciled with group", {
+        count: statementIds.length,
+        groupId,
+        error: error.message,
       });
-      throw new FetchStatementError('group-statements', error.message);
+      throw new FetchStatementError("group-statements", error.message);
     }
   }
 
   /**
    * Undo reconciliation - reset statements and soft delete group
    */
-  async undoReconciliationGroup(groupId: string): Promise<void> {
+  async undoReconciliationGroup(
+    groupId: string,
+    userId?: string,
+  ): Promise<void> {
     try {
       const group = await this.getReconciliationGroupById(groupId);
       if (!group) throw new Error("Group not found");
 
-      const statementIds = (group.bank_reconciliation_group_details || [])
-        .map((d: any) => d.statement_id);
+      const statementIds = (group.bank_reconciliation_group_details || []).map(
+        (d: any) => d.statement_id,
+      );
 
       if (statementIds.length > 0) {
+        const updateData: any = {
+          is_reconciled: false,
+          reconciliation_group_id: null,
+          updated_at: new Date().toISOString(),
+        };
+
+        if (userId) {
+          updateData.updated_by = userId;
+        }
+
         const { error } = await supabase
           .from("bank_statements")
-          .update({
-            is_reconciled: false,
-            reconciliation_group_id: null,
-            updated_at: new Date().toISOString(),
-          })
+          .update(updateData)
           .in("id", statementIds);
 
         if (error) {
@@ -759,7 +880,7 @@ export class BankReconciliationRepository {
         .from("bank_reconciliation_groups")
         .update({
           deleted_at: new Date().toISOString(),
-          status: 'UNDO',
+          status: "UNDO",
           updated_at: new Date().toISOString(),
         })
         .eq("id", groupId);
@@ -768,8 +889,14 @@ export class BankReconciliationRepository {
         throw error;
       }
     } catch (error: any) {
-      logError("Error undoing reconciliation group", { groupId, error: error.message });
-      throw new DatabaseConnectionError('undoing reconciliation group', error.message);
+      logError("Error undoing reconciliation group", {
+        groupId,
+        error: error.message,
+      });
+      throw new DatabaseConnectionError(
+        "undoing reconciliation group",
+        error.message,
+      );
     }
   }
 
@@ -790,8 +917,14 @@ export class BankReconciliationRepository {
       }
       return !!data;
     } catch (error: any) {
-      logError("Error checking if aggregate is in group", { aggregateId, error: error.message });
-      throw new DatabaseConnectionError('checking aggregate group status', error.message);
+      logError("Error checking if aggregate is in group", {
+        aggregateId,
+        error: error.message,
+      });
+      throw new DatabaseConnectionError(
+        "checking aggregate group status",
+        error.message,
+      );
     }
   }
 
@@ -800,12 +933,14 @@ export class BankReconciliationRepository {
    */
   async getUnreconciledStatementsForSuggestion(
     startDate: Date,
-    endDate: Date
+    endDate: Date,
   ): Promise<any[]> {
     try {
       const { data, error } = await supabase
         .from("bank_statements")
-        .select("id, transaction_date, description, debit_amount, credit_amount")
+        .select(
+          "id, transaction_date, description, debit_amount, credit_amount",
+        )
         .gte("transaction_date", startDate.toISOString().split("T")[0])
         .lte("transaction_date", endDate.toISOString().split("T")[0])
         .eq("is_reconciled", false)
@@ -820,9 +955,9 @@ export class BankReconciliationRepository {
       logError("Error fetching statements for suggestion", {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
-        error: error.message
+        error: error.message,
       });
-      throw new FetchStatementError('suggestion-fetch', error.message);
+      throw new FetchStatementError("suggestion-fetch", error.message);
     }
   }
 
@@ -833,12 +968,13 @@ export class BankReconciliationRepository {
    */
   async getReconciliationGroups(
     startDate: Date,
-    endDate: Date
+    endDate: Date,
   ): Promise<any[]> {
     try {
       const { data, error } = await supabase
         .from("bank_reconciliation_groups")
-        .select(`
+        .select(
+          `
         *,
         aggregated_transactions (
           id,
@@ -847,9 +983,16 @@ export class BankReconciliationRepository {
           nett_amount,
           payment_methods!left (name)
         )
-      `)
-        .gte("aggregated_transactions.transaction_date", startDate.toISOString().split('T')[0])
-        .lte("aggregated_transactions.transaction_date", endDate.toISOString().split('T')[0])
+      `,
+        )
+        .gte(
+          "aggregated_transactions.transaction_date",
+          startDate.toISOString().split("T")[0],
+        )
+        .lte(
+          "aggregated_transactions.transaction_date",
+          endDate.toISOString().split("T")[0],
+        )
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
 
@@ -857,7 +1000,7 @@ export class BankReconciliationRepository {
         logError("Error fetching reconciliation groups (main query)", {
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
-          error: error.message
+          error: error.message,
         });
         throw error;
       }
@@ -870,7 +1013,8 @@ export class BankReconciliationRepository {
         try {
           const { data: detailsData, error: detailsError } = await supabase
             .from("bank_reconciliation_group_details")
-            .select(`
+            .select(
+              `
               *,
               bank_statements (
                 id,
@@ -879,22 +1023,26 @@ export class BankReconciliationRepository {
                 debit_amount,
                 credit_amount
               )
-            `)
+            `,
+            )
             .in("group_id", groupIds);
 
           if (detailsError) {
             logError("Error fetching group details", {
-              error: detailsError.message
+              error: detailsError.message,
             });
           } else if (detailsData) {
             // Group details by group_id
-            detailsMap = detailsData.reduce((acc: Record<string, any[]>, detail: any) => {
-              if (!acc[detail.group_id]) {
-                acc[detail.group_id] = [];
-              }
-              acc[detail.group_id].push(detail);
-              return acc;
-            }, {});
+            detailsMap = detailsData.reduce(
+              (acc: Record<string, any[]>, detail: any) => {
+                if (!acc[detail.group_id]) {
+                  acc[detail.group_id] = [];
+                }
+                acc[detail.group_id].push(detail);
+                return acc;
+              },
+              {},
+            );
           }
         } catch (e: any) {
           logError("Error in details fetch", { error: e.message });
@@ -905,25 +1053,30 @@ export class BankReconciliationRepository {
       const transformedData = (data || []).map((group: any) => ({
         ...group,
         // Rename aggregated_transactions to aggregate for frontend compatibility
-        aggregate: group.aggregated_transactions ? {
-          id: group.aggregated_transactions.id,
-          transaction_date: group.aggregated_transactions.transaction_date,
-          gross_amount: group.aggregated_transactions.gross_amount,
-          nett_amount: group.aggregated_transactions.nett_amount,
-          payment_method_name: group.aggregated_transactions.payment_methods?.name || null,
-        } : undefined,
+        aggregate: group.aggregated_transactions
+          ? {
+              id: group.aggregated_transactions.id,
+              transaction_date: group.aggregated_transactions.transaction_date,
+              gross_amount: group.aggregated_transactions.gross_amount,
+              nett_amount: group.aggregated_transactions.nett_amount,
+              payment_method_name:
+                group.aggregated_transactions.payment_methods?.name || null,
+            }
+          : undefined,
         // Map details array from the separate query
         details: (detailsMap[group.id] || []).map((detail: any) => ({
           id: detail.id,
           statement_id: detail.statement_id,
           amount: detail.amount,
-          statement: detail.bank_statements ? {
-            id: detail.bank_statements.id,
-            transaction_date: detail.bank_statements.transaction_date,
-            description: detail.bank_statements.description,
-            debit_amount: detail.bank_statements.debit_amount,
-            credit_amount: detail.bank_statements.credit_amount,
-          } : undefined,
+          statement: detail.bank_statements
+            ? {
+                id: detail.bank_statements.id,
+                transaction_date: detail.bank_statements.transaction_date,
+                description: detail.bank_statements.description,
+                debit_amount: detail.bank_statements.debit_amount,
+                credit_amount: detail.bank_statements.credit_amount,
+              }
+            : undefined,
         })),
       }));
 
@@ -932,9 +1085,12 @@ export class BankReconciliationRepository {
       logError("Error fetching reconciliation groups", {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
-        error: error.message
+        error: error.message,
       });
-      throw new DatabaseConnectionError('fetching reconciliation groups', error.message);
+      throw new DatabaseConnectionError(
+        "fetching reconciliation groups",
+        error.message,
+      );
     }
   }
 }

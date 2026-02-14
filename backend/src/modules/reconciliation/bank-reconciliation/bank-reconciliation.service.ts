@@ -57,7 +57,7 @@ export class BankReconciliationService {
       throw new AlreadyReconciledError(statementId);
     }
 
-    await this.repository.markAsReconciled(statementId, aggregateId);
+    await this.repository.markAsReconciled(statementId, aggregateId, userId);
 
     await this.orchestratorService.updateReconciliationStatus(
       aggregateId,
@@ -88,13 +88,17 @@ export class BankReconciliationService {
     };
   }
 
-  async undo(statementId: string, userId?: string, companyId?: string): Promise<void> {
+  async undo(
+    statementId: string,
+    userId?: string,
+    companyId?: string,
+  ): Promise<void> {
     const statement = await this.repository.findById(statementId);
     if (!statement) {
       throw new Error("Bank statement not found");
     }
 
-    await this.repository.undoReconciliation(statementId);
+    await this.repository.undoReconciliation(statementId, userId);
 
     if (statement.reconciliation_id) {
       await this.orchestratorService.updateReconciliationStatus(
@@ -136,7 +140,9 @@ export class BankReconciliationService {
     );
 
     const bufferStart = new Date(startDate);
-    bufferStart.setDate(bufferStart.getDate() - matchingCriteria.dateBufferDays);
+    bufferStart.setDate(
+      bufferStart.getDate() - matchingCriteria.dateBufferDays,
+    );
     const bufferEnd = new Date(endDate);
     bufferEnd.setDate(bufferEnd.getDate() + matchingCriteria.dateBufferDays);
 
@@ -202,6 +208,7 @@ export class BankReconciliationService {
       await this.repository.markAsReconciled(
         match.statementId,
         match.aggregateId,
+        userId,
       );
 
       bulkUpdates.push({
@@ -211,7 +218,7 @@ export class BankReconciliationService {
       });
 
       await this.repository.logAction({
-        companyId: companyId || '',
+        companyId: companyId || "",
         userId,
         action: "AUTO_MATCH",
         statementId: match.statementId,
@@ -260,7 +267,9 @@ export class BankReconciliationService {
     );
 
     const bufferStart = new Date(startDate);
-    bufferStart.setDate(bufferStart.getDate() - matchingCriteria.dateBufferDays);
+    bufferStart.setDate(
+      bufferStart.getDate() - matchingCriteria.dateBufferDays,
+    );
     const bufferEnd = new Date(endDate);
     bufferEnd.setDate(bufferEnd.getDate() + matchingCriteria.dateBufferDays);
 
@@ -345,7 +354,7 @@ export class BankReconciliationService {
       90,
     );
 
-findMatches(
+    findMatches(
       remainingStatements,
       remainingAggregates,
       (s, a) => {
@@ -354,7 +363,7 @@ findMatches(
         const aDate = new Date(a.transaction_date).getTime();
         const dayDiff = Math.abs(sDate - aDate) / (1000 * 3600 * 24);
         const amountDiff = Math.abs(sAmount - a.nett_amount);
-        
+
         return (
           amountDiff <= matchingCriteria.amountTolerance &&
           dayDiff <= matchingCriteria.dateBufferDays
@@ -365,38 +374,43 @@ findMatches(
     );
 
     return {
-      matches: matches.map((m: any) => {
-        // Calculate more accurate score based on amount and date difference
-        let adjustedScore = m.matchScore;
-        if (m.matchCriteria === "FUZZY_AMOUNT_DATE") {
-          const stmtAmount = m.statement.amount;
-          const amountDiff = Math.abs(m.difference);
-          const stmtDate = new Date(m.statement.transaction_date).getTime();
-          const aggDate = new Date(m.aggregate.transaction_date).getTime();
-          const dayDiff = Math.abs(stmtDate - aggDate) / (1000 * 3600 * 24);
-          
-          // If exact amount match, boost score
-          if (amountDiff === 0) {
-            adjustedScore = 95 - (dayDiff * 5); // Max 95, decreases with day difference
-          } else {
-            // Reduce score based on amount difference
-            const amountPenalty = (amountDiff / (stmtAmount || 1)) * 100;
-            adjustedScore = 80 - amountPenalty - (dayDiff * 5);
+      matches: matches
+        .map((m: any) => {
+          // Calculate more accurate score based on amount and date difference
+          let adjustedScore = m.matchScore;
+          if (m.matchCriteria === "FUZZY_AMOUNT_DATE") {
+            const stmtAmount = m.statement.amount;
+            const amountDiff = Math.abs(m.difference);
+            const stmtDate = new Date(m.statement.transaction_date).getTime();
+            const aggDate = new Date(m.aggregate.transaction_date).getTime();
+            const dayDiff = Math.abs(stmtDate - aggDate) / (1000 * 3600 * 24);
+
+            // If exact amount match, boost score
+            if (amountDiff === 0) {
+              adjustedScore = 95 - dayDiff * 5; // Max 95, decreases with day difference
+            } else {
+              // Reduce score based on amount difference
+              const amountPenalty = (amountDiff / (stmtAmount || 1)) * 100;
+              adjustedScore = 80 - amountPenalty - dayDiff * 5;
+            }
+            adjustedScore = Math.max(
+              0,
+              Math.min(100, Math.round(adjustedScore)),
+            );
           }
-          adjustedScore = Math.max(0, Math.min(100, Math.round(adjustedScore)));
-        }
-        
-        return {
-          ...m,
-          matchScore: adjustedScore,
-        };
-      }).sort((a: any, b: any) => b.matchScore - a.matchScore),
+
+          return {
+            ...m,
+            matchScore: adjustedScore,
+          };
+        })
+        .sort((a: any, b: any) => b.matchScore - a.matchScore),
       summary: {
         totalStatements: statements.length,
         matchedStatements: matches.length,
         unmatchedStatements: remainingStatements.length,
       },
-      unmatchedStatements: remainingStatements.map(s => ({
+      unmatchedStatements: remainingStatements.map((s) => ({
         id: s.id,
         transaction_date: s.transaction_date,
         description: s.description,
@@ -419,14 +433,14 @@ findMatches(
   ): Promise<any> {
     // First, get all potential matches for the statements
     // We need to run the matching algorithm to find the best match for each statement
-    
+
     // For now, we'll use a simplified approach:
     // Get the matches from the preview data stored in memory or
     // re-run matching for the selected statements only
-    
+
     // Since we don't have access to the preview results here,
     // we'll need to fetch the statements and find their best matches
-    
+
     const matchingCriteria = {
       amountTolerance: this.config.amountTolerance,
       dateBufferDays: this.config.dateBufferDays,
@@ -441,18 +455,22 @@ findMatches(
 
       const stmtAmount = statement.credit_amount - statement.debit_amount;
       const bufferStart = new Date(statement.transaction_date);
-      bufferStart.setDate(bufferStart.getDate() - matchingCriteria.dateBufferDays);
+      bufferStart.setDate(
+        bufferStart.getDate() - matchingCriteria.dateBufferDays,
+      );
       const bufferEnd = new Date(statement.transaction_date);
       bufferEnd.setDate(bufferEnd.getDate() + matchingCriteria.dateBufferDays);
 
       // Get aggregates for the statement's date range
-      const aggregates = await this.orchestratorService.getAggregatesByDateRange(
-        bufferStart,
-        bufferEnd,
-      );
+      const aggregates =
+        await this.orchestratorService.getAggregatesByDateRange(
+          bufferStart,
+          bufferEnd,
+        );
 
       // Find best match for this statement
-      let bestMatch: { agg: any; score: number; criteria: string } | null = null;
+      let bestMatch: { agg: any; score: number; criteria: string } | null =
+        null;
 
       for (const agg of aggregates) {
         if (agg.reconciliation_status === "RECONCILED") continue;
@@ -473,7 +491,10 @@ findMatches(
         }
 
         // Try EXACT_AMOUNT_DATE
-        if (amountDiff <= matchingCriteria.amountTolerance && stmtDate === aggDate) {
+        if (
+          amountDiff <= matchingCriteria.amountTolerance &&
+          stmtDate === aggDate
+        ) {
           const score = 90 - (amountDiff / (stmtAmount || 1)) * 10;
           if (!bestMatch || score > bestMatch.score) {
             bestMatch = { agg, score, criteria: "EXACT_AMOUNT_DATE" };
@@ -482,12 +503,16 @@ findMatches(
 
         // Try FUZZY_AMOUNT_DATE
         if (amountDiff <= matchingCriteria.amountTolerance) {
-          const dayDiff = Math.abs(
-            new Date(statement.transaction_date).getTime() - new Date(agg.transaction_date).getTime()
-          ) / (1000 * 3600 * 24);
-          
+          const dayDiff =
+            Math.abs(
+              new Date(statement.transaction_date).getTime() -
+                new Date(agg.transaction_date).getTime(),
+            ) /
+            (1000 * 3600 * 24);
+
           if (dayDiff <= matchingCriteria.dateBufferDays) {
-            const score = 80 - (amountDiff / (stmtAmount || 1)) * 10 - (dayDiff * 5);
+            const score =
+              80 - (amountDiff / (stmtAmount || 1)) * 10 - dayDiff * 5;
             if (!bestMatch || score > bestMatch.score) {
               bestMatch = { agg, score, criteria: "FUZZY_AMOUNT_DATE" };
             }
@@ -513,10 +538,11 @@ findMatches(
         await this.repository.markAsReconciled(
           match.statementId,
           match.aggregateId,
+          userId,
         );
 
         await this.repository.logAction({
-          companyId: companyId || '',
+          companyId: companyId || "",
           userId,
           action: "AUTO_MATCH",
           statementId: match.statementId,
@@ -529,22 +555,24 @@ findMatches(
 
         reconciledMatches.push(match);
       } catch (error: any) {
-        logError("Error reconciling match", { 
-          statementId: match.statementId, 
+        logError("Error reconciling match", {
+          statementId: match.statementId,
           aggregateId: match.aggregateId,
-          error: error.message 
+          error: error.message,
         });
       }
     }
 
     // Update orchestrator
     if (reconciledMatches.length > 0) {
-      const bulkUpdates = reconciledMatches.map(m => ({
+      const bulkUpdates = reconciledMatches.map((m) => ({
         aggregateId: m.aggregateId,
         status: "RECONCILED" as const,
         statementId: m.statementId,
       }));
-      await this.orchestratorService.bulkUpdateReconciliationStatus(bulkUpdates);
+      await this.orchestratorService.bulkUpdateReconciliationStatus(
+        bulkUpdates,
+      );
     }
 
     return {
@@ -589,11 +617,11 @@ findMatches(
     endDate?: Date,
     bankAccountId?: number,
     options?: {
-      status?: 'RECONCILED' | 'UNRECONCILED' | 'DISCREPANCY';
+      status?: "RECONCILED" | "UNRECONCILED" | "DISCREPANCY";
       search?: string;
       isReconciled?: boolean;
       sortField?: string;
-      sortOrder?: 'asc' | 'desc';
+      sortOrder?: "asc" | "desc";
       limit?: number;
       offset?: number;
     },
@@ -605,9 +633,10 @@ findMatches(
       options,
     );
 
-    const page = options?.offset !== undefined && options?.limit 
-      ? Math.floor(options.offset / options.limit) + 1 
-      : 1;
+    const page =
+      options?.offset !== undefined && options?.limit
+        ? Math.floor(options.offset / options.limit) + 1
+        : 1;
 
     const processedData = statements.map((s) => {
       const isReconciled = s.is_reconciled;
@@ -618,7 +647,8 @@ findMatches(
         ? Math.abs(bankAmount - s.matched_aggregate.nett_amount)
         : 0;
 
-      let status: BankReconciliationStatus = BankReconciliationStatus.UNRECONCILED;
+      let status: BankReconciliationStatus =
+        BankReconciliationStatus.UNRECONCILED;
       if (isReconciled) {
         if (difference === 0) {
           status = s.reconciliation_id
@@ -630,7 +660,9 @@ findMatches(
           status = BankReconciliationStatus.DISCREPANCY;
         }
       } else {
-        status = hasMatch ? BankReconciliationStatus.PENDING : BankReconciliationStatus.UNRECONCILED;
+        status = hasMatch
+          ? BankReconciliationStatus.PENDING
+          : BankReconciliationStatus.UNRECONCILED;
       }
 
       return {
@@ -646,14 +678,17 @@ findMatches(
     let filteredData = processedData;
     let finalTotal = total;
 
-    if (options?.status === 'DISCREPANCY') {
-      filteredData = processedData.filter(s => s.status === BankReconciliationStatus.DISCREPANCY);
+    if (options?.status === "DISCREPANCY") {
+      filteredData = processedData.filter(
+        (s) => s.status === BankReconciliationStatus.DISCREPANCY,
+      );
       finalTotal = filteredData.length;
-    } else if (options?.status === 'RECONCILED') {
+    } else if (options?.status === "RECONCILED") {
       // RECONCILED should include AUTO_MATCHED and MANUALLY_MATCHED but exclude DISCREPANCY
-      filteredData = processedData.filter(s => 
-        s.status === BankReconciliationStatus.AUTO_MATCHED || 
-        s.status === BankReconciliationStatus.MANUALLY_MATCHED
+      filteredData = processedData.filter(
+        (s) =>
+          s.status === BankReconciliationStatus.AUTO_MATCHED ||
+          s.status === BankReconciliationStatus.MANUALLY_MATCHED,
       );
       finalTotal = filteredData.length;
     }
@@ -663,9 +698,7 @@ findMatches(
     return createPaginatedResponse(filteredData, finalTotal, page, limit);
   }
 
-  async getPotentialMatches(
-    statementId: string,
-  ): Promise<any[]> {
+  async getPotentialMatches(statementId: string): Promise<any[]> {
     const s = await this.repository.findById(statementId);
     if (!s) throw new Error("Statement not found");
 
@@ -678,10 +711,7 @@ findMatches(
     );
   }
 
-  async getBankAccountsStatus(
-    startDate: Date,
-    endDate: Date,
-  ): Promise<any[]> {
+  async getBankAccountsStatus(startDate: Date, endDate: Date): Promise<any[]> {
     return this.repository.getBankAccountsStatus(startDate, endDate);
   }
 
@@ -689,10 +719,7 @@ findMatches(
     return this.repository.getAllBankAccounts();
   }
 
-  async getSummary(
-    startDate: Date,
-    endDate: Date,
-  ): Promise<any> {
+  async getSummary(startDate: Date, endDate: Date): Promise<any> {
     return this.orchestratorService.getReconciliationSummary(
       startDate,
       endDate,
@@ -720,7 +747,7 @@ findMatches(
   ): Promise<MultiMatchResultDto> {
     // Remove duplicate statement IDs
     const uniqueStatementIds = [...new Set(statementIds)];
-    
+
     const aggregate = await this.orchestratorService.getAggregate(aggregateId);
     if (!aggregate) {
       throw new Error("Aggregate tidak ditemukan");
@@ -732,12 +759,10 @@ findMatches(
     }
 
     const statements = await Promise.all(
-      uniqueStatementIds.map(id => this.repository.findById(id))
+      uniqueStatementIds.map((id) => this.repository.findById(id)),
     );
 
-    const invalidStatements = statements.filter(
-      (s) => !s || s.is_reconciled
-    );
+    const invalidStatements = statements.filter((s) => !s || s.is_reconciled);
     if (invalidStatements.length > 0) {
       throw new Error("Beberapa statement tidak valid atau sudah dicocokkan");
     }
@@ -749,14 +774,14 @@ findMatches(
 
     const aggregateAmount = aggregate.nett_amount;
     const difference = totalBankAmount - aggregateAmount;
-    const differencePercent = aggregateAmount !== 0
-      ? Math.abs(difference) / aggregateAmount
-      : 0;
+    const differencePercent =
+      aggregateAmount !== 0 ? Math.abs(difference) / aggregateAmount : 0;
 
-    const isWithinTolerance = differencePercent <= this.multiMatchConfig.defaultTolerancePercent;
+    const isWithinTolerance =
+      differencePercent <= this.multiMatchConfig.defaultTolerancePercent;
     if (!isWithinTolerance && !overrideDifference) {
       throw new Error(
-        `Selisih ${(differencePercent * 100).toFixed(2)}% melebihi tolerance ${(this.multiMatchConfig.defaultTolerancePercent * 100)}%. Gunakan override jika ingin melanjutkan.`
+        `Selisih ${(differencePercent * 100).toFixed(2)}% melebihi tolerance ${this.multiMatchConfig.defaultTolerancePercent * 100}%. Gunakan override jika ingin melanjutkan.`,
       );
     }
 
@@ -771,13 +796,17 @@ findMatches(
       companyId,
     });
 
-    const statementDetails = statements.map(s => ({
+    const statementDetails = statements.map((s) => ({
       statementId: s.id,
       amount: (s.credit_amount || 0) - (s.debit_amount || 0),
     }));
     await this.repository.addStatementsToGroup(groupId, statementDetails);
 
-    await this.repository.markStatementsAsReconciledWithGroup(uniqueStatementIds, groupId);
+    await this.repository.markStatementsAsReconciledWithGroup(
+      uniqueStatementIds,
+      groupId,
+      userId,
+    );
 
     await this.orchestratorService.updateReconciliationStatus(
       aggregateId,
@@ -787,7 +816,7 @@ findMatches(
     );
 
     await this.repository.logAction({
-      companyId: companyId || '',
+      companyId: companyId || "",
       userId,
       action: "CREATE_MULTI_MATCH",
       aggregateId,
@@ -829,7 +858,7 @@ findMatches(
       throw new Error("Group sudah di-undo");
     }
 
-    await this.repository.undoReconciliationGroup(groupId);
+    await this.repository.undoReconciliationGroup(groupId, userId);
 
     if (group.aggregate_id) {
       await this.orchestratorService.updateReconciliationStatus(
@@ -839,7 +868,7 @@ findMatches(
     }
 
     await this.repository.logAction({
-      companyId: companyId || '',
+      companyId: companyId || "",
       userId,
       action: "UNDO_MULTI_MATCH",
       aggregateId: group.aggregate_id,
@@ -861,8 +890,10 @@ findMatches(
       throw new Error("Aggregate tidak ditemukan");
     }
 
-    const tolerance = tolerancePercent ?? this.multiMatchConfig.defaultTolerancePercent;
-    const days = dateToleranceDays ?? this.multiMatchConfig.defaultDateToleranceDays;
+    const tolerance =
+      tolerancePercent ?? this.multiMatchConfig.defaultTolerancePercent;
+    const days =
+      dateToleranceDays ?? this.multiMatchConfig.defaultDateToleranceDays;
     const max = maxStatements ?? this.multiMatchConfig.defaultMaxStatements;
 
     const aggregateDate = new Date(aggregate.transaction_date);
@@ -871,10 +902,11 @@ findMatches(
     const endDate = new Date(aggregateDate);
     endDate.setDate(endDate.getDate() + days);
 
-    const statements = await this.repository.getUnreconciledStatementsForSuggestion(
-      startDate,
-      endDate,
-    );
+    const statements =
+      await this.repository.getUnreconciledStatementsForSuggestion(
+        startDate,
+        endDate,
+      );
 
     const suggestions = this.findStatementCombinations(
       statements,
@@ -893,13 +925,13 @@ findMatches(
     maxStatements: number,
   ): MultiMatchSuggestion[] {
     const suggestions: MultiMatchSuggestion[] = [];
-    const amounts = statements.map(s => ({
+    const amounts = statements.map((s) => ({
       ...s,
       amount: (s.credit_amount || 0) - (s.debit_amount || 0),
     }));
 
     const midGroups = new Map<string, any[]>();
-    amounts.forEach(stmt => {
+    amounts.forEach((stmt) => {
       const mid = this.extractMID(stmt.description);
       if (mid) {
         if (!midGroups.has(mid)) {
@@ -917,19 +949,25 @@ findMatches(
         maxStatements,
       );
 
-      combos.forEach(combo => {
-        const totalAmount = combo.reduce((sum: number, s: any) => sum + s.amount, 0);
+      combos.forEach((combo) => {
+        const totalAmount = combo.reduce(
+          (sum: number, s: any) => sum + s.amount,
+          0,
+        );
         suggestions.push({
           statements: combo,
           totalAmount,
-          matchPercentage: 1 - Math.abs(totalAmount - targetAmount) / targetAmount,
-          confidence: 'HIGH',
+          matchPercentage:
+            1 - Math.abs(totalAmount - targetAmount) / targetAmount,
+          confidence: "HIGH",
           reason: `MID: ${mid}`,
         });
       });
     }
 
-    const nonMidStatements = amounts.filter(s => !this.extractMID(s.description));
+    const nonMidStatements = amounts.filter(
+      (s) => !this.extractMID(s.description),
+    );
     const fallbackCombos = this.findExactMatchCombinations(
       nonMidStatements,
       targetAmount,
@@ -937,14 +975,18 @@ findMatches(
       maxStatements,
     );
 
-    fallbackCombos.forEach(combo => {
-      const totalAmount = combo.reduce((sum: number, s: any) => sum + s.amount, 0);
+    fallbackCombos.forEach((combo) => {
+      const totalAmount = combo.reduce(
+        (sum: number, s: any) => sum + s.amount,
+        0,
+      );
       suggestions.push({
         statements: combo,
         totalAmount,
-        matchPercentage: 1 - Math.abs(totalAmount - targetAmount) / targetAmount,
-        confidence: 'MEDIUM',
-        reason: 'Amount match only',
+        matchPercentage:
+          1 - Math.abs(totalAmount - targetAmount) / targetAmount,
+        confidence: "MEDIUM",
+        reason: "Amount match only",
       });
     });
 
@@ -985,11 +1027,13 @@ findMatches(
 
     findCombos(0, [], 0);
 
-    return results.sort((a, b) => {
-      const sumA = a.reduce((s: number, st: any) => s + st.amount, 0);
-      const sumB = b.reduce((s: number, st: any) => s + st.amount, 0);
-      return Math.abs(sumA - targetAmount) - Math.abs(sumB - targetAmount);
-    }).slice(0, 10);
+    return results
+      .sort((a, b) => {
+        const sumA = a.reduce((s: number, st: any) => s + st.amount, 0);
+        const sumB = b.reduce((s: number, st: any) => s + st.amount, 0);
+        return Math.abs(sumA - targetAmount) - Math.abs(sumB - targetAmount);
+      })
+      .slice(0, 10);
   }
 
   private extractMID(description: string): string | null {
@@ -1017,7 +1061,12 @@ findMatches(
    * Get all unreconciled bank statements
    * Used for reverse matching modal in Pos Aggregates
    */
-  async getUnreconciledStatements(bankAccountId?: number, search?: string, limit: number = 50, offset: number = 0): Promise<any[]> {
+  async getUnreconciledStatements(
+    bankAccountId?: number,
+    search?: string,
+    limit: number = 50,
+    offset: number = 0,
+  ): Promise<any[]> {
     try {
       // Get today's date as default
       const today = new Date();
@@ -1032,7 +1081,7 @@ findMatches(
           endDate,
           limit * 10, // Get more data for filtering
           0,
-          bankAccountId
+          bankAccountId,
         );
       } else {
         // Get from all accounts - we need to fetch all
@@ -1045,7 +1094,7 @@ findMatches(
             endDate,
             limit * 10,
             0,
-            account.id
+            account.id,
           );
           allStatements.push(...accountStatements);
         }
@@ -1056,9 +1105,10 @@ findMatches(
       // Apply search filter if provided
       if (search) {
         const searchLower = search.toLowerCase();
-        statements = statements.filter(s => 
-          s.description?.toLowerCase().includes(searchLower) ||
-          s.reference_number?.toLowerCase().includes(searchLower)
+        statements = statements.filter(
+          (s) =>
+            s.description?.toLowerCase().includes(searchLower) ||
+            s.reference_number?.toLowerCase().includes(searchLower),
         );
       }
 
@@ -1066,7 +1116,7 @@ findMatches(
       const paginatedStatements = statements.slice(offset, offset + limit);
 
       // Transform to include computed fields
-      return paginatedStatements.map(s => {
+      return paginatedStatements.map((s) => {
         const bankAmount = (s.credit_amount || 0) - (s.debit_amount || 0);
         return {
           ...s,
@@ -1081,7 +1131,7 @@ findMatches(
       logError("Error getting unreconciled statements for reverse matching", {
         bankAccountId,
         search,
-        error: error.message
+        error: error.message,
       });
       throw new Error("Gagal mengambil data mutasi bank yang belum dicocokkan");
     }
@@ -1093,7 +1143,7 @@ findMatches(
    */
   async findStatementsByAmount(
     targetAmount: number,
-    tolerancePercent: number = 0.05 // 5% default tolerance
+    tolerancePercent: number = 0.05, // 5% default tolerance
   ): Promise<any[]> {
     try {
       // Get today's date as default
@@ -1111,7 +1161,7 @@ findMatches(
           endDate,
           10000,
           0,
-          account.id
+          account.id,
         );
         allStatements.push(...accountStatements);
       }
@@ -1122,15 +1172,19 @@ findMatches(
       const maxAmount = targetAmount + tolerance;
 
       // Filter statements by amount range
-      const matchingStatements = allStatements.filter(s => {
+      const matchingStatements = allStatements.filter((s) => {
         const bankAmount = (s.credit_amount || 0) - (s.debit_amount || 0);
         return bankAmount >= minAmount && bankAmount <= maxAmount;
       });
 
       // Sort by closest match first
       matchingStatements.sort((a, b) => {
-        const amountA = Math.abs(((a.credit_amount || 0) - (a.debit_amount || 0)) - targetAmount);
-        const amountB = Math.abs(((b.credit_amount || 0) - (b.debit_amount || 0)) - targetAmount);
+        const amountA = Math.abs(
+          (a.credit_amount || 0) - (a.debit_amount || 0) - targetAmount,
+        );
+        const amountB = Math.abs(
+          (b.credit_amount || 0) - (b.debit_amount || 0) - targetAmount,
+        );
         return amountA - amountB;
       });
 
@@ -1138,10 +1192,10 @@ findMatches(
       const limitedResults = matchingStatements.slice(0, 50);
 
       // Transform to include computed fields
-      return limitedResults.map(s => {
+      return limitedResults.map((s) => {
         const bankAmount = (s.credit_amount || 0) - (s.debit_amount || 0);
         const difference = Math.abs(bankAmount - targetAmount);
-        const matchPercentage = 1 - (difference / targetAmount);
+        const matchPercentage = 1 - difference / targetAmount;
 
         return {
           ...s,
@@ -1159,7 +1213,7 @@ findMatches(
       logError("Error finding statements by amount", {
         targetAmount,
         tolerancePercent,
-        error: error.message
+        error: error.message,
       });
       throw new Error("Gagal mencari mutasi bank berdasarkan nominal");
     }
