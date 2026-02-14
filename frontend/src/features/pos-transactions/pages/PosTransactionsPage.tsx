@@ -470,7 +470,10 @@ export function PosTransactionsPage() {
                 </p>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setPagination(p => ({ ...p, page: Math.max(1, p.page - 1) }))}
+                    onClick={() => {
+                      setPagination(p => ({ ...p, page: Math.max(1, p.page - 1) }))
+                      fetchTransactions()
+                    }}
                     disabled={pagination.page === 1}
                     className="px-3 py-1 border rounded disabled:opacity-50"
                   >
@@ -480,7 +483,10 @@ export function PosTransactionsPage() {
                     Page {pagination.page} of {totalPages}
                   </span>
                   <button
-                    onClick={() => setPagination(p => ({ ...p, page: Math.min(totalPages, p.page + 1) }))}
+                    onClick={() => {
+                      setPagination(p => ({ ...p, page: Math.min(totalPages, p.page + 1) }))
+                      fetchTransactions()
+                    }}
                     disabled={pagination.page === totalPages}
                     className="px-3 py-1 border rounded disabled:opacity-50"
                   >
