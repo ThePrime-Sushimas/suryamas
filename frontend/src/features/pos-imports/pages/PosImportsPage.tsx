@@ -58,12 +58,19 @@ function PosImportsPageContent() {
     }
   }, [errors.upload, toast])
 
+  // Optimized: use Map for O(1) lookup instead of array.find in every render
+  // Stabilized dependencies: Array.from creates new array but Set reference is stable
+  const importsMap = useMemo(() => {
+    return new Map(imports.map(imp => [imp.id, imp]))
+  }, [imports])
+
   const canConfirmSelected = useMemo(() => {
-    return Array.from(selectedIds).some(id => {
-      const imp = imports.find(i => i.id === id)
+    const selectedArray = Array.from(selectedIds)
+    return selectedArray.some(id => {
+      const imp = importsMap.get(id)
       return imp?.status === 'ANALYZED'
     })
-  }, [selectedIds, imports])
+  }, [selectedIds, importsMap])
 
   const activeUpload = Array.from(uploads.values())[0]
   const uploadProgress = activeUpload?.progress || 0
@@ -112,7 +119,7 @@ function PosImportsPageContent() {
     }
   }
 
-  const handleDeleteClick = (id: string, fileName: string) => {
+  const handleBatchDeleteClick = (id: string, fileName: string) => {
     setDeleteConfirm({ id, fileName })
   }
 
@@ -140,7 +147,7 @@ function PosImportsPageContent() {
 
   const handleBatchConfirm = async () => {
     const analyzedIds = Array.from(selectedIds).filter(id => {
-      const imp = imports.find(i => i.id === id)
+      const imp = importsMap.get(id)
       return imp?.status === 'ANALYZED'
     })
     
@@ -163,7 +170,7 @@ function PosImportsPageContent() {
     
     for (const id of ids) {
       try {
-        const imp = imports.find(i => i.id === id)
+        const imp = importsMap.get(id)
         if (!imp) continue
         const blob = await exportImport(id)
         const url = window.URL.createObjectURL(blob)
@@ -329,8 +336,8 @@ function PosImportsPageContent() {
             onToggleSelection={toggleSelection}
             onSelectAll={(checked) => checked ? selectAll() : clearSelection()}
             onDelete={(id) => {
-              const item = imports.find(i => i.id === id)
-              if (item) handleDeleteClick(id, item.file_name)
+              const item = importsMap.get(id)
+              if (item) handleBatchDeleteClick(id, item.file_name)
             }}
             isLoading={loading.delete}
           />
