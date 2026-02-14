@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation, Link, Outlet, useNavigate } from "react-router-dom";
 import {
   Menu,
@@ -41,14 +41,110 @@ interface MenuItem {
   module?: string;
 }
 
-export default function Layout() {
+// Komponen MenuItem dengan dukungan nested submenu
+const MenuItemComponent = ({ item, level, onNavigate }: { item: MenuItem; level: number; onNavigate?: () => void }) => {
   const location = useLocation();
+  const [isOpen, setIsOpen] = useState(false);
+  
+  const isActive = item.href === location.pathname;
+  const hasSubmenu = item.submenu && item.submenu.length > 0;
+
+  // Auto open submenu jika ada child yang aktif
+  useEffect(() => {
+    if (hasSubmenu) {
+      const isChildActive = item.submenu?.some((subItem) => {
+        if (subItem.href === location.pathname) return true;
+        if (subItem.submenu) {
+          return subItem.submenu.some((nestedItem) => nestedItem.href === location.pathname);
+        }
+        return false;
+      });
+      if (isChildActive) {
+        setIsOpen(true);
+      }
+    }
+  }, [location.pathname, item.submenu, hasSubmenu]);
+
+  const toggleSubmenu = () => {
+    setIsOpen(!isOpen);
+  };
+
+  const handleClick = () => {
+    if (hasSubmenu) {
+      toggleSubmenu();
+    }
+    // Tutup sidebar mobile saat navigasi
+    if (onNavigate) {
+      onNavigate();
+    }
+  };
+
+  // Styling berdasarkan level
+  const paddingLeft = level === 0 ? 'px-3' : level === 1 ? 'ml-4 px-3' : 'ml-8 px-3';
+  const activeClass = isActive 
+    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" 
+    : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700";
+  const parentActiveClass = hasSubmenu && item.submenu?.some((sub) => 
+    sub.href === location.pathname || sub.submenu?.some((nested) => nested.href === location.pathname)
+  ) 
+    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+    : activeClass;
+
+  if (hasSubmenu) {
+    return (
+      <div className="relative group">
+        <button
+          onClick={handleClick}
+          className={`group flex items-center w-full py-2 text-sm font-medium rounded-md transition-colors ${paddingLeft} ${parentActiveClass}`}
+          aria-expanded={isOpen}
+        >
+          <span className={`${level === 0 ? "mr-3" : "mr-3"} shrink-0`}>
+            {item.icon}
+          </span>
+          <span className="flex-1 text-left">{item.name}</span>
+          {isOpen ? (
+            <ChevronDown size={16} className="text-gray-400" />
+          ) : (
+            <ChevronRight size={16} className="text-gray-400" />
+          )}
+        </button>
+
+        {isOpen && (
+          <div className="mt-1 space-y-1">
+            {item.submenu?.map((subItem) => (
+              <MenuItemComponent 
+                key={subItem.id} 
+                item={subItem} 
+                level={level + 1}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      to={item.href || "#"}
+      onClick={handleClick}
+      className={`group flex items-center py-2 text-sm font-medium rounded-md transition-colors ${paddingLeft} ${activeClass}`}
+    >
+      <span className={`${level === 0 ? "mr-3" : "mr-3"} shrink-0`}>
+        {item.icon}
+      </span>
+      {item.name}
+    </Link>
+  );
+};
+
+export default function Layout() {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { permissions, isLoaded } = usePermissionStore();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -158,89 +254,121 @@ export default function Layout() {
         name: "Accounting",
         icon: <Calculator size={18} />,
         submenu: [
+          // Core Accounting
           {
-            id: "chart-of-accounts",
-            name: "Chart of Accounts",
-            href: "/chart-of-accounts",
+            id: "accounting-core",
+            name: "Core Accounting",
             icon: <Calculator size={16} />,
-            module: "chart_of_accounts",
+            submenu: [
+              {
+                id: "chart-of-accounts",
+                name: "Chart of Accounts",
+                href: "/chart-of-accounts",
+                icon: <Calculator size={16} />,
+                module: "chart_of_accounts",
+              },
+              {
+                id: "accounting-purposes",
+                name: "Accounting Purposes",
+                href: "/accounting-purposes",
+                icon: <Calculator size={16} />,
+                module: "accounting_purposes",
+              },
+              {
+                id: "accounting-purpose-accounts",
+                name: "Purpose Accounts",
+                href: "/accounting-purpose-accounts",
+                icon: <Calculator size={16} />,
+                module: "accounting_purpose_accounts",
+              },
+            ],
           },
+          // Period & Journals
           {
-            id: "accounting-purposes",
-            name: "Accounting Purposes",
-            href: "/accounting-purposes",
+            id: "accounting-periods",
+            name: "Period & Journals",
             icon: <Calculator size={16} />,
-            module: "accounting_purposes",
+            submenu: [
+              {
+                id: "fiscal-periods",
+                name: "Fiscal Periods",
+                href: "/accounting/fiscal-periods",
+                icon: <Calculator size={16} />,
+                module: "fiscal_periods",
+              },
+              {
+                id: "journal-entries",
+                name: "Journal Entries",
+                href: "/accounting/journals",
+                icon: <Calculator size={16} />,
+                module: "journals",
+              },
+            ],
           },
+          // POS Management
           {
-            id: "accounting-purpose-accounts",
-            name: "Purpose Accounts",
-            href: "/accounting-purpose-accounts",
-            icon: <Calculator size={16} />,
-            module: "accounting_purpose_accounts",
-          },
-          {
-            id: "fiscal-periods",
-            name: "Fiscal Periods",
-            href: "/accounting/fiscal-periods",
-            icon: <Calculator size={16} />,
-            module: "fiscal_periods",
-          },
-          {
-            id: "journal-entries",
-            name: "Journal Entries",
-            href: "/accounting/journals",
-            icon: <Calculator size={16} />,
-            module: "journals",
-          },
-          {
-            id: "pos-imports",
-            name: "POS Imports",
-            href: "/pos-imports",
+            id: "accounting-pos",
+            name: "POS Management",
             icon: <FileSpreadsheet size={16} />,
-            module: "pos_imports",
+            submenu: [
+              {
+                id: "pos-imports",
+                name: "POS Imports",
+                href: "/pos-imports",
+                icon: <FileSpreadsheet size={16} />,
+                module: "pos_imports",
+              },
+              {
+                id: "pos-transactions",
+                name: "POS Transactions",
+                href: "/pos-transactions",
+                icon: <FileSpreadsheet size={16} />,
+                module: "pos_imports",
+              },
+              {
+                id: "pos-aggregates",
+                name: "POS Aggregates",
+                href: "/pos-aggregates",
+                icon: <FileSpreadsheet size={16} />,
+                module: "pos_aggregates",
+              },
+              {
+                id: "failed-transactions",
+                name: "Failed Transactions",
+                href: "/pos-aggregates/failed-transactions",
+                icon: <AlertTriangle size={16} />,
+                module: "pos_aggregates",
+              },
+            ],
           },
+          // Banking
           {
-            id: "pos-transactions",
-            name: "POS Transactions",
-            href: "/pos-transactions",
-            icon: <FileSpreadsheet size={16} />,
-            module: "pos_imports",
-          },
-          {
-            id: "pos-aggregates",
-            name: "POS Aggregates",
-            href: "/pos-aggregates",
-            icon: <FileSpreadsheet size={16} />,
-            module: "pos_aggregates",
-          },
-          {
-            id: "failed-transactions",
-            name: "Failed Transactions",
-            href: "/pos-aggregates/failed-transactions",
-            icon: <AlertTriangle size={16} />,
-            module: "pos_aggregates",
-          },
-          {
-            id: "bank-statement-imports",
-            name: "Bank Statement Imports",
-            href: "/bank-statement-import",
-            icon: <FileSpreadsheet size={16} />,
-            module: "bank_statement_imports",
-          },
-{
-            id: "bank-reconciliation",
-            name: "Bank Reconciliation",
-            href: "/bank-reconciliation",
+            id: "accounting-banking",
+            name: "Banking",
             icon: <ShieldCheck size={16} />,
-            module: "bank_reconciliation",
-          },
-          {
-            id: "settlement-groups",
-            name: "Settlement Groups",
-            href: "/bank-reconciliation/settlement-groups",
-            icon: <FileSpreadsheet size={16} />,
-            module: "bank_reconciliation",
+            submenu: [
+              {
+                id: "bank-statement-imports",
+                name: "Bank Statement Imports",
+                href: "/bank-statement-import",
+                icon: <FileSpreadsheet size={16} />,
+                module: "bank_statement_imports",
+              },
+              {
+                id: "bank-reconciliation",
+                name: "Bank Reconciliation",
+                href: "/bank-reconciliation",
+                icon: <ShieldCheck size={16} />,
+                module: "bank_reconciliation",
+              },
+              {
+                id: "settlement-groups",
+                name: "Settlement Groups",
+                href: "/bank-reconciliation/settlement-groups",
+                icon: <FileSpreadsheet size={16} />,
+                module: "bank_reconciliation",
+              },
+            ],
           },
         ],
       },
@@ -293,53 +421,24 @@ export default function Layout() {
   const filteredMenuItems = useMemo(() => {
     if (!isLoaded) return menuItems;
 
-    return menuItems
-      .map((item) => {
-        if (item.submenu) {
-          const filteredSubmenu = item.submenu.filter((subItem) => {
-            if (!subItem.module) return true;
-            return permissions[subItem.module]?.view === true;
-          });
-          return { ...item, submenu: filteredSubmenu };
-        }
-        return item;
-      })
-      .filter((item) => {
-        if (item.submenu) return item.submenu.length > 0;
-        return true;
-      });
+    const filterMenu = (items: MenuItem[]): MenuItem[] => {
+      return items
+        .map((item) => {
+          if (item.submenu) {
+            const filteredSubmenu = filterMenu(item.submenu);
+            return { ...item, submenu: filteredSubmenu };
+          }
+          return item;
+        })
+        .filter((item) => {
+          if (item.submenu) return item.submenu.length > 0;
+          if (item.module) return permissions[item.module]?.view === true;
+          return true;
+        });
+    };
+
+    return filterMenu(menuItems);
   }, [menuItems, permissions, isLoaded]);
-
-  const toggleSubmenu = useCallback((menuId: string) => {
-    setActiveSubmenu((prev) => (prev === menuId ? null : menuId));
-  }, []);
-
-  const isActiveMenu = useCallback(
-    (href?: string) => {
-      return href === location.pathname;
-    },
-    [location.pathname],
-  );
-
-  const isSubmenuActive = useCallback(
-    (submenu?: MenuItem[]) => {
-      return submenu?.some((item) => isActiveMenu(item.href));
-    },
-    [isActiveMenu],
-  );
-
-  // Auto buka submenu berdasarkan current route
-  useEffect(() => {
-    filteredMenuItems.forEach((item) => {
-      if (item.submenu) {
-        if (
-          item.submenu.some((subItem) => subItem.href === location.pathname)
-        ) {
-          setActiveSubmenu(item.id);
-        }
-      }
-    });
-  }, [location.pathname, filteredMenuItems]);
 
   const handleLogout = async () => {
     await logout();
@@ -471,101 +570,12 @@ export default function Layout() {
           <nav className="mt-8 px-4 h-[calc(100vh-8rem)] overflow-y-auto">
             <div className="space-y-1">
               {filteredMenuItems.map((item) => (
-                <div key={item.id}>
-                  {item.submenu ? (
-                    <div className="relative group">
-                      <button
-                        onClick={() => toggleSubmenu(item.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            toggleSubmenu(item.id);
-                          }
-                        }}
-                        className={`group flex items-center w-full px-3 py-2 text-sm font-medium rounded-md transition-colors
-                          ${
-                            activeSubmenu === item.id ||
-                            isSubmenuActive(item.submenu)
-                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                              : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                          }`}
-                        aria-expanded={activeSubmenu === item.id}
-                        aria-label={item.name}
-                      >
-                        <span
-                          className={`${isSidebarCollapsed ? "mx-auto" : "mr-3"} shrink-0`}
-                        >
-                          {item.icon}
-                        </span>
-                        {!isSidebarCollapsed && (
-                          <>
-                            <span className="flex-1 text-left">
-                              {item.name}
-                            </span>
-                            {activeSubmenu === item.id ? (
-                              <ChevronDown
-                                size={16}
-                                className="text-gray-400"
-                              />
-                            ) : (
-                              <ChevronRight
-                                size={16}
-                                className="text-gray-400"
-                              />
-                            )}
-                          </>
-                        )}
-                      </button>
-
-                      {isSidebarCollapsed && (
-                        <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                          {item.name}
-                        </div>
-                      )}
-
-                      {activeSubmenu === item.id && !isSidebarCollapsed && (
-                        <div className="mt-1 ml-4 space-y-1">
-                          {item.submenu.map((subItem) => (
-                            <Link
-                              key={subItem.id}
-                              to={subItem.href || "#"}
-                              onClick={() => setIsSidebarOpen(false)}
-                              className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors
-                                ${
-                                  isActiveMenu(subItem.href)
-                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                                    : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-                                }`}
-                            >
-                              <span className="mr-3 shrink-0">
-                                {subItem.icon}
-                              </span>
-                              {subItem.name}
-                            </Link>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <Link
-                      to={item.href || "#"}
-                      onClick={() => setIsSidebarOpen(false)}
-                      className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors
-                        ${
-                          isActiveMenu(item.href)
-                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                            : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                        }`}
-                    >
-                      <span
-                        className={`${isSidebarCollapsed ? "mx-auto" : "mr-3"} shrink-0`}
-                      >
-                        {item.icon}
-                      </span>
-                      {!isSidebarCollapsed && item.name}
-                    </Link>
-                  )}
-                </div>
+                <MenuItemComponent 
+                  key={item.id} 
+                  item={item} 
+                  level={0}
+                  onNavigate={() => setIsSidebarOpen(false)}
+                />
               ))}
             </div>
           </nav>
