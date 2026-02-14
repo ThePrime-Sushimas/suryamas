@@ -16,7 +16,6 @@ function PosImportsPageContent() {
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; fileName: string } | null>(null)
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false)
-  const [filters, setFilters] = useState({ search: '', status: '' })
   const currentBranch = useBranchContextStore(s => s.currentBranch)
   const user = useAuthStore(s => s.user)
   const toast = useToast()
@@ -27,6 +26,7 @@ function PosImportsPageContent() {
     analyzeResult,
     uploads,
     selectedIds,
+    filters,
     loading,
     errors,
     fetchImports,
@@ -40,21 +40,9 @@ function PosImportsPageContent() {
     clearSelection,
     clearAnalyzeResult,
     clearError,
+    setFilters,
     reset
   } = usePosImportsStore()
-
-  // Filter imports
-  const filteredImports = useMemo(() => {
-    let result = imports
-    if (filters.search) {
-      const query = filters.search.toLowerCase()
-      result = result.filter(imp => imp.file_name.toLowerCase().includes(query))
-    }
-    if (filters.status) {
-      result = result.filter(imp => imp.status === filters.status)
-    }
-    return result
-  }, [imports, filters])
 
   // Check if can confirm selected
   const canConfirmSelected = useMemo(() => {
@@ -223,7 +211,7 @@ function PosImportsPageContent() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input
               type="text"
-              value={filters.search}
+              value={filters.search || ''}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
               placeholder="Search file name..."
               className="w-full pl-9 pr-9 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -238,7 +226,7 @@ function PosImportsPageContent() {
             )}
           </div>
           <select
-            value={filters.status}
+            value={filters.status || ''}
             onChange={(e) => setFilters({ ...filters, status: e.target.value })}
             className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
@@ -252,7 +240,7 @@ function PosImportsPageContent() {
           </select>
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-600 dark:text-gray-400">
-              {filteredImports.length} of {imports.length} imports
+              {imports.length} imports
             </span>
             {(filters.search || filters.status) && (
               <button
@@ -323,7 +311,7 @@ function PosImportsPageContent() {
           </div>
         ) : (
           <PosImportsTable
-            imports={filteredImports}
+            imports={imports}
             selectedIds={selectedIds}
             onToggleSelection={toggleSelection}
             onSelectAll={(checked) => checked ? selectAll() : clearSelection()}
