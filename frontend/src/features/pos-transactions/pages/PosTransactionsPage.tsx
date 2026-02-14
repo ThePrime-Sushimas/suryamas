@@ -8,6 +8,7 @@ import { useJobsStore } from '@/features/jobs'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { handleError } from '@/lib/errorParser'
 import { useToast } from '@/contexts/ToastContext'
+import { TableSkeleton, CardSkeleton } from '@/components/ui/Skeleton'
 import {
   PAGINATION_CONFIG,
   DATE_PRESETS,
@@ -16,9 +17,10 @@ import {
   MESSAGE_CONFIG,
 } from '../constants/pos-transactions.constants'
 
-// Lazy loading skeleton component
-const LoadingSkeleton = () => (
+// Loading component using existing Skeleton
+const LoadingContent = () => (
   <div className="p-6 space-y-6">
+    {/* Header skeleton */}
     <div className="flex items-center justify-between">
       <div className="h-8 w-48 bg-gray-200 animate-pulse rounded"></div>
       <div className="flex gap-2">
@@ -26,22 +28,14 @@ const LoadingSkeleton = () => (
         <div className="h-10 w-32 bg-gray-200 animate-pulse rounded"></div>
       </div>
     </div>
+    {/* Cards skeleton */}
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-    {[...Array(5)].map((_, i) => (
-        <div key={i} className="bg-white rounded-lg shadow p-4 h-24">
-          <div className="animate-pulse">
-            <div className="h-4 w-20 bg-gray-200 rounded mb-2"></div>
-            <div className="h-6 w-28 bg-gray-200 rounded"></div>
-          </div>
-        </div>
+      {[...Array(5)].map((_, i) => (
+        <CardSkeleton key={i} />
       ))}
     </div>
-    <div className="bg-white rounded-lg shadow p-4">
-      <div className="animate-pulse space-y-4">
-        <div className="h-10 w-full bg-gray-200 rounded"></div>
-        <div className="h-64 w-full bg-gray-200 rounded"></div>
-      </div>
-    </div>
+    {/* Table skeleton */}
+    <TableSkeleton rows={10} columns={13} />
   </div>
 )
 
@@ -91,7 +85,7 @@ interface Summary {
 export function PosTransactionsPage() {
   return (
     <ErrorBoundary fallback={<ErrorFallback />}>
-      <Suspense fallback={<LoadingSkeleton />}>
+      <Suspense fallback={<LoadingContent />}>
         <PosTransactionsContent />
       </Suspense>
     </ErrorBoundary>

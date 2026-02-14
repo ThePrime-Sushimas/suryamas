@@ -471,7 +471,7 @@ export default function Layout() {
                 <Menu size={20} />
               </button>
               <Link to="/" className="flex items-center">
-                <div className="h-10 w-10 bg-linear-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center text-white font-bold mr-3">
+                <div className="h-10 w-10 bg-linear-to-br from-(--color-primary-gradient-start)items-center justify-center text-white font-bold mr-3">
                   SIS
                 </div>
                 <div className="hidden sm:block">
