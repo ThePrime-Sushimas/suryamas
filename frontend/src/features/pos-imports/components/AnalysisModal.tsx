@@ -34,12 +34,12 @@ export const AnalysisModal = ({ result, onConfirm, onCancel, isLoading }: Analys
 
   if (!result) return null
 
-  const { analysis, import: importData } = result
+  const { analysis, import: importData, summary } = result
   const hasDuplicates = analysis.duplicate_rows > 0
 
-  // Calculate financial impact (from backend summary or calculate from duplicates)
-  const totalAmount = 0 // Backend should provide this
-  const totalTax = 0 // Backend should provide this
+  // Get financial data from backend response
+  const totalAmount = summary?.totalAmount ?? 0
+  const totalTax = summary?.totalTax ?? 0
 
   // Date range validation
   const dateWarnings: string[] = []

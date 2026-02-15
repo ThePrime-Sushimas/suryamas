@@ -179,7 +179,8 @@ class PosImportsController {
 
       return sendSuccess(res, {
         import: result.import,
-        analysis: result.analysis
+        analysis: result.analysis,
+        summary: result.summary
       }, 'File analyzed successfully. Review duplicates and click Confirm to start import.')
     } catch (error) {
       logError('PosImportsController upload error', { error })

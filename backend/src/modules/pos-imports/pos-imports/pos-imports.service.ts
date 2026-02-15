@@ -19,7 +19,7 @@ import { supabase } from '../../../config/supabase'
 import { logInfo, logError } from '../../../config/logger'
 import { jobsService } from '../../jobs/jobs.service'
 import type { PosImport, CreatePosImportDto, UpdatePosImportDto, PosImportFilter } from './pos-imports.types'
-import type { PosImportStatus, DuplicateAnalysis } from '../shared/pos-import.types'
+import type { PosImportStatus, DuplicateAnalysis, FinancialSummary } from '../shared/pos-import.types'
 import type { CreatePosImportLineDto } from '../pos-import-lines/pos-import-lines.types'
 import type { PaginationParams, SortParams } from '../../../types/request.types'
 
@@ -119,7 +119,7 @@ class PosImportsService {
     branchId: string,
     companyId: string,
     userId: string
-  ): Promise<{ import: PosImport; analysis: DuplicateAnalysis }> {
+  ): Promise<{ import: PosImport; analysis: DuplicateAnalysis; summary: FinancialSummary }> {
     try {
       // Validate file size (10MB limit)
       if (file.size > 10 * 1024 * 1024) {
@@ -185,6 +185,9 @@ class PosImportsService {
       const duplicateCount = uniqueDuplicates.size
       const newRowsCount = Math.max(0, rows.length - duplicateCount)
 
+      // Calculate financial summary from rows (for preview before import)
+      const financialSummary = this.calculateFinancialSummary(rows)
+
       // Create import record
       const posImport = await posImportsRepository.create({
         company_id: companyId,
@@ -215,9 +218,9 @@ class PosImportsService {
         }))
       }
 
-      logInfo('PosImportsService analyzeFile success', { import_id: posImport.id, analysis })
+      logInfo('PosImportsService analyzeFile success', { import_id: posImport.id, analysis, financialSummary })
 
-      return { import: posImport, analysis }
+      return { import: posImport, analysis, summary: financialSummary }
     } catch (error) {
       logError('PosImportsService analyzeFile error', { error })
       throw error
@@ -249,6 +252,25 @@ class PosImportsService {
     }
     
     return results
+  }
+
+  /**
+   * Calculate financial summary from Excel rows
+   */
+  private calculateFinancialSummary(rows: any[]): { totalAmount: number; totalTax: number } {
+    let totalAmount = 0
+    let totalTax = 0
+
+    rows.forEach(row => {
+      // Parse numeric values from Excel cells
+      const total = parseFloat(row['Total'] || 0)
+      const tax = parseFloat(row['Tax'] || row['VAT'] || 0)
+
+      totalAmount += isNaN(total) ? 0 : total
+      totalTax += isNaN(tax) ? 0 : tax
+    })
+
+    return { totalAmount, totalTax }
   }
 
   /**

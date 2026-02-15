@@ -38,9 +38,15 @@ export interface DuplicateAnalysis {
   }>
 }
 
+export interface FinancialSummary {
+  totalAmount: number
+  totalTax: number
+}
+
 export interface AnalyzeResult {
   import: PosImport
   analysis: DuplicateAnalysis
+  summary: FinancialSummary
   job_id: string  // Added for jobs system integration
 }
 

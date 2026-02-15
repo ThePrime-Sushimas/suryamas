@@ -23,6 +23,11 @@ export interface DuplicateAnalysis {
   }>
 }
 
+export interface FinancialSummary {
+  totalAmount: number
+  totalTax: number
+}
+
 export interface ImportStatistics {
   total_rows: number
   new_rows: number
