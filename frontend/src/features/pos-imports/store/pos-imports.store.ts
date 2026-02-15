@@ -25,6 +25,9 @@ interface Pagination {
   page: number
   limit: number
   total: number
+  totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
 }
 
 interface ImportFilters {
@@ -84,6 +87,8 @@ interface PosImportsState {
   
   // Filters
   setFilters: (filters: ImportFilters) => void
+  setPage: (page: number) => void
+  setPageSize: (limit: number) => void
   setPagination: (page: number, limit?: number) => void
   
   // Export
@@ -104,7 +109,10 @@ const initialState = {
   pagination: {
     page: 1,
     limit: POS_IMPORT_DEFAULT_PAGE_SIZE,
-    total: 0
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false
   },
   filters: {},
   loading: {
@@ -150,12 +158,18 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
         ...filters
       })
       
+      const total = data.pagination?.total || 0
+      const totalPages = Math.ceil(total / limit)
+      
       set({ 
         imports: data.data || [],
         pagination: {
           page,
           limit,
-          total: data.pagination?.total || 0
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
         },
         loading: { ...get().loading, list: false } 
       })
@@ -430,6 +444,18 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
     set({ filters, pagination: { ...get().pagination, page: 1 } })
     saveState({ filters })
     get().fetchImports({ filters })
+  },
+
+  setPage: (page: number) => {
+    set(state => ({ pagination: { ...state.pagination, page } }))
+    get().fetchImports({ page })
+  },
+
+  setPageSize: (limit: number) => {
+    set(state => ({ 
+      pagination: { ...state.pagination, page: 1, limit }
+    }))
+    get().fetchImports({ page: 1, limit })
   },
 
   setPagination: (page: number, limit?: number) => {

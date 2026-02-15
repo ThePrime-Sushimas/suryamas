@@ -10,6 +10,7 @@ export const POS_IMPORT_UPLOAD_TIMEOUT_MS = 120000 // 2 minutes
 
 // Pagination
 export const POS_IMPORT_DEFAULT_PAGE_SIZE = 50
+export const POS_IMPORT_PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
 
 // Rate limiting
 export const POS_IMPORT_UPLOAD_COOLDOWN_MS = 5000 // 5 seconds
