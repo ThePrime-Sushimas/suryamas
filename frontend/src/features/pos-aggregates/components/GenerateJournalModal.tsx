@@ -365,14 +365,14 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
                 {/* Branch Filter */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Cabin (Kosongkan untuk semua)
+                    Cabang (Kosongkan untuk semua)
                   </label>
                   <select
                     value={selectedBranch}
                     onChange={(e) => setSelectedBranch(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
-                    <option value="">Semua Cabin</option>
+                    <option value="">Semua Cabang</option>
                     {branches.map((branch) => (
                       <option key={branch.id} value={branch.branch_name}>
                         {branch.branch_name}

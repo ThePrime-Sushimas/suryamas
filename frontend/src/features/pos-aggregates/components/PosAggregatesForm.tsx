@@ -294,13 +294,13 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
           {/* Branch Name - Read-only when editing */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Nama Cabin <span className="text-red-500">*</span>
+              Nama Cabang <span className="text-red-500">*</span>
             </label>
             <Controller
               name="branch_name"
               control={control}
               rules={{
-                required: 'Nama cabin wajib dipilih',
+                required: 'Nama Cabang wajib dipilih',
               }}
               render={({ field }) => (
                 <select
@@ -312,7 +312,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                   } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
                   disabled={loadingBranches || !!transaction}
                 >
-                  <option value="">-- Pilih Cabin --</option>
+                  <option value="">-- Pilih Cabang --</option>
                   {branches.map((branch) => (
                     <option key={branch.id} value={branch.branch_name}>
                       {branch.branch_name}
