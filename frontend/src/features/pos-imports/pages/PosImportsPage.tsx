@@ -41,7 +41,7 @@ function PosImportsPageContent() {
     clearError,
     setFilters,
     reset,
-    exportImport
+    batchExport
   } = usePosImportsStore()
 
   // Sync errors from store to toast for visual feedback
@@ -166,26 +166,18 @@ function PosImportsPageContent() {
 
   const handleBatchExport = async () => {
     const ids = Array.from(selectedIds)
-    toast.info(`Exporting ${ids.length} imports...`)
     
-    for (const id of ids) {
-      try {
-        const imp = importsMap.get(id)
-        if (!imp) continue
-        const blob = await exportImport(id)
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${imp.file_name.replace(/\.[^/.]+$/, '')}_export.xlsx`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        window.URL.revokeObjectURL(url)
-      } catch (error) {
-        console.error('Export failed for', id, error)
-      }
+    try {
+      // Create export job - returns job ID immediately
+      await batchExport(ids)
+      toast.info(`Export job created. Processing ${ids.length} imports in background...`)
+      
+      // The job will be processed in background and user can check status via jobs page
+      // Optionally, we could start polling here if we want to show real-time progress
+      clearSelection()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to create export job')
     }
-    toast.success('Export completed')
   }
 
   if (!currentBranch?.company_id) {

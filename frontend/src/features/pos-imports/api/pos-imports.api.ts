@@ -160,5 +160,11 @@ export const posImportsApi = {
   updateStatus: async (id: string, status: string, signal?: AbortSignal): Promise<{ data: PosImport }> => {
     const response = await api.put(`/pos-imports/${id}/status`, { status }, { signal })
     return response.data
+  },
+
+  // Batch export - creates a job and returns job ID
+  batchExport: async (ids: string[]): Promise<{ job_id: string; status: string }> => {
+    const response = await api.post('/pos-imports/export/job', { ids })
+    return response.data.data
   }
 }

@@ -10,6 +10,7 @@ import { JobProcessor } from '../jobs.worker'
 import { JobType, JobModule } from '../jobs.types'
 import { processEmployeesExport } from './employees.export'
 import { processPosTransactionsExport } from './pos-transactions.export'
+import { processPosImportsExport } from './pos-imports.export'
 import { processPosTransactionsImport } from './pos-transactions.import'
 import { processFiscalPeriodsExport } from './fiscal-periods.export'
 import { processEmployeesImport } from './employees.import'
@@ -31,6 +32,7 @@ export const processorModules: ProcessorModule[] = [
   // Export processors
   { type: 'export', module: 'employees', processor: processEmployeesExport as any },
   { type: 'export', module: 'pos_transactions', processor: processPosTransactionsExport as any },
+  { type: 'export', module: 'pos_imports', processor: processPosImportsExport as any },
   { type: 'export', module: 'fiscal_periods', processor: processFiscalPeriodsExport as any },
 
   // Import processors

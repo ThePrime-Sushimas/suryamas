@@ -84,6 +84,12 @@ router.put('/:id/status',
 router.delete('/:id', canDelete('pos_imports'), validateSchema(posImportIdSchema), (req, res) => 
   posImportsController.delete(req as AuthenticatedRequest, res))
 
+// Create export job for selected imports
+router.post('/export/job', 
+  canView('pos_imports'), 
+  (req, res) => 
+    posImportsController.createExportJob(req as any, res))
+
 // Restore deleted import
 router.post('/:id/restore', canInsert('pos_imports'), validateSchema(posImportIdSchema), (req, res) => 
   posImportsController.restore(req as AuthenticatedRequest, res))

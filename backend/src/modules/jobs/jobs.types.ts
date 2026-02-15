@@ -17,6 +17,7 @@ export type JobModule =
   | 'companies'
   | 'products'
   | 'pos_transactions'
+  | 'pos_imports'
   | 'fiscal_periods'
   | 'chart_of_accounts'
   | 'accounting_purposes'

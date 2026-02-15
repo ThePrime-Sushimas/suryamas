@@ -9,7 +9,8 @@ import { posImportLinesRepository } from '../pos-import-lines/pos-import-lines.r
 import { sendSuccess, sendError } from '../../../utils/response.util'
 
 import { getParamString } from '../../../utils/validation.util'
-import { logError } from '../../../config/logger'
+import { logError, logInfo } from '../../../config/logger'
+import { jobsService } from '../../jobs/jobs.service'
 import type { AuthenticatedRequest, AuthenticatedQueryRequest } from '../../../types/request.types'
 import type { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
 import type { UploadPosFileInput, ConfirmImportInput, UpdateStatusInput } from './pos-imports.schema'
@@ -264,6 +265,69 @@ class PosImportsController {
     } catch (error) {
       logError('PosImportsController delete error', { error })
       return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+    }
+  }
+
+  /**
+   * Create export job for selected POS imports
+   * POST /api/v1/pos-imports/export/job
+   */
+  async createExportJob(req: any, res: Response) {
+    try {
+      const userId = req.user?.id
+      const company_id = (req as any).context?.company_id
+      if (!company_id) {
+        throw new Error('Company context required')
+      }
+      if (!userId) {
+        throw new Error('User ID required')
+      }
+
+      const { ids } = req.body
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return sendError(res, 'No import IDs provided', 400)
+      }
+
+      // Verify all imports exist and belong to company
+      for (const id of ids) {
+        await posImportsService.getById(id, company_id)
+      }
+
+      // Create job via service
+      const job = await jobsService.createJob({
+        user_id: userId,
+        company_id: company_id,
+        type: 'export',
+        module: 'pos_imports',
+        name: `Export POS Imports - ${new Date().toISOString().slice(0, 10)}`,
+        metadata: {
+          type: 'export',
+          module: 'pos_imports',
+          companyId: company_id,
+          importIds: ids
+        }
+      })
+
+      // Trigger job processing in background
+      const { jobWorker } = await import('../../jobs')
+      jobWorker.processJob(job.id).catch(error => {
+        logError('POS imports export job processing error', { job_id: job.id, error })
+      })
+
+      logInfo('POS imports export job created', { job_id: job.id, user_id: userId, import_count: ids.length })
+
+      return sendSuccess(res, {
+        job_id: job.id,
+        status: job.status,
+        name: job.name,
+        type: job.type,
+        module: job.module,
+        created_at: job.created_at,
+        message: 'Export job created successfully. Processing will run in background.'
+      }, 'Export job created', 201)
+    } catch (error) {
+      logError('Failed to create export job', { error })
+      return sendError(res, error instanceof Error ? error.message : 'Failed to create export job')
     }
   }
 

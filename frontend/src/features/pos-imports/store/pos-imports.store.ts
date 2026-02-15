@@ -88,6 +88,7 @@ interface PosImportsState {
   
   // Export
   exportImport: (id: string) => Promise<Blob>
+  batchExport: (ids: string[]) => Promise<{ job_id: string; status: string }>
 
   clearAnalyzeResult: () => void
   clearError: (type?: keyof PosImportsState['errors']) => void
@@ -440,6 +441,11 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
   // Export
   exportImport: async (id: string): Promise<Blob> => {
     return await posImportsApi.export(id)
+  },
+
+  // Batch export - creates a job and returns job ID
+  batchExport: async (ids: string[]): Promise<{ job_id: string; status: string }> => {
+    return await posImportsApi.batchExport(ids)
   },
 
   clearAnalyzeResult: () => set({ analyzeResult: null }),
