@@ -46,6 +46,7 @@ export const PosAggregateDetailPage: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [showMutationSelector, setShowMutationSelector] = useState(false)
   const [isMatching, setIsMatching] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Fetch transaction on mount
   useEffect(() => {
@@ -77,6 +78,7 @@ export const PosAggregateDetailPage: React.FC = () => {
   const handleDelete = useCallback(async () => {
     if (!id || !selectedTransaction) return
 
+    setIsDeleting(true)
     try {
       await deleteTransaction(id)
       toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_DELETED(selectedTransaction.source_ref))
@@ -85,6 +87,7 @@ export const PosAggregateDetailPage: React.FC = () => {
     } catch {
       toast.error(POS_AGGREGATES_MESSAGES.TRANSACTION_DELETE_FAILED)
     } finally {
+      setIsDeleting(false)
       setDeleteId(null)
     }
   }, [id, selectedTransaction, deleteTransaction, toast, fetchSummary, navigate])
@@ -301,15 +304,18 @@ export const PosAggregateDetailPage: React.FC = () => {
             <div className="flex justify-end gap-3 p-4 border-t">
               <button
                 onClick={() => setDeleteId(null)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                disabled={isDeleting}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
               >
                 Batal
               </button>
               <button
                 onClick={handleDelete}
-                className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700"
+                disabled={isDeleting}
+                className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:bg-red-400 flex items-center gap-2"
               >
-                Hapus
+                {isDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isDeleting ? 'Menghapus...' : 'Hapus'}
               </button>
             </div>
           </div>
