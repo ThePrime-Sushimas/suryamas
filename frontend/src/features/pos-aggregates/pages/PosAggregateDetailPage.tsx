@@ -15,7 +15,7 @@ import { PosAggregatesDetail } from '../components/PosAggregatesDetail'
 import { BankMutationSelectorModal } from '../components/BankMutationSelectorModal'
 import { bankReconciliationApi } from '../../bank-reconciliation/api/bank-reconciliation.api'
 import { POS_AGGREGATES_MESSAGES, BANK_RECONCILIATION_MESSAGES } from '@/utils/messages'
-import { mapToAggregatedTransactionListItem } from '../types'
+import { mapToAggregatedTransactionListItem, canReconcileTransaction, canMatchBankMutation } from '../types'
 
 // =============================================================================
 // COMPONENT
@@ -121,7 +121,7 @@ export const PosAggregateDetailPage: React.FC = () => {
 
   // Handle open mutation selector
   const handleOpenMutationSelector = useCallback(() => {
-    if (!selectedTransaction || selectedTransaction.is_reconciled) {
+    if (!canMatchBankMutation(selectedTransaction)) {
       toast.warning(POS_AGGREGATES_MESSAGES.TRANSACTION_ALREADY_RECONCILED)
       return
     }
@@ -203,8 +203,7 @@ export const PosAggregateDetailPage: React.FC = () => {
     )
   }
 
-  const isDeleted = selectedTransaction.status === 'CANCELLED'
-  const canReconcile = !isDeleted && !selectedTransaction.is_reconciled && selectedTransaction.journal_id
+  const canReconcile = canReconcileTransaction(selectedTransaction)
 
   return (
     <div className="p-6 space-y-6">
@@ -227,7 +226,7 @@ export const PosAggregateDetailPage: React.FC = () => {
         
         {/* Action Buttons */}
         <div className="flex items-center gap-3">
-          {!isDeleted && (
+          {selectedTransaction.status !== 'CANCELLED' && (
             <>
               {canReconcile && (
                 <button
@@ -239,7 +238,7 @@ export const PosAggregateDetailPage: React.FC = () => {
                 </button>
               )}
               {/* Tombol Pilih Mutasi Bank */}
-              {!selectedTransaction.is_reconciled && (
+              {canMatchBankMutation(selectedTransaction) && (
                 <button
                   onClick={handleOpenMutationSelector}
                   className="px-3 py-2 text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
@@ -264,7 +263,7 @@ export const PosAggregateDetailPage: React.FC = () => {
               </button>
             </>
           )}
-          {isDeleted && (
+          {selectedTransaction.status === 'CANCELLED' && (
             <button
               onClick={handleRestore}
               className="px-3 py-2 text-green-700 bg-green-100 rounded-lg hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-2"

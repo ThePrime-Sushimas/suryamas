@@ -447,3 +447,44 @@ export function mapToAggregatedTransactionListItem(
     failed_at: transaction.failed_at,
   };
 }
+
+// =============================================================================
+// BUSINESS LOGIC HELPERS
+// =============================================================================
+
+/**
+ * Check if a transaction can be reconciled
+ * Business logic: Transaction must not be deleted, not already reconciled, and must have a journal
+ * 
+ * @param transaction - The transaction to check
+ * @returns true if the transaction can be reconciled
+ */
+export function canReconcileTransaction(
+  transaction: AggregatedTransactionWithDetails | AggregatedTransactionListItem | null | undefined
+): boolean {
+  if (!transaction) return false;
+  
+  const isDeleted = transaction.status === 'CANCELLED';
+  const hasJournal = transaction.journal_id !== null && transaction.journal_id !== undefined;
+  const isReconciled = transaction.is_reconciled;
+  
+  return !isDeleted && !isReconciled && hasJournal;
+}
+
+/**
+ * Check if a transaction can be manually matched with bank mutation
+ * Business logic: Transaction must not be deleted and not already reconciled
+ * 
+ * @param transaction - The transaction to check
+ * @returns true if the transaction can be matched with bank mutation
+ */
+export function canMatchBankMutation(
+  transaction: AggregatedTransactionWithDetails | AggregatedTransactionListItem | null | undefined
+): boolean {
+  if (!transaction) return false;
+  
+  const isDeleted = transaction.status === 'CANCELLED';
+  const isReconciled = transaction.is_reconciled;
+  
+  return !isDeleted && !isReconciled;
+}
