@@ -9,7 +9,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { useBranchesStore } from '@/features/branches/store/branches.store'
 import { posAggregatesApi } from '../api/posAggregates.api'
-import type { AggregatedTransaction, CreateAggregatedTransactionDto, UpdateAggregatedTransactionDto, PaymentMethodOption } from '../types'
+import type { AggregatedTransactionListItem, AggregatedTransaction, CreateAggregatedTransactionDto, UpdateAggregatedTransactionDto, PaymentMethodOption } from '../types'
 
 // =============================================================================
 // UTILITY FUNCTIONS
@@ -37,7 +37,7 @@ const parseCurrency = (value: string): number => {
 // =============================================================================
 
 interface PosAggregatesFormProps {
-  transaction?: AggregatedTransaction | null
+  transaction?: AggregatedTransactionListItem | AggregatedTransaction | null
   onSubmit: (data: CreateAggregatedTransactionDto | UpdateAggregatedTransactionDto) => Promise<void>
   onCancel: () => void
   isLoading?: boolean

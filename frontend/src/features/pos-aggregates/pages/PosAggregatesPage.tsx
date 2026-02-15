@@ -20,7 +20,6 @@ import { GenerateJournalModal } from '../components/GenerateJournalModal'
 import { BankMutationSelectorModal } from '../components/BankMutationSelectorModal'
 import { bankReconciliationApi } from '@/features/bank-reconciliation/api/bank-reconciliation.api'
 import type { 
-  AggregatedTransaction, 
   CreateAggregatedTransactionDto, 
   UpdateAggregatedTransactionDto 
 } from '../types'
@@ -166,10 +165,9 @@ export const PosAggregatesPage: React.FC = () => {
     setEditingId(null)
   }, [])
 
-  // Selected transaction for edit
-  // Use type assertion since AggregatedTransactionListItem has the same fields as AggregatedTransaction
+  // Selected transaction for edit - use AggregatedTransactionListItem since that's what the store returns
   const selectedTransaction = editingId 
-    ? (transactions.find((tx) => tx.id === editingId) as AggregatedTransaction | undefined) || null 
+    ? transactions.find((tx) => tx.id === editingId) || null 
     : null
 
   // State for Bank Mutation Selector Modal
