@@ -15,7 +15,7 @@ import { PosAggregatesDetail } from '../components/PosAggregatesDetail'
 import { BankMutationSelectorModal } from '../components/BankMutationSelectorModal'
 import { bankReconciliationApi } from '../../bank-reconciliation/api/bank-reconciliation.api'
 import { POS_AGGREGATES_MESSAGES, BANK_RECONCILIATION_MESSAGES } from '@/utils/messages'
-import type { AggregatedTransactionListItem } from '../types'
+import { mapToAggregatedTransactionListItem } from '../types'
 
 // =============================================================================
 // COMPONENT
@@ -324,7 +324,7 @@ export const PosAggregateDetailPage: React.FC = () => {
         isOpen={showMutationSelector}
         onClose={() => setShowMutationSelector(false)}
         onConfirm={handleConfirmMutationMatch}
-        aggregate={selectedTransaction as AggregatedTransactionListItem}
+        aggregate={selectedTransaction ? mapToAggregatedTransactionListItem(selectedTransaction) : null}
         isLoading={isMatching}
       />
     </div>

@@ -400,3 +400,50 @@ export interface JournalOption {
   journal_date: string;
   total_amount: number;
 }
+
+// =============================================================================
+// ADAPTER FUNCTIONS
+// =============================================================================
+
+/**
+ * Adapter function to convert AggregatedTransactionWithDetails to AggregatedTransactionListItem
+ * This ensures type safety when passing data to components that expect ListItem type
+ * 
+ * @param transaction - The source transaction with full details
+ * @returns AggregatedTransactionListItem with only the required fields
+ */
+export function mapToAggregatedTransactionListItem(
+  transaction: AggregatedTransactionWithDetails
+): AggregatedTransactionListItem {
+  return {
+    id: transaction.id,
+    branch_name: transaction.branch_name,
+    source_type: transaction.source_type,
+    source_id: transaction.source_id,
+    source_ref: transaction.source_ref,
+    transaction_date: transaction.transaction_date,
+    payment_method_id: transaction.payment_method_id,
+    gross_amount: transaction.gross_amount,
+    discount_amount: transaction.discount_amount,
+    tax_amount: transaction.tax_amount,
+    service_charge_amount: transaction.service_charge_amount,
+    bill_after_discount: transaction.bill_after_discount,
+    percentage_fee_amount: transaction.percentage_fee_amount,
+    fixed_fee_amount: transaction.fixed_fee_amount,
+    total_fee_amount: transaction.total_fee_amount,
+    nett_amount: transaction.nett_amount,
+    currency: transaction.currency,
+    journal_id: transaction.journal_id,
+    is_reconciled: transaction.is_reconciled,
+    status: transaction.status,
+    created_at: transaction.created_at,
+    updated_at: transaction.updated_at,
+    deleted_at: transaction.deleted_at,
+    deleted_by: transaction.deleted_by,
+    version: transaction.version,
+    payment_method_name: transaction.payment_method_name,
+    journal_number: transaction.journal_number,
+    failed_reason: transaction.failed_reason,
+    failed_at: transaction.failed_at,
+  };
+}
