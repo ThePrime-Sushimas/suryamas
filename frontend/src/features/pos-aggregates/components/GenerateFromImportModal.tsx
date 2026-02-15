@@ -221,7 +221,7 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
 
     if (isMapped) {
       return (
-        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">
           <Check className="w-3 h-3 mr-1" />
           Generated
         </span>
@@ -230,7 +230,7 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
     
     if (isFailed) {
       return (
-        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400">
           Failed
         </span>
       )
@@ -238,7 +238,7 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
     
     if (isProcessing || isGenerating) {
       return (
-        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400">
           <Clock className="w-3 h-3 mr-1" />
           Processing
         </span>
@@ -246,7 +246,7 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
     }
     
     return (
-      <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+      <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400">
         {imp.status}
       </span>
     )
@@ -255,17 +255,17 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <Database className="w-5 h-5" />
             Generate dari POS Import
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 p-1"
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1"
           >
             <X className="w-5 h-5" />
           </button>
@@ -275,14 +275,14 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-              <span className="ml-2 text-gray-600">Memuat data...</span>
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
+              <span className="ml-2 text-gray-600 dark:text-gray-400">Memuat data...</span>
             </div>
           ) : imports.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
               <p>Tidak ada file dengan status IMPORTED</p>
-              <p className="text-sm mt-1">Upload dan confirm file terlebih dahulu</p>
+              <p className="text-sm mt-1 text-gray-400 dark:text-gray-500">Upload dan confirm file terlebih dahulu</p>
             </div>
           ) : (
             <>
@@ -293,9 +293,9 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
                     type="checkbox"
                     checked={selectedIds.size === imports.length && imports.length > 0}
                     onChange={handleSelectAll}
-                    className="w-4 h-4 rounded border-gray-300"
+                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600"
                   />
-                  <span className="text-sm font-medium">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Pilih Semua ({selectedIds.size}/{imports.length})
                   </span>
                 </label>
@@ -309,19 +309,19 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
               </div>
 
               {/* Import List */}
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border dark:border-gray-700 rounded-lg overflow-hidden">
                 <table className="w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-10"></th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">File Name</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date Range</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rows</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-10"></th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">File Name</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date Range</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rows</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                     {imports.map((imp) => {
                       const isSelected = selectedIds.has(imp.id)
                       const isGenerating = generatingId === imp.id
@@ -331,7 +331,7 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
                       return (
                         <tr
                           key={imp.id}
-                          className={`hover:bg-gray-50 ${isMapped ? 'bg-green-50' : ''} ${isProcessing ? 'bg-blue-50' : ''}`}
+                          className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${isMapped ? 'bg-green-50 dark:bg-green-900/10' : ''} ${isProcessing ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
                         >
                           <td className="px-4 py-3">
                             <input
@@ -339,15 +339,15 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
                               checked={isSelected}
                               disabled={isMapped || isGenerating || isProcessing}
                               onChange={() => handleToggleSelection(imp.id)}
-                              className="w-4 h-4 rounded border-gray-300"
+                              className="w-4 h-4 rounded border-gray-300 dark:border-gray-600"
                             />
                           </td>
-                          <td className="px-4 py-3 text-sm">{imp.file_name}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{imp.file_name}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                             {new Date(imp.date_range_start).toLocaleDateString()} -{' '}
                             {new Date(imp.date_range_end).toLocaleDateString()}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                             {imp.total_rows}
                           </td>
                           <td className="px-4 py-3">
@@ -355,7 +355,7 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
                           </td>
                           <td className="px-4 py-3 text-right">
                             {(isMapped || isProcessing) ? (
-                              <span className="flex items-center justify-end gap-1 text-green-600 text-sm">
+                              <span className="flex items-center justify-end gap-1 text-green-600 dark:text-green-400 text-sm">
                                 <Check className="w-4 h-4" />
                                 {isProcessing ? 'Processing...' : 'Generated'}
                               </span>
@@ -384,8 +384,8 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
               </div>
 
 {/* Info */}
-              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-sm text-blue-700">
+              <div className="mt-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                <p className="text-sm text-blue-700 dark:text-blue-400">
                   <strong>Info:</strong> Transaksi akan di-aggregate berdasarkan tanggal + cabang + metode pembayaran.
                   File yang sudah di-generate akan ditandai sebagai MAPPED.
                   Proses berjalan di background - kamu bisa tutup modal ini dan cek status nanti.
@@ -393,15 +393,15 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
               </div>
 
               {/* Failed Transactions Link */}
-              <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <div className="mt-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
                 <button
                   onClick={() => navigate('/pos-aggregates/failed-transactions')}
-                  className="flex items-center gap-2 text-sm text-yellow-700 hover:text-yellow-800"
+                  className="flex items-center gap-2 text-sm text-yellow-700 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-300"
                 >
                   <ExternalLink className="w-4 h-4" />
                   <span className="font-medium">Lihat Transaksi Gagal</span>
                 </button>
-                <p className="text-xs text-yellow-600 mt-1">
+                <p className="text-xs text-yellow-600 dark:text-yellow-500 mt-1">
                   Klik untuk melihat transaksi yang gagal diproses.
                 </p>
               </div>
@@ -410,10 +410,10 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 p-4 border-t bg-gray-50">
+        <div className="flex justify-end gap-3 p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
           >
             Tutup
           </button>

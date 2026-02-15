@@ -101,7 +101,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
   // Loading state
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <TableSkeleton rows={10} columns={9} />
       </div>
     )
@@ -110,78 +110,78 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
   // Empty state
   if (transactions.length === 0) {
     return (
-      <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+      <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/50 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600">
         <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
         </svg>
-        <p className="mt-2 text-gray-500 font-medium">Tidak ada transaksi agregat</p>
-        <p className="text-sm text-gray-400">Import data POS untuk membuat transaksi agregat</p>
+        <p className="mt-2 text-gray-500 dark:text-gray-400 font-medium">Tidak ada transaksi agregat</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500">Import data POS untuk membuat transaksi agregat</p>
       </div>
     )
   }
 
   return (
     <>
-      <div className="overflow-x-auto bg-white rounded-lg shadow">
+      <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow">
         <table className="w-full border-collapse">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
+            <tr className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
               <th className="px-4 py-3 text-left w-10">
                 <input
                   type="checkbox"
                   checked={allSelected}
                   onChange={onToggleAllSelection}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
                 />
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Tanggal
               </th>
               {/* <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Referensi
               </th> */}
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Cabang
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Cabin
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Metode Pembayaran
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Sub Total
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Tax
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Discount
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Bill After Discount
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Fee (%)
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Fixed Fee
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Total Fee
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Nett Amount
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Jurnal
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
-                Aksi
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">
+                aksi
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
             {transactions.map((transaction) => {
               // Explicitly check deleted_at - handle edge cases
               const deletedAt = transaction.deleted_at
@@ -194,8 +194,8 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                   onClick={() => onViewDetail(transaction.id)}
                   className={`
                     cursor-pointer transition-colors
-                    ${isDeleted ? 'bg-red-50 opacity-100' : 'hover:bg-blue-50'}
-                    ${isSelected ? 'bg-blue-100' : ''}
+                    ${isDeleted ? 'bg-red-50 dark:bg-red-900/20 opacity-100' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}
+                    ${isSelected ? 'bg-blue-100 dark:bg-blue-900/30' : ''}
                   `}
                 >
                   <td
@@ -206,12 +206,12 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => onToggleSelection(transaction.id)}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                      className="w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 cursor-pointer"
                     />
                   </td>
 
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">
+                    <span className="text-sm text-gray-900 dark:text-white">
                       {formatDate(transaction.transaction_date)}
                     </span>
                   </td>
@@ -228,54 +228,54 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                   </td> */}
 
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">
+                    <span className="text-sm text-gray-900 dark:text-white">
                       {transaction.branch_name || '-'}
                     </span>
                   </td>
 
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="text-sm text-gray-600">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
                       {transaction.payment_method_name || `ID: ${transaction.payment_method_id}`}
                     </span>
                   </td>
 
                   <td className="px-4 py-3 whitespace-nowrap text-right">
-                    <span className="text-sm font-medium text-gray-900">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
                       {formatCurrency(transaction.gross_amount)}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right">
-                    <span className="text-sm text-gray-600">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
                       +{formatCurrency(transaction.tax_amount)} 
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right">
-                    <span className="text-sm text-red-600">
+                    <span className="text-sm text-red-600 dark:text-red-400">
                       -{formatCurrency(transaction.discount_amount)}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right">
-                    <span className="text-sm font-bold text-gray-900">
+                    <span className="text-sm font-bold text-gray-900 dark:text-white">
                       {formatCurrency(transaction.bill_after_discount)}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right">
-                    <span className="text-sm text-purple-600">
+                    <span className="text-sm text-purple-600 dark:text-purple-400">
                       -{formatCurrency(transaction.percentage_fee_amount)}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right">
-                    <span className="text-sm text-purple-600">
+                    <span className="text-sm text-purple-600 dark:text-purple-400">
                       -{formatCurrency(transaction.fixed_fee_amount)}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right">
-                    <span className="text-sm font-medium text-purple-700">
+                    <span className="text-sm font-medium text-purple-700 dark:text-purple-400">
                       -{formatCurrency(transaction.total_fee_amount)}
                     </span>
                   </td>
 <td className="px-4 py-3 whitespace-nowrap text-right">
-                    <span className="text-sm font-bold text-green-700">
+                    <span className="text-sm font-bold text-green-700 dark:text-green-400">
                       {formatCurrency(transaction.nett_amount)}
                     </span>
                   </td>
@@ -290,7 +290,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
 
                   <td className="px-4 py-3 whitespace-nowrap">
                     {transaction.journal_number ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-medium">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded text-xs font-medium">
                         <FileText className="w-3 h-3" />
                         {transaction.journal_number}
                       </span>
@@ -311,7 +311,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                             e.stopPropagation()
                             setRestoreId(transaction.id)
                           }}
-                          className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
                           title="Pulihkan"
                         >
                           <RotateCcw className="w-4 h-4" />
@@ -325,7 +325,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                             e.stopPropagation()
                             onViewDetail(transaction.id)
                           }}
-                          className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
                           title="Lihat Detail"
                         >
                           <Eye className="w-4 h-4" />
@@ -339,7 +339,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                             e.stopPropagation()
                             onSelectBankMutation(transaction)
                           }}
-                          className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded transition-colors"
                           title="Pilih Mutasi Bank"
                         >
                           <Building2 className="w-4 h-4" />
@@ -353,7 +353,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                             e.stopPropagation()
                             onEdit(transaction.id)
                           }}
-                          className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
                           title="Edit"
                         >
                           <Edit2 className="w-4 h-4" />
@@ -367,7 +367,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                             e.stopPropagation()
                             onReconcile(transaction.id)
                           }}
-                          className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
                           title="Rekonsiliasi"
                         >
                           <CheckCircle className="w-4 h-4" />
@@ -381,7 +381,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                             e.stopPropagation()
                             setDeleteId(transaction.id)
                           }}
-                          className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                           title="Hapus"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -398,14 +398,14 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
 
       {/* Delete Confirmation Modal */}
       {deleteId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Hapus Transaksi Agregat?</h3>
-            <p className="text-gray-600 mb-6">Apakah Anda yakin ingin menghapus transaksi agregat ini? Tindakan ini tidak dapat dibatalkan.</p>
+        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Hapus Transaksi Agregat?</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">Apakah Anda yakin ingin menghapus transaksi agregat ini? Tindakan ini tidak dapat dibatalkan.</p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setDeleteId(null)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400"
               >
                 Batal
               </button>
@@ -425,14 +425,14 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
 
       {/* Restore Confirmation Modal */}
       {restoreId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Pulihkan Transaksi Agregat?</h3>
-            <p className="text-gray-600 mb-6">Apakah Anda yakin ingin memulihkan transaksi agregat ini?</p>
+        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Pulihkan Transaksi Agregat?</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">Apakah Anda yakin ingin memulihkan transaksi agregat ini?</p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setRestoreId(null)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400"
               >
                 Batal
               </button>

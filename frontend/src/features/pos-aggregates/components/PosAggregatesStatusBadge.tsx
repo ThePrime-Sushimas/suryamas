@@ -15,33 +15,33 @@ import type { AggregatedTransactionStatus } from '../types'
 const STATUS_CONFIG: Record<AggregatedTransactionStatus, { label: string; colorClass: string; bgClass: string }> = {
   READY: {
     label: 'READY',
-    colorClass: 'text-blue-700',
-    bgClass: 'bg-blue-100',
+    colorClass: 'text-blue-700 dark:text-blue-400',
+    bgClass: 'bg-blue-100 dark:bg-blue-900/30',
   },
   PENDING: {
     label: 'PENDING',
-    colorClass: 'text-yellow-700',
-    bgClass: 'bg-yellow-100',
+    colorClass: 'text-yellow-700 dark:text-yellow-400',
+    bgClass: 'bg-yellow-100 dark:bg-yellow-900/30',
   },
   PROCESSING: {
     label: 'PROCESSING',
-    colorClass: 'text-purple-700',
-    bgClass: 'bg-purple-100',
+    colorClass: 'text-purple-700 dark:text-purple-400',
+    bgClass: 'bg-purple-100 dark:bg-purple-900/30',
   },
   COMPLETED: {
     label: 'COMPLETED',
-    colorClass: 'text-green-700',
-    bgClass: 'bg-green-100',
+    colorClass: 'text-green-700 dark:text-green-400',
+    bgClass: 'bg-green-100 dark:bg-green-900/30',
   },
   CANCELLED: {
     label: 'CANCELLED',
-    colorClass: 'text-red-700',
-    bgClass: 'bg-red-100',
+    colorClass: 'text-red-700 dark:text-red-400',
+    bgClass: 'bg-red-100 dark:bg-red-900/30',
   },
   FAILED: {
     label: 'FAILED',
-    colorClass: 'text-gray-700',
-    bgClass: 'bg-gray-100',
+    colorClass: 'text-gray-700 dark:text-gray-400',
+    bgClass: 'bg-gray-100 dark:bg-gray-700',
   },
 }
 
@@ -89,8 +89,8 @@ export const PosAggregatesStatusBadge: React.FC<PosAggregatesStatusBadgeProps> =
           className={`
             inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
             ${isReconciled 
-              ? 'bg-green-50 text-green-700 border border-green-200' 
-              : 'bg-gray-50 text-gray-500 border border-gray-200'
+              ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800' 
+              : 'bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600'
             }
           `}
         >

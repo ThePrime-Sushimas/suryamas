@@ -199,12 +199,12 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
       {/* Source Information Section */}
-      <div className="bg-gray-50 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Informasi Sumber</h3>
+      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Informasi Sumber</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Source Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Tipe Sumber <span className="text-red-500">*</span>
             </label>
             <select
@@ -212,8 +212,8 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 required: 'Tipe sumber wajib dipilih',
               })}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                errors.source_type ? 'border-red-500' : 'border-gray-300'
-              }`}
+                errors.source_type ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+              } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
               disabled={!!transaction}
             >
               <option value="POS">POS</option>
@@ -225,7 +225,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
 
           {/* Source ID */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               ID Sumber <span className="text-red-500">*</span>
             </label>
             <input
@@ -235,8 +235,8 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 maxLength: { value: 100, message: 'Maksimal 100 karakter' },
               })}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                errors.source_id ? 'border-red-500' : 'border-gray-300'
-              }`}
+                errors.source_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+              } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
               placeholder="ID import POS"
               disabled={!!transaction}
             />
@@ -247,7 +247,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
 
           {/* Source Ref */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Referensi Sumber <span className="text-red-500">*</span>
             </label>
             <input
@@ -257,8 +257,8 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 maxLength: { value: 100, message: 'Maksimal 100 karakter' },
               })}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                errors.source_ref ? 'border-red-500' : 'border-gray-300'
-              }`}
+                errors.source_ref ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+              } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
               placeholder="Nomor bill"
             />
             {errors.source_ref && showErrors && (
@@ -269,12 +269,12 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
       </div>
 
       {/* Transaction Details Section */}
-      <div className="bg-gray-50 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Detail Transaksi</h3>
+      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Detail Transaksi</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Transaction Date */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Tanggal Transaksi <span className="text-red-500">*</span>
             </label>
             <input
@@ -283,8 +283,8 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 required: 'Tanggal transaksi wajib diisi',
               })}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                errors.transaction_date ? 'border-red-500' : 'border-gray-300'
-              }`}
+                errors.transaction_date ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+              } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
             />
             {errors.transaction_date && showErrors && (
               <p className="mt-1 text-sm text-red-500">{errors.transaction_date.message}</p>
@@ -293,14 +293,14 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
 
           {/* Branch Name - Read-only when editing */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nama Cabang <span className="text-red-500">*</span>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Nama Cabin <span className="text-red-500">*</span>
             </label>
             <Controller
               name="branch_name"
               control={control}
               rules={{
-                required: 'Nama cabang wajib dipilih',
+                required: 'Nama cabin wajib dipilih',
               }}
               render={({ field }) => (
                 <select
@@ -308,11 +308,11 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                   value={field.value || ''}
                   onChange={(e) => field.onChange(e.target.value || null)}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                    errors.branch_name ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                    errors.branch_name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                  } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
                   disabled={loadingBranches || !!transaction}
                 >
-                  <option value="">-- Pilih Cabang --</option>
+                  <option value="">-- Pilih Cabin --</option>
                   {branches.map((branch) => (
                     <option key={branch.id} value={branch.branch_name}>
                       {branch.branch_name}
@@ -328,7 +328,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
 
           {/* Payment Method */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Metode Pembayaran <span className="text-red-500">*</span>
             </label>
             <Controller
@@ -343,8 +343,8 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                   {...field}
                   onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                    errors.payment_method_id ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                    errors.payment_method_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                  } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
                   disabled={loadingPaymentMethods}
                 >
                   <option value={0}>-- Pilih Metode Pembayaran --</option>
@@ -364,12 +364,12 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
       </div>
 
       {/* Amount Details Section */}
-      <div className="bg-gray-50 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Detail Jumlah</h3>
+      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Detail Jumlah</h3>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {/* Gross Amount */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Jumlah Kotor <span className="text-red-500">*</span>
             </label>
             <div className="relative">
@@ -379,8 +379,8 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 value={formatRupiah(grossAmount)}
                 onChange={(e) => setValue('gross_amount', parseCurrency(e.target.value))}
                 className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                  errors.gross_amount ? 'border-red-500' : 'border-gray-300'
-                }`}
+                  errors.gross_amount ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
               />
             </div>
             <input type="hidden" {...register('gross_amount', { valueAsNumber: true })} />
@@ -391,7 +391,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
 
           {/* Discount Amount */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Potongan
             </label>
             <div className="relative">
@@ -400,7 +400,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 type="text"
                 value={formatRupiah(discountAmount)}
                 onChange={(e) => setValue('discount_amount', parseCurrency(e.target.value))}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
             <input type="hidden" {...register('discount_amount', { valueAsNumber: true })} />
@@ -408,7 +408,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
 
           {/* Tax Amount */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Pajak
             </label>
             <div className="relative">
@@ -417,7 +417,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 type="text"
                 value={formatRupiah(taxAmount)}
                 onChange={(e) => setValue('tax_amount', parseCurrency(e.target.value))}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
             <input type="hidden" {...register('tax_amount', { valueAsNumber: true })} />
@@ -425,7 +425,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
 
           {/* Service Charge Amount */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Service Charge
             </label>
             <div className="relative">
@@ -434,7 +434,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 type="text"
                 value={formatRupiah(serviceChargeAmount)}
                 onChange={(e) => setValue('service_charge_amount', parseCurrency(e.target.value))}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
             <input type="hidden" {...register('service_charge_amount', { valueAsNumber: true })} />
@@ -442,7 +442,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
 
           {/* Net Amount (Read-only) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Jumlah Bersih <span className="text-red-500">*</span>
             </label>
             <div className="relative">
@@ -451,22 +451,22 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 type="text"
                 value={formatRupiah(netAmount)}
                 readOnly
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700"
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300"
               />
             </div>
             <input type="hidden" {...register('nett_amount', { valueAsNumber: true })} />
-            <p className="mt-1 text-xs text-gray-500">Otomatis dihitung</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Otomatis dihitung</p>
           </div>
         </div>
       </div>
 
       {/* Fee Details Section */}
-      <div className="bg-purple-50 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-purple-700 mb-3">Detail Biaya (Fee)</h3>
+      <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-purple-700 dark:text-purple-400 mb-3">Detail Biaya (Fee)</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Percentage Fee (Rp) - Read-only (from payment method) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Fee Amount (Rp)
             </label>
             <div className="relative">
@@ -475,17 +475,17 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 type="text"
                 value={formatRupiah(percentageFeeAmount)}
                 readOnly
-                className="w-full pl-10 pr-3 py-2 border border-purple-300 rounded-lg bg-purple-100 text-purple-700"
+                className="w-full pl-10 pr-3 py-2 border border-purple-300 dark:border-purple-700 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400"
               />
             </div>
-            <p className="mt-1 text-xs text-purple-600">
+            <p className="mt-1 text-xs text-purple-600 dark:text-purple-400">
               ({percentageFeeDisplay}% dari gross)
             </p>
           </div>
 
           {/* Fixed Fee - Read-only (from payment method) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Fixed Fee
             </label>
             <div className="relative">
@@ -494,14 +494,14 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 type="text"
                 value={formatRupiah(fixedFeeAmount)}
                 readOnly
-                className="w-full pl-10 pr-3 py-2 border border-purple-300 rounded-lg bg-purple-100 text-purple-700"
+                className="w-full pl-10 pr-3 py-2 border border-purple-300 dark:border-purple-700 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400"
               />
             </div>
           </div>
 
           {/* Total Fee (Read-only) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Total Fee
             </label>
             <div className="relative">
@@ -510,15 +510,15 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 type="text"
                 value={formatRupiah(totalFeeAmount)}
                 readOnly
-                className="w-full pl-10 pr-3 py-2 border border-purple-300 rounded-lg bg-purple-200 text-purple-800 font-medium"
+                className="w-full pl-10 pr-3 py-2 border border-purple-300 dark:border-purple-700 rounded-lg bg-purple-200 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300 font-medium"
               />
             </div>
-            <p className="mt-1 text-xs text-gray-500">Otomatis dari Payment Method</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Otomatis dari Payment Method</p>
           </div>
 
           {/* Bill After Discount (Reference) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font700 dark:text-gray-medium text-gray--300 mb-1">
               Bill After Discount
             </label>
             <div className="relative">
@@ -527,26 +527,26 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 type="text"
                 value={formatRupiah(grossAmount + taxAmount + serviceChargeAmount - discountAmount)}
                 readOnly
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700"
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300"
               />
             </div>
-            <p className="mt-1 text-xs text-gray-500">Referensi</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Referensi</p>
           </div>
         </div>
       </div>
 
       {/* Status (for edit mode) */}
       {transaction && (
-        <div className="bg-gray-50 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Status</h3>
+        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Status</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Status Transaksi
               </label>
               <select
                 {...register('status')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 <option value="READY">READY</option>
                 <option value="PENDING">PENDING</option>
@@ -558,13 +558,13 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Mata Uang
               </label>
               <input
                 type="text"
                 {...register('currency')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 placeholder="IDR"
               />
             </div>
@@ -573,12 +573,12 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
       )}
 
       {/* Action Buttons */}
-      <div className="flex justify-end gap-3 pt-4 border-t">
+      <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-600">
         <button
           type="button"
           onClick={handleCancel}
           disabled={isLoading}
-          className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50 transition-colors"
+          className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50 transition-colors"
         >
           Batal
         </button>

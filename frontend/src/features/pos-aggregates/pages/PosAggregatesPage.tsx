@@ -218,8 +218,8 @@ export const PosAggregatesPage: React.FC = () => {
       {/* Page Header */}
       <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Transaksi Agregat POS</h1>
-          <p className="text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Transaksi Agregat POS</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
             Kelola transaksi agregat dari import POS dan buat jurnal
           </p>
         </div>
@@ -228,7 +228,7 @@ export const PosAggregatesPage: React.FC = () => {
           {/* Generate from POS Import Button */}
           <button
             onClick={() => setShowGenerateFromImportModal(true)}
-            className="px-3 py-2 text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
+            className="px-3 py-2 text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
           >
             <Database className="w-4 h-4" />
             Generate dari Import
@@ -237,7 +237,7 @@ export const PosAggregatesPage: React.FC = () => {
           {/* Generate Journal Button */}
           <button
             onClick={() => setShowGenerateJournalModal(true)}
-            className="px-3 py-2 text-purple-700 bg-purple-100 rounded-lg hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-500 flex items-center gap-2"
+            className="px-3 py-2 text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 focus:outline-none focus:ring-2 focus:ring-purple-500 flex items-center gap-2"
           >
             <FileText className="w-4 h-4" />
             Buat Jurnal
@@ -259,23 +259,23 @@ export const PosAggregatesPage: React.FC = () => {
 
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 flex items-center justify-between">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-blue-700">
+            <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
               {selectedIds.size} transaksi dipilih
             </span>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={handleBatchReconcile}
-              className="px-3 py-1.5 text-sm text-green-700 bg-green-100 rounded-lg hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-1"
+              className="px-3 py-1.5 text-sm text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-1"
             >
               <CheckCircle className="w-4 h-4" />
               Rekonsiliasi Terpilih
             </button>
             <button
               onClick={clearSelection}
-              className="px-3 py-1.5 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400"
             >
               Batalkan Pilihan
             </button>
@@ -285,15 +285,15 @@ export const PosAggregatesPage: React.FC = () => {
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold text-gray-900">
+        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {editingId ? 'Edit Transaksi Agregat' : 'Transaksi Agregat Baru'}
               </h2>
               <button
                 onClick={handleFormClose}
-                className="text-gray-500 hover:text-gray-700 p-1"
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1"
               >
                 ✕
               </button>
@@ -333,24 +333,24 @@ export const PosAggregatesPage: React.FC = () => {
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex flex-wrap items-center justify-between mt-4 gap-4">
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
                 Menampilkan {showingStart} - {showingEnd} dari {total} data
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setPage(page - 1)}
                   disabled={page === 1}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                 >
                   Sebelumnya
                 </button>
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
                   Halaman {page} dari {totalPages}
                 </span>
                 <button
                   onClick={() => setPage(page + 1)}
                   disabled={page === totalPages}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                 >
                   Berikutnya
                 </button>

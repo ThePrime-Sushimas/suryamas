@@ -89,7 +89,7 @@ export const FailedTransactionsTable: React.FC<FailedTransactionsTableProps> = (
   // Loading state
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <TableSkeleton rows={10} columns={8} />
       </div>
     )
@@ -98,56 +98,56 @@ export const FailedTransactionsTable: React.FC<FailedTransactionsTableProps> = (
   // Empty state
   if (transactions.length === 0) {
     return (
-      <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+      <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/50 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600">
         <AlertTriangle className="mx-auto h-12 w-12 text-green-500" />
-        <p className="mt-2 text-gray-500 font-medium">Tidak ada transaksi gagal</p>
-        <p className="text-sm text-gray-400">Semua transaksi berhasil diproses</p>
+        <p className="mt-2 text-gray-500 dark:text-gray-400 font-medium">Tidak ada transaksi gagal</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500">Semua transaksi berhasil diproses</p>
       </div>
     )
   }
 
   return (
     <>
-      <div className="overflow-x-auto bg-white rounded-lg shadow">
+      <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow">
         <table className="w-full border-collapse">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
+            <tr className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
               {/* Checkbox */}
               <th className="px-4 py-3 text-left w-10">
                 <input
                   type="checkbox"
                   checked={allSelected}
                   onChange={onToggleAllSelection}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
                 />
               </th>
               {/* Transaction Date */}
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Tanggal
               </th>
               {/* Source Ref */}
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Referensi
               </th>
               {/* Branch */}
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Cabang
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Cabin
               </th>
               {/* Amount */}
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Amount
               </th>
               {/* Error */}
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Error
               </th>
               {/* Actions */}
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">
                 Aksi
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
             {transactions.map((transaction) => {
               const isSelected = selectedIds.has(transaction.id)
               
@@ -156,8 +156,8 @@ export const FailedTransactionsTable: React.FC<FailedTransactionsTableProps> = (
                   key={transaction.id}
                   className={`
                     transition-colors
-                    hover:bg-gray-50
-                    ${isSelected ? 'bg-red-50' : ''}
+                    hover:bg-gray-50 dark:hover:bg-gray-700/50
+                    ${isSelected ? 'bg-red-50 dark:bg-red-900/20' : ''}
                   `}
                 >
                   {/* Checkbox */}
@@ -166,13 +166,13 @@ export const FailedTransactionsTable: React.FC<FailedTransactionsTableProps> = (
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => onToggleSelection(transaction.id)}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      className="w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
                     />
                   </td>
 
                   {/* Transaction Date */}
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">
+                    <span className="text-sm text-gray-900 dark:text-white">
                       {formatDate(transaction.transaction_date)}
                     </span>
                   </td>
@@ -180,7 +180,7 @@ export const FailedTransactionsTable: React.FC<FailedTransactionsTableProps> = (
                   {/* Source Ref */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="text-sm">
-                      <span className="font-mono font-medium text-gray-900">
+                      <span className="font-mono font-medium text-gray-900 dark:text-white">
                         {transaction.source_ref}
                       </span>
                     </div>
@@ -188,14 +188,14 @@ export const FailedTransactionsTable: React.FC<FailedTransactionsTableProps> = (
 
                   {/* Branch */}
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">
+                    <span className="text-sm text-gray-900 dark:text-white">
                       {transaction.branch_name || '-'}
                     </span>
                   </td>
 
                   {/* Amount */}
                   <td className="px-4 py-3 whitespace-nowrap text-right">
-                    <span className="text-sm font-medium text-gray-900">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
                       {formatCurrency(transaction.nett_amount)}
                     </span>
                   </td>
@@ -204,7 +204,7 @@ export const FailedTransactionsTable: React.FC<FailedTransactionsTableProps> = (
                   <td className="px-4 py-3">
                     <button
                       onClick={() => onViewDetail(transaction.id)}
-                      className="text-sm text-red-600 max-w-xs truncate block hover:underline cursor-pointer text-left"
+                      className="text-sm text-red-600 dark:text-red-400 max-w-xs truncate block hover:underline cursor-pointer text-left"
                       title="Klik untuk lihat detail error"
                     >
                       Klik untuk lihat detail
@@ -217,7 +217,7 @@ export const FailedTransactionsTable: React.FC<FailedTransactionsTableProps> = (
                       {/* View Detail */}
                       <button
                         onClick={() => onViewDetail(transaction.id)}
-                        className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
                         title="Lihat Detail"
                       >
                         <Eye className="w-4 h-4" />
@@ -226,7 +226,7 @@ export const FailedTransactionsTable: React.FC<FailedTransactionsTableProps> = (
                       {/* Fix */}
                       <button
                         onClick={() => onFix(transaction.id)}
-                        className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                        className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
                         title="Fix & Retry"
                       >
                         <RefreshCw className="w-4 h-4" />
@@ -235,7 +235,7 @@ export const FailedTransactionsTable: React.FC<FailedTransactionsTableProps> = (
                       {/* Delete */}
                       <button
                         onClick={() => setDeleteId(transaction.id)}
-                        className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                        className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                         title="Hapus Permanen"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -273,16 +273,16 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
   onConfirm,
   onCancel,
 }) => (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-      <h3 className="text-lg font-semibold text-gray-900 mb-2">Hapus Transaksi Gagal?</h3>
-      <p className="text-gray-600 mb-6">
+  <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black/70 flex items-center justify-center z-50">
+    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Hapus Transaksi Gagal?</h3>
+      <p className="text-gray-600 dark:text-gray-400 mb-6">
         Apakah Anda yakin ingin menghapus transaksi gagal ini secara permanen? Tindakan ini tidak dapat dibatalkan.
       </p>
       <div className="flex justify-end gap-3">
         <button
           onClick={onCancel}
-          className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+          className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400"
         >
           Batal
         </button>

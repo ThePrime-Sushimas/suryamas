@@ -183,12 +183,12 @@ export const PosAggregatesFilters: React.FC = () => {
     selectedPayments.length > 0
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 mb-4">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
       {/* Toggle Filters */}
       <div className="flex justify-between items-center mb-4">
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+          className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
         >
           <Filter size={16} />
           {showFilters ? 'Sembunyikan' : 'Tampilkan'} Filter
@@ -218,7 +218,7 @@ export const PosAggregatesFilters: React.FC = () => {
           <div className="flex flex-wrap gap-4 items-end">
             {/* Search */}
             <div className="flex-1 min-w-[200px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Pencarian
               </label>
               <div className="relative">
@@ -228,12 +228,12 @@ export const PosAggregatesFilters: React.FC = () => {
                   placeholder="Cari berdasarkan referensi..."
                   value={filter.search || ''}
                   onChange={handleSearchChange}
-                  className="w-full pl-9 pr-9 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="w-full pl-9 pr-9 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
                 {filter.search && (
                   <button
                     onClick={() => setFilter({ search: undefined })}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                   >
                     <X size={16} />
                   </button>
@@ -243,20 +243,20 @@ export const PosAggregatesFilters: React.FC = () => {
 
             {/* Date Range - From */}
             <div className="w-40">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Dari Tanggal
               </label>
               <input
                 type="date"
                 value={filter.transaction_date_from || ''}
                 onChange={handleDateFromChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
 
             {/* Date Range - To */}
             <div className="w-40">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Sampai Tanggal
               </label>
               <input
@@ -264,35 +264,35 @@ export const PosAggregatesFilters: React.FC = () => {
                 value={filter.transaction_date_to || ''}
                 onChange={handleDateToChange}
                 min={filter.transaction_date_from}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
 
             {/* Branch Dropdown */}
             <div className="relative w-48" ref={branchDropdownRef}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cabang
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Cabin
               </label>
               <button
                 onClick={() => setShowBranchDropdown(!showBranchDropdown)}
-                className="w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 <span className="truncate">
-                  {selectedBranches.length === 0 ? 'Semua Cabang' : `${selectedBranches.length} dipilih`}
+                  {selectedBranches.length === 0 ? 'Semua Cabin' : `${selectedBranches.length} dipilih`}
                 </span>
                 <ChevronDown size={16} />
               </button>
               {showBranchDropdown && (
-                <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded shadow-lg max-h-60 overflow-y-auto">
                   {branches.map(b => (
-                    <label key={b.id} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                    <label key={b.id} className="flex items-center px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={selectedBranches.includes(b.branch_name)}
                         onChange={() => handleBranchToggle(b.branch_name)}
                         className="mr-2"
                       />
-                      <span className="text-sm truncate">{b.branch_name}</span>
+                      <span className="text-sm truncate text-gray-900 dark:text-white">{b.branch_name}</span>
                     </label>
                   ))}
                 </div>
@@ -301,12 +301,12 @@ export const PosAggregatesFilters: React.FC = () => {
 
             {/* Payment Method Dropdown */}
             <div className="relative w-48" ref={paymentDropdownRef}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Metode Pembayaran
               </label>
               <button
                 onClick={() => setShowPaymentDropdown(!showPaymentDropdown)}
-                className="w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 <span className="truncate">
                   {selectedPayments.length === 0 ? 'Semua Metode' : `${selectedPayments.length} dipilih`}
@@ -314,16 +314,16 @@ export const PosAggregatesFilters: React.FC = () => {
                 <ChevronDown size={16} />
               </button>
               {showPaymentDropdown && (
-                <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded shadow-lg max-h-60 overflow-y-auto">
                   {paymentMethods.map(pm => (
-                    <label key={pm.id} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                    <label key={pm.id} className="flex items-center px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={selectedPayments.includes(pm.name)}
                         onChange={() => handlePaymentToggle(pm.name)}
                         className="mr-2"
                       />
-                      <span className="text-sm truncate">{pm.name}</span>
+                      <span className="text-sm truncate text-gray-900 dark:text-white">{pm.name}</span>
                     </label>
                   ))}
                 </div>
@@ -332,13 +332,13 @@ export const PosAggregatesFilters: React.FC = () => {
 
             {/* Status */}
             <div className="w-40">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Status
               </label>
               <select
                 value={filter.status || ''}
                 onChange={handleStatusChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 {STATUS_OPTIONS.map((option) => (
                   <option key={option.value || 'all'} value={option.value}>
@@ -350,7 +350,7 @@ export const PosAggregatesFilters: React.FC = () => {
 
             {/* Reconciliation Status */}
             <div className="w-48">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Status Rekonsiliasi
               </label>
               <select
@@ -360,7 +360,7 @@ export const PosAggregatesFilters: React.FC = () => {
                     : filter.is_reconciled.toString()
                 }
                 onChange={handleReconciledChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 {RECONCILED_OPTIONS.map((option) => (
                   <option key={option.value || 'all'} value={option.value}>
@@ -372,7 +372,7 @@ export const PosAggregatesFilters: React.FC = () => {
 
             {/* Has Journal */}
             <div className="w-44">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Jurnal
               </label>
               <select
@@ -382,7 +382,7 @@ export const PosAggregatesFilters: React.FC = () => {
                     : filter.has_journal.toString()
                 }
                 onChange={handleHasJournalChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 {JOURNAL_OPTIONS.map((option) => (
                   <option key={option.value || 'all'} value={option.value}>
@@ -399,9 +399,9 @@ export const PosAggregatesFilters: React.FC = () => {
                   type="checkbox"
                   checked={filter.show_deleted || false}
                   onChange={handleShowDeletedChange}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Tampilkan Terhapus</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">Tampilkan Terhapus</span>
               </label>
             </div>
 
@@ -409,7 +409,7 @@ export const PosAggregatesFilters: React.FC = () => {
             {hasActiveFilters && (
               <button
                 onClick={handleClearFilters}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
               >
                 Hapus Filter
               </button>

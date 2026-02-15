@@ -300,34 +300,34 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black/50 transition-opacity"
+        className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity"
         onClick={handleClose}
       />
 
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4">
-        <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-xl transform transition-all">
+        <div className="relative w-full max-w-2xl bg-white dark:bg-gray-800 rounded-xl shadow-xl transform transition-all">
           
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b">
+          <div className="flex items-center justify-between px-6 py-4 border-b dark:border-gray-700">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <FileText className="w-5 h-5 text-blue-600" />
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Generate Jurnal dari Transaksi
                 </h3>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   Buat entri jurnal dari transaksi POS (berjalan di background)
                 </p>
               </div>
             </div>
             <button
               onClick={handleClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
-              <X className="w-5 h-5 text-gray-500" />
+              <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             </button>
           </div>
 
@@ -338,18 +338,18 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
                 {/* Date Range */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Dari Tanggal
                     </label>
                     <input
                       type="date"
                       value={dateFrom}
                       onChange={(e) => setDateFrom(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Sampai Tanggal
                     </label>
                     <input
@@ -357,22 +357,22 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
                       value={dateTo}
                       onChange={(e) => setDateTo(e.target.value)}
                       min={dateFrom}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     />
                   </div>
                 </div>
 
                 {/* Branch Filter */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Cabang (Kosongkan untuk semua)
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Cabin (Kosongkan untuk semua)
                   </label>
                   <select
                     value={selectedBranch}
                     onChange={(e) => setSelectedBranch(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
-                    <option value="">Semua Cabang</option>
+                    <option value="">Semua Cabin</option>
                     {branches.map((branch) => (
                       <option key={branch.id} value={branch.branch_name}>
                         {branch.branch_name}
@@ -383,13 +383,13 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
 
                 {/* Payment Method Filter */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Metode Pembayaran (Kosongkan untuk semua)
                   </label>
                   <select
                     value={selectedPaymentMethod}
                     onChange={(e) => setSelectedPaymentMethod(e.target.value ? Number(e.target.value) : '')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="">Semua Metode Pembayaran</option>
                     {paymentMethods.map((pm) => (
@@ -407,22 +407,22 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
                     id="unreconciledOnly"
                     checked={includeUnreconciledOnly}
                     onChange={(e) => setIncludeUnreconciledOnly(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
                   />
-                  <label htmlFor="unreconciledOnly" className="text-sm text-gray-700">
+                  <label htmlFor="unreconciledOnly" className="text-sm text-gray-700 dark:text-gray-300">
                     Hanya transaksi yang belum memiliki jurnal
                   </label>
                 </div>
 
                 {/* Info Box */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                   <div className="flex items-start gap-3">
-                    <Clock className="w-5 h-5 text-blue-600 mt-0.5" />
+                    <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium text-blue-900">
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-300">
                         Proses ini akan berjalan di background.
                       </p>
-                      <p className="text-sm text-blue-700 mt-1">
+                      <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
                         Kamu bisa tutup modal ini dan cek status job di menu Jobs.
                       </p>
                     </div>
@@ -436,14 +436,14 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
                 {/* Progress Bar */}
                 <div className="mb-6">
                   <div className="flex justify-between text-sm mb-2">
-                    <span className="font-medium text-gray-700">
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
                       {progress?.phase === 'complete' ? 'Selesai' : 'Memproses...'}
                     </span>
-                    <span className="text-gray-500">
+                    <span className="text-gray-500 dark:text-gray-400">
                       {progress?.current.toFixed(0) || 0}%
                     </span>
                   </div>
-                  <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-out"
                       style={{ width: `${progress?.current || 0}%` }}
@@ -453,24 +453,24 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
 
                 {/* Status Message */}
                 <div className="text-center">
-                  <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
-                  <p className="text-gray-700 font-medium">
+                  <RefreshCw className="w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin mx-auto mb-3" />
+                  <p className="text-gray-700 dark:text-gray-300 font-medium">
                     {progress?.message || 'Memproses...'}
                   </p>
                   {jobId && (
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                       Job ID: {jobId.slice(0, 8)}...
                     </p>
                   )}
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                     Proses berjalan di background. Tutup modal ini untuk melanjutkan pekerjaan lain.
                   </p>
                 </div>
 
                 {/* Error Display */}
                 {localError && (
-                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <div className="flex items-center gap-2 text-red-700">
+                  <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
                       <AlertCircle className="w-5 h-5" />
                       <span className="font-medium">{localError}</span>
                     </div>
@@ -483,16 +483,16 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
               <div className="py-4">
                 {result.success ? (
                   <div className="text-center">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <CheckCircle className="w-8 h-8 text-green-600" />
+                    <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
                     </div>
-                    <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                       Job Berhasil Dibuat!
                     </h4>
-                    <p className="text-gray-600 mb-6">
+                    <p className="text-gray-600 dark:text-gray-400 mb-6">
                       Jurnal sedang diproses di background.
                       {jobId && (
-                        <span className="block text-sm text-gray-500 mt-1">
+                        <span className="block text-sm text-gray-500 dark:text-gray-500 mt-1">
                           Job ID: {jobId}
                         </span>
                       )}
@@ -500,21 +500,21 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
 
                     {/* Stats */}
                     <div className="grid grid-cols-3 gap-4 mb-6">
-                      <div className="bg-gray-50 rounded-lg p-4">
-                        <p className="text-sm text-gray-500">Status</p>
-                        <p className="text-lg font-bold text-blue-600">Processing</p>
+                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
+                        <p className="text-lg font-bold text-blue-600 dark:text-blue-400">Processing</p>
                       </div>
-                      <div className="bg-gray-50 rounded-lg p-4">
-                        <p className="text-sm text-gray-500">Job ID</p>
-                        <p className="text-lg font-bold text-gray-900 truncate">
+                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Job ID</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white truncate">
                           {jobId?.slice(0, 8)}...
                         </p>
                       </div>
-                      <div className="bg-gray-50 rounded-lg p-4">
-                        <p className="text-sm text-gray-500">Aksi</p>
+                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Aksi</p>
                         <button
                           onClick={() => navigate('/jobs')}
-                          className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                          className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
                         >
                           Lihat di Jobs
                         </button>
@@ -523,21 +523,21 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
                   </div>
                 ) : (
                   <div className="text-center">
-                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <AlertCircle className="w-8 h-8 text-red-600" />
+                    <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
                     </div>
-                    <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                       Job Gagal
                     </h4>
-                    <p className="text-gray-600 mb-4">
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">
                       {localError || 'Terjadi kesalahan saat memproses job'}
                     </p>
 
                     {/* Error Details */}
                     {localError && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-left">
-                        <p className="text-sm font-medium text-red-800">Detail Error:</p>
-                        <p className="text-sm text-red-700">{localError}</p>
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-left">
+                        <p className="text-sm font-medium text-red-800 dark:text-red-400">Detail Error:</p>
+                        <p className="text-sm text-red-700 dark:text-red-500">{localError}</p>
                       </div>
                     )}
                   </div>
@@ -547,12 +547,12 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t bg-gray-50 rounded-b-xl flex justify-end gap-3">
+          <div className="px-6 py-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 rounded-b-xl flex justify-end gap-3">
             {step === 'config' && (
               <>
                 <button
                   onClick={handleClose}
-                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors"
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors"
                 >
                   Batal
                 </button>
@@ -579,7 +579,7 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
             {step === 'processing' && (
               <button
                 onClick={handleClose}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors"
               >
                 Tutup
               </button>
