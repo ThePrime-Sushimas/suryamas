@@ -140,10 +140,8 @@ export const PosAggregateDetailPage: React.FC = () => {
       })
       toast.success(BANK_RECONCILIATION_MESSAGES.BANK_MUTATION_MATCHED)
       
-      // Refresh data
+      // Refresh only the current transaction detail - no need to fetch list/summary on detail page
       await fetchTransactionById(id)
-      await fetchTransactions()
-      await fetchSummary()
       
       setShowMutationSelector(false)
     } catch (error) {
@@ -152,7 +150,7 @@ export const PosAggregateDetailPage: React.FC = () => {
     } finally {
       setIsMatching(false)
     }
-  }, [id, selectedTransaction, fetchTransactionById, fetchTransactions, fetchSummary, toast])
+  }, [id, selectedTransaction, fetchTransactionById, toast])
 
   // Loading state
   if (initialLoad) {
