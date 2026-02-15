@@ -3,6 +3,7 @@ import { Trash2, FileText, Eye, ArrowUpDown, Upload } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { PosImport, PosImportStatus } from '../types/pos-imports.types'
 import { STATUS_COLORS } from '../constants/pos-imports.constants'
+import { TableSkeleton } from '@/components/ui/Skeleton'
 
 interface PosImportsTableProps {
   imports: PosImport[]
@@ -75,7 +76,7 @@ export const PosImportsTable = ({
     }
   }
   
-  if (imports.length === 0) {
+  if (imports.length === 0 && !isLoading) {
     return (
       <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/50 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600">
         <FileText className="mx-auto h-12 w-12 text-gray-400" />
@@ -101,6 +102,10 @@ export const PosImportsTable = ({
         </p>
       </div>
     )
+  }
+
+  if (isLoading) {
+    return <TableSkeleton rows={5} columns={9} />
   }
 
   const getStatusColor = (status: PosImportStatus) => {
