@@ -85,23 +85,24 @@ export const PosAggregatesPage: React.FC = () => {
     try {
       await deleteTransaction(id)
       toast.success(`Transaksi "${sourceRef}" berhasil dihapus`)
-      fetchSummary() // Refresh summary
+      await fetchSummary() // Refresh summary - await to ensure consistency
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal menghapus transaksi')
     }
   }, [deleteTransaction, toast, fetchSummary])
 
   // Handle restore
+  // Note: restoreTransaction already calls fetchTransactions internally
   const handleRestore = useCallback(async (id: string, sourceRef: string) => {
     try {
       await restoreTransaction(id)
       toast.success(`Transaksi "${sourceRef}" berhasil dipulihkan`)
-      fetchTransactions()
-      fetchSummary()
+      // restoreTransaction already refreshes transactions, only need to refresh summary
+      await fetchSummary()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal memulihkan transaksi')
     }
-  }, [restoreTransaction, toast, fetchTransactions, fetchSummary])
+  }, [restoreTransaction, toast, fetchSummary])
 
   // Handle reconcile single
   const handleReconcile = useCallback(async (id: string) => {
@@ -109,14 +110,17 @@ export const PosAggregatesPage: React.FC = () => {
       const employeeId = currentBranch?.employee_id || 'system'
       await reconcileTransaction(id, employeeId)
       toast.success('Transaksi berhasil direkonsiliasi')
-      fetchTransactions()
-      fetchSummary()
+      // Wait for both fetches to complete sequentially for UI consistency
+      await fetchTransactions()
+      await fetchSummary()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal merekonsiliasi transaksi')
     }
   }, [reconcileTransaction, toast, currentBranch, fetchTransactions, fetchSummary])
 
   // Handle batch reconcile
+  // Note: batchReconcile already handles optimistic update, clearSelection, and refresh internally
+  // So we don't need to call fetchTransactions/fetchSummary here - it would cause redundant API calls
   const handleBatchReconcile = useCallback(async () => {
     if (selectedIds.size === 0) {
       toast.warning('Pilih transaksi yang akan direkonsiliasi')
@@ -125,15 +129,17 @@ export const PosAggregatesPage: React.FC = () => {
 
     try {
       const employeeId = currentBranch?.employee_id || 'system'
+      // batchReconcile already:
+      // 1. Updates transactions optimistically (is_reconciled: true)
+      // 2. Clears selectedIds
+      // 3. Refreshes data via fetchTransactions and fetchSummary internally
       const count = await batchReconcile(Array.from(selectedIds), employeeId)
       toast.success(`${count} transaksi berhasil direkonsiliasi`)
-      clearSelection()
-      fetchTransactions()
-      fetchSummary()
+      // clearSelection is called internally by batchReconcile, no need to call again
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal merekonsiliasi transaksi secara batch')
     }
-  }, [selectedIds, batchReconcile, toast, currentBranch, clearSelection, fetchTransactions, fetchSummary])
+  }, [selectedIds, batchReconcile, toast, currentBranch])
 
 // Handle view detail
   const handleViewDetail = useCallback((id: string) => {
@@ -152,8 +158,9 @@ export const PosAggregatesPage: React.FC = () => {
       }
       setShowForm(false)
       setEditingId(null)
-      fetchTransactions()
-      fetchSummary()
+      // Wait for both fetches to complete sequentially for UI consistency
+      await fetchTransactions()
+      await fetchSummary()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal menyimpan transaksi')
     }
@@ -193,9 +200,9 @@ export const PosAggregatesPage: React.FC = () => {
       })
       toast.success(`Transaksi "${selectedTransactionForMatch.source_ref}" berhasil dicocokkan dengan mutasi bank`)
       
-      // Refresh data
-      fetchTransactions()
-      fetchSummary()
+      // Wait for both fetches to complete sequentially for UI consistency
+      await fetchTransactions()
+      await fetchSummary()
       
       // Close modal
       setShowMutationSelector(false)
@@ -368,9 +375,10 @@ export const PosAggregatesPage: React.FC = () => {
       <GenerateFromImportModal
         isOpen={showGenerateFromImportModal}
         onClose={() => setShowGenerateFromImportModal(false)}
-        onGenerated={() => {
-          fetchTransactions()
-          fetchSummary()
+        onGenerated={async () => {
+          // Wait for both fetches to complete sequentially for UI consistency
+          await fetchTransactions()
+          await fetchSummary()
         }}
       />
 

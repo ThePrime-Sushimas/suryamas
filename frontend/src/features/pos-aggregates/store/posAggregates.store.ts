@@ -381,6 +381,7 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
           set({ isMutating: true, error: null })
           try {
             const count = await posAggregatesApi.batchReconcile({ transaction_ids: ids, reconciled_by: reconciledBy })
+            // Optimistic update: mark transactions as reconciled
             set((state) => ({
               transactions: state.transactions.map((tx) =>
                 ids.includes(tx.id) ? { ...tx, is_reconciled: true } : tx
@@ -388,6 +389,9 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
               selectedIds: new Set<string>(),
               isMutating: false,
             }))
+            // Refresh data from server to ensure consistency
+            await get().fetchTransactions()
+            await get().fetchSummary()
             return count
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Gagal merekonsiliasi transaksi secara batch'
