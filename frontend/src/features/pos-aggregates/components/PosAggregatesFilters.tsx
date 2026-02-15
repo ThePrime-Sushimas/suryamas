@@ -271,14 +271,14 @@ export const PosAggregatesFilters: React.FC = () => {
             {/* Branch Dropdown */}
             <div className="relative w-48" ref={branchDropdownRef}>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Cabin
+                Cabang
               </label>
               <button
                 onClick={() => setShowBranchDropdown(!showBranchDropdown)}
                 className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 <span className="truncate">
-                  {selectedBranches.length === 0 ? 'Semua Cabin' : `${selectedBranches.length} dipilih`}
+                  {selectedBranches.length === 0 ? 'Semua Cabang' : `${selectedBranches.length} dipilih`}
                 </span>
                 <ChevronDown size={16} />
               </button>
