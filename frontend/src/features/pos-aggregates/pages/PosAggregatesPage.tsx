@@ -19,6 +19,9 @@ import { GenerateFromImportModal } from '../components/GenerateFromImportModal'
 import { GenerateJournalModal } from '../components/GenerateJournalModal'
 import { BankMutationSelectorModal } from '../components/BankMutationSelectorModal'
 import { bankReconciliationApi } from '@/features/bank-reconciliation/api/bank-reconciliation.api'
+import {
+  POS_AGGREGATES_MESSAGES
+} from '@/utils/messages'
 import type { 
   CreateAggregatedTransactionDto, 
   UpdateAggregatedTransactionDto 
@@ -83,10 +86,10 @@ export const PosAggregatesPage: React.FC = () => {
   const handleDelete = useCallback(async (id: string, sourceRef: string) => {
     try {
       await deleteTransaction(id)
-      toast.success(`Transaksi "${sourceRef}" berhasil dihapus`)
+      toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_DELETED(sourceRef))
       await fetchSummary() // Refresh summary - await to ensure consistency
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal menghapus transaksi')
+      toast.error(error instanceof Error ? error.message : POS_AGGREGATES_MESSAGES.TRANSACTION_DELETE_FAILED)
     }
   }, [deleteTransaction, toast, fetchSummary])
 
@@ -95,11 +98,11 @@ export const PosAggregatesPage: React.FC = () => {
   const handleRestore = useCallback(async (id: string, sourceRef: string) => {
     try {
       await restoreTransaction(id)
-      toast.success(`Transaksi "${sourceRef}" berhasil dipulihkan`)
+      toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_RESTORED(sourceRef))
       // restoreTransaction already refreshes transactions, only need to refresh summary
       await fetchSummary()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal memulihkan transaksi')
+      toast.error(error instanceof Error ? error.message : POS_AGGREGATES_MESSAGES.TRANSACTION_RESTORE_FAILED)
     }
   }, [restoreTransaction, toast, fetchSummary])
 
@@ -108,12 +111,12 @@ export const PosAggregatesPage: React.FC = () => {
     try {
       const employeeId = currentBranch?.employee_id || 'system'
       await reconcileTransaction(id, employeeId)
-      toast.success('Transaksi berhasil direkonsiliasi')
+      toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_RECONCILED)
       // Wait for both fetches to complete sequentially for UI consistency
       await fetchTransactions()
       await fetchSummary()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal merekonsiliasi transaksi')
+      toast.error(error instanceof Error ? error.message : POS_AGGREGATES_MESSAGES.TRANSACTION_RECONCILE_FAILED)
     }
   }, [reconcileTransaction, toast, currentBranch, fetchTransactions, fetchSummary])
 
@@ -122,7 +125,7 @@ export const PosAggregatesPage: React.FC = () => {
   // So we don't need to call fetchTransactions/fetchSummary here - it would cause redundant API calls
   const handleBatchReconcile = useCallback(async () => {
     if (selectedIds.size === 0) {
-      toast.warning('Pilih transaksi yang akan direkonsiliasi')
+      toast.warning(POS_AGGREGATES_MESSAGES.SELECT_TRANSACTIONS_TO_RECONCILE)
       return
     }
 
@@ -133,10 +136,10 @@ export const PosAggregatesPage: React.FC = () => {
       // 2. Clears selectedIds
       // 3. Refreshes data via fetchTransactions and fetchSummary internally
       const count = await batchReconcile(Array.from(selectedIds), employeeId)
-      toast.success(`${count} transaksi berhasil direkonsiliasi`)
+      toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_BATCH_RECONCILED(count))
       // clearSelection is called internally by batchReconcile, no need to call again
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal merekonsiliasi transaksi secara batch')
+      toast.error(error instanceof Error ? error.message : POS_AGGREGATES_MESSAGES.TRANSACTION_BATCH_RECONCILE_FAILED)
     }
   }, [selectedIds, batchReconcile, toast, currentBranch])
 
@@ -150,10 +153,10 @@ export const PosAggregatesPage: React.FC = () => {
     try {
       if (editingId) {
         await updateTransaction(editingId, data as UpdateAggregatedTransactionDto)
-        toast.success('Transaksi agregat berhasil diperbarui')
+        toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_UPDATED)
       } else {
         await createTransaction(data as CreateAggregatedTransactionDto)
-        toast.success('Transaksi agregat berhasil dibuat')
+        toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_CREATED)
       }
       setShowForm(false)
       setEditingId(null)
@@ -161,7 +164,7 @@ export const PosAggregatesPage: React.FC = () => {
       await fetchTransactions()
       await fetchSummary()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal menyimpan transaksi')
+      toast.error(error instanceof Error ? error.message : POS_AGGREGATES_MESSAGES.TRANSACTION_SAVE_FAILED)
     }
   }, [editingId, createTransaction, updateTransaction, toast, fetchTransactions, fetchSummary])
 
@@ -197,7 +200,7 @@ export const PosAggregatesPage: React.FC = () => {
         aggregateId: selectedTransactionForMatch.id,
         statementId,
       })
-      toast.success(`Transaksi "${selectedTransactionForMatch.source_ref}" berhasil dicocokkan dengan mutasi bank`)
+      toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_MATCHED(selectedTransactionForMatch.source_ref))
       
       // Wait for both fetches to complete sequentially for UI consistency
       await fetchTransactions()
@@ -207,7 +210,7 @@ export const PosAggregatesPage: React.FC = () => {
       setShowMutationSelector(false)
       setSelectedTransactionForMatch(null)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal mencocokkan transaksi')
+      toast.error(error instanceof Error ? error.message : POS_AGGREGATES_MESSAGES.TRANSACTION_MATCH_FAILED)
     } finally {
       setIsMatching(false)
     }

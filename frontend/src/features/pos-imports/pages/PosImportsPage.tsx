@@ -11,6 +11,7 @@ import { useBranchContextStore } from '@/features/branch_context'
 import { useAuthStore } from '@/features/auth'
 import { useToast } from '@/contexts/ToastContext'
 import { POS_IMPORT_PAGE_SIZE_OPTIONS } from '../constants/pos-imports.constants'
+import { POS_IMPORTS_MESSAGES } from '@/utils/messages'
 
 function PosImportsPageContent() {
   const [showUploadModal, setShowUploadModal] = useState(false)
@@ -98,16 +99,16 @@ function PosImportsPageContent() {
 
   const handleUpload = async (file: File, branchId: string) => {
     if (!user?.id) {
-      toast.error('User not authenticated')
+      toast.error(POS_IMPORTS_MESSAGES.USER_NOT_AUTHENTICATED)
       return
     }
     
     try {
       await uploadFile(file, branchId, user.id)
       setShowUploadModal(false)
-      toast.success('File uploaded successfully')
+      toast.success(POS_IMPORTS_MESSAGES.FILE_UPLOADED)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Upload failed')
+      toast.error(error instanceof Error ? error.message : POS_IMPORTS_MESSAGES.UPLOAD_FAILED)
     }
   }
 
@@ -117,9 +118,9 @@ function PosImportsPageContent() {
     try {
       await confirmImport(analyzeResult.import.id, skipDuplicates)
       clearAnalyzeResult()
-      toast.success('Import confirmed successfully')
+      toast.success(POS_IMPORTS_MESSAGES.IMPORT_CONFIRMED)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Confirm failed')
+      toast.error(error instanceof Error ? error.message : POS_IMPORTS_MESSAGES.CONFIRM_FAILED)
     }
   }
 
@@ -133,9 +134,9 @@ function PosImportsPageContent() {
     try {
       await deleteImport(deleteConfirm.id)
       setDeleteConfirm(null)
-      toast.success('Import deleted successfully')
+      toast.success(POS_IMPORTS_MESSAGES.IMPORT_DELETED)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Delete failed')
+      toast.error(error instanceof Error ? error.message : POS_IMPORTS_MESSAGES.DELETE_FAILED)
     }
   }
 
@@ -143,9 +144,9 @@ function PosImportsPageContent() {
     try {
       await batchDelete(Array.from(selectedIds))
       setBatchDeleteConfirm(false)
-      toast.success(`${selectedIds.size} imports deleted successfully`)
+      toast.success(POS_IMPORTS_MESSAGES.BATCH_IMPORTS_DELETED(selectedIds.size))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Batch delete failed')
+      toast.error(error instanceof Error ? error.message : POS_IMPORTS_MESSAGES.BATCH_DELETE_FAILED)
     }
   }
 
@@ -156,15 +157,15 @@ function PosImportsPageContent() {
     })
     
     if (analyzedIds.length === 0) {
-      toast.error('No analyzed imports selected')
+      toast.error(POS_IMPORTS_MESSAGES.NO_ANALYZED_SELECTED)
       return
     }
     
     try {
       await batchConfirm(analyzedIds, true)
-      toast.success(`${analyzedIds.length} imports confirmed successfully`)
+      toast.success(POS_IMPORTS_MESSAGES.BATCH_IMPORTS_CONFIRMED(analyzedIds.length))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Batch confirm failed')
+      toast.error(error instanceof Error ? error.message : POS_IMPORTS_MESSAGES.BATCH_CONFIRM_FAILED)
     }
   }
 
@@ -174,13 +175,13 @@ function PosImportsPageContent() {
     try {
       // Create export job - returns job ID immediately
       await batchExport(ids)
-      toast.info(`Export job created. Processing ${ids.length} imports in background...`)
+      toast.info(POS_IMPORTS_MESSAGES.EXPORT_JOB_CREATED(ids.length))
       
       // The job will be processed in background and user can check status via jobs page
       // Optionally, we could start polling here if we want to show real-time progress
       clearSelection()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create export job')
+      toast.error(error instanceof Error ? error.message : POS_IMPORTS_MESSAGES.EXPORT_JOB_FAILED)
     }
   }
 

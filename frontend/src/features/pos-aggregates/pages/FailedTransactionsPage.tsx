@@ -11,6 +11,7 @@ import {
 import { useFailedTransactionsStore } from '../store/failedTransactions.store'
 import { useToast } from '@/contexts/ToastContext'
 import { FailedTransactionDetailModal } from '../components/FailedTransactionDetailModal'
+import { FAILED_TRANSACTIONS_MESSAGES } from '@/utils/messages'
 
 /**
  * Failed Transactions Page
@@ -62,9 +63,9 @@ export const FailedTransactionsPage: React.FC = () => {
   const handleFix = useCallback(async (id: string) => {
     try {
       await fixTransaction(id)
-      toast.success('Transaksi berhasil difix dan diproses ulang')
+      toast.success(FAILED_TRANSACTIONS_MESSAGES.TRANSACTION_FIXED)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal reset transaksi')
+      toast.error(error instanceof Error ? error.message : FAILED_TRANSACTIONS_MESSAGES.TRANSACTION_FIX_FAILED)
     }
   }, [fixTransaction, toast])
 
@@ -72,30 +73,30 @@ export const FailedTransactionsPage: React.FC = () => {
   const handleDeleteFromModal = useCallback(async (id: string) => {
     try {
       await deleteTransaction(id)
-      toast.success('Transaksi gagal dihapus permanen')
+      toast.success(FAILED_TRANSACTIONS_MESSAGES.TRANSACTION_DELETED)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal menghapus transaksi')
+      toast.error(error instanceof Error ? error.message : FAILED_TRANSACTIONS_MESSAGES.TRANSACTION_DELETE_FAILED)
     }
   }, [deleteTransaction, toast])
 
   // Handle batch fix
   const handleBatchFix = useCallback(async () => {
     if (selectedIds.size === 0) {
-      toast.warning('Pilih transaksi yang akan difix')
+      toast.warning(FAILED_TRANSACTIONS_MESSAGES.NO_FAILED_TRANSACTIONS)
       return
     }
 
     try {
       const result = await batchFixTransactions(Array.from(selectedIds))
       if (result.fixed.length > 0) {
-        toast.success(`${result.fixed.length} transaksi berhasil difix`)
+        toast.success(FAILED_TRANSACTIONS_MESSAGES.TRANSACTION_FIXED_BATCH(result.fixed.length))
       }
       if (result.failed.length > 0) {
-        toast.warning(`${result.failed.length} transaksi gagal difix`)
+        toast.warning(FAILED_TRANSACTIONS_MESSAGES.BATCH_FIX_WARNING(result.failed.length))
       }
       clearSelection()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal reset transaksi')
+      toast.error(error instanceof Error ? error.message : FAILED_TRANSACTIONS_MESSAGES.TRANSACTION_FIX_FAILED)
     }
   }, [selectedIds, batchFixTransactions, clearSelection, toast])
 
@@ -107,16 +108,16 @@ export const FailedTransactionsPage: React.FC = () => {
 
     try {
       await deleteTransaction(id)
-      toast.success('Transaksi gagal dihapus permanen')
+      toast.success(FAILED_TRANSACTIONS_MESSAGES.TRANSACTION_DELETED)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal menghapus transaksi')
+      toast.error(error instanceof Error ? error.message : FAILED_TRANSACTIONS_MESSAGES.TRANSACTION_DELETE_FAILED)
     }
   }, [deleteTransaction, toast])
 
   // Handle batch delete
   const handleBatchDelete = useCallback(async () => {
     if (selectedIds.size === 0) {
-      toast.warning('Pilih transaksi yang akan dihapus')
+      toast.warning(FAILED_TRANSACTIONS_MESSAGES.NO_FAILED_TRANSACTIONS)
       return
     }
 
@@ -133,7 +134,7 @@ export const FailedTransactionsPage: React.FC = () => {
       }
     }
 
-    toast.success('Transaksi terpilih dihapus')
+    toast.success(FAILED_TRANSACTIONS_MESSAGES.TRANSACTION_SELECTED_DELETED)
     clearSelection()
   }, [selectedIds, deleteTransaction, clearSelection, toast])
 

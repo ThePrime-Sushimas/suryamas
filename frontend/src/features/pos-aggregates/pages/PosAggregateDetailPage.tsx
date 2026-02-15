@@ -14,6 +14,7 @@ import { useBranchContextStore } from '@/features/branch_context'
 import { PosAggregatesDetail } from '../components/PosAggregatesDetail'
 import { BankMutationSelectorModal } from '../components/BankMutationSelectorModal'
 import { bankReconciliationApi } from '../../bank-reconciliation/api/bank-reconciliation.api'
+import { POS_AGGREGATES_MESSAGES, BANK_RECONCILIATION_MESSAGES } from '@/utils/messages'
 import type { AggregatedTransactionListItem } from '../types'
 
 // =============================================================================
@@ -49,7 +50,7 @@ export const PosAggregateDetailPage: React.FC = () => {
   // Fetch transaction on mount
   useEffect(() => {
     if (!id) {
-      toast.error('ID transaksi tidak valid')
+      toast.error(POS_AGGREGATES_MESSAGES.INVALID_TRANSACTION_ID)
       navigate('/pos-aggregates')
       return
     }
@@ -59,9 +60,9 @@ export const PosAggregateDetailPage: React.FC = () => {
         await fetchTransactionById(id)
       } catch (error) {
         if (error instanceof Error && error.message.includes('tidak ditemukan')) {
-          toast.error('Transaksi tidak ditemukan atau telah dihapus')
+          toast.error(POS_AGGREGATES_MESSAGES.TRANSACTION_NOT_FOUND)
         } else {
-          toast.error('Gagal mengambil data transaksi')
+          toast.error(POS_AGGREGATES_MESSAGES.TRANSACTION_FETCH_FAILED)
         }
         navigate('/pos-aggregates')
       } finally {
@@ -78,11 +79,11 @@ export const PosAggregateDetailPage: React.FC = () => {
 
     try {
       await deleteTransaction(id)
-      toast.success(`Transaksi "${selectedTransaction.source_ref}" berhasil dihapus`)
+      toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_DELETED(selectedTransaction.source_ref))
       fetchSummary()
       navigate('/pos-aggregates')
     } catch {
-      toast.error('Gagal menghapus transaksi')
+      toast.error(POS_AGGREGATES_MESSAGES.TRANSACTION_DELETE_FAILED)
     } finally {
       setDeleteId(null)
     }
@@ -94,12 +95,12 @@ export const PosAggregateDetailPage: React.FC = () => {
 
     try {
       await restoreTransaction(id)
-      toast.success(`Transaksi "${selectedTransaction.source_ref}" berhasil dipulihkan`)
+      toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_RESTORED(selectedTransaction.source_ref))
       fetchTransactions()
       fetchSummary()
       navigate('/pos-aggregates')
     } catch {
-      toast.error('Gagal memulihkan transaksi')
+      toast.error(POS_AGGREGATES_MESSAGES.TRANSACTION_RESTORE_FAILED)
     }
   }, [id, selectedTransaction, restoreTransaction, toast, fetchTransactions, fetchSummary, navigate])
 
@@ -110,18 +111,18 @@ export const PosAggregateDetailPage: React.FC = () => {
     try {
       const employeeId = currentBranch?.employee_id || 'system'
       await reconcileTransaction(id, employeeId)
-      toast.success('Transaksi berhasil direkonsiliasi')
+      toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_RECONCILED)
       fetchTransactionById(id)
       fetchSummary()
     } catch {
-      toast.error('Gagal merekonsiliasi transaksi')
+      toast.error(POS_AGGREGATES_MESSAGES.TRANSACTION_RECONCILE_FAILED)
     }
   }, [id, reconcileTransaction, toast, currentBranch?.employee_id, fetchTransactionById, fetchSummary])
 
   // Handle open mutation selector
   const handleOpenMutationSelector = useCallback(() => {
     if (!selectedTransaction || selectedTransaction.is_reconciled) {
-      toast.warning('Transaksi sudah direkonsiliasi')
+      toast.warning(POS_AGGREGATES_MESSAGES.TRANSACTION_ALREADY_RECONCILED)
       return
     }
     setShowMutationSelector(true)
@@ -137,7 +138,7 @@ export const PosAggregateDetailPage: React.FC = () => {
         aggregateId: id,
         statementId,
       })
-      toast.success('Berhasil dicocokkan dengan mutasi bank')
+      toast.success(BANK_RECONCILIATION_MESSAGES.BANK_MUTATION_MATCHED)
       
       // Refresh data
       await fetchTransactionById(id)
@@ -147,7 +148,7 @@ export const PosAggregateDetailPage: React.FC = () => {
       setShowMutationSelector(false)
     } catch (error) {
       const err = error as { response?: { data?: { message?: string } }; message?: string }
-      toast.error(err.response?.data?.message || err.message || 'Gagal mencocokkan mutasi bank')
+      toast.error(err.response?.data?.message || err.message || BANK_RECONCILIATION_MESSAGES.MATCH_FAILED)
     } finally {
       setIsMatching(false)
     }
