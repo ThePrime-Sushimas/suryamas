@@ -51,9 +51,8 @@ export const PosAggregatesPage: React.FC = () => {
     total,
     totalPages,
     summary,
-    isLoading,
     isMutating,
-    isSummaryLoading,
+    isDataLoading,
     fetchTransactions,
     fetchSummary,
     createTransaction,
@@ -260,7 +259,7 @@ export const PosAggregatesPage: React.FC = () => {
       </div>
 
       {/* Summary */}
-      <PosAggregatesSummary summary={summary} isLoading={isSummaryLoading} className="mb-6" />
+      <PosAggregatesSummary summary={summary} isLoading={isDataLoading()} className="mb-6" />
 
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
@@ -324,7 +323,7 @@ export const PosAggregatesPage: React.FC = () => {
           <PosAggregatesTable
             transactions={transactions}
             selectedIds={selectedIds}
-            isLoading={isLoading}
+            isLoading={isDataLoading()}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onRestore={handleRestore}

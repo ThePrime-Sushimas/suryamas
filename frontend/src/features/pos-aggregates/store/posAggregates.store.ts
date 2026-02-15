@@ -57,6 +57,10 @@ interface PosAggregatesState {
   isMutating: boolean
   isSummaryLoading: boolean
   
+  // Computed: unified loading state for initial data fetch
+  // Returns true when either table or summary is loading
+  isDataLoading: () => boolean
+  
   // Error
   error: string | null
   
@@ -189,6 +193,14 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
         isLoading: false,
         isMutating: false,
         isSummaryLoading: false,
+
+        // Computed: unified loading state for initial data fetch
+        // Returns true when either table or summary is loading
+        isDataLoading: () => {
+          const state = get()
+          return state.isLoading || state.isSummaryLoading
+        },
+
         error: null,
 
         // --------------------------------------------------------------------
