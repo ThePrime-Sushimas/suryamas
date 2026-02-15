@@ -211,53 +211,53 @@ function PosImportDetailPageContent() {
       </div>
 
       {/* Financial Summary */}
-      <div className="grid grid-cols-5 gap-4 mb-6">
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mb-6">
+        <div className=" rounded-lg p-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">Total Amount</p>
           {loadingSummary ? (
-            <div className="h-8 bg-blue-100 dark:bg-blue-800 animate-pulse rounded mt-1" />
+            <div className="h-6 bg-blue-100 dark:bg-blue-800 animate-pulse rounded mt-1" />
           ) : (
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              Rp {(allLinesSummary.totalAmount || 0).toLocaleString('id-ID')}
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">
+              {(allLinesSummary.totalAmount || 0).toLocaleString('id-ID')}
             </p>
           )}
         </div>
-        <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+        <div className=" rounded-lg p-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">Total Tax</p>
           {loadingSummary ? (
-            <div className="h-8 bg-green-100 dark:bg-green-800 animate-pulse rounded mt-1" />
+            <div className="h-6 bg-green-100 dark:bg-green-800 animate-pulse rounded mt-1" />
           ) : (
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-              Rp {(allLinesSummary.totalTax || 0).toLocaleString('id-ID')}
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">
+              {(allLinesSummary.totalTax || 0).toLocaleString('id-ID')}
             </p>
           )}
         </div>
-        <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
+        <div className=" rounded-lg p-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">Bill Discount</p>
           {loadingSummary ? (
-            <div className="h-8 bg-orange-100 dark:bg-orange-800 animate-pulse rounded mt-1" />
+            <div className="h-6 bg-orange-100 dark:bg-orange-800 animate-pulse rounded mt-1" />
           ) : (
-            <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-              Rp {(allLinesSummary.totalBillDiscount || 0).toLocaleString('id-ID')}
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">
+              {(allLinesSummary.totalBillDiscount || 0).toLocaleString('id-ID')}
             </p>
           )}
         </div>
-        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+        <div className=" rounded-lg p-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">After Bill Disc</p>
           {loadingSummary ? (
-            <div className="h-8 bg-purple-100 dark:bg-purple-800 animate-pulse rounded mt-1" />
+            <div className="h-6 bg-purple-100 dark:bg-purple-800 animate-pulse rounded mt-1" />
           ) : (
-            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-              Rp {(allLinesSummary.totalAfterBillDiscount || 0).toLocaleString('id-ID')}
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">
+              {(allLinesSummary.totalAfterBillDiscount || 0).toLocaleString('id-ID')}
             </p>
           )}
         </div>
-        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">Transactions</p>
           {loadingSummary ? (
-            <div className="h-8 bg-gray-100 dark:bg-gray-600 animate-pulse rounded mt-1" />
+            <div className="h-6 bg-gray-100 dark:bg-gray-600 animate-pulse rounded mt-1" />
           ) : (
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">
               {allLinesSummary.transactionCount || 0}
             </p>
           )}
@@ -296,7 +296,7 @@ function PosImportDetailPageContent() {
         
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700">
+            <thead className="bg-white dark:bg-gray-800">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Bill Number</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
@@ -335,7 +335,7 @@ function PosImportDetailPageContent() {
                     <td className="px-4 py-3 text-sm text-right text-red-600 dark:text-red-400 font-medium">{(line.bill_discount || 0).toLocaleString()}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">{line.tax?.toLocaleString() || 0}</td>
                     <td className="px-4 py-3 text-sm text-right font-bold text-gray-900 dark:text-white">{line.total?.toLocaleString() || 0}</td>
-                    <td className="px-4 py-3 text-sm text-right font-bold text-green-600 dark:text-green-400">{(line.total_after_bill_discount || 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-sm text-right font-bold text-gray-900 dark:text-white">{(line.total_after_bill_discount || 0).toLocaleString()}</td>
                   </tr>
                 ))
               )}
