@@ -158,21 +158,21 @@ export const PosAggregateDetailPage: React.FC = () => {
   // Loading state
   if (initialLoad) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 dark:bg-gray-900">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/pos-aggregates')}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Detail Transaksi Agregat</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Detail Transaksi Agregat</h1>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-12 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
           <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-500">Memuat data transaksi...</p>
+          <p className="text-gray-500 dark:text-gray-400">Memuat data transaksi...</p>
         </div>
       </div>
     )
@@ -181,19 +181,19 @@ export const PosAggregateDetailPage: React.FC = () => {
   // Error state
   if (error || !selectedTransaction) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 dark:bg-gray-900">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/pos-aggregates')}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Detail Transaksi Agregat</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Detail Transaksi Agregat</h1>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-12 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
           <p className="text-red-600 mb-4">{error || 'Transaksi tidak ditemukan'}</p>
           <button
             onClick={() => navigate('/pos-aggregates')}
@@ -206,45 +206,48 @@ export const PosAggregateDetailPage: React.FC = () => {
     )
   }
 
-  const canReconcile = canReconcileTransaction(selectedTransaction)
+  // Create a local reference to avoid TypeScript null issues
+  const transaction = selectedTransaction!
+
+  const canReconcile = canReconcileTransaction(transaction)
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 dark:bg-gray-900">
       {/* Page Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/pos-aggregates')}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Detail Transaksi Agregat</h1>
-            <p className="text-gray-500 mt-1">
-              {selectedTransaction.source_ref} • {selectedTransaction.branch_name || 'Tanpa Cabang'}
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Detail Transaksi Agregat</h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">
+              {transaction.source_ref} • {transaction.branch_name || 'Tanpa Cabrera'}
             </p>
           </div>
         </div>
         
         {/* Action Buttons */}
         <div className="flex items-center gap-3">
-          {selectedTransaction.status !== 'CANCELLED' && (
+          {transaction.status !== 'CANCELLED' && (
             <>
               {canReconcile && (
                 <button
                   onClick={handleReconcile}
-                  className="px-3 py-2 text-green-700 bg-green-100 rounded-lg hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-2"
+                  className="px-3 py-2 text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-2"
                 >
                   <CheckCircle className="w-4 h-4" />
                   Rekonsiliasi
                 </button>
               )}
               {/* Tombol Pilih Mutasi Bank */}
-              {canMatchBankMutation(selectedTransaction) && (
+              {canMatchBankMutation(transaction) && (
                 <button
                   onClick={handleOpenMutationSelector}
-                  className="px-3 py-2 text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
+                  className="px-3 py-2 text-blue-700 bg-blue-100 dark:text-blue-300 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
                 >
                   <Building2 className="w-4 h-4" />
                   Pilih Mutasi Bank
@@ -252,24 +255,24 @@ export const PosAggregateDetailPage: React.FC = () => {
               )}
               <button
                 onClick={() => navigate(`/pos-aggregates/${id}/edit`)}
-                className="px-3 py-2 text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
+                className="px-3 py-2 text-blue-700 bg-blue-100 dark:text-blue-300 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
               >
                 <Edit2 className="w-4 h-4" />
                 Edit
               </button>
               <button
                 onClick={() => setDeleteId(id || null)}
-                className="px-3 py-2 text-red-700 bg-red-100 rounded-lg hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 flex items-center gap-2"
+                className="px-3 py-2 text-red-700 bg-red-100 dark:text-red-300 dark:bg-red-900/30 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 focus:outline-none focus:ring-2 focus:ring-red-500 flex items-center gap-2"
               >
                 <Trash2 className="w-4 h-4" />
                 Hapus
               </button>
             </>
           )}
-          {selectedTransaction.status === 'CANCELLED' && (
+          {transaction.status === 'CANCELLED' && (
             <button
               onClick={handleRestore}
-              className="px-3 py-2 text-green-700 bg-green-100 rounded-lg hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-2"
+              className="px-3 py-2 text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-2"
             >
               <RotateCcw className="w-4 h-4" />
               Pulihkan
@@ -279,33 +282,33 @@ export const PosAggregateDetailPage: React.FC = () => {
       </div>
 
       {/* Detail Card */}
-      <div className="bg-white rounded-lg shadow">
-        <PosAggregatesDetail transaction={selectedTransaction} />
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+        <PosAggregatesDetail transaction={transaction} />
       </div>
 
       {/* Delete Confirmation Modal */}
       {deleteId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">Hapus Transaksi Agregat?</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+            <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Hapus Transaksi Agregat?</h3>
               <button
                 onClick={() => setDeleteId(null)}
-                className="text-gray-500 hover:text-gray-700 p-1"
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1"
               >
                 ✕
               </button>
             </div>
             <div className="p-4">
-              <p className="text-gray-600">
+              <p className="text-gray-600 dark:text-gray-300">
                 Apakah Anda yakin ingin menghapus transaksi agregat ini? Tindakan ini tidak dapat dibatalkan.
               </p>
             </div>
-            <div className="flex justify-end gap-3 p-4 border-t">
+            <div className="flex justify-end gap-3 p-4 border-t dark:border-gray-700">
               <button
                 onClick={() => setDeleteId(null)}
                 disabled={isDeleting}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
               >
                 Batal
               </button>
@@ -327,7 +330,7 @@ export const PosAggregateDetailPage: React.FC = () => {
         isOpen={showMutationSelector}
         onClose={() => setShowMutationSelector(false)}
         onConfirm={handleConfirmMutationMatch}
-        aggregate={selectedTransaction ? mapToAggregatedTransactionListItem(selectedTransaction) : null}
+        aggregate={mapToAggregatedTransactionListItem(transaction)}
         isLoading={isMatching}
       />
     </div>
