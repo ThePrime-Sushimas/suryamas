@@ -89,21 +89,21 @@ export const EditPosAggregatePage: React.FC = () => {
   // Loading state
   if (initialLoad) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 dark:bg-gray-900">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/pos-aggregates')}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Edit Transaksi Agregat</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Transaksi Agregat</h1>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-12 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
           <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-500">Memuat data transaksi...</p>
+          <p className="text-gray-500 dark:text-gray-400">Memuat data transaksi...</p>
         </div>
       </div>
     )
@@ -112,20 +112,20 @@ export const EditPosAggregatePage: React.FC = () => {
   // Error state
   if (error) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 dark:bg-gray-900">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/pos-aggregates')}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Edit Transaksi Agregat</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Transaksi Agregat</h1>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <p className="text-red-600 mb-4">{error}</p>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
           <button
             onClick={() => navigate('/pos-aggregates')}
             className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
@@ -138,25 +138,25 @@ export const EditPosAggregatePage: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 dark:bg-gray-900">
       {/* Page Header */}
       <div className="flex items-center gap-4">
         <button
           onClick={() => navigate('/pos-aggregates')}
-          className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Edit Transaksi Agregat</h1>
-          <p className="text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Transaksi Agregat</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
             Perbarui informasi transaksi agregat
           </p>
         </div>
       </div>
 
       {/* Form Card */}
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
         <div className="p-6">
           {selectedTransaction ? (
             <PosAggregatesForm
@@ -167,7 +167,7 @@ export const EditPosAggregatePage: React.FC = () => {
             />
           ) : (
             <div className="text-center py-12">
-              <p className="text-gray-500">Transaksi tidak ditemukan</p>
+              <p className="text-gray-500 dark:text-gray-400">Transaksi tidak ditemukan</p>
             </div>
           )}
         </div>

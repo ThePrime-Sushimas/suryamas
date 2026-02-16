@@ -461,8 +461,8 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
       </div>
 
       {/* Fee Details Section */}
-      <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-purple-700 dark:text-purple-400 mb-3">Detail Biaya (Fee)</h3>
+      <div className="rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Detail Biaya (Fee)</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Percentage Fee (Rp) - Read-only (from payment method) */}
           <div>
@@ -475,10 +475,10 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 type="text"
                 value={formatRupiah(percentageFeeAmount)}
                 readOnly
-                className="w-full pl-10 pr-3 py-2 border border-purple-300 dark:border-purple-700 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400"
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300"
               />
             </div>
-            <p className="mt-1 text-xs text-purple-600 dark:text-purple-400">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               ({percentageFeeDisplay}% dari gross)
             </p>
           </div>
@@ -494,7 +494,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 type="text"
                 value={formatRupiah(fixedFeeAmount)}
                 readOnly
-                className="w-full pl-10 pr-3 py-2 border border-purple-300 dark:border-purple-700 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400"
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300"
               />
             </div>
           </div>
@@ -510,7 +510,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                 type="text"
                 value={formatRupiah(totalFeeAmount)}
                 readOnly
-                className="w-full pl-10 pr-3 py-2 border border-purple-300 dark:border-purple-700 rounded-lg bg-purple-200 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300 font-medium"
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-200 dark:bg-gray-500 text-gray-800 dark:text-gray-200 font-medium"
               />
             </div>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Otomatis dari Payment Method</p>
@@ -518,7 +518,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
 
           {/* Bill After Discount (Reference) */}
           <div>
-            <label className="block text-sm font700 dark:text-gray-medium text-gray--300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Bill After Discount
             </label>
             <div className="relative">
