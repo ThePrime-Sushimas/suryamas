@@ -125,7 +125,7 @@ export const EditPosAggregatePage: React.FC = () => {
           </div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
-          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+          <p className="text-red-600 dark:text-red-400 mb-4">{error?.message}</p>
           <button
             onClick={() => navigate('/pos-aggregates')}
             className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"

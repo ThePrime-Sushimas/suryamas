@@ -26,20 +26,11 @@ import type {
   GenerateJournalDto,
 } from '../types'
 import { posAggregatesApi } from '../api/posAggregates.api'
+import { createError } from '../utils/error'
 
 // =============================================================================
 // TYPES
 // =============================================================================
-
-/**
- * Error type for consistent error handling
- */
-export interface StoreError {
-  code: string
-  message: string
-  details?: unknown
-  timestamp: number
-}
 
 /**
  * Store state interface
@@ -71,7 +62,7 @@ interface PosAggregatesState {
   isDataLoading: () => boolean
   
   // Error - typed
-  error: StoreError | null
+  error: ReturnType<typeof createError> | null
   
   // Actions - Data Fetching
   fetchTransactions: (page?: number, limit?: number) => Promise<void>
@@ -179,12 +170,7 @@ const areAllSelected = (
 /**
  * Create typed error for store
  */
-const createStoreError = (message: string, code: string = 'UNKNOWN_ERROR', details?: unknown): StoreError => ({
-  code,
-  message,
-  details,
-  timestamp: Date.now(),
-})
+const createStoreError = createError
 
 // =============================================================================
 // STORE

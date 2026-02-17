@@ -194,7 +194,7 @@ export const PosAggregateDetailPage: React.FC = () => {
           </div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
-          <p className="text-red-600 mb-4">{error || 'Transaksi tidak ditemukan'}</p>
+          <p className="text-red-600 mb-4">{error?.message || 'Transaksi tidak ditemukan'}</p>
           <button
             onClick={() => navigate('/pos-aggregates')}
             className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
