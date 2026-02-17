@@ -231,17 +231,19 @@ const requestManager = new RequestManager()
 // =============================================================================
 
 export const posAggregatesApi = {
-  /**
-   * List aggregated transactions with pagination and filters
-   */
+/**
+ * List aggregated transactions with pagination and filters
+ * @param signal - AbortSignal for cancellation
+ */
   list: async (
     page = 1,
     limit = 25,
     sort?: AggregatedTransactionSortParams | null,
-    filter?: AggregatedTransactionFilterParams | null
+    filter?: AggregatedTransactionFilterParams | null,
+    signal?: AbortSignal
   ): Promise<{ data: AggregatedTransactionListItem[]; pagination: BackendResponse<AggregatedTransactionListItem[]>['pagination'] }> => {
     return handleApiCall(async () => {
-      const signal = requestManager.getSignal('pos-aggregates:list')
+      const abortSignal = signal || requestManager.getSignal('pos-aggregates:list')
 
       const params: ListParams = { page, limit }
       if (sort) {
@@ -312,7 +314,7 @@ export const posAggregatesApi = {
       try {
         const res = await api.get<BackendResponse<AggregatedTransactionListItem[]>>('/aggregated-transactions', {
           params,
-          signal,
+          signal: abortSignal,
         })
 
         // Validate response structure
@@ -348,13 +350,19 @@ export const posAggregatesApi = {
     }, 'Gagal mengambil data transaksi agregat', 'list')
   },
 
-  /**
+/**
    * Get single aggregated transaction by ID
+   * @param signal - AbortSignal for cancellation
    */
-  getById: async (id: string): Promise<AggregatedTransactionWithDetails> => {
+  getById: async (
+    id: string,
+    signal?: AbortSignal
+  ): Promise<AggregatedTransactionWithDetails> => {
     return handleApiCall(async () => {
+      const abortSignal = signal || requestManager.getSignal('pos-aggregates:getById')
       const res = await api.get<BackendResponse<AggregatedTransactionWithDetails>>(
-        `/aggregated-transactions/${id}`
+        `/aggregated-transactions/${id}`,
+        { signal: abortSignal }
       )
 
       if (!res.data.success) {
@@ -492,13 +500,16 @@ export const posAggregatesApi = {
     }, 'Gagal merekonsiliasi transaksi secara batch', 'batchReconcile')
   },
 
-  /**
+/**
    * Get summary statistics
+   * @param signal - AbortSignal for cancellation
    */
   getSummary: async (
-    filter?: AggregatedTransactionFilterParams
+    filter?: AggregatedTransactionFilterParams,
+    signal?: AbortSignal
   ): Promise<AggregatedTransactionSummary> => {
     return handleApiCall(async () => {
+      const abortSignal = signal || requestManager.getSignal('pos-aggregates:getSummary')
       const params: Record<string, unknown> = {}
       // Only add filter params if they have values (not undefined/null)
       if (filter) {
@@ -536,7 +547,7 @@ export const posAggregatesApi = {
 
       const res = await api.get<BackendResponse<AggregatedTransactionSummary>>(
         '/aggregated-transactions/summary',
-        { params }
+        { params, signal: abortSignal }
       )
 
       if (!res.data.success) {

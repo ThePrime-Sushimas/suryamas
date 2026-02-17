@@ -7,8 +7,9 @@
  * - Type-safe state management
  * - Proper loading/error states
  * - Pagination & filter state ownership
- * - Optimistic updates
+ * - Optimistic updates with rollback
  * - Persistence for filter/sort preferences
+ * - Consistent error handling
  */
 
 import { create } from 'zustand'
@@ -29,6 +30,16 @@ import { posAggregatesApi } from '../api/posAggregates.api'
 // =============================================================================
 // TYPES
 // =============================================================================
+
+/**
+ * Error type for consistent error handling
+ */
+export interface StoreError {
+  code: string
+  message: string
+  details?: unknown
+  timestamp: number
+}
 
 /**
  * Store state interface
@@ -52,17 +63,15 @@ interface PosAggregatesState {
   // Selection (for bulk operations)
   selectedIds: Set<string>
   
-  // Loading states
+  // Loading states - unified
   isLoading: boolean
   isMutating: boolean
-  isSummaryLoading: boolean
   
   // Computed: unified loading state for initial data fetch
-  // Returns true when either table or summary is loading
   isDataLoading: () => boolean
   
-  // Error
-  error: string | null
+  // Error - typed
+  error: StoreError | null
   
   // Actions - Data Fetching
   fetchTransactions: (page?: number, limit?: number) => Promise<void>
@@ -147,11 +156,9 @@ const initialSort: AggregatedTransactionSortParams = {
 
 /**
  * Check if error is a cancellation error (from AbortController)
- * These are expected during debouncing/HMR and should be silenced
  */
 const isCanceledError = (error: unknown): boolean => {
   if (!error || typeof error !== 'object') return false
-  
   const err = error as { code?: string; name?: string; message?: string }
   if (err.code === 'ERR_CANCELED' || err.name === 'CanceledError') return true
   if (err.message && (err.message.includes('canceled') || err.message.includes('cancelled'))) return true
@@ -168,6 +175,16 @@ const areAllSelected = (
   if (transactions.length === 0) return false
   return transactions.every((tx) => selectedIds.has(tx.id))
 }
+
+/**
+ * Create typed error for store
+ */
+const createStoreError = (message: string, code: string = 'UNKNOWN_ERROR', details?: unknown): StoreError => ({
+  code,
+  message,
+  details,
+  timestamp: Date.now(),
+})
 
 // =============================================================================
 // STORE
@@ -192,13 +209,11 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
         selectedIds: new Set<string>(),
         isLoading: false,
         isMutating: false,
-        isSummaryLoading: false,
 
-        // Computed: unified loading state for initial data fetch
-        // Returns true when either table or summary is loading
+        // Computed: unified loading state
         isDataLoading: () => {
           const state = get()
-          return state.isLoading || state.isSummaryLoading
+          return state.isLoading
         },
 
         error: null,
@@ -215,7 +230,7 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
             return job_id
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Gagal membuat job'
-            set({ error: message, isMutating: false })
+            set({ error: createStoreError(message, 'JOB_CREATE_ERROR'), isMutating: false })
             throw error
           }
         },
@@ -228,7 +243,7 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
             return job_id
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Gagal membuat job'
-            set({ error: message, isMutating: false })
+            set({ error: createStoreError(message, 'JOB_CREATE_ERROR'), isMutating: false })
             throw error
           }
         },
@@ -253,7 +268,6 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
               isLoading: false,
             })
           } catch (error) {
-            // Treat canceled requests as non-errors
             if (isCanceledError(error) || (error instanceof Error && error.message === 'Request was canceled')) {
               set({ isLoading: false })
               return
@@ -261,7 +275,10 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
             
             const message = error instanceof Error ? error.message : 'Gagal mengambil data transaksi'
             console.error('[PosAggregatesStore] Error fetching transactions:', error)
-            set({ error: message, isLoading: false })
+            set({ 
+              error: createStoreError(message, 'FETCH_LIST_ERROR', error), 
+              isLoading: false 
+            })
             throw error
           }
         },
@@ -274,26 +291,32 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
             return transaction
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Gagal mengambil detail transaksi'
-            set({ error: message, isLoading: false })
+            set({ 
+              error: createStoreError(message, 'FETCH_DETAIL_ERROR', error), 
+              isLoading: false 
+            })
             throw error
           }
         },
 
         fetchSummary: async () => {
-          set({ isSummaryLoading: true, error: null })
+          set({ isLoading: true, error: null })
           try {
             const { filter } = get()
             const summary = await posAggregatesApi.getSummary(filter)
-            set({ summary, isSummaryLoading: false })
+            set({ summary, isLoading: false })
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Gagal mengambil ringkasan'
-            set({ error: message, isSummaryLoading: false })
+            set({ 
+              error: createStoreError(message, 'FETCH_SUMMARY_ERROR', error), 
+              isLoading: false 
+            })
             throw error
           }
         },
 
         // --------------------------------------------------------------------
-        // Actions - CRUD
+        // Actions - CRUD (with rollback on error)
         // --------------------------------------------------------------------
         
         createTransaction: async (data: CreateAggregatedTransactionDto) => {
@@ -308,49 +331,87 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
             return transaction
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Gagal membuat transaksi'
-            set({ error: message, isMutating: false })
+            set({ error: createStoreError(message, 'CREATE_ERROR', error), isMutating: false })
             throw error
           }
         },
 
         updateTransaction: async (id: string, data: UpdateAggregatedTransactionDto) => {
-          set({ isMutating: true, error: null })
+          // Store previous state for rollback
+          const previousTransactions = get().transactions
+          const previousSelected = get().selectedTransaction
+          
+          // Optimistic update
+          set((state) => ({
+            isMutating: true,
+            error: null,
+            transactions: state.transactions.map((tx) =>
+              tx.id === id ? { ...tx, ...data } as AggregatedTransactionListItem : tx
+            ),
+            selectedTransaction: state.selectedTransaction?.id === id
+              ? { ...state.selectedTransaction, ...data } as AggregatedTransactionWithDetails
+              : state.selectedTransaction,
+          }))
+          
           try {
             const transaction = await posAggregatesApi.update(id, data)
             set((state) => ({
               transactions: state.transactions.map((tx) =>
-                tx.id === id ? { ...tx, ...transaction } : tx
+                tx.id === id ? { ...tx, ...transaction } as AggregatedTransactionListItem : tx
               ),
-              selectedTransaction:
-                state.selectedTransaction?.id === id
-                  ? { ...state.selectedTransaction, ...transaction }
-                  : state.selectedTransaction,
+              selectedTransaction: state.selectedTransaction?.id === id
+                ? { ...state.selectedTransaction, ...transaction } as AggregatedTransactionWithDetails
+                : state.selectedTransaction,
               isMutating: false,
             }))
             return transaction
           } catch (error) {
-            const message = error instanceof Error ? error.message : 'Gagal memperbarui transaksi'
-            set({ error: message, isMutating: false })
+            // Rollback on error
+            set({
+              transactions: previousTransactions,
+              selectedTransaction: previousSelected,
+              error: createStoreError(
+                error instanceof Error ? error.message : 'Gagal memperbarui transaksi',
+                'UPDATE_ERROR',
+                error
+              ),
+              isMutating: false,
+            })
             throw error
           }
         },
 
         deleteTransaction: async (id: string) => {
-          set({ isMutating: true, error: null })
+          // Store previous state for rollback
+          const previousTransactions = get().transactions
+          const previousTotal = get().total
+          const previousSelected = get().selectedTransaction
+          
+          // Optimistic update
+          set((state) => ({
+            isMutating: true,
+            error: null,
+            transactions: state.transactions.filter((tx) => tx.id !== id),
+            total: state.total - 1,
+            selectedTransaction: state.selectedTransaction?.id === id ? null : state.selectedTransaction,
+          }))
+          
           try {
             await posAggregatesApi.delete(id)
-            set((state) => ({
-              transactions: state.transactions.filter((tx) => tx.id !== id),
-              total: state.total - 1,
-              selectedTransaction:
-                state.selectedTransaction?.id === id ? null : state.selectedTransaction,
-              isMutating: false,
-            }))
+            set({ isMutating: false })
           } catch (error) {
-            // Refresh transactions to sync with backend state when delete fails
-            await get().fetchTransactions()
-            const message = error instanceof Error ? error.message : 'Gagal menghapus transaksi'
-            set({ error: message, isMutating: false })
+            // Rollback on error
+            set({
+              transactions: previousTransactions,
+              total: previousTotal,
+              selectedTransaction: previousSelected,
+              error: createStoreError(
+                error instanceof Error ? error.message : 'Gagal menghapus transaksi',
+                'DELETE_ERROR',
+                error
+              ),
+              isMutating: false,
+            })
             throw error
           }
         },
@@ -359,111 +420,171 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
           set({ isMutating: true, error: null })
           try {
             await posAggregatesApi.restore(id)
-            // Refresh the list to show restored item
             await get().fetchTransactions()
+            set({ isMutating: false })
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Gagal memulihkan transaksi'
-            set({ error: message, isMutating: false })
+            set({ error: createStoreError(message, 'RESTORE_ERROR', error), isMutating: false })
             throw error
           }
         },
 
         // --------------------------------------------------------------------
-        // Actions - Reconciliation
+        // Actions - Reconciliation (with rollback on error)
         // --------------------------------------------------------------------
         
         reconcileTransaction: async (id: string, reconciledBy: string) => {
-          set({ isMutating: true, error: null })
+          // Store previous state for rollback
+          const previousTransactions = get().transactions
+          
+          // Optimistic update
+          set((state) => ({
+            isMutating: true,
+            error: null,
+            transactions: state.transactions.map((tx) =>
+              tx.id === id ? { ...tx, is_reconciled: true } as AggregatedTransactionListItem : tx
+            ),
+          }))
+          
           try {
             await posAggregatesApi.reconcile(id, reconciledBy)
-            set((state) => ({
-              transactions: state.transactions.map((tx) =>
-                tx.id === id ? { ...tx, is_reconciled: true } : tx
+            set({ isMutating: false })
+          } catch (error) {
+            // Rollback on error
+            set({
+              transactions: previousTransactions,
+              error: createStoreError(
+                error instanceof Error ? error.message : 'Gagal merekonsiliasi transaksi',
+                'RECONCILE_ERROR',
+                error
               ),
               isMutating: false,
-            }))
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Gagal merekonsiliasi transaksi'
-            set({ error: message, isMutating: false })
+            })
             throw error
           }
         },
 
         batchReconcile: async (ids: string[], reconciledBy: string) => {
-          set({ isMutating: true, error: null })
+          // Store previous state for rollback
+          const previousTransactions = get().transactions
+          
+          // Optimistic update
+          set((state) => ({
+            isMutating: true,
+            error: null,
+            transactions: state.transactions.map((tx) =>
+              ids.includes(tx.id) ? { ...tx, is_reconciled: true } as AggregatedTransactionListItem : tx
+            ),
+            selectedIds: new Set<string>(),
+          }))
+          
           try {
-            const count = await posAggregatesApi.batchReconcile({ transaction_ids: ids, reconciled_by: reconciledBy })
-            // Optimistic update: mark transactions as reconciled
-            set((state) => ({
-              transactions: state.transactions.map((tx) =>
-                ids.includes(tx.id) ? { ...tx, is_reconciled: true } : tx
-              ),
-              selectedIds: new Set<string>(),
-              isMutating: false,
-            }))
+            const count = await posAggregatesApi.batchReconcile({ 
+              transaction_ids: ids, 
+              reconciled_by: reconciledBy 
+            })
             // Refresh data from server to ensure consistency
             await get().fetchTransactions()
             await get().fetchSummary()
+            set({ isMutating: false })
             return count
           } catch (error) {
-            const message = error instanceof Error ? error.message : 'Gagal merekonsiliasi transaksi secara batch'
-            set({ error: message, isMutating: false })
+            // Rollback on error
+            set({
+              transactions: previousTransactions,
+              error: createStoreError(
+                error instanceof Error ? error.message : 'Gagal merekonsiliasi transaksi secara batch',
+                'BATCH_RECONCILE_ERROR',
+                error
+              ),
+              isMutating: false,
+            })
             throw error
           }
         },
 
         // --------------------------------------------------------------------
-        // Actions - Journal
+        // Actions - Journal (with rollback on error)
         // --------------------------------------------------------------------
         
         generateJournal: async (data: Parameters<typeof posAggregatesApi.generateJournal>[0]) => {
           set({ isMutating: true, error: null })
           try {
             await posAggregatesApi.generateJournal(data)
-            // Refresh list after journal generation
             await get().fetchTransactions()
             await get().fetchSummary()
+            set({ isMutating: false })
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Gagal membuat jurnal'
-            set({ error: message, isMutating: false })
+            set({ error: createStoreError(message, 'GENERATE_JOURNAL_ERROR', error), isMutating: false })
             throw error
           }
         },
 
         assignJournal: async (id: string, journalId: string) => {
-          set({ isMutating: true, error: null })
+          // Store previous state for rollback
+          const previousTransactions = get().transactions
+          
+          // Optimistic update
+          set((state) => ({
+            isMutating: true,
+            error: null,
+            transactions: state.transactions.map((tx) =>
+              tx.id === id ? { ...tx, journal_id: journalId } as AggregatedTransactionListItem : tx
+            ),
+          }))
+          
           try {
             await posAggregatesApi.assignJournal(id, journalId)
-            set((state) => ({
-              transactions: state.transactions.map((tx) =>
-                tx.id === id ? { ...tx, journal_number: journalId } : tx
+            set({ isMutating: false })
+          } catch (error) {
+            // Rollback on error
+            set({
+              transactions: previousTransactions,
+              error: createStoreError(
+                error instanceof Error ? error.message : 'Gagal menetapkan jurnal',
+                'ASSIGN_JOURNAL_ERROR',
+                error
               ),
               isMutating: false,
-            }))
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Gagal menetapkan jurnal'
-            set({ error: message, isMutating: false })
+            })
             throw error
           }
         },
 
         batchAssignJournal: async (ids: string[], journalId: string) => {
-          set({ isMutating: true, error: null })
+          // Store previous state for rollback
+          const previousTransactions = get().transactions
+          
+          // Optimistic update
+          set((state) => ({
+            isMutating: true,
+            error: null,
+            transactions: state.transactions.map((tx) =>
+              ids.includes(tx.id) ? { ...tx, journal_id: journalId } as AggregatedTransactionListItem : tx
+            ),
+            selectedIds: new Set<string>(),
+          }))
+          
           try {
             const result = await posAggregatesApi.batchAssignJournal({
               transaction_ids: ids,
               journal_id: journalId,
             })
-            // Refresh list after batch assign
             await get().fetchTransactions()
-            set({
-              selectedIds: new Set<string>(),
-              isMutating: false,
-            })
+            set({ isMutating: false })
             return result
           } catch (error) {
-            const message = error instanceof Error ? error.message : 'Gagal menetapkan jurnal secara batch'
-            set({ error: message, isMutating: false })
+            // Rollback on error
+            set({
+              transactions: previousTransactions,
+              error: createStoreError(
+                error instanceof Error ? error.message : 'Gagal menetapkan jurnal secara batch',
+                'BATCH_ASSIGN_JOURNAL_ERROR',
+                error
+              ),
+              isMutating: false,
+            })
             throw error
           }
         },
@@ -517,12 +638,10 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
             filter: { ..._state.filter, ...filter },
             page: 1,
           }))
-          // NOTE: Do NOT auto-fetch here - fetch only happens when user clicks "Terapkan Filter"
         },
 
         clearFilter: () => {
           set({ filter: initialFilter, page: 1 })
-          // NOTE: Do NOT auto-fetch here - fetch only happens when user clicks "Terapkan Filter"
         },
 
         setSort: (sort: AggregatedTransactionSortParams | null) => {
