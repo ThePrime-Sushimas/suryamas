@@ -14,9 +14,10 @@
  * - useDebounce untuk mengurangi API calls
  * - React.memo untuk item components
  * - Retry mechanism dengan exponential backoff
+ * - AbortController untuk membatalkan fetch saat modal ditutup
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, 
@@ -33,46 +34,58 @@ import {
 import { bankReconciliationApi } from '../../bank-reconciliation/api/bank-reconciliation.api';
 import { useDebounce } from '@/hooks/_shared/useDebounce';
 import type { AggregatedTransactionListItem } from '../types';
+import type { BankStatementWithMatch } from '../../bank-reconciliation/types/bank-reconciliation.types';
+
+// ============================================================================
+// CONSTANTS - Extract magic numbers
+// ============================================================================
+const MATCH_THRESHOLDS = {
+  EXACT: 0.99,      // 99% - Exact match
+  HIGH: 0.95,       // 95% - High match
+  MEDIUM: 0.80,     // 80% - Medium match
+} as const;
+
+const DEBOUNCE_DELAY = 300;
+const MAX_RETRY_COUNT = 3;
+const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff
 
 // ============================================================================
 // ANALYTICS TRACKING (Placeholder - replace dengan analytics service Anda)
 // ============================================================================
-const trackEvent = (eventName: string, properties?: Record<string, unknown>) => {
-  // Replace dengan analytics service call
-  console.log(`[Analytics] ${eventName}:`, properties);
+const createAnalyticsTracker = () => {
+  const trackEvent = (eventName: string, properties?: Record<string, unknown>) => {
+    try {
+      // Replace dengan analytics service call
+      console.log(`[Analytics] ${eventName}:`, properties);
+    } catch (error) {
+      // Prevent analytics errors from breaking the app
+      console.error('[Analytics] Error tracking event:', error);
+    }
+  };
+
+  return { trackEvent };
 };
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-interface BankMutationSelectorModalProps {
+export interface BankMutationSelectorModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (statementId: string) => Promise<void>;
   aggregate: AggregatedTransactionListItem | null;
   isLoading?: boolean;
+  /**
+   * Optional bank account ID untuk filter
+   */
+  bankAccountId?: number;
 }
 
 /**
  * Extended type for reverse matching with match info
  */
-interface BankMutationItem {
-  id: string;
-  transaction_date: string;
-  description: string;
-  reference_number?: string;
-  debit_amount: number;
-  credit_amount: number;
-  is_reconciled: boolean;
-  status: string;
-  matched_aggregate?: {
-    id: string;
-    gross_amount: number;
-    nett_amount: number;
-    payment_type: string;
-    payment_method_name?: string;
-  };
+export interface BankMutationItem extends BankStatementWithMatch {
   targetAmount?: number;
   difference?: number;
   matchPercentage?: number;
@@ -85,6 +98,26 @@ interface LoadingStates {
 }
 
 // ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Hitung jumlah bank (credit - debit)
+ */
+const calculateBankAmount = (creditAmount: number = 0, debitAmount: number = 0): number => {
+  return creditAmount - debitAmount;
+};
+
+/**
+ * Hitung match percentage berdasarkan target amount
+ */
+const calculateMatchPercentage = (bankAmount: number, targetAmount: number): number => {
+  if (targetAmount <= 0) return 0;
+  const difference = Math.abs(bankAmount - targetAmount);
+  return Math.max(0, 1 - (difference / targetAmount));
+};
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 export function BankMutationSelectorModal({
@@ -92,7 +125,15 @@ export function BankMutationSelectorModal({
   onClose,
   onConfirm,
   aggregate,
+  bankAccountId,
 }: BankMutationSelectorModalProps) {
+  // =========================================================================
+  // REFS
+  // =========================================================================
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   // =========================================================================
   // STATE MANAGEMENT
   // =========================================================================
@@ -109,9 +150,14 @@ export function BankMutationSelectorModal({
   const [retryCount, setRetryCount] = useState(0);
 
   // =========================================================================
+  // ANALYTICS
+  // =========================================================================
+  const { trackEvent } = useMemo(() => createAnalyticsTracker(), []);
+
+  // =========================================================================
   // DEBOUNCED SEARCH
   // =========================================================================
-  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+  const debouncedSearchTerm = useDebounce(searchTerm, DEBOUNCE_DELAY);
 
   // =========================================================================
   // FORMATTERS (useCallback untuk stabilitas)
@@ -126,42 +172,47 @@ export function BankMutationSelectorModal({
   }, []);
 
   const formatDate = useCallback((dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('id-ID', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+    try {
+      return new Date(dateStr).toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return dateStr;
+    }
   }, []);
 
   // =========================================================================
-  // FETCH WITH RETRY MECHANISM
+  // FETCH WITH ABORT CONTROLLER & RETRY MECHANISM
   // =========================================================================
   const fetchStatements = useCallback(async (currentRetryCount = 0) => {
     if (!isOpen) return;
     
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     setLoadingStates(prev => ({ ...prev, fetch: true }));
     setError(null);
 
     try {
-      const data = await bankReconciliationApi.getUnreconciledStatements();
+      // Pass bankAccountId to API
+      const data = await bankReconciliationApi.getUnreconciledStatements(bankAccountId);
       
       // Transform to include match info if aggregate is provided
       const targetAmount = aggregate?.nett_amount || 0;
+      
       const transformedData: BankMutationItem[] = data.map(s => {
-        const bankAmount = (s.credit_amount || 0) - (s.debit_amount || 0);
+        // Konsisten: gunakan helper function yang sama
+        const bankAmount = calculateBankAmount(s.credit_amount, s.debit_amount);
         const difference = Math.abs(bankAmount - targetAmount);
-        const matchPercentage = targetAmount > 0 ? Math.max(0, 1 - (difference / targetAmount)) : 0;
+        const matchPercentage = calculateMatchPercentage(bankAmount, targetAmount);
 
         return {
-          id: s.id,
-          transaction_date: s.transaction_date,
-          description: s.description,
-          reference_number: s.reference_number,
-          debit_amount: s.debit_amount,
-          credit_amount: s.credit_amount,
-          is_reconciled: s.is_reconciled,
-          status: s.status,
-          matched_aggregate: s.matched_aggregate,
+          ...s,
           targetAmount,
           difference,
           matchPercentage,
@@ -172,37 +223,75 @@ export function BankMutationSelectorModal({
       setRetryCount(0); // Reset retry count on success
       trackEvent('bank_mutation_fetch_success', { count: transformedData.length });
     } catch (err) {
+      // AbortError - user closed modal or new request started
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
+      
       console.error('Error fetching statements:', err);
       
-      if (currentRetryCount < 3) {
-        // Exponential backoff: 1s, 2s, 4s
-        const delay = 1000 * Math.pow(2, currentRetryCount);
+      if (currentRetryCount < MAX_RETRY_COUNT - 1) {
+        // Exponential backoff
+        const delay = RETRY_DELAYS[currentRetryCount];
+        
+        // Check if component is still mounted and modal is open
         setTimeout(() => {
-          setRetryCount(prev => prev + 1);
-          fetchStatements(currentRetryCount + 1);
+          if (isOpen) {
+            setRetryCount(prev => prev + 1);
+            fetchStatements(currentRetryCount + 1);
+          }
         }, delay);
       } else {
         setError('Gagal mengambil data mutasi bank setelah 3 percobaan. Silakan coba lagi.');
         trackEvent('bank_mutation_fetch_failed', { error: String(err) });
       }
     } finally {
-      setLoadingStates(prev => ({ ...prev, fetch: false }));
+      // Only update loading state if request wasn't aborted
+      if (!abortControllerRef.current?.signal.aborted) {
+        setLoadingStates(prev => ({ ...prev, fetch: false }));
+      }
     }
-  }, [isOpen, aggregate]);
+  }, [isOpen, aggregate, bankAccountId, trackEvent]);
 
   // =========================================================================
   // EFFECTS
   // =========================================================================
+  
+  // Fetch data when modal opens
   useEffect(() => {
-    fetchStatements();
-  }, [fetchStatements]);
+    if (isOpen) {
+      fetchStatements();
+    }
+    
+    // Cleanup: cancel request when modal closes or component unmounts
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [isOpen, fetchStatements]);
 
   // Track search events
   useEffect(() => {
     if (debouncedSearchTerm) {
       trackEvent('bank_mutation_search', { term: debouncedSearchTerm });
     }
-  }, [debouncedSearchTerm]);
+  }, [debouncedSearchTerm, trackEvent]);
+
+  // Focus management - focus search input when modal opens
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      // Small delay to ensure modal is rendered
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+    }
+  }, [isOpen]);
+
+  // Reset selection when aggregate changes
+  useEffect(() => {
+    setSelectedId(null);
+  }, [aggregate?.id]);
 
   // =========================================================================
   // FILTERING WITH USE MEMO (Performance Optimization)
@@ -223,15 +312,15 @@ export function BankMutationSelectorModal({
     // Exact match filter (amount within 1%)
     if (showExactMatchOnly) {
       filtered = filtered.filter(s => 
-        s.matchPercentage !== undefined && s.matchPercentage >= 0.99
+        s.matchPercentage !== undefined && s.matchPercentage >= MATCH_THRESHOLDS.EXACT
       );
     }
 
     // Sort by match percentage (best match first)
     return [...filtered].sort((a, b) => {
       // Prioritize exact matches
-      const aExact = (a.matchPercentage || 0) >= 0.99;
-      const bExact = (b.matchPercentage || 0) >= 0.99;
+      const aExact = (a.matchPercentage || 0) >= MATCH_THRESHOLDS.EXACT;
+      const bExact = (b.matchPercentage || 0) >= MATCH_THRESHOLDS.EXACT;
       if (aExact && !bExact) return -1;
       if (!aExact && bExact) return 1;
 
@@ -263,7 +352,7 @@ export function BankMutationSelectorModal({
       statementId: id, 
       matchPercentage: selected?.matchPercentage 
     });
-  }, [statements]);
+  }, [statements, trackEvent]);
 
   const handleConfirm = useCallback(async () => {
     if (!selectedId) return;
@@ -294,7 +383,7 @@ export function BankMutationSelectorModal({
     } finally {
       setLoadingStates(prev => ({ ...prev, confirm: false }));
     }
-  }, [selectedId, aggregate, bestMatch, onConfirm]);
+  }, [selectedId, aggregate, bestMatch, onConfirm, trackEvent]);
 
   // =========================================================================
   // KEYBOARD NAVIGATION
@@ -318,6 +407,7 @@ export function BankMutationSelectorModal({
       e.preventDefault();
       handleConfirm();
     } else if (e.key === 'Escape') {
+      e.preventDefault();
       onClose();
     }
   }, [filteredStatements, selectedId, handleConfirm, onClose]);
@@ -326,11 +416,14 @@ export function BankMutationSelectorModal({
   // RENDER HELPERS
   // =========================================================================
   const renderMatchColorClass = (matchPercent: number) => {
-    if (matchPercent >= 95) return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
-    if (matchPercent >= 80) return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+    if (matchPercent >= MATCH_THRESHOLDS.HIGH * 100) return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+    if (matchPercent >= MATCH_THRESHOLDS.MEDIUM * 100) return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
     return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
   };
 
+  // =========================================================================
+  // RENDER
+  // =========================================================================
   if (!isOpen) return null;
 
   const modalContent = (
@@ -339,8 +432,10 @@ export function BankMutationSelectorModal({
       onClick={(e) => {
         if (e.target === e.currentTarget && !loadingStates.confirm) onClose();
       }}
+      role="presentation"
     >
       <div 
+        ref={modalRef}
         className="modal-box max-w-4xl w-full bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 relative max-h-[85vh] flex flex-col z-1001"
         role="dialog"
         aria-modal="true"
@@ -428,12 +523,13 @@ export function BankMutationSelectorModal({
           </div>
         </div>
 
-{/* Search and Filters */}
+        {/* Search and Filters */}
         <div className="w-full shrink-0 p-4 relative z-20">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Cari berdasarkan deskripsi atau referensi..."
                 value={searchTerm}
@@ -472,9 +568,9 @@ export function BankMutationSelectorModal({
           </div>
         </div>
 
-{/* Content - Tinggi minimum tetap, tidak menyusut saat list pendek , DONT CHANGE THIS*/}
+        {/* Content - Tinggi minimum tetap, tidak menyusut saat list pendek */}
         <div 
-          className="flex-1 overflow-y-auto p-4 relative min-h-[200px] max-h-[calc(85vh-420px)]" //JANGAN GANTI NI, DONT CHANGE THIS//
+          className="flex-1 overflow-y-auto p-4 relative min-h-[200px] max-h-[calc(85vh-420px)]"
           role="listbox"
           aria-label="Daftar mutasi bank"
           onKeyDown={handleKeyNavigation}
@@ -486,14 +582,14 @@ export function BankMutationSelectorModal({
               <p className="text-gray-500 dark:text-gray-400">Memuat data mutasi bank...</p>
               {retryCount > 0 && (
                 <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">
-                  Percobaan ulang ({retryCount}/3)...
+                  Percobaan ulang ({retryCount}/{MAX_RETRY_COUNT})...
                 </p>
               )}
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-12">
               <AlertCircle className="w-8 h-8 text-red-500 mb-4" />
-              <p className="text-gray-600 dark:text-gray-400 text-center">{error}</p>
+              <p className="text-gray-600 dark:text-gray-400 text-center" role="alert">{error}</p>
               <button
                 onClick={() => fetchStatements()}
                 className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
@@ -520,9 +616,10 @@ export function BankMutationSelectorModal({
 
               {/* Statements List */}
               {filteredStatements.map((statement) => {
-                const isBestMatch = bestMatch?.id === statement.id && (bestMatch.matchPercentage || 0) >= 0.95;
+                const isBestMatch = bestMatch?.id === statement.id && (bestMatch.matchPercentage || 0) >= MATCH_THRESHOLDS.HIGH;
                 const matchPercent = Math.round((statement.matchPercentage || 0) * 100);
-                const bankAmount = (statement.credit_amount || 0) - (statement.debit_amount || 0);
+                // Konsisten: gunakan helper function yang sama
+                const bankAmount = calculateBankAmount(statement.credit_amount, statement.debit_amount);
 
                 return (
                   <button

@@ -352,14 +352,19 @@ export const posAggregatesApi = {
 
 /**
    * Get single aggregated transaction by ID
+   * Uses RequestManager for request deduplication and cancellation
    * @param signal - AbortSignal for cancellation
    */
   getById: async (
     id: string,
     signal?: AbortSignal
   ): Promise<AggregatedTransactionWithDetails> => {
+    // Use a unique key for this specific ID to enable deduplication
+    const requestKey = `pos-aggregates:getById:${id}`
+    
     return handleApiCall(async () => {
-      const abortSignal = signal || requestManager.getSignal('pos-aggregates:getById')
+      const abortSignal = signal || requestManager.getSignal(requestKey)
+      
       const res = await api.get<BackendResponse<AggregatedTransactionWithDetails>>(
         `/aggregated-transactions/${id}`,
         { signal: abortSignal }
@@ -372,6 +377,9 @@ export const posAggregatesApi = {
       if (!res.data.data) {
         throw new Error('Transaction not found')
       }
+
+      // Clean up after successful request
+      requestManager.cleanup(requestKey)
 
       return res.data.data
     }, 'Gagal mengambil detail transaksi agregat', 'getById')

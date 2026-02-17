@@ -191,6 +191,7 @@ bill_after_discount,
     if (!aggData) return null
 
     // Then get the bank statement via reconciliation_id (ada di bank_statements)
+    // Note: bank_statements tidak memiliki kolom reconciled_at, hanya is_reconciled
     const { data: bankData, error: bankError } = await supabase
       .from('bank_statements')
       .select(`
@@ -199,7 +200,7 @@ bill_after_discount,
         description,
         debit_amount,
         credit_amount,
-        reconciled_at,
+        is_reconciled,
         bank_accounts(
           account_name,
           account_number,
@@ -865,7 +866,7 @@ bill_after_discount: Number(row.bill_after_discount || 0),
       bank_name: (bank as Record<string, unknown>)?.bank_name as string | null,
       bank_account_name: bankAccount?.account_name as string | null,
       bank_account_number: bankAccount?.account_number as string | null,
-      reconciled_at: bankData?.reconciled_at as string | null,
+      reconciled_at: bankData?.is_reconciled ? new Date().toISOString() : null,
       reconciled_by: aggData.reconciled_by as string | null,
     }
   }

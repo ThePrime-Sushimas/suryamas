@@ -40,6 +40,7 @@ export const PosAggregateDetailPage: React.FC = () => {
     fetchTransactions,
     fetchSummary,
     error,
+    inFlightRequests,
   } = usePosAggregatesStore()
 
   const [initialLoad, setInitialLoad] = useState(true)
@@ -48,11 +49,17 @@ export const PosAggregateDetailPage: React.FC = () => {
   const [isMatching, setIsMatching] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Fetch transaction on mount
+  // Fetch transaction on mount - only if not already loaded
   useEffect(() => {
     if (!id) {
       toast.error(POS_AGGREGATES_MESSAGES.INVALID_TRANSACTION_ID)
       navigate('/pos-aggregates')
+      return
+    }
+
+    // Skip fetch if already loaded with same ID
+    if (selectedTransaction && selectedTransaction.id === id) {
+      setInitialLoad(false)
       return
     }
 
@@ -72,7 +79,7 @@ export const PosAggregateDetailPage: React.FC = () => {
     }
 
     loadTransaction()
-  }, [id, fetchTransactionById, toast, navigate])
+  }, [id, fetchTransactionById, toast, navigate, selectedTransaction])
 
   // Handle delete
   const handleDelete = useCallback(async () => {
@@ -115,12 +122,17 @@ export const PosAggregateDetailPage: React.FC = () => {
       const employeeId = currentBranch?.employee_id || 'system'
       await reconcileTransaction(id, employeeId)
       toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_RECONCILED)
-      fetchTransactionById(id)
+      
+      // Only fetch if there's no in-flight request for this transaction
+      const inFlightKey = `fetchTransactionById:${id}`
+      if (!inFlightRequests.has(inFlightKey)) {
+        fetchTransactionById(id)
+      }
       fetchSummary()
     } catch {
       toast.error(POS_AGGREGATES_MESSAGES.TRANSACTION_RECONCILE_FAILED)
     }
-  }, [id, reconcileTransaction, toast, currentBranch?.employee_id, fetchTransactionById, fetchSummary])
+  }, [id, reconcileTransaction, toast, currentBranch?.employee_id, fetchTransactionById, fetchSummary, inFlightRequests])
 
   // Handle open mutation selector
   const handleOpenMutationSelector = useCallback(() => {
@@ -143,8 +155,11 @@ export const PosAggregateDetailPage: React.FC = () => {
       })
       toast.success(BANK_RECONCILIATION_MESSAGES.BANK_MUTATION_MATCHED)
       
-      // Refresh only the current transaction detail - no need to fetch list/summary on detail page
-      await fetchTransactionById(id)
+      // Only fetch if there's no in-flight request for this transaction
+      const inFlightKey = `fetchTransactionById:${id}`
+      if (!inFlightRequests.has(inFlightKey)) {
+        await fetchTransactionById(id)
+      }
       
       setShowMutationSelector(false)
     } catch (error) {
@@ -153,7 +168,7 @@ export const PosAggregateDetailPage: React.FC = () => {
     } finally {
       setIsMatching(false)
     }
-  }, [id, selectedTransaction, fetchTransactionById, toast])
+  }, [id, selectedTransaction, fetchTransactionById, toast, inFlightRequests])
 
   // Loading state
   if (initialLoad) {

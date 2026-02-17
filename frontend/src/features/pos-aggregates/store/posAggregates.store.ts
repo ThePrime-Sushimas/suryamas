@@ -64,6 +64,9 @@ interface PosAggregatesState {
   // Error - typed
   error: ReturnType<typeof createError> | null
   
+  // Track in-flight requests to prevent duplicate calls
+  inFlightRequests: Map<string, Promise<unknown>>
+  
   // Actions - Data Fetching
   fetchTransactions: (page?: number, limit?: number) => Promise<void>
   fetchTransactionById: (id: string) => Promise<AggregatedTransactionWithDetails>
@@ -204,6 +207,9 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
 
         error: null,
 
+        // Track in-flight requests to prevent duplicate calls
+        inFlightRequests: new Map<string, Promise<unknown>>(),
+
         // --------------------------------------------------------------------
         // Actions - Jobs System
         // --------------------------------------------------------------------
@@ -270,19 +276,63 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
         },
 
         fetchTransactionById: async (id: string) => {
-          set({ isLoading: true, error: null })
-          try {
-            const transaction = await posAggregatesApi.getById(id)
-            set({ selectedTransaction: transaction, isLoading: false })
-            return transaction
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Gagal mengambil detail transaksi'
-            set({ 
-              error: createStoreError(message, 'FETCH_DETAIL_ERROR', error), 
-              isLoading: false 
-            })
-            throw error
+          // Check if there's already an in-flight request for this ID
+          const inFlightKey = `fetchTransactionById:${id}`
+          const existingRequest = get().inFlightRequests.get(inFlightKey)
+          
+          if (existingRequest) {
+            // Wait for the existing request to complete
+            return existingRequest as Promise<AggregatedTransactionWithDetails>
           }
+          
+          // Check if this ID matches the current selected transaction
+          // If yes and data exists, no need to refetch
+          const currentSelected = get().selectedTransaction
+          if (currentSelected && currentSelected.id === id) {
+            return currentSelected
+          }
+          
+          // Create the new request
+          const requestPromise = (async () => {
+            set({ isLoading: true, error: null })
+            try {
+              const transaction = await posAggregatesApi.getById(id)
+              set((state) => { 
+                const newInFlightRequests = new Map(state.inFlightRequests)
+                newInFlightRequests.delete(inFlightKey)
+                return { 
+                  selectedTransaction: transaction, 
+                  isLoading: false,
+                  inFlightRequests: newInFlightRequests
+                }
+              })
+              return transaction
+            } catch (error) {
+              set((state) => { 
+                const newInFlightRequests = new Map(state.inFlightRequests)
+                newInFlightRequests.delete(inFlightKey)
+                return { 
+                  error: createStoreError(
+                    error instanceof Error ? error.message : 'Gagal mengambil detail transaksi',
+                    'FETCH_DETAIL_ERROR', 
+                    error
+                  ), 
+                  isLoading: false,
+                  inFlightRequests: newInFlightRequests
+                }
+              })
+              throw error
+            }
+          })()
+          
+          // Store the promise to prevent duplicate requests
+          set((state) => {
+            const newMap = new Map(state.inFlightRequests)
+            newMap.set(inFlightKey, requestPromise)
+            return { inFlightRequests: newMap }
+          })
+          
+          return requestPromise
         },
 
         fetchSummary: async () => {
