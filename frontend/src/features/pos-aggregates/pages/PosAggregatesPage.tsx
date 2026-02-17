@@ -216,9 +216,6 @@ export const PosAggregatesPage: React.FC = () => {
     }
   }, [selectedTransactionForMatch, toast, fetchTransactions, fetchSummary])
 
-  // Pagination info
-  const showingStart = (page - 1) * limit + 1
-  const showingEnd = Math.min(page * limit, total)
 
   return (
     <div className="p-6">
@@ -322,49 +319,29 @@ export const PosAggregatesPage: React.FC = () => {
 
       {/* Table */}
       {!showForm && (
-        <>
-          <PosAggregatesTable
-            transactions={transactions}
-            selectedIds={selectedIds}
-            isLoading={isDataLoading()}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onRestore={handleRestore}
-            onReconcile={handleReconcile}
-            onViewDetail={handleViewDetail}
-            onSelectBankMutation={handleSelectBankMutation}
-            onToggleSelection={(id) => usePosAggregatesStore.getState().toggleSelection(id)}
-            onToggleAllSelection={() => usePosAggregatesStore.getState().toggleAllSelection()}
-          />
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex flex-wrap items-center justify-between mt-4 gap-4">
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                Menampilkan {showingStart} - {showingEnd} dari {total} data
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage(page - 1)}
-                  disabled={page === 1}
-                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-                >
-                  Sebelumnya
-                </button>
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  Halaman {page} dari {totalPages}
-                </span>
-                <button
-                  onClick={() => setPage(page + 1)}
-                  disabled={page === totalPages}
-                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-                >
-                  Berikutnya
-                </button>
-              </div>
-            </div>
-          )}
-        </>
+        <PosAggregatesTable
+          transactions={transactions}
+          selectedIds={selectedIds}
+          isLoading={isDataLoading()}
+          pagination={{
+            page,
+            limit,
+            total,
+            totalPages,
+            hasNext: page < totalPages,
+            hasPrev: page > 1
+          }}
+          onPageChange={(newPage) => setPage(newPage)}
+          onLimitChange={(newLimit) => usePosAggregatesStore.getState().setLimit(newLimit)}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onRestore={handleRestore}
+          onReconcile={handleReconcile}
+          onViewDetail={handleViewDetail}
+          onSelectBankMutation={handleSelectBankMutation}
+          onToggleSelection={(id) => usePosAggregatesStore.getState().toggleSelection(id)}
+          onToggleAllSelection={() => usePosAggregatesStore.getState().toggleAllSelection()}
+        />
       )}
 
       {/* Generate Journal Modal - New Optimized Version */}

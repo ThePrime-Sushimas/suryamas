@@ -690,8 +690,9 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
         // --------------------------------------------------------------------
         
         setPage: (page: number) => {
+          const { limit } = get()
           set({ page })
-          get().fetchTransactions(page)
+          get().fetchTransactions(page, limit)
         },
 
         setLimit: (limit: number) => {
