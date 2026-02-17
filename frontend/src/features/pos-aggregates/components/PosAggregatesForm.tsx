@@ -72,7 +72,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
     setValue,
   } = useForm<CreateAggregatedTransactionDto>({
     defaultValues: {
-      branch_name: null,
+      branch_id: null,
       source_type: 'POS',
       source_id: '',
       source_ref: '',
@@ -137,7 +137,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
   useEffect(() => {
     if (transaction) {
       reset({
-        branch_name: transaction.branch_name,
+        branch_id: transaction.branch_id,
         source_type: transaction.source_type,
         source_id: transaction.source_id,
         source_ref: transaction.source_ref,
@@ -156,7 +156,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
       })
     } else {
       reset({
-        branch_name: null,
+        branch_id: null,
         source_type: 'POS',
         source_id: '',
         source_ref: '',
@@ -297,7 +297,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
               Nama Cabang <span className="text-red-500">*</span>
             </label>
             <Controller
-              name="branch_name"
+              name="branch_id"
               control={control}
               rules={{
                 required: 'Nama Cabang wajib dipilih',
@@ -308,21 +308,21 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
                   value={field.value || ''}
                   onChange={(e) => field.onChange(e.target.value || null)}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                    errors.branch_name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                    errors.branch_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                   } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
                   disabled={loadingBranches || !!transaction}
                 >
                   <option value="">-- Pilih Cabang --</option>
                   {branches.map((branch) => (
-                    <option key={branch.id} value={branch.branch_name}>
+                    <option key={branch.id} value={branch.id}>
                       {branch.branch_name}
                     </option>
                   ))}
                 </select>
               )}
             />
-            {errors.branch_name && showErrors && (
-              <p className="mt-1 text-sm text-red-500">{errors.branch_name.message}</p>
+            {errors.branch_id && showErrors && (
+              <p className="mt-1 text-sm text-red-500">{errors.branch_id.message}</p>
             )}
           </div>
 

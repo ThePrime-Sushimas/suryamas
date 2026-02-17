@@ -35,6 +35,7 @@ export type AggregatedTransactionSourceType = "POS";
  */
 export interface AggregatedTransaction {
   id: string;
+  branch_id?: string | null;
   branch_name: string | null;
   source_type: AggregatedTransactionSourceType;
   source_id: string;
@@ -90,6 +91,7 @@ export interface AggregatedTransactionWithDetails extends AggregatedTransaction 
  */
 export interface AggregatedTransactionListItem {
   id: string;
+  branch_id?: string | null;
   branch_name: string | null;
   source_type: AggregatedTransactionSourceType;
   source_id: string;
@@ -129,6 +131,7 @@ export interface AggregatedTransactionListItem {
  * All fields are optional except the required ones
  */
 export interface CreateAggregatedTransactionDto {
+  branch_id?: string | null;
   branch_name?: string | null;
   source_type?: AggregatedTransactionSourceType;
   source_id: string;
@@ -153,6 +156,7 @@ export interface CreateAggregatedTransactionDto {
  * Partial update - all fields are optional
  */
 export interface UpdateAggregatedTransactionDto {
+  branch_id?: string | null;
   branch_name?: string | null;
   source_type?: AggregatedTransactionSourceType;
   source_id?: string;
@@ -228,6 +232,7 @@ export interface AggregatedTransactionFilterParams {
   page?: number;
   limit?: number;
   company_id?: string;
+  branch_id?: string;
   branch_name?: string | null;
   branch_names?: string[] | string; // Multiple branches (checkbox method) - also accepts comma-separated string
   source_type?: AggregatedTransactionSourceType;

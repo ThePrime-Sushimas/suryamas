@@ -25,6 +25,7 @@ const paymentMethodIdSchema = z.union([
 
 export const createAggregatedTransactionSchema = z.object({
   body: z.object({
+    branch_id: z.string().uuid('Branch ID must be a valid UUID').nullable().optional(), // UUID reference to branches
     branch_name: z.string().nullable().optional(),  // branch name from pos_import_lines
     source_type: z.enum(['POS']).default('POS'),
     source_id: z.string().min(1, 'Source ID is required').max(100, 'Source ID must not exceed 100 characters'),
@@ -50,6 +51,7 @@ discount_amount: z.number().min(0, 'Discount amount must be non-negative').defau
  */
 export const updateAggregatedTransactionSchema = z.object({
   body: z.object({
+    branch_id: z.string().uuid('Branch ID must be a valid UUID').nullable().optional(),
     branch_name: z.string().nullable().optional(),
     source_type: z.enum(['POS']).optional(),
     source_id: z.string().min(1).max(100).optional(),
@@ -104,6 +106,7 @@ export const aggregatedTransactionListQuerySchema = z.object({
   query: z.object({
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().default(500),
+    branch_id: z.string().uuid().optional(),
     branch_name: z.string().optional(),
     branch_names: branchNamesSchema,
     source_type: z.enum(['POS']).optional(),

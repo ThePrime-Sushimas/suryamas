@@ -44,6 +44,7 @@ export class PosAggregatesRepository {
       .from('aggregated_transactions')
       .select(`
         id,
+        branch_id,
         branch_name,
         source_type,
         source_id,
@@ -73,6 +74,11 @@ bill_after_discount,
       `, { count: 'exact' })
 
     // Apply filters
+
+    // Filter by branch_id (UUID)
+    if (filter?.branch_id) {
+      dbQuery = dbQuery.eq('branch_id', filter.branch_id)
+    }
 
     if (filter?.branch_name !== undefined) {
       if (filter.branch_name === null) {
@@ -778,6 +784,7 @@ if (error) {
 
     return {
       id: row.id as string,
+      branch_id: row.branch_id as string | null,
       source_type: row.source_type as AggregatedTransactionSourceType,
       source_id: row.source_id as string,
       source_ref: row.source_ref as string,
@@ -822,6 +829,7 @@ bill_after_discount: Number(row.bill_after_discount || 0),
 
     return {
       id: aggData.id as string,
+      branch_id: aggData.branch_id as string,
       branch_name: aggData.branch_name as string | null,
       source_type: aggData.source_type as AggregatedTransactionSourceType,
       source_id: aggData.source_id as string,

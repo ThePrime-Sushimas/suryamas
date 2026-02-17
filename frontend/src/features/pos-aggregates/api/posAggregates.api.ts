@@ -250,6 +250,11 @@ export const posAggregatesApi = {
       }
       // Only add filter params if they have values (not undefined/null)
       if (filter) {
+        // branch_id filter for UUID-based filtering
+        if (filter.branch_id !== undefined && filter.branch_id !== null) {
+          params.branch_id = filter.branch_id
+        }
+        // branch_name filter for name-based filtering
         if (filter.branch_name !== undefined && filter.branch_name !== null) {
           params.branch_name = filter.branch_name
         }
@@ -497,6 +502,11 @@ export const posAggregatesApi = {
       const params: Record<string, unknown> = {}
       // Only add filter params if they have values (not undefined/null)
       if (filter) {
+        // branch_id filter for UUID-based filtering
+        if (filter.branch_id !== undefined && filter.branch_id !== null) {
+          params.branch_id = filter.branch_id
+        }
+        // branch_name filter for name-based filtering
         if (filter.branch_name !== undefined && filter.branch_name !== null) {
           params.branch_name = filter.branch_name
         }
@@ -695,6 +705,11 @@ export const posAggregatesApi = {
         params.order = sort.order
       }
       if (filter) {
+        // branch_id filter for UUID-based filtering
+        if (filter.branch_id !== undefined && filter.branch_id !== null) {
+          params.branch_id = filter.branch_id
+        }
+        // branch_name filter for name-based filtering
         if (filter.branch_name !== undefined && filter.branch_name !== null) {
           params.branch_name = filter.branch_name
         }
@@ -914,4 +929,3 @@ export const posAggregatesApi = {
     requestManager.abortAll()
   },
 }
-

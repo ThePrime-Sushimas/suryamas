@@ -51,6 +51,7 @@ export type AggregatedTransactionSourceType = "POS";
  */
 export interface AggregatedTransaction {
   id: string;
+  branch_id?: string | null; // UUID reference to branches table
   branch_name: string | null; // Store branch name from pos_import_lines.branch
   source_type: AggregatedTransactionSourceType;
   source_id: string; // pos_import_id from pos_import_lines
@@ -84,6 +85,7 @@ bill_after_discount: number; // subtotal + tax - discount (before fee)
  */
 export interface AggregatedTransactionWithDetails extends AggregatedTransaction {
   branch_code?: string;
+  branch_id?: string; // UUID reference
   payment_method_code?: string;
   payment_method_name?: string;
   journal?: JournalHeader;
@@ -103,6 +105,7 @@ export interface AggregatedTransactionWithDetails extends AggregatedTransaction 
 export interface AggregatedTransactionListItem extends Pick<
   AggregatedTransaction,
   | "id"
+  | "branch_id"
   | "source_type"
   | "source_id"
   | "source_ref"
@@ -138,6 +141,7 @@ export interface AggregatedTransactionListItem extends Pick<
  * payment_method_id can be either a numeric ID or string name
  */
 export interface CreateAggregatedTransactionDto {
+  branch_id?: string | null; // UUID reference to branches
   branch_name?: string | null; // branch name from pos_import_lines.branch
   source_type: AggregatedTransactionSourceType; // Always 'POS'
   source_id: string; // pos_import_id from pos_import_lines
@@ -162,6 +166,7 @@ bill_after_discount?: number; // Calculated: gross + tax - discount
  * payment_method_id can be either a numeric ID or string name
  */
 export interface UpdateAggregatedTransactionDto {
+  branch_id?: string | null;
   branch_name?: string | null;
   source_type?: AggregatedTransactionSourceType;
   source_id?: string;
@@ -187,6 +192,7 @@ bill_after_discount?: number;
  * Query parameters for listing aggregated transactions
  */
 export interface AggregatedTransactionFilterParams {
+  branch_id?: string;
   branch_name?: string | null;
   branch_names?: string[] | string; // Multiple branches (checkbox method) - also accepts comma-separated string
   source_type?: AggregatedTransactionSourceType;

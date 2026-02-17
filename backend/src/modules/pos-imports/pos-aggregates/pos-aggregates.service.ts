@@ -93,10 +93,73 @@ export class PosAggregatesService {
       original_name: branchName,
       normalized_name: normalizedBranchName,
       found: !!data,
-      branch_name: data?.id,
+      branch_id: data?.id,
     });
 
     return data;
+  }
+
+  /**
+   * Find branch by ID
+   * Returns branch name for display purposes
+   */
+  private async findBranchById(
+    branchId: string,
+  ): Promise<{ id: string; branch_name: string } | null> {
+    const { data, error } = await supabase
+      .from("branches")
+      .select("id, branch_name")
+      .eq("id", branchId)
+      .maybeSingle();
+
+    if (error) {
+      logError("Failed to find branch by ID", {
+        branch_id: branchId,
+        error,
+      });
+      throw AggregatedTransactionErrors.DATABASE_ERROR(
+        "Failed to find branch by ID",
+        error,
+      );
+    }
+
+    return data;
+  }
+
+  /**
+   * Resolve branch_id and branch_name
+   * If only branch_id is provided, lookup branch_name
+   * If only branch_name is provided, lookup branch_id
+   * If both provided, validate they match
+   */
+  private async resolveBranch(
+    branchId?: string | null,
+    branchName?: string | null,
+  ): Promise<{ branch_id: string | null; branch_name: string | null }> {
+    // If both are null, return null
+    if (!branchId && !branchName) {
+      return { branch_id: null, branch_name: null };
+    }
+
+    // If branch_id is provided, get branch_name from it
+    if (branchId) {
+      const branch = await this.findBranchById(branchId);
+      return {
+        branch_id: branchId,
+        branch_name: branch?.branch_name ?? null,
+      };
+    }
+
+    // If only branch_name is provided, get branch_id from it
+    if (branchName) {
+      const branch = await this.findBranchByName(branchName);
+      return {
+        branch_id: branch?.id ?? null,
+        branch_name: branchName,
+      };
+    }
+
+    return { branch_id: null, branch_name: null };
   }
 
   /**
@@ -224,6 +287,7 @@ export class PosAggregatesService {
     const nettAmount = billAfterDiscount - totalFeeAmount
 
     return {
+      branch_id: data.branch_id ?? null,
       branch_name: data.branch_name ?? null,
       source_type: data.source_type,
       source_id: data.source_id,
@@ -290,9 +354,11 @@ export class PosAggregatesService {
     data: CreateAggregatedTransactionDto,
     skipPaymentMethodValidation = false,
   ): Promise<AggregatedTransaction> {
-    // Skip branch validation for POS imports - store branch_name directly
-    // Branch validation only needed when using branch_id (UUID)
-    // await this.validateBranch(data.branch_name ?? null)
+    // Resolve branch_id and branch_name
+    // If only branch_id is provided, lookup branch_name
+    // If only branch_name is provided, lookup branch_id
+    // This ensures both values are stored for proper reference and display
+    const resolvedBranch = await this.resolveBranch(data.branch_id, data.branch_name)
 
     // Resolve payment method ID (handles both number ID and string name)
     let resolvedPaymentMethodId: number;
@@ -334,10 +400,15 @@ if (exists) {
     });
 
     // Create a modified data object without payment_method_id (will be passed separately)
-    const { payment_method_id, ...dataWithoutPaymentMethod } = data;
+    const { payment_method_id, branch_id, branch_name, ...dataWithoutPaymentMethod } = data;
 
+    // Use resolved branch data
     const insertData = this.toInsertData(
-      dataWithoutPaymentMethod,
+      {
+        ...dataWithoutPaymentMethod,
+        branch_id: resolvedBranch.branch_id,
+        branch_name: resolvedBranch.branch_name,
+      },
       resolvedPaymentMethodId,
       feeConfig ?? undefined,
     );
@@ -437,6 +508,7 @@ if (exists) {
       "payment_method_id"
     > & { payment_method_id?: number };
     const resolvedUpdates: ResolvedUpdateData = {
+      branch_id: updates.branch_id,
       branch_name: updates.branch_name,
       source_type: updates.source_type,
       source_id: updates.source_id,
@@ -471,8 +543,11 @@ bill_after_discount: updates.bill_after_discount,
       // If it's a number, it's already set above
     }
 
-    if (updates.branch_name !== undefined) {
-      await this.validateBranch(updates.branch_name);
+    // Resolve branch_id and branch_name if either is provided
+    if (updates.branch_id !== undefined || updates.branch_name !== undefined) {
+      const resolvedBranch = await this.resolveBranch(updates.branch_id, updates.branch_name);
+      resolvedUpdates.branch_id = resolvedBranch.branch_id;
+      resolvedUpdates.branch_name = resolvedBranch.branch_name;
     }
 
     logInfo("Updating aggregated transaction", {
