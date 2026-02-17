@@ -8,6 +8,7 @@
 import React, { useState, useCallback, useMemo } from 'react'
 import { Edit2, Trash2, RotateCcw, CheckCircle, FileText, Eye, Building2 } from 'lucide-react'
 import { TableSkeleton } from '@/components/ui/Skeleton'
+import { Pagination } from '@/components/ui/Pagination'
 import { PosAggregatesStatusBadge } from './PosAggregatesStatusBadge'
 import type { AggregatedTransactionListItem } from '../types'
 
@@ -559,70 +560,22 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
         </div>
       )}
       
-      {/* Pagination */}
+      {/* Pagination - Using Global Component */}
       {pagination && pagination.totalPages > 0 && (
-        <PaginationControls 
-          pagination={pagination} 
-          onPageChange={onPageChange}
-          onLimitChange={onLimitChange}
-          currentLength={transactions.length}
-        />
+        <div className="mt-4">
+          <Pagination
+            pagination={pagination}
+            onPageChange={onPageChange || (() => {})}
+            onLimitChange={onLimitChange}
+            currentLength={transactions.length}
+          />
+        </div>
       )}
     </>
   )
 }
 
-// Pagination Component
-const PaginationControls = ({ 
-  pagination, 
-  onPageChange, 
-  onLimitChange,
-  currentLength 
-}: { 
-  pagination: PaginationInfo
-  onPageChange?: (page: number) => void
-  onLimitChange?: (limit: number) => void
-  currentLength: number
-}) => (
-  <div className="flex items-center justify-between bg-white dark:bg-gray-800 px-4 py-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-    <div className="flex items-center gap-4">
-      <span className="text-sm text-gray-700 dark:text-gray-300">
-        Menampilkan <span className="font-medium">{currentLength}</span> dari{' '}
-        <span className="font-medium">{pagination.total}</span> data
-      </span>
-      <select
-        value={pagination.limit}
-        onChange={(e) => onLimitChange?.(Number(e.target.value))}
-        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-      >
-        <option value={10}>10 per page</option>
-        <option value={25}>25 per page</option>
-        <option value={50}>50 per page</option>
-        <option value={100}>100 per page</option>
-      </select>
-    </div>
-    <div className="flex items-center gap-2">
-      <button
-        onClick={() => onPageChange?.(pagination.page - 1)}
-        disabled={!pagination.hasPrev}
-        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
-      >
-        Previous
-      </button>
-      <span className="text-sm text-gray-700 dark:text-gray-300">
-        Halaman <span className="font-medium">{pagination.page}</span> dari{' '}
-        <span className="font-medium">{pagination.totalPages}</span>
-      </span>
-      <button
-        onClick={() => onPageChange?.(pagination.page + 1)}
-        disabled={!pagination.hasNext}
-        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
-      >
-        Next
-      </button>
-    </div>
-  </div>
-)
+// Using global Pagination component from @/components/ui/Pagination
 
 export default PosAggregatesTable
 
