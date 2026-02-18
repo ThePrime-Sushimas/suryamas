@@ -6,6 +6,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
+import { useState, useEffect } from "react";
 import { settlementGroupsApi } from "../api/settlement-groups.api";
 import type {
   CreateSettlementGroupRequest,
@@ -125,6 +126,69 @@ export const useSettlementGroups = (params?: SettlementGroupQueryDto) => {
     queryFn: () => settlementGroupsApi.getSettlementGroups(params || {}),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
+};
+
+/**
+ * Hook for fetching settlement groups with pagination helpers
+ */
+export const useSettlementGroupsPaginated = (params?: SettlementGroupQueryDto) => {
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false,
+  });
+
+  const queryKey = ['settlement-groups', { ...params, page: pagination.page, limit: pagination.limit }];
+  
+  const { data, isLoading, refetch } = useQuery({
+    queryKey,
+    queryFn: () => {
+      // Convert page to offset for API
+      const offset = (pagination.page - 1) * pagination.limit;
+      return settlementGroupsApi.getSettlementGroups({ 
+        ...params, 
+        limit: pagination.limit, 
+        offset 
+      });
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Update pagination state when data changes
+  useEffect(() => {
+    if (data) {
+      setPagination({
+        page: data.page || pagination.page,
+        limit: data.limit || pagination.limit,
+        total: data.total || 0,
+        totalPages: Math.ceil((data.total || 0) / (data.limit || pagination.limit)),
+        hasNext: data.hasNext || false,
+        hasPrev: data.hasPrev || false,
+      });
+    }
+  }, [data]);
+
+  const setPage = (newPage: number) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      setPagination(prev => ({ ...prev, page: newPage }));
+    }
+  };
+
+  const setPageSize = (newLimit: number) => {
+    setPagination(prev => ({ ...prev, page: 1, limit: newLimit }));
+  };
+
+  return {
+    data,
+    isLoading,
+    refetch,
+    pagination,
+    setPage,
+    setPageSize,
+  };
 };
 
 /**

@@ -5,10 +5,11 @@
 
 import React, { useState } from 'react';
 import { Search, Filter, Plus, Download, RefreshCw, Eye, Trash2 } from 'lucide-react';
-import { useSettlementGroups, useDeleteSettlementGroup } from '../hooks/useSettlementGroups';
+import { useSettlementGroupsPaginated, useDeleteSettlementGroup } from '../hooks/useSettlementGroups';
 import { SettlementStatusBadge } from './SettlementStatusBadge';
 import { DifferenceIndicator } from './DifferenceIndicator';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
+import { Pagination } from '@/components/ui/Pagination';
 import type { SettlementGroup, SettlementGroupQueryDto } from '../types/settlement-groups.types';
 
 interface SettlementDashboardProps {
@@ -34,8 +35,15 @@ export const SettlementDashboard: React.FC<SettlementDashboardProps> = ({
   const [showFilters, setShowFilters] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Active groups query
-  const { data: settlementGroupsData, isLoading, refetch } = useSettlementGroups({
+  // Active groups query with pagination
+  const { 
+    data: settlementGroupsData, 
+    isLoading, 
+    refetch,
+    pagination,
+    setPage,
+    setPageSize,
+  } = useSettlementGroupsPaginated({
     ...filters,
     search: searchTerm || undefined,
   });
@@ -329,27 +337,12 @@ export const SettlementDashboard: React.FC<SettlementDashboardProps> = ({
 
         {/* Pagination */}
         {total > 0 && (
-          <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-700">
-                Showing {settlementGroups.length} of {total} settlement groups
-              </div>
-              <div className="flex items-center gap-2">
-                <button 
-                  className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50"
-                  disabled={true}
-                >
-                  Previous
-                </button>
-                <button 
-                  className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50"
-                  disabled={true}
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          </div>
+          <Pagination
+            pagination={pagination}
+            onPageChange={setPage}
+            onLimitChange={setPageSize}
+            currentLength={settlementGroups.length}
+          />
         )}
       </div>
 
