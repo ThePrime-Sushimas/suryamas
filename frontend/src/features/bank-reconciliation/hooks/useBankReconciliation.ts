@@ -265,6 +265,38 @@ async (filters: BankStatementFilter, resetPagination = true) => {
     }
   }, [lastFetchParams]);
 
+  // Go to specific page size
+  const setPageSize = useCallback(async (pageSize: number) => {
+    setIsLoading(true);
+    try {
+      const params: BankStatementFilterParams = {
+        ...lastFetchParams,
+        page: 1,
+        limit: pageSize,
+      };
+
+      const result = await bankReconciliationApi.getStatementsDirect(params);
+      setStatements(result.data);
+
+      const paginationMeta = result.pagination as PaginationMeta;
+      setPagination(prev => ({
+        ...prev,
+        page: 1,
+        limit: pageSize,
+        total: paginationMeta.total ?? result.data.length,
+        totalPages: paginationMeta.totalPages ?? 1,
+        hasNext: paginationMeta.hasNext ?? result.data.length === pageSize,
+        hasPrev: false,
+      }));
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch page",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [lastFetchParams]);
+
   // =====================================================
   // FILTER METHODS
   // =====================================================
@@ -549,6 +581,7 @@ async (filters: BankStatementFilter, resetPagination = true) => {
     setFilterApplied,
     fetchStatementsWithFilters,
     setPage,
+    setPageSize,
     pagination,
 
     // Multi-match state & methods

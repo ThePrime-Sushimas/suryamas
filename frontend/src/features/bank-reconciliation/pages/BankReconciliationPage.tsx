@@ -76,6 +76,7 @@ export function BankReconciliationPage() {
     undoMultiMatch,
     pagination,
     setPage,
+    setPageSize,
     // Settlement Groups
     settlementGroups,
     settlementGroupsTotal,
@@ -518,6 +519,7 @@ export function BankReconciliationPage() {
                 showMultiMatch={true}
                 pagination={pagination}
                 onPageChange={setPage}
+                onLimitChange={setPageSize}
               />
             </ErrorBoundary>
           )}
