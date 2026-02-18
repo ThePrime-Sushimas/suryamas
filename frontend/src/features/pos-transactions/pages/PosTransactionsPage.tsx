@@ -9,6 +9,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { handleError } from '@/lib/errorParser'
 import { useToast } from '@/contexts/ToastContext'
 import { TableSkeleton, CardSkeleton } from '@/components/ui/Skeleton'
+import { Pagination } from '@/components/ui/Pagination'
 import {
   PAGINATION_CONFIG,
   DATE_PRESETS,
@@ -54,6 +55,15 @@ const ErrorFallback = () => (
     </div>
   </div>
 )
+
+interface PosTransactionsPagination {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
+}
 
 interface PosTransaction {
   id: string
@@ -102,16 +112,31 @@ function PosTransactionsContent() {
   const [summary, setSummary] = useState<Summary>({ totalAmount: 0, totalTax: 0, totalDiscount: 0, totalAfterBillDiscount:0, totalBillDiscount:0, totalSubtotal: 0, transactionCount: 0 })
   const [loading, setLoading] = useState(false)
   const [showFilters, setShowFilters] = useState(true)
-  const [pagination, setPagination] = useState({ page: 1, limit: PAGINATION_CONFIG.DEFAULT_PAGE_SIZE, total: 0 })
+  const [pagination, setPagination] = useState<PosTransactionsPagination>({ 
+    page: 1, 
+    limit: PAGINATION_CONFIG.DEFAULT_PAGE_SIZE, 
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false
+  })
   const [filters, setFilters] = useState<PosTransactionFilters>({})
   const [selectedBranches, setSelectedBranches] = useState<string[]>([])
   const [selectedPayments, setSelectedPayments] = useState<string[]>([])
   const [showBranchDropdown, setShowBranchDropdown] = useState(false)
   const [showPaymentDropdown, setShowPaymentDropdown] = useState(false)
+  const [hasAppliedFilters, setHasAppliedFilters] = useState(false)
   
   // Refs for dropdown click outside detection
   const branchDropdownRef = useRef<HTMLDivElement>(null)
   const paymentDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Effect to fetch data when limit changes (without requiring Apply Filters)
+  useEffect(() => {
+    if (hasAppliedFilters && currentBranch?.company_id) {
+      fetchTransactions(1)
+    }
+  }, [pagination.limit])
 
   // Click outside handler
   useEffect(() => {
@@ -156,7 +181,15 @@ function PosTransactionsContent() {
       
       if (!abortController.signal.aborted) {
         setTransactions(result.data?.data || [])
-        setPagination(prev => ({ ...prev, total: result.data?.total || 0 }))
+        const total = result.data?.total || 0
+        const totalPages = Math.ceil(total / pagination.limit)
+        setPagination(prev => ({ 
+          ...prev, 
+          total,
+          totalPages,
+          hasNext: pagination.page < totalPages,
+          hasPrev: pagination.page > 1
+        }))
         setSummary(result.data?.summary || { 
           totalAmount: 0, 
           totalTax: 0, 
@@ -203,6 +236,7 @@ function PosTransactionsContent() {
 
   const handleApplyFilters = () => {
     setPagination(prev => ({ ...prev, page: 1 }))
+    setHasAppliedFilters(true)
     fetchTransactions()
   }
 
@@ -213,6 +247,7 @@ function PosTransactionsContent() {
     setFilters({})
     setSelectedBranches([])
     setSelectedPayments([])
+    setHasAppliedFilters(false)
   }
 
   const handleExport = async () => {
@@ -272,7 +307,22 @@ function PosTransactionsContent() {
     setFilters(prev => ({ ...prev, dateFrom, dateTo }))
   }
 
-  const totalPages = Math.ceil(pagination.total / pagination.limit)
+  // Pagination handlers for global Pagination component
+  const handlePageChange = (newPage: number) => {
+    setPagination(prev => ({ ...prev, page: newPage }))
+    fetchTransactions(newPage)
+  }
+
+  const handleLimitChange = (newLimit: number) => {
+    const limit = newLimit as number
+    setPagination(prev => ({ 
+      ...prev, 
+      limit, 
+      page: 1,
+      totalPages: Math.ceil(prev.total / limit)
+    }))
+    fetchTransactions(1)
+  }
 
   if (!currentBranch?.company_id) {
     return (
@@ -549,39 +599,15 @@ function PosTransactionsContent() {
               </table>
             </div>
 
-            {totalPages > 1 && (
-              <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Showing {(pagination.page - 1) * pagination.limit + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} transactions
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      const newPage = Math.max(1, pagination.page - 1)
-                      setPagination(p => ({ ...p, page: newPage }))
-                      fetchTransactions(newPage)
-                    }}
-                    disabled={pagination.page === 1}
-                    className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                  >
-                    Previous
-                  </button>
-                  <span className="px-3 py-1 text-gray-700 dark:text-gray-300">
-                    Page {pagination.page} of {totalPages}
-                  </span>
-                  <button
-                    onClick={() => {
-                      const newPage = Math.min(totalPages, pagination.page + 1)
-                      setPagination(p => ({ ...p, page: newPage }))
-                      fetchTransactions(newPage)
-                    }}
-                    disabled={pagination.page === totalPages}
-                    className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
+            {/* Global Pagination Component */}
+            {pagination.total > 0 && (
+              <Pagination
+                pagination={pagination}
+                onPageChange={handlePageChange}
+                onLimitChange={handleLimitChange}
+                currentLength={transactions.length}
+                loading={loading}
+              />
             )}
           </>
         )}
