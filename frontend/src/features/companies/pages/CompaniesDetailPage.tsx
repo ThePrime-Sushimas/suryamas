@@ -33,14 +33,14 @@ function CompanyDetailPage() {
     }
   }
 
-  if (loading) return <div className="p-6 text-center">Loading...</div>
-  if (!selectedCompany) return <div className="p-6 text-center text-red-600">Company not found</div>
+  if (loading) return <div className="p-6 text-center dark:text-gray-300">Loading...</div>
+  if (!selectedCompany) return <div className="p-6 text-center text-red-600 dark:text-red-400">Company not found</div>
 
   return (
     <div className="max-w-7xl mx-auto p-6">
-      <div className="bg-white rounded-lg shadow">
-        <div className="flex justify-between items-center p-6 border-b">
-          <h1 className="text-2xl font-bold">{selectedCompany.company_name}</h1>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="flex justify-between items-center p-6 border-b dark:border-gray-700">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedCompany.company_name}</h1>
           <div className="flex gap-2">
             <button
               onClick={() => navigate(`/companies/${id}/edit`)}
@@ -58,14 +58,14 @@ function CompanyDetailPage() {
         </div>
 
         {/* Tabs */}
-        <div className="border-b">
+        <div className="border-b dark:border-gray-700">
           <div className="flex gap-4 px-6">
             <button
               onClick={() => setActiveTab('overview')}
               className={`py-3 px-4 border-b-2 font-medium transition-colors ${
                 activeTab === 'overview'
                   ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               Overview
@@ -75,7 +75,7 @@ function CompanyDetailPage() {
               className={`py-3 px-4 border-b-2 font-medium transition-colors ${
                 activeTab === 'bank-accounts'
                   ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               Bank Accounts
@@ -89,32 +89,32 @@ function CompanyDetailPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Company Code</label>
-                  <p className="text-lg">{selectedCompany.company_code}</p>
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Company Code</label>
+                  <p className="text-lg text-gray-900 dark:text-white">{selectedCompany.company_code}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Company Type</label>
-                  <p className="text-lg">{selectedCompany.company_type}</p>
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Company Type</label>
+                  <p className="text-lg text-gray-900 dark:text-white">{selectedCompany.company_type}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Status</label>
-                  <p className="text-lg capitalize">{selectedCompany.status}</p>
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Status</label>
+                  <p className="text-lg capitalize text-gray-900 dark:text-white">{selectedCompany.status}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-600">NPWP</label>
-                  <p className="text-lg">{selectedCompany.npwp || '-'}</p>
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">NPWP</label>
+                  <p className="text-lg text-gray-900 dark:text-white">{selectedCompany.npwp || '-'}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Email</label>
-                  <p className="text-lg">{selectedCompany.email || '-'}</p>
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Email</label>
+                  <p className="text-lg text-gray-900 dark:text-white">{selectedCompany.email || '-'}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Phone</label>
-                  <p className="text-lg">{selectedCompany.phone || '-'}</p>
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Phone</label>
+                  <p className="text-lg text-gray-900 dark:text-white">{selectedCompany.phone || '-'}</p>
                 </div>
                 <div className="col-span-2">
-                  <label className="text-sm font-medium text-gray-600">Website</label>
-                  <p className="text-lg">{selectedCompany.website || '-'}</p>
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Website</label>
+                  <p className="text-lg text-gray-900 dark:text-white">{selectedCompany.website || '-'}</p>
                 </div>
               </div>
             </div>
@@ -128,7 +128,7 @@ function CompanyDetailPage() {
 
       <button
         onClick={() => navigate('/companies')}
-        className="mt-6 bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400"
+        className="mt-6 bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-md hover:bg-gray-400 dark:hover:bg-gray-600"
       >
         Back to List
       </button>

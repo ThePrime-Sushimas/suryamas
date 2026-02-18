@@ -35,13 +35,15 @@ export default function EditCompanyPage() {
     }
   }
 
-  if (loading) return <div className="p-6 text-center">Loading...</div>
-  if (!selectedCompany) return <div className="p-6 text-center text-red-600">Company not found</div>
+  if (loading) return <div className="p-6 text-center dark:text-gray-300">Loading...</div>
+  if (!selectedCompany) return <div className="p-6 text-center text-red-600 dark:text-red-400">Company not found</div>
 
   return (
     <div className="max-w-md mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">Edit Company</h1>
-      <CompanyForm initialData={selectedCompany} isEdit onSubmit={handleSubmit} isLoading={loading} />
+      <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Edit Company</h1>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <CompanyForm initialData={selectedCompany} isEdit onSubmit={handleSubmit} isLoading={loading} />
+      </div>
     </div>
   )
 }

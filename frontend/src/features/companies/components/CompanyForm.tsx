@@ -120,10 +120,10 @@ export const CompanyForm = ({ initialData, isEdit, onSubmit, isLoading }: Compan
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {errors.submit && <p className="text-red-500 text-sm">{errors.submit}</p>}
+      {errors.submit && <p className="text-red-500 text-sm dark:text-red-400">{errors.submit}</p>}
 
       <div>
-        <label className="block text-sm font-medium">Company Code *</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Company Code *</label>
         <input
           type="text"
           name="company_code"
@@ -131,29 +131,29 @@ export const CompanyForm = ({ initialData, isEdit, onSubmit, isLoading }: Compan
           onChange={handleChange}
           onBlur={handleBlur}
           disabled={isEdit}
-          className="w-full px-3 py-2 border rounded-md disabled:bg-gray-100"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           maxLength={20}
         />
-        {errors.company_code && <p className="text-red-500 text-xs mt-1">{errors.company_code}</p>}
+        {errors.company_code && <p className="text-red-500 text-xs mt-1 dark:text-red-400">{errors.company_code}</p>}
       </div>
 
       <div>
-        <label className="block text-sm font-medium">Company Name *</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Company Name *</label>
         <input
           type="text"
           name="company_name"
           value={formData.company_name}
           onChange={handleChange}
           onBlur={handleBlur}
-          className="w-full px-3 py-2 border rounded-md"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           maxLength={255}
         />
-        {errors.company_name && <p className="text-red-500 text-xs mt-1">{errors.company_name}</p>}
+        {errors.company_name && <p className="text-red-500 text-xs mt-1 dark:text-red-400">{errors.company_name}</p>}
       </div>
 
       <div>
-        <label className="block text-sm font-medium">Company Type</label>
-        <select name="company_type" value={formData.company_type} onChange={handleChange} className="w-full px-3 py-2 border rounded-md">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Company Type</label>
+        <select name="company_type" value={formData.company_type} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
           {COMPANY_TYPES.map(type => (
             <option key={type} value={type}>{type}</option>
           ))}
@@ -161,64 +161,64 @@ export const CompanyForm = ({ initialData, isEdit, onSubmit, isLoading }: Compan
       </div>
 
       <div>
-        <label className="block text-sm font-medium">Email</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
         <input 
           type="email" 
           name="email" 
           value={formData.email} 
           onChange={handleChange}
           onBlur={handleBlur}
-          className="w-full px-3 py-2 border rounded-md" 
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
         />
-        {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+        {errors.email && <p className="text-red-500 text-xs mt-1 dark:text-red-400">{errors.email}</p>}
       </div>
 
       <div>
-        <label className="block text-sm font-medium">Website</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Website</label>
         <input 
           type="url" 
           name="website" 
           value={formData.website} 
           onChange={handleChange}
           onBlur={handleBlur}
-          className="w-full px-3 py-2 border rounded-md"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           placeholder="https://example.com"
         />
-        {errors.website && <p className="text-red-500 text-xs mt-1">{errors.website}</p>}
+        {errors.website && <p className="text-red-500 text-xs mt-1 dark:text-red-400">{errors.website}</p>}
       </div>
 
       <div>
-        <label className="block text-sm font-medium">Phone</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Phone</label>
         <input 
           type="tel" 
           name="phone" 
           value={formData.phone} 
           onChange={handleChange}
           onBlur={handleBlur}
-          className="w-full px-3 py-2 border rounded-md"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           placeholder="+62xxx"
         />
-        {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
+        {errors.phone && <p className="text-red-500 text-xs mt-1 dark:text-red-400">{errors.phone}</p>}
       </div>
 
       <div>
-        <label className="block text-sm font-medium">NPWP</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">NPWP</label>
         <input 
           type="text" 
           name="npwp" 
           value={formData.npwp} 
           onChange={handleChange}
           onBlur={handleBlur}
-          className="w-full px-3 py-2 border rounded-md"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           maxLength={15}
           placeholder="15 characters"
         />
-        {errors.npwp && <p className="text-red-500 text-xs mt-1">{errors.npwp}</p>}
+        {errors.npwp && <p className="text-red-500 text-xs mt-1 dark:text-red-400">{errors.npwp}</p>}
       </div>
 
       <div>
-        <label className="block text-sm font-medium">Status</label>
-        <select name="status" value={formData.status} onChange={handleChange} className="w-full px-3 py-2 border rounded-md">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
+        <select name="status" value={formData.status} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
           {COMPANY_STATUSES.map(status => (
             <option key={status} value={status}>{status.charAt(0).toUpperCase() + status.slice(1)}</option>
           ))}
@@ -228,7 +228,7 @@ export const CompanyForm = ({ initialData, isEdit, onSubmit, isLoading }: Compan
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+        className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 dark:disabled:bg-gray-600"
       >
         {isLoading ? 'Saving...' : isEdit ? 'Update' : 'Create'}
       </button>

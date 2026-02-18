@@ -29,18 +29,20 @@ export default function CreateCompanyPage() {
   return (
     <div className="max-w-md mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Create Company</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create Company</h1>
         <button
           onClick={() => navigate('/companies')}
-          className="text-gray-600 hover:text-gray-900"
+          className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
         >
           ✕
         </button>
       </div>
-      <CompanyForm onSubmit={handleSubmit} isLoading={loading} />
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <CompanyForm onSubmit={handleSubmit} isLoading={loading} />
+      </div>
       <button
         onClick={() => navigate('/companies')}
-        className="mt-4 w-full bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400"
+        className="mt-4 w-full bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-md hover:bg-gray-400 dark:hover:bg-gray-600"
       >
         Back to List
       </button>
