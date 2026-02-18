@@ -7,6 +7,13 @@ export class CompaniesRepository {
     let query = supabase.from('companies').select('*')
     let countQuery = supabase.from('companies').select('*', { count: 'exact', head: true })
     
+    // Handle search filter
+    if (filter?.search) {
+      const searchPattern = `%${filter.search}%`
+      query = query.or(`company_name.ilike.${searchPattern},company_code.ilike.${searchPattern}`)
+      countQuery = countQuery.or(`company_name.ilike.${searchPattern},company_code.ilike.${searchPattern}`)
+    }
+    
     if (filter) {
       if (filter.status) {
         query = query.eq('status', filter.status)
@@ -151,9 +158,10 @@ export class CompaniesRepository {
   }
 
   async delete(id: string): Promise<void> {
+    // Soft delete: update status to 'inactive' instead of hard delete
     const { error } = await supabase
       .from('companies')
-      .delete()
+      .update({ status: 'inactive' })
       .eq('id', id)
 
     if (error) throw new Error(error.message)

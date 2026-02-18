@@ -69,7 +69,7 @@ export default function CompaniesPage() {
   }, [])
 
   const handleDelete = useCallback(async (id: string) => {
-    if (!confirm('Are you sure you want to delete this company?')) return
+    if (!confirm('Are you sure you want to delete this company? This will change the status to inactive.')) return
     
     try {
       await deleteCompany(id)

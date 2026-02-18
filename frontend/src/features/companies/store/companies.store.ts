@@ -171,7 +171,10 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
 
   deleteCompany: async (id) => {
     const prev = get().companies
-    set(state => ({ companies: state.companies.filter(c => c.id !== id) }))
+    // Optimistic update: change status to inactive locally
+    set(state => ({ 
+      companies: state.companies.map(c => c.id === id ? { ...c, status: 'inactive' as const } : c)
+    }))
     try {
       await companiesApi.delete(id)
     } catch (error: unknown) {
