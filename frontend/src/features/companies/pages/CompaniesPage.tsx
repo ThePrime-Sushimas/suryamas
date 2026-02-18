@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCompaniesStore } from '../store/companies.store'
 import { CompanyTable } from '../components/CompanyTable'
 import { useToast } from '@/contexts/ToastContext'
+import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { Building2, Plus, Search, Filter, X } from 'lucide-react'
 import { Pagination } from '@/components/ui/Pagination'
 
@@ -28,14 +29,10 @@ export default function CompaniesPage() {
   const [filter, setFilter] = useState<CompanyFilter>({})
   const [showFilter, setShowFilter] = useState(false)
   
-  const { error } = useToast()
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const filterRef = useRef(filter)
+  // Debounced search
+  const debouncedSearch = useDebounce(search, 500)
   
-  // Keep filterRef in sync with filter
-  useEffect(() => {
-    filterRef.current = filter
-  }, [filter])
+  const { error } = useToast()
   
   const activeFilterCount = useMemo(() => {
     let count = 0
@@ -44,36 +41,24 @@ export default function CompaniesPage() {
     return count
   }, [filter.status, filter.company_type])
 
-  // Handle search - update local state with debounce
+  // Handle search with debounce using useEffect
+  useEffect(() => {
+    const newFilters = { ...filter } as Record<string, unknown>
+    if (debouncedSearch) {
+      newFilters.search = debouncedSearch
+    } else {
+      delete newFilters.search
+    }
+    setFilters(newFilters)
+  }, [debouncedSearch, filter, setFilters])
+
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value)
-    
-    // Clear previous timeout
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
-    
-    // Set new timeout for debounced API call
-    searchTimeoutRef.current = setTimeout(() => {
-      // Use filterRef to get the latest filter values
-      const currentFilter = filterRef.current
-      const newFilters = { ...currentFilter } as Record<string, unknown>
-      if (value) {
-        newFilters.search = value
-      } else {
-        delete newFilters.search
-      }
-      setFilters(newFilters)
-    }, 500)
-  }, [setFilters])
+  }, [])
 
   useEffect(() => {
     return () => {
       reset()
-      // Cleanup search timeout on unmount
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
     }
   }, [reset])
 
