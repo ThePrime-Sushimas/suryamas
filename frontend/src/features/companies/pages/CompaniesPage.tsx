@@ -1,28 +1,41 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCompaniesStore } from '../store/companies.store'
 import { CompanyTable } from '../components/CompanyTable'
-import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { useToast } from '@/contexts/ToastContext'
 import { Building2, Plus, Search, Filter, X } from 'lucide-react'
+import { Pagination } from '@/components/ui/Pagination'
 
 type CompanyFilter = {
   status?: 'active' | 'inactive' | 'suspended' | 'closed'
   company_type?: 'PT' | 'CV' | 'Firma' | 'Koperasi' | 'Yayasan'
 }
 
-const LIMIT = 25
-
 export default function CompaniesPage() {
   const navigate = useNavigate()
-  const { companies, loading, pagination, fetchCompanies, searchCompanies, deleteCompany, reset } = useCompaniesStore()
+  const { 
+    companies, 
+    loading, 
+    pagination, 
+    fetchCompanies, 
+    deleteCompany, 
+    reset,
+    setPage,
+    setPageSize,
+    setFilters
+  } = useCompaniesStore()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<CompanyFilter>({})
-  const [page, setPage] = useState(1)
   const [showFilter, setShowFilter] = useState(false)
   
   const { error } = useToast()
-  const debouncedSearch = useDebounce(search, 500)
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const filterRef = useRef(filter)
+  
+  // Keep filterRef in sync with filter
+  useEffect(() => {
+    filterRef.current = filter
+  }, [filter])
   
   const activeFilterCount = useMemo(() => {
     let count = 0
@@ -30,66 +43,67 @@ export default function CompaniesPage() {
     if (filter.company_type) count++
     return count
   }, [filter.status, filter.company_type])
-  
-  // Create a key that changes when search or filter changes
-  const searchFilterKey = useMemo(() => 
-    `${debouncedSearch}-${JSON.stringify(filter)}`, 
-    [debouncedSearch, filter]
-  )
-  
-  // Track the current key to detect changes
-  const [currentKey, setCurrentKey] = useState(searchFilterKey)
-  
-  // Calculate effective page - reset to 1 when search/filter changes
-  const effectivePage = currentKey === searchFilterKey ? page : 1
 
-  const loadCompanies = useCallback(() => {
-    if (debouncedSearch) {
-      return searchCompanies(debouncedSearch, effectivePage, LIMIT, filter)
+  // Handle search - update local state with debounce
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value)
+    
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
     }
-    return fetchCompanies(effectivePage, LIMIT, undefined, filter)
-  }, [debouncedSearch, effectivePage, filter, searchCompanies, fetchCompanies])
+    
+    // Set new timeout for debounced API call
+    searchTimeoutRef.current = setTimeout(() => {
+      // Use filterRef to get the latest filter values
+      const currentFilter = filterRef.current
+      const newFilters = { ...currentFilter } as Record<string, unknown>
+      if (value) {
+        newFilters.search = value
+      } else {
+        delete newFilters.search
+      }
+      setFilters(newFilters)
+    }, 500)
+  }, [setFilters])
 
-  // Update current key and page when search/filter changes
   useEffect(() => {
-    setCurrentKey(searchFilterKey)
-  }, [searchFilterKey])
-  
-  useEffect(() => {
-    if (effectivePage === 1 && page !== 1) {
-      setPage(1)
+    return () => {
+      reset()
+      // Cleanup search timeout on unmount
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
     }
-  }, [effectivePage, page])
-
-  useEffect(() => {
-    return () => reset()
   }, [reset])
 
+  // Initial load - only once
   useEffect(() => {
-    loadCompanies()
-  }, [loadCompanies])
+    fetchCompanies(1, pagination.limit)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleDelete = useCallback(async (id: string) => {
     if (!confirm('Are you sure you want to delete this company?')) return
     
     try {
       await deleteCompany(id)
-      await loadCompanies()
+      fetchCompanies(pagination.page, pagination.limit)
     } catch {
       error('Failed to delete company')
     }
-  }, [deleteCompany, loadCompanies, error])
+  }, [deleteCompany, fetchCompanies, pagination.page, pagination.limit, error])
 
   const setFilterKey = useCallback(
     <K extends keyof CompanyFilter>(key: K, value?: CompanyFilter[K]) => {
-      setFilter(prev => {
-        const next = { ...prev }
-        if (!value) delete next[key]
-        else next[key] = value
-        return next
-      })
+      const newFilter = { ...filter }
+      if (!value) delete newFilter[key]
+      else newFilter[key] = value
+      setFilter(newFilter)
+      // Use store's setFilters to reset to page 1 automatically
+      setFilters(newFilter)
     },
-    []
+    [filter, setFilters]
   )
 
   return (
@@ -123,12 +137,12 @@ export default function CompaniesPage() {
               type="text"
               placeholder="Search companies..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => handleSearchChange(e.target.value)}
               className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
             />
             {search && (
               <button
-                onClick={() => setSearch('')}
+                onClick={() => handleSearchChange('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 <X className="w-4 h-4" />
@@ -202,30 +216,13 @@ export default function CompaniesPage() {
             />
             
             {pagination.total > 0 && (
-              <div className="mt-6 flex items-center justify-between bg-white rounded-lg shadow-sm px-4 py-3">
-                <div className="text-sm text-gray-600">
-                  Showing {((effectivePage - 1) * LIMIT) + 1} to {Math.min(effectivePage * LIMIT, pagination.total)} of {pagination.total} companies
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={effectivePage === 1}
-                    className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                  >
-                    Previous
-                  </button>
-                  <span className="px-4 py-2 border rounded-md bg-gray-50">
-                    Page {effectivePage} of {pagination.totalPages || 1}
-                  </span>
-                  <button
-                    onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
-                    disabled={effectivePage >= pagination.totalPages}
-                    className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
+              <Pagination
+                pagination={pagination}
+                onPageChange={setPage}
+                onLimitChange={setPageSize}
+                currentLength={companies.length}
+                loading={loading}
+              />
             )}
           </>
         )}

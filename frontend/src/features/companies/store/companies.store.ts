@@ -7,6 +7,14 @@ interface Pagination {
   limit: number
   total: number
   totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
+}
+
+interface CompanyFilters extends Record<string, unknown> {
+  status?: string
+  company_type?: string
+  search?: string
 }
 
 interface CompaniesState {
@@ -15,9 +23,14 @@ interface CompaniesState {
   loading: boolean
   error: string | null
   pagination: Pagination
+  filters: CompanyFilters
+  searchQuery: string
   
   fetchCompanies: (page: number, limit: number, sort?: { field: string; order: string }, filter?: Record<string, unknown>) => Promise<void>
   searchCompanies: (q: string, page: number, limit: number, filter?: Record<string, unknown>) => Promise<void>
+  setPage: (page: number) => void
+  setPageSize: (limit: number) => void
+  setFilters: (filters: CompanyFilters) => void
   getCompanyById: (id: string) => Promise<Company>
   createCompany: (data: CreateCompanyDto) => Promise<Company>
   updateCompany: (id: string, data: UpdateCompanyDto) => Promise<Company>
@@ -32,22 +45,29 @@ const initialState = {
   selectedCompany: null,
   loading: false,
   error: null,
-  pagination: { page: 1, limit: 25, total: 0, totalPages: 0 }
+  pagination: { page: 1, limit: 25, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
+  filters: {},
+  searchQuery: ''
 }
 
 export const useCompaniesStore = create<CompaniesState>((set, get) => ({
   ...initialState,
 
   fetchCompanies: async (page, limit, sort, filter) => {
-    set({ loading: true, error: null })
+    set({ loading: true, error: null, filters: filter || {}, searchQuery: '' })
     try {
       const res = await companiesApi.list(page, limit, sort, filter)
+      const totalPages = Math.ceil(res.pagination.total / res.pagination.limit)
       set({ 
         companies: res.data, 
         loading: false,
         pagination: {
-          ...res.pagination,
-          totalPages: Math.ceil(res.pagination.total / res.pagination.limit)
+          page: res.pagination.page,
+          limit: res.pagination.limit,
+          total: res.pagination.total,
+          totalPages,
+          hasNext: res.pagination.page < totalPages,
+          hasPrev: res.pagination.page > 1
         }
       })
     } catch (error: unknown) {
@@ -57,15 +77,20 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
   },
 
   searchCompanies: async (q, page, limit, filter) => {
-    set({ loading: true, error: null })
+    set({ loading: true, error: null, searchQuery: q, filters: filter || {} })
     try {
       const res = await companiesApi.search(q, page, limit, filter)
+      const totalPages = Math.ceil(res.pagination.total / res.pagination.limit)
       set({ 
         companies: res.data, 
         loading: false,
         pagination: {
-          ...res.pagination,
-          totalPages: Math.ceil(res.pagination.total / res.pagination.limit)
+          page: res.pagination.page,
+          limit: res.pagination.limit,
+          total: res.pagination.total,
+          totalPages,
+          hasNext: res.pagination.page < totalPages,
+          hasPrev: res.pagination.page > 1
         }
       })
     } catch (error: unknown) {
@@ -73,6 +98,34 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
       set({ error: message, loading: false })
     }
   },
+
+  setPage: (page: number) => {
+    set(state => ({ pagination: { ...state.pagination, page } }))
+    const { searchQuery, filters } = get()
+    if (searchQuery) {
+      get().searchCompanies(searchQuery, page, get().pagination.limit, filters)
+    } else {
+      get().fetchCompanies(page, get().pagination.limit, undefined, filters)
+    }
+  },
+
+  setPageSize: (limit: number) => {
+    set(state => ({ 
+      pagination: { ...state.pagination, page: 1, limit }
+    }))
+    const { searchQuery, filters } = get()
+    if (searchQuery) {
+      get().searchCompanies(searchQuery, 1, limit, filters)
+    } else {
+      get().fetchCompanies(1, limit, undefined, filters)
+    }
+  },
+
+  setFilters: (filters: CompanyFilters) => {
+    set({ filters, pagination: { ...get().pagination, page: 1 }, searchQuery: '' })
+    get().fetchCompanies(1, get().pagination.limit, undefined, filters)
+  },
+
 
   getCompanyById: async (id) => {
     set({ loading: true, error: null })
@@ -142,5 +195,13 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 
-  reset: () => set(initialState)
+  reset: () => set({
+    companies: [],
+    selectedCompany: null,
+    loading: false,
+    error: null,
+    pagination: { page: 1, limit: 25, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
+    filters: {},
+    searchQuery: ''
+  })
 }))
