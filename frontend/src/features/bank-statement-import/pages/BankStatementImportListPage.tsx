@@ -18,6 +18,7 @@ import { StatusBadge } from '../components/common/StatusBadge'
 import { UploadModal } from '../components/UploadModal'
 import { AnalysisModal } from '../components/AnalysisModal'
 import { ImportProgressCard } from '../components/ImportProgressCard'
+import { Pagination } from '@/components/ui/Pagination'
 import { formatFileSize } from '../utils/format'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
@@ -42,7 +43,8 @@ export function BankStatementImportListPage() {
     confirmImport,
     deleteImport,
     bulkDelete,
-    setPagination,
+    setPage,
+    setPageSize,
     toggleSelection,
     selectAll,
     clearSelection,
@@ -108,8 +110,6 @@ export function BankStatementImportListPage() {
   // Derived values
   const allIds = importsArray.map((imp) => imp.id)
   const allSelected = importsArray.length > 0 && importsArray.every((imp) => selectedIds.has(imp.id))
-  const totalPages = Math.ceil(pagination.total / pagination.limit)
-  const currentPageItemCount = importsArray.length
 
   // Filter imports - FIXED: server-side filtering via store
   const filteredImports = useMemo(() => {
@@ -165,16 +165,6 @@ export function BankStatementImportListPage() {
       // Error ditampilkan melalui error state
     }
     setShowBulkDeleteConfirmation(false)
-  }
-
-  const handlePrevPage = () => {
-    const newPage = Math.max(1, pagination.page - 1)
-    setPagination(newPage)
-  }
-
-  const handleNextPage = () => {
-    const newPage = pagination.page + 1
-    setPagination(newPage)
   }
 
   const handleRefresh = () => {
@@ -554,31 +544,21 @@ export function BankStatementImportListPage() {
             </table>
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50">
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Halaman {pagination.page} dari {totalPages} ({currentPageItemCount} item)
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handlePrevPage}
-                  disabled={pagination.page <= 1}
-                  className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                <div className="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-2" />
-                <button
-                  onClick={handleNextPage}
-                  disabled={currentPageItemCount < pagination.limit}
-                  className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Pagination - Using Global Component */}
+          <Pagination
+            pagination={{
+              page: pagination.page,
+              limit: pagination.limit,
+              total: pagination.total,
+              totalPages: Math.ceil(pagination.total / pagination.limit),
+              hasNext: importsArray.length === pagination.limit,
+              hasPrev: pagination.page > 1,
+            }}
+            onPageChange={setPage}
+            onLimitChange={setPageSize}
+            currentLength={importsArray.length}
+            loading={loading.list}
+          />
         </div>
       )}
 

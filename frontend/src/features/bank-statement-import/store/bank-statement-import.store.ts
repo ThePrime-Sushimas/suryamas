@@ -323,6 +323,8 @@ interface BankStatementImportState {
 
   setFilters: (filters: BankStatementImportFilters) => void
   setPagination: (page: number, limit?: number) => void
+  setPage: (page: number) => void
+  setPageSize: (pageSize: number) => void
 
   openUploadModal: () => void
   closeUploadModal: () => void
@@ -581,6 +583,27 @@ export const useBankStatementImportStore = create<BankStatementImportState>((set
       },
     })
     get().fetchImports({ page, limit })
+  },
+
+  setPage: (page: number) => {
+    set({
+      pagination: {
+        ...get().pagination,
+        page,
+      },
+    })
+    get().fetchImports({ page })
+  },
+
+  setPageSize: (pageSize: number) => {
+    set({
+      pagination: {
+        ...get().pagination,
+        page: 1,
+        limit: pageSize,
+      },
+    })
+    get().fetchImports({ page: 1, limit: pageSize })
   },
 
   openUploadModal: () => set({ showUploadModal: true }),
