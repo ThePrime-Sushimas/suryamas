@@ -44,6 +44,12 @@ export default function EditCompanyPage() {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <CompanyForm initialData={selectedCompany} isEdit onSubmit={handleSubmit} isLoading={loading} />
       </div>
+      <button
+        onClick={() => navigate('/companies')}
+        className="mt-4 w-full bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-md hover:bg-gray-400 dark:hover:bg-gray-600"
+      >
+        Back to List
+      </button>
     </div>
   )
 }
