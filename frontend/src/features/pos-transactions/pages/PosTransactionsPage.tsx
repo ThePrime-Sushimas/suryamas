@@ -187,8 +187,8 @@ function PosTransactionsContent() {
           ...prev, 
           total,
           totalPages,
-          hasNext: pagination.page < totalPages,
-          hasPrev: pagination.page > 1
+          hasNext: currentPage < totalPages,
+          hasPrev: currentPage > 1
         }))
         setSummary(result.data?.summary || { 
           totalAmount: 0, 
