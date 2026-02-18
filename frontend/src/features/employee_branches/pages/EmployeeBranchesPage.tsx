@@ -1,26 +1,32 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, Plus, Building2, Search, ChevronLeft, ChevronRight, Settings } from 'lucide-react'
+import { Users, Plus, Building2, Search, Settings } from 'lucide-react'
 import { employeeBranchesApi } from '../api/employeeBranches.api'
+import { Pagination } from '@/components/ui/Pagination'
 import type { GroupedEmployeeBranch } from '../api/types'
 
 export default function EmployeeBranchesPage() {
   const navigate = useNavigate()
   
   const [items, setItems] = useState<GroupedEmployeeBranch[]>([])
-  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
   const [isSearching, setIsSearching] = useState(false)
-  const itemsPerPage = 10
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false,
+  })
 
   useEffect(() => {
     setIsSearching(true)
     const timer = setTimeout(() => {
       setDebouncedSearch(search)
-      setCurrentPage(1)
+      setPagination(prev => ({ ...prev, page: 1 }))
       setIsSearching(false)
     }, 300)
     return () => {
@@ -34,21 +40,35 @@ export default function EmployeeBranchesPage() {
       setLoading(true)
       try {
         const result = await employeeBranchesApi.listGrouped({ 
-          page: currentPage, 
-          limit: itemsPerPage, 
+          page: pagination.page, 
+          limit: pagination.limit, 
           search: debouncedSearch 
         })
         setItems(result.data)
-        setTotal(result.pagination.total)
+        setPagination(prev => ({
+          ...prev,
+          total: result.pagination.total,
+          totalPages: result.pagination.totalPages,
+          hasNext: result.pagination.hasNext,
+          hasPrev: result.pagination.hasPrev,
+        }))
       } catch {
         setItems([])
-        setTotal(0)
+        setPagination(prev => ({ ...prev, total: 0, totalPages: 0 }))
       } finally {
         setLoading(false)
       }
     }
     fetchData()
-  }, [currentPage, debouncedSearch])
+  }, [pagination.page, pagination.limit, debouncedSearch])
+
+  const handlePageChange = (page: number) => {
+    setPagination(prev => ({ ...prev, page }))
+  }
+
+  const handleLimitChange = (limit: number) => {
+    setPagination(prev => ({ ...prev, page: 1, limit }))
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -171,60 +191,15 @@ export default function EmployeeBranchesPage() {
         </div>
 
         {!loading && items.length > 0 && (
-          <div className="mt-6 flex items-center justify-between bg-white rounded-lg border border-gray-200 px-6 py-4">
-            <div className="text-sm text-gray-600">
-              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, total)} of {total} assignments
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="inline-flex items-center gap-1 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Previous
-              </button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.ceil(total / itemsPerPage) }, (_, i) => i + 1)
-                  .filter(p => {
-                    const totalPages = Math.ceil(total / itemsPerPage)
-                    if (totalPages <= 7) return true
-                    if (p === 1 || p === totalPages) return true
-                    if (p >= currentPage - 1 && p <= currentPage + 1) return true
-                    return false
-                  })
-                  .map((p, i, arr) => {
-                    const prev = arr[i - 1]
-                    const showEllipsis = prev && p - prev > 1
-                    return (
-                      <div key={p} className="flex items-center">
-                        {showEllipsis && <span className="px-2 text-gray-400">...</span>}
-                        <button
-                          onClick={() => setCurrentPage(p)}
-                          className={`px-3 py-2 rounded-lg transition-colors ${
-                            currentPage === p
-                              ? 'bg-blue-600 text-white'
-                              : 'border border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          {p}
-                        </button>
-                      </div>
-                    )
-                  })}
-              </div>
-              <button
-                onClick={() => setCurrentPage(p => Math.min(Math.ceil(total / itemsPerPage), p + 1))}
-                disabled={currentPage >= Math.ceil(total / itemsPerPage)}
-                className="inline-flex items-center gap-1 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Next
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+          <Pagination
+            pagination={pagination}
+            onPageChange={handlePageChange}
+            onLimitChange={handleLimitChange}
+            currentLength={items.length}
+          />
         )}
       </div>
     </div>
   )
 }
+
