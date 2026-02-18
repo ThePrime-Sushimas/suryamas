@@ -67,7 +67,7 @@ export const BankAccountsSection = ({ ownerType, ownerId }: BankAccountsSectionP
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-gray-900">Bank Accounts</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Bank Accounts</h2>
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
@@ -80,8 +80,8 @@ export const BankAccountsSection = ({ ownerType, ownerId }: BankAccountsSectionP
       </div>
 
       {showForm ? (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
             {editId ? 'Edit Bank Account' : 'Add Bank Account'}
           </h3>
           <BankAccountForm
