@@ -45,7 +45,7 @@ export const FailedTransactionsPage: React.FC = () => {
   // Fetch on mount
   useEffect(() => {
     fetchTransactions()
-  }, [fetchTransactions, page, limit])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle view detail
   const handleViewDetail = useCallback((id: string) => {

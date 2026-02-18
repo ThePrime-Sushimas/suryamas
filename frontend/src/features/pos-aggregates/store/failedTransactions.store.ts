@@ -78,9 +78,23 @@ export const useFailedTransactionsStore = create<FailedTransactionsState>((set, 
         totalPages: result.pagination?.totalPages || 1,
         isLoading: false
       })
-    } catch (error) {
-      console.error('Failed to fetch failed transactions:', error)
+    } catch (error: unknown) {
+      // Check if it's a cancellation error - these are expected and should be silently ignored
+      const isCanceled = 
+        error instanceof Error && 
+        (error.message === 'Request was canceled' || 
+         error.message.includes('canceled') || 
+         error.message.includes('cancelled'))
+      
+      // Only set error state if it's NOT a cancellation error
+      if (!isCanceled) {
+        console.error('Failed to fetch failed transactions:', error)
+      }
       set({ isLoading: false })
+      // Don't throw the error for cancellation - it's expected behavior
+      if (isCanceled) {
+        return
+      }
       throw error
     }
   },
