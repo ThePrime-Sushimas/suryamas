@@ -7,10 +7,10 @@ import { PosImportsTable } from '../components/PosImportsTable'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { PosImportsErrorBoundary } from '../components/PosImportsErrorBoundary'
 import BulkActionBar from '@/components/BulkActionBar'
+import { Pagination } from '@/components/ui/Pagination'
 import { useBranchContextStore } from '@/features/branch_context'
 import { useAuthStore } from '@/features/auth'
 import { useToast } from '@/contexts/ToastContext'
-import { POS_IMPORT_PAGE_SIZE_OPTIONS } from '../constants/pos-imports.constants'
 import { POS_IMPORTS_MESSAGES } from '@/utils/messages'
 
 function PosImportsPageContent() {
@@ -341,45 +341,14 @@ function PosImportsPageContent() {
         )}
       </div>
 
-      {/* Pagination */}
+      {/* Pagination - Using Global Component */}
       {!loading.list && imports.length > 0 && (
-        <div className="flex items-center justify-between bg-white dark:bg-gray-800 px-4 py-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-700 dark:text-gray-300">
-              Menampilkan <span className="font-medium">{imports.length}</span> dari{' '}
-              <span className="font-medium">{pagination.total}</span> data
-            </span>
-            <select
-              value={pagination.limit}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-            >
-              {POS_IMPORT_PAGE_SIZE_OPTIONS.map(size => (
-                <option key={size} value={size}>{size} per page</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage(pagination.page - 1)}
-              disabled={!pagination.hasPrev || loading.list}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
-            >
-              Previous
-            </button>
-            <span className="text-sm text-gray-700 dark:text-gray-300">
-              Halaman <span className="font-medium">{pagination.page}</span> dari{' '}
-              <span className="font-medium">{pagination.totalPages}</span>
-            </span>
-            <button
-              onClick={() => setPage(pagination.page + 1)}
-              disabled={!pagination.hasNext || loading.list}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
-            >
-              Next
-            </button>
-          </div>
-        </div>
+        <Pagination
+          pagination={pagination}
+          onPageChange={setPage}
+          onLimitChange={setPageSize}
+          currentLength={imports.length}
+        />
       )}
 
       <UploadModal
