@@ -7,6 +7,7 @@ import { JournalErrors } from '../shared/journal.errors'
 import { validateJournalLines, validateJournalBalance, calculateTotals, generateJournalNumber, getPeriodFromDate, canTransition } from '../shared/journal.utils'
 import { PaginatedResponse, createPaginatedResponse } from '../../../../utils/pagination.util'
 import { logInfo, logError } from '../../../../config/logger'
+import { AuditService } from '../../../monitoring/monitoring.service'
 
 export class JournalHeadersService {
   
@@ -104,6 +105,13 @@ export class JournalHeadersService {
       status: 'DRAFT'
     }, userId)
 
+    await AuditService.log('CREATE', 'journal_header', journal.id, userId, undefined, {
+      journal_number: journal.journal_number,
+      journal_type: journal.journal_type,
+      total_debit: journal.total_debit,
+      total_credit: journal.total_credit
+    })
+
     logInfo('Journal created', { 
       journal_id: journal.id, 
       journal_number: journal.journal_number,
@@ -168,6 +176,15 @@ export class JournalHeadersService {
       await journalHeadersRepository.update(id, data, userId)
     }
 
+    await AuditService.log('UPDATE', 'journal_header', id, userId, {
+      journal_number: existing.journal_number,
+      status: existing.status
+    }, {
+      journal_number: existing.journal_number,
+      status: existing.status,
+      updates: data
+    })
+
     return this.getById(id, companyId)
   }
 
@@ -180,6 +197,11 @@ export class JournalHeadersService {
 
     await journalHeadersRepository.delete(id, userId)
     
+    await AuditService.log('DELETE', 'journal_header', id, userId, {
+      journal_number: journal.journal_number,
+      status: journal.status
+    })
+
     logInfo('Journal deleted', { journal_id: id, user_id: userId })
   }
 
@@ -195,6 +217,14 @@ export class JournalHeadersService {
       submitted_by: userId
     })
 
+    await AuditService.log('SUBMIT', 'journal_header', id, userId, {
+      journal_number: journal.journal_number,
+      status: journal.status
+    }, {
+      journal_number: journal.journal_number,
+      status: 'SUBMITTED'
+    })
+
     logInfo('Journal submitted', { journal_id: id, user_id: userId })
   }
 
@@ -208,6 +238,14 @@ export class JournalHeadersService {
     await journalHeadersRepository.updateStatus(id, 'APPROVED', userId, {
       approved_at: new Date().toISOString(),
       approved_by: userId
+    })
+
+    await AuditService.log('APPROVE', 'journal_header', id, userId, {
+      journal_number: journal.journal_number,
+      status: journal.status
+    }, {
+      journal_number: journal.journal_number,
+      status: 'APPROVED'
     })
 
     logInfo('Journal approved', { journal_id: id, user_id: userId })
@@ -226,6 +264,15 @@ export class JournalHeadersService {
       rejected_by: userId,
       rejection_reason: reason
     }, userId)
+
+    await AuditService.log('REJECT', 'journal_header', id, userId, {
+      journal_number: journal.journal_number,
+      status: journal.status
+    }, {
+      journal_number: journal.journal_number,
+      status: 'REJECTED',
+      rejection_reason: reason
+    })
 
     logInfo('Journal rejected', { journal_id: id, user_id: userId, reason })
   }
@@ -260,6 +307,14 @@ export class JournalHeadersService {
     await journalHeadersRepository.updateStatus(id, 'POSTED', userId, {
       posted_at: new Date().toISOString(),
       posted_by: userId
+    })
+
+    await AuditService.log('POST', 'journal_header', id, userId, {
+      journal_number: journal.journal_number,
+      status: journal.status
+    }, {
+      journal_number: journal.journal_number,
+      status: 'POSTED'
     })
 
     logInfo('Journal posted', { journal_id: id, user_id: userId })
@@ -309,6 +364,18 @@ export class JournalHeadersService {
     // Mark original as reversed
     await journalHeadersRepository.markReversed(id, reversal.id, reason)
 
+    await AuditService.log('REVERSE', 'journal_header', id, userId, {
+      journal_number: original.journal_number,
+      status: original.status,
+      is_reversed: false
+    }, {
+      journal_number: original.journal_number,
+      status: 'REVERSED',
+      reversal_id: reversal.id,
+      reversal_journal_number: reversal.journal_number,
+      reason
+    })
+
     logInfo('Journal reversed', { 
       original_id: id, 
       reversal_id: reversal.id, 
@@ -336,6 +403,14 @@ export class JournalHeadersService {
 
     await journalHeadersRepository.restore(id, userId)
     
+    await AuditService.log('RESTORE', 'journal_header', id, userId, {
+      journal_number: journal.journal_number,
+      deleted_at: journal.deleted_at
+    }, {
+      journal_number: journal.journal_number,
+      deleted_at: null
+    })
+
     logInfo('Journal restored', { journal_id: id, user_id: userId })
   }
 }

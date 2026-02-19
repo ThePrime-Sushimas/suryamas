@@ -7,7 +7,7 @@ import { OwnerType } from './bankAccounts.types'
 import { withValidated } from '../../utils/handler'
 
 import { getParamString } from '../../utils/validation.util'
-import type { ValidatedRequest, ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   createBankAccountSchema,
   updateBankAccountSchema,
@@ -15,16 +15,17 @@ import {
   bankAccountListQuerySchema,
 } from './bankAccounts.schema'
 
-type CreateBankAccountReq = ValidatedRequest<typeof createBankAccountSchema>
-type UpdateBankAccountReq = ValidatedRequest<typeof updateBankAccountSchema>
+type CreateBankAccountReq = ValidatedAuthRequest<typeof createBankAccountSchema>
+type UpdateBankAccountReq = ValidatedAuthRequest<typeof updateBankAccountSchema>
 type BankAccountIdReq = ValidatedAuthRequest<typeof bankAccountIdSchema>
-type BankAccountListQueryReq = ValidatedRequest<typeof bankAccountListQuerySchema>
+type BankAccountListQueryReq = ValidatedAuthRequest<typeof bankAccountListQuerySchema>
 
 
 export class BankAccountsController {
   create = withValidated(async (req: CreateBankAccountReq, res: Response) => {
     try {
-      const account = await bankAccountsService.createBankAccount(req.validated.body)
+      const userId = req.context?.employee_id
+      const account = await bankAccountsService.createBankAccount(req.validated.body, userId)
       sendSuccess(res, account, 'Bank account created successfully', 201)
     } catch (error: any) {
       handleError(res, error)
@@ -53,7 +54,8 @@ export class BankAccountsController {
   update = withValidated(async (req: UpdateBankAccountReq, res: Response) => {
     try {
       const id = parseInt(req.validated.params.id)
-      const account = await bankAccountsService.updateBankAccount(id, req.validated.body)
+      const userId = req.context?.employee_id
+      const account = await bankAccountsService.updateBankAccount(id, req.validated.body, userId)
       sendSuccess(res, account, 'Bank account updated successfully')
     } catch (error: any) {
       handleError(res, error)

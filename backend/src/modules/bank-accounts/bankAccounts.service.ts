@@ -4,6 +4,7 @@ import { BankAccountNotFoundError, DuplicateBankAccountError, InvalidOwnerError,
 import { getPaginationParams, createPaginatedResponse } from '../../utils/pagination.util'
 import { supabase } from '../../config/supabase'
 import { logInfo } from '../../config/logger'
+import { AuditService } from '../monitoring/monitoring.service'
 
 export class BankAccountsService {
   // FIX #2 & #3: Whitelist tables and check soft delete
@@ -73,7 +74,7 @@ export class BankAccountsService {
   }
 
   // FIX #1: Use atomic function to prevent race condition
-  async createBankAccount(data: CreateBankAccountDto): Promise<BankAccount> {
+  async createBankAccount(data: CreateBankAccountDto, userId?: string): Promise<BankAccount> {
     await this.validateOwner(data.owner_type, data.owner_id)
     await this.validateBank(data.bank_id)
     await this.validateCoaAccount(data.coa_account_id)
@@ -82,6 +83,8 @@ export class BankAccountsService {
     if (existing) {
       throw new DuplicateBankAccountError(data.account_number)
     }
+
+    const account = await bankAccountsRepository.createAtomic(data)
 
     // FIX #12: Log critical operation
     if (data.is_primary) {
@@ -92,11 +95,19 @@ export class BankAccountsService {
       })
     }
 
-    return bankAccountsRepository.createAtomic(data)
+    if (userId) {
+      await AuditService.log('CREATE', 'bank_account', account.id.toString(), userId, undefined, {
+        account_number: account.account_number,
+        owner_type: account.owner_type,
+        owner_id: account.owner_id
+      })
+    }
+
+    return account
   }
 
   // FIX #1: Use atomic function for update
-  async updateBankAccount(id: number, data: UpdateBankAccountDto): Promise<BankAccount> {
+  async updateBankAccount(id: number, data: UpdateBankAccountDto, userId?: string): Promise<BankAccount> {
     const existing = await bankAccountsRepository.findById(id)
     if (!existing) {
       throw new BankAccountNotFoundError(id.toString())
@@ -118,6 +129,8 @@ export class BankAccountsService {
       await this.validateCoaAccount(data.coa_account_id)
     }
 
+    const account = await bankAccountsRepository.updateAtomic(id, data)
+
     // FIX #12: Log critical operation
     if (data.is_primary) {
       logInfo('Updating bank account to primary', {
@@ -127,7 +140,17 @@ export class BankAccountsService {
       })
     }
 
-    return bankAccountsRepository.updateAtomic(id, data)
+    if (userId) {
+      await AuditService.log('UPDATE', 'bank_account', id.toString(), userId, {
+        account_number: existing.account_number,
+        is_primary: existing.is_primary
+      }, {
+        account_number: account.account_number,
+        is_primary: account.is_primary
+      })
+    }
+
+    return account
   }
 
   // FIX #5: Add employeeId for audit trail
@@ -146,6 +169,14 @@ export class BankAccountsService {
     })
 
     await bankAccountsRepository.softDelete(id, employeeId)
+
+    if (employeeId) {
+      await AuditService.log('DELETE', 'bank_account', id.toString(), employeeId, {
+        account_number: account.account_number,
+        owner_type: account.owner_type,
+        owner_id: account.owner_id
+      })
+    }
   }
 
   async getBankAccountById(id: number): Promise<BankAccountWithBank> {
