@@ -2,6 +2,7 @@ import { suppliersRepository } from './suppliers.repository'
 import { Supplier, CreateSupplierDto, UpdateSupplierDto, SupplierListQuery, SupplierOption } from './suppliers.types'
 import { SupplierNotFoundError, SupplierCodeAlreadyExistsError } from './suppliers.errors'
 import { getPaginationParams, createPaginatedResponse } from '../../utils/pagination.util'
+import { AuditService } from '../monitoring/monitoring.service'
 
 export class SuppliersService {
   async createSupplier(data: CreateSupplierDto, userId?: string): Promise<Supplier> {
@@ -11,10 +12,16 @@ export class SuppliersService {
       throw new SupplierCodeAlreadyExistsError(data.supplier_code)
     }
 
-    return suppliersRepository.create({
+    const supplier = await suppliersRepository.create({
       ...data,
       created_by: userId,
     })
+
+    if (userId) {
+      await AuditService.log('CREATE', 'supplier', supplier.id, userId, undefined, supplier)
+    }
+
+    return supplier
   }
 
   async updateSupplier(id: string, data: UpdateSupplierDto, userId?: string): Promise<Supplier> {
@@ -40,6 +47,10 @@ export class SuppliersService {
       throw new SupplierNotFoundError(id)
     }
 
+    if (userId) {
+      await AuditService.log('UPDATE', 'supplier', id, userId, existingSupplier, updatedSupplier)
+    }
+
     return updatedSupplier
   }
 
@@ -54,6 +65,10 @@ export class SuppliersService {
     // For now, we'll just perform the soft delete
 
     await suppliersRepository.softDelete(id, userId)
+
+    if (userId) {
+      await AuditService.log('DELETE', 'supplier', id, userId, supplier)
+    }
   }
 
   async getSupplierById(id: string): Promise<Supplier> {
@@ -76,10 +91,20 @@ export class SuppliersService {
   }
 
   async restoreSupplier(id: string, userId?: string): Promise<Supplier> {
-    const restored = await suppliersRepository.restore(id, userId)
+    const existingSupplier = await suppliersRepository.findById(id, true)
+    if (!existingSupplier) {
+      throw new SupplierNotFoundError(id)
+    }
+
+    const restored = await suppliersRepository.restore(id)
     if (!restored) {
       throw new SupplierNotFoundError(id)
     }
+
+    if (userId) {
+      await AuditService.log('RESTORE', 'supplier', id, userId, existingSupplier, restored)
+    }
+
     return restored
   }
 }

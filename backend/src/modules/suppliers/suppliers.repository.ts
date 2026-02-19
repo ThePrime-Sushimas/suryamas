@@ -51,13 +51,17 @@ export class SuppliersRepository {
     return { data: (data || []).map(mapSupplierResponse), total: count || 0 }
   }
 
-  async findById(id: string): Promise<Supplier | null> {
-    const { data, error } = await supabase
+  async findById(id: string, includeDeleted = false): Promise<Supplier | null> {
+    let query = supabase
       .from('suppliers')
       .select('*')
       .eq('id', id)
-      .is('deleted_at', null)
-      .maybeSingle()
+
+    if (!includeDeleted) {
+      query = query.is('deleted_at', null)
+    }
+
+    const { data, error } = await query.maybeSingle()
 
     if (error) throw new Error(error.message)
     return data ? mapSupplierResponse(data) : null
