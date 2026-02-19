@@ -8,6 +8,7 @@ import {
   DuplicateRestoreError
 } from './pricelists.errors'
 import { getPaginationParams, createPaginatedResponse } from '../../utils/pagination.util'
+import { AuditService } from '../monitoring/monitoring.service'
 
 export class PricelistsService {
   async createPricelist(data: CreatePricelistDto, userId?: string): Promise<Pricelist> {
@@ -26,10 +27,17 @@ export class PricelistsService {
       throw new DuplicateActivePricelistError()
     }
 
-    return pricelistsRepository.create({
+    const pricelist = await pricelistsRepository.create({
       ...data,
       created_by: userId,
     } as CreatePricelistDto & { created_by?: string })
+
+    // Audit log for CREATE
+    if (userId) {
+      await AuditService.log('CREATE', 'pricelist', pricelist.id, userId, null, pricelist)
+    }
+
+    return pricelist
   }
 
   async updatePricelist(id: string, data: UpdatePricelistDto, userId?: string): Promise<Pricelist> {
@@ -60,6 +68,11 @@ export class PricelistsService {
       throw new PricelistNotFoundError(id)
     }
 
+    // Audit log for UPDATE
+    if (userId) {
+      await AuditService.log('UPDATE', 'pricelist', id, userId, existing, updated)
+    }
+
     return updated
   }
 
@@ -70,6 +83,11 @@ export class PricelistsService {
     }
 
     await pricelistsRepository.softDelete(id)
+
+    // Audit log for DELETE
+    if (userId) {
+      await AuditService.log('DELETE', 'pricelist', id, userId, pricelist, null)
+    }
   }
 
   async getPricelistById(id: string): Promise<PricelistWithRelations> {
@@ -106,12 +124,26 @@ export class PricelistsService {
       throw new PricelistNotFoundError(id)
     }
 
+    // Audit log for UPDATE (status change)
+    if (userId) {
+      await AuditService.log('UPDATE', 'pricelist', id, userId, 
+        { status: existing.status }, 
+        { status: approval.status }
+      )
+    }
+
     return updated
   }
 
   async restorePricelist(id: string, userId?: string): Promise<Pricelist> {
     try {
       const pricelist = await pricelistsRepository.restorePricelist(id)
+      
+      // Audit log for RESTORE
+      if (userId) {
+        await AuditService.log('RESTORE', 'pricelist', id, userId, null, pricelist)
+      }
+      
       return pricelist
     } catch (error: any) {
       if (error.message.includes('active pricelist already exists')) {
@@ -134,3 +166,4 @@ export class PricelistsService {
 }
 
 export const pricelistsService = new PricelistsService()
+
