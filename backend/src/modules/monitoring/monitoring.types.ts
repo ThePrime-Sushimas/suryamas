@@ -102,4 +102,36 @@ export interface AuditLogRecord {
   context?: Record<string, any>
   metadata?: Record<string, any>
   created_at: string
+  deleted_at?: string
+}
+
+// ============================================================================
+// CLEANUP TYPES
+// ============================================================================
+
+/**
+ * Preview result for cleanup dry-run
+ */
+export interface CleanupPreview {
+  totalRecords: number
+  totalSize: string
+  dateRange: { oldest: Date; newest: Date }
+  byEntityType: Record<string, number>
+}
+
+/**
+ * Result from batch cleanup operation
+ */
+export interface CleanupResult {
+  deleted: number
+  batches: number
+}
+
+/**
+ * Result from archive and cleanup operation
+ */
+export interface ArchiveResult {
+  archived: number
+  deleted: number
+  archivePath: string
 }

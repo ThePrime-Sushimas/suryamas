@@ -104,3 +104,27 @@ export class InvalidEntityTypeError extends ValidationError {
   }
 }
 
+// ============================================================================
+// CLEANUP ERRORS
+// ============================================================================
+
+export class CleanupOperationError extends DatabaseError {
+  constructor(message: string, cause?: Error) {
+    super(message, {
+      cause,
+      code: 'CLEANUP_OPERATION_ERROR'
+    })
+    this.name = 'CleanupOperationError'
+  }
+}
+
+export class ArchiveOperationError extends DatabaseError {
+  constructor(message: string, cause?: Error) {
+    super(message, {
+      cause,
+      code: 'ARCHIVE_OPERATION_ERROR'
+    })
+    this.name = 'ArchiveOperationError'
+  }
+}
+
