@@ -3,9 +3,10 @@ import { Bank, CreateBankDto, UpdateBankDto, BankListQuery, BankOption } from '.
 import { BankNotFoundError, BankCodeAlreadyExistsError, BankInUseError } from './banks.errors'
 import { getPaginationParams, createPaginatedResponse } from '../../utils/pagination.util'
 import { cache } from '../../utils/cache.util'
+import { AuditService } from '../monitoring/monitoring.service'
 
 export class BanksService {
-  async createBank(data: CreateBankDto): Promise<Bank> {
+  async createBank(data: CreateBankDto, userId?: string): Promise<Bank> {
     const existingBank = await banksRepository.findByCode(data.bank_code)
     if (existingBank) {
       throw new BankCodeAlreadyExistsError(data.bank_code)
@@ -16,10 +17,17 @@ export class BanksService {
     // Clear cache when bank is created
     await cache.clear('bank_options')
     
+    if (userId) {
+      await AuditService.log('CREATE', 'bank', bank.id.toString(), userId, undefined, {
+        bank_code: bank.bank_code,
+        bank_name: bank.bank_name
+      })
+    }
+    
     return bank
   }
 
-  async updateBank(id: number, data: UpdateBankDto): Promise<Bank> {
+  async updateBank(id: number, data: UpdateBankDto, userId?: string): Promise<Bank> {
     const existingBank = await banksRepository.findById(id)
     if (!existingBank) {
       throw new BankNotFoundError(id.toString())
@@ -33,10 +41,20 @@ export class BanksService {
     // Clear cache when bank is updated
     await cache.clear('bank_options')
 
+    if (userId) {
+      await AuditService.log('UPDATE', 'bank', id.toString(), userId, {
+        bank_code: existingBank.bank_code,
+        bank_name: existingBank.bank_name
+      }, {
+        bank_code: updatedBank.bank_code,
+        bank_name: updatedBank.bank_name
+      })
+    }
+
     return updatedBank
   }
 
-  async deleteBank(id: number): Promise<void> {
+  async deleteBank(id: number, userId?: string): Promise<void> {
     const bank = await banksRepository.findById(id)
     if (!bank) {
       throw new BankNotFoundError(id.toString())
@@ -51,6 +69,13 @@ export class BanksService {
     
     // Clear cache when bank is deleted
     await cache.clear('bank_options')
+
+    if (userId) {
+      await AuditService.log('DELETE', 'bank', id.toString(), userId, {
+        bank_code: bank.bank_code,
+        bank_name: bank.bank_name
+      })
+    }
   }
 
   async getBankById(id: number): Promise<Bank> {

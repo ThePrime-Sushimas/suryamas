@@ -3,7 +3,7 @@ import { banksService } from './banks.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { withValidated } from '../../utils/handler'
-import type { ValidatedRequest } from '../../middleware/validation.middleware'
+import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   createBankSchema,
   updateBankSchema,
@@ -11,16 +11,17 @@ import {
   bankListQuerySchema,
 } from './banks.schema'
 
-type CreateBankReq = ValidatedRequest<typeof createBankSchema>
-type UpdateBankReq = ValidatedRequest<typeof updateBankSchema>
-type BankIdReq = ValidatedRequest<typeof bankIdSchema>
-type ListBankReq = ValidatedRequest<typeof bankListQuerySchema>
+type CreateBankReq = ValidatedAuthRequest<typeof createBankSchema>
+type UpdateBankReq = ValidatedAuthRequest<typeof updateBankSchema>
+type BankIdReq = ValidatedAuthRequest<typeof bankIdSchema>
+type ListBankReq = ValidatedAuthRequest<typeof bankListQuerySchema>
 
 
 export class BanksController {
   create = withValidated(async (req: CreateBankReq, res: Response) => {
     try {
-      const bank = await banksService.createBank(req.validated.body)
+      const userId = req.context?.employee_id
+      const bank = await banksService.createBank(req.validated.body, userId)
       sendSuccess(res, bank, 'Bank created successfully', 201)
     } catch (error: any) {
       handleError(res, error)
@@ -49,7 +50,8 @@ export class BanksController {
   update = withValidated(async (req: UpdateBankReq, res: Response) => {
     try {
       const id = parseInt(req.validated.params.id)
-      const bank = await banksService.updateBank(id, req.validated.body)
+      const userId = req.context?.employee_id
+      const bank = await banksService.updateBank(id, req.validated.body, userId)
       sendSuccess(res, bank, 'Bank updated successfully')
     } catch (error: any) {
       handleError(res, error)
@@ -59,7 +61,8 @@ export class BanksController {
   delete = withValidated(async (req: BankIdReq, res: Response) => {
     try {
       const id = parseInt(req.validated.params.id)
-      await banksService.deleteBank(id)
+      const userId = req.context?.employee_id
+      await banksService.deleteBank(id, userId)
       sendSuccess(res, null, 'Bank deleted successfully')
     } catch (error: any) {
       handleError(res, error)
