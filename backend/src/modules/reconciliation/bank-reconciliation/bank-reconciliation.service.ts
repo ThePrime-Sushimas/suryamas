@@ -23,6 +23,7 @@ import {
 import { reconciliationOrchestratorService } from "../orchestrator/reconciliation-orchestrator.service";
 import { logError } from "../../../config/logger";
 import { createPaginatedResponse } from "../../../utils/pagination.util";
+import { AuditService } from "../../monitoring/monitoring.service";
 
 export class BankReconciliationService {
   private readonly config = getReconciliationConfig();
@@ -78,6 +79,14 @@ export class BankReconciliationService {
       },
     });
 
+    // Audit log for MANUAL_RECONCILE
+    if (userId) {
+      await AuditService.log('CREATE', 'bank_reconciliation', statementId, userId, 
+        { is_reconciled: false }, 
+        { is_reconciled: true, aggregateId, notes }
+      )
+    }
+
     return {
       success: true,
       matched: true,
@@ -115,6 +124,14 @@ export class BankReconciliationService {
       aggregateId: statement.reconciliation_id,
       details: {},
     });
+
+    // Audit log for UNDO
+    if (userId) {
+      await AuditService.log('DELETE', 'bank_reconciliation', statementId, userId, 
+        { is_reconciled: true, reconciliation_id: statement.reconciliation_id }, 
+        { is_reconciled: false }
+      )
+    }
   }
 
   async autoMatch(
@@ -228,6 +245,14 @@ export class BankReconciliationService {
           matchCriteria: match.matchCriteria,
         },
       });
+
+      // Audit log for AUTO_MATCH
+      if (userId) {
+        await AuditService.log('CREATE', 'bank_reconciliation', match.statementId, userId, 
+          { is_reconciled: false }, 
+          { is_reconciled: true, aggregateId: match.aggregateId, matchScore: match.matchScore }
+        )
+      }
     }
 
     if (bulkUpdates.length > 0) {
@@ -553,6 +578,14 @@ export class BankReconciliationService {
           },
         });
 
+        // Audit log for confirmAutoMatch (AUTO_MATCH)
+        if (userId) {
+          await AuditService.log('CREATE', 'bank_reconciliation', match.statementId, userId, 
+            { is_reconciled: false }, 
+            { is_reconciled: true, aggregateId: match.aggregateId, matchScore: match.matchScore }
+          )
+        }
+
         reconciledMatches.push(match);
       } catch (error: any) {
         logError("Error reconciling match", {
@@ -832,6 +865,14 @@ export class BankReconciliationService {
       },
     });
 
+    // Audit log for CREATE_MULTI_MATCH
+    if (userId) {
+      await AuditService.log('CREATE', 'bank_reconciliation_multi_match', groupId, userId, 
+        null, 
+        { aggregateId, statementIds: uniqueStatementIds, totalBankAmount, aggregateAmount, difference }
+      )
+    }
+
     return {
       success: true,
       groupId,
@@ -877,6 +918,14 @@ export class BankReconciliationService {
         isMultiMatchUndo: true,
       },
     });
+
+    // Audit log for UNDO_MULTI_MATCH
+    if (userId) {
+      await AuditService.log('DELETE', 'bank_reconciliation_multi_match', groupId, userId, 
+        { aggregateId: group.aggregate_id, statementIds: group.statement_ids }, 
+        null
+      )
+    }
   }
 
   async getSuggestedGroupStatements(
