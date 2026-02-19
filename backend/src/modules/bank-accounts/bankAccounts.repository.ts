@@ -106,38 +106,99 @@ export class BankAccountsRepository {
   }
 
   async createAtomic(data: CreateBankAccountDto): Promise<BankAccount> {
-    const { data: result, error } = await supabase.rpc('create_bank_account_atomic', {
-      p_bank_id: data.bank_id,
-      p_account_name: data.account_name,
-      p_account_number: data.account_number,
-      p_owner_type: data.owner_type,
-      p_owner_id: data.owner_id,
-      p_is_primary: data.is_primary ?? false,
-      p_is_active: data.is_active ?? true
-    })
+    // Build insert object - include coa_account_id if provided
+    const insertData: any = {
+      bank_id: data.bank_id,
+      account_name: data.account_name,
+      account_number: data.account_number,
+      owner_type: data.owner_type,
+      owner_id: data.owner_id,
+      is_primary: data.is_primary ?? false,
+      is_active: data.is_active ?? true,
+      currency: 'IDR'
+    }
+    
+    if (data.coa_account_id !== undefined) {
+      insertData.coa_account_id = data.coa_account_id
+    }
+
+    const { data: result, error } = await supabase
+      .from('bank_accounts')
+      .insert(insertData)
+      .select('*, banks(id, bank_code, bank_name), chart_of_accounts(id, account_code, account_name, account_type)')
+      .single()
 
     if (error) throw new DatabaseError('Failed to create bank account', { cause: error })
-    const account = Array.isArray(result) ? result[0] : result
-    if (!account) throw new DatabaseError('Bank account creation returned no data')
-    return account
+
+    const bank = Array.isArray(result.banks) ? result.banks[0] : result.banks
+    const coa = Array.isArray(result.chart_of_accounts) ? result.chart_of_accounts[0] : result.chart_of_accounts
+    return {
+      ...result,
+      bank_code: bank?.bank_code,
+      bank_name: bank?.bank_name,
+      bank: bank,
+      banks: undefined,
+      coa_account: coa ? {
+        id: coa.id,
+        account_code: coa.account_code,
+        account_name: coa.account_name,
+        account_type: coa.account_type
+      } : null,
+      chart_of_accounts: undefined,
+    }
   }
 
   async updateAtomic(id: number, updates: UpdateBankAccountDto): Promise<BankAccount> {
     const existing = await this.findById(id)
     if (!existing) throw new DatabaseError('Bank account not found')
 
-    const { data: result, error } = await supabase.rpc('update_bank_account_atomic', {
-      p_id: id,
-      p_account_name: updates.account_name ?? null,
-      p_account_number: updates.account_number ?? null,
-      p_is_primary: updates.is_primary ?? null,
-      p_is_active: updates.is_active ?? null
-    })
+    // Build update object - include coa_account_id if provided
+    const updateData: any = {
+      updated_at: new Date().toISOString(),
+    }
+    
+    if (updates.account_name !== undefined) {
+      updateData.account_name = updates.account_name
+    }
+    if (updates.account_number !== undefined) {
+      updateData.account_number = updates.account_number
+    }
+    if (updates.is_primary !== undefined) {
+      updateData.is_primary = updates.is_primary
+    }
+    if (updates.is_active !== undefined) {
+      updateData.is_active = updates.is_active
+    }
+    if (updates.coa_account_id !== undefined) {
+      updateData.coa_account_id = updates.coa_account_id
+    }
+
+    const { data, error } = await supabase
+      .from('bank_accounts')
+      .update(updateData)
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select('*, banks(id, bank_code, bank_name), chart_of_accounts(id, account_code, account_name, account_type)')
+      .single()
 
     if (error) throw new DatabaseError('Failed to update bank account', { cause: error })
-    const account = Array.isArray(result) ? result[0] : result
-    if (!account) throw new DatabaseError('Bank account update returned no data')
-    return account
+
+    const bank = Array.isArray(data.banks) ? data.banks[0] : data.banks
+    const coa = Array.isArray(data.chart_of_accounts) ? data.chart_of_accounts[0] : data.chart_of_accounts
+    return {
+      ...data,
+      bank_code: bank?.bank_code,
+      bank_name: bank?.bank_name,
+      bank,
+      banks: undefined,
+      coa_account: coa ? {
+        id: coa.id,
+        account_code: coa.account_code,
+        account_name: coa.account_name,
+        account_type: coa.account_type
+      } : null,
+      chart_of_accounts: undefined,
+    }
   }
 
   async softDelete(id: number, employeeId?: string): Promise<void> {

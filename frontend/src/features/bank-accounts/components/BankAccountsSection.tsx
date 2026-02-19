@@ -11,9 +11,10 @@ import type { BankAccount } from '../types'
 interface BankAccountsSectionProps {
   ownerType: 'company' | 'supplier'
   ownerId: string
+  companyId?: string
 }
 
-export const BankAccountsSection = ({ ownerType, ownerId }: BankAccountsSectionProps) => {
+export const BankAccountsSection = ({ ownerType, ownerId, companyId }: BankAccountsSectionProps) => {
   const toast = useToast()
   const { mutationLoading, create, update, fetchById } = useBankAccountsStore()
   const [showForm, setShowForm] = useState(false)
@@ -89,6 +90,7 @@ export const BankAccountsSection = ({ ownerType, ownerId }: BankAccountsSectionP
             onSubmit={editId ? handleUpdate : handleCreate}
             onCancel={handleCancel}
             isLoading={mutationLoading}
+            companyId={companyId}
           />
         </div>
       ) : (

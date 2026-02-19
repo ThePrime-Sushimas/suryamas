@@ -52,3 +52,11 @@ export interface ApiError {
   error: string
   code?: string
 }
+
+// COA Option for dropdown selection
+export interface CoaOption {
+  id: string
+  account_code: string
+  account_name: string
+  account_type: string
+}

@@ -1,10 +1,11 @@
 import { create } from 'zustand'
 import { bankAccountsApi } from '../api/bankAccounts.api'
-import type { BankAccount, CreateBankAccountDto, UpdateBankAccountDto } from '../types'
+import type { BankAccount, CreateBankAccountDto, UpdateBankAccountDto, CoaOption } from '../types'
 
 interface BankAccountsState {
   accounts: BankAccount[]
   currentAccount: BankAccount | null
+  coaOptions: CoaOption[]
   fetchLoading: boolean
   mutationLoading: boolean
   error: string | null
@@ -14,12 +15,14 @@ interface BankAccountsState {
   create: (data: CreateBankAccountDto) => Promise<BankAccount>
   update: (id: number, data: UpdateBankAccountDto) => Promise<BankAccount>
   delete: (id: number) => Promise<void>
+  fetchCoaOptions: (companyId: string) => Promise<void>
   clearError: () => void
 }
 
 const initialState = {
   accounts: [],
   currentAccount: null,
+  coaOptions: [],
   fetchLoading: false,
   mutationLoading: false,
   error: null
@@ -100,5 +103,15 @@ export const useBankAccountsStore = create<BankAccountsState>((set) => ({
     }
   },
 
-  clearError: () => set({ error: null })
+  clearError: () => set({ error: null }),
+
+  fetchCoaOptions: async (companyId: string) => {
+    try {
+      const options = await bankAccountsApi.getCoaOptions(companyId)
+      set({ coaOptions: options })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch COA options'
+      set({ error: message })
+    }
+  }
 }))

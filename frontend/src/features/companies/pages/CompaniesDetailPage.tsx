@@ -121,7 +121,7 @@ function CompanyDetailPage() {
           )}
 
           {activeTab === 'bank-accounts' && selectedCompany.id && (
-            <BankAccountsSection ownerType="company" ownerId={selectedCompany.id} />
+            <BankAccountsSection ownerType="company" ownerId={selectedCompany.id} companyId={selectedCompany.id} />
           )}
         </div>
       </div>
