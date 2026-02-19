@@ -18,6 +18,7 @@ import { parseToLocalDate, parseToLocalDateTime } from '../shared/excel-date.uti
 import { supabase } from '../../../config/supabase'
 import { logInfo, logError } from '../../../config/logger'
 import { jobsService } from '../../jobs/jobs.service'
+import { AuditService } from '../../monitoring/monitoring.service'
 import type { PosImport, CreatePosImportDto, UpdatePosImportDto, PosImportFilter } from './pos-imports.types'
 import type { PosImportStatus, DuplicateAnalysis, FinancialSummary } from '../shared/pos-import.types'
 import type { CreatePosImportLineDto } from '../pos-import-lines/pos-import-lines.types'
@@ -200,6 +201,17 @@ class PosImportsService {
         duplicate_rows: duplicateCount
       }, userId)
 
+      // Audit log for CREATE
+      if (userId) {
+        await AuditService.log('CREATE', 'pos_import', posImport.id, userId, null, {
+          ...posImport,
+          file_name: file.originalname,
+          total_rows: rows.length,
+          new_rows: newRowsCount,
+          duplicate_rows: duplicateCount
+        })
+      }
+
       // Store parsed data in Supabase Storage for later confirmation
       await this.storeTemporaryData(posImport.id, rows)
 
@@ -347,7 +359,15 @@ class PosImportsService {
     // Update status to IMPORTED
     await posImportsRepository.update(id, companyId, { status: 'IMPORTED' }, userId)
 
-    logInfo('PosImportsService confirmImport - job created', { 
+    // Audit log for UPDATE (status changed to IMPORTED)
+    if (userId) {
+      await AuditService.log('UPDATE', 'pos_import', id, userId, 
+        { status: posImport.status, skip_duplicates: skipDuplicates }, 
+        { status: 'IMPORTED', skip_duplicates: skipDuplicates }
+      )
+    }
+
+    logInfo('PosImportsService confirmImport - job created', {
       import_id: id, 
       job_id: job.id,
       skip_duplicates: skipDuplicates 
@@ -476,6 +496,14 @@ class PosImportsService {
 
     await posImportsRepository.update(id, companyId, { status, error_message: errorMessage }, userId)
 
+    // Audit log for UPDATE (status change)
+    if (userId) {
+      await AuditService.log('UPDATE', 'pos_import', id, userId, 
+        { status: posImport.status, error_message: posImport.error_message }, 
+        { status, error_message: errorMessage }
+      )
+    }
+
     return this.getById(id, companyId)
   }
 
@@ -495,6 +523,11 @@ class PosImportsService {
     // Soft delete import
     await posImportsRepository.delete(id, companyId, userId)
 
+    // Audit log for DELETE
+    if (userId) {
+      await AuditService.log('DELETE', 'pos_import', id, userId, posImport, null)
+    }
+
     // Clean up temporary data
     await this.cleanupTemporaryData(id)
   }
@@ -507,6 +540,12 @@ class PosImportsService {
     if (!posImport) {
       throw PosImportErrors.NOT_FOUND()
     }
+
+    // Audit log for RESTORE
+    if (userId) {
+      await AuditService.log('RESTORE', 'pos_import', id, userId, null, posImport)
+    }
+
     return posImport
   }
 
