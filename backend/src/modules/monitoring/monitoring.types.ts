@@ -68,6 +68,27 @@ export interface ErrorLogRecord {
   created_at: string
 }
 
+/**
+ * Error report data for database storage
+ * Transformed from frontend ErrorReport
+ */
+export interface ErrorReportData {
+  errorName: string
+  errorMessage: string
+  errorStack?: string
+  errorType: string
+  severity: string
+  module: string
+  submodule?: string
+  userId?: string
+  branchId?: string
+  url: string
+  route: string
+  userAgent: string
+  businessImpact?: string
+  context?: Record<string, any>
+}
+
 export interface AuditLogRecord {
   id: string
   action: string

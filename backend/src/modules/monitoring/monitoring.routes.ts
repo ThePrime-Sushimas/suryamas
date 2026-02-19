@@ -17,6 +17,7 @@ router.post('/errors', controller.logErrorReport)
 router.post('/audit', controller.logAuditEntry)
 
 // Protected routes (require authentication)
+router.get('/errors', authenticate, controller.getErrorLogs)
 router.get('/errors/stats', authenticate, controller.getErrorStats)
 router.get('/audit', authenticate, controller.getAuditLogs)
 

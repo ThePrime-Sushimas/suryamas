@@ -7,8 +7,10 @@
 import { Request, Response } from 'express'
 import { sendSuccess, sendError } from '@/utils/response.util'
 import { logInfo, logError } from '@/config/logger'
-import { AuditService } from '@/services/audit.service'
+import { AuditService } from './monitoring.service'
 import type { ErrorReport, AuditLogEntry } from './monitoring.types'
+import { monitoringRepository } from './monitoring.repository'
+import { getPaginationParams } from '@/utils/pagination.util'
 
 /**
  * Log error report from frontend
@@ -24,13 +26,25 @@ export const logErrorReport = async (req: Request, res: Response): Promise<void>
       reported_at: new Date().toISOString()
     })
     
-    // TODO: Store in database (error_logs table)
-    // await monitoringRepository.createErrorLog(errorReport)
+    // Transform to database format and store in database
+    const errorData = {
+      errorName: errorReport.error.name,
+      errorMessage: errorReport.error.message,
+      errorStack: errorReport.error.stack,
+      errorType: errorReport.category.type,
+      severity: errorReport.category.severity,
+      module: errorReport.module,
+      submodule: errorReport.submodule,
+      userId: errorReport.context.userId,
+      branchId: errorReport.context.branchId,
+      url: errorReport.context.url,
+      route: errorReport.context.route,
+      userAgent: errorReport.context.userAgent,
+      businessImpact: errorReport.businessImpact,
+      context: errorReport.context
+    }
     
-    // TODO: Send alerts for critical errors
-    // if (errorReport.category.severity === 'CRITICAL') {
-    //   await alertService.sendCriticalErrorAlert(errorReport)
-    // }
+    await monitoringRepository.createErrorReport(errorData)
     
     sendSuccess(res, { message: 'Error report logged successfully' })
   } catch (error) {
@@ -80,29 +94,43 @@ export const logAuditEntry = async (req: Request, res: Response): Promise<void> 
  */
 export const getErrorStats = async (req: Request, res: Response): Promise<void> => {
   try {
-    // TODO: Implement error statistics from error_logs table
-    // const stats = await monitoringRepository.getErrorStats()
-    
-    const stats = {
-      total: 0,
-      by_severity: {
-        CRITICAL: 0,
-        HIGH: 0,
-        MEDIUM: 0,
-        LOW: 0
-      },
-      by_type: {
-        NETWORK: 0,
-        PERMISSION: 0,
-        DATA_VALIDATION: 0,
-        BUSINESS_RULE: 0,
-        SYSTEM: 0
-      }
-    }
-    
+    const stats = await monitoringRepository.getErrorStats()
     sendSuccess(res, stats)
   } catch (error) {
     logError('Failed to get error stats', { error })
+    sendError(res, error instanceof Error ? error.message : 'Unknown error', 500)
+  }
+}
+
+/**
+ * Get error logs with pagination
+ * GET /api/v1/monitoring/errors
+ */
+export const getErrorLogs = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const pagination = getPaginationParams(req.query as Record<string, unknown>)
+    
+    const filters = {
+      severity: req.query.severity as string | undefined,
+      errorType: req.query.errorType as string | undefined,
+      module: req.query.module as string | undefined,
+      userId: req.query.userId as string | undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined
+    }
+    
+    const result = await monitoringRepository.getErrorLogs(filters, pagination)
+    
+    sendSuccess(res, result.data, 'Error logs retrieved successfully', 200, {
+      page: pagination.page,
+      limit: pagination.limit,
+      total: result.total,
+      totalPages: Math.ceil(result.total / pagination.limit),
+      hasNext: pagination.offset + pagination.limit < result.total,
+      hasPrev: pagination.offset > 0
+    })
+  } catch (error) {
+    logError('Failed to get error logs', { error })
     sendError(res, error instanceof Error ? error.message : 'Unknown error', 500)
   }
 }
@@ -115,14 +143,17 @@ export const getErrorStats = async (req: Request, res: Response): Promise<void> 
  */
 export const getAuditLogs = async (req: Request, res: Response): Promise<void> => {
   try {
-    // TODO: Implement audit log retrieval with pagination from perm_audit_log
-    // const logs = await monitoringRepository.getAuditLogs(filters, pagination)
+    const pagination = getPaginationParams(req.query as Record<string, unknown>)
     
-    const logs = {
-      data: [],
-      total: 0
+    const filters = {
+      entityType: req.query.entityType as string | undefined,
+      action: req.query.action as string | undefined,
+      userId: req.query.userId as string | undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined
     }
     
+    const logs = await monitoringRepository.getAuditLogs(filters, pagination)
     sendSuccess(res, logs)
   } catch (error) {
     logError('Failed to get audit logs', { error })
