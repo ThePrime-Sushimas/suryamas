@@ -2,7 +2,7 @@ import { branchesRepository } from './branches.repository'
 import { Branch, CreateBranchDto } from './branches.types'
 import { BranchErrors } from './branches.errors'
 import { CreateBranchInput, UpdateBranchInput } from './branches.schema'
-import { AuditService } from '../../services/audit.service'
+import { AuditService } from '../monitoring/monitoring.service'
 import { logInfo } from '../../config/logger'
 
 export class BranchesService {

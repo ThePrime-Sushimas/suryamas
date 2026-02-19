@@ -1,7 +1,7 @@
 import { metricUnitsRepository } from './metricUnits.repository'
 import { MetricUnit, CreateMetricUnitDto, UpdateMetricUnitDto } from './metricUnits.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
-import { AuditService } from '../../services/audit.service'
+import { AuditService } from '../monitoring/monitoring.service'
 import { METRIC_UNIT_CONFIG } from './metricUnits.constants'
 import { MetricUnitNotFoundError, DuplicateMetricUnitError } from './metric-units.errors'
 import { logError, logWarn } from '../../config/logger'

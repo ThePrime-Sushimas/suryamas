@@ -3,7 +3,7 @@ import { EmployeeResponse, EmployeeCreatePayload, EmployeeUpdatePayload, Employe
 import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
 import { ExportService } from '../../services/export.service'
 import { ImportService } from '../../services/import.service'
-import { AuditService } from '../../services/audit.service'
+import { AuditService } from '../monitoring/monitoring.service'
 import { calculateAge, calculateYearsOfService } from '../../utils/age.util'
 import { supabase } from '../../config/supabase'
 

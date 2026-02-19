@@ -2,7 +2,7 @@ import { fiscalPeriodsRepository, FiscalPeriodsRepository } from './fiscal-perio
 import { FiscalPeriod, CreateFiscalPeriodDto, UpdateFiscalPeriodDto, FiscalPeriodFilter, SortParams } from './fiscal-periods.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../../utils/pagination.util'
 import { ExportService } from '../../../services/export.service'
-import { AuditService } from '../../../services/audit.service'
+import { AuditService } from '../../monitoring/monitoring.service'
 import { FiscalPeriodErrors } from './fiscal-periods.errors'
 import { PERIOD_FORMAT_REGEX } from './fiscal-periods.constants'
 import { FiscalPeriodsConfig, defaultConfig } from './fiscal-periods.config'

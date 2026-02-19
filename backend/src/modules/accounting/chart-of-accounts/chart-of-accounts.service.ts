@@ -3,7 +3,7 @@ import { ChartOfAccount, CreateChartOfAccountDTO, UpdateChartOfAccountDTO, Chart
 import { PaginatedResponse, createPaginatedResponse } from '../../../utils/pagination.util'
 import { ExportService } from '../../../services/export.service'
 import { ImportService } from '../../../services/import.service'
-import { AuditService } from '../../../services/audit.service'
+import { AuditService } from '../../monitoring/monitoring.service'
 import { ChartOfAccountErrors } from './chart-of-accounts.errors'
 import { ChartOfAccountConfig } from './chart-of-accounts.constants'
 import { logInfo, logError } from '../../../config/logger'

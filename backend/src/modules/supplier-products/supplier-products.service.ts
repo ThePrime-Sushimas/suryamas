@@ -24,7 +24,7 @@ import {
   BUSINESS_RULES 
 } from './supplier-products.constants'
 import { calculatePagination, calculateOffset } from '../../utils/pagination.util'
-import { AuditService } from '../../services/audit.service'
+import { AuditService } from '../monitoring/monitoring.service'
 import { logInfo, logError } from '../../config/logger'
 
 export class SupplierProductsService {

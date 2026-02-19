@@ -9,7 +9,7 @@ import {
 } from './accounting-purpose-accounts.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../../utils/pagination.util'
 import { ExportService } from '../../../services/export.service'
-import { AuditService } from '../../../services/audit.service'
+import { AuditService } from '../../monitoring/monitoring.service'
 import { AccountingPurposeAccountErrors } from './accounting-purpose-accounts.errors'
 import { AccountingPurposeAccountsConfig } from './accounting-purpose-accounts.constants'
 import { logInfo, logError } from '../../../config/logger'

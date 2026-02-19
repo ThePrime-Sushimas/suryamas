@@ -2,7 +2,7 @@
 
 import { PaymentTermsRepository, paymentTermsRepository } from './payment-terms.repository'
 import { PaymentTerm, CreatePaymentTermDto, UpdatePaymentTermDto, CalculationType } from './payment-terms.types'
-import { AuditService } from '../../services/audit.service'
+import { AuditService } from '../monitoring/monitoring.service'
 import { logInfo } from '../../config/logger'
 import {
   PaymentTermNotFoundError,

@@ -1,6 +1,6 @@
 import { productUomsRepository } from './product-uoms.repository'
 import { ProductUom, CreateProductUomDto, UpdateProductUomDto } from '../products/products.types'
-import { AuditService } from '../../services/audit.service'
+import { AuditService } from '../monitoring/monitoring.service'
 import { logInfo } from '../../config/logger'
 import {
   ProductUomNotFoundError,

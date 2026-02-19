@@ -6,7 +6,7 @@
 
 import { monitoringRepository } from './monitoring.repository'
 import { logInfo, logError } from '../../config/logger'
-import { auditRetentionPolicy, retentionDays } from '../../config/audit.config'
+import { monitoringRetentionPolicy, retentionDays, auditRetentionPolicy } from './monitoring.config'
 import type { CleanupPreview, CleanupResult, ArchiveResult } from './monitoring.types'
 
 export class AuditService {

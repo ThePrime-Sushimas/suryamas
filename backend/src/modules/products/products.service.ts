@@ -1,6 +1,6 @@
 import { ProductsRepository, productsRepository } from './products.repository'
 import { Product, CreateProductDto, UpdateProductDto, ProductStatus } from './products.types'
-import { AuditService } from '../../services/audit.service'
+import { AuditService } from '../monitoring/monitoring.service'
 import { logError, logInfo } from '../../config/logger'
 import {
   ProductNotFoundError,

@@ -1,7 +1,7 @@
 import { categoriesRepository } from './categories.repository'
 import { Category, CreateCategoryDto, UpdateCategoryDto } from './categories.types'
 import { CategoryErrors } from './categories.errors'
-import { AuditService } from '../../services/audit.service'
+import { AuditService } from '../monitoring/monitoring.service'
 import { logError, logInfo } from '../../config/logger'
 
 export class CategoriesService {

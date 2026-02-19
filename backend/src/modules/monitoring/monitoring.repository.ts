@@ -15,7 +15,7 @@ import {
   ArchiveOperationError
 } from './monitoring.errors'
 import type { AuditLogRecord, ErrorLogRecord, CleanupPreview, CleanupResult, ArchiveResult } from './monitoring.types'
-import { cleanupConfig } from '../../config/audit.config'
+import { cleanupConfig } from './monitoring.config'
 import { logInfo, logError } from '../../config/logger'
 
 export interface AuditLogFilters {

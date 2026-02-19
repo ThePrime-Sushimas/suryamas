@@ -8,7 +8,7 @@ import {
 } from './payment-methods.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
 import { ExportService } from '../../services/export.service'
-import { AuditService } from '../../services/audit.service'
+import { AuditService } from '../monitoring/monitoring.service'
 import { PaymentMethodErrors } from './payment-methods.errors'
 import { PaymentMethodsConfig } from './payment-methods.errors'
 import { logInfo, logError, logWarn } from '../../config/logger'

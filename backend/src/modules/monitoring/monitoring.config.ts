@@ -1,9 +1,9 @@
 /**
- * Audit Log Retention Policy Configuration
+ * Monitoring & Audit Log Retention Policy Configuration
  * Konfigurasi untuk retention policy audit logs dan error logs
  */
 
-export const auditRetentionPolicy = {
+export const monitoringRetentionPolicy = {
   auditLogs: {
     hot: '30 days',       // Di database utama
     warm: '90 days',      // Di database terpisah / compressed
@@ -61,3 +61,5 @@ export const cleanupConfig = {
   enableSoftDelete: true
 }
 
+// Re-export dengan nama lama untuk backward compatibility
+export const auditRetentionPolicy = monitoringRetentionPolicy

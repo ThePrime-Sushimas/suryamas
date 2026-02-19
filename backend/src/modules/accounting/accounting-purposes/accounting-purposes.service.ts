@@ -3,7 +3,7 @@ import { AccountingPurpose, CreateAccountingPurposeDTO, UpdateAccountingPurposeD
 import { PaginatedResponse, createPaginatedResponse } from '../../../utils/pagination.util'
 import { ExportService } from '../../../services/export.service'
 import { ImportService } from '../../../services/import.service'
-import { AuditService } from '../../../services/audit.service'
+import { AuditService } from '../../monitoring/monitoring.service'
 import { AccountingPurposeErrors } from './accounting-purposes.errors'
 import { APPLIED_TO_TYPES, defaultConfig } from './accounting-purposes.config'
 import { AccountingPurposesConfig } from './accounting-purposes.config'

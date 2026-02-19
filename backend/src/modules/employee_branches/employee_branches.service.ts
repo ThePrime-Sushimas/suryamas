@@ -11,7 +11,7 @@ import {
   MyBranchDto
 } from './employee_branches.types'
 import { logInfo } from '../../config/logger'
-import { AuditService } from '../../services/audit.service'
+import { AuditService } from '../monitoring/monitoring.service'
 
 export class EmployeeBranchesService {
   private toDto(entity: EmployeeBranchWithRelations): EmployeeBranchDto {

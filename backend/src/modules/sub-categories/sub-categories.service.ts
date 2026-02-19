@@ -1,7 +1,7 @@
 import { subCategoriesRepository } from './sub-categories.repository'
 import { SubCategory, SubCategoryWithCategory, CreateSubCategoryDto, UpdateSubCategoryDto } from '../categories/categories.types'
 import { categoriesRepository } from '../categories/categories.repository'
-import { AuditService } from '../../services/audit.service'
+import { AuditService } from '../monitoring/monitoring.service'
 import { logError, logInfo } from '../../config/logger'
 
 export class SubCategoriesService {
