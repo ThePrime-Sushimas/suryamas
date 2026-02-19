@@ -26,7 +26,7 @@ export default function CompaniesPage() {
     setFilters
   } = useCompaniesStore()
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<CompanyFilter>({})
+  const [filter, setFilter] = useState<CompanyFilter>({ status: 'active' })
   const [showFilter, setShowFilter] = useState(false)
   
   // Debounced search
@@ -64,7 +64,7 @@ export default function CompaniesPage() {
 
   // Initial load - only once
   useEffect(() => {
-    fetchCompanies(1, pagination.limit)
+    fetchCompanies(1, pagination.limit, undefined, filter)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
