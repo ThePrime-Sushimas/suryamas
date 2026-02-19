@@ -11,6 +11,7 @@ import { Job, CreateJobDto } from './jobs.types'
 import { JobErrors } from './jobs.errors'
 import { jobsRepository } from './jobs.repository'
 import { STORAGE_BUCKET, JOB_QUEUE_CONFIG } from './jobs.constants'
+import { AuditService } from '../monitoring/monitoring.service'
 import * as fs from 'fs'
 
 export class JobsService {
@@ -34,7 +35,18 @@ export class JobsService {
    * Create new job
    */
   async createJob(dto: CreateJobDto): Promise<Job> {
-    return jobsRepository.create(dto)
+    const job = await jobsRepository.create(dto)
+
+    if (dto.user_id) {
+      await AuditService.log('CREATE', 'job', job.id, dto.user_id, undefined, {
+        type: job.type,
+        module: job.module,
+        name: job.name,
+        status: job.status
+      })
+    }
+
+    return job
   }
 
   /**
@@ -76,10 +88,10 @@ export class JobsService {
     userId: string,
     importResults?: Record<string, unknown>
   ): Promise<Job> {
+    const existingJob = await jobsRepository.findById(jobId, userId)
     const job = await jobsRepository.markAsCompleted(jobId, userId, '', '', 0)
 
     if (importResults) {
-      const existingJob = await jobsRepository.findById(jobId, userId)
       if (existingJob) {
         await jobsRepository.update(jobId, userId, {
           metadata: {
@@ -89,6 +101,12 @@ export class JobsService {
         })
       }
     }
+
+    await AuditService.log('UPDATE', 'job', jobId, userId, existingJob, {
+      status: 'completed',
+      type: job.type,
+      module: job.module
+    })
 
     logInfo('Service completeJobWithoutFile success', { job_id: jobId })
     return job
@@ -140,7 +158,15 @@ export class JobsService {
    * Fail job
    */
   async failJob(jobId: string, userId: string, errorMessage: string): Promise<Job> {
-    return jobsRepository.markAsFailed(jobId, userId, errorMessage)
+    const existingJob = await jobsRepository.findById(jobId, userId)
+    const job = await jobsRepository.markAsFailed(jobId, userId, errorMessage)
+
+    await AuditService.log('UPDATE', 'job', jobId, userId, existingJob, {
+      status: 'failed',
+      error: errorMessage
+    })
+
+    return job
   }
 
   /**
@@ -155,11 +181,18 @@ export class JobsService {
    * Cancel job
    */
   async cancelJob(jobId: string, userId: string): Promise<Job> {
-    const job = await this.getJobById(jobId, userId)
-    if (job.status === 'completed' || job.status === 'failed') {
+    const existingJob = await this.getJobById(jobId, userId)
+    if (existingJob.status === 'completed' || existingJob.status === 'failed') {
       throw new Error('Cannot cancel completed or failed job')
     }
-    return jobsRepository.update(jobId, userId, { status: 'cancelled' })
+    
+    const job = await jobsRepository.update(jobId, userId, { status: 'cancelled' })
+
+    await AuditService.log('UPDATE', 'job', jobId, userId, existingJob, {
+      status: 'cancelled'
+    })
+
+    return job
   }
 
   /**
@@ -171,8 +204,17 @@ export class JobsService {
       j => j.company_id === companyId && ['completed', 'failed', 'cancelled'].includes(j.status)
     )
 
+    const jobIds: string[] = []
     for (const job of completedJobs) {
       await jobsRepository.delete(job.id, userId)
+      jobIds.push(job.id)
+    }
+
+    if (userId && jobIds.length > 0) {
+      await AuditService.log('BULK_DELETE', 'job', jobIds.join(','), userId, undefined, {
+        company_id: companyId,
+        count: jobIds.length
+      })
     }
 
     logInfo('Service clearAllJobs success', { user_id: userId, deleted_count: completedJobs.length })
