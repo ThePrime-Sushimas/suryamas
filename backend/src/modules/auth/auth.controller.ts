@@ -7,6 +7,7 @@ import { withValidated } from '../../utils/handler'
 import type { AuthenticatedRequest } from '../../types/request.types'
 import type { ValidatedRequest } from '../../middleware/validation.middleware'
 import { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.schema'
+import { AuditService } from '../monitoring/monitoring.service'
 
 const DEFAULT_ROLE = 'staff'
 
@@ -78,6 +79,16 @@ export class AuthController {
         email 
       })
 
+      // Audit logging
+      try {
+        await AuditService.log('REGISTER', 'auth', authData.user!.id, authData.user!.id, null, {
+          email,
+          employee_id
+        })
+      } catch (auditError) {
+        logWarn('Audit logging failed for register', { error: auditError instanceof Error ? auditError.message : 'Unknown error' })
+      }
+
       sendSuccess(res, {
         user: authData.user,
         employee: employee.full_name
@@ -113,6 +124,13 @@ export class AuthController {
 
       logInfo('User logged in', { user_id: data.user.id, email })
 
+      // Audit logging
+      try {
+        await AuditService.log('LOGIN', 'auth', data.user.id, data.user.id, null, { email })
+      } catch (auditError) {
+        logWarn('Audit logging failed for login', { error: auditError instanceof Error ? auditError.message : 'Unknown error' })
+      }
+
       sendSuccess(res, {
         access_token: data.session.access_token,
         user: data.user
@@ -125,6 +143,16 @@ export class AuthController {
   logout = async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.id
     await supabase.auth.signOut()
+    
+    // Audit logging
+    if (userId) {
+      try {
+        await AuditService.log('LOGOUT', 'auth', userId, userId, null, null)
+      } catch (auditError) {
+        logWarn('Audit logging failed for logout', { error: auditError instanceof Error ? auditError.message : 'Unknown error' })
+      }
+    }
+    
     logInfo('User logged out', { user_id: userId })
     sendSuccess(res, null, 'Logout successful')
   }
@@ -139,6 +167,13 @@ export class AuthController {
 
       if (error) {
         throw new Error(error.message)
+      }
+
+      // Audit logging
+      try {
+        await AuditService.log('FORGOT_PASSWORD', 'auth', email, null, null, { email })
+      } catch (auditError) {
+        logWarn('Audit logging failed for forgotPassword', { error: auditError instanceof Error ? auditError.message : 'Unknown error' })
       }
 
       sendSuccess(res, null, 'Password reset email sent')
@@ -182,12 +217,21 @@ export class AuthController {
         }
       } else {
         // Update password with the session
-        const { error: updateError } = await supabase.auth.updateUser({
+        const { error: updateError, data: userData } = await supabase.auth.updateUser({
           password
         })
 
         if (updateError) {
           throw new Error(updateError.message)
+        }
+
+        // Audit logging - user from session
+        if (userData?.user) {
+          try {
+            await AuditService.log('RESET_PASSWORD', 'auth', userData.user.id, userData.user.id, null, null)
+          } catch (auditError) {
+            logWarn('Audit logging failed for resetPassword', { error: auditError instanceof Error ? auditError.message : 'Unknown error' })
+          }
         }
       }
 
