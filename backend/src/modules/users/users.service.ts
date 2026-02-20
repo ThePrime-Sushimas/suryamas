@@ -8,6 +8,7 @@ import { PermissionService as CorePermissionService } from '../../services/permi
 import { logInfo, logError } from '../../config/logger'
 import { EmployeeRow, UserDTO } from './users.types'
 import { mapToUserDTO } from './users.mapper'
+import { AuditService } from '../monitoring/monitoring.service'
 
 export class UsersService {
   private repository: UsersRepository
@@ -95,6 +96,14 @@ export class UsersService {
       await supabase.from('perm_cache').delete().eq('user_id', userId)
       await CorePermissionService.invalidateAllCache()
       
+      // Audit log for UPDATE (assign role)
+      if (changedBy) {
+        await AuditService.log('UPDATE', 'user_role', userId, changedBy, 
+          { role_id: null }, 
+          { role_id: roleId }
+        )
+      }
+      
       logInfo('User role assigned', { userId, roleId, changedBy })
       return result
     } catch (error: any) {
@@ -109,6 +118,14 @@ export class UsersService {
       
       await supabase.from('perm_cache').delete().eq('user_id', userId)
       await CorePermissionService.invalidateAllCache()
+      
+      // Audit log for UPDATE (remove role)
+      if (changedBy) {
+        await AuditService.log('UPDATE', 'user_role', userId, changedBy, 
+          { role_id: 'existing' }, 
+          { role_id: null }
+        )
+      }
       
       logInfo('User role removed', { userId, changedBy })
       return true
