@@ -93,4 +93,5 @@ export interface MonitoringFilters {
   endDate?: string;
   entityType?: string;
   action?: string;
+  search?: string;
 }

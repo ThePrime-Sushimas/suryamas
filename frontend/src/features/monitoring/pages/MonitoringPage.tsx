@@ -8,6 +8,8 @@ import {
   Filter,
   Trash2,
   Archive,
+  Calendar,
+  X,
 } from "lucide-react";
 import { useMonitoringStore } from "../store/monitoring.store";
 import { ErrorTable } from "../components/ErrorTable";
@@ -45,6 +47,8 @@ export const MonitoringPage: React.FC = () => {
   const [severityFilter, setSeverityFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   // Debounce search
   useEffect(() => {
@@ -64,6 +68,8 @@ export const MonitoringPage: React.FC = () => {
     const filters = {
       severity: severityFilter || undefined,
       search: debouncedSearch || undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
     };
 
     if (activeTab === "errors") {
@@ -80,6 +86,8 @@ export const MonitoringPage: React.FC = () => {
     fetchStats,
     severityFilter,
     debouncedSearch,
+    startDate,
+    endDate,
   ]);
 
   useEffect(() => {
@@ -108,6 +116,8 @@ export const MonitoringPage: React.FC = () => {
     const filters = {
       severity: severityFilter || undefined,
       search: debouncedSearch || undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
     };
 
     if (activeTab === "errors") {
@@ -235,7 +245,6 @@ export const MonitoringPage: React.FC = () => {
                     value={severityFilter}
                     onChange={(e) => {
                       setSeverityFilter(e.target.value);
-                      fetchErrorLogs(1, 10, { severity: e.target.value });
                     }}
                     disabled={activeTab === "audit"}
                     className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-blue-500 outline-none transition-all disabled:opacity-50"
@@ -246,6 +255,34 @@ export const MonitoringPage: React.FC = () => {
                     <option value="MEDIUM">Medium</option>
                     <option value="LOW">Low</option>
                   </select>
+                </div>
+
+                <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2">
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="bg-transparent text-xs text-gray-600 dark:text-gray-300 outline-none w-28"
+                  />
+                  <span className="text-gray-400 text-xs">to</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="bg-transparent text-xs text-gray-600 dark:text-gray-300 outline-none w-28"
+                  />
+                  {(startDate || endDate) && (
+                    <button
+                      onClick={() => {
+                        setStartDate("");
+                        setEndDate("");
+                      }}
+                      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5 text-gray-400" />
+                    </button>
+                  )}
                 </div>
               </div>
             </>
