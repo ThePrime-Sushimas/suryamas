@@ -135,6 +135,10 @@ const registerModules = async () => {
       "bank_reconciliation",
       "Bank Reconciliation",
     );
+    await PermissionService.registerModule(
+      "monitoring",
+      "System Monitoring & Audit",
+    );
     logInfo("Permission modules registered successfully");
   } catch (error) {
     // Silently fail - module will be registered via seed later
