@@ -1,10 +1,9 @@
-
 /**
  * Monitoring Repository
  * Repository layer untuk audit log dan error monitoring operations
  */
 
-import { supabase } from '../../config/supabase'
+import { supabase } from "../../config/supabase";
 import {
   AuditLogCreationError,
   AuditLogFetchError,
@@ -12,31 +11,39 @@ import {
   ErrorReportFetchError,
   ErrorStatsFetchError,
   CleanupOperationError,
-  ArchiveOperationError
-} from './monitoring.errors'
-import type { AuditLogRecord, ErrorLogRecord, CleanupPreview, CleanupResult, ArchiveResult } from './monitoring.types'
-import { cleanupConfig } from './monitoring.config'
-import { logInfo, logError } from '../../config/logger'
+  ArchiveOperationError,
+} from "./monitoring.errors";
+import type {
+  AuditLogRecord,
+  ErrorLogRecord,
+  ErrorStats,
+  CleanupPreview,
+  CleanupResult,
+  ArchiveResult,
+} from "./monitoring.types";
+import { cleanupConfig } from "./monitoring.config";
+import { logInfo, logError } from "../../config/logger";
 
 export interface AuditLogFilters {
-  entityType?: string
-  entityId?: string
-  userId?: string
-  action?: string
-  startDate?: string
-  endDate?: string
+  entityType?: string;
+  entityId?: string;
+  userId?: string;
+  action?: string;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
 }
 
 export interface AuditLogPagination {
-  limit: number
-  offset: number
+  limit: number;
+  offset: number;
 }
 
 export interface PaginatedAuditLogs {
-  data: AuditLogRecord[]
-  total: number
-  limit: number
-  offset: number
+  data: AuditLogRecord[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export class MonitoringRepository {
@@ -48,30 +55,28 @@ export class MonitoringRepository {
    * Create audit log entry
    */
   async createAuditLog(auditData: {
-    action: string
-    entityType: string
-    entityId: string
-    changedBy: string | null
-    oldValue?: any
-    newValue?: any
-    ipAddress?: string
-    userAgent?: string
+    action: string;
+    entityType: string;
+    entityId: string;
+    changedBy: string | null;
+    oldValue?: any;
+    newValue?: any;
+    ipAddress?: string;
+    userAgent?: string;
   }): Promise<void> {
-    const { error } = await supabase
-      .from('perm_audit_log')
-      .insert({
-        action: auditData.action,
-        entity_type: auditData.entityType,
-        entity_id: auditData.entityId,
-        changed_by: auditData.changedBy,
-        old_value: auditData.oldValue ? JSON.stringify(auditData.oldValue) : null,
-        new_value: auditData.newValue ? JSON.stringify(auditData.newValue) : null,
-        ip_address: auditData.ipAddress,
-        user_agent: auditData.userAgent
-      })
+    const { error } = await supabase.from("perm_audit_log").insert({
+      action: auditData.action,
+      entity_type: auditData.entityType,
+      entity_id: auditData.entityId,
+      changed_by: auditData.changedBy,
+      old_value: auditData.oldValue ? JSON.stringify(auditData.oldValue) : null,
+      new_value: auditData.newValue ? JSON.stringify(auditData.newValue) : null,
+      ip_address: auditData.ipAddress,
+      user_agent: auditData.userAgent,
+    });
 
     if (error) {
-      throw new AuditLogCreationError(error as Error)
+      throw new AuditLogCreationError(error as Error);
     }
   }
 
@@ -80,54 +85,70 @@ export class MonitoringRepository {
    */
   async getAuditLogs(
     filters: AuditLogFilters,
-    pagination: AuditLogPagination
+    pagination: AuditLogPagination,
   ): Promise<PaginatedAuditLogs> {
-    let query = supabase
-      .from('perm_audit_log')
-      .select('*', { count: 'exact' })
+    let query = supabase.from("perm_audit_log").select("*", { count: "exact" });
 
     // Apply filters
     if (filters.entityType) {
-      query = query.eq('entity_type', filters.entityType)
+      query = query.eq("entity_type", filters.entityType);
     }
 
     if (filters.entityId) {
-      query = query.eq('entity_id', filters.entityId)
+      query = query.eq("entity_id", filters.entityId);
     }
 
     if (filters.userId) {
-      query = query.eq('changed_by', filters.userId)
+      query = query.eq("changed_by", filters.userId);
     }
 
     if (filters.action) {
-      query = query.eq('action', filters.action)
+      query = query.eq("action", filters.action);
     }
 
     if (filters.startDate) {
-      query = query.gte('created_at', filters.startDate)
+      query = query.gte("created_at", filters.startDate);
     }
 
     if (filters.endDate) {
-      query = query.lte('created_at', filters.endDate)
+      query = query.lte("created_at", filters.endDate);
+    }
+
+    if (filters.search) {
+      // Search in action, entity_type, and cast UUID fields to text for searching
+      query = query.or(
+        `action.ilike.%${filters.search}%,entity_type.ilike.%${filters.search}%,entity_id::text.ilike.%${filters.search}%,changed_by::text.ilike.%${filters.search}%`,
+      );
     }
 
     // Apply sorting
-    query = query.order('created_at', { ascending: false })
+    query = query.order("created_at", { ascending: false });
 
     // Apply pagination
-    const { data, error, count } = await query
-      .range(pagination.offset, pagination.offset + pagination.limit - 1)
+    const { data, error, count } = await query.range(
+      pagination.offset,
+      pagination.offset + pagination.limit - 1,
+    );
 
     if (error) {
-      throw new AuditLogFetchError(error as Error)
+      throw new AuditLogFetchError(error as Error);
     }
 
+    // Map database fields to interface
+    const mappedData = (data || []).map((row: any) => ({
+      ...row,
+      user_id: row.changed_by,
+      // user_email and branch_name are not in this table,
+      // they would require a join or separate fetch if needed.
+      // But we ensure user_id is populated from changed_by.
+    }));
+
     return {
-      data: (data || []) as AuditLogRecord[],
+      data: mappedData as AuditLogRecord[],
       total: count || 0,
       limit: pagination.limit,
-      offset: pagination.offset
-    }
+      offset: pagination.offset,
+    };
   }
 
   /**
@@ -135,16 +156,16 @@ export class MonitoringRepository {
    */
   async getAuditLogById(id: string): Promise<AuditLogRecord | null> {
     const { data, error } = await supabase
-      .from('perm_audit_log')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle()
+      .from("perm_audit_log")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
 
     if (error) {
-      throw new AuditLogFetchError(error as Error)
+      throw new AuditLogFetchError(error as Error);
     }
 
-    return data as AuditLogRecord | null
+    return data as AuditLogRecord | null;
   }
 
   // =========================================================================
@@ -155,42 +176,40 @@ export class MonitoringRepository {
    * Create error report entry
    */
   async createErrorReport(errorData: {
-    errorName: string
-    errorMessage: string
-    errorStack?: string
-    errorType: string
-    severity: string
-    module: string
-    submodule?: string
-    userId?: string
-    branchId?: string
-    url: string
-    route: string
-    userAgent: string
-    businessImpact?: string
-    context?: Record<string, any>
+    errorName: string;
+    errorMessage: string;
+    errorStack?: string;
+    errorType: string;
+    severity: string;
+    module: string;
+    submodule?: string;
+    userId?: string;
+    branchId?: string;
+    url: string;
+    route: string;
+    userAgent: string;
+    businessImpact?: string;
+    context?: Record<string, any>;
   }): Promise<void> {
-    const { error } = await supabase
-      .from('error_logs')
-      .insert({
-        error_name: errorData.errorName,
-        error_message: errorData.errorMessage,
-        error_stack: errorData.errorStack,
-        error_type: errorData.errorType,
-        severity: errorData.severity,
-        module: errorData.module,
-        submodule: errorData.submodule,
-        user_id: errorData.userId,
-        branch_id: errorData.branchId,
-        url: errorData.url,
-        route: errorData.route,
-        user_agent: errorData.userAgent,
-        business_impact: errorData.businessImpact,
-        context: errorData.context ? JSON.stringify(errorData.context) : null
-      })
+    const { error } = await supabase.from("error_logs").insert({
+      error_name: errorData.errorName,
+      error_message: errorData.errorMessage,
+      error_stack: errorData.errorStack,
+      error_type: errorData.errorType,
+      severity: errorData.severity,
+      module: errorData.module,
+      submodule: errorData.submodule,
+      user_id: errorData.userId,
+      branch_id: errorData.branchId,
+      url: errorData.url,
+      route: errorData.route,
+      user_agent: errorData.userAgent,
+      business_impact: errorData.businessImpact,
+      context: errorData.context ? JSON.stringify(errorData.context) : null,
+    });
 
     if (error) {
-      throw new ErrorReportCreationError(error as Error)
+      throw new ErrorReportCreationError(error as Error);
     }
   }
 
@@ -199,88 +218,111 @@ export class MonitoringRepository {
    */
   async getErrorLogs(
     filters: {
-      severity?: string
-      errorType?: string
-      module?: string
-      userId?: string
-      startDate?: string
-      endDate?: string
+      severity?: string;
+      errorType?: string;
+      module?: string;
+      userId?: string;
+      startDate?: string;
+      endDate?: string;
+      search?: string;
     },
-    pagination: { limit: number; offset: number }
+    pagination: { limit: number; offset: number },
   ): Promise<{ data: ErrorLogRecord[]; total: number }> {
-    let query = supabase
-      .from('error_logs')
-      .select('*', { count: 'exact' })
+    let query = supabase.from("error_logs").select("*", { count: "exact" });
 
     // Apply filters
     if (filters.severity) {
-      query = query.eq('severity', filters.severity)
+      query = query.eq("severity", filters.severity);
     }
 
     if (filters.errorType) {
-      query = query.eq('error_type', filters.errorType)
+      query = query.eq("error_type", filters.errorType);
     }
 
     if (filters.module) {
-      query = query.eq('module', filters.module)
+      query = query.eq("module", filters.module);
     }
 
     if (filters.userId) {
-      query = query.eq('user_id', filters.userId)
+      query = query.eq("user_id", filters.userId);
     }
 
     if (filters.startDate) {
-      query = query.gte('created_at', filters.startDate)
+      query = query.gte("created_at", filters.startDate);
     }
 
     if (filters.endDate) {
-      query = query.lte('created_at', filters.endDate)
+      query = query.lte("created_at", filters.endDate);
+    }
+
+    if (filters.search) {
+      query = query.or(
+        `error_message.ilike.%${filters.search}%,error_name.ilike.%${filters.search}%`,
+      );
     }
 
     // Apply sorting
-    query = query.order('created_at', { ascending: false })
+    query = query.order("created_at", { ascending: false });
 
     // Apply pagination
-    const { data, error, count } = await query
-      .range(pagination.offset, pagination.offset + pagination.limit - 1)
+    const { data, error, count } = await query.range(
+      pagination.offset,
+      pagination.offset + pagination.limit - 1,
+    );
 
     if (error) {
-      throw new ErrorReportFetchError(error as Error)
+      throw new ErrorReportFetchError(error as Error);
     }
 
     return {
       data: (data || []) as ErrorLogRecord[],
-      total: count || 0
-    }
+      total: count || 0,
+    };
   }
 
   /**
    * Get error statistics
    */
-  async getErrorStats(): Promise<{
-    total: number
-    bySeverity: Record<string, number>
-    byType: Record<string, number>
-  }> {
-    const { data, error } = await supabase
-      .from('error_logs')
-      .select('severity, error_type')
+  async getErrorStats(): Promise<ErrorStats> {
+    const { data: allData, error } = await supabase
+      .from("error_logs")
+      .select("severity, error_type, module, created_at")
+      .is("deleted_at", null);
 
     if (error) {
-      throw new ErrorStatsFetchError(error as Error)
+      throw new ErrorStatsFetchError(error as Error);
     }
 
-    const bySeverity: Record<string, number> = {}
-    const byType: Record<string, number> = {}
-    let total = 0
+    const by_severity: Record<string, number> = {};
+    const by_type: Record<string, number> = {};
+    const by_module: Record<string, number> = {};
+    let total_errors = 0;
+    let recent_errors = 0;
 
-    for (const item of data || []) {
-      total++
-      bySeverity[item.severity || 'UNKNOWN'] = (bySeverity[item.severity || 'UNKNOWN'] || 0) + 1
-      byType[item.error_type || 'UNKNOWN'] = (byType[item.error_type || 'UNKNOWN'] || 0) + 1
+    const oneDayAgo = new Date();
+    oneDayAgo.setHours(oneDayAgo.getHours() - 24);
+
+    for (const item of allData || []) {
+      total_errors++;
+      by_severity[item.severity || "UNKNOWN"] =
+        (by_severity[item.severity || "UNKNOWN"] || 0) + 1;
+      by_type[item.error_type || "UNKNOWN"] =
+        (by_type[item.error_type || "UNKNOWN"] || 0) + 1;
+      by_module[item.module || "UNKNOWN"] =
+        (by_module[item.module || "UNKNOWN"] || 0) + 1;
+
+      if (new Date(item.created_at) > oneDayAgo) {
+        recent_errors++;
+      }
     }
 
-    return { total, bySeverity, byType }
+    return {
+      total_errors,
+      by_severity,
+      by_type,
+      by_module,
+      recent_errors,
+    };
   }
 
   // =========================================================================
@@ -294,15 +336,15 @@ export class MonitoringRepository {
    */
   async cleanupOldAuditLogs(olderThan: Date): Promise<number> {
     const { count, error } = await supabase
-      .from('perm_audit_log')
+      .from("perm_audit_log")
       .delete()
-      .lt('created_at', olderThan.toISOString())
+      .lt("created_at", olderThan.toISOString());
 
     if (error) {
-      throw new AuditLogFetchError(error as Error)
+      throw new AuditLogFetchError(error as Error);
     }
 
-    return count || 0
+    return count || 0;
   }
 
   /**
@@ -312,15 +354,15 @@ export class MonitoringRepository {
    */
   async cleanupOldErrorLogs(olderThan: Date): Promise<number> {
     const { count, error } = await supabase
-      .from('error_logs')
+      .from("error_logs")
       .delete()
-      .lt('created_at', olderThan.toISOString())
+      .lt("created_at", olderThan.toISOString());
 
     if (error) {
-      throw new ErrorReportFetchError(error as Error)
+      throw new ErrorReportFetchError(error as Error);
     }
 
-    return count || 0
+    return count || 0;
   }
 
   // =========================================================================
@@ -335,51 +377,63 @@ export class MonitoringRepository {
    */
   async cleanupOldAuditLogsBatched(
     olderThan: Date,
-    batchSize: number = cleanupConfig.defaultBatchSize
+    batchSize: number = cleanupConfig.defaultBatchSize,
   ): Promise<CleanupResult> {
-    let totalDeleted = 0
-    let batches = 0
-    
+    let totalDeleted = 0;
+    let batches = 0;
+
     while (true) {
       // Ambil IDs yang akan dihapus (limit batchSize)
       const { data: ids, error: selectError } = await supabase
-        .from('perm_audit_log')
-        .select('id')
-        .lt('created_at', olderThan.toISOString())
-        .limit(batchSize)
-      
+        .from("perm_audit_log")
+        .select("id")
+        .lt("created_at", olderThan.toISOString())
+        .limit(batchSize);
+
       if (selectError) {
-        logError('Error fetching audit log IDs for cleanup', { error: selectError })
-        throw new AuditLogFetchError(selectError as Error)
+        logError("Error fetching audit log IDs for cleanup", {
+          error: selectError,
+        });
+        throw new AuditLogFetchError(selectError as Error);
       }
-      
+
       if (!ids || ids.length === 0) {
-        break
+        break;
       }
-      
+
       // Delete batch
       const { count, error: deleteError } = await supabase
-        .from('perm_audit_log')
+        .from("perm_audit_log")
         .delete()
-        .in('id', ids.map(i => i.id))
-      
+        .in(
+          "id",
+          ids.map((i) => i.id),
+        );
+
       if (deleteError) {
-        logError('Error deleting audit log batch', { error: deleteError })
-        throw new CleanupOperationError('Failed to delete audit log batch', deleteError as Error)
+        logError("Error deleting audit log batch", { error: deleteError });
+        throw new CleanupOperationError(
+          "Failed to delete audit log batch",
+          deleteError as Error,
+        );
       }
-      
-      totalDeleted += count || 0
-      batches++
-      
-      logInfo(`Audit cleanup batch ${batches}: deleted ${count} records`)
-      
+
+      totalDeleted += count || 0;
+      batches++;
+
+      logInfo(`Audit cleanup batch ${batches}: deleted ${count} records`);
+
       // Optional: delay antar batch
-      await new Promise(resolve => setTimeout(resolve, cleanupConfig.batchDelayMs))
+      await new Promise((resolve) =>
+        setTimeout(resolve, cleanupConfig.batchDelayMs),
+      );
     }
-    
-    logInfo(`Audit cleanup completed: ${totalDeleted} records deleted in ${batches} batches`)
-    
-    return { deleted: totalDeleted, batches }
+
+    logInfo(
+      `Audit cleanup completed: ${totalDeleted} records deleted in ${batches} batches`,
+    );
+
+    return { deleted: totalDeleted, batches };
   }
 
   /**
@@ -390,47 +444,48 @@ export class MonitoringRepository {
   async previewCleanupAuditLogs(olderThan: Date): Promise<CleanupPreview> {
     // Hitung total records
     const { count, error: countError } = await supabase
-      .from('perm_audit_log')
-      .select('*', { count: 'exact', head: true })
-      .lt('created_at', olderThan.toISOString())
-    
+      .from("perm_audit_log")
+      .select("*", { count: "exact", head: true })
+      .lt("created_at", olderThan.toISOString());
+
     if (countError) {
-      throw new AuditLogFetchError(countError as Error)
+      throw new AuditLogFetchError(countError as Error);
     }
-    
+
     // Ambil sample untuk estimasi size (PostgreSQL)
     const { data: sample, error: sampleError } = await supabase
-      .from('perm_audit_log')
-      .select('created_at, entity_type')
-      .lt('created_at', olderThan.toISOString())
-      .limit(1000)
-    
+      .from("perm_audit_log")
+      .select("created_at, entity_type")
+      .lt("created_at", olderThan.toISOString())
+      .limit(1000);
+
     if (sampleError) {
-      throw new AuditLogFetchError(sampleError as Error)
+      throw new AuditLogFetchError(sampleError as Error);
     }
-    
+
     // Group by entity type
-    const byEntityType: Record<string, number> = {}
-    let oldest = new Date()
-    let newest = new Date(0)
-    
+    const byEntityType: Record<string, number> = {};
+    let oldest = new Date();
+    let newest = new Date(0);
+
     for (const item of sample || []) {
-      byEntityType[item.entity_type] = (byEntityType[item.entity_type] || 0) + 1
-      
-      const date = new Date(item.created_at)
-      if (date < oldest) oldest = date
-      if (date > newest) newest = date
+      byEntityType[item.entity_type] =
+        (byEntityType[item.entity_type] || 0) + 1;
+
+      const date = new Date(item.created_at);
+      if (date < oldest) oldest = date;
+      if (date > newest) newest = date;
     }
-    
+
     // Estimasi: 1KB per record (average)
-    const estimatedSizeMB = ((count || 0) * 1024) / (1024 * 1024)
-    
+    const estimatedSizeMB = ((count || 0) * 1024) / (1024 * 1024);
+
     return {
       totalRecords: count || 0,
       totalSize: `${estimatedSizeMB.toFixed(2)} MB`,
       dateRange: { oldest, newest },
-      byEntityType
-    }
+      byEntityType,
+    };
   }
 
   /**
@@ -441,50 +496,53 @@ export class MonitoringRepository {
    */
   async archiveAndCleanupAuditLogs(
     olderThan: Date,
-    archivePath: string
+    archivePath: string,
   ): Promise<ArchiveResult> {
     // 1. Ambil data yang akan dihapus
     const { data: logsToArchive, error: fetchError } = await supabase
-      .from('perm_audit_log')
-      .select('*')
-      .lt('created_at', olderThan.toISOString())
-    
+      .from("perm_audit_log")
+      .select("*")
+      .lt("created_at", olderThan.toISOString());
+
     if (fetchError) {
-      throw new AuditLogFetchError(fetchError as Error)
+      throw new AuditLogFetchError(fetchError as Error);
     }
-    
+
     if (!logsToArchive || logsToArchive.length === 0) {
-      return { archived: 0, deleted: 0, archivePath: '' }
+      return { archived: 0, deleted: 0, archivePath: "" };
     }
-    
+
     // 2. Simpan ke file (JSON)
-    const fs = require('fs').promises
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const archiveFile = `${archivePath}/audit-logs-${timestamp}.json`
-    
+    const fs = require("fs").promises;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const archiveFile = `${archivePath}/audit-logs-${timestamp}.json`;
+
     // Ensure directory exists
-    await fs.mkdir(archivePath, { recursive: true })
-    await fs.writeFile(archiveFile, JSON.stringify(logsToArchive, null, 2))
-    
+    await fs.mkdir(archivePath, { recursive: true });
+    await fs.writeFile(archiveFile, JSON.stringify(logsToArchive, null, 2));
+
     // 3. Delete dari database
     const { count, error: deleteError } = await supabase
-      .from('perm_audit_log')
+      .from("perm_audit_log")
       .delete()
-      .lt('created_at', olderThan.toISOString())
-    
+      .lt("created_at", olderThan.toISOString());
+
     if (deleteError) {
-      logError('Error deleting archived audit logs', { error: deleteError })
-      throw new CleanupOperationError('Failed to delete archived audit logs', deleteError as Error)
+      logError("Error deleting archived audit logs", { error: deleteError });
+      throw new CleanupOperationError(
+        "Failed to delete archived audit logs",
+        deleteError as Error,
+      );
     }
-    
+
     // 4. Log archival
-    logInfo(`Archived ${logsToArchive.length} records to ${archiveFile}`)
-    
+    logInfo(`Archived ${logsToArchive.length} records to ${archiveFile}`);
+
     return {
       archived: logsToArchive.length,
       deleted: count || 0,
-      archivePath: archiveFile
-    }
+      archivePath: archiveFile,
+    };
   }
 
   /**
@@ -494,17 +552,20 @@ export class MonitoringRepository {
    */
   async softDeleteOldAuditLogs(olderThan: Date): Promise<number> {
     const { count, error } = await supabase
-      .from('perm_audit_log')
+      .from("perm_audit_log")
       .update({ deleted_at: new Date().toISOString() })
-      .lt('created_at', olderThan.toISOString())
-      .is('deleted_at', null) // Yang belum di-soft-delete
-    
+      .lt("created_at", olderThan.toISOString())
+      .is("deleted_at", null); // Yang belum di-soft-delete
+
     if (error) {
-      throw new CleanupOperationError('Failed to soft delete audit logs', error as Error)
+      throw new CleanupOperationError(
+        "Failed to soft delete audit logs",
+        error as Error,
+      );
     }
-    
-    logInfo(`Soft deleted ${count || 0} audit log records`)
-    return count || 0
+
+    logInfo(`Soft deleted ${count || 0} audit log records`);
+    return count || 0;
   }
 
   /**
@@ -514,17 +575,20 @@ export class MonitoringRepository {
    */
   async hardDeleteSoftDeletedLogs(olderThan: Date): Promise<number> {
     const { count, error } = await supabase
-      .from('perm_audit_log')
+      .from("perm_audit_log")
       .delete()
-      .lt('deleted_at', olderThan.toISOString())
-      .not('deleted_at', 'is', null)
-    
+      .lt("deleted_at", olderThan.toISOString())
+      .not("deleted_at", "is", null);
+
     if (error) {
-      throw new CleanupOperationError('Failed to hard delete audit logs', error as Error)
+      throw new CleanupOperationError(
+        "Failed to hard delete audit logs",
+        error as Error,
+      );
     }
-    
-    logInfo(`Hard deleted ${count || 0} audit log records`)
-    return count || 0
+
+    logInfo(`Hard deleted ${count || 0} audit log records`);
+    return count || 0;
   }
 
   /**
@@ -535,51 +599,63 @@ export class MonitoringRepository {
    */
   async cleanupOldErrorLogsBatched(
     olderThan: Date,
-    batchSize: number = cleanupConfig.defaultBatchSize
+    batchSize: number = cleanupConfig.defaultBatchSize,
   ): Promise<CleanupResult> {
-    let totalDeleted = 0
-    let batches = 0
-    
+    let totalDeleted = 0;
+    let batches = 0;
+
     while (true) {
       // Ambil IDs yang akan dihapus (limit batchSize)
       const { data: ids, error: selectError } = await supabase
-        .from('error_logs')
-        .select('id')
-        .lt('created_at', olderThan.toISOString())
-        .limit(batchSize)
-      
+        .from("error_logs")
+        .select("id")
+        .lt("created_at", olderThan.toISOString())
+        .limit(batchSize);
+
       if (selectError) {
-        logError('Error fetching error log IDs for cleanup', { error: selectError })
-        throw new ErrorReportFetchError(selectError as Error)
+        logError("Error fetching error log IDs for cleanup", {
+          error: selectError,
+        });
+        throw new ErrorReportFetchError(selectError as Error);
       }
-      
+
       if (!ids || ids.length === 0) {
-        break
+        break;
       }
-      
+
       // Delete batch
       const { count, error: deleteError } = await supabase
-        .from('error_logs')
+        .from("error_logs")
         .delete()
-        .in('id', ids.map(i => i.id))
-      
+        .in(
+          "id",
+          ids.map((i) => i.id),
+        );
+
       if (deleteError) {
-        logError('Error deleting error log batch', { error: deleteError })
-        throw new CleanupOperationError('Failed to delete error log batch', deleteError as Error)
+        logError("Error deleting error log batch", { error: deleteError });
+        throw new CleanupOperationError(
+          "Failed to delete error log batch",
+          deleteError as Error,
+        );
       }
-      
-      totalDeleted += count || 0
-      batches++
-      
-      logInfo(`Error log cleanup batch ${batches}: deleted ${count} records`)
-      
+
+      totalDeleted += count || 0;
+      batches++;
+
+      logInfo(`Error log cleanup batch ${batches}: deleted ${count} records`);
+
       // Optional: delay antar batch
-      await new Promise(resolve => setTimeout(resolve, cleanupConfig.batchDelayMs))
+      await new Promise((resolve) =>
+        setTimeout(resolve, cleanupConfig.batchDelayMs),
+      );
     }
-    
-    logInfo(`Error log cleanup completed: ${totalDeleted} records deleted in ${batches} batches`)
-    
-    return { deleted: totalDeleted, batches }
+
+    logInfo(
+      `Error log cleanup completed: ${totalDeleted} records deleted in ${batches} batches`,
+    );
+
+    return { deleted: totalDeleted, batches };
   }
 
   /**
@@ -590,51 +666,50 @@ export class MonitoringRepository {
   async previewCleanupErrorLogs(olderThan: Date): Promise<CleanupPreview> {
     // Hitung total records
     const { count, error: countError } = await supabase
-      .from('error_logs')
-      .select('*', { count: 'exact', head: true })
-      .lt('created_at', olderThan.toISOString())
-    
+      .from("error_logs")
+      .select("*", { count: "exact", head: true })
+      .lt("created_at", olderThan.toISOString());
+
     if (countError) {
-      throw new ErrorReportFetchError(countError as Error)
+      throw new ErrorReportFetchError(countError as Error);
     }
-    
+
     // Ambil sample untuk estimasi
     const { data: sample, error: sampleError } = await supabase
-      .from('error_logs')
-      .select('created_at, error_type, severity')
-      .lt('created_at', olderThan.toISOString())
-      .limit(1000)
-    
+      .from("error_logs")
+      .select("created_at, error_type, severity")
+      .lt("created_at", olderThan.toISOString())
+      .limit(1000);
+
     if (sampleError) {
-      throw new ErrorReportFetchError(sampleError as Error)
+      throw new ErrorReportFetchError(sampleError as Error);
     }
-    
+
     // Group by error type dan severity
-    const byEntityType: Record<string, number> = {}
-    let oldest = new Date()
-    let newest = new Date(0)
-    
+    const byEntityType: Record<string, number> = {};
+    let oldest = new Date();
+    let newest = new Date(0);
+
     for (const item of sample || []) {
-      const key = `${item.error_type}_${item.severity}`
-      byEntityType[key] = (byEntityType[key] || 0) + 1
-      
-      const date = new Date(item.created_at)
-      if (date < oldest) oldest = date
-      if (date > newest) newest = date
+      const key = `${item.error_type}_${item.severity}`;
+      byEntityType[key] = (byEntityType[key] || 0) + 1;
+
+      const date = new Date(item.created_at);
+      if (date < oldest) oldest = date;
+      if (date > newest) newest = date;
     }
-    
+
     // Estimasi: 2KB per record (average)
-    const estimatedSizeMB = ((count || 0) * 2048) / (1024 * 1024)
-    
+    const estimatedSizeMB = ((count || 0) * 2048) / (1024 * 1024);
+
     return {
       totalRecords: count || 0,
       totalSize: `${estimatedSizeMB.toFixed(2)} MB`,
       dateRange: { oldest, newest },
-      byEntityType
-    }
+      byEntityType,
+    };
   }
 }
 
 // Export singleton instance
-export const monitoringRepository = new MonitoringRepository()
-
+export const monitoringRepository = new MonitoringRepository();
