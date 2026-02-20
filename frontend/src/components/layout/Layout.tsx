@@ -24,6 +24,7 @@ import {
   FileSpreadsheet,
   AlertTriangle,
   ShieldCheck,
+  Activity,
 } from "lucide-react";
 import { useAuthStore } from "@/features/auth";
 import { BranchSwitcher, usePermissionStore } from "@/features/branch_context";
@@ -43,10 +44,18 @@ interface MenuItem {
 }
 
 // Komponen MenuItem dengan dukungan nested submenu
-const MenuItemComponent = ({ item, level, onNavigate }: { item: MenuItem; level: number; onNavigate?: () => void }) => {
+const MenuItemComponent = ({
+  item,
+  level,
+  onNavigate,
+}: {
+  item: MenuItem;
+  level: number;
+  onNavigate?: () => void;
+}) => {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
-  
+
   const isActive = item.href === location.pathname;
   const hasSubmenu = item.submenu && item.submenu.length > 0;
 
@@ -56,7 +65,9 @@ const MenuItemComponent = ({ item, level, onNavigate }: { item: MenuItem; level:
       const isChildActive = item.submenu?.some((subItem) => {
         if (subItem.href === location.pathname) return true;
         if (subItem.submenu) {
-          return subItem.submenu.some((nestedItem) => nestedItem.href === location.pathname);
+          return subItem.submenu.some(
+            (nestedItem) => nestedItem.href === location.pathname,
+          );
         }
         return false;
       });
@@ -81,15 +92,20 @@ const MenuItemComponent = ({ item, level, onNavigate }: { item: MenuItem; level:
   };
 
   // Styling berdasarkan level
-  const paddingLeft = level === 0 ? 'px-3' : level === 1 ? 'ml-4 px-3' : 'ml-8 px-3';
-  const activeClass = isActive 
-    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" 
-    : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700";
-  const parentActiveClass = hasSubmenu && item.submenu?.some((sub) => 
-    sub.href === location.pathname || sub.submenu?.some((nested) => nested.href === location.pathname)
-  ) 
+  const paddingLeft =
+    level === 0 ? "px-3" : level === 1 ? "ml-4 px-3" : "ml-8 px-3";
+  const activeClass = isActive
     ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-    : activeClass;
+    : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700";
+  const parentActiveClass =
+    hasSubmenu &&
+    item.submenu?.some(
+      (sub) =>
+        sub.href === location.pathname ||
+        sub.submenu?.some((nested) => nested.href === location.pathname),
+    )
+      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+      : activeClass;
 
   if (hasSubmenu) {
     return (
@@ -113,9 +129,9 @@ const MenuItemComponent = ({ item, level, onNavigate }: { item: MenuItem; level:
         {isOpen && (
           <div className="mt-1 space-y-1">
             {item.submenu?.map((subItem) => (
-              <MenuItemComponent 
-                key={subItem.id} 
-                item={subItem} 
+              <MenuItemComponent
+                key={subItem.id}
+                item={subItem}
                 level={level + 1}
                 onNavigate={onNavigate}
               />
@@ -413,6 +429,13 @@ export default function Layout() {
             icon: <Shield size={16} />,
             module: "permissions",
           },
+          {
+            id: "monitoring",
+            name: "System Monitoring",
+            href: "/monitoring",
+            icon: <Activity size={16} />,
+            module: "monitoring",
+          },
         ],
       },
     ],
@@ -486,7 +509,7 @@ export default function Layout() {
               </Link>
             </div>
 
-<div className="flex items-center gap-4">
+            <div className="flex items-center gap-4">
               <BranchSwitcher />
               <button
                 className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400"
@@ -572,9 +595,9 @@ export default function Layout() {
           <nav className="mt-8 px-4 h-[calc(100vh-8rem)] overflow-y-auto">
             <div className="space-y-1">
               {filteredMenuItems.map((item) => (
-                <MenuItemComponent 
-                  key={item.id} 
-                  item={item} 
+                <MenuItemComponent
+                  key={item.id}
+                  item={item}
                   level={0}
                   onNavigate={() => setIsSidebarOpen(false)}
                 />
