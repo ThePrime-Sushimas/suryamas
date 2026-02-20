@@ -15,6 +15,8 @@ interface ErrorTableProps {
   };
   onPageChange: (page: number) => void;
   onViewDetail: (log: ErrorLogRecord) => void;
+  selectedIds: string[];
+  onSelectionChange: (ids: string[]) => void;
 }
 
 const SeverityBadge = ({ severity }: { severity: string }) => {
@@ -39,9 +41,11 @@ export const ErrorTable: React.FC<ErrorTableProps> = ({
   pagination,
   onPageChange,
   onViewDetail,
+  selectedIds,
+  onSelectionChange,
 }) => {
   if (loading) {
-    return <TableSkeleton rows={8} columns={6} />;
+    return <TableSkeleton rows={8} columns={7} />;
   }
 
   if (logs.length === 0) {
@@ -58,12 +62,38 @@ export const ErrorTable: React.FC<ErrorTableProps> = ({
     );
   }
 
+  const toggleAll = () => {
+    if (selectedIds.length === logs.length) {
+      onSelectionChange([]);
+    } else {
+      onSelectionChange(logs.map((l) => l.id));
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    if (selectedIds.includes(id)) {
+      onSelectionChange(selectedIds.filter((i) => i !== id));
+    } else {
+      onSelectionChange([...selectedIds, id]);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900/50">
             <tr>
+              <th className="px-6 py-3 text-left">
+                <input
+                  type="checkbox"
+                  checked={
+                    logs.length > 0 && selectedIds.length === logs.length
+                  }
+                  onChange={toggleAll}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Timestamp
               </th>
@@ -88,8 +118,20 @@ export const ErrorTable: React.FC<ErrorTableProps> = ({
             {logs.map((log) => (
               <tr
                 key={log.id}
-                className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                className={`transition-colors ${
+                  selectedIds.includes(log.id)
+                    ? "bg-blue-50/50 dark:bg-blue-900/10"
+                    : "hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                }`}
               >
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(log.id)}
+                    onChange={() => toggleOne(log.id)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-gray-400" />

@@ -64,4 +64,21 @@ export const monitoringApi = {
     );
     return res.data.data;
   },
+
+  // Bulk Actions
+  bulkActionErrors: async (ids: string[], action: "delete" | "soft-delete") => {
+    const res = await api.post<ApiResponse<{ count: number }>>(
+      "/monitoring/errors/bulk",
+      { ids, action },
+    );
+    return res.data.data;
+  },
+
+  bulkActionAudit: async (ids: string[], action: "delete" | "soft-delete") => {
+    const res = await api.post<ApiResponse<{ count: number }>>(
+      "/monitoring/audit/bulk",
+      { ids, action },
+    );
+    return res.data.data;
+  },
 };

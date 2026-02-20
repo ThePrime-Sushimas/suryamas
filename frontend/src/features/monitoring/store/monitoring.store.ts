@@ -31,10 +31,18 @@ interface MonitoringState {
     filters?: MonitoringFilters,
   ) => Promise<void>;
   fetchStats: () => Promise<void>;
+  bulkActionErrors: (
+    ids: string[],
+    action: "delete" | "soft-delete",
+  ) => Promise<void>;
+  bulkActionAudit: (
+    ids: string[],
+    action: "delete" | "soft-delete",
+  ) => Promise<void>;
   clearError: () => void;
 }
 
-export const useMonitoringStore = create<MonitoringState>((set) => ({
+export const useMonitoringStore = create<MonitoringState>((set, get) => ({
   errorLogs: [],
   auditLogs: [],
   stats: null,
@@ -97,6 +105,36 @@ export const useMonitoringStore = create<MonitoringState>((set) => ({
       set({ stats });
     } catch (error) {
       console.error("Failed to fetch monitoring stats:", error);
+    }
+  },
+
+  bulkActionErrors: async (ids, action) => {
+    set({ loading: true, error: null });
+    try {
+      await monitoringApi.bulkActionErrors(ids, action);
+      const { pagination } = get();
+      await get().fetchErrorLogs(pagination.page, pagination.limit);
+    } catch (error: any) {
+      set({
+        error:
+          error?.response?.data?.message || "Failed to process bulk action",
+        loading: false,
+      });
+    }
+  },
+
+  bulkActionAudit: async (ids, action) => {
+    set({ loading: true, error: null });
+    try {
+      await monitoringApi.bulkActionAudit(ids, action);
+      const { pagination } = get();
+      await get().fetchAuditLogs(pagination.page, pagination.limit);
+    } catch (error: any) {
+      set({
+        error:
+          error?.response?.data?.message || "Failed to process bulk action",
+        loading: false,
+      });
     }
   },
 

@@ -709,6 +709,91 @@ export class MonitoringRepository {
       byEntityType,
     };
   }
+
+  // =========================================================================
+  // BULK OPERATIONS
+  // =========================================================================
+
+  /**
+   * Bulk delete audit logs
+   */
+  async bulkDeleteAuditLogs(ids: string[]): Promise<number> {
+    const chunkSize = 1000;
+    let totalDeleted = 0;
+
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      const { count, error } = await supabase
+        .from("perm_audit_log")
+        .delete()
+        .in("id", chunk);
+
+      if (error)
+        throw new CleanupOperationError("Bulk delete failed", error as Error);
+      totalDeleted += count || 0;
+    }
+
+    return totalDeleted;
+  }
+
+  /**
+   * Bulk soft delete audit logs
+   */
+  async bulkSoftDeleteAuditLogs(ids: string[]): Promise<number> {
+    const { count, error } = await supabase
+      .from("perm_audit_log")
+      .update({ deleted_at: new Date().toISOString() })
+      .in("id", ids);
+
+    if (error)
+      throw new CleanupOperationError(
+        "Bulk soft delete failed",
+        error as Error,
+      );
+    return count || 0;
+  }
+
+  /**
+   * Bulk delete error logs
+   */
+  async bulkDeleteErrorLogs(ids: string[]): Promise<number> {
+    const chunkSize = 1000;
+    let totalDeleted = 0;
+
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      const { count, error } = await supabase
+        .from("error_logs")
+        .delete()
+        .in("id", chunk);
+
+      if (error)
+        throw new CleanupOperationError(
+          "Bulk delete error logs failed",
+          error as Error,
+        );
+      totalDeleted += count || 0;
+    }
+
+    return totalDeleted;
+  }
+
+  /**
+   * Bulk soft delete error logs
+   */
+  async bulkSoftDeleteErrorLogs(ids: string[]): Promise<number> {
+    const { count, error } = await supabase
+      .from("error_logs")
+      .update({ deleted_at: new Date().toISOString() })
+      .in("id", ids);
+
+    if (error)
+      throw new CleanupOperationError(
+        "Bulk soft delete error logs failed",
+        error as Error,
+      );
+    return count || 0;
+  }
 }
 
 // Export singleton instance

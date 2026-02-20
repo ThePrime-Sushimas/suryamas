@@ -209,3 +209,77 @@ export const getAuditLogs = async (
     );
   }
 };
+
+/**
+ * Bulk actions for audit logs
+ * POST /api/v1/monitoring/audit/bulk
+ */
+export const bulkActionAuditLogs = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { ids, action } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      sendError(res, "Invalid or empty IDs list", 400);
+      return;
+    }
+
+    let count = 0;
+    if (action === "delete") {
+      count = await monitoringRepository.bulkDeleteAuditLogs(ids);
+    } else if (action === "soft-delete") {
+      count = await monitoringRepository.bulkSoftDeleteAuditLogs(ids);
+    } else {
+      sendError(res, "Invalid action", 400);
+      return;
+    }
+
+    sendSuccess(res, { count }, `Successfully processed ${count} audit logs`);
+  } catch (error) {
+    logError("Failed bulk action on audit logs", { error });
+    sendError(
+      res,
+      error instanceof Error ? error.message : "Unknown error",
+      500,
+    );
+  }
+};
+
+/**
+ * Bulk actions for error logs
+ * POST /api/v1/monitoring/errors/bulk
+ */
+export const bulkActionErrorLogs = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { ids, action } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      sendError(res, "Invalid or empty IDs list", 400);
+      return;
+    }
+
+    let count = 0;
+    if (action === "delete") {
+      count = await monitoringRepository.bulkDeleteErrorLogs(ids);
+    } else if (action === "soft-delete") {
+      count = await monitoringRepository.bulkSoftDeleteErrorLogs(ids);
+    } else {
+      sendError(res, "Invalid action", 400);
+      return;
+    }
+
+    sendSuccess(res, { count }, `Successfully processed ${count} error logs`);
+  } catch (error) {
+    logError("Failed bulk action on error logs", { error });
+    sendError(
+      res,
+      error instanceof Error ? error.message : "Unknown error",
+      500,
+    );
+  }
+};

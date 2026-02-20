@@ -6,6 +6,8 @@ import {
   RefreshCcw,
   Search,
   Filter,
+  Trash2,
+  Archive,
 } from "lucide-react";
 import { useMonitoringStore } from "../store/monitoring.store";
 import { ErrorTable } from "../components/ErrorTable";
@@ -25,6 +27,8 @@ export const MonitoringPage: React.FC = () => {
     fetchErrorLogs,
     fetchAuditLogs,
     fetchStats,
+    bulkActionErrors,
+    bulkActionAudit,
   } = useMonitoringStore();
 
   const [activeTab, setActiveTab] = useState<"errors" | "audit">("errors");
@@ -35,6 +39,7 @@ export const MonitoringPage: React.FC = () => {
     null,
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Filters state
   const [severityFilter, setSeverityFilter] = useState("");
@@ -48,6 +53,11 @@ export const MonitoringPage: React.FC = () => {
     }, 500);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Clear selection when changing tabs
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [activeTab]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -75,6 +85,24 @@ export const MonitoringPage: React.FC = () => {
   useEffect(() => {
     handleRefresh();
   }, [activeTab, handleRefresh]);
+
+  const handleBulkAction = async (action: "delete" | "soft-delete") => {
+    if (selectedIds.length === 0) return;
+
+    const confirmMsg =
+      action === "delete"
+        ? `Are you sure you want to permanently delete ${selectedIds.length} logs?`
+        : `Are you sure you want to soft delete ${selectedIds.length} logs?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    if (activeTab === "errors") {
+      await bulkActionErrors(selectedIds, action);
+    } else {
+      await bulkActionAudit(selectedIds, action);
+    }
+    setSelectedIds([]);
+  };
 
   const onPageChange = (page: number) => {
     const filters = {
@@ -157,37 +185,71 @@ export const MonitoringPage: React.FC = () => {
 
         {/* Toolbar */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6 flex flex-col sm:flex-row gap-4 items-center">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder={`Search ${activeTab === "errors" ? "error message..." : "action or entity..."}`}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="relative w-full sm:w-48">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <select
-                value={severityFilter}
-                onChange={(e) => {
-                  setSeverityFilter(e.target.value);
-                  fetchErrorLogs(1, 10, { severity: e.target.value });
-                }}
-                disabled={activeTab === "audit"}
-                className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-blue-500 outline-none transition-all disabled:opacity-50"
-              >
-                <option value="">All Severities</option>
-                <option value="CRITICAL">Critical</option>
-                <option value="HIGH">High</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="LOW">Low</option>
-              </select>
+          {selectedIds.length > 0 ? (
+            <div className="flex-1 w-full flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-100 dark:border-blue-900/30 animate-in slide-in-from-top-2 duration-300">
+              <div className="flex items-center gap-3 px-2">
+                <span className="text-sm font-semibold text-blue-700 dark:text-blue-400">
+                  {selectedIds.length} items selected
+                </span>
+                <button
+                  onClick={() => setSelectedIds([])}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  Deselect all
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleBulkAction("soft-delete")}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800 rounded-lg text-xs font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
+                >
+                  <Archive className="w-3.5 h-3.5" />
+                  Soft Delete
+                </button>
+                <button
+                  onClick={() => handleBulkAction("delete")}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-red-600 rounded-lg text-xs font-medium text-white hover:bg-red-700 transition-all shadow-sm"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Permanently
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="relative flex-1 w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder={`Search ${activeTab === "errors" ? "error message..." : "action or entity..."}`}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="relative w-full sm:w-48">
+                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <select
+                    value={severityFilter}
+                    onChange={(e) => {
+                      setSeverityFilter(e.target.value);
+                      fetchErrorLogs(1, 10, { severity: e.target.value });
+                    }}
+                    disabled={activeTab === "audit"}
+                    className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-blue-500 outline-none transition-all disabled:opacity-50"
+                  >
+                    <option value="">All Severities</option>
+                    <option value="CRITICAL">Critical</option>
+                    <option value="HIGH">High</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="LOW">Low</option>
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Dynamic Content */}
@@ -199,6 +261,8 @@ export const MonitoringPage: React.FC = () => {
               pagination={pagination}
               onPageChange={onPageChange}
               onViewDetail={setSelectedError}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
             />
           ) : (
             <AuditTable
@@ -207,6 +271,8 @@ export const MonitoringPage: React.FC = () => {
               pagination={pagination}
               onPageChange={onPageChange}
               onViewDetail={setSelectedAudit}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
             />
           )}
         </div>
