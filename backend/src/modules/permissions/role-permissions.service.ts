@@ -9,6 +9,7 @@ import { PermissionsCache } from './permissions.cache'
 import { logError } from '../../config/logger'
 import { PermissionsError } from './permissions.errors'
 import type { UpdateRolePermissionsDto, PermissionMatrix } from './permissions.types'
+import { AuditService } from '../monitoring/monitoring.service'
 
 export class RolePermissionsService {
   private repository: RolePermissionsRepository
@@ -28,6 +29,10 @@ export class RolePermissionsService {
     changedBy?: string
   ) {
     try {
+      // Get old permissions for audit
+      const oldPermissions = await this.repository.getByRoleId(roleId)
+      const oldPerm = oldPermissions.find(p => p.module_id === moduleId)
+
       const result = await CorePermissionService.updateRolePermissions(
         roleId,
         moduleId,
@@ -36,6 +41,24 @@ export class RolePermissionsService {
       )
       PermissionsCache.invalidateRole(roleId)
       PermissionsCache.invalidateRole('all_roles')
+
+      // Log audit trail
+      if (changedBy) {
+        try {
+          await AuditService.log(
+            'UPDATE',
+            'role_permission',
+            `${roleId}_${moduleId}`,
+            changedBy,
+            oldPerm,
+            permissions
+          )
+        } catch (auditError) {
+          // Don't fail the main operation if audit logging fails
+          logError('Failed to create audit log for role permission update', { error: (auditError as Error).message })
+        }
+      }
+
       return result
     } catch (error: any) {
       logError('Failed to update role permission', { error: error.message })
@@ -49,9 +72,34 @@ export class RolePermissionsService {
     updates: Array<{ moduleId: string; permissions: UpdateRolePermissionsDto }>,
     changedBy?: string
   ) {
+    // Get old permissions for audit
+    const oldPermissions = await this.repository.getByRoleId(roleId)
+
     await CorePermissionService.bulkUpdateRolePermissions(roleId, updates, changedBy)
     PermissionsCache.invalidateRole(roleId)
     PermissionsCache.invalidateRole('all_roles')
+
+    // Log audit trail for bulk update
+    if (changedBy) {
+      try {
+        const updatesSummary = updates.map(u => ({
+          moduleId: u.moduleId,
+          permissions: u.permissions
+        }))
+
+        await AuditService.log(
+          'BULK_UPDATE',
+          'role_permission',
+          roleId,
+          changedBy,
+          oldPermissions,
+          updatesSummary
+        )
+      } catch (auditError) {
+        // Don't fail the main operation if audit logging fails
+        logError('Failed to create audit log for role permission bulk update', { error: (auditError as Error).message })
+      }
+    }
   }
 
   async getMyPermissions(userId: string): Promise<PermissionMatrix> {
