@@ -1,6 +1,7 @@
 import { supabase } from "../../../config/supabase";
 import { posAggregatesRepository } from "./pos-aggregates.repository";
 import { paymentMethodsRepository } from "../../payment-methods/payment-methods.repository";
+import { AuditService } from "../../monitoring/monitoring.service";
 import {
   AggregatedTransaction,
   AggregatedTransactionWithDetails,
@@ -412,7 +413,23 @@ if (exists) {
       resolvedPaymentMethodId,
       feeConfig ?? undefined,
     );
-    return posAggregatesRepository.create(insertData);
+    
+    const created = await posAggregatesRepository.create(insertData);
+
+    // Audit log for CREATE
+    const userId = (data as any).userId;
+    if (userId) {
+      await AuditService.log('CREATE', 'aggregated_transaction', created.id, userId, undefined, {
+        source_type: created.source_type,
+        source_id: created.source_id,
+        source_ref: created.source_ref,
+        gross_amount: created.gross_amount,
+        payment_method_id: created.payment_method_id,
+        status: created.status,
+      });
+    }
+
+    return created;
   }
 
   /**
@@ -557,11 +574,19 @@ bill_after_discount: updates.bill_after_discount,
     });
 
     try {
-      return await posAggregatesRepository.update(
+      const updated = await posAggregatesRepository.update(
         id,
         resolvedUpdates,
         expectedVersion,
       );
+
+      // Audit log for UPDATE
+      const userId = (updates as any).userId;
+      if (userId) {
+        await AuditService.log('UPDATE', 'aggregated_transaction', id, userId, existing, updated);
+      }
+
+      return updated;
     } catch (err: any) {
       if (err.message?.includes("version") || err.code === "P0001") {
         throw AggregatedTransactionErrors.VERSION_CONFLICT(
@@ -594,12 +619,17 @@ bill_after_discount: updates.bill_after_discount,
     });
 
     await posAggregatesRepository.softDelete(id, deletedBy);
+
+    // Audit log for DELETE
+    if (deletedBy) {
+      await AuditService.log('DELETE', 'aggregated_transaction', id, deletedBy, existing, null);
+    }
   }
 
   /**
    * Restore soft-deleted transaction
    */
-  async restoreTransaction(id: string): Promise<void> {
+  async restoreTransaction(id: string, restoredBy?: string): Promise<void> {
     const existing = await posAggregatesRepository.findById(id);
     if (existing && !existing.deleted_at) {
       throw AggregatedTransactionErrors.ALREADY_ACTIVE(id);
@@ -607,6 +637,11 @@ bill_after_discount: updates.bill_after_discount,
 
     logInfo("Restoring aggregated transaction", { id });
     await posAggregatesRepository.restore(id);
+
+    // Audit log for RESTORE
+    if (restoredBy) {
+      await AuditService.log('RESTORE', 'aggregated_transaction', id, restoredBy, null, existing);
+    }
   }
 
   /**
@@ -628,6 +663,11 @@ if (!existing.journal_id) {
 
     logInfo("Reconciling transaction", { id, reconciled_by: reconciledBy });
     await posAggregatesRepository.markReconciled([id], reconciledBy);
+
+    // Audit log for RECONCILE
+    if (reconciledBy) {
+      await AuditService.log('RECONCILE', 'aggregated_transaction', id, reconciledBy, { is_reconciled: false }, { is_reconciled: true, journal_id: existing.journal_id });
+    }
   }
 
   /**
@@ -1024,6 +1064,12 @@ if (!existing.journal_id) {
         existing.version,
       );
 
+      // Audit log for FIX_FAILED
+      const userId = (updates as any).userId;
+      if (userId) {
+        await AuditService.log('FIX_FAILED', 'aggregated_transaction', id, userId, { status: 'FAILED', failed_reason: existing.failed_reason }, { status: 'READY' });
+      }
+
       logInfo("Successfully fixed failed transaction", {
         id,
         source_ref: existing.source_ref,
@@ -1099,6 +1145,11 @@ if (!existing.journal_id) {
 
     if (error) {
       throw new Error(`Failed to delete failed transaction: ${error.message}`);
+    }
+
+    // Audit log for DELETE (failed transaction)
+    if (deletedBy) {
+      await AuditService.log('DELETE', 'aggregated_transaction', id, deletedBy, existing, null);
     }
   }
 }
