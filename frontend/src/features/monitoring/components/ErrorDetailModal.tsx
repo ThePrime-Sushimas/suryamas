@@ -65,7 +65,7 @@ export const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
             <h3 className="text-sm font-semibold text-red-800 dark:text-red-400 mb-1 uppercase tracking-wider">
               Error Message
             </h3>
-            <p className="text-red-900 dark:text-red-200 font-medium break-words">
+            <p className="text-red-900 dark:text-red-200 font-medium wrap-break-word">
               {log.error_message}
             </p>
           </div>
