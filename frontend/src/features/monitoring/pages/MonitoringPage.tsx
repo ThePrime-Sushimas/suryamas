@@ -69,6 +69,22 @@ export const MonitoringPage: React.FC = () => {
     setSelectedIds([]);
   }, [activeTab]);
 
+  // Fetch when debounced search changes
+  useEffect(() => {
+    const filters = {
+      severity: severityFilter || undefined,
+      search: debouncedSearch || undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    };
+
+    if (activeTab === "errors") {
+      fetchErrorLogs(1, limit, filters);
+    } else {
+      fetchAuditLogs(1, limit, filters);
+    }
+  }, [debouncedSearch]);
+
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     const filters = {

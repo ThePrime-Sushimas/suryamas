@@ -117,9 +117,11 @@ export class MonitoringRepository {
     }
 
     if (filters.search) {
-      // Search in action, entity_type, and cast UUID fields to text for searching
+      // Search in action, entity_type, and changed_by_name
+      // Note: PostgREST doesn't support ::text cast, so we only search in text fields
+      const searchTerm = `%${filters.search}%`;
       query = query.or(
-        `action.ilike.%${filters.search}%,entity_type.ilike.%${filters.search}%,entity_id::text.ilike.%${filters.search}%,changed_by::text.ilike.%${filters.search}%`,
+        `action.ilike.${searchTerm},entity_type.ilike.${searchTerm},changed_by_name.ilike.${searchTerm}`,
       );
     }
 
