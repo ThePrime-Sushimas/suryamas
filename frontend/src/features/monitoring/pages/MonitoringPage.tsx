@@ -25,15 +25,21 @@ export const MonitoringPage: React.FC = () => {
     auditLogs,
     stats,
     loading,
-    pagination,
+    page,
+    limit,
+    total,
+    totalPages,
+    hasNext,
+    hasPrev,
+    activeTab,
     fetchErrorLogs,
     fetchAuditLogs,
     fetchStats,
     bulkActionErrors,
     bulkActionAudit,
+    setActiveTab,
   } = useMonitoringStore();
 
-  const [activeTab, setActiveTab] = useState<"errors" | "audit">("errors");
   const [selectedError, setSelectedError] = useState<ErrorLogRecord | null>(
     null,
   );
@@ -112,7 +118,7 @@ export const MonitoringPage: React.FC = () => {
     setSelectedIds([]);
   };
 
-  const onPageChange = (page: number) => {
+  const onPageChange = (newPage: number) => {
     const filters = {
       severity: severityFilter || undefined,
       search: debouncedSearch || undefined,
@@ -121,9 +127,24 @@ export const MonitoringPage: React.FC = () => {
     };
 
     if (activeTab === "errors") {
-      fetchErrorLogs(page, 10, filters);
+      fetchErrorLogs(newPage, 10, filters);
     } else {
-      fetchAuditLogs(page, 10, filters);
+      fetchAuditLogs(newPage, 10, filters);
+    }
+  };
+
+  const onLimitChange = (newLimit: number) => {
+    const filters = {
+      severity: severityFilter || undefined,
+      search: debouncedSearch || undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    };
+
+    if (activeTab === "errors") {
+      fetchErrorLogs(1, newLimit, filters);
+    } else {
+      fetchAuditLogs(1, newLimit, filters);
     }
   };
 
@@ -245,6 +266,18 @@ export const MonitoringPage: React.FC = () => {
                     value={severityFilter}
                     onChange={(e) => {
                       setSeverityFilter(e.target.value);
+                      // Fetch with new filter starting from page 1
+                      const filters = {
+                        severity: e.target.value || undefined,
+                        search: debouncedSearch || undefined,
+                        startDate: startDate || undefined,
+                        endDate: endDate || undefined,
+                      };
+                      if (activeTab === "errors") {
+                        fetchErrorLogs(1, limit, filters);
+                      } else {
+                        fetchAuditLogs(1, limit, filters);
+                      }
                     }}
                     disabled={activeTab === "audit"}
                     className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-blue-500 outline-none transition-all disabled:opacity-50"
@@ -262,14 +295,42 @@ export const MonitoringPage: React.FC = () => {
                   <input
                     type="date"
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      // Fetch with new filter starting from page 1
+                      const filters = {
+                        severity: severityFilter || undefined,
+                        search: debouncedSearch || undefined,
+                        startDate: e.target.value || undefined,
+                        endDate: endDate || undefined,
+                      };
+                      if (activeTab === "errors") {
+                        fetchErrorLogs(1, limit, filters);
+                      } else {
+                        fetchAuditLogs(1, limit, filters);
+                      }
+                    }}
                     className="bg-transparent text-xs text-gray-600 dark:text-gray-300 outline-none w-28"
                   />
                   <span className="text-gray-400 text-xs">to</span>
                   <input
                     type="date"
                     value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      // Fetch with new filter starting from page 1
+                      const filters = {
+                        severity: severityFilter || undefined,
+                        search: debouncedSearch || undefined,
+                        startDate: startDate || undefined,
+                        endDate: e.target.value || undefined,
+                      };
+                      if (activeTab === "errors") {
+                        fetchErrorLogs(1, limit, filters);
+                      } else {
+                        fetchAuditLogs(1, limit, filters);
+                      }
+                    }}
                     className="bg-transparent text-xs text-gray-600 dark:text-gray-300 outline-none w-28"
                   />
                   {(startDate || endDate) && (
@@ -277,6 +338,18 @@ export const MonitoringPage: React.FC = () => {
                       onClick={() => {
                         setStartDate("");
                         setEndDate("");
+                        // Fetch with cleared dates starting from page 1
+                        const filters = {
+                          severity: severityFilter || undefined,
+                          search: debouncedSearch || undefined,
+                          startDate: undefined,
+                          endDate: undefined,
+                        };
+                        if (activeTab === "errors") {
+                          fetchErrorLogs(1, limit, filters);
+                        } else {
+                          fetchAuditLogs(1, limit, filters);
+                        }
                       }}
                       className="p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
                     >
@@ -295,8 +368,9 @@ export const MonitoringPage: React.FC = () => {
             <ErrorTable
               logs={errorLogs}
               loading={loading}
-              pagination={pagination}
+              pagination={{ page, limit, total, totalPages, hasNext, hasPrev }}
               onPageChange={onPageChange}
+              onLimitChange={onLimitChange}
               onViewDetail={setSelectedError}
               selectedIds={selectedIds}
               onSelectionChange={setSelectedIds}
@@ -305,8 +379,9 @@ export const MonitoringPage: React.FC = () => {
             <AuditTable
               logs={auditLogs}
               loading={loading}
-              pagination={pagination}
+              pagination={{ page, limit, total, totalPages, hasNext, hasPrev }}
               onPageChange={onPageChange}
+              onLimitChange={onLimitChange}
               onViewDetail={setSelectedAudit}
               selectedIds={selectedIds}
               onSelectionChange={setSelectedIds}

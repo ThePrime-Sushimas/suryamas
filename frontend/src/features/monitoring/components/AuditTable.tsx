@@ -12,8 +12,11 @@ interface AuditTableProps {
     page: number;
     limit: number;
     totalPages: number;
+    hasNext?: boolean;
+    hasPrev?: boolean;
   };
   onPageChange: (page: number) => void;
+  onLimitChange?: (limit: number) => void;
   onViewDetail: (log: AuditLogRecord) => void;
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
@@ -24,6 +27,7 @@ export const AuditTable: React.FC<AuditTableProps> = ({
   loading,
   pagination,
   onPageChange,
+  onLimitChange,
   onViewDetail,
   selectedIds,
   onSelectionChange,
@@ -165,10 +169,11 @@ export const AuditTable: React.FC<AuditTableProps> = ({
         </table>
       </div>
 
-      {pagination && pagination.totalPages > 1 && (
+      {pagination && pagination.total > 0 && (
         <Pagination
           pagination={pagination}
           onPageChange={onPageChange}
+          onLimitChange={onLimitChange}
           currentLength={logs.length}
         />
       )}

@@ -7,13 +7,16 @@ import type { ErrorLogRecord } from "../types";
 interface ErrorTableProps {
   logs: ErrorLogRecord[];
   loading?: boolean;
-  pagination?: {
+  pagination: {
     total: number;
     page: number;
     limit: number;
     totalPages: number;
+    hasNext?: boolean;
+    hasPrev?: boolean;
   };
   onPageChange: (page: number) => void;
+  onLimitChange?: (limit: number) => void;
   onViewDetail: (log: ErrorLogRecord) => void;
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
@@ -40,6 +43,7 @@ export const ErrorTable: React.FC<ErrorTableProps> = ({
   loading,
   pagination,
   onPageChange,
+  onLimitChange,
   onViewDetail,
   selectedIds,
   onSelectionChange,
@@ -172,10 +176,11 @@ export const ErrorTable: React.FC<ErrorTableProps> = ({
         </table>
       </div>
 
-      {pagination && pagination.totalPages > 1 && (
+      {pagination && pagination.total > 0 && (
         <Pagination
           pagination={pagination}
           onPageChange={onPageChange}
+          onLimitChange={onLimitChange}
           currentLength={logs.length}
         />
       )}

@@ -13,12 +13,17 @@ interface MonitoringState {
   stats: ErrorStats | null;
   loading: boolean;
   error: string | null;
-  pagination: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
+  
+  // Active tab state
+  activeTab: "errors" | "audit";
+  
+  // Pagination - flat structure like pos-aggregates
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
 
   fetchErrorLogs: (
     page?: number,
@@ -39,6 +44,9 @@ interface MonitoringState {
     ids: string[],
     action: "delete" | "soft-delete",
   ) => Promise<void>;
+  setPage: (page: number) => void;
+  setLimit: (limit: number) => void;
+  setActiveTab: (tab: "errors" | "audit") => void;
   clearError: () => void;
 }
 
@@ -48,12 +56,15 @@ export const useMonitoringStore = create<MonitoringState>((set, get) => ({
   stats: null,
   loading: false,
   error: null,
-  pagination: {
-    total: 0,
-    page: 1,
-    limit: 10,
-    totalPages: 0,
-  },
+  
+  // Pagination - flat structure like pos-aggregates
+  page: 1,
+  limit: 10,
+  total: 0,
+  totalPages: 0,
+  hasNext: false,
+  hasPrev: false,
+  activeTab: "errors",
 
   fetchErrorLogs: async (page = 1, limit = 10, filters?: MonitoringFilters) => {
     set({ loading: true, error: null });
@@ -62,12 +73,12 @@ export const useMonitoringStore = create<MonitoringState>((set, get) => ({
       set({
         errorLogs: res.data,
         loading: false,
-        pagination: {
-          total: res.pagination.total,
-          page: res.pagination.page,
-          limit: res.pagination.limit,
-          totalPages: res.pagination.totalPages,
-        },
+        page: res.pagination.page,
+        limit: res.pagination.limit,
+        total: res.pagination.total,
+        totalPages: res.pagination.totalPages,
+        hasNext: res.pagination.hasNext ?? false,
+        hasPrev: res.pagination.hasPrev ?? false,
       });
     } catch (error: any) {
       set({
@@ -84,12 +95,12 @@ export const useMonitoringStore = create<MonitoringState>((set, get) => ({
       set({
         auditLogs: res.data,
         loading: false,
-        pagination: {
-          total: res.pagination.total,
-          page: res.pagination.page,
-          limit: res.pagination.limit,
-          totalPages: res.pagination.totalPages,
-        },
+        page: res.pagination.page,
+        limit: res.pagination.limit,
+        total: res.pagination.total,
+        totalPages: res.pagination.totalPages,
+        hasNext: res.pagination.hasNext ?? false,
+        hasPrev: res.pagination.hasPrev ?? false,
       });
     } catch (error: any) {
       set({
@@ -112,8 +123,8 @@ export const useMonitoringStore = create<MonitoringState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await monitoringApi.bulkActionErrors(ids, action);
-      const { pagination } = get();
-      await get().fetchErrorLogs(pagination.page, pagination.limit);
+      const { page, limit } = get();
+      await get().fetchErrorLogs(page, limit);
     } catch (error: any) {
       set({
         error:
@@ -127,8 +138,8 @@ export const useMonitoringStore = create<MonitoringState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await monitoringApi.bulkActionAudit(ids, action);
-      const { pagination } = get();
-      await get().fetchAuditLogs(pagination.page, pagination.limit);
+      const { page, limit } = get();
+      await get().fetchAuditLogs(page, limit);
     } catch (error: any) {
       set({
         error:
@@ -136,6 +147,28 @@ export const useMonitoringStore = create<MonitoringState>((set, get) => ({
         loading: false,
       });
     }
+  },
+
+  setPage: (page: number) => {
+    const { limit, fetchErrorLogs, fetchAuditLogs, activeTab } = get();
+    if (activeTab === "audit") {
+      fetchAuditLogs(page, limit);
+    } else {
+      fetchErrorLogs(page, limit);
+    }
+  },
+
+  setLimit: (limit: number) => {
+    const { fetchErrorLogs, fetchAuditLogs, activeTab } = get();
+    if (activeTab === "audit") {
+      fetchAuditLogs(1, limit);
+    } else {
+      fetchErrorLogs(1, limit);
+    }
+  },
+
+  setActiveTab: (tab: "errors" | "audit") => {
+    set({ activeTab: tab });
   },
 
   clearError: () => set({ error: null }),

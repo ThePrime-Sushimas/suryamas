@@ -10,7 +10,7 @@ import { logInfo, logError } from "@/config/logger";
 import { AuditService } from "./monitoring.service";
 import type { ErrorReport, AuditLogEntry } from "./monitoring.types";
 import { monitoringRepository } from "./monitoring.repository";
-import { getPaginationParams } from "@/utils/pagination.util";
+import { getPaginationParams, createPaginatedResponse } from "@/utils/pagination.util";
 
 /**
  * Log error report from frontend
@@ -148,14 +148,8 @@ export const getErrorLogs = async (
 
     const result = await monitoringRepository.getErrorLogs(filters, pagination);
 
-    sendSuccess(res, result.data, "Error logs retrieved successfully", 200, {
-      page: pagination.page,
-      limit: pagination.limit,
-      total: result.total,
-      totalPages: Math.ceil(result.total / pagination.limit),
-      hasNext: pagination.offset + pagination.limit < result.total,
-      hasPrev: pagination.offset > 0,
-    });
+    const response = createPaginatedResponse(result.data, result.total, pagination.page, pagination.limit);
+    sendSuccess(res, response.data, "Error logs retrieved successfully", 200, response.pagination);
   } catch (error) {
     logError("Failed to get error logs", { error });
     sendError(
@@ -192,14 +186,8 @@ export const getAuditLogs = async (
 
     const result = await monitoringRepository.getAuditLogs(filters, pagination);
 
-    sendSuccess(res, result.data, "Audit logs retrieved successfully", 200, {
-      page: pagination.page,
-      limit: pagination.limit,
-      total: result.total,
-      totalPages: Math.ceil(result.total / pagination.limit),
-      hasNext: pagination.offset + pagination.limit < result.total,
-      hasPrev: pagination.offset > 0,
-    });
+    const response = createPaginatedResponse(result.data, result.total, pagination.page, pagination.limit);
+    sendSuccess(res, response.data, "Audit logs retrieved successfully", 200, response.pagination);
   } catch (error) {
     logError("Failed to get audit logs", { error });
     sendError(
