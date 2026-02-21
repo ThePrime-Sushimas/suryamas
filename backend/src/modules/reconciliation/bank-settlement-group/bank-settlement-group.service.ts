@@ -3,7 +3,10 @@
  * Business logic for bulk settlement reconciliation
  */
 
-import { settlementGroupRepository, SettlementGroupRepository } from "./bank-settlement-group.repository";
+import {
+  settlementGroupRepository,
+  SettlementGroupRepository,
+} from "./bank-settlement-group.repository";
 import { reconciliationOrchestratorService } from "../orchestrator/reconciliation-orchestrator.service";
 import {
   SettlementGroupStatus,
@@ -24,6 +27,7 @@ import {
 } from "./bank-settlement-group.errors";
 import { logError, logInfo } from "../../../config/logger";
 import { bankSettlementConfig } from "./bank-settlement-group.config";
+import { AuditService } from "../../monitoring/monitoring.service";
 
 export class SettlementGroupService {
   private readonly repository: SettlementGroupRepository;
@@ -42,7 +46,9 @@ export class SettlementGroupService {
    * @throws {AggregateAlreadyReconciledError} When any aggregate is already reconciled
    * @throws {DifferenceThresholdExceededError} When difference exceeds allowed threshold
    */
-  async createSettlementGroup(dto: CreateSettlementGroupDto): Promise<CreateSettlementGroupResultDto> {
+  async createSettlementGroup(
+    dto: CreateSettlementGroupDto,
+  ): Promise<CreateSettlementGroupResultDto> {
     logInfo("Creating settlement group", {
       companyId: dto.companyId,
       bankStatementId: dto.bankStatementId,
@@ -50,7 +56,9 @@ export class SettlementGroupService {
     });
 
     // 1. Validate bank statement
-    const statement = await this.repository.getBankStatementById(dto.bankStatementId);
+    const statement = await this.repository.getBankStatementById(
+      dto.bankStatementId,
+    );
     if (!statement) {
       throw new SettlementGroupNotFoundError(dto.bankStatementId);
     }
@@ -80,34 +88,47 @@ export class SettlementGroupService {
           throw new AggregateAlreadyReconciledError(aggregateId);
         }
         return aggregate;
-      })
+      }),
     );
 
     // 4. Calculate totals
-    const totalAllocatedAmount = aggregateDetails.reduce((sum, agg) => sum + agg.nett_amount, 0);
+    const totalAllocatedAmount = aggregateDetails.reduce(
+      (sum, agg) => sum + agg.nett_amount,
+      0,
+    );
     const difference = statementAmount - totalAllocatedAmount;
-    const differencePercent = statementAmount !== 0 ? Math.abs(difference) / statementAmount : 0;
+    const differencePercent =
+      statementAmount !== 0 ? Math.abs(difference) / statementAmount : 0;
 
     // 4. Validate difference threshold
-    const isWithinTolerance = differencePercent <= bankSettlementConfig.defaultTolerancePercent;
-    const isWithinAbsoluteThreshold = Math.abs(difference) <= bankSettlementConfig.differenceThreshold;
+    const isWithinTolerance =
+      differencePercent <= bankSettlementConfig.defaultTolerancePercent;
+    const isWithinAbsoluteThreshold =
+      Math.abs(difference) <= bankSettlementConfig.differenceThreshold;
 
-    if (!isWithinTolerance && !isWithinAbsoluteThreshold && !dto.overrideDifference) {
+    if (
+      !isWithinTolerance &&
+      !isWithinAbsoluteThreshold &&
+      !dto.overrideDifference
+    ) {
       throw new DifferenceThresholdExceededError(
         difference,
         differencePercent,
-        bankSettlementConfig.defaultTolerancePercent
+        bankSettlementConfig.defaultTolerancePercent,
       );
     }
 
     // 5. Determine status
     const isExactMatch = difference === 0;
-    const isWithinAllowedThreshold = differencePercent <= bankSettlementConfig.defaultTolerancePercent || isWithinAbsoluteThreshold;
+    const isWithinAllowedThreshold =
+      differencePercent <= bankSettlementConfig.defaultTolerancePercent ||
+      isWithinAbsoluteThreshold;
     // If overrideDifference is true, user is explicitly verifying the discrepancy is acceptable
     // So status should be RECONCILED, not DISCREPANCY
-    const status = isExactMatch || isWithinAllowedThreshold || dto.overrideDifference
-      ? SettlementGroupStatus.RECONCILED
-      : SettlementGroupStatus.DISCREPANCY;
+    const status =
+      isExactMatch || isWithinAllowedThreshold || dto.overrideDifference
+        ? SettlementGroupStatus.RECONCILED
+        : SettlementGroupStatus.DISCREPANCY;
 
     // 6. Create settlement group
     const groupId = await this.repository.createSettlementGroup({
@@ -141,14 +162,19 @@ export class SettlementGroupService {
     if (status === SettlementGroupStatus.RECONCILED) {
       try {
         await this.repository.markAggregatesAsReconciled(dto.aggregateIds);
-        await this.repository.markBankStatementAsReconciled(dto.bankStatementId);
+        await this.repository.markBankStatementAsReconciled(
+          dto.bankStatementId,
+        );
       } catch (error) {
-        logError("Failed to mark as reconciled during settlement group creation", {
-          groupId,
-          bankStatementId: dto.bankStatementId,
-          aggregateIds: dto.aggregateIds,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
+        logError(
+          "Failed to mark as reconciled during settlement group creation",
+          {
+            groupId,
+            bankStatementId: dto.bankStatementId,
+            aggregateIds: dto.aggregateIds,
+            error: error instanceof Error ? error.message : "Unknown error",
+          },
+        );
         // Continue without throwing - the settlement group is created, just the reconciliation flags might need manual fix
       }
     }
@@ -164,6 +190,22 @@ export class SettlementGroupService {
       difference,
       status,
     });
+
+    // Audit log for settlement group creation
+    await AuditService.log(
+      "CREATE",
+      "settlement_group",
+      groupId,
+      dto.userId || null,
+      null,
+      {
+        settlement_number: createdGroup?.settlement_number,
+        bank_statement_id: dto.bankStatementId,
+        aggregate_count: dto.aggregateIds.length,
+        status,
+        difference,
+      },
+    );
 
     return {
       success: true,
@@ -193,8 +235,11 @@ export class SettlementGroupService {
   /**
    * Get settlement group by settlement number
    */
-  async getSettlementGroupByNumber(settlementNumber: string): Promise<SettlementGroup> {
-    const group = await this.repository.findBySettlementNumber(settlementNumber);
+  async getSettlementGroupByNumber(
+    settlementNumber: string,
+  ): Promise<SettlementGroup> {
+    const group =
+      await this.repository.findBySettlementNumber(settlementNumber);
     if (!group) {
       throw new SettlementGroupNotFoundError(settlementNumber);
     }
@@ -219,12 +264,10 @@ export class SettlementGroupService {
    * Delete a settlement group (HARD DELETE)
    * Permanently removes the settlement group and its aggregates
    * Also reverts is_reconciled to false for aggregates and bank statement
-   * 
+   *
    * @param groupId - The settlement group ID
    */
-  async deleteSettlementGroup(
-    groupId: string,
-  ): Promise<void> {
+  async deleteSettlementGroup(groupId: string, userId?: string): Promise<void> {
     logInfo("Deleting settlement group (hard delete)", { groupId });
 
     const group = await this.repository.findById(groupId);
@@ -233,10 +276,13 @@ export class SettlementGroupService {
     }
 
     // Get aggregate IDs before deletion
-    const aggregateIds = group.aggregates?.map((agg: SettlementAggregate) => agg.aggregate_id) || [];
-    
+    const aggregateIds =
+      group.aggregates?.map((agg: SettlementAggregate) => agg.aggregate_id) ||
+      [];
+
     // Get bank_statement_id for reverting
-    const bankStatementId = await this.repository.getBankStatementIdRaw(groupId);
+    const bankStatementId =
+      await this.repository.getBankStatementIdRaw(groupId);
 
     // Hard delete the settlement group and its aggregates
     await this.repository.hardDelete(groupId);
@@ -247,14 +293,17 @@ export class SettlementGroupService {
         await this.repository.markAggregatesAsUnreconciled(aggregateIds);
         logInfo("Aggregates marked as unreconciled after hard delete", {
           groupId,
-          aggregatesCount: aggregateIds.length
+          aggregatesCount: aggregateIds.length,
         });
       } catch (error) {
-        logError("Failed to revert aggregates is_reconciled after hard delete", {
-          groupId,
-          aggregateIds,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
+        logError(
+          "Failed to revert aggregates is_reconciled after hard delete",
+          {
+            groupId,
+            aggregateIds,
+            error: error instanceof Error ? error.message : "Unknown error",
+          },
+        );
       }
     }
 
@@ -264,14 +313,17 @@ export class SettlementGroupService {
         await this.repository.markBankStatementAsUnreconciled(bankStatementId);
         logInfo("Bank statement marked as unreconciled after hard delete", {
           groupId,
-          bank_statement_id: bankStatementId
+          bank_statement_id: bankStatementId,
         });
       } catch (error) {
-        logError("Failed to revert bank statement is_reconciled after hard delete", {
-          groupId,
-          bank_statement_id: bankStatementId,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
+        logError(
+          "Failed to revert bank statement is_reconciled after hard delete",
+          {
+            groupId,
+            bank_statement_id: bankStatementId,
+            error: error instanceof Error ? error.message : "Unknown error",
+          },
+        );
       }
     }
 
@@ -279,6 +331,16 @@ export class SettlementGroupService {
       groupId,
       aggregatesCount: aggregateIds.length,
     });
+
+    // Audit log for settlement group deletion (hard delete)
+    await AuditService.log(
+      "DELETE",
+      "settlement_group",
+      groupId,
+      userId || null,
+      { settlement_number: group.settlement_number, status: group.status },
+      { deleted_at: new Date().toISOString() },
+    );
   }
 
   /**
@@ -296,43 +358,50 @@ export class SettlementGroupService {
     // Get aggregates from orchestrator for a wide date range (all time)
     // If no date range provided, get aggregates from last 30 days as default
     const endDate = options?.endDate ? new Date(options.endDate) : new Date();
-    const startDate = options?.startDate 
-      ? new Date(options.startDate) 
+    const startDate = options?.startDate
+      ? new Date(options.startDate)
       : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
 
-    const aggregates = await reconciliationOrchestratorService.getAggregatesByDateRange(
-      startDate,
-      endDate
-    );
+    const aggregates =
+      await reconciliationOrchestratorService.getAggregatesByDateRange(
+        startDate,
+        endDate,
+      );
 
     // Filter out reconciled aggregates
-    const unreconciledAggregates = aggregates.filter(a => !a.reconciliation_status || a.reconciliation_status === 'PENDING');
+    const unreconciledAggregates = aggregates.filter(
+      (a) => !a.reconciliation_status || a.reconciliation_status === "PENDING",
+    );
 
     // Apply search filter if provided
     let filteredAggregates = unreconciledAggregates;
     if (options?.search) {
       const searchLower = options.search.toLowerCase();
-      filteredAggregates = unreconciledAggregates.filter(a => 
-        a.branch_name?.toLowerCase().includes(searchLower) ||
-        a.payment_method_name?.toLowerCase().includes(searchLower) ||
-        a.reference_number?.toLowerCase().includes(searchLower)
+      filteredAggregates = unreconciledAggregates.filter(
+        (a) =>
+          a.branch_name?.toLowerCase().includes(searchLower) ||
+          a.payment_method_name?.toLowerCase().includes(searchLower) ||
+          a.reference_number?.toLowerCase().includes(searchLower),
       );
     }
 
     // Apply pagination
     const limit = options?.limit || 100;
     const offset = options?.offset || 0;
-    const paginatedAggregates = filteredAggregates.slice(offset, offset + limit);
+    const paginatedAggregates = filteredAggregates.slice(
+      offset,
+      offset + limit,
+    );
 
     // Transform to match frontend AvailableAggregateDto format
-    const transformedData = paginatedAggregates.map(agg => ({
+    const transformedData = paginatedAggregates.map((agg) => ({
       id: agg.id,
       transaction_date: agg.transaction_date,
       gross_amount: agg.gross_amount,
       nett_amount: agg.nett_amount,
       payment_method_name: agg.payment_method_name,
       branch_name: agg.branch_name || null,
-      is_reconciled: agg.reconciliation_status === 'RECONCILED',
+      is_reconciled: agg.reconciliation_status === "RECONCILED",
     }));
 
     return {
@@ -346,17 +415,20 @@ export class SettlementGroupService {
    */
   async getAggregatesByStatementDate(statementDate: string): Promise<any[]> {
     const date = new Date(statementDate);
-    
-    const aggregates = await reconciliationOrchestratorService.getAggregatesByDateRange(
-      date,
-      date
-    );
+
+    const aggregates =
+      await reconciliationOrchestratorService.getAggregatesByDateRange(
+        date,
+        date,
+      );
 
     // Filter out reconciled aggregates
-    const unreconciledAggregates = aggregates.filter(a => !a.reconciliation_status || a.reconciliation_status === 'PENDING');
+    const unreconciledAggregates = aggregates.filter(
+      (a) => !a.reconciliation_status || a.reconciliation_status === "PENDING",
+    );
 
     // Transform to match frontend format
-    return unreconciledAggregates.map(agg => ({
+    return unreconciledAggregates.map((agg) => ({
       id: agg.id,
       transaction_date: agg.transaction_date,
       gross_amount: agg.gross_amount,
@@ -364,7 +436,7 @@ export class SettlementGroupService {
       payment_method_name: agg.payment_method_name,
       branch_name: agg.branch_name,
       reference_number: agg.reference_number,
-      is_reconciled: agg.reconciliation_status === 'RECONCILED',
+      is_reconciled: agg.reconciliation_status === "RECONCILED",
     }));
   }
 
@@ -390,10 +462,13 @@ export class SettlementGroupService {
       endDate?: string;
       tolerancePercent?: number;
       maxAggregates?: number;
-    }
+    },
   ): Promise<AvailableAggregateDto[]> {
-    const tolerance = options?.tolerancePercent || bankSettlementConfig.suggestionDefaultTolerance;
-    const maxAgg = options?.maxAggregates || bankSettlementConfig.suggestionMaxResults;
+    const tolerance =
+      options?.tolerancePercent ||
+      bankSettlementConfig.suggestionDefaultTolerance;
+    const maxAgg =
+      options?.maxAggregates || bankSettlementConfig.suggestionMaxResults;
 
     // Get available aggregates using service method (which uses orchestrator)
     const { data: availableAggregates } = await this.getAvailableAggregates({
@@ -403,7 +478,12 @@ export class SettlementGroupService {
     });
 
     // Use optimized algorithm to find best combination
-    return this.findOptimalAggregateCombination(availableAggregates, targetAmount, tolerance, maxAgg);
+    return this.findOptimalAggregateCombination(
+      availableAggregates,
+      targetAmount,
+      tolerance,
+      maxAgg,
+    );
   }
 
   /**
@@ -414,14 +494,16 @@ export class SettlementGroupService {
     aggregates: AvailableAggregateDto[],
     targetAmount: number,
     tolerancePercent: number,
-    maxAggregates: number
+    maxAggregates: number,
   ): AvailableAggregateDto[] {
     const toleranceAmount = targetAmount * tolerancePercent;
     const minAcceptable = targetAmount - toleranceAmount;
     const maxAcceptable = targetAmount + toleranceAmount;
 
     // Sort by amount (largest first for better greedy start)
-    const sorted = [...aggregates].sort((a, b) => b.nett_amount - a.nett_amount);
+    const sorted = [...aggregates].sort(
+      (a, b) => b.nett_amount - a.nett_amount,
+    );
 
     let bestCombination: AvailableAggregateDto[] = [];
     let bestDifference = Infinity;
@@ -434,16 +516,22 @@ export class SettlementGroupService {
         targetAmount,
         minAcceptable,
         maxAcceptable,
-        maxAggregates
+        maxAggregates,
       );
 
       if (combination.length > 0) {
-        const total = combination.reduce((sum, agg) => sum + agg.nett_amount, 0);
+        const total = combination.reduce(
+          (sum, agg) => sum + agg.nett_amount,
+          0,
+        );
         const difference = Math.abs(total - targetAmount);
 
         // Update best combination if this is better
-        if (difference < bestDifference ||
-            (difference === bestDifference && combination.length < bestCombination.length)) {
+        if (
+          difference < bestDifference ||
+          (difference === bestDifference &&
+            combination.length < bestCombination.length)
+        ) {
           bestCombination = combination;
           bestDifference = difference;
         }
@@ -457,7 +545,12 @@ export class SettlementGroupService {
 
     // If no good combination found, fall back to simple greedy
     if (bestCombination.length === 0) {
-      bestCombination = this.fallbackGreedyAlgorithm(sorted, targetAmount, toleranceAmount, maxAggregates);
+      bestCombination = this.fallbackGreedyAlgorithm(
+        sorted,
+        targetAmount,
+        toleranceAmount,
+        maxAggregates,
+      );
     }
 
     return bestCombination;
@@ -472,13 +565,17 @@ export class SettlementGroupService {
     targetAmount: number,
     minAcceptable: number,
     maxAcceptable: number,
-    maxAggregates: number
+    maxAggregates: number,
   ): AvailableAggregateDto[] {
     const combination: AvailableAggregateDto[] = [sortedAggregates[startIdx]];
     let currentSum = sortedAggregates[startIdx].nett_amount;
 
     // Add more aggregates that get us closer to target
-    for (let i = 0; i < sortedAggregates.length && combination.length < maxAggregates; i++) {
+    for (
+      let i = 0;
+      i < sortedAggregates.length && combination.length < maxAggregates;
+      i++
+    ) {
       if (i === startIdx) continue; // Skip the starting aggregate
 
       const candidate = sortedAggregates[i];
@@ -490,7 +587,8 @@ export class SettlementGroupService {
         currentSum = potentialSum;
 
         // If we're very close to target, stop adding more
-        if (Math.abs(currentSum - targetAmount) / targetAmount < 0.01) { // Within 1%
+        if (Math.abs(currentSum - targetAmount) / targetAmount < 0.01) {
+          // Within 1%
           break;
         }
       }
@@ -506,7 +604,7 @@ export class SettlementGroupService {
     sortedAggregates: AvailableAggregateDto[],
     targetAmount: number,
     toleranceAmount: number,
-    maxAggregates: number
+    maxAggregates: number,
   ): AvailableAggregateDto[] {
     const suggestions: AvailableAggregateDto[] = [];
     let currentSum = 0;
@@ -527,5 +625,6 @@ export class SettlementGroupService {
   }
 }
 
-export const settlementGroupService = new SettlementGroupService(settlementGroupRepository);
-
+export const settlementGroupService = new SettlementGroupService(
+  settlementGroupRepository,
+);

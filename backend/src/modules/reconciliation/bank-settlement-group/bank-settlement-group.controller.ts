@@ -8,7 +8,10 @@ import {
   settlementGroupService,
   SettlementGroupService,
 } from "./bank-settlement-group.service";
-import type { AuthenticatedRequest, AuthenticatedQueryRequest } from "../../../types/request.types";
+import type {
+  AuthenticatedRequest,
+  AuthenticatedQueryRequest,
+} from "../../../types/request.types";
 import { ValidatedAuthRequest } from "../../../middleware/validation.middleware";
 import {
   createSettlementGroupSchema,
@@ -60,12 +63,13 @@ export class SettlementGroupController {
     res: Response,
   ): Promise<void> {
     try {
-      const { bankStatementId, aggregateIds, notes, overrideDifference } = req.validated.body;
+      const { bankStatementId, aggregateIds, notes, overrideDifference } =
+        req.validated.body;
       const userId = req.user?.id as string | undefined;
       const companyId = (req as any).context?.company_id as string | undefined;
 
       const result = await this.service.createSettlementGroup({
-        companyId: companyId || '',
+        companyId: companyId || "",
         bankStatementId,
         aggregateIds,
         notes,
@@ -94,7 +98,7 @@ export class SettlementGroupController {
       if (error instanceof DifferenceThresholdExceededError) status = 422;
 
       // Add correlation ID to logs for better tracing
-      const correlationId = req.headers['x-correlation-id'] || 'unknown';
+      const correlationId = req.headers["x-correlation-id"] || "unknown";
       logError("Create settlement group error", {
         correlationId,
         error: error.message,
@@ -119,7 +123,10 @@ export class SettlementGroupController {
    * @param res Express response object
    * @returns Promise<void>
    */
-  async getById(req: ValidatedAuthRequest<typeof getSettlementGroupByIdSchema>, res: Response): Promise<void> {
+  async getById(
+    req: ValidatedAuthRequest<typeof getSettlementGroupByIdSchema>,
+    res: Response,
+  ): Promise<void> {
     try {
       const { id } = req.validated.params;
 
@@ -130,7 +137,7 @@ export class SettlementGroupController {
         data: result,
       });
     } catch (error: any) {
-      const correlationId = req.headers['x-correlation-id'] || 'unknown';
+      const correlationId = req.headers["x-correlation-id"] || "unknown";
       logError("Get settlement group error", {
         correlationId,
         id: req.validated.params.id,
@@ -164,7 +171,8 @@ export class SettlementGroupController {
     res: Response,
   ): Promise<void> {
     try {
-      const { startDate, endDate, status, search, limit, offset } = req.validated.query;
+      const { startDate, endDate, status, search, limit, offset } =
+        req.validated.query;
 
       const result = await this.service.listSettlementGroups({
         startDate,
@@ -209,8 +217,9 @@ export class SettlementGroupController {
   ): Promise<void> {
     try {
       const { id } = req.validated.params;
+      const userId = req.user?.id as string | undefined;
 
-      await this.service.deleteSettlementGroup(id);
+      await this.service.deleteSettlementGroup(id, userId);
 
       logInfo("Settlement group deleted", { groupId: id });
 
@@ -219,7 +228,7 @@ export class SettlementGroupController {
         message: "Settlement group berhasil dihapus",
       });
     } catch (error: any) {
-      const correlationId = req.headers['x-correlation-id'] || 'unknown';
+      const correlationId = req.headers["x-correlation-id"] || "unknown";
       logError("Delete settlement group error", {
         correlationId,
         id: req.validated.params.id,
@@ -251,7 +260,8 @@ export class SettlementGroupController {
     res: Response,
   ): Promise<void> {
     try {
-      const { startDate, endDate, bankAccountId, search, limit, offset } = req.validated.query;
+      const { startDate, endDate, bankAccountId, search, limit, offset } =
+        req.validated.query;
 
       const result = await this.service.getAvailableAggregates({
         startDate,
@@ -269,8 +279,8 @@ export class SettlementGroupController {
           total: result.total,
           page: Math.floor((offset || 0) / (limit || 100)) + 1,
           pageSize: limit || 100,
-          totalPages: Math.ceil(result.total / (limit || 100))
-        }
+          totalPages: Math.ceil(result.total / (limit || 100)),
+        },
       });
     } catch (error: any) {
       logError("Get available aggregates error", {
@@ -295,7 +305,10 @@ export class SettlementGroupController {
    * @param res Express response object
    * @returns Promise<void>
    */
-  async getSettlementAggregates(req: ValidatedAuthRequest<typeof getSettlementGroupAggregatesSchema>, res: Response): Promise<void> {
+  async getSettlementAggregates(
+    req: ValidatedAuthRequest<typeof getSettlementGroupAggregatesSchema>,
+    res: Response,
+  ): Promise<void> {
     try {
       const { id } = req.validated.params;
 
@@ -332,7 +345,8 @@ export class SettlementGroupController {
     res: Response,
   ): Promise<void> {
     try {
-      const { targetAmount, tolerancePercent, dateToleranceDays, maxResults } = req.validated.query;
+      const { targetAmount, tolerancePercent, dateToleranceDays, maxResults } =
+        req.validated.query;
 
       const result = await this.service.getSuggestedAggregates(targetAmount, {
         tolerancePercent,
@@ -360,6 +374,5 @@ export class SettlementGroupController {
 }
 
 export const settlementGroupController = new SettlementGroupController(
-  settlementGroupService
+  settlementGroupService,
 );
-
