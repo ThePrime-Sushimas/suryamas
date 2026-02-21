@@ -261,8 +261,10 @@ export class MonitoringRepository {
     }
 
     if (filters.search) {
+      // Search in error_message and error_name
+      const searchTerm = `%${filters.search}%`;
       query = query.or(
-        `error_message.ilike.%${filters.search}%,error_name.ilike.%${filters.search}%`,
+        `error_message.ilike.${searchTerm},error_name.ilike.${searchTerm}`,
       );
     }
 
