@@ -8,6 +8,7 @@ import { monitoringRepository } from './monitoring.repository'
 import { logInfo, logError } from '../../config/logger'
 import { monitoringRetentionPolicy, retentionDays, auditRetentionPolicy } from './monitoring.config'
 import type { CleanupPreview, CleanupResult, ArchiveResult } from './monitoring.types'
+import { employeesRepository } from '../employees/employees.repository'
 
 export class AuditService {
   /**
@@ -32,12 +33,30 @@ export class AuditService {
     userAgent?: string
   ): Promise<void> {
     try {
+      // Auto-lookup employee name from userId
+      let changedByName: string | null = null
+      if (changedBy) {
+        try {
+          const employee = await employeesRepository.findByUserId(changedBy)
+          if (employee) {
+            changedByName = employee.full_name
+          }
+        } catch (lookupError) {
+          // Log but don't fail - audit logging should not break main operation
+          logError('Failed to lookup employee name for audit', { 
+            userId: changedBy, 
+            error: lookupError 
+          })
+        }
+      }
+
       // Log to console for development
       logInfo('Audit Log', {
         action,
         entityType,
         entityId,
         changedBy,
+        changedByName,
         timestamp: new Date().toISOString()
       })
 
@@ -47,6 +66,7 @@ export class AuditService {
         entityType,
         entityId,
         changedBy,
+        changedByName,
         oldValue,
         newValue,
         ipAddress,

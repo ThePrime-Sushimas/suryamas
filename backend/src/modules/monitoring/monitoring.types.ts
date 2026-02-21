@@ -100,12 +100,15 @@ export interface AuditLogRecord {
   entity_type: string;
   entity_id?: string;
   user_id?: string;
+  user_name?: string | null;
   user_email?: string;
   branch_id?: string;
   branch_name?: string;
   reason?: string;
   context?: Record<string, any>;
   metadata?: Record<string, any>;
+  old_value?: any;
+  new_value?: any;
   created_at: string;
   deleted_at?: string;
 }

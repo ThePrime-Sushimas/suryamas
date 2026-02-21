@@ -59,6 +59,7 @@ export class MonitoringRepository {
     entityType: string;
     entityId: string;
     changedBy: string | null;
+    changedByName?: string | null;
     oldValue?: any;
     newValue?: any;
     ipAddress?: string;
@@ -69,6 +70,7 @@ export class MonitoringRepository {
       entity_type: auditData.entityType,
       entity_id: auditData.entityId,
       changed_by: auditData.changedBy,
+      changed_by_name: auditData.changedByName || null,
       old_value: auditData.oldValue ? JSON.stringify(auditData.oldValue) : null,
       new_value: auditData.newValue ? JSON.stringify(auditData.newValue) : null,
       ip_address: auditData.ipAddress,
@@ -138,10 +140,11 @@ export class MonitoringRepository {
     const mappedData = (data || []).map((row: any) => ({
       ...row,
       user_id: row.changed_by,
+      user_name: row.changed_by_name || null,
       // user_email and branch_name are not in this table,
       // they would require a join or separate fetch if needed.
       // But we ensure user_id is populated from changed_by.
-    }));
+    }))
 
     return {
       data: mappedData as AuditLogRecord[],

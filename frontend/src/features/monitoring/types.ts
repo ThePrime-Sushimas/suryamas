@@ -65,6 +65,7 @@ export interface AuditLogRecord {
   entity_type: string;
   entity_id?: string;
   user_id?: string;
+  user_name?: string | null;
   user_email?: string;
   branch_id?: string;
   branch_name?: string;
