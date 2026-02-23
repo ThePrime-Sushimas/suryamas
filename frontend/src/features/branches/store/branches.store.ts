@@ -6,6 +6,13 @@ interface BranchesState {
   branches: Branch[]
   loading: boolean
   error: string | null
+  // Pagination state
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
   
   fetchBranches: (page: number, limit: number, sort?: BranchSort | null, filter?: BranchFilter | null) => Promise<void>
   searchBranches: (q: string, page: number, limit: number, sort?: BranchSort | null) => Promise<void>
@@ -14,18 +21,38 @@ interface BranchesState {
   deleteBranch: (id: string) => Promise<void>
   bulkDelete: (ids: string[]) => Promise<void>
   clearError: () => void
+  setPage: (page: number) => void
+  setLimit: (limit: number) => void
 }
 
 export const useBranchesStore = create<BranchesState>((set, get) => ({
   branches: [],
   loading: false,
   error: null,
+  // Initial pagination state
+  page: 1,
+  limit: 10,
+  total: 0,
+  totalPages: 0,
+  hasNext: false,
+  hasPrev: false,
 
   fetchBranches: async (page, limit, sort, filter) => {
     set({ loading: true, error: null })
     try {
       const res = await branchesApi.list(page, limit, sort, filter)
-      set({ branches: res.data, loading: false })
+      const total = res.pagination?.total || 0
+      const totalPages = Math.ceil(total / limit)
+      set({ 
+        branches: res.data, 
+        loading: false,
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      })
     } catch (error) {
       const errorMessage = error instanceof Error && 'response' in error && typeof error.response === 'object' && error.response && 'data' in error.response && typeof error.response.data === 'object' && error.response.data && 'error' in error.response.data ? String(error.response.data.error) : 'Failed to fetch branches'
       set({ error: errorMessage, loading: false })
@@ -36,7 +63,18 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
     set({ loading: true, error: null })
     try {
       const res = await branchesApi.search(q, page, limit, sort)
-      set({ branches: res.data, loading: false })
+      const total = res.pagination?.total || 0
+      const totalPages = Math.ceil(total / limit)
+      set({ 
+        branches: res.data, 
+        loading: false,
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      })
     } catch (error) {
       const errorMessage = error instanceof Error && 'response' in error && typeof error.response === 'object' && error.response && 'data' in error.response && typeof error.response.data === 'object' && error.response.data && 'error' in error.response.data ? String(error.response.data.error) : 'Failed to search branches'
       set({ error: errorMessage, loading: false })
@@ -82,6 +120,16 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
     try {
       await branchesApi.delete(id)
       set({ loading: false })
+      // Update total after delete
+      const { total, limit, page } = get()
+      const newTotal = total - 1
+      const newTotalPages = Math.ceil(newTotal / limit)
+      set({ 
+        total: newTotal,
+        totalPages: newTotalPages,
+        hasNext: page < newTotalPages,
+        hasPrev: page > 1
+      })
     } catch (error) {
       const errorMessage = error instanceof Error && 'response' in error && typeof error.response === 'object' && error.response && 'data' in error.response && typeof error.response.data === 'object' && error.response.data && 'error' in error.response.data ? String(error.response.data.error) : 'Failed to delete branch'
       set({ branches: prev, error: errorMessage, loading: false })
@@ -96,6 +144,16 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
     try {
       await branchesApi.bulkDelete(ids)
       set({ loading: false })
+      // Update total after bulk delete
+      const { total, limit, page } = get()
+      const newTotal = total - ids.length
+      const newTotalPages = Math.ceil(newTotal / limit)
+      set({ 
+        total: newTotal,
+        totalPages: newTotalPages,
+        hasNext: page < newTotalPages,
+        hasPrev: page > 1
+      })
     } catch (error) {
       const errorMessage = error instanceof Error && 'response' in error && typeof error.response === 'object' && error.response && 'data' in error.response && typeof error.response.data === 'object' && error.response.data && 'error' in error.response.data ? String(error.response.data.error) : 'Failed to delete branches'
       set({ branches: prev, error: errorMessage, loading: false })
@@ -103,5 +161,10 @@ export const useBranchesStore = create<BranchesState>((set, get) => ({
     }
   },
 
-  clearError: () => set({ error: null })
+  clearError: () => set({ error: null }),
+  
+  setPage: (page) => set({ page }),
+  
+  setLimit: (limit) => set({ limit })
 }))
+

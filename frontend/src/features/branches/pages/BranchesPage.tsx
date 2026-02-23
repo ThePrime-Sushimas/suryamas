@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBranchesStore } from '../store/branches.store'
 import { BranchTable } from '../components/BranchTable'
+import { Pagination } from '@/components/ui/Pagination'
 import { useToast } from '@/contexts/ToastContext'
 import { MapPin, Plus, Search, X } from 'lucide-react'
 
@@ -15,35 +16,87 @@ function debounce(fn: (value: string) => void, delay: number) {
 
 export default function BranchesPage() {
   const navigate = useNavigate()
-  const { branches, loading, fetchBranches, searchBranches, deleteBranch } = useBranchesStore()
+  const { 
+    branches, 
+    loading, 
+    fetchBranches, 
+    searchBranches, 
+    deleteBranch,
+    page,
+    limit,
+    total,
+    totalPages,
+    hasNext,
+    hasPrev,
+    setPage,
+    setLimit
+  } = useBranchesStore()
   const [search, setSearch] = useState('')
   const { success, error } = useToast()
 
-  const debouncedSearch = useMemo(
-    () => debounce((value: string) => {
-      if (value) {
-        searchBranches(value, 1, 1000)
-      } else {
-        fetchBranches(1, 1000)
-      }
-    }, 300),
-    [searchBranches, fetchBranches]
-  )
+  // Fetch branches on mount and when page/limit changes
+  const fetchData = useCallback(() => {
+    if (search) {
+      searchBranches(search, page, limit)
+    } else {
+      fetchBranches(page, limit)
+    }
+  }, [page, limit, search, fetchBranches, searchBranches])
 
   useEffect(() => {
-    fetchBranches(1, 1000)
-  }, [fetchBranches])
+    fetchData()
+  }, [fetchData])
+
+  const debouncedSearch = useMemo(
+    () => debounce((value: string) => {
+      setPage(1) // Reset to page 1 when searching
+      if (value) {
+        searchBranches(value, 1, limit)
+      } else {
+        fetchBranches(1, limit)
+      }
+    }, 300),
+    [searchBranches, fetchBranches, limit, setPage]
+  )
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setSearch(value)
+    debouncedSearch(value)
+  }
+
+  const handleClearSearch = () => {
+    setSearch('')
+    setPage(1)
+    fetchBranches(1, limit)
+  }
 
   const handleDelete = async (id: string) => {
     if (confirm('Delete this branch?')) {
       try {
         await deleteBranch(id)
         success('Branch deleted successfully')
+        // Refresh data after delete
+        if (search) {
+          searchBranches(search, page, limit)
+        } else {
+          fetchBranches(page, limit)
+        }
       } catch (err) {
         error('Failed to delete branch')
         console.error('Delete failed:', err)
       }
     }
+  }
+
+  // Pagination handlers
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage)
+  }
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit)
+    setPage(1) // Reset to page 1 when limit changes
   }
 
   return (
@@ -55,7 +108,7 @@ export default function BranchesPage() {
             <MapPin className="w-6 h-6 text-blue-600" />
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">Branches</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{branches.length} total</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{total} total</p>
             </div>
           </div>
           <button
@@ -75,16 +128,13 @@ export default function BranchesPage() {
           <input
             type="text"
             value={search}
-            onChange={e => {
-              setSearch(e.target.value)
-              debouncedSearch(e.target.value)
-            }}
+            onChange={handleSearchChange}
             placeholder="Search branches..."
             className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           />
           {search && (
             <button
-              onClick={() => setSearch('')}
+              onClick={handleClearSearch}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
             >
               <X className="w-4 h-4" />
@@ -98,16 +148,37 @@ export default function BranchesPage() {
         {loading ? (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading...</div>
         ) : (
-          <BranchTable
-            branches={branches}
-            onView={id => navigate(`/branches/${id}`)}
-            onEdit={id => navigate(`/branches/${id}/edit`)}
-            onDelete={handleDelete}
-            canEdit={true}
-            canDelete={true}
-          />
+          <>
+            <BranchTable
+              branches={branches}
+              onView={id => navigate(`/branches/${id}`)}
+              onEdit={id => navigate(`/branches/${id}/edit`)}
+              onDelete={handleDelete}
+              canEdit={true}
+              canDelete={true}
+            />
+            
+            {/* Global Pagination Component */}
+            {total > 0 && (
+              <Pagination
+                pagination={{
+                  page,
+                  limit,
+                  total,
+                  totalPages,
+                  hasNext,
+                  hasPrev
+                }}
+                onPageChange={handlePageChange}
+                onLimitChange={handleLimitChange}
+                currentLength={branches.length}
+                loading={loading}
+              />
+            )}
+          </>
         )}
       </div>
     </div>
   )
 }
+
