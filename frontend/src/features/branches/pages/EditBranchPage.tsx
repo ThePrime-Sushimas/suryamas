@@ -40,12 +40,12 @@ export default function EditBranchPage() {
     }
   }
 
-  if (loading) return <div className="p-4">Loading...</div>
-  if (!branch) return <div className="p-4 text-red-600">Branch not found</div>
+  if (loading) return <div className="p-4 dark:text-white">Loading...</div>
+  if (!branch) return <div className="p-4 text-red-600 dark:text-red-400">Branch not found</div>
 
   return (
     <div className="max-w-2xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">Edit Branch</h1>
+      <h1 className="text-2xl font-bold mb-6 dark:text-white">Edit Branch</h1>
       <BranchForm initialData={branch} isEdit onSubmit={handleSubmit} isLoading={updating} />
     </div>
   )

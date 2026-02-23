@@ -23,8 +23,8 @@ export default function CreateBranchPage() {
   return (
     <div className="max-w-2xl mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Create Branch</h1>
-        <button onClick={() => navigate('/branches')} className="text-gray-600 hover:text-gray-900">
+        <h1 className="text-2xl font-bold dark:text-white">Create Branch</h1>
+        <button onClick={() => navigate('/branches')} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
           ✕
         </button>
       </div>

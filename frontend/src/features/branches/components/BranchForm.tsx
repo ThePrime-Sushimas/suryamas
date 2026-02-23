@@ -90,8 +90,8 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
       {!isEdit && (
         <>
           <div>
-            <label className="block text-sm font-medium">Company *</label>
-            <select name="company_id" value={formData.company_id} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" required>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company *</label>
+            <select name="company_id" value={formData.company_id} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" required>
               <option value="">Select Company</option>
               {companies.map(company => (
                 <option key={company.id} value={company.id}>
@@ -101,59 +101,59 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium">Branch Code *</label>
-            <input name="branch_code" value={formData.branch_code} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" required />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Branch Code *</label>
+            <input name="branch_code" value={formData.branch_code} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" required />
           </div>
         </>
       )}
       <div>
-        <label className="block text-sm font-medium">Branch Name *</label>
-        <input name="branch_name" value={formData.branch_name} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" required />
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Branch Name *</label>
+        <input name="branch_name" value={formData.branch_name} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" required />
       </div>
       <div>
-        <label className="block text-sm font-medium">Address *</label>
-        <textarea name="address" value={formData.address} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" rows={3} required />
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address *</label>
+        <textarea name="address" value={formData.address} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" rows={3} required />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium">City *</label>
-          <input name="city" value={formData.city} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" required />
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">City *</label>
+          <input name="city" value={formData.city} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" required />
         </div>
         <div>
-          <label className="block text-sm font-medium">Province</label>
-          <input name="province" value={formData.province} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium">Phone</label>
-          <input name="phone" value={formData.phone} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium">Email</label>
-          <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Province</label>
+          <input name="province" value={formData.province} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium">Opening Time *</label>
-          <input type="time" name="jam_buka" value={formData.jam_buka} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" required />
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
+          <input name="phone" value={formData.phone} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
         </div>
         <div>
-          <label className="block text-sm font-medium">Closing Time *</label>
-          <input type="time" name="jam_tutup" value={formData.jam_tutup} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" required />
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+          <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Opening Time *</label>
+          <input type="time" name="jam_buka" value={formData.jam_buka} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Closing Time *</label>
+          <input type="time" name="jam_tutup" value={formData.jam_tutup} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" required />
         </div>
       </div>
       <div>
-        <label className="block text-sm font-medium mb-2">Operating Days *</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Operating Days *</label>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {days.map(day => (
-            <label key={day} className="flex items-center">
+            <label key={day} className="flex items-center text-gray-700 dark:text-gray-300">
               <input
                 type="checkbox"
                 checked={formData.hari_operasional.includes(day)}
                 onChange={() => handleDayToggle(day)}
-                className="mr-2"
+                className="mr-2 w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:bg-gray-700"
               />
               {day}
             </label>
@@ -161,15 +161,16 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
         </div>
       </div>
       <div>
-        <label className="block text-sm font-medium">Status</label>
-        <select name="status" value={formData.status} onChange={handleChange} className="w-full px-3 py-2 border rounded-md">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+        <select name="status" value={formData.status} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
       </div>
-      <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">
+      <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 transition-colors">
         {isLoading ? 'Saving...' : isEdit ? 'Update' : 'Create'}
       </button>
     </form>
   )
 }
+

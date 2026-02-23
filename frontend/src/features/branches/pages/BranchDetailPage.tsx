@@ -150,11 +150,11 @@ function BranchDetailPage() {
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'active': return 'bg-green-100 text-green-800'
-      case 'inactive': return 'bg-gray-100 text-gray-800'
-      case 'maintenance': return 'bg-yellow-100 text-yellow-800'
-      case 'closed': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'active': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+      case 'inactive': return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+      case 'maintenance': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+      case 'closed': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
     }
   }
 
@@ -183,10 +183,10 @@ function BranchDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
         <div className="text-center">
           <Loader2 className="h-12 w-12 text-blue-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 text-lg">Loading branch details...</p>
+          <p className="text-gray-600 dark:text-gray-400 text-lg">Loading branch details...</p>
         </div>
       </div>
     )
@@ -194,11 +194,11 @@ function BranchDetailPage() {
 
   if (!branch) {
     return (
-      <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
         <div className="text-center max-w-md w-full">
           <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Branch Not Found</h2>
-          <p className="text-gray-600 mb-6">The branch you're looking for doesn't exist or has been removed.</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Branch Not Found</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">The branch you're looking for doesn't exist or has been removed.</p>
           <button
             onClick={() => navigate('/branches')}
             className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-colors duration-200 w-full justify-center"
@@ -212,21 +212,21 @@ function BranchDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
       {/* Mobile Header */}
-      <div className="lg:hidden bg-white border-b border-gray-200 sticky top-0 z-50">
+      <div className="lg:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
         <div className="px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate('/branches')}
-                className="p-2 text-gray-600 hover:text-gray-900"
+                className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div className="min-w-0 flex-1">
-                <h1 className="text-lg font-bold text-gray-900 truncate">{branch.branch_name}</h1>
-                <div className="flex items-center gap-1 text-xs text-gray-600">
+                <h1 className="text-lg font-bold text-gray-900 dark:text-white truncate">{branch.branch_name}</h1>
+                <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
                   <Building className="h-3 w-3" />
                   <span className="truncate">{branch.branch_code}</span>
                 </div>
@@ -242,7 +242,7 @@ function BranchDetailPage() {
               </button>
               <button
                 onClick={() => setShowMobileMenu(!showMobileMenu)}
-                className="p-2 text-gray-600 hover:text-gray-900"
+                className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
               >
                 {showMobileMenu ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
@@ -252,12 +252,12 @@ function BranchDetailPage() {
 
         {/* Mobile Action Menu */}
         {showMobileMenu && (
-          <div className="absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-lg z-50">
+          <div className="absolute top-full left-0 right-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-lg z-50">
             <div className="px-4 py-3 space-y-2">
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                className="w-full flex items-center gap-3 px-4 py-3 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200"
               >
                 {deleting ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -272,21 +272,21 @@ function BranchDetailPage() {
       </div>
 
       {/* Desktop Header */}
-      <div className="hidden lg:block bg-white border-b border-gray-200">
+      <div className="hidden lg:block bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate('/branches')}
-                className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors duration-200"
+                className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
               >
                 <ArrowLeft className="h-5 w-5" />
                 Back
               </button>
-              <div className="h-6 w-px bg-gray-300"></div>
+              <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">{branch.branch_name}</h1>
-                <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{branch.branch_name}</h1>
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mt-1">
                   <Building className="h-4 w-4" />
                   <span>{branch.branch_code}</span>
                   <span>•</span>
@@ -325,12 +325,12 @@ function BranchDetailPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-8">
         {/* Error Message */}
         {error && (
-          <div className="mb-4 lg:mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
-            <p className="text-red-700 flex-1 text-sm lg:text-base">{error}</p>
+          <div className="mb-4 lg:mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0" />
+            <p className="text-red-700 dark:text-red-400 flex-1 text-sm lg:text-base">{error}</p>
             <button 
               onClick={() => setError(null)}
-              className="text-red-600 hover:text-red-800 p-1 shrink-0"
+              className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 p-1 shrink-0"
             >
               ×
             </button>
@@ -338,14 +338,14 @@ function BranchDetailPage() {
         )}
 
         {/* Mobile Tab Navigation */}
-        <div className="lg:hidden bg-white rounded-xl shadow-sm border border-gray-200 mb-4">
-          <div className="flex border-b border-gray-200">
+        <div className="lg:hidden bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4">
+          <div className="flex border-b border-gray-200 dark:border-gray-700">
             <button
               onClick={() => setActiveTab('details')}
               className={`flex-1 px-4 py-3 text-sm font-medium transition-all duration-200 ${
                 activeTab === 'details'
-                  ? 'bg-linear-to-r from-blue-50 to-blue-100 text-blue-700 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  ? 'bg-linear-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 text-blue-700 dark:text-blue-400 border-b-2 border-blue-600'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
               <div className="flex items-center justify-center gap-2">
@@ -357,14 +357,14 @@ function BranchDetailPage() {
               onClick={() => setActiveTab('employees')}
               className={`flex-1 px-4 py-3 text-sm font-medium transition-all duration-200 ${
                 activeTab === 'employees'
-                  ? 'bg-linear-to-r from-blue-50 to-blue-100 text-blue-700 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  ? 'bg-linear-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 text-blue-700 dark:text-blue-400 border-b-2 border-blue-600'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
               <div className="flex items-center justify-center gap-2">
                 <Users className="h-4 w-4" />
                 Employees
-                <span className="bg-gray-200 text-gray-800 text-xs px-1.5 py-0.5 rounded-full">
+                <span className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 text-xs px-1.5 py-0.5 rounded-full">
                   {employees.length}
                 </span>
               </div>
@@ -377,14 +377,14 @@ function BranchDetailPage() {
           {/* Left Column - Tabs & Details */}
           <div className="lg:col-span-2">
             {/* Desktop Tab Navigation */}
-            <div className="hidden lg:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-8">
-              <div className="flex border-b border-gray-200">
+            <div className="hidden lg:block bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden mb-8">
+              <div className="flex border-b border-gray-200 dark:border-gray-700">
                 <button
                   onClick={() => setActiveTab('details')}
                   className={`flex-1 px-6 py-4 text-lg font-medium transition-all duration-200 ${
                     activeTab === 'details'
-                      ? 'bg-linear-to-r from-blue-50 to-blue-100 text-blue-700 border-b-2 border-blue-600'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      ? 'bg-linear-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 text-blue-700 dark:text-blue-400 border-b-2 border-blue-600'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
                   <div className="flex items-center justify-center gap-2">
@@ -396,14 +396,14 @@ function BranchDetailPage() {
                   onClick={() => setActiveTab('employees')}
                   className={`flex-1 px-6 py-4 text-lg font-medium transition-all duration-200 ${
                     activeTab === 'employees'
-                      ? 'bg-linear-to-r from-blue-50 to-blue-100 text-blue-700 border-b-2 border-blue-600'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      ? 'bg-linear-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 text-blue-700 dark:text-blue-400 border-b-2 border-blue-600'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
                   <div className="flex items-center justify-center gap-2">
                     <Users className="h-5 w-5" />
                     Employees
-                    <span className="bg-gray-200 text-gray-800 text-xs px-2 py-1 rounded-full">
+                    <span className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 text-xs px-2 py-1 rounded-full">
                       {employees.length}
                     </span>
                   </div>
@@ -415,39 +415,39 @@ function BranchDetailPage() {
                 {activeTab === 'details' ? (
                   <div className="space-y-8">
                     {/* Basic Information Card */}
-                    <div className="bg-linear-to-br from-blue-50 to-blue-100 rounded-2xl p-6 border border-blue-200">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <div className="bg-linear-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/10 rounded-2xl p-6 border border-blue-200 dark:border-blue-800">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                         <Building className="h-5 w-5 text-blue-600" />
                         Basic Information
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-4">
                           <div>
-                            <p className="text-sm text-gray-600 mb-1 flex items-center gap-1">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-1">
                               <Briefcase className="h-4 w-4" />
                               Company
                             </p>
-                            <p className="text-lg font-semibold text-gray-900">{companyName || 'Not assigned'}</p>
+                            <p className="text-lg font-semibold text-gray-900 dark:text-white">{companyName || 'Not assigned'}</p>
                           </div>
                           <div>
-                            <p className="text-sm text-gray-600 mb-1 flex items-center gap-1">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-1">
                               <User className="h-4 w-4" />
                               Branch Manager
                             </p>
-                            <p className="text-lg font-semibold text-gray-900">
+                            <p className="text-lg font-semibold text-gray-900 dark:text-white">
                               {managerName || 'Not assigned'}
                             </p>
                           </div>
                         </div>
                         <div className="space-y-4">
                           <div>
-                            <p className="text-sm text-gray-600 mb-1">Branch Code</p>
-                            <p className="text-lg font-semibold text-gray-900 bg-white px-3 py-2 rounded-lg inline-block">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Branch Code</p>
+                            <p className="text-lg font-semibold text-gray-900 dark:text-white bg-white dark:bg-gray-700 px-3 py-2 rounded-lg inline-block">
                               {branch.branch_code}
                             </p>
                           </div>
                           <div>
-                            <p className="text-sm text-gray-600 mb-1">Status</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Status</p>
                             <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${getStatusColor(branch.status)}`}>
                               {branch.status}
                             </span>
@@ -457,88 +457,76 @@ function BranchDetailPage() {
                     </div>
 
                     {/* Contact Information Card */}
-                    <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                         <PhoneCall className="h-5 w-5 text-blue-600" />
                         Contact Information
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-gray-600">
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                             <Phone className="h-4 w-4" />
                             <span className="text-sm">Phone</span>
                           </div>
-                          <p className="text-lg font-semibold text-gray-900">{branch.phone || 'Not available'}</p>
+                          <p className="text-lg font-semibold text-gray-900 dark:text-white">{branch.phone || 'Not available'}</p>
                         </div>
                         <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-gray-600">
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                             <Smartphone className="h-4 w-4" />
                             <span className="text-sm">WhatsApp</span>
                           </div>
-                          <p className="text-lg font-semibold text-gray-900">{branch.whatsapp || 'Not available'}</p>
+                          <p className="text-lg font-semibold text-gray-900 dark:text-white">{branch.whatsapp || 'Not available'}</p>
                         </div>
                         <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-gray-600">
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                             <Mail className="h-4 w-4" />
                             <span className="text-sm">Email</span>
                           </div>
-                          <p className="text-lg font-semibold text-gray-900">{branch.email || 'Not available'}</p>
+                          <p className="text-lg font-semibold text-gray-900 dark:text-white">{branch.email || 'Not available'}</p>
                         </div>
                       </div>
                     </div>
 
                     {/* Address Card */}
-                    <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                         <MapPin className="h-5 w-5 text-blue-600" />
                         Address
                       </h3>
                       <div className="space-y-6">
                         <div>
-                          <p className="text-sm text-gray-600 mb-1">Full Address</p>
-                          <p className="text-lg font-semibold text-gray-900">{branch.address}</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Full Address</p>
+                          <p className="text-lg font-semibold text-gray-900 dark:text-white">{branch.address}</p>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                           <div className="space-y-2">
-                            <p className="text-sm text-gray-600">City</p>
-                            <p className="text-lg font-semibold text-gray-900">{branch.city}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">City</p>
+                            <p className="text-lg font-semibold text-gray-900 dark:text-white">{branch.city}</p>
                           </div>
                           <div className="space-y-2">
-                            <p className="text-sm text-gray-600">Province</p>
-                            <p className="text-lg font-semibold text-gray-900">{branch.province}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">Province</p>
+                            <p className="text-lg font-semibold text-gray-900 dark:text-white">{branch.province}</p>
                           </div>
                           <div className="space-y-2">
-                            <p className="text-sm text-gray-600">Country</p>
-                            <p className="text-lg font-semibold text-gray-900">{branch.country}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">Country</p>
+                            <p className="text-lg font-semibold text-gray-900 dark:text-white">{branch.country}</p>
                           </div>
                           <div className="space-y-2">
-                            <p className="text-sm text-gray-600">Postal Code</p>
-                            <p className="text-lg font-semibold text-gray-900">{branch.postal_code || 'N/A'}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">Postal Code</p>
+                            <p className="text-lg font-semibold text-gray-900 dark:text-white">{branch.postal_code || 'N/A'}</p>
                           </div>
                         </div>
-                        {/* {(branch.latitude && branch.longitude) && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                              <p className="text-sm text-gray-600">Latitude</p>
-                              <p className="font-mono text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">{branch.latitude}</p>
-                            </div>
-                            <div className="space-y-2">
-                              <p className="text-sm text-gray-600">Longitude</p>
-                              <p className="font-mono text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">{branch.longitude}</p>
-                            </div>
-                          </div>
-                        )} */}
                       </div>
                     </div>
 
                     {/* Additional Notes */}
                     {branch.notes && (
-                      <div className="bg-linear-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200 p-6">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <div className="bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                           <FileText className="h-5 w-5 text-blue-600" />
                           Additional Notes
                         </h3>
-                        <p className="text-gray-700 bg-white p-4 rounded-lg border border-gray-200">
+                        <p className="text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
                           {branch.notes}
                         </p>
                       </div>
@@ -547,8 +535,8 @@ function BranchDetailPage() {
                 ) : (
                   <div>
                     <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-lg font-semibold text-gray-900">Branch Employees</h3>
-                      <span className="text-sm text-gray-600">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Branch Employees</h3>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
                         Total: {employees.length} employee{employees.length !== 1 ? 's' : ''}
                       </span>
                     </div>
@@ -574,12 +562,12 @@ function BranchDetailPage() {
                             const isExpanded = expandedPositions[position] ?? false
                             
                             return (
-                              <div key={position} className="border border-gray-200 rounded-xl overflow-hidden">
+                              <div key={position} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
                                 <button
                                   onClick={() => setExpandedPositions(prev => ({ ...prev, [position]: !isExpanded }))}
-                                  className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 hover:bg-blue-100 transition-colors"
+                                  className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
                                 >
-                                  <h4 className="text-sm font-semibold text-blue-900">
+                                  <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300">
                                     {position} ({positionEmployees.length})
                                   </h4>
                                   <div className="flex items-center gap-3">
@@ -587,18 +575,18 @@ function BranchDetailPage() {
                                       <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                                         <div
                                           onClick={() => setPositionPages(prev => ({ ...prev, [position]: Math.max(1, currentPage - 1) }))}
-                                          className={`px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-white cursor-pointer select-none ${
+                                          className={`px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-white dark:hover:bg-gray-700 cursor-pointer select-none ${
                                             currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
                                           }`}
                                         >
                                           Previous
                                         </div>
-                                        <span className="text-sm text-gray-600">
+                                        <span className="text-sm text-gray-600 dark:text-gray-400">
                                           {currentPage} / {totalPages}
                                         </span>
                                         <div
                                           onClick={() => setPositionPages(prev => ({ ...prev, [position]: Math.min(totalPages, currentPage + 1) }))}
-                                          className={`px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-white cursor-pointer select-none ${
+                                          className={`px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-white dark:hover:bg-gray-700 cursor-pointer select-none ${
                                             currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
                                           }`}
                                         >
@@ -607,18 +595,18 @@ function BranchDetailPage() {
                                       </div>
                                     )}
                                     {isExpanded ? (
-                                      <ChevronUp className="h-5 w-5 text-blue-900" />
+                                      <ChevronUp className="h-5 w-5 text-blue-900 dark:text-blue-300" />
                                     ) : (
-                                      <ChevronDown className="h-5 w-5 text-blue-900" />
+                                      <ChevronDown className="h-5 w-5 text-blue-900 dark:text-blue-300" />
                                     )}
                                   </div>
                                 </button>
                                 {isExpanded && (
-                                  <div className="p-4 space-y-3 bg-white">
+                                  <div className="p-4 space-y-3 bg-white dark:bg-gray-800">
                                     {paginatedEmployees.map((emp) => (
                                       <div
                                         key={emp.id}
-                                        className="border border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-sm transition-all duration-200"
+                                        className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm transition-all duration-200"
                                       >
                                         <div className="flex items-center justify-between">
                                           <div className="flex items-center gap-4">
@@ -626,19 +614,19 @@ function BranchDetailPage() {
                                               {emp.full_name?.[0] || '?'}
                                             </div>
                                             <div>
-                                              <h4 className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer"
+                                              <h4 className="font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
                                                   onClick={() => navigate(`/employees/${emp.id}`)}>
                                                 {emp.full_name}
                                               </h4>
-                                              <p className="text-sm text-gray-500">{emp.job_position || 'Unassigned' }</p>  
-                                              <p className="text-sm text-gray-500">{emp.mobile_phone}</p>
+                                              <p className="text-sm text-gray-500 dark:text-gray-400">{emp.job_position || 'Unassigned' }</p>  
+                                              <p className="text-sm text-gray-500 dark:text-gray-400">{emp.mobile_phone}</p>
                                             </div>
                                           </div>
                                           <div className="flex items-center gap-4">
                                             {emp.email && (
                                               <a
                                                 href={`mailto:${emp.email}`}
-                                                className="text-gray-600 hover:text-blue-600 transition-colors duration-200"
+                                                className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200"
                                                 title="Send Email"
                                               >
                                                 <Mail className="h-5 w-5" />
@@ -647,7 +635,7 @@ function BranchDetailPage() {
                                             <button
                                               onClick={() => handleRemoveEmployee(emp.employee_id, emp.full_name)}
                                               disabled={deletingEmployee === emp.employee_id}
-                                              className="text-red-600 hover:text-red-700 transition-colors duration-200 disabled:opacity-50"
+                                              className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors duration-200 disabled:opacity-50"
                                               title="Remove from branch"
                                             >
                                               {deletingEmployee === emp.employee_id ? (
@@ -658,7 +646,7 @@ function BranchDetailPage() {
                                             </button>
                                             <button
                                               onClick={() => navigate(`/employees/${emp.id}`)}
-                                              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
+                                              className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm font-medium"
                                             >
                                               View Details
                                               <ChevronRight className="h-4 w-4" />
@@ -676,9 +664,9 @@ function BranchDetailPage() {
                       </div>
                     ) : (
                       <div className="text-center py-12">
-                        <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Employees Found</h3>
-                        <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                        <Users className="h-16 w-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Employees Found</h3>
+                        <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
                           This branch doesn't have any assigned employees yet.
                         </p>
                         <button
@@ -700,19 +688,19 @@ function BranchDetailPage() {
               {activeTab === 'details' && (
                 <div className="space-y-4">
                   {/* Basic Information Card - Mobile Accordion */}
-                  <div className="bg-linear-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                  <div className="bg-linear-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/10 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
                     <button
                       onClick={() => toggleSection('basic')}
                       className="w-full flex items-center justify-between"
                     >
-                      <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                      <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                         <Building className="h-4 w-4 text-blue-600" />
                         Basic Information
                       </h3>
                       {expandedSections.basic ? (
-                        <ChevronUp className="h-4 w-4 text-gray-600" />
+                        <ChevronUp className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                       ) : (
-                        <ChevronDown className="h-4 w-4 text-gray-600" />
+                        <ChevronDown className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                       )}
                     </button>
                     
@@ -720,31 +708,31 @@ function BranchDetailPage() {
                       <div className="mt-4 grid grid-cols-1 gap-4">
                         <div className="space-y-3">
                           <div>
-                            <p className="text-xs text-gray-600 mb-1 flex items-center gap-1">
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-1">
                               <Briefcase className="h-3 w-3" />
                               Company
                             </p>
-                            <p className="text-sm font-semibold text-gray-900">{companyName || 'Not assigned'}</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{companyName || 'Not assigned'}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-600 mb-1 flex items-center gap-1">
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-1">
                               <User className="h-3 w-3" />
                               Branch Manager
                             </p>
-                            <p className="text-sm font-semibold text-gray-900">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
                               {managerName || 'Not assigned'}
                             </p>
                           </div>
                         </div>
                         <div className="space-y-3">
                           <div>
-                            <p className="text-xs text-gray-600 mb-1">Branch Code</p>
-                            <p className="text-sm font-semibold text-gray-900 bg-white px-3 py-2 rounded-lg inline-block">
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Branch Code</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white bg-white dark:bg-gray-700 px-3 py-2 rounded-lg inline-block">
                               {branch.branch_code}
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-600 mb-1">Status</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Status</p>
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(branch.status)}`}>
                               {branch.status}
                             </span>
@@ -755,88 +743,88 @@ function BranchDetailPage() {
                   </div>
 
                   {/* Contact Information Card - Mobile Accordion */}
-                  <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
                     <button
                       onClick={() => toggleSection('contact')}
                       className="w-full flex items-center justify-between"
                     >
-                      <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                      <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                         <PhoneCall className="h-4 w-4 text-blue-600" />
                         Contact Information
                       </h3>
                       {expandedSections.contact ? (
-                        <ChevronUp className="h-4 w-4 text-gray-600" />
+                        <ChevronUp className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                       ) : (
-                        <ChevronDown className="h-4 w-4 text-gray-600" />
+                        <ChevronDown className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                       )}
                     </button>
                     
                     {expandedSections.contact && (
                       <div className="mt-4 grid grid-cols-1 gap-4">
                         <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-gray-600">
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                             <Phone className="h-3 w-3" />
                             <span className="text-xs">Phone</span>
                           </div>
-                          <p className="text-sm font-semibold text-gray-900">{branch.phone || 'Not available'}</p>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">{branch.phone || 'Not available'}</p>
                         </div>
                         <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-gray-600">
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                             <Smartphone className="h-3 w-3" />
                             <span className="text-xs">WhatsApp</span>
                           </div>
-                          <p className="text-sm font-semibold text-gray-900">{branch.whatsapp || 'Not available'}</p>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">{branch.whatsapp || 'Not available'}</p>
                         </div>
                         <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-gray-600">
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                             <Mail className="h-3 w-3" />
                             <span className="text-xs">Email</span>
                           </div>
-                          <p className="text-sm font-semibold text-gray-900">{branch.email || 'Not available'}</p>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">{branch.email || 'Not available'}</p>
                         </div>
                       </div>
                     )}
                   </div>
 
                   {/* Address Card - Mobile Accordion */}
-                  <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
                     <button
                       onClick={() => toggleSection('address')}
                       className="w-full flex items-center justify-between"
                     >
-                      <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                      <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-blue-600" />
                         Address
                       </h3>
                       {expandedSections.address ? (
-                        <ChevronUp className="h-4 w-4 text-gray-600" />
+                        <ChevronUp className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                       ) : (
-                        <ChevronDown className="h-4 w-4 text-gray-600" />
+                        <ChevronDown className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                       )}
                     </button>
                     
                     {expandedSections.address && (
                       <div className="mt-4 space-y-4">
                         <div>
-                          <p className="text-xs text-gray-600 mb-1">Full Address</p>
-                          <p className="text-sm font-semibold text-gray-900">{branch.address}</p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Full Address</p>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">{branch.address}</p>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
-                            <p className="text-xs text-gray-600">City</p>
-                            <p className="text-sm font-semibold text-gray-900">{branch.city}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">City</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{branch.city}</p>
                           </div>
                           <div className="space-y-1">
-                            <p className="text-xs text-gray-600">Province</p>
-                            <p className="text-sm font-semibold text-gray-900">{branch.province}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Province</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{branch.province}</p>
                           </div>
                           <div className="space-y-1">
-                            <p className="text-xs text-gray-600">Country</p>
-                            <p className="text-sm font-semibold text-gray-900">{branch.country}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Country</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{branch.country}</p>
                           </div>
                           <div className="space-y-1">
-                            <p className="text-xs text-gray-600">Postal Code</p>
-                            <p className="text-sm font-semibold text-gray-900">{branch.postal_code || 'N/A'}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Postal Code</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{branch.postal_code || 'N/A'}</p>
                           </div>
                         </div>                       
                       </div>
@@ -845,25 +833,25 @@ function BranchDetailPage() {
 
                   {/* Additional Notes - Mobile Accordion */}
                   {branch.notes && (
-                    <div className="bg-linear-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200 p-4">
+                    <div className="bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
                       <button
                         onClick={() => toggleSection('notes')}
                         className="w-full flex items-center justify-between"
                       >
-                        <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                        <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                           <FileText className="h-4 w-4 text-blue-600" />
                           Additional Notes
                         </h3>
                         {expandedSections.notes ? (
-                          <ChevronUp className="h-4 w-4 text-gray-600" />
+                          <ChevronUp className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                         ) : (
-                          <ChevronDown className="h-4 w-4 text-gray-600" />
+                          <ChevronDown className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                         )}
                       </button>
                       
                       {expandedSections.notes && (
                         <div className="mt-4">
-                          <p className="text-sm text-gray-700 bg-white p-4 rounded-lg border border-gray-200">
+                          <p className="text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
                             {branch.notes}
                           </p>
                         </div>
@@ -876,8 +864,8 @@ function BranchDetailPage() {
               {activeTab === 'employees' && (
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-base font-semibold text-gray-900">Branch Employees</h3>
-                    <span className="text-xs text-gray-600">
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">Branch Employees</h3>
+                    <span className="text-xs text-gray-600 dark:text-gray-400">
                       Total: {employees.length}
                     </span>
                   </div>
@@ -903,12 +891,12 @@ function BranchDetailPage() {
                           const isExpanded = expandedPositions[position] ?? true
                           
                           return (
-                            <div key={position} className="border border-gray-200 rounded-lg overflow-hidden">
+                            <div key={position} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                               <button
                                 onClick={() => setExpandedPositions(prev => ({ ...prev, [position]: !isExpanded }))}
-                                className="w-full flex items-center justify-between px-3 py-2 bg-blue-50 hover:bg-blue-100 transition-colors"
+                                className="w-full flex items-center justify-between px-3 py-2 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
                               >
-                                <h4 className="text-xs font-semibold text-blue-900">
+                                <h4 className="text-xs font-semibold text-blue-900 dark:text-blue-300">
                                   {position} ({positionEmployees.length})
                                 </h4>
                                 <div className="flex items-center gap-2">
@@ -916,18 +904,18 @@ function BranchDetailPage() {
                                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                                       <div
                                         onClick={() => setPositionPages(prev => ({ ...prev, [position]: Math.max(1, currentPage - 1) }))}
-                                        className={`px-2 py-1 text-xs border border-gray-300 rounded hover:bg-white cursor-pointer select-none ${
+                                        className={`px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-white dark:hover:bg-gray-700 cursor-pointer select-none ${
                                           currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
                                         }`}
                                       >
                                         Prev
                                       </div>
-                                      <span className="text-xs text-gray-600">
+                                      <span className="text-xs text-gray-600 dark:text-gray-400">
                                         {currentPage}/{totalPages}
                                       </span>
                                       <div
                                         onClick={() => setPositionPages(prev => ({ ...prev, [position]: Math.min(totalPages, currentPage + 1) }))}
-                                        className={`px-2 py-1 text-xs border border-gray-300 rounded hover:bg-white cursor-pointer select-none ${
+                                        className={`px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-white dark:hover:bg-gray-700 cursor-pointer select-none ${
                                           currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
                                         }`}
                                       >
@@ -936,18 +924,18 @@ function BranchDetailPage() {
                                     </div>
                                   )}
                                   {isExpanded ? (
-                                    <ChevronUp className="h-4 w-4 text-blue-900" />
+                                    <ChevronUp className="h-4 w-4 text-blue-900 dark:text-blue-300" />
                                   ) : (
-                                    <ChevronDown className="h-4 w-4 text-blue-900" />
+                                    <ChevronDown className="h-4 w-4 text-blue-900 dark:text-blue-300" />
                                   )}
                                 </div>
                               </button>
                               {isExpanded && (
-                                <div className="p-3 space-y-2 bg-white">
+                                <div className="p-3 space-y-2 bg-white dark:bg-gray-800">
                                   {paginatedEmployees.map((emp) => (
                                     <div
                                       key={emp.id}
-                                      className="border border-gray-200 rounded-lg p-3 hover:border-blue-300 hover:shadow-sm transition-all duration-200"
+                                      className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm transition-all duration-200"
                                     >
                                       <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
@@ -956,20 +944,20 @@ function BranchDetailPage() {
                                           </div>
                                           <div className="min-w-0 flex-1">
                                             <h4 
-                                              className="text-sm font-semibold text-gray-900 hover:text-blue-600 cursor-pointer truncate"
+                                              className="text-sm font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer truncate"
                                               onClick={() => navigate(`/employees/${emp.id}`)}
                                             >
                                               {emp.full_name}
                                             </h4>
-                                            <p className="text-xs text-gray-500 truncate">{emp.job_position || 'Unassigned'}</p>
-                                            <p className="text-xs text-gray-500 truncate">{emp.employee_id}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{emp.job_position || 'Unassigned'}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{emp.employee_id}</p>
                                           </div>
                                         </div>
                                         <div className="flex items-center gap-2">
                                           {emp.email && (
                                             <a
                                               href={`mailto:${emp.email}`}
-                                              className="text-gray-600 hover:text-blue-600 transition-colors duration-200 p-1"
+                                              className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 p-1"
                                               title="Send Email"
                                             >
                                               <Mail className="h-4 w-4" />
@@ -978,7 +966,7 @@ function BranchDetailPage() {
                                           <button
                                             onClick={() => handleRemoveEmployee(emp.employee_id, emp.full_name)}
                                             disabled={deletingEmployee === emp.employee_id}
-                                            className="text-red-600 hover:text-red-700 transition-colors duration-200 p-1 disabled:opacity-50"
+                                            className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors duration-200 p-1 disabled:opacity-50"
                                             title="Remove from branch"
                                           >
                                             {deletingEmployee === emp.employee_id ? (
@@ -989,7 +977,7 @@ function BranchDetailPage() {
                                           </button>
                                           <button
                                             onClick={() => navigate(`/employees/${emp.id}`)}
-                                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs font-medium p-1"
+                                            className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs font-medium p-1"
                                           >
                                             View
                                             <ChevronRight className="h-3 w-3" />
@@ -1007,9 +995,9 @@ function BranchDetailPage() {
                     </div>
                   ) : (
                     <div className="text-center py-8">
-                      <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                      <h3 className="text-base font-semibold text-gray-900 mb-2">No Employees Found</h3>
-                      <p className="text-sm text-gray-600 mb-4 max-w-md mx-auto">
+                      <Users className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                      <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">No Employees Found</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 max-w-md mx-auto">
                         This branch doesn't have any assigned employees yet.
                       </p>
                       <button
@@ -1029,19 +1017,19 @@ function BranchDetailPage() {
           {/* Right Column - Quick Actions & Summary */}
           <div className="space-y-4 lg:space-y-8">
             {/* Mobile Quick Actions Card */}
-            <div className="lg:hidden bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-              <h3 className="text-base font-semibold text-gray-900 mb-3">Quick Actions</h3>
+            <div className="lg:hidden bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">Quick Actions</h3>
               <div className="space-y-2">
                 <button
                   onClick={() => setShowAssignModal(true)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-colors duration-200 border border-gray-200 hover:border-blue-300"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-400 rounded-lg transition-colors duration-200 border border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-700"
                 >
                   <User className="h-4 w-4" />
                   <span className="font-medium text-sm">Add Existing Employee</span>
                 </button>
                 <button
                   onClick={() => window.print()}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-colors duration-200 border border-gray-200 hover:border-blue-300"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-400 rounded-lg transition-colors duration-200 border border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-700"
                 >
                   <FileText className="h-4 w-4" />
                   <span className="font-medium text-sm">Print Details</span>
@@ -1050,12 +1038,12 @@ function BranchDetailPage() {
             </div>
 
             {/* Desktop Quick Actions Card */}
-            <div className="hidden lg:block bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+            <div className="hidden lg:block bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
               <div className="space-y-3">
                 <button
                   onClick={() => setShowAssignModal(true)}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-xl transition-colors duration-200 border border-gray-200 hover:border-blue-300"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-400 rounded-xl transition-colors duration-200 border border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-700"
                 >
                   <User className="h-5 w-5" />
                   <span className="font-medium">Add Existing Employee</span>
@@ -1064,47 +1052,47 @@ function BranchDetailPage() {
             </div>
 
             {/* Branch Summary Card */}
-            <div className="bg-linear-to-br from-blue-50 to-blue-100 rounded-xl lg:rounded-2xl border border-blue-200 p-4 lg:p-6">
-              <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4">Branch Summary</h3>
+            <div className="bg-linear-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/10 rounded-xl lg:rounded-2xl border border-blue-200 dark:border-blue-800 p-4 lg:p-6">
+              <h3 className="text-base lg:text-lg font-semibold text-gray-900 dark:text-white mb-3 lg:mb-4">Branch Summary</h3>
               <div className="space-y-3 lg:space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs lg:text-sm text-gray-600">Status</span>
+                  <span className="text-xs lg:text-sm text-gray-600 dark:text-gray-400">Status</span>
                   <span className={`px-2 py-1 lg:px-3 lg:py-1 rounded-full text-xs lg:text-sm font-medium ${getStatusColor(branch.status)}`}>
                     {branch.status}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs lg:text-sm text-gray-600">Total Employees</span>
-                  <span className="text-xl lg:text-2xl font-bold text-gray-900">{employees.length}</span>
+                  <span className="text-xs lg:text-sm text-gray-600 dark:text-gray-400">Total Employees</span>
+                  <span className="text-xl lg:text-2xl font-bold text-gray-900 dark:text-white">{employees.length}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs lg:text-sm text-gray-600">Branch Code</span>
-                  <span className="font-mono text-sm lg:text-base font-semibold text-gray-900">{branch.branch_code}</span>
+                  <span className="text-xs lg:text-sm text-gray-600 dark:text-gray-400">Branch Code</span>
+                  <span className="font-mono text-sm lg:text-base font-semibold text-gray-900 dark:text-white">{branch.branch_code}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs lg:text-sm text-gray-600">City</span>
-                  <span className="text-sm lg:text-base font-semibold text-gray-900">{branch.city}</span>
+                  <span className="text-xs lg:text-sm text-gray-600 dark:text-gray-400">City</span>
+                  <span className="text-sm lg:text-base font-semibold text-gray-900 dark:text-white">{branch.city}</span>
                 </div>
               </div>
             </div>
             {/* Operating Hours Card */}
-            <div className="bg-white rounded-xl lg:rounded-2xl shadow-sm border border-gray-200 p-4 lg:p-6">
-              <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4 flex items-center gap-2">
+            <div className="bg-white dark:bg-gray-800 rounded-xl lg:rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 lg:p-6">
+              <h3 className="text-base lg:text-lg font-semibold text-gray-900 dark:text-white mb-3 lg:mb-4 flex items-center gap-2">
                 <Clock className="h-4 w-4 lg:h-5 lg:w-5" />
                 Operating Hours
               </h3>
               <div className="space-y-1 lg:space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs lg:text-sm text-gray-600">Open</span>
-                  <span className="text-sm lg:text-base font-semibold text-gray-900">{branch.jam_buka}</span>
+                  <span className="text-xs lg:text-sm text-gray-600 dark:text-gray-400">Open</span>
+                  <span className="text-sm lg:text-base font-semibold text-gray-900 dark:text-white">{branch.jam_buka}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs lg:text-sm text-gray-600">Close</span>
-                  <span className="text-sm lg:text-base font-semibold text-gray-900">{branch.jam_tutup}</span>
+                  <span className="text-xs lg:text-sm text-gray-600 dark:text-gray-400">Close</span>
+                  <span className="text-sm lg:text-base font-semibold text-gray-900 dark:text-white">{branch.jam_tutup}</span>
                 </div>
-                <div className="pt-2 border-t border-gray-200">
-                  <p className="text-xs lg:text-sm text-gray-600">Days</p>
-                  <p className="text-sm lg:text-base font-semibold text-gray-900">{branch.hari_operasional}</p>
+                <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <p className="text-xs lg:text-sm text-gray-600 dark:text-gray-400">Days</p>
+                  <p className="text-sm lg:text-base font-semibold text-gray-900 dark:text-white">{branch.hari_operasional}</p>
                 </div>
               </div>
             </div>
@@ -1154,3 +1142,4 @@ function BranchDetailPage() {
 }
 
 export default BranchDetailPage
+
