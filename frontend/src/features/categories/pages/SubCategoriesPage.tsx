@@ -6,6 +6,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { useBulkSelection } from '@/hooks/_shared/useBulkSelection'
 import BulkActionBar from '@/components/BulkActionBar'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import Pagination from '@/components/ui/Pagination'
 import { FolderTree, Plus, Search, Filter, X } from 'lucide-react'
 
 function debounce(fn: (value: string) => void, delay: number) {
@@ -26,7 +27,23 @@ type ConfirmState = {
 export default function SubCategoriesPage() {
   const navigate = useNavigate()
   const { success, error: toastError } = useToast()
-  const { subCategories, categories, loading, fetchSubCategories, searchSubCategories, deleteSubCategory, bulkDeleteSubCategories, restoreSubCategory, fetchCategories } = useCategoriesStore()
+  const { 
+    subCategories, 
+    categories, 
+    loading, 
+    fetchSubCategories, 
+    searchSubCategories, 
+    deleteSubCategory, 
+    bulkDeleteSubCategories, 
+    restoreSubCategory, 
+    fetchCategories,
+    subPage,
+    subLimit,
+    subTotal,
+    subTotalPages,
+    subHasNext,
+    subHasPrev
+  } = useCategoriesStore()
   
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -48,12 +65,12 @@ export default function SubCategoriesPage() {
   const debouncedSearch = useMemo(
     () => debounce((value: string) => {
       if (value) {
-        searchSubCategories(value, 1, 1000)
+        searchSubCategories(value, 1, subLimit)
       } else {
-        fetchSubCategories(1, 1000, categoryFilter, deletedFilter)
+        fetchSubCategories(1, subLimit, categoryFilter, deletedFilter)
       }
     }, 300),
-    [searchSubCategories, fetchSubCategories, categoryFilter, deletedFilter]
+    [searchSubCategories, fetchSubCategories, categoryFilter, deletedFilter, subLimit]
   )
 
   useEffect(() => {
@@ -61,12 +78,28 @@ export default function SubCategoriesPage() {
   }, [fetchCategories])
 
   useEffect(() => {
-    fetchSubCategories(1, 1000, categoryFilter, deletedFilter)
-  }, [fetchSubCategories, categoryFilter, deletedFilter])
+    fetchSubCategories(1, subLimit, categoryFilter, deletedFilter)
+  }, [fetchSubCategories, categoryFilter, deletedFilter, subLimit])
 
   useEffect(() => {
     debouncedSearch(search)
   }, [search, debouncedSearch])
+
+  const handlePageChange = useCallback((newPage: number) => {
+    if (search) {
+      searchSubCategories(search, newPage, subLimit)
+    } else {
+      fetchSubCategories(newPage, subLimit, categoryFilter, deletedFilter)
+    }
+  }, [search, searchSubCategories, fetchSubCategories, subLimit, categoryFilter, deletedFilter])
+
+  const handleLimitChange = useCallback((newLimit: number) => {
+    if (search) {
+      searchSubCategories(search, 1, newLimit)
+    } else {
+      fetchSubCategories(1, newLimit, categoryFilter, deletedFilter)
+    }
+  }, [search, searchSubCategories, fetchSubCategories, categoryFilter, deletedFilter])
 
   const handleDelete = useCallback((id: string, name: string) => {
     setConfirm({
@@ -172,16 +205,25 @@ export default function SubCategoriesPage() {
     ]
   }, [deletedFilter, handleBulkDelete, handleBulkRestore])
 
+  const paginationInfo = useMemo(() => ({
+    page: subPage,
+    limit: subLimit,
+    total: subTotal,
+    totalPages: subTotalPages,
+    hasNext: subHasNext,
+    hasPrev: subHasPrev
+  }), [subPage, subLimit, subTotal, subTotalPages, subHasNext, subHasPrev])
+
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <FolderTree className="w-6 h-6 text-blue-600" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Sub-Categories</h1>
-              <p className="text-sm text-gray-500">{subCategories.length} total</p>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Sub-Categories</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{subTotal} total</p>
             </div>
           </div>
           <button
@@ -195,7 +237,7 @@ export default function SubCategoriesPage() {
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -204,12 +246,12 @@ export default function SubCategoriesPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search sub-categories..."
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -218,7 +260,9 @@ export default function SubCategoriesPage() {
           <button
             onClick={() => setShowFilter(!showFilter)}
             className={`px-4 py-2 border rounded-lg flex items-center gap-2 transition-colors ${
-              showFilter ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-gray-300 hover:bg-gray-50'
+              showFilter 
+                ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-400' 
+                : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
             }`}
           >
             <Filter className="w-4 h-4" />
@@ -232,11 +276,11 @@ export default function SubCategoriesPage() {
 
         {/* Filter Panel */}
         {showFilter && (
-          <div className="mt-3 pt-3 border-t border-gray-200 grid grid-cols-2 gap-3">
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 grid grid-cols-2 gap-3">
             <select
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">All Categories</option>
               {categories.map(cat => (
@@ -246,7 +290,7 @@ export default function SubCategoriesPage() {
             <select
               value={deletedFilter}
               onChange={e => setDeletedFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="false">Active Items</option>
               <option value="true">Deleted Items</option>
@@ -258,7 +302,7 @@ export default function SubCategoriesPage() {
 
       {/* Bulk Actions */}
       {selectedCount > 0 && (
-        <div className="px-6 py-2 bg-blue-50 border-b border-blue-200 flex items-center gap-3">
+        <div className="px-6 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 flex items-center gap-3">
           <BulkActionBar selectedCount={selectedCount} actions={bulkActions} />
         </div>
       )}
@@ -266,9 +310,9 @@ export default function SubCategoriesPage() {
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
         {loading ? (
-          <div className="text-center py-8 text-gray-500">Loading...</div>
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading...</div>
         ) : (
-          <div className="bg-white rounded-lg shadow">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50">
             <SubCategoryTable
               subCategories={subCategories}
               onView={id => navigate(`/sub-categories/${id}`)}
@@ -283,6 +327,17 @@ export default function SubCategoriesPage() {
             />
           </div>
         )}
+      </div>
+
+      {/* Pagination */}
+      <div className="px-6 pb-6">
+        <Pagination
+          pagination={paginationInfo}
+          onPageChange={handlePageChange}
+          onLimitChange={handleLimitChange}
+          currentLength={subCategories.length}
+          loading={loading}
+        />
       </div>
 
       {/* Confirm Modal */}

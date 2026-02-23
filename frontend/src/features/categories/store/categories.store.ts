@@ -8,13 +8,21 @@ interface CategoriesState {
   loading: boolean
   error: string | null
   
-  // Pagination state
+  // Categories Pagination state
   page: number
   limit: number
   total: number
   totalPages: number
   hasNext: boolean
   hasPrev: boolean
+  
+  // SubCategories Pagination state
+  subPage: number
+  subLimit: number
+  subTotal: number
+  subTotalPages: number
+  subHasNext: boolean
+  subHasPrev: boolean
   
   fetchCategories: (page?: number, limit?: number, isActive?: string, isDeleted?: string) => Promise<void>
   searchCategories: (q: string, page?: number, limit?: number) => Promise<void>
@@ -36,6 +44,8 @@ interface CategoriesState {
   clearError: () => void
   setPage: (page: number) => void
   setLimit: (limit: number) => void
+  setSubPage: (page: number) => void
+  setSubLimit: (limit: number) => void
 }
 
 export const useCategoriesStore = create<CategoriesState>((set, get) => ({
@@ -44,13 +54,21 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
   loading: false,
   error: null,
   
-  // Initial pagination state
+  // Initial categories pagination state
   page: 1,
   limit: 10,
   total: 0,
   totalPages: 0,
   hasNext: false,
   hasPrev: false,
+
+  // Initial subCategories pagination state
+  subPage: 1,
+  subLimit: 10,
+  subTotal: 0,
+  subTotalPages: 0,
+  subHasNext: false,
+  subHasPrev: false,
 
   fetchCategories: async (page = 1, limit = 10, isActive?: string, isDeleted?: string) => {
     set({ loading: true, error: null })
@@ -237,7 +255,18 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
       } else {
         res = await subCategoriesApi.list(page, limit, categoryId)
       }
-      set({ subCategories: res.data, loading: false })
+      const total = res.pagination?.total || 0
+      const totalPages = Math.ceil(total / limit)
+      set({ 
+        subCategories: res.data, 
+        loading: false,
+        subPage: page,
+        subLimit: limit,
+        subTotal: total,
+        subTotalPages: totalPages,
+        subHasNext: page < totalPages,
+        subHasPrev: page > 1
+      })
     } catch (error: unknown) {
       const message = error instanceof Error && 'response' in error
         ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
@@ -250,7 +279,18 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     set({ loading: true, error: null })
     try {
       const res = await subCategoriesApi.search(q, page, limit)
-      set({ subCategories: res.data, loading: false })
+      const total = res.pagination?.total || 0
+      const totalPages = Math.ceil(total / limit)
+      set({ 
+        subCategories: res.data, 
+        loading: false,
+        subPage: page,
+        subLimit: limit,
+        subTotal: total,
+        subTotalPages: totalPages,
+        subHasNext: page < totalPages,
+        subHasPrev: page > 1
+      })
     } catch (error: unknown) {
       const message = error instanceof Error && 'response' in error
         ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
@@ -297,6 +337,16 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     set(state => ({ subCategories: state.subCategories.filter(sc => sc.id !== id) }))
     try {
       await subCategoriesApi.delete(id)
+      // Update total after delete
+      const { subTotal, subLimit, subPage } = get()
+      const newTotal = subTotal - 1
+      const newTotalPages = Math.ceil(newTotal / subLimit)
+      set({ 
+        subTotal: newTotal,
+        subTotalPages: newTotalPages,
+        subHasNext: subPage < newTotalPages,
+        subHasPrev: subPage > 1
+      })
     } catch (error: unknown) {
       const message = error instanceof Error && 'response' in error
         ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
@@ -311,6 +361,16 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     set(state => ({ subCategories: state.subCategories.filter(sc => !ids.includes(sc.id)) }))
     try {
       await subCategoriesApi.bulkDelete(ids)
+      // Update total after bulk delete
+      const { subTotal, subLimit, subPage } = get()
+      const newTotal = subTotal - ids.length
+      const newTotalPages = Math.ceil(newTotal / subLimit)
+      set({ 
+        subTotal: newTotal,
+        subTotalPages: newTotalPages,
+        subHasNext: subPage < newTotalPages,
+        subHasPrev: subPage > 1
+      })
     } catch (error: unknown) {
       const message = error instanceof Error && 'response' in error
         ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
@@ -325,6 +385,16 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     set(state => ({ subCategories: state.subCategories.filter(sc => sc.id !== id) }))
     try {
       await subCategoriesApi.restore(id)
+      // Update total after restore
+      const { subTotal, subLimit, subPage } = get()
+      const newTotal = subTotal + 1
+      const newTotalPages = Math.ceil(newTotal / subLimit)
+      set({ 
+        subTotal: newTotal,
+        subTotalPages: newTotalPages,
+        subHasNext: subPage < newTotalPages,
+        subHasPrev: subPage > 1
+      })
     } catch (error: unknown) {
       const message = error instanceof Error && 'response' in error
         ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
@@ -338,6 +408,10 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
   
   setPage: (page) => set({ page }),
   
-  setLimit: (limit) => set({ limit })
+  setLimit: (limit) => set({ limit }),
+  
+  setSubPage: (subPage) => set({ subPage }),
+  
+  setSubLimit: (subLimit) => set({ subLimit })
 }))
 

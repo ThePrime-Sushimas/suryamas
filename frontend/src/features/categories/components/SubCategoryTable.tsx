@@ -34,67 +34,67 @@ export const SubCategoryTable = ({
 
   if (subCategories.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow p-12">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-12">
         <div className="text-center">
           <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
           </svg>
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No sub-categories found</h3>
-          <p className="mt-1 text-sm text-gray-500">Try adjusting your search or filters</p>
+          <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No sub-categories found</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Try adjusting your search or filters</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b">
+          <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
             <tr>
               <th className="px-4 py-3 text-left">
                 <input
                   type="checkbox"
                   checked={isAllSelected}
                   onChange={(e) => onSelectAll(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
                 />
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sort Order</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Code</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sort Order</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
             {subCategories.map(sub => (
-              <tr key={sub.id} onClick={() => onView(sub.id)} className="hover:bg-gray-50 transition cursor-pointer">
+              <tr key={sub.id} onClick={() => onView(sub.id)} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer">
                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     checked={isSelected(sub.id)}
                     onChange={(e) => onSelect(sub.id, e.target.checked)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
                   />
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-600">
+                <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                   {sub.category?.category_name || '-'}
                 </td>
-                <td className="px-4 py-3 text-sm font-mono text-gray-900">{sub.sub_category_code}</td>
-                <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white">{sub.sub_category_code}</td>
+                <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
                   {sub.sub_category_name}
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-600">{sub.description || '-'}</td>
-                <td className="px-4 py-3 text-sm text-center text-gray-900">{sub.sort_order}</td>
+                <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{sub.description || '-'}</td>
+                <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{sub.sort_order}</td>
                 <td className="px-4 py-3 text-right text-sm space-x-2" onClick={(e) => e.stopPropagation()}>
                   {showDeleted ? (
-                    <button onClick={() => onRestore(sub.id, sub.sub_category_name)} className="text-blue-600 hover:text-blue-800 font-medium transition">Restore</button>
+                    <button onClick={() => onRestore(sub.id, sub.sub_category_name)} className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition">Restore</button>
                   ) : (
                     <>
-                      <button onClick={() => onEdit(sub.id)} className="text-green-600 hover:text-green-800 font-medium transition">Edit</button>
-                      <button onClick={() => onDelete(sub.id, sub.sub_category_name)} className="text-red-600 hover:text-red-800 font-medium transition">Delete</button>
+                      <button onClick={() => onEdit(sub.id)} className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 font-medium transition">Edit</button>
+                      <button onClick={() => onDelete(sub.id, sub.sub_category_name)} className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-medium transition">Delete</button>
                     </>
                   )}
                 </td>
