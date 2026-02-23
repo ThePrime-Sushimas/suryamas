@@ -6,6 +6,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { useBulkSelection } from '@/hooks/_shared/useBulkSelection'
 import BulkActionBar from '@/components/BulkActionBar'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import Pagination from '@/components/ui/Pagination'
 import { FolderOpen, Plus, Search, Filter, X } from 'lucide-react'
 
 function debounce(fn: (value: string) => void, delay: number) {
@@ -26,7 +27,22 @@ type ConfirmState = {
 export default function CategoriesPage() {
   const navigate = useNavigate()
   const { success, error: toastError } = useToast()
-  const { categories, loading, fetchCategories, searchCategories, deleteCategory, bulkDeleteCategories, updateCategoryStatus, restoreCategory } = useCategoriesStore()
+  const { 
+    categories, 
+    loading, 
+    fetchCategories, 
+    searchCategories, 
+    deleteCategory, 
+    bulkDeleteCategories, 
+    updateCategoryStatus, 
+    restoreCategory,
+    page,
+    limit,
+    total,
+    totalPages,
+    hasNext,
+    hasPrev
+  } = useCategoriesStore()
   
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -48,21 +64,37 @@ export default function CategoriesPage() {
   const debouncedSearch = useMemo(
     () => debounce((value: string) => {
       if (value) {
-        searchCategories(value, 1, 1000)
+        searchCategories(value, 1, limit)
       } else {
-        fetchCategories(1, 1000, statusFilter, deletedFilter)
+        fetchCategories(1, limit, statusFilter, deletedFilter)
       }
     }, 300),
-    [searchCategories, fetchCategories, statusFilter, deletedFilter]
+    [searchCategories, fetchCategories, statusFilter, deletedFilter, limit]
   )
 
   useEffect(() => {
-    fetchCategories(1, 1000, statusFilter, deletedFilter)
-  }, [fetchCategories, statusFilter, deletedFilter])
+    fetchCategories(1, limit, statusFilter, deletedFilter)
+  }, [fetchCategories, statusFilter, deletedFilter, limit])
 
   useEffect(() => {
     debouncedSearch(search)
   }, [search, debouncedSearch])
+
+  const handlePageChange = useCallback((newPage: number) => {
+    if (search) {
+      searchCategories(search, newPage, limit)
+    } else {
+      fetchCategories(newPage, limit, statusFilter, deletedFilter)
+    }
+  }, [search, searchCategories, fetchCategories, limit, statusFilter, deletedFilter])
+
+  const handleLimitChange = useCallback((newLimit: number) => {
+    if (search) {
+      searchCategories(search, 1, newLimit)
+    } else {
+      fetchCategories(1, newLimit, statusFilter, deletedFilter)
+    }
+  }, [search, searchCategories, fetchCategories, statusFilter, deletedFilter])
 
   const handleDelete = useCallback((id: string, name: string) => {
     setConfirm({
@@ -194,16 +226,25 @@ export default function CategoriesPage() {
     ]
   }, [deletedFilter, handleBulkStatus, handleBulkDelete, handleBulkRestore])
 
+  const paginationInfo = useMemo(() => ({
+    page,
+    limit,
+    total,
+    totalPages,
+    hasNext,
+    hasPrev
+  }), [page, limit, total, totalPages, hasNext, hasPrev])
+
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <FolderOpen className="w-6 h-6 text-blue-600" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Categories</h1>
-              <p className="text-sm text-gray-500">{categories.length} total</p>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Categories</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{total} total</p>
             </div>
           </div>
           <button
@@ -217,7 +258,7 @@ export default function CategoriesPage() {
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -226,12 +267,12 @@ export default function CategoriesPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search categories..."
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -240,7 +281,9 @@ export default function CategoriesPage() {
           <button
             onClick={() => setShowFilter(!showFilter)}
             className={`px-4 py-2 border rounded-lg flex items-center gap-2 transition-colors ${
-              showFilter ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-gray-300 hover:bg-gray-50'
+              showFilter 
+                ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-400' 
+                : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
             }`}
           >
             <Filter className="w-4 h-4" />
@@ -254,11 +297,11 @@ export default function CategoriesPage() {
 
         {/* Filter Panel */}
         {showFilter && (
-          <div className="mt-3 pt-3 border-t border-gray-200 grid grid-cols-2 gap-3">
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 grid grid-cols-2 gap-3">
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">All Status</option>
               <option value="true">Active</option>
@@ -267,7 +310,7 @@ export default function CategoriesPage() {
             <select
               value={deletedFilter}
               onChange={e => setDeletedFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="false">Active Items</option>
               <option value="true">Deleted Items</option>
@@ -279,7 +322,7 @@ export default function CategoriesPage() {
 
       {/* Bulk Actions */}
       {selectedCount > 0 && (
-        <div className="px-6 py-2 bg-blue-50 border-b border-blue-200 flex items-center gap-3">
+        <div className="px-6 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 flex items-center gap-3">
           <BulkActionBar selectedCount={selectedCount} actions={bulkActions} />
         </div>
       )}
@@ -287,9 +330,9 @@ export default function CategoriesPage() {
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
         {loading ? (
-          <div className="text-center py-8 text-gray-500">Loading...</div>
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading...</div>
         ) : (
-          <div className="bg-white rounded-lg shadow">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50">
             <CategoryTable
               categories={categories}
               onView={id => navigate(`/categories/${id}`)}
@@ -304,6 +347,17 @@ export default function CategoriesPage() {
             />
           </div>
         )}
+      </div>
+
+      {/* Pagination */}
+      <div className="px-6 pb-6">
+        <Pagination
+          pagination={paginationInfo}
+          onPageChange={handlePageChange}
+          onLimitChange={handleLimitChange}
+          currentLength={categories.length}
+          loading={loading}
+        />
       </div>
 
       {/* Confirm Modal */}
