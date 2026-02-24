@@ -24,8 +24,10 @@ export default function CreateCategoryPage() {
 
   return (
     <div className="max-w-md mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">Create Category</h1>
-      <CategoryForm onSubmit={handleSubmit} isLoading={loading} />
+      <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Create Category</h1>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-900/50 p-6">
+        <CategoryForm onSubmit={handleSubmit} isLoading={loading} />
+      </div>
     </div>
   )
 }

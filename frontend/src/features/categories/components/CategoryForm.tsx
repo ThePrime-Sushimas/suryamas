@@ -33,30 +33,30 @@ export const CategoryForm = ({ initialData, isEdit, onSubmit, isLoading }: Categ
     <form onSubmit={handleSubmit} className="space-y-4">
       {!isEdit && (
         <div>
-          <label className="block text-sm font-medium">Category Code *</label>
-          <input name="category_code" value={formData.category_code} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" required />
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Category Code *</label>
+          <input name="category_code" value={formData.category_code} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" required />
         </div>
       )}
       <div>
-        <label className="block text-sm font-medium">Category Name *</label>
-        <input name="category_name" value={formData.category_name} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" required />
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Category Name *</label>
+        <input name="category_name" value={formData.category_name} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" required />
       </div>
       <div>
-        <label className="block text-sm font-medium">Description</label>
-        <textarea name="description" value={formData.description} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" rows={3} />
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+        <textarea name="description" value={formData.description} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" rows={3} />
       </div>
       <div>
-        <label className="block text-sm font-medium">Sort Order</label>
-        <input type="number" name="sort_order" value={formData.sort_order} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Sort Order</label>
+        <input type="number" name="sort_order" value={formData.sort_order} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
       </div>
       {isEdit && (
         <div>
-          <label className="block text-sm font-medium mb-2">Status</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
           <select 
             name="is_active" 
             value={formData.is_active ? 'true' : 'false'} 
             onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.value === 'true' }))}
-            className="w-full px-3 py-2 border rounded-md"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
           >
             <option value="true">Active</option>
             <option value="false">Inactive</option>

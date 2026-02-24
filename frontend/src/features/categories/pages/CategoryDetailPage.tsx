@@ -32,20 +32,20 @@ export default function CategoryDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-500 dark:text-gray-400">Loading...</div>
       </div>
     )
   }
 
   if (error || !category) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-600 mb-4">{error || 'Category not found'}</p>
+          <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Category not found'}</p>
           <button
             onClick={() => navigate('/categories')}
-            className="text-blue-600 hover:underline"
+            className="text-blue-600 dark:text-blue-400 hover:underline"
           >
             Back to Categories
           </button>
@@ -55,13 +55,13 @@ export default function CategoryDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <button
             onClick={() => navigate('/categories')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
           >
             <ArrowLeft className="w-5 h-5" />
             Back to Categories
@@ -76,7 +76,7 @@ export default function CategoryDetailPage() {
         </div>
 
         {/* Main Card */}
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-900/50 overflow-hidden">
           {/* Header Section */}
           <div className="bg-linear-to-r from-blue-600 to-blue-700 px-8 py-6 text-white">
             <div className="flex items-center justify-between">
@@ -104,39 +104,39 @@ export default function CategoryDetailPage() {
           <div className="px-8 py-6 space-y-6">
             {/* Category Name */}
             <div>
-              <label className="text-sm font-medium text-gray-500 uppercase tracking-wide">Category Name</label>
-              <p className="mt-1 text-2xl font-semibold text-gray-900">{category.category_name}</p>
+              <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Category Name</label>
+              <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{category.category_name}</p>
             </div>
 
             {/* Description */}
             <div>
-              <label className="text-sm font-medium text-gray-500 uppercase tracking-wide">Description</label>
-              <p className="mt-1 text-gray-700 leading-relaxed">
-                {category.description || <span className="text-gray-400 italic">No description provided</span>}
+              <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Description</label>
+              <p className="mt-1 text-gray-700 dark:text-gray-300 leading-relaxed">
+                {category.description || <span className="text-gray-400 dark:text-gray-500 italic">No description provided</span>}
               </p>
             </div>
 
             {/* Sort Order */}
             <div>
-              <label className="text-sm font-medium text-gray-500 uppercase tracking-wide">Sort Order</label>
-              <p className="mt-1 text-lg text-gray-900">{category.sort_order}</p>
+              <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Sort Order</label>
+              <p className="mt-1 text-lg text-gray-900 dark:text-white">{category.sort_order}</p>
             </div>
 
             {/* Metadata Grid */}
-            <div className="grid grid-cols-2 gap-6 pt-6 border-t border-gray-200">
+            <div className="grid grid-cols-2 gap-6 pt-6 border-t border-gray-200 dark:border-gray-700">
               <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-500 uppercase tracking-wide">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   <Calendar className="w-4 h-4" />
                   Created At
                 </label>
-                <p className="mt-1 text-gray-900">{new Date(category.created_at).toLocaleString()}</p>
+                <p className="mt-1 text-gray-900 dark:text-white">{new Date(category.created_at).toLocaleString()}</p>
               </div>
               <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-500 uppercase tracking-wide">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   <Calendar className="w-4 h-4" />
                   Updated At
                 </label>
-                <p className="mt-1 text-gray-900">{new Date(category.updated_at).toLocaleString()}</p>
+                <p className="mt-1 text-gray-900 dark:text-white">{new Date(category.updated_at).toLocaleString()}</p>
               </div>            
             </div>
           </div>
