@@ -49,7 +49,7 @@ export default function EditMetricUnitPage() {
       <div className="max-w-2xl mx-auto p-6">
         <div className="text-center py-12">
           <CardSkeleton />
-          <p className="mt-2 text-gray-600">Loading...</p>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </div>
     )
@@ -59,10 +59,10 @@ export default function EditMetricUnitPage() {
     return (
       <div className="max-w-2xl mx-auto p-6">
         <div className="text-center py-12">
-          <p className="text-red-600 font-medium">Metric unit not found</p>
+          <p className="text-red-600 dark:text-red-400 font-medium">Metric unit not found</p>
           <button
             onClick={() => navigate('/metric-units')}
-            className="mt-4 text-blue-600 hover:text-blue-800"
+            className="mt-4 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
           >
             Back to Metric Units
           </button>
@@ -76,15 +76,15 @@ export default function EditMetricUnitPage() {
       <div className="mb-6">
         <button
           onClick={handleCancel}
-          className="text-blue-600 hover:text-blue-800 text-sm font-medium mb-2 flex items-center gap-1"
+          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium mb-2 flex items-center gap-1"
         >
           ← Back to Metric Units
         </button>
-        <h1 className="text-3xl font-bold text-gray-900">Edit Metric Unit</h1>
-        <p className="text-gray-600 mt-1">Update unit type information</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Edit Metric Unit</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Update unit type information</p>
       </div>
       
-      <div className="bg-white rounded-lg shadow-sm p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-gray-900/50 p-6">
         <MetricUnitForm 
           initialData={currentMetricUnit} 
           isEdit 
@@ -95,7 +95,7 @@ export default function EditMetricUnitPage() {
         
         <button
           onClick={handleCancel}
-          className="w-full mt-4 bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200 transition-colors"
+          className="w-full mt-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 px-4 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           disabled={loading}
         >
           Cancel

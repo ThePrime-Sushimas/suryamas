@@ -24,6 +24,7 @@ interface MetricUnitsState {
   bulkUpdateStatus: (ids: string[], isActive: boolean) => Promise<void>
   fetchFilterOptions: () => Promise<void>
   setPage: (page: number) => void
+  setLimit: (limit: number) => void
   setSort: (sort: SortParams | null) => void
   setFilter: (filter: FilterParams | null) => void
   clearError: () => void
@@ -173,6 +174,11 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
 
   setPage: (page) => {
     set(state => ({ pagination: { ...state.pagination, page } }))
+    get().fetchMetricUnits()
+  },
+
+  setLimit: (limit) => {
+    set(state => ({ pagination: { ...state.pagination, limit, page: 1 } }))
     get().fetchMetricUnits()
   },
 

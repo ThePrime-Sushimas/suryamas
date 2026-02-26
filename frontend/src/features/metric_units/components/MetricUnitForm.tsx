@@ -138,14 +138,14 @@ export const MetricUnitForm = ({ initialData, isEdit, onSubmit, isLoading, metri
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="metric_type" className="block text-sm font-medium mb-1">Metric Type *</label>
+        <label htmlFor="metric_type" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Metric Type *</label>
         <select 
           id="metric_type"
           name="metric_type" 
           value={formData.metric_type} 
           onChange={handleChange}
           onBlur={handleBlur}
-          className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           disabled={isLoading}
           aria-invalid={!!errors.metric_type}
           aria-describedby={errors.metric_type ? 'metric_type-error' : undefined}
@@ -155,38 +155,38 @@ export const MetricUnitForm = ({ initialData, isEdit, onSubmit, isLoading, metri
           ))}
         </select>
         {errors.metric_type && (
-          <p id="metric_type-error" className="text-red-600 text-sm mt-1">{errors.metric_type}</p>
+          <p id="metric_type-error" className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.metric_type}</p>
         )}
       </div>
       
       <div>
-        <label htmlFor="unit_name" className="block text-sm font-medium mb-1">Unit Name *</label>
+        <label htmlFor="unit_name" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Unit Name *</label>
         <input 
           id="unit_name"
           name="unit_name" 
           value={formData.unit_name} 
           onChange={handleChange}
           onBlur={handleBlur}
-          className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           disabled={isLoading}
           maxLength={100}
           aria-invalid={!!errors.unit_name}
           aria-describedby={errors.unit_name ? 'unit_name-error' : undefined}
         />
         {errors.unit_name && (
-          <p id="unit_name-error" className="text-red-600 text-sm mt-1">{errors.unit_name}</p>
+          <p id="unit_name-error" className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.unit_name}</p>
         )}
       </div>
       
       <div>
-        <label htmlFor="notes" className="block text-sm font-medium mb-1">Notes</label>
+        <label htmlFor="notes" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Notes</label>
         <textarea 
           id="notes"
           name="notes" 
           value={formData.notes || ''} 
           onChange={handleChange}
           onBlur={handleBlur}
-          className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           rows={3}
           disabled={isLoading}
           maxLength={500}
@@ -194,12 +194,12 @@ export const MetricUnitForm = ({ initialData, isEdit, onSubmit, isLoading, metri
           aria-describedby={errors.notes ? 'notes-error' : undefined}
         />
         {errors.notes && (
-          <p id="notes-error" className="text-red-600 text-sm mt-1">{errors.notes}</p>
+          <p id="notes-error" className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.notes}</p>
         )}
       </div>
       
       <div>
-        <label htmlFor="is_active" className="flex items-center cursor-pointer">
+        <label htmlFor="is_active" className="flex items-center cursor-pointer text-gray-700 dark:text-gray-300">
           <input 
             id="is_active"
             type="checkbox" 
