@@ -68,6 +68,11 @@ export default function CompaniesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Fetch data when page or limit changes
+  useEffect(() => {
+    fetchCompanies(pagination.page, pagination.limit, undefined, filter)
+  }, [pagination.page, pagination.limit, fetchCompanies, filter])
+
   const handleDelete = useCallback(async (id: string) => {
     if (!confirm('Are you sure you want to delete this company? This will change the status to inactive.')) return
     

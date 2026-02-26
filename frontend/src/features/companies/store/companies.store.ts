@@ -101,24 +101,12 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
 
   setPage: (page: number) => {
     set(state => ({ pagination: { ...state.pagination, page } }))
-    const { searchQuery, filters } = get()
-    if (searchQuery) {
-      get().searchCompanies(searchQuery, page, get().pagination.limit, filters)
-    } else {
-      get().fetchCompanies(page, get().pagination.limit, undefined, filters)
-    }
   },
 
   setPageSize: (limit: number) => {
     set(state => ({ 
       pagination: { ...state.pagination, page: 1, limit }
     }))
-    const { searchQuery, filters } = get()
-    if (searchQuery) {
-      get().searchCompanies(searchQuery, 1, limit, filters)
-    } else {
-      get().fetchCompanies(1, limit, undefined, filters)
-    }
   },
 
   setFilters: (filters: CompanyFilters) => {
