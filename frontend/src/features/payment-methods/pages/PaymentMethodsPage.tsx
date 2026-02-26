@@ -4,6 +4,7 @@ import { usePaymentMethodsStore } from '../store/paymentMethods.store'
 import { PaymentMethodTable } from '../components/PaymentMethodTable'
 import { PaymentMethodFilters } from '../components/PaymentMethodFilters'
 import { PaymentMethodForm } from '../components/PaymentMethodForm'
+import { Pagination } from '@/components/ui/Pagination'
 import { useToast } from '@/contexts/ToastContext'
 import type { CreatePaymentMethodDto, UpdatePaymentMethodDto } from '../types'
 
@@ -21,7 +22,8 @@ export const PaymentMethodsPage = () => {
     totalPages,
     isLoading,
     isMutating,
-    setPage
+    setPage,
+    setLimit
   } = usePaymentMethodsStore()
 
   const [showForm, setShowForm] = useState(false)
@@ -30,6 +32,11 @@ export const PaymentMethodsPage = () => {
   useEffect(() => {
     fetchPaymentMethods()
   }, [fetchPaymentMethods])
+
+  // Fetch data when page or limit changes
+  useEffect(() => {
+    fetchPaymentMethods(page, limit)
+  }, [page, limit, fetchPaymentMethods])
 
   const handleSubmit = async (data: CreatePaymentMethodDto | UpdatePaymentMethodDto) => {
     try {
@@ -75,11 +82,11 @@ export const PaymentMethodsPage = () => {
     : null
 
   return (
-    <div className="p-6">
+    <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Payment Methods</h1>
-          <p className="text-gray-500 mt-1">Manage available payment methods</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Payment Methods</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Manage available payment methods</p>
         </div>
         {!showForm && (
           <button
@@ -93,14 +100,14 @@ export const PaymentMethodsPage = () => {
       </div>
 
       {showForm ? (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               {editingId ? 'Edit Payment Method' : 'New Payment Method'}
             </h2>
             <button
               onClick={handleFormClose}
-              className="text-gray-500 hover:text-gray-700"
+              className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
             >
               ✕
             </button>
@@ -124,33 +131,25 @@ export const PaymentMethodsPage = () => {
             loading={isLoading}
           />
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex justify-between items-center mt-4">
-              <div className="text-sm text-gray-500">
-                Showing {(page - 1) * limit + 1} - {Math.min(page * limit, total)} of {total} records
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setPage(page - 1)}
-                  disabled={page === 1}
-                  className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => setPage(page + 1)}
-                  disabled={page === totalPages}
-                  className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
+          {/* Global Pagination Component */}
+          {total > 0 && (
+            <Pagination
+              pagination={{
+                page,
+                limit,
+                total,
+                totalPages,
+                hasNext: page < totalPages,
+                hasPrev: page > 1
+              }}
+              onPageChange={setPage}
+              onLimitChange={setLimit}
+              currentLength={paymentMethods.length}
+              loading={isLoading}
+            />
           )}
         </>
       )}
     </div>
   )
 }
-

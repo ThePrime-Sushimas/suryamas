@@ -166,7 +166,7 @@ export const PaymentMethodForm = ({
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Code <span className="text-red-500">*</span>
         </label>
         <input
@@ -179,8 +179,8 @@ export const PaymentMethodForm = ({
               message: 'Kode hanya boleh berisi huruf besar, angka, dan underscore'
             }
           })}
-          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-            errors.code ? 'border-red-500' : 'border-gray-300'
+          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+            errors.code ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
           }`}
           placeholder="e.g: CASH, BANK_TRANSFER"
           disabled={!!paymentMethod}
@@ -191,7 +191,7 @@ export const PaymentMethodForm = ({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Name <span className="text-red-500">*</span>
         </label>
         <input
@@ -200,8 +200,8 @@ export const PaymentMethodForm = ({
             required: 'Nama wajib diisi',
             maxLength: { value: 100, message: 'Nama maksimal 100 karakter' }
           })}
-          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-            errors.name ? 'border-red-500' : 'border-gray-300'
+          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+            errors.name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
           }`}
           placeholder="e.g: Cash, BCA Bank Transfer"
         />
@@ -211,15 +211,15 @@ export const PaymentMethodForm = ({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Payment Type <span className="text-red-500">*</span>
         </label>
         <select
           {...register('payment_type', {
             required: 'Tipe pembayaran wajib dipilih'
           })}
-          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-            errors.payment_type ? 'border-red-500' : 'border-gray-300'
+          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+            errors.payment_type ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
           }`}
         >
           {PAYMENT_TYPE_OPTIONS.map(option => (
@@ -234,7 +234,7 @@ export const PaymentMethodForm = ({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Description
         </label>
         <textarea
@@ -242,7 +242,7 @@ export const PaymentMethodForm = ({
             maxLength: { value: 500, message: 'Deskripsi maksimal 500 karakter' }
           })}
           rows={3}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           placeholder="Payment method description (optional)"
         />
         {errors.description && showErrors && (
@@ -251,7 +251,7 @@ export const PaymentMethodForm = ({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Bank Account {requiresBankAccount && <span className="text-red-500">*</span>}
         </label>
         <select
@@ -264,7 +264,7 @@ export const PaymentMethodForm = ({
               return true
             }
           })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           disabled={loadingOptions}
         >
           <option value="">-- Select Bank Account (Optional) --</option>
@@ -277,13 +277,13 @@ export const PaymentMethodForm = ({
         {errors.bank_account_id && showErrors && (
           <p className="mt-1 text-sm text-red-500">{errors.bank_account_id.message}</p>
         )}
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           Link to specific bank account (for bank-based payment methods)
         </p>
       </div>
 
       <div className="relative">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Chart of Accounts
         </label>
         <div className="relative">
@@ -297,11 +297,11 @@ export const PaymentMethodForm = ({
             }}
             onFocus={() => setShowCOADropdown(true)}
             placeholder="Search account code or name..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             disabled={loadingOptions}
           />
           {showCOADropdown && filteredCOA.length > 0 && (
-            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+            <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
               {filteredCOA.map(coa => (
                 <button
                   key={coa.id}
@@ -311,17 +311,17 @@ export const PaymentMethodForm = ({
                     setCOASearch('')
                     setShowCOADropdown(false)
                   }}
-                  className="w-full px-3 py-2 text-left hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+                  className="w-full px-3 py-2 text-left hover:bg-blue-50 dark:hover:bg-blue-900/30 focus:bg-blue-50 dark:focus:bg-blue-900/30 focus:outline-none"
                 >
-                  <div className="font-mono text-sm text-gray-900">{coa.account_code}</div>
-                  <div className="text-sm text-gray-600">{coa.account_name}</div>
+                  <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{coa.account_code}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300">{coa.account_name}</div>
                 </button>
               ))}
             </div>
           )}
         </div>
         <input type="hidden" {...register('coa_account_id')} />
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           Link to Chart of Accounts for automatic journal entry posting
         </p>
       </div>
@@ -331,11 +331,11 @@ export const PaymentMethodForm = ({
           type="checkbox"
           {...register('requires_bank_account')}
           id="requires_bank_account"
-          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
         />
-        <label htmlFor="requires_bank_account" className="ml-2 block text-sm text-gray-700">
+        <label htmlFor="requires_bank_account" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
           Requires bank account
-          <p className="text-xs text-gray-500 mt-0.5">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             Check if this payment method requires a bank account (e.g: Bank Transfer)
           </p>
         </label>
@@ -346,18 +346,18 @@ export const PaymentMethodForm = ({
           type="checkbox"
           {...register('is_default')}
           id="is_default"
-          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
         />
-        <label htmlFor="is_default" className="ml-2 block text-sm text-gray-700">
+        <label htmlFor="is_default" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
           Set as default
-          <p className="text-xs text-gray-500 mt-0.5">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             Default payment method will be selected automatically
           </p>
         </label>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Sort Order
         </label>
         <input
@@ -367,7 +367,7 @@ export const PaymentMethodForm = ({
             min: { value: 0, message: 'Minimum sort order is 0' },
             max: { value: 9999, message: 'Maximum sort order is 9999' }
           })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           placeholder="0"
         />
         {errors.sort_order && showErrors && (
@@ -376,23 +376,23 @@ export const PaymentMethodForm = ({
       </div>
 
       {/* === 🔥 FEE CONFIGURATION SECTION === */}
-      <div className="border-t pt-6 mt-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           Fee Configuration
         </h3>
-        <p className="text-sm text-gray-500 mb-4">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
           Configure fees untuk reconciliation. Fee dihitung saat settlement.
           <br />
-          <span className="text-xs">Marketing fee = Expected Net - Actual dari Bank (selisih)</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500">Marketing fee = Expected Net - Actual dari Bank (selisih)</span>
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Fee Percentage */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Fee Percentage (%)
             </label>
             <input
@@ -405,18 +405,18 @@ export const PaymentMethodForm = ({
                 min: { value: 0, message: 'Fee percentage tidak boleh negatif' },
                 max: { value: 100, message: 'Fee percentage maksimal 100%' }
               })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               placeholder="0.00"
             />
             {errors.fee_percentage && showErrors && (
               <p className="mt-1 text-sm text-red-500">{errors.fee_percentage.message}</p>
             )}
-            <p className="mt-1 text-xs text-gray-500">Persentase biaya (MDR)</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Persentase biaya (MDR)</p>
           </div>
 
           {/* Fixed Amount */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Fixed Amount (Rp)
             </label>
             <input
@@ -427,18 +427,18 @@ export const PaymentMethodForm = ({
                 valueAsNumber: true,
                 min: { value: 0, message: 'Fixed amount tidak boleh negatif' }
               })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               placeholder="0"
             />
             {errors.fee_fixed_amount && showErrors && (
               <p className="mt-1 text-sm text-red-500">{errors.fee_fixed_amount.message}</p>
             )}
-            <p className="mt-1 text-xs text-gray-500">Jumlah biaya tetap</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Jumlah biaya tetap</p>
           </div>
 
           {/* Per Transaction Toggle */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Fixed Fee Type
             </label>
             <div className="mt-2">
@@ -446,14 +446,14 @@ export const PaymentMethodForm = ({
                 <input
                   type="checkbox"
                   {...register('fee_fixed_per_transaction')}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
                 />
-                <span className="ml-2 text-sm text-gray-700">
+                <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
                   Per Transaksi
                 </span>
               </label>
             </div>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               ✓ Per tx: Gojek
               <br />
               ✗ Per total: QRIS, Card, EDC
@@ -462,9 +462,9 @@ export const PaymentMethodForm = ({
         </div>
 
         {/* Fee Preview */}
-        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-          <p className="text-sm font-medium text-gray-700 mb-2">Fee Preview:</p>
-          <div className="text-sm text-gray-600">
+        <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Fee Preview:</p>
+          <div className="text-sm text-gray-600 dark:text-gray-400">
             {(() => {
               const percentage = watch('fee_percentage') || 0
               const fixed = watch('fee_fixed_amount') || 0
@@ -482,12 +482,12 @@ export const PaymentMethodForm = ({
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-4 border-t">
+      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
         <button
           type="button"
           onClick={handleCancel}
           disabled={isLoading}
-          className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50"
+          className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50"
         >
           Cancel
         </button>

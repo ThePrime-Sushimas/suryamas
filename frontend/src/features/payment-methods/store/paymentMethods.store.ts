@@ -230,12 +230,10 @@ export const usePaymentMethodsStore = create<PaymentMethodsState>()(
 
         setPage: (page: number) => {
           set({ page })
-          get().fetchPaymentMethods(page)
         },
 
         setLimit: (limit: number) => {
           set({ limit, page: 1 })
-          get().fetchPaymentMethods(1, limit)
         },
 
         clearSelection: () => {
@@ -258,4 +256,3 @@ export const usePaymentMethodsStore = create<PaymentMethodsState>()(
     { name: 'payment-methods-store' }
   )
 )
-
