@@ -148,15 +148,15 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
     <form onSubmit={handleSubmit} className="space-y-4">
       {!isEdit && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Product Code <span className="text-red-500">*</span>
           </label>
           <input
             name="product_code"
             value={formData.product_code}
             onChange={handleChange}
-            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-              errors.product_code ? 'border-red-500' : 'border-gray-300'
+            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+              errors.product_code ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
             }`}
             placeholder="e.g., PROD001"
           />
@@ -167,15 +167,15 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
       )}
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Product Name <span className="text-red-500">*</span>
         </label>
         <input
           name="product_name"
           value={formData.product_name}
           onChange={handleChange}
-          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-            errors.product_name ? 'border-red-500' : 'border-gray-300'
+          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+            errors.product_name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
           }`}
           placeholder="Enter product name"
         />
@@ -185,27 +185,27 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">BOM Name</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">BOM Name</label>
         <input
           name="bom_name"
           value={formData.bom_name}
           onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           placeholder="Bill of Materials name (optional)"
         />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Category <span className="text-red-500">*</span>
           </label>
           <select
             name="category_id"
             value={formData.category_id}
             onChange={handleChange}
-            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-              errors.category_id ? 'border-red-500' : 'border-gray-300'
+            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+              errors.category_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
             }`}
           >
             <option value="">Select category</option>
@@ -221,7 +221,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Sub-Category <span className="text-red-500">*</span>
           </label>
           <select
@@ -229,8 +229,8 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
             value={formData.sub_category_id}
             onChange={handleChange}
             disabled={!formData.category_id}
-            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed ${
-              errors.sub_category_id ? 'border-red-500' : 'border-gray-300'
+            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+              errors.sub_category_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
             }`}
           >
             <option value="">Select sub-category</option>
@@ -248,12 +248,12 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Product Type</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Type</label>
           <select
             name="product_type"
             value={formData.product_type}
             onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             <option value="raw">Raw Material</option>
             <option value="semi_finished">Semi-Finished</option>
@@ -262,7 +262,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Average Cost</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Average Cost</label>
           <input
             type="number"
             name="average_cost"
@@ -270,7 +270,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
             onChange={handleChange}
             min="0"
             step="0.01"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             placeholder="0.00"
           />
         </div>
@@ -283,9 +283,9 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
             name="is_requestable"
             checked={formData.is_requestable}
             onChange={handleChange}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
+            className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 mr-2 bg-white dark:bg-gray-700"
           />
-          <span className="text-sm font-medium text-gray-700">Requestable</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Requestable</span>
         </label>
         <label className="flex items-center cursor-pointer">
           <input
@@ -293,19 +293,19 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
             name="is_purchasable"
             checked={formData.is_purchasable}
             onChange={handleChange}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
+            className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 mr-2 bg-white dark:bg-gray-700"
           />
-          <span className="text-sm font-medium text-gray-700">Purchasable</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Purchasable</span>
         </label>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
         <select
           name="status"
           value={formData.status}
           onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
           <option value="ACTIVE">Active</option>
           <option value="INACTIVE">Inactive</option>
@@ -314,12 +314,12 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
         <textarea
           name="notes"
           value={formData.notes}
           onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           rows={3}
           placeholder="Additional notes (optional)"
         />
@@ -348,7 +348,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
             type="button"
             onClick={onCancel}
             disabled={isLoading}
-            className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition text-gray-700 dark:text-gray-300"
           >
             Cancel
           </button>

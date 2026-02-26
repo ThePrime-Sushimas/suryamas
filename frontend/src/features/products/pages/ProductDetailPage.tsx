@@ -139,11 +139,11 @@ export default function ProductDetailPage() {
 
   if (fetchLoading) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="bg-white rounded-lg shadow p-12">
+      <div className="max-w-4xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12">
           <div className="flex flex-col items-center justify-center space-y-4">
             <CardSkeleton />
-            <p className="text-gray-500">Loading product...</p>
+            <p className="text-gray-500 dark:text-gray-400">Loading product...</p>
           </div>
         </div>
       </div>
@@ -152,12 +152,12 @@ export default function ProductDetailPage() {
 
   if (error || !currentProduct) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="bg-white rounded-lg shadow p-12">
+      <div className="max-w-4xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12">
           <div className="text-center">
             <Package className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">Product not found</h3>
-            <p className="mt-1 text-sm text-gray-500">{error || 'The product you are looking for does not exist.'}</p>
+            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Product not found</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{error || 'The product you are looking for does not exist.'}</p>
             <div className="mt-6">
               <button
                 onClick={() => navigate('/products')}
@@ -173,19 +173,19 @@ export default function ProductDetailPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
+    <div className="max-w-7xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="mb-6">
         <button
           onClick={() => navigate('/products')}
-          className="text-blue-600 hover:text-blue-800 flex items-center text-sm mb-4"
+          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center text-sm mb-4"
         >
           <ArrowLeft className="w-4 h-4 mr-1" />
           Back to Products
         </button>
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{currentProduct.product_name}</h1>
-            <p className="text-sm text-gray-600 mt-1">Product Code: {currentProduct.product_code}</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{currentProduct.product_name}</h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Product Code: {currentProduct.product_code}</p>
           </div>
           <div className="flex gap-2">
             <button
@@ -208,14 +208,14 @@ export default function ProductDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-8">
-        <div className="flex border-b border-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden mb-8">
+        <div className="flex border-b border-gray-200 dark:border-gray-700">
           <button
             onClick={() => setActiveTab('details')}
             className={`flex-1 px-6 py-4 text-lg font-medium transition-all duration-200 ${
               activeTab === 'details'
-                ? 'bg-linear-to-r from-blue-50 to-blue-100 text-blue-700 border-b-4 border-blue-600'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                ? 'bg-linear-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 text-blue-700 dark:text-blue-400 border-b-4 border-blue-600'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50'
             }`}
           >
             <div className="flex items-center justify-center gap-2">
@@ -227,14 +227,14 @@ export default function ProductDetailPage() {
             onClick={() => setActiveTab('uoms')}
             className={`flex-1 px-6 py-4 text-lg font-medium transition-all duration-200 ${
               activeTab === 'uoms'
-                ? 'bg-linear-to-r from-blue-50 to-blue-100 text-blue-700 border-b-4 border-blue-600'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                ? 'bg-linear-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 text-blue-700 dark:text-blue-400 border-b-4 border-blue-600'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50'
             }`}
           >
             <div className="flex items-center justify-center gap-2">
               <Ruler className="h-5 w-5" />
               Unit Of Measures
-              <span className="bg-gray-200 text-gray-800 text-xs px-2 py-1 rounded-full">
+              <span className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 text-xs px-2 py-1 rounded-full">
                 {uoms.length}
               </span>
             </div>
@@ -247,28 +247,28 @@ export default function ProductDetailPage() {
             <div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Basic Info */}
-                <div className="bg-linear-to-br from-blue-50 to-blue-100 rounded-2xl p-6 border border-blue-200">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
+                <div className="bg-linear-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-2xl p-6 border border-blue-200 dark:border-blue-800">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Basic Information</h2>
                   <div className="space-y-4">
                     <div>
-                      <label className="text-sm font-medium text-gray-600">Product Type</label>
-                      <p className="text-gray-900 capitalize">{currentProduct.product_type.replace('_', ' ')}</p>
+                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Product Type</label>
+                      <p className="text-gray-900 dark:text-gray-200 capitalize">{currentProduct.product_type.replace('_', ' ')}</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-600">Status</label>
+                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Status</label>
                       <div className="mt-1">
                         <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                          currentProduct.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
-                          currentProduct.status === 'INACTIVE' ? 'bg-gray-100 text-gray-800' :
-                          'bg-red-100 text-red-800'
+                          currentProduct.status === 'ACTIVE' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
+                          currentProduct.status === 'INACTIVE' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300' :
+                          'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
                         }`}>
                           {currentProduct.status}
                         </span>
                       </div>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-600">Average Cost</label>
-                      <p className="text-gray-900">
+                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Average Cost</label>
+                      <p className="text-gray-900 dark:text-gray-200">
                         {new Intl.NumberFormat('id-ID', {
                           style: 'currency',
                           currency: 'IDR',
@@ -280,61 +280,61 @@ export default function ProductDetailPage() {
                 </div>
 
                 {/* Flags */}
-                <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Flags</h2>
+                <div className="bg-white dark:bg-gray-700/50 rounded-2xl border border-gray-200 dark:border-gray-600 p-6">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Flags</h2>
                   <div className="space-y-3">
                     <div className="flex items-center">
                       <input
                         type="checkbox"
                         checked={currentProduct.is_requestable}
                         disabled
-                        className="rounded"
+                        className="rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
                       />
-                      <label className="ml-2 text-gray-700">Requestable</label>
+                      <label className="ml-2 text-gray-700 dark:text-gray-300">Requestable</label>
                     </div>
                     <div className="flex items-center">
                       <input
                         type="checkbox"
                         checked={currentProduct.is_purchasable}
                         disabled
-                        className="rounded"
+                        className="rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
                       />
-                      <label className="ml-2 text-gray-700">Purchasable</label>
+                      <label className="ml-2 text-gray-700 dark:text-gray-300">Purchasable</label>
                     </div>
                   </div>
                 </div>
 
                 {/* BOM Name */}
                 {currentProduct.bom_name && (
-                  <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">BOM Information</h2>
+                  <div className="bg-white dark:bg-gray-700/50 rounded-2xl border border-gray-200 dark:border-gray-600 p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">BOM Information</h2>
                     <div>
-                      <label className="text-sm font-medium text-gray-600">BOM Name</label>
-                      <p className="text-gray-900">{currentProduct.bom_name}</p>
+                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">BOM Name</label>
+                      <p className="text-gray-900 dark:text-gray-200">{currentProduct.bom_name}</p>
                     </div>
                   </div>
                 )}
 
                 {/* Notes */}
                 {currentProduct.notes && (
-                  <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Notes</h2>
-                    <p className="text-gray-700">{currentProduct.notes}</p>
+                  <div className="bg-white dark:bg-gray-700/50 rounded-2xl border border-gray-200 dark:border-gray-600 p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Notes</h2>
+                    <p className="text-gray-700 dark:text-gray-300">{currentProduct.notes}</p>
                   </div>
                 )}
               </div>
 
               {/* Metadata */}
-              <div className="mt-6 bg-linear-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200 p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Metadata</h2>
+              <div className="mt-6 bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-2xl border border-gray-200 dark:border-gray-600 p-6">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Metadata</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <label className="text-gray-600">Created</label>
-                    <p className="text-gray-900">{new Date(currentProduct.created_at).toLocaleDateString()}</p>
+                    <label className="text-gray-600 dark:text-gray-400">Created</label>
+                    <p className="text-gray-900 dark:text-gray-200">{new Date(currentProduct.created_at).toLocaleDateString()}</p>
                   </div>
                   <div>
-                    <label className="text-gray-600">Updated</label>
-                    <p className="text-gray-900">{new Date(currentProduct.updated_at).toLocaleDateString()}</p>
+                    <label className="text-gray-600 dark:text-gray-400">Updated</label>
+                    <p className="text-gray-900 dark:text-gray-200">{new Date(currentProduct.updated_at).toLocaleDateString()}</p>
                   </div>
                 </div>
               </div>
@@ -344,7 +344,7 @@ export default function ProductDetailPage() {
               {showUomForm ? (
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                       {editingUom ? 'Edit UOM' : 'Add New UOM'}
                     </h3>
                   </div>
@@ -362,13 +362,13 @@ export default function ProductDetailPage() {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-4">
-                      <h3 className="text-lg font-semibold text-gray-900">Units of Measure</h3>
-                      <label className="flex items-center gap-2 text-sm text-gray-600">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Units of Measure</h3>
+                      <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <input
                           type="checkbox"
                           checked={showDeleted}
                           onChange={(e) => setShowDeleted(e.target.checked)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700"
                         />
                         Show Deleted
                       </label>

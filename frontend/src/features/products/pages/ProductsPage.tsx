@@ -4,6 +4,7 @@ import { useProductsStore } from '../store/products.store'
 import { ProductTable } from '../components/ProductTable'
 import { ProductDeleteDialog } from '../components/ProductDeleteDialog'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { Pagination } from '@/components/ui/Pagination'
 import { useToast } from '@/contexts/ToastContext'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { Package, Plus, Search, Filter, X } from 'lucide-react'
@@ -27,7 +28,9 @@ export default function ProductsPage() {
     toggleSelect,
     toggleSelectAll,
     clearSelection,
-    clearError
+    clearError,
+    setPage,
+    setLimit
   } = useProductsStore()
 
   const { success, error: showError } = useToast()
@@ -52,7 +55,7 @@ export default function ProductsPage() {
     return count
   }, [statusFilter, typeFilter, showDeletedFilter])
 
-  const loadProducts = useCallback((page: number = 1) => {
+  const loadProducts = useCallback((page: number, limit: number = pagination.limit) => {
     const filter: Record<string, string> = {}
     if (statusFilter) filter.status = statusFilter
     if (typeFilter) filter.product_type = typeFilter
@@ -60,15 +63,21 @@ export default function ProductsPage() {
     const filterObj = Object.keys(filter).length > 0 ? filter : undefined
     
     if (debouncedSearch) {
-      searchProducts(debouncedSearch, page, pagination.limit, showDeletedFilter)
+      searchProducts(debouncedSearch, page, limit, showDeletedFilter)
     } else {
-      fetchProducts(page, pagination.limit, undefined, filterObj, showDeletedFilter)
+      fetchProducts(page, limit, undefined, filterObj, showDeletedFilter)
     }
   }, [debouncedSearch, statusFilter, typeFilter, pagination.limit, fetchProducts, searchProducts, showDeletedFilter])
 
+  // Reset to page 1 when filters/search change
   useEffect(() => {
-    loadProducts(1)
-  }, [debouncedSearch, statusFilter, typeFilter, showDeletedFilter, loadProducts])
+    setPage(1)
+  }, [debouncedSearch, statusFilter, typeFilter, showDeletedFilter, setPage])
+
+  // Fetch when page or limit changes (single source of fetch)
+  useEffect(() => {
+    loadProducts(pagination.page, pagination.limit)
+  }, [pagination.page, pagination.limit, loadProducts])
 
   useEffect(() => {
     if (storeError) {
@@ -150,21 +159,25 @@ export default function ProductsPage() {
   }
 
   const handlePageChange = (newPage: number) => {
-    loadProducts(newPage)
+    setPage(newPage)
+  }
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit)
   }
 
   const hasDeletedSelected = selectedIds.some(id => products.find(p => p.id === id)?.is_deleted)
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Package className="w-6 h-6 text-blue-600" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Products</h1>
-              <p className="text-sm text-gray-500">{pagination.total} total</p>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Products</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{pagination.total} total</p>
             </div>
           </div>
           <button
@@ -178,7 +191,7 @@ export default function ProductsPage() {
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -187,12 +200,12 @@ export default function ProductsPage() {
               placeholder="Search by name or code..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -201,7 +214,9 @@ export default function ProductsPage() {
           <button
             onClick={() => setShowFilter(!showFilter)}
             className={`px-4 py-2 border rounded-lg flex items-center gap-2 transition-colors ${
-              showFilter ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-gray-300 hover:bg-gray-50'
+              showFilter 
+                ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300' 
+                : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
             }`}
           >
             <Filter className="w-4 h-4" />
@@ -215,14 +230,14 @@ export default function ProductsPage() {
 
         {/* Filter Panel */}
         {showFilter && (
-          <div className="mt-3 pt-3 border-t border-gray-200">
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
                 <select
                   value={statusFilter}
                   onChange={e => setStatusFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
                   <option value="">All Status</option>
                   <option value="ACTIVE">Active</option>
@@ -231,11 +246,11 @@ export default function ProductsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Product Type</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Type</label>
                 <select
                   value={typeFilter}
                   onChange={e => setTypeFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
                   <option value="">All Types</option>
                   <option value="raw">Raw Material</option>
@@ -249,9 +264,9 @@ export default function ProductsPage() {
                     type="checkbox"
                     checked={showDeletedFilter}
                     onChange={e => setShowDeletedFilter(e.target.checked)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700"
                   />
-                  <span className="text-sm font-medium text-gray-700">Show Deleted</span>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Show Deleted</span>
                 </label>
               </div>
             </div>
@@ -261,15 +276,15 @@ export default function ProductsPage() {
 
       {/* Bulk Actions */}
       {selectedIds.length > 0 && (
-        <div className="px-6 py-2 bg-blue-50 border-b border-blue-200">
+        <div className="px-6 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-blue-900">
+            <span className="text-sm font-medium text-blue-900 dark:text-blue-300">
               {selectedIds.length} product(s) selected
             </span>
             <div className="space-x-2">
               <button
                 onClick={clearSelection}
-                className="text-sm text-gray-600 hover:text-gray-800"
+                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
               >
                 Clear
               </button>
@@ -298,10 +313,10 @@ export default function ProductsPage() {
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
         {fetchLoading ? (
-          <div className="bg-white rounded-lg shadow p-8">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
             <div className="flex flex-col items-center justify-center space-y-4">
               <CardSkeleton />
-              <p className="text-gray-500">Loading products...</p>
+              <p className="text-gray-500 dark:text-gray-400">Loading products...</p>
             </div>
           </div>
         ) : (
@@ -319,32 +334,15 @@ export default function ProductsPage() {
               onToggleSelectAll={toggleSelectAll}
             />
 
-            {/* Pagination */}
+            {/* Global Pagination Component */}
             {pagination.total > 0 && (
-              <div className="mt-6 flex items-center justify-between bg-white rounded-lg shadow-sm px-4 py-3">
-                <div className="text-sm text-gray-600">
-                  Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} products
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handlePageChange(pagination.page - 1)}
-                    disabled={!pagination.hasPrev}
-                    className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                  >
-                    Previous
-                  </button>
-                  <span className="px-4 py-2 border rounded-md bg-gray-50">
-                    Page {pagination.page} of {pagination.totalPages || 1}
-                  </span>
-                  <button
-                    onClick={() => handlePageChange(pagination.page + 1)}
-                    disabled={!pagination.hasNext}
-                    className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
+              <Pagination
+                pagination={pagination}
+                onPageChange={handlePageChange}
+                onLimitChange={handleLimitChange}
+                currentLength={products.length}
+                loading={fetchLoading}
+              />
             )}
           </>
         )}

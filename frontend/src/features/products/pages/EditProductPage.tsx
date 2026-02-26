@@ -60,11 +60,11 @@ export default function EditProductPage() {
 
   if (fetchLoading) {
     return (
-      <div className="max-w-2xl mx-auto p-6">
-        <div className="bg-white rounded-lg shadow p-12">
+      <div className="max-w-2xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12">
           <div className="flex flex-col items-center justify-center space-y-4">
             <CardSkeleton />
-            <p className="text-gray-500">Loading product...</p>
+            <p className="text-gray-500 dark:text-gray-400">Loading product...</p>
           </div>
         </div>
       </div>
@@ -73,8 +73,8 @@ export default function EditProductPage() {
 
   if (error || !currentProduct) {
     return (
-      <div className="max-w-2xl mx-auto p-6">
-        <div className="bg-white rounded-lg shadow p-12">
+      <div className="max-w-2xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12">
           <div className="text-center">
             <svg
               className="mx-auto h-12 w-12 text-red-400"
@@ -89,8 +89,8 @@ export default function EditProductPage() {
                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
               />
             </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">Product not found</h3>
-            <p className="mt-1 text-sm text-gray-500">{error || 'The product you are looking for does not exist.'}</p>
+            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Product not found</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{error || 'The product you are looking for does not exist.'}</p>
             <div className="mt-6">
               <button
                 onClick={() => navigate('/products')}
@@ -106,22 +106,22 @@ export default function EditProductPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
+    <div className="max-w-2xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="mb-6">
         <button
           onClick={() => navigate('/products')}
-          className="text-blue-600 hover:text-blue-800 flex items-center text-sm mb-2"
+          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center text-sm mb-2"
         >
           <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
           Back to Products
         </button>
-        <h1 className="text-2xl font-bold text-gray-900">Edit Product</h1>
-        <p className="text-sm text-gray-600 mt-1">Update product information</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Product</h1>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Update product information</p>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <ProductForm
           initialData={currentProduct}
           isEdit

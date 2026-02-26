@@ -41,6 +41,8 @@ interface ProductsState {
   toggleSelectAll: () => void
   clearSelection: () => void
   clearError: () => void
+  setPage: (page: number) => void
+  setLimit: (limit: number) => void
 }
 
 const initialState = {
@@ -279,5 +281,13 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
   },
 
   clearSelection: () => set({ selectedIds: [] }),
-  clearError: () => set({ error: null })
+  clearError: () => set({ error: null }),
+  
+  setPage: (page: number) => {
+    set(state => ({ pagination: { ...state.pagination, page } }))
+  },
+  
+  setLimit: (limit: number) => {
+    set(state => ({ pagination: { ...state.pagination, page: 1, limit } }))
+  }
 }))

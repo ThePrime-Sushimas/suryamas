@@ -38,7 +38,9 @@ export default function PaymentTermsPage() {
 
   const debouncedSearch = useDebounce(search, 300)
 
+  // Reset to page 1 when search changes
   useEffect(() => {
+    setPage(1)
     if (debouncedSearch) {
       searchPaymentTerms(debouncedSearch)
     } else {
@@ -46,17 +48,15 @@ export default function PaymentTermsPage() {
       const newFilter = currentFilter ? { ...currentFilter, q: undefined } : null
       setFilter(newFilter)
     }
-  }, [debouncedSearch, searchPaymentTerms, setFilter, filter])
+  }, [debouncedSearch, searchPaymentTerms, setFilter, filter, setPage])
 
   useEffect(() => {
-    fetchPaymentTerms()
-    
     return () => {
       usePaymentTermsStore.getState().reset()
     }
-  }, [fetchPaymentTerms])
+  }, [])
 
-  // Fetch data when page or limit changes
+  // Fetch data when page or limit changes (single source of fetch)
   useEffect(() => {
     fetchPaymentTerms(pagination.page, pagination.limit)
   }, [pagination.page, pagination.limit, fetchPaymentTerms])
