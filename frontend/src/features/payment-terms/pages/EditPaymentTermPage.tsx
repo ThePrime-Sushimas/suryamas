@@ -44,10 +44,10 @@ export default function EditPaymentTermPage() {
 
   if (loading && !currentPaymentTerm) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
+      <div className="max-w-4xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
         <div className="text-center py-12">
           <CardSkeleton />
-          <p className="mt-2 text-gray-600">Loading payment term...</p>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">Loading payment term...</p>
         </div>
       </div>
     )
@@ -55,12 +55,12 @@ export default function EditPaymentTermPage() {
 
   if (!currentPaymentTerm) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
+      <div className="max-w-4xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
         <div className="text-center py-12">
           <p className="text-red-600 font-medium">Payment term not found</p>
           <button
             onClick={() => navigate('/payment-terms')}
-            className="mt-4 text-blue-600 hover:text-blue-800"
+            className="mt-4 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
           >
             Back to Payment Terms
           </button>
@@ -71,13 +71,13 @@ export default function EditPaymentTermPage() {
 
   if (currentPaymentTerm.deleted_at) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
+      <div className="max-w-4xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
         <div className="text-center py-12">
           <p className="text-red-600 font-medium">Cannot edit deleted payment term</p>
-          <p className="text-gray-600 mt-2">Please restore it first</p>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">Please restore it first</p>
           <button
             onClick={() => navigate('/payment-terms')}
-            className="mt-4 text-blue-600 hover:text-blue-800"
+            className="mt-4 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
           >
             Back to Payment Terms
           </button>
@@ -87,20 +87,20 @@ export default function EditPaymentTermPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-4xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="mb-6">
         <button
           onClick={handleCancel}
-          className="text-blue-600 hover:text-blue-800 text-sm font-medium mb-2 flex items-center gap-1"
+          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium mb-2 flex items-center gap-1"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Payment Terms
         </button>
-        <h1 className="text-3xl font-bold text-gray-900">Edit Payment Term</h1>
-        <p className="text-gray-600 mt-1">Update payment term configuration</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Edit Payment Term</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Update payment term configuration</p>
       </div>
       
-      <div className="bg-white rounded-lg shadow-sm p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
         <PaymentTermForm 
           initialData={currentPaymentTerm} 
           isEdit 

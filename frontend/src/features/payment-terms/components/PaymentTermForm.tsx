@@ -265,7 +265,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label htmlFor="term_code" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="term_code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Term Code *
           </label>
           <input 
@@ -274,13 +274,13 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
             value={formData.term_code} 
             onChange={handleChange}
             onBlur={handleBlur}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100 dark:disabled:bg-gray-800 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             disabled={isEdit || isLoading}
             maxLength={50}
             aria-invalid={!!errors.term_code}
           />
           {isEdit && (
-            <p className="text-xs text-gray-500 mt-1">Term code cannot be changed</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Term code cannot be changed</p>
           )}
           {errors.term_code && (
             <p className="text-red-600 text-sm mt-1">{errors.term_code}</p>
@@ -288,7 +288,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
         </div>
 
         <div>
-          <label htmlFor="term_name" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="term_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Term Name *
           </label>
           <input 
@@ -297,7 +297,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
             value={formData.term_name} 
             onChange={handleChange}
             onBlur={handleBlur}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             disabled={isLoading}
             maxLength={100}
             aria-invalid={!!errors.term_name}
@@ -310,7 +310,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label htmlFor="calculation_type" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="calculation_type" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Calculation Type *
           </label>
           <select 
@@ -319,18 +319,18 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
             value={formData.calculation_type} 
             onChange={handleChange}
             onBlur={handleBlur}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             disabled={isLoading}
           >
             {CALCULATION_TYPES.map(type => (
               <option key={type.value} value={type.value}>{type.label}</option>
             ))}
           </select>
-          <p className="text-xs text-gray-500 mt-1">How payment due date is calculated</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">How payment due date is calculated</p>
         </div>
 
         <div>
-          <label htmlFor="days" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="days" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Days *
           </label>
           <input 
@@ -340,13 +340,13 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
             value={formData.days} 
             onChange={handleChange}
             onBlur={handleBlur}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100 dark:disabled:bg-gray-800 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             disabled={isLoading || !['from_invoice', 'from_delivery'].includes(formData.calculation_type)}
             min={0}
             max={999}
             aria-invalid={!!errors.days}
           />
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {['from_invoice', 'from_delivery'].includes(formData.calculation_type) 
               ? 'Payment period in days' 
               : 'Not used for this calculation type'}
@@ -359,7 +359,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
 
       {showPaymentDates && (
         <div>
-          <label htmlFor="payment_dates" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="payment_dates" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Payment Dates *
           </label>
           <input 
@@ -368,15 +368,15 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
             onChange={e => handlePaymentDatesChange(e.target.value)}
             onBlur={() => setTouched(prev => ({ ...prev, payment_dates: true }))}
             placeholder="e.g., 1, 15, 30 or 999 for end of month"
-            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
+            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
               touched.payment_dates && (!formData.payment_dates || formData.payment_dates.length === 0)
                 ? 'border-red-500'
-                : 'border-gray-300'
+                : 'border-gray-300 dark:border-gray-600'
             }`}
             disabled={isLoading}
             aria-invalid={touched.payment_dates && (!formData.payment_dates || formData.payment_dates.length === 0)}
           />
-          <p className="text-xs text-gray-500 mt-1">Comma-separated day numbers (1-31) or 999 for end of month</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Comma-separated day numbers (1-31) or 999 for end of month</p>
           {touched.payment_dates && (!formData.payment_dates || formData.payment_dates.length === 0) && (
             <p className="text-red-600 text-sm mt-1">Payment dates are required for this calculation type</p>
           )}
@@ -385,14 +385,14 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
 
       {showPaymentDayOfWeek && (
         <div>
-          <label htmlFor="payment_day_of_week" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="payment_day_of_week" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Payment Day of Week
           </label>
           <select
             id="payment_day_of_week"
             value={formData.payment_day_of_week ?? ''}
             onChange={e => setFormData(prev => ({ ...prev, payment_day_of_week: e.target.value ? parseInt(e.target.value) : null }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             disabled={isLoading}
           >
             <option value="">Select day</option>
@@ -404,21 +404,21 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
             <option value="5">Friday</option>
             <option value="6">Saturday</option>
           </select>
-          <p className="text-xs text-gray-500 mt-1">Payment due every selected day of the week</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Payment due every selected day of the week</p>
         </div>
       )}
 
       {/* Preview Due Date */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <div className="flex items-start gap-3">
-          <div className="text-blue-600 mt-0.5">
+          <div className="text-blue-600 dark:text-blue-400 mt-0.5">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
           <div className="flex-1">
-            <h4 className="text-sm font-semibold text-blue-900 mb-1">Preview Due Date</h4>
-            <p className="text-sm text-blue-800">
+            <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-1">Preview Due Date</h4>
+            <p className="text-sm text-blue-800 dark:text-blue-200">
               {formData.calculation_type === 'fixed_date' 
                 ? `Pembayaran setiap tanggal ${formData.payment_dates?.map(d => d === 999 ? '(akhir bulan)' : d).join(', ') || '-'}. Next: ${getPreviewDueDate()}`
                 : formData.calculation_type === 'fixed_date_immediate'
@@ -428,16 +428,16 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
                 : `If ${formData.calculation_type === 'from_delivery' ? 'delivery' : formData.calculation_type === 'weekly' ? 'any' : 'invoice'} date is today, payment due: ${getPreviewDueDate()}`
               }
             </p>
-            <p className="text-xs text-blue-600 mt-1">This is an example calculation for reference</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">This is an example calculation for reference</p>
           </div>
         </div>
       </div>
 
-      <div className="border-t pt-4">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Early Payment & Penalties</h3>
+      <div className="border-t dark:border-gray-700 pt-4">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Early Payment & Penalties</h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="early_payment_discount" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="early_payment_discount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Early Payment Discount (%)
             </label>
             <input 
@@ -448,7 +448,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
               value={formData.early_payment_discount} 
               onChange={handleChange}
               onBlur={handleBlur}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               disabled={isLoading}
               min={0}
               max={100}
@@ -456,7 +456,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
           </div>
 
           <div>
-            <label htmlFor="early_payment_days" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="early_payment_days" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Early Payment Days
             </label>
             <input 
@@ -466,14 +466,14 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
               value={formData.early_payment_days} 
               onChange={handleChange}
               onBlur={handleBlur}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               disabled={isLoading}
               min={0}
             />
           </div>
 
           <div>
-            <label htmlFor="late_payment_penalty" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="late_payment_penalty" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Late Payment Penalty (%)
             </label>
             <input 
@@ -484,7 +484,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
               value={formData.late_payment_penalty} 
               onChange={handleChange}
               onBlur={handleBlur}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               disabled={isLoading}
               min={0}
               max={100}
@@ -492,7 +492,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
           </div>
 
           <div>
-            <label htmlFor="grace_period_days" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="grace_period_days" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Grace Period (Days)
             </label>
             <input 
@@ -502,7 +502,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
               value={formData.grace_period_days} 
               onChange={handleChange}
               onBlur={handleBlur}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               disabled={isLoading}
               min={0}
             />
@@ -510,11 +510,11 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
         </div>
       </div>
 
-      <div className="border-t pt-4">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Order Amount Constraints</h3>
+      <div className="border-t dark:border-gray-700 pt-4">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Order Amount Constraints</h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="minimum_order_amount" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="minimum_order_amount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Minimum Order Amount
             </label>
             <input 
@@ -525,14 +525,14 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
               value={formData.minimum_order_amount} 
               onChange={handleChange}
               onBlur={handleBlur}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               disabled={isLoading}
               min={0}
             />
           </div>
 
           <div>
-            <label htmlFor="maximum_order_amount" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="maximum_order_amount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Maximum Order Amount
             </label>
             <input 
@@ -544,7 +544,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
               onChange={handleChange}
               onBlur={handleBlur}
               placeholder="No limit"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               disabled={isLoading}
               min={0}
             />
@@ -553,7 +553,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Allowed Payment Methods
         </label>
         <div className="flex flex-wrap gap-2">
@@ -564,8 +564,8 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
               onClick={() => handleMethodToggle(method)}
               className={`px-3 py-1 text-sm rounded-full border transition-colors ${
                 selectedMethods.includes(method)
-                  ? 'bg-blue-100 border-blue-500 text-blue-700'
-                  : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                  ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300'
+                  : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
               }`}
               disabled={isLoading}
             >
@@ -573,11 +573,11 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
             </button>
           ))}
         </div>
-        <p className="text-xs text-gray-500 mt-1">Select applicable payment methods</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Select applicable payment methods</p>
       </div>
 
       <div>
-        <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Description
         </label>
         <textarea 
@@ -586,7 +586,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
           value={formData.description || ''} 
           onChange={handleChange}
           onBlur={handleBlur}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           rows={3}
           disabled={isLoading}
           maxLength={500}
@@ -602,23 +602,23 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
             name="is_active" 
             checked={formData.is_active} 
             onChange={handleChange}
-            className="mr-2 w-4 h-4"
+            className="mr-2 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700"
             disabled={isLoading}
           />
-          <span className="text-sm font-medium text-gray-700">Active</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Active</span>
         </label>
-        <p className="text-xs text-gray-500 mt-1 ml-6">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
           Only active terms can be used in transactions
         </p>
       </div>
 
-      <div className="flex gap-3 pt-4 border-t">
+      <div className="flex gap-3 pt-4 border-t dark:border-gray-700">
         {onCancel && (
           <button 
             type="button"
             onClick={onCancel}
             disabled={isLoading}
-            className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+            className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 px-4 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:bg-gray-300 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors font-medium"
           >
             Cancel
           </button>
@@ -626,7 +626,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
         <button 
           type="submit" 
           disabled={isLoading || Object.keys(errors).length > 0}
-          className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+          className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
         >
           {isLoading ? 'Saving...' : isEdit ? 'Update Payment Term' : 'Create Payment Term'}
         </button>

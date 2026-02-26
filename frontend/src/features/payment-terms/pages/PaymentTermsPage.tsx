@@ -6,6 +6,7 @@ import { PaymentTermFilters } from '../components/PaymentTermFilters'
 import { PaymentTermDeleteDialog } from '../components/PaymentTermDeleteDialog'
 import { useToast } from '@/contexts/ToastContext'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
+import { Pagination } from '@/components/ui/Pagination'
 import { FileText, Plus, Search, X } from 'lucide-react'
 
 export default function PaymentTermsPage() {
@@ -20,6 +21,7 @@ export default function PaymentTermsPage() {
     restorePaymentTerm,
     searchPaymentTerms,
     setPage,
+    setPageSize,
     setFilter,
     fetchPaymentTerms
   } = usePaymentTermsStore()
@@ -108,14 +110,14 @@ export default function PaymentTermsPage() {
 
   return (
     <>
-      <div className="h-screen flex flex-col bg-gray-50">
-        <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <FileText className="w-6 h-6 text-blue-600" />
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Payment Terms</h1>
-                <p className="text-sm text-gray-500">{pagination.total} total</p>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Payment Terms</h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{pagination.total} total</p>
               </div>
             </div>
             <button 
@@ -128,7 +130,7 @@ export default function PaymentTermsPage() {
           </div>
         </div>
 
-        <div className="bg-white border-b border-gray-200 px-6 py-3">
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
           <div className="flex gap-2">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -137,12 +139,12 @@ export default function PaymentTermsPage() {
                 placeholder="Search by term code, name, or description..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
               {search && (
                 <button
                   onClick={() => setSearch('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -172,38 +174,13 @@ export default function PaymentTermsPage() {
           />
 
           {!loading && paymentTerms.length > 0 && (
-            <div className="mt-6 flex items-center justify-between bg-white px-4 py-3 rounded-lg shadow-sm">
-              <div className="text-sm text-gray-700">
-                Showing <span className="font-medium">{paymentTerms.length}</span> of{' '}
-                <span className="font-medium">{pagination.total}</span> results
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setPage(pagination.page - 1)
-                    fetchPaymentTerms()
-                  }}
-                  disabled={!pagination.hasPrev || loading}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
-                >
-                  Previous
-                </button>
-                <span className="text-sm text-gray-700">
-                  Page <span className="font-medium">{pagination.page}</span> of{' '}
-                  <span className="font-medium">{pagination.totalPages}</span>
-                </span>
-                <button
-                  onClick={() => {
-                    setPage(pagination.page + 1)
-                    fetchPaymentTerms()
-                  }}
-                  disabled={!pagination.hasNext || loading}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
+            <Pagination
+              pagination={pagination}
+              onPageChange={setPage}
+              onLimitChange={setPageSize}
+              currentLength={paymentTerms.length}
+              loading={loading}
+            />
           )}
         </div>
       </div>

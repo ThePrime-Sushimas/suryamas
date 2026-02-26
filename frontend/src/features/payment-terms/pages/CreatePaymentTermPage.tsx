@@ -26,20 +26,20 @@ export default function CreatePaymentTermPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-4xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="mb-6">
         <button
           onClick={handleCancel}
-          className="text-blue-600 hover:text-blue-800 text-sm font-medium mb-2 flex items-center gap-1"
+          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium mb-2 flex items-center gap-1"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Payment Terms
         </button>
-        <h1 className="text-3xl font-bold text-gray-900">Create Payment Term</h1>
-        <p className="text-gray-600 mt-1">Define new payment terms for transactions</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Create Payment Term</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Define new payment terms for transactions</p>
       </div>
       
-      <div className="bg-white rounded-lg shadow-sm p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
         <PaymentTermForm 
           onSubmit={handleSubmit} 
           isLoading={loading}

@@ -38,7 +38,9 @@ export const PaymentTermFilters = ({
       <button
         onClick={onToggle}
         className={`px-4 py-2 border rounded-lg flex items-center gap-2 transition-colors ${
-          isOpen ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-gray-300 hover:bg-gray-50'
+          isOpen 
+            ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300' 
+            : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
         }`}
       >
         <Filter className="w-4 h-4" />
@@ -50,15 +52,15 @@ export const PaymentTermFilters = ({
       </button>
 
       {isOpen && (
-        <div className="mt-3 pt-3 border-t border-gray-200 grid grid-cols-3 gap-3">
+        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 grid grid-cols-3 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Calculation Type
             </label>
             <select
               value={calculationType || ''}
               onChange={e => onCalculationTypeChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">All Types</option>
               {CALCULATION_TYPES.map(type => (
@@ -69,13 +71,13 @@ export const PaymentTermFilters = ({
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Status
             </label>
             <select
               value={isActive || ''}
               onChange={e => onIsActiveChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">All Status</option>
               <option value="true">Active</option>
@@ -83,13 +85,13 @@ export const PaymentTermFilters = ({
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Show Deleted
             </label>
             <select
               value={includeDeleted || ''}
               onChange={e => onIncludeDeletedChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">Active Only</option>
               <option value="true">Include Deleted</option>

@@ -43,20 +43,20 @@ export default function PaymentTermDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-500 dark:text-gray-400">Loading...</div>
       </div>
     )
   }
 
   if (error || !paymentTerm) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-600 mb-4">{error || 'Payment term not found'}</p>
           <button
             onClick={() => navigate('/payment-terms')}
-            className="text-blue-600 hover:underline"
+            className="text-blue-600 dark:text-blue-400 hover:underline"
           >
             Back to Payment Terms
           </button>
@@ -85,13 +85,13 @@ export default function PaymentTermDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <button
             onClick={() => navigate('/payment-terms')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
           >
             <ArrowLeft className="w-5 h-5" />
             Back to Payment Terms
@@ -108,7 +108,7 @@ export default function PaymentTermDetailPage() {
         </div>
 
         {/* Main Card */}
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
           {/* Header Section */}
           <div className="bg-linear-to-r from-blue-600 to-blue-700 px-8 py-6 text-white">
             <div className="flex items-center justify-between">
@@ -118,17 +118,17 @@ export default function PaymentTermDetailPage() {
               </div>
               <div className="flex items-center gap-2">
                 {isDeleted ? (
-                  <span className="flex items-center gap-1 px-3 py-1 bg-red-500 rounded-full text-sm font-medium">
+                  <span className="flex items-center gap-1 px-3 py-1 bg-red-500 dark:bg-red-600 rounded-full text-sm font-medium">
                     <XCircle className="w-4 h-4" />
                     Deleted
                   </span>
                 ) : paymentTerm.is_active ? (
-                  <span className="flex items-center gap-1 px-3 py-1 bg-green-500 rounded-full text-sm font-medium">
+                  <span className="flex items-center gap-1 px-3 py-1 bg-green-500 dark:bg-green-600 rounded-full text-sm font-medium">
                     <CheckCircle className="w-4 h-4" />
                     Active
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 px-3 py-1 bg-gray-500 rounded-full text-sm font-medium">
+                  <span className="flex items-center gap-1 px-3 py-1 bg-gray-500 dark:bg-gray-600 rounded-full text-sm font-medium">
                     <XCircle className="w-4 h-4" />
                     Inactive
                   </span>
@@ -141,45 +141,45 @@ export default function PaymentTermDetailPage() {
           <div className="px-8 py-6 space-y-6">
             {/* Term Name */}
             <div>
-              <label className="text-sm font-medium text-gray-500 uppercase tracking-wide">Term Name</label>
-              <p className="mt-1 text-2xl font-semibold text-gray-900">{paymentTerm.term_name}</p>
+              <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Term Name</label>
+              <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{paymentTerm.term_name}</p>
             </div>
 
             {/* Description */}
             {paymentTerm.description && (
               <div>
-                <label className="text-sm font-medium text-gray-500 uppercase tracking-wide">Description</label>
-                <p className="mt-1 text-gray-700 leading-relaxed">{paymentTerm.description}</p>
+                <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Description</label>
+                <p className="mt-1 text-gray-700 dark:text-gray-300 leading-relaxed">{paymentTerm.description}</p>
               </div>
             )}
 
             {/* Calculation Details */}
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <label className="text-sm font-medium text-gray-500 uppercase tracking-wide">Calculation Type</label>
-                <p className="mt-1 text-lg text-gray-900">{CALCULATION_TYPE_LABELS[paymentTerm.calculation_type]}</p>
+                <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Calculation Type</label>
+                <p className="mt-1 text-lg text-gray-900 dark:text-white">{CALCULATION_TYPE_LABELS[paymentTerm.calculation_type]}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500 uppercase tracking-wide">Payment Details</label>
-                <p className="mt-1 text-lg text-gray-900">{getTermDetails()}</p>
+                <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Payment Details</label>
+                <p className="mt-1 text-lg text-gray-900 dark:text-white">{getTermDetails()}</p>
               </div>
             </div>
 
             {/* Discount & Penalty */}
             {(paymentTerm.early_payment_discount > 0 || paymentTerm.late_payment_penalty > 0) && (
-              <div className="grid grid-cols-2 gap-6 pt-6 border-t border-gray-200">
+              <div className="grid grid-cols-2 gap-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                 {paymentTerm.early_payment_discount > 0 && (
                   <div>
-                    <label className="text-sm font-medium text-gray-500 uppercase tracking-wide">Early Payment Discount</label>
-                    <p className="mt-1 text-lg text-green-600 font-semibold">
+                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Early Payment Discount</label>
+                    <p className="mt-1 text-lg text-green-600 dark:text-green-400 font-semibold">
                       {paymentTerm.early_payment_discount}% ({paymentTerm.early_payment_days} days)
                     </p>
                   </div>
                 )}
                 {paymentTerm.late_payment_penalty > 0 && (
                   <div>
-                    <label className="text-sm font-medium text-gray-500 uppercase tracking-wide">Late Payment Penalty</label>
-                    <p className="mt-1 text-lg text-red-600 font-semibold">
+                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Late Payment Penalty</label>
+                    <p className="mt-1 text-lg text-red-600 dark:text-red-400 font-semibold">
                       {paymentTerm.late_payment_penalty}% (Grace: {paymentTerm.grace_period_days} days)
                     </p>
                   </div>
@@ -189,19 +189,19 @@ export default function PaymentTermDetailPage() {
 
             {/* Order Amount Limits */}
             {(paymentTerm.minimum_order_amount > 0 || paymentTerm.maximum_order_amount) && (
-              <div className="grid grid-cols-2 gap-6 pt-6 border-t border-gray-200">
+              <div className="grid grid-cols-2 gap-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                 {paymentTerm.minimum_order_amount > 0 && (
                   <div>
-                    <label className="text-sm font-medium text-gray-500 uppercase tracking-wide">Minimum Order Amount</label>
-                    <p className="mt-1 text-lg text-gray-900 font-mono">
+                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Minimum Order Amount</label>
+                    <p className="mt-1 text-lg text-gray-900 dark:text-white font-mono">
                       {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(paymentTerm.minimum_order_amount)}
                     </p>
                   </div>
                 )}
                 {paymentTerm.maximum_order_amount && (
                   <div>
-                    <label className="text-sm font-medium text-gray-500 uppercase tracking-wide">Maximum Order Amount</label>
-                    <p className="mt-1 text-lg text-gray-900 font-mono">
+                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Maximum Order Amount</label>
+                    <p className="mt-1 text-lg text-gray-900 dark:text-white font-mono">
                       {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(paymentTerm.maximum_order_amount)}
                     </p>
                   </div>
@@ -211,11 +211,11 @@ export default function PaymentTermDetailPage() {
 
             {/* Payment Methods */}
             {paymentTerm.allowed_payment_methods && paymentTerm.allowed_payment_methods.length > 0 && (
-              <div className="pt-6 border-t border-gray-200">
-                <label className="text-sm font-medium text-gray-500 uppercase tracking-wide">Allowed Payment Methods</label>
+              <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+                <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Allowed Payment Methods</label>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {paymentTerm.allowed_payment_methods.map((method, idx) => (
-                    <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                    <span key={idx} className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm font-medium">
                       {method}
                     </span>
                   ))}

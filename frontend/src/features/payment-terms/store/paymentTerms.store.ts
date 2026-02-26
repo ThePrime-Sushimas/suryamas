@@ -21,6 +21,7 @@ interface PaymentTermsState {
   deletePaymentTerm: (id: number) => Promise<void>
   restorePaymentTerm: (id: number) => Promise<void>
   setPage: (page: number) => void
+  setPageSize: (limit: number) => void
   setSort: (sort: SortParams | null) => void
   setFilter: (filter: FilterParams | null) => void
   clearError: () => void
@@ -152,6 +153,12 @@ export const usePaymentTermsStore = create<PaymentTermsState>((set, get) => ({
 
   setPage: (page) => {
     set(state => ({ pagination: { ...state.pagination, page } }))
+    get().fetchPaymentTerms(page, get().pagination.limit)
+  },
+
+  setPageSize: (limit) => {
+    set(state => ({ pagination: { ...state.pagination, page: 1, limit } }))
+    get().fetchPaymentTerms(1, limit)
   },
 
   setSort: (sort) => {
