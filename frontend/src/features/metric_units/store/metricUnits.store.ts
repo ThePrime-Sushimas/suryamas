@@ -174,12 +174,10 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
 
   setPage: (page) => {
     set(state => ({ pagination: { ...state.pagination, page } }))
-    get().fetchMetricUnits()
   },
 
   setLimit: (limit) => {
     set(state => ({ pagination: { ...state.pagination, limit, page: 1 } }))
-    get().fetchMetricUnits()
   },
 
   setSort: (sort) => {

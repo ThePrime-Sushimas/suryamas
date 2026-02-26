@@ -37,7 +37,7 @@ export default function MetricUnitsPage() {
 
   // Fetch data when page/limit changes
   useEffect(() => {
-    fetchMetricUnits()
+    fetchMetricUnits(pagination.page, pagination.limit)
   }, [pagination.page, pagination.limit, fetchMetricUnits])
 
   const debouncedSearch = useCallback(
@@ -240,4 +240,3 @@ export default function MetricUnitsPage() {
     </div>
   )
 }
-

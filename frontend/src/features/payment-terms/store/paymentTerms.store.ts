@@ -153,12 +153,10 @@ export const usePaymentTermsStore = create<PaymentTermsState>((set, get) => ({
 
   setPage: (page) => {
     set(state => ({ pagination: { ...state.pagination, page } }))
-    get().fetchPaymentTerms(page, get().pagination.limit)
   },
 
   setPageSize: (limit) => {
     set(state => ({ pagination: { ...state.pagination, page: 1, limit } }))
-    get().fetchPaymentTerms(1, limit)
   },
 
   setSort: (sort) => {

@@ -56,6 +56,11 @@ export default function PaymentTermsPage() {
     }
   }, [fetchPaymentTerms])
 
+  // Fetch data when page or limit changes
+  useEffect(() => {
+    fetchPaymentTerms(pagination.page, pagination.limit)
+  }, [pagination.page, pagination.limit, fetchPaymentTerms])
+
   const activeFilterCount = useMemo(
     () => (localFilter.calculation_type ? 1 : 0) + (localFilter.is_active ? 1 : 0) + (localFilter.include_deleted ? 1 : 0),
     [localFilter]
