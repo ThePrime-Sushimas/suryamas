@@ -41,7 +41,9 @@ export default function CategoriesPage() {
     total,
     totalPages,
     hasNext,
-    hasPrev
+    hasPrev,
+    setPage,
+    setLimit
   } = useCategoriesStore()
   
   const [search, setSearch] = useState('')
@@ -61,40 +63,44 @@ export default function CategoriesPage() {
     isAllSelected
   } = useBulkSelection(categories)
 
+  // Fetch data when page/limit changes
+  const fetchData = useCallback(() => {
+    if (search) {
+      searchCategories(search, page, limit)
+    } else {
+      fetchCategories(page, limit, statusFilter, deletedFilter)
+    }
+  }, [page, limit, search, statusFilter, deletedFilter, fetchCategories, searchCategories])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
   const debouncedSearch = useMemo(
     () => debounce((value: string) => {
+      setPage(1) // Reset to page 1 when searching
       if (value) {
         searchCategories(value, 1, limit)
       } else {
         fetchCategories(1, limit, statusFilter, deletedFilter)
       }
     }, 300),
-    [searchCategories, fetchCategories, statusFilter, deletedFilter, limit]
+    [searchCategories, fetchCategories, statusFilter, deletedFilter, limit, setPage]
   )
-
-  useEffect(() => {
-    fetchCategories(1, limit, statusFilter, deletedFilter)
-  }, [fetchCategories, statusFilter, deletedFilter, limit])
 
   useEffect(() => {
     debouncedSearch(search)
   }, [search, debouncedSearch])
 
-  const handlePageChange = useCallback((newPage: number) => {
-    if (search) {
-      searchCategories(search, newPage, limit)
-    } else {
-      fetchCategories(newPage, limit, statusFilter, deletedFilter)
-    }
-  }, [search, searchCategories, fetchCategories, limit, statusFilter, deletedFilter])
+  // Pagination handlers
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage)
+  }
 
-  const handleLimitChange = useCallback((newLimit: number) => {
-    if (search) {
-      searchCategories(search, 1, newLimit)
-    } else {
-      fetchCategories(1, newLimit, statusFilter, deletedFilter)
-    }
-  }, [search, searchCategories, fetchCategories, statusFilter, deletedFilter])
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit)
+    setPage(1) // Reset to page 1 when limit changes
+  }
 
   const handleDelete = useCallback((id: string, name: string) => {
     setConfirm({
@@ -105,9 +111,11 @@ export default function CategoriesPage() {
         await deleteCategory(id)
         success('Category deleted successfully')
         clearSelection()
+        // Refresh data after delete
+        fetchData()
       }
     })
-  }, [deleteCategory, success, clearSelection])
+  }, [deleteCategory, success, clearSelection, fetchData])
 
   const handleRestore = useCallback((id: string, name: string) => {
     setConfirm({
@@ -118,9 +126,11 @@ export default function CategoriesPage() {
         await restoreCategory(id)
         success('Category restored successfully')
         clearSelection()
+        // Refresh data after restore
+        fetchData()
       }
     })
-  }, [restoreCategory, success, clearSelection])
+  }, [restoreCategory, success, clearSelection, fetchData])
 
   const handleBulkDelete = useCallback(() => {
     if (selectedCount === 0) return
@@ -140,9 +150,11 @@ export default function CategoriesPage() {
         await bulkDeleteCategories(validIds)
         success(`${validIds.length} category(ies) deleted`)
         clearSelection()
+        // Refresh data after bulk delete
+        fetchData()
       }
     })
-  }, [selectedCount, selectedIds, categories, bulkDeleteCategories, success, toastError, clearSelection])
+  }, [selectedCount, selectedIds, categories, bulkDeleteCategories, success, toastError, clearSelection, fetchData])
 
   const handleBulkRestore = useCallback(() => {
     if (selectedCount === 0) return
@@ -164,9 +176,11 @@ export default function CategoriesPage() {
         }
         success(`${validIds.length} category(ies) restored`)
         clearSelection()
+        // Refresh data after bulk restore
+        fetchData()
       }
     })
-  }, [selectedCount, selectedIds, categories, restoreCategory, success, toastError, clearSelection])
+  }, [selectedCount, selectedIds, categories, restoreCategory, success, toastError, clearSelection, fetchData])
 
   const handleBulkStatus = useCallback((isActive: boolean) => {
     if (selectedCount === 0) return
@@ -332,32 +346,34 @@ export default function CategoriesPage() {
         {loading ? (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading...</div>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50">
-            <CategoryTable
-              categories={categories}
-              onView={id => navigate(`/categories/${id}`)}
-              onEdit={id => navigate(`/categories/${id}/edit`)}
-              onDelete={handleDelete}
-              onRestore={handleRestore}
-              isSelected={isSelected}
-              onSelect={selectOne}
-              isAllSelected={isAllSelected}
-              onSelectAll={selectAll}
-              showDeleted={deletedFilter === 'true'}
-            />
-          </div>
+          <>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50">
+              <CategoryTable
+                categories={categories}
+                onView={id => navigate(`/categories/${id}`)}
+                onEdit={id => navigate(`/categories/${id}/edit`)}
+                onDelete={handleDelete}
+                onRestore={handleRestore}
+                isSelected={isSelected}
+                onSelect={selectOne}
+                isAllSelected={isAllSelected}
+                onSelectAll={selectAll}
+                showDeleted={deletedFilter === 'true'}
+              />
+            </div>
+            
+            {/* Global Pagination Component */}
+            {total > 0 && (
+              <Pagination
+                pagination={paginationInfo}
+                onPageChange={handlePageChange}
+                onLimitChange={handleLimitChange}
+                currentLength={categories.length}
+                loading={loading}
+              />
+            )}
+          </>
         )}
-      </div>
-
-      {/* Pagination */}
-      <div className="px-6 pb-6">
-        <Pagination
-          pagination={paginationInfo}
-          onPageChange={handlePageChange}
-          onLimitChange={handleLimitChange}
-          currentLength={categories.length}
-          loading={loading}
-        />
       </div>
 
       {/* Confirm Modal */}

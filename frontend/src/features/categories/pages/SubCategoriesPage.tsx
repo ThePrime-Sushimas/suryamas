@@ -42,7 +42,9 @@ export default function SubCategoriesPage() {
     subTotal,
     subTotalPages,
     subHasNext,
-    subHasPrev
+    subHasPrev,
+    setSubPage,
+    setSubLimit
   } = useCategoriesStore()
   
   const [search, setSearch] = useState('')
@@ -62,44 +64,58 @@ export default function SubCategoriesPage() {
     isAllSelected
   } = useBulkSelection(subCategories)
 
+  // Fetch data when page/limit changes
+  const fetchData = useCallback(() => {
+    if (search) {
+      searchSubCategories(search, subPage, subLimit)
+    } else {
+      fetchSubCategories(subPage, subLimit, categoryFilter, deletedFilter)
+    }
+  }, [subPage, subLimit, search, categoryFilter, deletedFilter, fetchSubCategories, searchSubCategories])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
   const debouncedSearch = useMemo(
     () => debounce((value: string) => {
+      setSubPage(1) // Reset to page 1 when searching
       if (value) {
         searchSubCategories(value, 1, subLimit)
       } else {
         fetchSubCategories(1, subLimit, categoryFilter, deletedFilter)
       }
     }, 300),
-    [searchSubCategories, fetchSubCategories, categoryFilter, deletedFilter, subLimit]
+    [searchSubCategories, fetchSubCategories, categoryFilter, deletedFilter, subLimit, setSubPage]
   )
 
   useEffect(() => {
     fetchCategories(1, 1000)
   }, [fetchCategories])
 
+  // Fetch data when filters change
   useEffect(() => {
-    fetchSubCategories(1, subLimit, categoryFilter, deletedFilter)
-  }, [fetchSubCategories, categoryFilter, deletedFilter, subLimit])
+    setSubPage(1) // Reset to page 1 when filters change
+    if (search) {
+      searchSubCategories(search, 1, subLimit)
+    } else {
+      fetchSubCategories(1, subLimit, categoryFilter, deletedFilter)
+    }
+  }, [categoryFilter, deletedFilter, search, subLimit, searchSubCategories, fetchSubCategories, setSubPage])
 
   useEffect(() => {
     debouncedSearch(search)
   }, [search, debouncedSearch])
 
-  const handlePageChange = useCallback((newPage: number) => {
-    if (search) {
-      searchSubCategories(search, newPage, subLimit)
-    } else {
-      fetchSubCategories(newPage, subLimit, categoryFilter, deletedFilter)
-    }
-  }, [search, searchSubCategories, fetchSubCategories, subLimit, categoryFilter, deletedFilter])
+  // Pagination handlers
+  const handlePageChange = (newPage: number) => {
+    setSubPage(newPage)
+  }
 
-  const handleLimitChange = useCallback((newLimit: number) => {
-    if (search) {
-      searchSubCategories(search, 1, newLimit)
-    } else {
-      fetchSubCategories(1, newLimit, categoryFilter, deletedFilter)
-    }
-  }, [search, searchSubCategories, fetchSubCategories, categoryFilter, deletedFilter])
+  const handleLimitChange = (newLimit: number) => {
+    setSubLimit(newLimit)
+    setSubPage(1) // Reset to page 1 when limit changes
+  }
 
   const handleDelete = useCallback((id: string, name: string) => {
     setConfirm({
@@ -110,9 +126,11 @@ export default function SubCategoriesPage() {
         await deleteSubCategory(id)
         success('Sub-category deleted successfully')
         clearSelection()
+        // Refresh data after delete
+        fetchData()
       }
     })
-  }, [deleteSubCategory, success, clearSelection])
+  }, [deleteSubCategory, success, clearSelection, fetchData])
 
   const handleRestore = useCallback((id: string, name: string) => {
     setConfirm({
@@ -123,9 +141,11 @@ export default function SubCategoriesPage() {
         await restoreSubCategory(id)
         success('Sub-category restored successfully')
         clearSelection()
+        // Refresh data after restore
+        fetchData()
       }
     })
-  }, [restoreSubCategory, success, clearSelection])
+  }, [restoreSubCategory, success, clearSelection, fetchData])
 
   const handleBulkDelete = useCallback(() => {
     if (selectedCount === 0) return
@@ -145,9 +165,11 @@ export default function SubCategoriesPage() {
         await bulkDeleteSubCategories(validIds)
         success(`${validIds.length} sub-category(ies) deleted`)
         clearSelection()
+        // Refresh data after bulk delete
+        fetchData()
       }
     })
-  }, [selectedCount, selectedIds, subCategories, bulkDeleteSubCategories, success, toastError, clearSelection])
+  }, [selectedCount, selectedIds, subCategories, bulkDeleteSubCategories, success, toastError, clearSelection, fetchData])
 
   const handleBulkRestore = useCallback(() => {
     if (selectedCount === 0) return
@@ -169,9 +191,11 @@ export default function SubCategoriesPage() {
         }
         success(`${validIds.length} sub-category(ies) restored`)
         clearSelection()
+        // Refresh data after bulk restore
+        fetchData()
       }
     })
-  }, [selectedCount, selectedIds, subCategories, restoreSubCategory, success, toastError, clearSelection])
+  }, [selectedCount, selectedIds, subCategories, restoreSubCategory, success, toastError, clearSelection, fetchData])
 
   const handleConfirm = useCallback(async () => {
     if (!confirm || isConfirming) return
@@ -312,32 +336,34 @@ export default function SubCategoriesPage() {
         {loading ? (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading...</div>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50">
-            <SubCategoryTable
-              subCategories={subCategories}
-              onView={id => navigate(`/sub-categories/${id}`)}
-              onEdit={id => navigate(`/sub-categories/${id}/edit`)}
-              onDelete={handleDelete}
-              onRestore={handleRestore}
-              isSelected={isSelected}
-              onSelect={selectOne}
-              isAllSelected={isAllSelected}
-              onSelectAll={selectAll}
-              showDeleted={deletedFilter === 'true'}
-            />
-          </div>
+          <>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50">
+              <SubCategoryTable
+                subCategories={subCategories}
+                onView={id => navigate(`/sub-categories/${id}`)}
+                onEdit={id => navigate(`/sub-categories/${id}/edit`)}
+                onDelete={handleDelete}
+                onRestore={handleRestore}
+                isSelected={isSelected}
+                onSelect={selectOne}
+                isAllSelected={isAllSelected}
+                onSelectAll={selectAll}
+                showDeleted={deletedFilter === 'true'}
+              />
+            </div>
+            
+            {/* Global Pagination Component */}
+            {subTotal > 0 && (
+              <Pagination
+                pagination={paginationInfo}
+                onPageChange={handlePageChange}
+                onLimitChange={handleLimitChange}
+                currentLength={subCategories.length}
+                loading={loading}
+              />
+            )}
+          </>
         )}
-      </div>
-
-      {/* Pagination */}
-      <div className="px-6 pb-6">
-        <Pagination
-          pagination={paginationInfo}
-          onPageChange={handlePageChange}
-          onLimitChange={handleLimitChange}
-          currentLength={subCategories.length}
-          loading={loading}
-        />
       </div>
 
       {/* Confirm Modal */}
