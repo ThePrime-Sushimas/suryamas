@@ -24,7 +24,9 @@ export class PricelistsService {
     )
 
     if (duplicate) {
-      throw new DuplicateActivePricelistError()
+      // Get product name for better error message (via repository)
+      const productName = await pricelistsRepository.getProductName(data.product_id)
+      throw new DuplicateActivePricelistError(productName)
     }
 
     const pricelist = await pricelistsRepository.create({

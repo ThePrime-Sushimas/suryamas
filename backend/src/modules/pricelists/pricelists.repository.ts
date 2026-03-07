@@ -1,6 +1,28 @@
 import { supabase } from '../../config/supabase'
 import { Pricelist, PricelistWithRelations, CreatePricelistDto, UpdatePricelistDto, PricelistListQuery, PricelistLookup } from './pricelists.types'
 
+// Interface untuk menangani struktur response dari Supabase dengan join
+interface PricelistRaw extends Pricelist {
+  suppliers?: { supplier_name?: string }
+  products?: { product_name?: string }
+  product_uoms?: { metric_units?: { unit_name?: string } | { unit_name?: string }[] }
+}
+
+interface UomWithMetricUnits {
+  id: string
+  uom_code?: string
+  metric_units?: { unit_name?: string } | { unit_name?: string }[]
+}
+
+// Helper function untuk extract unit_name dari metric_units
+function extractUomName(metricUnits: { unit_name?: string } | { unit_name?: string }[] | undefined): string | undefined {
+  if (!metricUnits) return undefined
+  if (Array.isArray(metricUnits)) {
+    return metricUnits[0]?.unit_name
+  }
+  return metricUnits.unit_name
+}
+
 export class PricelistsRepository {
   async findAll(
     pagination: { limit: number; offset: number },
@@ -54,12 +76,12 @@ export class PricelistsRepository {
 
     if (error) throw new Error(error.message)
     
-    const mapped = (data || []).map(item => {
+    const mapped = (data || []).map((item: PricelistRaw) => {
       return {
         ...item,
-        supplier_name: (item as any).suppliers?.supplier_name,
-        product_name: (item as any).products?.product_name,
-        uom_name: (item as any).product_uoms?.metric_units?.unit_name,
+        supplier_name: item.suppliers?.supplier_name,
+        product_name: item.products?.product_name,
+        uom_name: extractUomName(item.product_uoms?.metric_units),
       }
     })
 
@@ -74,29 +96,69 @@ export class PricelistsRepository {
   }
 
   async findById(id: string): Promise<PricelistWithRelations | null> {
-    const { data, error } = await supabase
+    // First get the basic pricelist data
+    const { data: pricelist, error: pricelistError } = await supabase
       .from('pricelists')
-      .select(`
-        *,
-        suppliers(supplier_name),
-        products(product_name),
-        product_uoms(
-          id,
-          metric_units(unit_name)
-        )
-      `)
+      .select('*')
       .eq('id', id)
       .is('deleted_at', null)
       .maybeSingle()
 
-    if (error) throw new Error(error.message)
-    if (!data) return null
+    if (pricelistError) throw new Error(pricelistError.message)
+    if (!pricelist) return null
 
+    // Then get supplier data
+    const { data: supplier, error: supplierError } = await supabase
+      .from('suppliers')
+      .select('id, supplier_code, supplier_name')
+      .eq('id', pricelist.supplier_id)
+      .maybeSingle()
+
+    if (supplierError) console.warn('Supplier fetch warning:', supplierError.message)
+
+    // Then get product data
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('id, product_code, product_name')
+      .eq('id', pricelist.product_id)
+      .maybeSingle()
+
+    if (productError) console.warn('Product fetch warning:', productError.message)
+
+    // Then get UOM data
+    const { data: uom, error: uomError } = await supabase
+      .from('product_uoms')
+      .select('id, uom_code, metric_units(unit_name)')
+      .eq('id', pricelist.uom_id)
+      .maybeSingle()
+
+    if (uomError) console.warn('UOM fetch warning:', uomError.message)
+
+    // Get UOM data with proper typing
+    const uomData = uom as UomWithMetricUnits | null
+    const uomUnitName = extractUomName(uomData?.metric_units) || 'Unknown'
+
+    // Return with all relations
     return {
-      ...data,
-      supplier_name: (data as any).suppliers?.supplier_name,
-      product_name: (data as any).products?.product_name,
-      uom_name: (data as any).product_uoms?.metric_units?.unit_name,
+      ...pricelist,
+      supplier_name: supplier?.supplier_name || 'Unknown',
+      product_name: product?.product_name || 'Unknown',
+      uom_name: uomUnitName,
+      supplier: supplier ? {
+        id: supplier.id,
+        supplier_code: supplier.supplier_code,
+        supplier_name: supplier.supplier_name
+      } : undefined,
+      product: product ? {
+        id: product.id,
+        product_code: product.product_code,
+        product_name: product.product_name
+      } : undefined,
+      uom: uomData ? {
+        id: uomData.id,
+        uom_code: uomData.uom_code || '',
+        uom_name: uomUnitName
+      } : undefined,
     }
   }
 
@@ -121,6 +183,18 @@ export class PricelistsRepository {
 
     if (error) throw new Error(error.message)
     return data
+  }
+
+  // Helper method to get product name by ID (for error messages)
+  async getProductName(productId: string): Promise<string> {
+    const { data, error } = await supabase
+      .from('products')
+      .select('product_name')
+      .eq('id', productId)
+      .maybeSingle()
+
+    if (error || !data) return 'unknown'
+    return data.product_name
   }
 
   async create(data: CreatePricelistDto): Promise<Pricelist> {
@@ -168,7 +242,7 @@ export class PricelistsRepository {
     id: string,
     status: 'APPROVED' | 'REJECTED' | 'EXPIRED'
   ): Promise<Pricelist | null> {
-    const updates: any = {
+    const updates: UpdatePricelistDto & { updated_by?: string } = {
       status,
       updated_at: new Date().toISOString(),
     }

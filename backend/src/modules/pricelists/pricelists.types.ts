@@ -23,6 +23,21 @@ export interface PricelistWithRelations extends Pricelist {
   supplier_name?: string
   product_name?: string
   uom_name?: string
+  supplier?: {
+    id: string
+    supplier_code?: string
+    supplier_name: string
+  }
+  product?: {
+    id: string
+    product_code?: string
+    product_name: string
+  }
+  uom?: {
+    id: string
+    uom_code?: string
+    uom_name: string
+  }
 }
 
 export interface CreatePricelistDto {
@@ -44,7 +59,9 @@ export interface UpdatePricelistDto {
   valid_from?: string
   valid_to?: string | null
   is_active?: boolean
+  status?: PricelistStatus
   updated_by?: string
+  updated_at?: string
 }
 
 export interface PricelistListQuery {

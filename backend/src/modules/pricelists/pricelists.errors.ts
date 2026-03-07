@@ -261,10 +261,10 @@ export class DuplicateRestoreError extends ConflictError {
 
 // For draft status check
 export class PricelistNotDraftError extends BusinessRuleError {
-  constructor(id?: string) {
+  constructor(pricelistId?: string) {
     super(
-      `Pricelist '${id || 'unknown'}' is not in draft status`,
-      { rule: 'pricelist_not_draft', pricelistId: id }
+      `Approved pricelists cannot be edited. Create a new version instead.`,
+      { rule: 'pricelist_not_draft', pricelistId }
     )
     this.name = 'PricelistNotDraftError'
   }
@@ -272,10 +272,10 @@ export class PricelistNotDraftError extends BusinessRuleError {
 
 // For duplicate active pricelist check
 export class DuplicateActivePricelistError extends ConflictError {
-  constructor(productId?: string) {
+  constructor(productName: string = 'unknown') {
     super(
-      `Product '${productId || 'unknown'}' already has an active pricelist`,
-      { conflictType: 'duplicate', productId }
+      `Product '${productName}' already has an active pricelist`,
+      { conflictType: 'duplicate', productName }
     )
     this.name = 'DuplicateActivePricelistError'
   }

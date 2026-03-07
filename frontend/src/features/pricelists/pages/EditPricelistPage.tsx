@@ -17,12 +17,21 @@ import type { CreatePricelistDto, UpdatePricelistDto, PricelistWithRelations } f
 import { CardSkeleton } from '@/components/ui/Skeleton'
 
 export const EditPricelistPage = memo(function EditPricelistPage() {
-  const { supplierProductId, pricelistId } = useParams<{ 
-    supplierProductId: string
-    pricelistId: string 
+  const { id, supplierProductId, pricelistId } = useParams<{ 
+    id?: string
+    supplierProductId?: string
+    pricelistId?: string 
   }>()
   const navigate = useNavigate()
   const toast = useToast()
+
+  // Use pricelistId if available (from supplier-product route), otherwise use id
+  const actualPricelistId = pricelistId || id
+
+  // Determine the back navigation path based on whether supplierProductId exists
+  const backPath = supplierProductId 
+    ? `/supplier-products/${supplierProductId}/pricelists`
+    : '/pricelists'
 
   const currentBranch = useBranchContextStore(s => s.currentBranch)
 
@@ -39,7 +48,7 @@ export const EditPricelistPage = memo(function EditPricelistPage() {
     const controller = new AbortController()
 
     const fetchPricelist = async () => {
-      if (!pricelistId) {
+      if (!actualPricelistId) {
         setContextError('Invalid pricelist ID')
         setContextLoading(false)
         return
@@ -47,7 +56,7 @@ export const EditPricelistPage = memo(function EditPricelistPage() {
 
       // Early status validation to prevent unnecessary API calls
       try {
-        const data = await pricelistsApi.getById(pricelistId, controller.signal)
+        const data = await pricelistsApi.getById(actualPricelistId, controller.signal)
         
         if (!controller.signal.aborted) {
           // Business rule validation with specific error messages
@@ -81,7 +90,7 @@ export const EditPricelistPage = memo(function EditPricelistPage() {
 
     fetchPricelist()
     return () => controller.abort()
-  }, [pricelistId])
+  }, [actualPricelistId])
 
   // Store error handling (domain errors only)
   useEffect(() => {
@@ -92,7 +101,7 @@ export const EditPricelistPage = memo(function EditPricelistPage() {
   }, [storeErrors.mutation, toast, clearError])
 
   const handleSubmit = useCallback(async (data: CreatePricelistDto | UpdatePricelistDto) => {
-    if (!pricelistId || !pricelist) return
+    if (!actualPricelistId || !pricelist) return
 
     // Double-check editability before submission
     if (!isEditable(pricelist.status)) {
@@ -101,17 +110,17 @@ export const EditPricelistPage = memo(function EditPricelistPage() {
     }
 
     try {
-      await updatePricelist(pricelistId, data as UpdatePricelistDto)
+      await updatePricelist(actualPricelistId, data as UpdatePricelistDto)
       toast.success('Pricelist updated successfully')
-      navigate(`/supplier-products/${supplierProductId}/pricelists`)
+      navigate(backPath)
     } catch {
       // Store handles error display
     }
-  }, [updatePricelist, pricelistId, pricelist, toast, navigate, supplierProductId])
+  }, [updatePricelist, actualPricelistId, pricelist, toast, navigate, backPath])
 
   const handleCancel = useCallback(() => {
-    navigate(`/supplier-products/${supplierProductId}/pricelists`)
-  }, [navigate, supplierProductId])
+    navigate(backPath)
+  }, [navigate, backPath])
 
   if (contextLoading) {
     return (
@@ -128,7 +137,7 @@ export const EditPricelistPage = memo(function EditPricelistPage() {
           <h2 className="text-lg font-semibold text-red-800 dark:text-red-300 mb-2">Error</h2>
           <p className="text-red-600 dark:text-red-400 mb-4">{contextError || 'Pricelist not found'}</p>
           <button
-            onClick={() => navigate(`/supplier-products/${supplierProductId}/pricelists`)}
+            onClick={() => navigate(backPath)}
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
           >
             Back to List

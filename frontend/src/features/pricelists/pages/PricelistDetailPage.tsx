@@ -17,9 +17,21 @@ import type { PricelistWithRelations } from '../types/pricelist.types'
 import { CardSkeleton } from '@/components/ui/Skeleton'
 
 export function PricelistDetailPage() {
-  const { id } = useParams<{ id: string }>()
+  const { id, supplierProductId, pricelistId } = useParams<{ 
+    id?: string
+    supplierProductId?: string
+    pricelistId?: string 
+  }>()
   const navigate = useNavigate()
   const toast = useToast()
+
+  // Use pricelistId if available (from supplier-product route), otherwise use id
+  const actualId = pricelistId || id
+
+  // Determine the back navigation path based on whether supplierProductId exists
+  const backPath = supplierProductId 
+    ? `/supplier-products/${supplierProductId}/pricelists`
+    : '/pricelists'
 
   const deletePricelist = usePricelistsStore(s => s.deletePricelist)
   const approvePricelist = usePricelistsStore(s => s.approvePricelist)
@@ -39,13 +51,13 @@ export function PricelistDetailPage() {
     const controller = new AbortController()
 
     const fetchPricelist = async () => {
-      if (!id) {
+      if (!actualId) {
         setError('Invalid pricelist ID')
         return
       }
 
       try {
-        const data = await pricelistsApi.getById(id, controller.signal)
+        const data = await pricelistsApi.getById(actualId, controller.signal)
         
         if (!controller.signal.aborted) {
           setPricelist(data)
@@ -64,39 +76,43 @@ export function PricelistDetailPage() {
 
     fetchPricelist()
     return () => controller.abort()
-  }, [id])
+  }, [actualId])
 
   const handleEdit = useCallback(() => {
-    navigate(`/pricelists/${id}/edit`)
-  }, [navigate, id])
+    if (supplierProductId) {
+      navigate(`/supplier-products/${supplierProductId}/pricelists/${actualId}/edit`)
+    } else {
+      navigate(`/pricelists/${actualId}/edit`)
+    }
+  }, [navigate, actualId, supplierProductId])
 
   const handleDeleteClick = () => {
     setDeleteModalOpen(true)
   }
 
   const handleDeleteConfirm = useCallback(async () => {
-    if (!id) return
+    if (!actualId) return
 
     try {
-      await deletePricelist(id)
+      await deletePricelist(actualId)
       toast.success('Pricelist deleted successfully')
-      navigate('/pricelists')
+      navigate(backPath)
     } catch {
       // Error handled in store
     } finally {
       setDeleteModalOpen(false)
     }
-  }, [deletePricelist, id, toast, navigate])
+  }, [deletePricelist, actualId, toast, navigate, backPath])
 
   const handleApproveClick = () => {
     setApproveModalOpen(true)
   }
 
   const handleApproveConfirm = useCallback(async () => {
-    if (!id) return
+    if (!actualId) return
 
     try {
-      const updated = await approvePricelist(id, { status: 'APPROVED' })
+      const updated = await approvePricelist(actualId, { status: 'APPROVED' })
       setPricelist(prev => prev ? { ...prev, ...updated } : null)
       toast.success('Pricelist approved successfully')
     } catch {
@@ -104,17 +120,17 @@ export function PricelistDetailPage() {
     } finally {
       setApproveModalOpen(false)
     }
-  }, [approvePricelist, id, toast])
+  }, [approvePricelist, actualId, toast])
 
   const handleRejectClick = () => {
     setRejectModalOpen(true)
   }
 
   const handleRejectConfirm = useCallback(async () => {
-    if (!id) return
+    if (!actualId) return
 
     try {
-      const updated = await approvePricelist(id, { status: 'REJECTED' })
+      const updated = await approvePricelist(actualId, { status: 'REJECTED' })
       setPricelist(prev => prev ? { ...prev, ...updated } : null)
       toast.success('Pricelist rejected')
     } catch {
@@ -122,18 +138,18 @@ export function PricelistDetailPage() {
     } finally {
       setRejectModalOpen(false)
     }
-  }, [approvePricelist, id, toast])
+  }, [approvePricelist, actualId, toast])
 
   const handleRestoreClick = () => {
     setRestoreModalOpen(true)
   }
 
   const handleRestoreConfirm = useCallback(async () => {
-    if (!id) return
+    if (!actualId) return
 
     try {
-      await pricelistsApi.restore(id)
-      const data = await pricelistsApi.getById(id)
+      await pricelistsApi.restore(actualId)
+      const data = await pricelistsApi.getById(actualId)
       setPricelist(data)
       toast.success('Pricelist restored successfully')
     } catch (error: unknown) {
@@ -150,7 +166,7 @@ export function PricelistDetailPage() {
     } finally {
       setRestoreModalOpen(false)
     }
-  }, [id, toast])
+  }, [actualId, toast])
 
   if (pageLoading) {
     return (
@@ -171,7 +187,7 @@ export function PricelistDetailPage() {
           <h2 className="text-lg font-semibold text-red-800 dark:text-red-300 mb-2">Error</h2>
           <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Pricelist not found'}</p>
           <button
-            onClick={() => navigate('/pricelists')}
+            onClick={() => navigate(backPath)}
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
           >
             Back to List
@@ -243,7 +259,7 @@ export function PricelistDetailPage() {
             </button>
           )}
           <button
-            onClick={() => navigate('/pricelists')}
+            onClick={() => navigate(backPath)}
             className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
           >
             Back to List
