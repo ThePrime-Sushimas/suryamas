@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useBranchesStore } from '../store/branches.store'
 import { BranchTable } from '../components/BranchTable'
 import { Pagination } from '@/components/ui/Pagination'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useToast } from '@/contexts/ToastContext'
 import { MapPin, Plus, Search, X } from 'lucide-react'
 
@@ -32,6 +33,8 @@ export default function BranchesPage() {
     setLimit
   } = useBranchesStore()
   const [search, setSearch] = useState('')
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [branchToDelete, setBranchToDelete] = useState<string | null>(null)
   const { success, error } = useToast()
 
   // Fetch branches on mount and when page/limit changes
@@ -71,22 +74,35 @@ export default function BranchesPage() {
     fetchBranches(1, limit)
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Delete this branch?')) {
-      try {
-        await deleteBranch(id)
-        success('Branch deleted successfully')
-        // Refresh data after delete
-        if (search) {
-          searchBranches(search, page, limit)
-        } else {
-          fetchBranches(page, limit)
-        }
-      } catch (err) {
-        error('Failed to delete branch')
-        console.error('Delete failed:', err)
+  const handleDelete = (id: string) => {
+    setBranchToDelete(id)
+    setIsDeleteModalOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!branchToDelete) return
+    
+    try {
+      await deleteBranch(branchToDelete)
+      success('Branch deleted successfully')
+      // Refresh data after delete
+      if (search) {
+        searchBranches(search, page, limit)
+      } else {
+        fetchBranches(page, limit)
       }
+    } catch (err) {
+      error('Failed to delete branch')
+      console.error('Delete failed:', err)
+    } finally {
+      setIsDeleteModalOpen(false)
+      setBranchToDelete(null)
     }
+  }
+
+  const handleCloseDeleteModal = () => {
+    setIsDeleteModalOpen(false)
+    setBranchToDelete(null)
   }
 
   // Pagination handlers
@@ -178,6 +194,18 @@ export default function BranchesPage() {
           </>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title="Delete Branch"
+        message="Are you sure you want to delete this branch? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </div>
   )
 }

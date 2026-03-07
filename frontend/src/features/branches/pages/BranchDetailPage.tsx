@@ -5,6 +5,7 @@ import { employeeBranchesApi } from '@/features/employee_branches/api/employeeBr
 import type { Branch } from '../types'
 import api from '@/lib/axios'
 import AssignEmployeeToBranchModal from '@/components/AssignEmployeeToBranchModal'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useToast } from '@/contexts/ToastContext'
 import {
   ArrowLeft,
@@ -73,6 +74,7 @@ function BranchDetailPage() {
   })
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [deletingEmployee, setDeletingEmployee] = useState<string | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const { success, error: showError } = useToast()
 
   const ITEMS_PER_PAGE = 10
@@ -130,11 +132,11 @@ function BranchDetailPage() {
     if (id) fetchBranch()
   }, [id])
 
-  const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this branch? This action cannot be undone.')) {
-      return
-    }
+  const handleDelete = () => {
+    setIsDeleteModalOpen(true)
+  }
 
+  const handleConfirmDelete = async () => {
     setDeleting(true)
     try {
       await branchesApi.delete(id!)
@@ -145,7 +147,12 @@ function BranchDetailPage() {
       showError('Failed to delete branch. Please try again.')
     } finally {
       setDeleting(false)
+      setIsDeleteModalOpen(false)
     }
+  }
+
+  const handleCloseDeleteModal = () => {
+    setIsDeleteModalOpen(false)
   }
 
   const getStatusColor = (status: string) => {
@@ -1136,6 +1143,19 @@ function BranchDetailPage() {
               .catch(() => setEmployees([]))
           }
         }}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title="Delete Branch"
+        message="Are you sure you want to delete this branch? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleting}
       />
     </div>
   )
