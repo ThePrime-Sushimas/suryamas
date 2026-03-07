@@ -100,16 +100,16 @@ const handlePreferredChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 mb-4">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
       <div className="flex flex-wrap gap-4 items-end">
         {/* Supplier Filter */}
         <div className="min-w-[200px]">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Supplier</label>
           <select
             value={supplierId}
             onChange={(e) => onSupplierChange(e.target.value)}
             disabled={loadingSuppliers}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             <option value="">All Suppliers</option>
             {suppliers.map(s => (
@@ -120,12 +120,12 @@ const handlePreferredChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
 
         {/* Product Filter */}
         <div className="min-w-[200px]">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product</label>
           <select
             value={productId}
             onChange={(e) => onProductChange(e.target.value)}
             disabled={loadingProducts}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             <option value="">All Products</option>
             {products.map(p => (
@@ -136,11 +136,11 @@ const handlePreferredChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
 
         {/* Preferred Filter */}
         <div className="w-40">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Preferred</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preferred</label>
           <select
             value={isPreferred === undefined ? '' : isPreferred.toString()}
             onChange={handlePreferredChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             <option value="">All</option>
             <option value="true">Yes Only</option>
@@ -150,11 +150,11 @@ const handlePreferredChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
 
         {/* Status Filter */}
         <div className="w-40">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
           <select
             value={isActive === undefined ? '' : isActive.toString()}
             onChange={handleActiveChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             <option value="">All</option>
             <option value="true">Active Only</option>
@@ -164,11 +164,11 @@ const handlePreferredChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
 
         {/* Page Size */}
         <div className="w-40">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Show</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Show</label>
           <select
             value={pageSize}
             onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             {PAGE_SIZE_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -183,9 +183,9 @@ const handlePreferredChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
               type="checkbox"
               checked={includeDeleted}
               onChange={(e) => onIncludeDeletedChange(e.target.checked)}
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              className="w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 bg-white dark:bg-gray-700"
             />
-            <span className="ml-2 text-sm text-gray-700">Show deleted</span>
+            <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Show deleted</span>
           </label>
         </div>
 
@@ -193,7 +193,7 @@ const handlePreferredChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         <div>
           <button
             onClick={onReset}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600"
           >
             Reset
           </button>

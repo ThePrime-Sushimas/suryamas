@@ -75,13 +75,13 @@ export function EditSupplierProductPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-3xl mx-auto">
           <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
-            <div className="bg-white rounded-lg shadow p-6 space-y-6">
-              <div className="h-6 bg-gray-200 rounded w-1/4"></div>
+            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-4"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-8"></div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-6">
+              <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="h-10 bg-gray-200 rounded"></div>
-                <div className="h-10 bg-gray-200 rounded"></div>
+                <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
               </div>
             </div>
           </div>
@@ -96,13 +96,13 @@ export function EditSupplierProductPage() {
         <div className="max-w-3xl mx-auto text-center">
           <button
             onClick={() => navigate('/supplier-products')}
-            className="text-blue-600 hover:text-blue-800 text-sm font-medium mb-4 flex items-center justify-center"
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium mb-4 flex items-center justify-center"
           >
             ← Back to Supplier Products
           </button>
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-            <h2 className="text-lg font-medium text-red-800 mb-2">Error Loading Data</h2>
-            <p className="text-red-600">{loadError || 'Supplier product not found'}</p>
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+            <h2 className="text-lg font-medium text-red-800 dark:text-red-300 mb-2">Error Loading Data</h2>
+            <p className="text-red-600 dark:text-red-400">{loadError || 'Supplier product not found'}</p>
           </div>
         </div>
       </div>
@@ -116,12 +116,12 @@ export function EditSupplierProductPage() {
         <div className="mb-6">
           <button
             onClick={() => navigate('/supplier-products')}
-            className="text-blue-600 hover:text-blue-800 text-sm font-medium mb-4 flex items-center"
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium mb-4 flex items-center"
           >
             ← Back to Supplier Products
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">Edit Supplier Product</h1>
-          <p className="text-gray-500 mt-1">Update supplier product pricing and details</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Supplier Product</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Update supplier product pricing and details</p>
         </div>
 
         {/* Form */}

@@ -41,12 +41,12 @@ export function CreateSupplierProductPage() {
         <div className="mb-6">
           <button
             onClick={() => navigate('/supplier-products')}
-            className="text-blue-600 hover:text-blue-800 text-sm font-medium mb-4 flex items-center"
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium mb-4 flex items-center"
           >
             ← Back to Supplier Products
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">Create Supplier Product</h1>
-          <p className="text-gray-500 mt-1">Add a new product price from a supplier</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create Supplier Product</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Add a new product price from a supplier</p>
         </div>
 
         {/* Form */}

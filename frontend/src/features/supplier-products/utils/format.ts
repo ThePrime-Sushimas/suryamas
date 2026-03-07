@@ -102,7 +102,9 @@ export function formatDateOnly(dateString: string): string {
  * @returns Tailwind color class
  */
 export function getStatusColor(isActive: boolean): string {
-  return isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+  return isActive 
+    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' 
+    : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
 }
 
 /**
@@ -111,6 +113,8 @@ export function getStatusColor(isActive: boolean): string {
  * @returns Tailwind color class
  */
 export function getPreferredColor(isPreferred: boolean): string {
-  return isPreferred ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-400'
+  return isPreferred 
+    ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' 
+    : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-400'
 }
 

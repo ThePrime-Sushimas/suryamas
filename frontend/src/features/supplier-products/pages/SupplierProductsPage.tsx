@@ -6,6 +6,8 @@ import { useToast } from '@/contexts/ToastContext'
 import { useSupplierProductsStore } from '../store/supplierProducts.store'
 import { SupplierProductTable } from '../components/SupplierProductTable'
 import { SupplierProductFilters } from '../components/SupplierProductFilters'
+import { Pagination } from '@/components/ui/Pagination'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { supplierProductsApi } from '../api/supplierProducts.api'
 import type { SupplierProductListQuery } from '../types/supplier-product.types'
 
@@ -28,6 +30,11 @@ export function SupplierProductsPage() {
   const setSelectedItems = useSupplierProductsStore(s => s.setSelectedItems)
   const clearError = useSupplierProductsStore(s => s.clearError)
   const reset = useSupplierProductsStore(s => s.reset)
+
+  // Confirm modal states
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null)
 
   // Filter states
   const [filters, setFilters] = useState<SupplierProductListQuery>({
@@ -142,27 +149,38 @@ export function SupplierProductsPage() {
     navigate(`/supplier-products/${id}`)
   }, [navigate])
 
-  const handleDelete = useCallback(async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this supplier product?')) {
-      try {
-        await deleteSupplierProduct(id)
-        toast.success('Supplier product deleted successfully')
-      } catch {
-        // Error handled in store
-      }
+  const handleDeleteClick = useCallback((id: string) => {
+    setItemToDelete(id)
+    setDeleteModalOpen(true)
+  }, [])
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!itemToDelete) return
+    try {
+      await deleteSupplierProduct(itemToDelete)
+      toast.success('Supplier product deleted successfully')
+    } catch {
+      // Error handled in store
+    } finally {
+      setDeleteModalOpen(false)
+      setItemToDelete(null)
     }
-  }, [deleteSupplierProduct, toast])
+  }, [itemToDelete, deleteSupplierProduct, toast])
 
-  const handleBulkDelete = useCallback(async () => {
+  const handleBulkDeleteClick = useCallback(() => {
     if (selectedItems.length === 0) return
+    setBulkDeleteModalOpen(true)
+  }, [selectedItems])
 
-    if (window.confirm(`Are you sure you want to delete ${selectedItems.length} supplier products?`)) {
-      try {
-        await bulkDeleteSupplierProducts(selectedItems)
-        toast.success(`${selectedItems.length} supplier products deleted successfully`)
-      } catch {
-        // Error handled in store
-      }
+  const handleBulkDeleteConfirm = useCallback(async () => {
+    if (selectedItems.length === 0) return
+    try {
+      await bulkDeleteSupplierProducts(selectedItems)
+      toast.success(`${selectedItems.length} supplier products deleted successfully`)
+    } catch {
+      // Error handled in store
+    } finally {
+      setBulkDeleteModalOpen(false)
     }
   }, [selectedItems, bulkDeleteSupplierProducts, toast])
 
@@ -181,42 +199,41 @@ export function SupplierProductsPage() {
 
   const handleBulkRestore = useCallback(async () => {
     if (selectedItems.length === 0) return
-
-    if (window.confirm(`Are you sure you want to restore ${selectedItems.length} supplier products?`)) {
-      try {
-        await bulkRestoreSupplierProducts(selectedItems)
-        toast.success(`${selectedItems.length} supplier products restored successfully`)
-      } catch {
-        // Error handled in store
-      }
+    try {
+      await bulkRestoreSupplierProducts(selectedItems)
+      toast.success(`${selectedItems.length} supplier products restored successfully`)
+    } catch {
+      // Error handled in store
     }
   }, [selectedItems, bulkRestoreSupplierProducts, toast])
+
+  const handleExport = useCallback(async () => {
+    try {
+      const blob = await supplierProductsApi.exportCSV(filters)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `supplier-products-${Date.now()}.csv`
+      a.click()
+      window.URL.revokeObjectURL(url)
+      toast.success('Export completed')
+    } catch {
+      toast.error('Export failed')
+    }
+  }, [filters, toast])
 
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Supplier Products</h1>
-          <p className="text-gray-500 mt-1">Manage supplier product pricing and preferences</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Supplier Products</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Manage supplier product pricing and preferences</p>
         </div>
         <div className="flex gap-2">
           <button
-            onClick={async () => {
-              try {
-                const blob = await supplierProductsApi.exportCSV(filters)
-                const url = window.URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = `supplier-products-${Date.now()}.csv`
-                a.click()
-                window.URL.revokeObjectURL(url)
-                toast.success('Export completed')
-              } catch {
-                toast.error('Export failed')
-              }
-            }}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+            onClick={handleExport}
+            className="px-4 py-2 bg-green-600 dark:bg-green-600 text-white rounded-md hover:bg-green-700 dark:hover:bg-green-500"
           >
             Export CSV
           </button>
@@ -250,8 +267,8 @@ export function SupplierProductsPage() {
 
       {/* Bulk Actions */}
       {selectedItems.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 flex justify-between items-center">
-          <span className="text-sm font-medium text-blue-800">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4 flex justify-between items-center">
+          <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
             {selectedItems.length} item(s) selected
           </span>
           <div className="flex gap-2">
@@ -264,7 +281,7 @@ export function SupplierProductsPage() {
               </button>
             )}
             <button
-              onClick={handleBulkDelete}
+              onClick={handleBulkDeleteClick}
               className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700"
             >
               Bulk Delete
@@ -281,7 +298,7 @@ export function SupplierProductsPage() {
         onSelectAll={handleSelectAll}
         onSelectItem={handleSelectItem}
         onEdit={handleEdit}
-        onDelete={handleDelete}
+        onDelete={handleDeleteClick}
         onView={handleView}
         onRestore={handleRestore}
         onManagePrices={handleManagePrices}
@@ -292,38 +309,54 @@ export function SupplierProductsPage() {
 
       {/* Pagination */}
       {pagination && pagination.total > 0 && (
-        <div className="mt-6 flex items-center justify-between bg-white rounded-lg shadow-sm px-4 py-3">
-          <div className="text-sm text-gray-600">
-            Showing {((pagination.page - 1) * (filters.limit || 10)) + 1} to {Math.min(pagination.page * (filters.limit || 10), pagination.total)} of {pagination.total} supplier products
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => handlePageChange(pagination.page - 1)}
-              disabled={!pagination.hasPrev}
-              className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-            >
-              Previous
-            </button>
-            <span className="px-4 py-2 border rounded-md bg-gray-50">
-              Page {pagination.page} of {pagination.totalPages || 1}
-            </span>
-            <button
-              onClick={() => handlePageChange(pagination.page + 1)}
-              disabled={!pagination.hasNext}
-              className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-            >
-              Next
-            </button>
-          </div>
+        <div className="mt-6">
+          <Pagination
+            pagination={{
+              page: pagination.page,
+              limit: pagination.limit,
+              total: pagination.total,
+              totalPages: pagination.totalPages,
+              hasNext: pagination.hasNext,
+              hasPrev: pagination.hasPrev
+            }}
+            onPageChange={handlePageChange}
+            onLimitChange={handlePageSizeChange}
+            currentLength={supplierProducts.length}
+            loading={fetchLoading}
+          />
         </div>
       )}
 
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Supplier Product"
+        message="Are you sure you want to delete this supplier product? This action cannot be undone."
+        confirmText="Delete"
+        variant="danger"
+        isLoading={mutationLoading}
+      />
+
+      {/* Bulk Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={bulkDeleteModalOpen}
+        onClose={() => setBulkDeleteModalOpen(false)}
+        onConfirm={handleBulkDeleteConfirm}
+        title="Bulk Delete Supplier Products"
+        message={`Are you sure you want to delete ${selectedItems.length} supplier products? This action cannot be undone.`}
+        confirmText="Delete All"
+        variant="danger"
+        isLoading={mutationLoading}
+      />
+
       {/* Loading Overlay */}
       {mutationLoading && (
-        <div className="fixed inset-0 bg-gray-900/20 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 shadow-xl">
+        <div className="fixed inset-0 bg-gray-900/20 dark:bg-gray-900/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-xl">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Processing...</p>
+            <p className="mt-4 text-gray-600 dark:text-gray-300">Processing...</p>
           </div>
         </div>
       )}
