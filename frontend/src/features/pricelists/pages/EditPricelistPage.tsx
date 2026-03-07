@@ -124,9 +124,9 @@ export const EditPricelistPage = memo(function EditPricelistPage() {
   if (contextError || !pricelist) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-md mx-auto bg-red-50 border border-red-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-red-800 mb-2">Error</h2>
-          <p className="text-red-600 mb-4">{contextError || 'Pricelist not found'}</p>
+        <div className="max-w-md mx-auto bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-red-800 dark:text-red-300 mb-2">Error</h2>
+          <p className="text-red-600 dark:text-red-400 mb-4">{contextError || 'Pricelist not found'}</p>
           <button
             onClick={() => navigate(`/supplier-products/${supplierProductId}/pricelists`)}
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
@@ -141,8 +141,8 @@ export const EditPricelistPage = memo(function EditPricelistPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Edit Pricelist</h1>
-        <p className="text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Pricelist</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
           Update pricing for {pricelist.supplier?.supplier_name} - {pricelist.product?.product_name}
         </p>
       </div>
@@ -165,3 +165,4 @@ export const EditPricelistPage = memo(function EditPricelistPage() {
     </div>
   )
 })
+

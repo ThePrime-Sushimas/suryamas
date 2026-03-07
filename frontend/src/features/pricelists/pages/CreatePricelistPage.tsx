@@ -8,6 +8,7 @@
  * - Error handling and loading states
  * - Accessibility compliant
  * - Optimistic UI updates
+ * - Dark mode support
  * 
  * @module pricelists/pages
  */
@@ -251,9 +252,9 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
   if (!currentBranch?.company_id) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-md mx-auto bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-yellow-800 mb-2">Branch Required</h2>
-          <p className="text-yellow-600 mb-4">Please select a valid branch to continue</p>
+        <div className="max-w-md mx-auto bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-yellow-800 dark:text-yellow-300 mb-2">Branch Required</h2>
+          <p className="text-yellow-600 dark:text-yellow-400 mb-4">Please select a valid branch to continue</p>
           <button
             onClick={() => navigate('/')}
             className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500"
@@ -271,34 +272,34 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
     <div className="container mx-auto px-4 py-8">
       {/* Breadcrumb */}
       <nav className="mb-6" aria-label="Breadcrumb">
-        <ol className="flex items-center space-x-2 text-sm text-gray-500">
+        <ol className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
           <li>
             <button
               onClick={() => navigate('/pricelists')}
-              className="hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+              className="hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
             >
               Pricelists
             </button>
           </li>
           <li>/</li>
-          <li className="text-gray-900 font-medium">Create</li>
+          <li className="text-gray-900 dark:text-white font-medium">Create</li>
         </ol>
       </nav>
 
       {/* Page Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Create Pricelist</h1>
-        <p className="text-gray-500 mt-1">Add new pricing information</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create Pricelist</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">Add new pricing information</p>
       </div>
 
       {/* Form */}
       <div className="max-w-4xl">
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6" noValidate>
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-6" noValidate>
           {/* Supplier Selection */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Supplier Selection</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Supplier Selection</h3>
             <div>
-              <label htmlFor="supplier_search" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="supplier_search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Search Supplier *
               </label>
               <input
@@ -308,7 +309,7 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
                 value={supplierSearch}
                 onChange={(e) => setSupplierSearch(e.target.value)}
                 disabled={isFormDisabled}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
               <select
                 name="supplier_id"
@@ -317,8 +318,8 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
                 onBlur={() => handleBlur('supplier_id')}
                 required
                 disabled={isFormDisabled}
-                className={`w-full px-3 py-2 mt-1 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
-                  getFieldError('supplier_id') ? 'border-red-500' : 'border-gray-300'
+                className={`w-full px-3 py-2 mt-1 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                  getFieldError('supplier_id') ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
                 }`}
                 aria-invalid={!!getFieldError('supplier_id')}
                 aria-describedby={getFieldError('supplier_id') ? 'supplier-error' : undefined}
@@ -331,10 +332,10 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
                 ))}
               </select>
               {loadingSuppliers && (
-                <p className="text-xs text-gray-500 mt-1">Loading suppliers...</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Loading suppliers...</p>
               )}
               {getFieldError('supplier_id') && (
-                <p id="supplier-error" className="text-xs text-red-600 mt-1" role="alert">
+                <p id="supplier-error" className="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">
                   {getFieldError('supplier_id')}
                 </p>
               )}
@@ -342,10 +343,10 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
           </div>
 
           {/* Product Selection */}
-          <div className="border-t pt-4">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Product Selection</h3>
+          <div className="border-t pt-4 border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Product Selection</h3>
             <div>
-              <label htmlFor="product_search" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="product_search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Search Product *
               </label>
               <input
@@ -355,7 +356,7 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
                 disabled={isFormDisabled}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
               <select
                 name="product_id"
@@ -364,8 +365,8 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
                 onBlur={() => handleBlur('product_id')}
                 required
                 disabled={isFormDisabled}
-                className={`w-full px-3 py-2 mt-1 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
-                  getFieldError('product_id') ? 'border-red-500' : 'border-gray-300'
+                className={`w-full px-3 py-2 mt-1 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                  getFieldError('product_id') ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
                 }`}
                 aria-invalid={!!getFieldError('product_id')}
                 aria-describedby={getFieldError('product_id') ? 'product-error' : undefined}
@@ -378,10 +379,10 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
                 ))}
               </select>
               {loadingProducts && (
-                <p className="text-xs text-gray-500 mt-1">Loading products...</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Loading products...</p>
               )}
               {getFieldError('product_id') && (
-                <p id="product-error" className="text-xs text-red-600 mt-1" role="alert">
+                <p id="product-error" className="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">
                   {getFieldError('product_id')}
                 </p>
               )}
@@ -390,10 +391,10 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
 
           {/* UOM Selection */}
           {formData.product_id && (
-            <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">UOM Selection</h3>
+            <div className="border-t pt-4 border-gray-200 dark:border-gray-700">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">UOM Selection</h3>
               <div>
-                <label htmlFor="uom_search" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="uom_search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   UOM *
                 </label>
                 <input
@@ -403,7 +404,7 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
                   value={uomSearch.search}
                   onChange={(e) => uomSearch.setSearch(e.target.value)}
                   disabled={isFormDisabled}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
                 <select
                   name="uom_id"
@@ -412,8 +413,8 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
                   onBlur={() => handleBlur('uom_id')}
                   required
                   disabled={isFormDisabled}
-                  className={`w-full px-3 py-2 mt-1 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
-                    getFieldError('uom_id') ? 'border-red-500' : 'border-gray-300'
+                  className={`w-full px-3 py-2 mt-1 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                    getFieldError('uom_id') ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
                   }`}
                   aria-invalid={!!getFieldError('uom_id')}
                   aria-describedby={getFieldError('uom_id') ? 'uom-error' : undefined}
@@ -424,10 +425,10 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
                   ))}
                 </select>
                 {uomSearch.loading && (
-                  <p className="text-xs text-gray-500 mt-1">Loading UOMs...</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Loading UOMs...</p>
                 )}
                 {getFieldError('uom_id') && (
-                  <p id="uom-error" className="text-xs text-red-600 mt-1" role="alert">
+                  <p id="uom-error" className="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">
                     {getFieldError('uom_id')}
                   </p>
                 )}
@@ -436,11 +437,11 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
           )}
 
           {/* Pricing */}
-          <div className="border-t pt-4">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Pricing</h3>
+          <div className="border-t pt-4 border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Pricing</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Price *
                 </label>
                 <input
@@ -454,20 +455,20 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
                   min="0"
                   step="0.01"
                   disabled={isFormDisabled}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
-                    getFieldError('price') ? 'border-red-500' : 'border-gray-300'
+                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                    getFieldError('price') ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
                   }`}
                   aria-invalid={!!getFieldError('price')}
                   aria-describedby={getFieldError('price') ? 'price-error' : undefined}
                 />
                 {getFieldError('price') && (
-                  <p id="price-error" className="text-xs text-red-600 mt-1" role="alert">
+                  <p id="price-error" className="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">
                     {getFieldError('price')}
                   </p>
                 )}
               </div>
               <div>
-                <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="currency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Currency
                 </label>
                 <select
@@ -476,7 +477,7 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
                   value={formData.currency}
                   onChange={handleChange}
                   disabled={isFormDisabled}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
                   {CURRENCY_OPTIONS.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -487,11 +488,11 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
           </div>
 
           {/* Validity Period */}
-          <div className="border-t pt-4">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Validity Period</h3>
+          <div className="border-t pt-4 border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Validity Period</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="valid_from" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="valid_from" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Valid From *
                 </label>
                 <input
@@ -503,20 +504,20 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
                   onBlur={() => handleBlur('valid_from')}
                   required
                   disabled={isFormDisabled}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
-                    getFieldError('valid_from') ? 'border-red-500' : 'border-gray-300'
+                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                    getFieldError('valid_from') ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
                   }`}
                   aria-invalid={!!getFieldError('valid_from')}
                   aria-describedby={getFieldError('valid_from') ? 'valid-from-error' : undefined}
                 />
                 {getFieldError('valid_from') && (
-                  <p id="valid-from-error" className="text-xs text-red-600 mt-1" role="alert">
+                  <p id="valid-from-error" className="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">
                     {getFieldError('valid_from')}
                   </p>
                 )}
               </div>
               <div>
-                <label htmlFor="valid_to" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="valid_to" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Valid To
                 </label>
                 <input
@@ -528,15 +529,15 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
                   onBlur={() => handleBlur('valid_to')}
                   min={formData.valid_from}
                   disabled={isFormDisabled}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
-                    getFieldError('valid_to') ? 'border-red-500' : 'border-gray-300'
+                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                    getFieldError('valid_to') ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
                   }`}
                   aria-invalid={!!getFieldError('valid_to')}
                   aria-describedby={getFieldError('valid_to') ? 'valid-to-help valid-to-error' : 'valid-to-help'}
                 />
-                <p id="valid-to-help" className="text-xs text-gray-500 mt-1">Leave empty for permanent</p>
+                <p id="valid-to-help" className="text-xs text-gray-500 dark:text-gray-400 mt-1">Leave empty for permanent</p>
                 {getFieldError('valid_to') && (
-                  <p id="valid-to-error" className="text-xs text-red-600 mt-1" role="alert">
+                  <p id="valid-to-error" className="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">
                     {getFieldError('valid_to')}
                   </p>
                 )}
@@ -545,7 +546,7 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
           </div>
 
           {/* Active Status */}
-          <div className="border-t pt-4">
+          <div className="border-t pt-4 border-gray-200 dark:border-gray-700">
             <label className="flex items-center cursor-pointer">
               <input
                 type="checkbox"
@@ -553,26 +554,26 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
                 checked={formData.is_active}
                 onChange={handleChange}
                 disabled={isFormDisabled}
-                className="mr-2 w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
+                className="mr-2 w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded disabled:opacity-50"
               />
-              <span className="text-sm font-medium text-gray-700">Active</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Active</span>
             </label>
           </div>
 
           {/* Form-level errors */}
           {errors.general && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-3">
-              <p className="text-sm text-red-600" role="alert">{errors.general}</p>
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
+              <p className="text-sm text-red-600 dark:text-red-400" role="alert">{errors.general}</p>
             </div>
           )}
 
           {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t">
+          <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
               type="button"
               onClick={handleCancel}
               disabled={isFormDisabled}
-              className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               Cancel
             </button>
@@ -589,3 +590,4 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
     </div>
   )
 })
+

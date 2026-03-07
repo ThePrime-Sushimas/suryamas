@@ -126,11 +126,29 @@ export const SORT_FIELD_OPTIONS: ReadonlyArray<{ value: SortField; label: string
 // ============================================================================
 
 /**
- * Get status color for UI
+ * Get status color for UI (light mode)
  */
 export function getStatusColor(status: PricelistStatus): string {
   const option = STATUS_OPTIONS.find(opt => opt.value === status)
   return option?.color || 'gray'
+}
+
+/**
+ * Get status color class for UI with dark mode support
+ */
+export function getStatusColorClass(status: PricelistStatus): string {
+  switch (status) {
+    case 'DRAFT':
+      return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+    case 'APPROVED':
+      return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+    case 'REJECTED':
+      return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+    case 'EXPIRED':
+      return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
+    default:
+      return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+  }
 }
 
 /**
@@ -153,3 +171,4 @@ export function isEditable(status: PricelistStatus): boolean {
 export function isApprovable(status: PricelistStatus): boolean {
   return APPROVABLE_STATUSES.includes(status)
 }
+

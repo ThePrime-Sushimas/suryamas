@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePricelistsStore } from '../store/pricelists.store'
 import { PricelistTable } from '../components/PricelistTable'
+import { Pagination } from '@/components/ui/Pagination'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useToast } from '@/contexts/ToastContext'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { DollarSign, Plus, Search, X, Filter } from 'lucide-react'
@@ -27,16 +29,23 @@ export default function PricelistsPage() {
   const [filters, setFilters] = useState<Omit<PricelistListQuery, 'page' | 'limit' | 'search'>>({})
   const [showFilters, setShowFilters] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+  const [currentLimit, setCurrentLimit] = useState(10)
+
+  // Confirm modal states
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [restoreModalOpen, setRestoreModalOpen] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null)
+  const [itemToRestore, setItemToRestore] = useState<string | null>(null)
 
   const debouncedSearch = useDebounce(search, 300)
 
   // Build query from current state
   const query = useMemo((): PricelistListQuery => ({
     page: currentPage,
-    limit: 10,
+    limit: currentLimit,
     ...(debouncedSearch && { search: debouncedSearch }),
     ...filters
-  }), [currentPage, debouncedSearch, filters])
+  }), [currentPage, currentLimit, debouncedSearch, filters])
 
   // Fetch data when query changes
   useEffect(() => {
@@ -59,33 +68,43 @@ export default function PricelistsPage() {
     }
   }, [errors.fetch, clearError])
 
-  const handleDelete = useCallback(async (id: string) => {
-    const pricelist = pricelists.find(p => p.id === id)
-    const name = pricelist?.product_name || 'this pricelist'
-    
-    if (!confirm(`Are you sure you want to delete pricelist for "${name}"?`)) return
-    
+  // Delete handlers
+  const handleDeleteClick = useCallback((id: string) => {
+    setItemToDelete(id)
+    setDeleteModalOpen(true)
+  }, [])
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!itemToDelete) return
     try {
-      await deletePricelist(id)
+      await deletePricelist(itemToDelete)
       toast.success('Pricelist deleted successfully')
     } catch {
       toast.error('Failed to delete pricelist')
+    } finally {
+      setDeleteModalOpen(false)
+      setItemToDelete(null)
     }
-  }, [deletePricelist, toast, pricelists])
+  }, [itemToDelete, deletePricelist, toast])
 
-  const handleRestore = useCallback(async (id: string) => {
-    const pricelist = pricelists.find(p => p.id === id)
-    const name = pricelist?.product_name || 'this pricelist'
-    
-    if (!confirm(`Are you sure you want to restore pricelist for "${name}"?`)) return
-    
+  // Restore handlers
+  const handleRestoreClick = useCallback((id: string) => {
+    setItemToRestore(id)
+    setRestoreModalOpen(true)
+  }, [])
+
+  const handleRestoreConfirm = useCallback(async () => {
+    if (!itemToRestore) return
     try {
-      await restorePricelist(id)
+      await restorePricelist(itemToRestore)
       toast.success('Pricelist restored successfully')
     } catch {
       toast.error('Failed to restore pricelist')
+    } finally {
+      setRestoreModalOpen(false)
+      setItemToRestore(null)
     }
-  }, [restorePricelist, toast, pricelists])
+  }, [itemToRestore, restorePricelist, toast])
 
   const handleApprove = useCallback(async (id: string) => {
     try {
@@ -108,27 +127,32 @@ export default function PricelistsPage() {
     setCurrentPage(page)
   }, [])
 
+  const handleLimitChange = useCallback((limit: number) => {
+    setCurrentLimit(limit)
+    setCurrentPage(1)
+  }, [])
+
   const activeFilterCount = useMemo(() => {
     return Object.values(filters).filter(v => v !== undefined && v !== '').length
   }, [filters])
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <DollarSign className="w-6 h-6 text-green-600" />
+            <DollarSign className="w-6 h-6 text-green-600 dark:text-green-400" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Pricelists</h1>
-              <p className="text-sm text-gray-500">
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Pricelists</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 {pagination?.total || 0} total pricelists
               </p>
             </div>
           </div>
           <button 
             onClick={() => navigate('/pricelists/new')} 
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-600 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-500 transition-colors font-medium"
           >
             <Plus className="w-4 h-4" />
             Create Pricelist
@@ -137,7 +161,7 @@ export default function PricelistsPage() {
       </div>
 
       {/* Search & Filters */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -146,12 +170,12 @@ export default function PricelistsPage() {
               placeholder="Search by supplier, product, or price..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -162,8 +186,8 @@ export default function PricelistsPage() {
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors ${
               showFilters || activeFilterCount > 0
-                ? 'border-green-500 bg-green-50 text-green-700'
-                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
+                : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
             }`}
           >
             <Filter className="w-4 h-4" />
@@ -178,16 +202,16 @@ export default function PricelistsPage() {
 
         {/* Filter Panel */}
         {showFilters && (
-          <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Status
                 </label>
                 <select
                   value={filters.status || ''}
                   onChange={e => handleFilterChange('status', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
                   <option value="">All Status</option>
                   <option value="DRAFT">Draft</option>
@@ -198,13 +222,13 @@ export default function PricelistsPage() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Active Status
                 </label>
                 <select
                   value={filters.is_active === undefined ? '' : filters.is_active.toString()}
                   onChange={e => handleFilterChange('is_active', e.target.value === '' ? undefined : e.target.value === 'true')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
                   <option value="">All</option>
                   <option value="true">Active</option>
@@ -213,25 +237,25 @@ export default function PricelistsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Valid On Date
                 </label>
                 <input
                   type="date"
                   value={filters.valid_on || ''}
                   onChange={e => handleFilterChange('valid_on', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Include Deleted
                 </label>
                 <select
                   value={filters.include_deleted === undefined ? '' : filters.include_deleted.toString()}
                   onChange={e => handleFilterChange('include_deleted', e.target.value === '' ? undefined : e.target.value === 'true')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
                   <option value="">No</option>
                   <option value="true">Yes</option>
@@ -244,12 +268,12 @@ export default function PricelistsPage() {
 
       {/* Error Display */}
       {errors.fetch && (
-        <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div className="mx-6 mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
           <div className="flex items-center justify-between">
-            <p className="text-red-800">{errors.fetch}</p>
+            <p className="text-red-800 dark:text-red-300">{errors.fetch}</p>
             <button
               onClick={() => clearError()}
-              className="text-red-600 hover:text-red-800"
+              className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
             >
               <X className="w-4 h-4" />
             </button>
@@ -263,8 +287,8 @@ export default function PricelistsPage() {
           data={pricelists || []}
           loading={loading.fetch}
           onEdit={id => navigate(`/pricelists/${id}/edit`)}
-          onDelete={handleDelete}
-          onRestore={handleRestore}
+          onDelete={handleDeleteClick}
+          onRestore={handleRestoreClick}
           onApprove={handleApprove}
           onView={id => navigate(`/pricelists/${id}`)}
           onSort={() => {}} // TODO: Implement sorting
@@ -272,34 +296,49 @@ export default function PricelistsPage() {
 
         {/* Pagination */}
         {pagination && pagination.total > 0 && (pricelists || []).length > 0 && (
-          <div className="mt-6 flex items-center justify-between bg-white px-4 py-3 rounded-lg shadow-sm">
-            <div className="text-sm text-gray-700">
-              Showing <span className="font-medium">{(pricelists || []).length}</span> of{' '}
-              <span className="font-medium">{pagination.total}</span> results
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handlePageChange(pagination.page - 1)}
-                disabled={!pagination.hasPrev || loading.fetch}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
-              >
-                Previous
-              </button>
-              <span className="text-sm text-gray-700">
-                Page <span className="font-medium">{pagination.page}</span> of{' '}
-                <span className="font-medium">{pagination.totalPages}</span>
-              </span>
-              <button
-                onClick={() => handlePageChange(pagination.page + 1)}
-                disabled={!pagination.hasNext || loading.fetch}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
-              >
-                Next
-              </button>
-            </div>
+          <div className="mt-6">
+            <Pagination
+              pagination={{
+                page: pagination.page,
+                limit: pagination.limit,
+                total: pagination.total,
+                totalPages: pagination.totalPages,
+                hasNext: pagination.hasNext,
+                hasPrev: pagination.hasPrev
+              }}
+              onPageChange={handlePageChange}
+              onLimitChange={handleLimitChange}
+              currentLength={(pricelists || []).length}
+              loading={loading.fetch}
+            />
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Pricelist"
+        message="Are you sure you want to delete this pricelist? This action cannot be undone."
+        confirmText="Delete"
+        variant="danger"
+        isLoading={loading.delete}
+      />
+
+      {/* Restore Confirmation Modal */}
+      <ConfirmModal
+        isOpen={restoreModalOpen}
+        onClose={() => setRestoreModalOpen(false)}
+        onConfirm={handleRestoreConfirm}
+        title="Restore Pricelist"
+        message="Are you sure you want to restore this pricelist?"
+        confirmText="Restore"
+        variant="success"
+        isLoading={loading.update}
+      />
     </div>
   )
 }
+

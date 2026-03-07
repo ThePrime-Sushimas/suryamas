@@ -8,6 +8,7 @@
  * - Sorting
  * - Bulk actions
  * - Export functionality
+ * - Dark mode support
  * 
  * @module pricelists/pages
  */
@@ -19,6 +20,8 @@ import { supplierProductsApi } from '@/features/supplier-products'
 import { usePricelistsStore } from '../store/pricelists.store'
 import { pricelistsApi } from '../api/pricelists.api'
 import { PricelistTable } from '../components/PricelistTable'
+import { Pagination } from '@/components/ui/Pagination'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { DEFAULT_VALUES } from '../constants/pricelist.constants'
 import type { PricelistListQuery, SortField } from '../types/pricelist.types'
 import { CardSkeleton } from '@/components/ui/Skeleton'
@@ -63,6 +66,14 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
     sort_by: DEFAULT_VALUES.SORT_BY,
     sort_order: DEFAULT_VALUES.SORT_ORDER
   })
+
+  // Confirm modal states
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [restoreModalOpen, setRestoreModalOpen] = useState(false)
+  const [approveModalOpen, setApproveModalOpen] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null)
+  const [itemToRestore, setItemToRestore] = useState<string | null>(null)
+  const [itemToApprove, setItemToApprove] = useState<string | null>(null)
 
   // Memoized query with context
   const query = useMemo(() => ({
@@ -152,6 +163,10 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
     setFilters(prev => ({ ...prev, page }))
   }, [])
 
+  const handleLimitChange = useCallback((limit: number) => {
+    setFilters(prev => ({ ...prev, limit, page: 1 }))
+  }, [])
+
   const handleEdit = useCallback((id: string) => {
     navigate(`/supplier-products/${supplierProductId}/pricelists/${id}/edit`)
   }, [navigate, supplierProductId])
@@ -160,45 +175,62 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
     navigate(`/supplier-products/${supplierProductId}/pricelists/${id}`)
   }, [navigate, supplierProductId])
 
-  const handleDelete = useCallback(async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this pricelist?')) {
-      return
-    }
+  // Delete handlers
+  const handleDeleteClick = useCallback((id: string) => {
+    setItemToDelete(id)
+    setDeleteModalOpen(true)
+  }, [])
 
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!itemToDelete) return
     try {
-      await deletePricelist(id)
+      await deletePricelist(itemToDelete)
       toast.success('Pricelist deleted successfully')
     } catch {
       // Store handles error display
+    } finally {
+      setDeleteModalOpen(false)
+      setItemToDelete(null)
     }
-  }, [deletePricelist, toast])
+  }, [itemToDelete, deletePricelist, toast])
 
-  const handleRestore = useCallback(async (id: string) => {
-    if (!window.confirm('Are you sure you want to restore this pricelist?')) {
-      return
-    }
+  // Restore handlers
+  const handleRestoreClick = useCallback((id: string) => {
+    setItemToRestore(id)
+    setRestoreModalOpen(true)
+  }, [])
 
+  const handleRestoreConfirm = useCallback(async () => {
+    if (!itemToRestore) return
     try {
-      await restorePricelist(id)
+      await restorePricelist(itemToRestore)
       toast.success('Pricelist restored successfully')
     } catch {
       // Store handles error display
+    } finally {
+      setRestoreModalOpen(false)
+      setItemToRestore(null)
     }
-  }, [restorePricelist, toast])
+  }, [itemToRestore, restorePricelist, toast])
 
-  const handleApprove = useCallback(async (id: string) => {
-    if (!window.confirm('Are you sure you want to approve this pricelist?')) {
-      return
-    }
+  // Approve handlers
+  const handleApproveClick = useCallback((id: string) => {
+    setItemToApprove(id)
+    setApproveModalOpen(true)
+  }, [])
 
+  const handleApproveConfirm = useCallback(async () => {
+    if (!itemToApprove) return
     try {
-      await approvePricelist(id, { status: 'APPROVED' })
+      await approvePricelist(itemToApprove, { status: 'APPROVED' })
       toast.success('Pricelist approved successfully')
-      // Store handles refetch automatically
     } catch {
       // Store handles error display
+    } finally {
+      setApproveModalOpen(false)
+      setItemToApprove(null)
     }
-  }, [approvePricelist, toast])
+  }, [itemToApprove, approvePricelist, toast])
 
   const handleExport = useCallback(async () => {
     try {
@@ -230,8 +262,8 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
   if (!supplierProduct || contextError) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-600">{contextError || 'Supplier product not found'}</p>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <p className="text-red-600 dark:text-red-400">{contextError || 'Supplier product not found'}</p>
         </div>
       </div>
     )
@@ -240,20 +272,20 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Context Header */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-blue-900">Pricelists for:</h2>
-            <p className="text-sm text-blue-700 mt-1">
+            <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-300">Pricelists for:</h2>
+            <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
               <span className="font-medium">Supplier:</span> {supplierProduct.supplier?.supplier_name || 'Unknown'}
             </p>
-            <p className="text-sm text-blue-700">
+            <p className="text-sm text-blue-700 dark:text-blue-400">
               <span className="font-medium">Product:</span> {supplierProduct.product?.product_name || 'Unknown'}
             </p>
           </div>
           <button
             onClick={() => navigate('/supplier-products')}
-            className="px-4 py-2 text-sm text-blue-700 hover:text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+            className="px-4 py-2 text-sm text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
           >
             ← Back to Supplier Products
           </button>
@@ -263,23 +295,23 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
       {/* Page Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Manage Pricelists</h1>
-          <p className="text-gray-500 mt-1">Set pricing per UOM for this supplier-product combination</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Manage Pricelists</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Set pricing per UOM for this supplier-product combination</p>
         </div>
         <div className="flex gap-2">
-          <label className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-md">
+          <label className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-md">
             <input
               type="checkbox"
               checked={showDeleted}
               onChange={(e) => setShowDeleted(e.target.checked)}
-              className="rounded"
+              className="rounded border-gray-300 dark:border-gray-600"
             />
-            <span className="text-sm text-gray-700">Show deleted</span>
+            <span className="text-sm text-gray-700 dark:text-gray-300">Show deleted</span>
           </label>
           <button
             onClick={handleExport}
             disabled={loading.fetch || !pricelists || pricelists.length === 0}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="px-4 py-2 bg-green-600 dark:bg-green-600 text-white rounded-md hover:bg-green-700 dark:hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             Export CSV
           </button>
@@ -297,10 +329,10 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
         data={pricelists || []}
         loading={loading.fetch}
         onEdit={handleEdit}
-        onDelete={handleDelete}
-        onRestore={handleRestore}
+        onDelete={handleDeleteClick}
+        onRestore={handleRestoreClick}
         onView={handleView}
-        onApprove={handleApprove}
+        onApprove={handleApproveClick}
         sortBy={filters.sort_by}
         sortOrder={filters.sort_order}
         onSort={handleSort}
@@ -309,38 +341,66 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
 
       {/* Pagination */}
       {pagination && pagination.total > 0 && (
-        <div className="mt-6 flex items-center justify-between bg-white rounded-lg shadow-sm px-4 py-3">
-          <div className="text-sm text-gray-600">
-            Showing {((pagination.page - 1) * (filters.limit || 10)) + 1} to {Math.min(pagination.page * (filters.limit || 10), pagination.total)} of {pagination.total} pricelists
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => handlePageChange(pagination.page - 1)}
-              disabled={!pagination.hasPrev}
-              className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              Previous
-            </button>
-            <span className="px-4 py-2 border rounded-md bg-gray-50">
-              Page {pagination.page} of {pagination.totalPages || 1}
-            </span>
-            <button
-              onClick={() => handlePageChange(pagination.page + 1)}
-              disabled={!pagination.hasNext}
-              className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              Next
-            </button>
-          </div>
+        <div className="mt-6">
+          <Pagination
+            pagination={{
+              page: pagination.page,
+              limit: pagination.limit,
+              total: pagination.total,
+              totalPages: pagination.totalPages,
+              hasNext: pagination.hasNext,
+              hasPrev: pagination.hasPrev
+            }}
+            onPageChange={handlePageChange}
+            onLimitChange={handleLimitChange}
+            currentLength={(pricelists || []).length}
+            loading={loading.fetch}
+          />
         </div>
       )}
 
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Pricelist"
+        message="Are you sure you want to delete this pricelist? This action cannot be undone."
+        confirmText="Delete"
+        variant="danger"
+        isLoading={loading.delete}
+      />
+
+      {/* Restore Confirmation Modal */}
+      <ConfirmModal
+        isOpen={restoreModalOpen}
+        onClose={() => setRestoreModalOpen(false)}
+        onConfirm={handleRestoreConfirm}
+        title="Restore Pricelist"
+        message="Are you sure you want to restore this pricelist?"
+        confirmText="Restore"
+        variant="success"
+        isLoading={loading.update}
+      />
+
+      {/* Approve Confirmation Modal */}
+      <ConfirmModal
+        isOpen={approveModalOpen}
+        onClose={() => setApproveModalOpen(false)}
+        onConfirm={handleApproveConfirm}
+        title="Approve Pricelist"
+        message="Are you sure you want to approve this pricelist?"
+        confirmText="Approve"
+        variant="success"
+        isLoading={loading.approve}
+      />
+
       {/* Loading overlay for mutations */}
       {(loading.create || loading.update || loading.delete || loading.approve) && (
-        <div className="fixed inset-0 bg-gray-900/20 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 shadow-xl">
+        <div className="fixed inset-0 bg-gray-900/20 dark:bg-gray-900/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-xl">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Processing...</p>
+            <p className="mt-4 text-gray-600 dark:text-gray-300">Processing...</p>
           </div>
         </div>
       )}

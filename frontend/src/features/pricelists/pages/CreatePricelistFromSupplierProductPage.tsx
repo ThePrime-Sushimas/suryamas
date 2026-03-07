@@ -7,6 +7,7 @@
  * - Form state management
  * - Error handling
  * - Navigation guards
+ * - Dark mode support
  * 
  * @module pricelists/pages
  */
@@ -123,7 +124,7 @@ export const CreatePricelistFromSupplierProductPage = memo(function CreatePricel
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading context...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading context...</p>
         </div>
       </div>
     )
@@ -133,9 +134,9 @@ export const CreatePricelistFromSupplierProductPage = memo(function CreatePricel
   if (contextError) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-md mx-auto bg-red-50 border border-red-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-red-800 mb-2">Error</h2>
-          <p className="text-red-600 mb-4">{contextError}</p>
+        <div className="max-w-md mx-auto bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-red-800 dark:text-red-300 mb-2">Error</h2>
+          <p className="text-red-600 dark:text-red-400 mb-4">{contextError}</p>
           <div className="flex gap-2">
             <button
               onClick={() => window.location.reload()}
@@ -159,9 +160,9 @@ export const CreatePricelistFromSupplierProductPage = memo(function CreatePricel
   if (!supplierProduct) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-md mx-auto bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-yellow-800 mb-2">Not Found</h2>
-          <p className="text-yellow-600 mb-4">Supplier product not found</p>
+        <div className="max-w-md mx-auto bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-yellow-800 dark:text-yellow-300 mb-2">Not Found</h2>
+          <p className="text-yellow-600 dark:text-yellow-400 mb-4">Supplier product not found</p>
           <button
             onClick={() => navigate('/supplier-products')}
             className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500"
@@ -177,9 +178,9 @@ export const CreatePricelistFromSupplierProductPage = memo(function CreatePricel
   if (!currentBranch?.company_id || !currentBranch?.branch_id) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-md mx-auto bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-yellow-800 mb-2">Branch Required</h2>
-          <p className="text-yellow-600 mb-4">Please select a valid branch with proper permissions to continue</p>
+        <div className="max-w-md mx-auto bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-yellow-800 dark:text-yellow-300 mb-2">Branch Required</h2>
+          <p className="text-yellow-600 dark:text-yellow-400 mb-4">Please select a valid branch with proper permissions to continue</p>
           <button
             onClick={() => navigate('/')}
             className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500"
@@ -195,11 +196,11 @@ export const CreatePricelistFromSupplierProductPage = memo(function CreatePricel
     <div className="container mx-auto px-4 py-8">
       {/* Breadcrumb */}
       <nav className="mb-6" aria-label="Breadcrumb">
-        <ol className="flex items-center space-x-2 text-sm text-gray-500">
+        <ol className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
           <li>
             <button
               onClick={() => navigate('/supplier-products')}
-              className="hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+              className="hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
             >
               Supplier Products
             </button>
@@ -208,20 +209,20 @@ export const CreatePricelistFromSupplierProductPage = memo(function CreatePricel
           <li>
             <button
               onClick={() => navigate(`/supplier-products/${supplierProductId}/pricelists`)}
-              className="hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+              className="hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
             >
               Pricelists
             </button>
           </li>
           <li>/</li>
-          <li className="text-gray-900 font-medium">Create</li>
+          <li className="text-gray-900 dark:text-white font-medium">Create</li>
         </ol>
       </nav>
 
       {/* Page Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Create Pricelist</h1>
-        <p className="text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create Pricelist</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
           Add new pricing for {supplierProduct.supplier?.supplier_name} - {supplierProduct.product?.product_name}
         </p>
       </div>
@@ -243,3 +244,4 @@ export const CreatePricelistFromSupplierProductPage = memo(function CreatePricel
     </div>
   )
 })
+

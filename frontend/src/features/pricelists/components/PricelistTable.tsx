@@ -5,19 +5,13 @@
  * @module pricelists/components
  */
 
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useState } from 'react'
 import type { PricelistWithRelations, SortField, SortOrder } from '../types/pricelist.types'
-import { formatPrice, formatDate, formatStatus, getValidityStatus } from '../utils/format'
-import { getStatusColor, isEditable } from '../constants/pricelist.constants'
+import { formatPrice, formatDate, formatStatus, getValidityStatus, getStatusColorClass, getValidityColorClass } from '../utils/format'
 import { TableSkeleton } from '@/components/ui/Skeleton'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 
-// Static class mapping for Tailwind purging safety - moved outside component
-const STATUS_CLASSES: Record<string, string> = {
-  green: 'px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800',
-  yellow: 'px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800',
-  red: 'px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800',
-  gray: 'px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800',
-}
+// Static class mapping for Tailwind purging safety - with dark mode
 
 // Memoized row component for performance
 const PricelistRow = memo(function PricelistRow({
@@ -35,79 +29,95 @@ const PricelistRow = memo(function PricelistRow({
   onApprove: (id: string) => void
   showDeleted?: boolean
 }) {
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const validityStatus = getValidityStatus(pricelist.valid_from, pricelist.valid_to)
-  const statusColor = getStatusColor(pricelist.status)
-  const canEdit = isEditable(pricelist.status)
+  const statusColor = getStatusColorClass(pricelist.status)
+  const validityColorClass = getValidityColorClass(validityStatus.color)
   const isDeleted = !!pricelist.deleted_at
 
+  const handleDeleteClick = () => {
+    setDeleteModalOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    onDelete(pricelist.id)
+    setDeleteModalOpen(false)
+  }
+
   return (
-    <tr className={`hover:bg-gray-50 ${isDeleted ? 'bg-red-50 opacity-75' : ''}`}>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-        {pricelist.supplier_name || '-'}
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-        {pricelist.product_name || '-'}
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-        {pricelist.uom_name || '-'}
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-        {formatPrice(pricelist.price, pricelist.currency)}
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-        {formatDate(pricelist.valid_from)}
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-        {formatDate(pricelist.valid_to)}
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap">
-        <span className={STATUS_CLASSES[statusColor] || STATUS_CLASSES.gray}>
-          {formatStatus(pricelist.status)}
-        </span>
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap">
-        <span className={STATUS_CLASSES[validityStatus.color] || STATUS_CLASSES.gray}>
-          {validityStatus.label}
-        </span>
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={() => onView(pricelist.id)}
-            className="text-blue-600 hover:text-blue-900"
-          >
-            View
-          </button>
-          {!isDeleted && canEdit && (
-            <button
-              onClick={() => onEdit(pricelist.id)}
-              className="text-indigo-600 hover:text-indigo-900"
-            >
-              Edit
-            </button>
-          )}
-          {isDeleted && onRestore ? (
-            <button
-              onClick={() => onRestore(pricelist.id)}
-              className="text-green-600 hover:text-green-900"
-            >
-              Restore
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                if (confirm('Delete this pricelist?')) {
-                  onDelete(pricelist.id)
-                }
-              }}
-              className="text-red-600 hover:text-red-900"
-            >
-              Delete
-            </button>
-          )}
-        </div>
-      </td>
-    </tr>
+    <>
+      <tr 
+        className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${isDeleted ? 'bg-red-50 dark:bg-red-900/10 opacity-75' : ''} cursor-pointer`}
+        onClick={() => onView(pricelist.id)}
+      >
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+          {pricelist.supplier_name || '-'}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+          {pricelist.product_name || '-'}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+          {pricelist.uom_name || '-'}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+          {formatPrice(pricelist.price, pricelist.currency)}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+          {formatDate(pricelist.valid_from)}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+          {formatDate(pricelist.valid_to)}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          <span className={statusColor}>
+            {formatStatus(pricelist.status)}
+          </span>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          <span className={validityColorClass}>
+            {validityStatus.label}
+          </span>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+          <div className="flex justify-end gap-2">
+            {!isDeleted && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onEdit(pricelist.id) }}
+                className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+              >
+                Edit
+              </button>
+            )}
+            {isDeleted && onRestore ? (
+              <button
+                onClick={(e) => { e.stopPropagation(); onRestore(pricelist.id) }}
+                className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+              >
+                Restore
+              </button>
+            ) : (
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDeleteClick() }}
+                className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+              >
+                Delete
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Pricelist"
+        message={`Are you sure you want to delete the pricelist for "${pricelist.product_name || 'this product'}"? This action cannot be undone.`}
+        confirmText="Delete"
+        variant="danger"
+      />
+    </>
   )
 })
 
@@ -151,7 +161,7 @@ export const PricelistTable = memo(function PricelistTable({
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <TableSkeleton rows={5} columns={9} />
       </div>
     )
@@ -159,29 +169,29 @@ export const PricelistTable = memo(function PricelistTable({
 
   if (data.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow p-8 text-center">
-        <p className="text-gray-500">No pricelists found</p>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
+        <p className="text-gray-500 dark:text-gray-400">No pricelists found</p>
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Supplier
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Product
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 UOM
               </th>
               <th 
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 onClick={() => handleSort('price')}
                 role="columnheader"
                 aria-sort={sortBy === 'price' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
@@ -192,7 +202,7 @@ export const PricelistTable = memo(function PricelistTable({
                 Price {sortBy === 'price' && (sortOrder === 'asc' ? '↑' : '↓')}
               </th>
               <th 
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 onClick={() => handleSort('valid_from')}
                 role="columnheader"
                 aria-sort={sortBy === 'valid_from' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
@@ -202,21 +212,21 @@ export const PricelistTable = memo(function PricelistTable({
               >
                 Valid From {sortBy === 'valid_from' && (sortOrder === 'asc' ? '↑' : '↓')}
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Valid To
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Validity
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {data.map((pricelist) => {
               // Use a more robust unique key
               const uniqueKey = `${pricelist.id}-${pricelist.created_at}-${pricelist.updated_at || ''}`
@@ -239,3 +249,4 @@ export const PricelistTable = memo(function PricelistTable({
     </div>
   )
 })
+

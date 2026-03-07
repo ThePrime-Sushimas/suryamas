@@ -7,6 +7,7 @@
  * - Optimistic UI updates
  * - Proper error handling
  * - Accessibility compliant
+ * - Dark mode support
  * 
  * @module pricelists/components
  */
@@ -188,11 +189,11 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
   }, [])
 
   return (
-    <form key={formKey} onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6" noValidate>
+    <form key={formKey} onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-6" noValidate>
       {/* Context Display (Read-only) */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-blue-900 mb-2">Context (Fixed)</h3>
-        <div className="space-y-1 text-sm text-blue-700">
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">Context (Fixed)</h3>
+        <div className="space-y-1 text-sm text-blue-700 dark:text-blue-400">
           <p><span className="font-medium">Supplier:</span> {supplierName || supplierId}</p>
           <p><span className="font-medium">Product:</span> {productName || productId}</p>
         </div>
@@ -200,9 +201,9 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
 
       {/* UOM Selection */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">UOM Selection</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">UOM Selection</h3>
         <div>
-          <label htmlFor="uom_search" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="uom_search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             UOM *
           </label>
           <input
@@ -212,7 +213,7 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
             value={uomSearch.search}
             onChange={(e) => uomSearch.setSearch(e.target.value)}
             disabled={isEdit || isFormDisabled}
-            className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             aria-describedby={isEdit ? "uom-help" : undefined}
           />
           <select
@@ -222,8 +223,8 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
             onBlur={() => handleBlur('uom_id')}
             required
             disabled={isEdit || isFormDisabled}
-            className={`w-full px-3 py-2 mt-1 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
-              !isEdit && getFieldError('uom_id') ? 'border-red-500' : 'border-gray-300'
+            className={`w-full px-3 py-2 mt-1 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+              !isEdit && getFieldError('uom_id') ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
             }`}
             aria-invalid={!!getFieldError('uom_id')}
             aria-describedby={getFieldError('uom_id') ? 'uom-error' : undefined}
@@ -234,10 +235,10 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
             ))}
           </select>
           {isEdit && (
-            <p id="uom-help" className="text-xs text-gray-500 mt-1">UOM cannot be changed</p>
+            <p id="uom-help" className="text-xs text-gray-500 dark:text-gray-400 mt-1">UOM cannot be changed</p>
           )}
           {!isEdit && getFieldError('uom_id') && (
-            <p id="uom-error" className="text-xs text-red-600 mt-1" role="alert">
+            <p id="uom-error" className="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">
               {getFieldError('uom_id')}
             </p>
           )}
@@ -245,11 +246,11 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
       </div>
 
       {/* Pricing */}
-      <div className="border-t pt-4">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Pricing</h3>
+      <div className="border-t pt-4 border-gray-200 dark:border-gray-700">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Pricing</h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Price *
             </label>
             <input
@@ -263,20 +264,20 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
               min="0"
               step="0.01"
               disabled={isFormDisabled}
-              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
-                getFieldError('price') ? 'border-red-500' : 'border-gray-300'
+              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                getFieldError('price') ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
               }`}
               aria-invalid={!!getFieldError('price')}
               aria-describedby={getFieldError('price') ? 'price-error' : undefined}
             />
             {getFieldError('price') && (
-              <p id="price-error" className="text-xs text-red-600 mt-1" role="alert">
+              <p id="price-error" className="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">
                 {getFieldError('price')}
               </p>
             )}
           </div>
           <div>
-            <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="currency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Currency
             </label>
             <select
@@ -285,7 +286,7 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
               value={formData.currency}
               onChange={handleChange}
               disabled={isFormDisabled}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               {CURRENCY_OPTIONS.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -296,11 +297,11 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
       </div>
 
       {/* Validity Period */}
-      <div className="border-t pt-4">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Validity Period</h3>
+      <div className="border-t pt-4 border-gray-200 dark:border-gray-700">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Validity Period</h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="valid_from" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="valid_from" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Valid From *
             </label>
             <input
@@ -312,20 +313,20 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
               onBlur={() => handleBlur('valid_from')}
               required
               disabled={isFormDisabled}
-              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
-                getFieldError('valid_from') ? 'border-red-500' : 'border-gray-300'
+              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                getFieldError('valid_from') ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
               }`}
               aria-invalid={!!getFieldError('valid_from')}
               aria-describedby={getFieldError('valid_from') ? 'valid-from-error' : undefined}
             />
             {getFieldError('valid_from') && (
-              <p id="valid-from-error" className="text-xs text-red-600 mt-1" role="alert">
+              <p id="valid-from-error" className="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">
                 {getFieldError('valid_from')}
               </p>
             )}
           </div>
           <div>
-            <label htmlFor="valid_to" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="valid_to" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Valid To
             </label>
             <input
@@ -337,15 +338,15 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
               onBlur={() => handleBlur('valid_to')}
               min={formData.valid_from}
               disabled={isFormDisabled}
-              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
-                getFieldError('valid_to') ? 'border-red-500' : 'border-gray-300'
+              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                getFieldError('valid_to') ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
               }`}
               aria-invalid={!!getFieldError('valid_to')}
               aria-describedby="valid-to-help"
             />
-            <p id="valid-to-help" className="text-xs text-gray-500 mt-1">Leave empty for permanent</p>
+            <p id="valid-to-help" className="text-xs text-gray-500 dark:text-gray-400 mt-1">Leave empty for permanent</p>
             {getFieldError('valid_to') && (
-              <p className="text-xs text-red-600 mt-1" role="alert">
+              <p className="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">
                 {getFieldError('valid_to')}
               </p>
             )}
@@ -354,7 +355,7 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
       </div>
 
       {/* Active Status */}
-      <div className="border-t pt-4">
+      <div className="border-t pt-4 border-gray-200 dark:border-gray-700">
         <label className="flex items-center cursor-pointer">
           <input
             type="checkbox"
@@ -362,26 +363,26 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
             checked={formData.is_active}
             onChange={handleChange}
             disabled={isFormDisabled}
-            className="mr-2 w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
+            className="mr-2 w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded disabled:opacity-50"
           />
-          <span className="text-sm font-medium text-gray-700">Active</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Active</span>
         </label>
       </div>
 
       {/* Form-level errors */}
       {errors.general && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-3">
-          <p className="text-sm text-red-600" role="alert">{errors.general}</p>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
+          <p className="text-sm text-red-600 dark:text-red-400" role="alert">{errors.general}</p>
         </div>
       )}
 
       {/* Actions */}
-      <div className="flex gap-3 pt-4 border-t">
+      <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
         <button
           type="button"
           onClick={onCancel}
           disabled={isFormDisabled}
-          className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           Cancel
         </button>
@@ -396,3 +397,4 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
     </form>
   )
 })
+
