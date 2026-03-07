@@ -5,7 +5,7 @@ import { TableSkeleton } from '@/components/ui/Skeleton'
 interface ProductUomTableProps {
   uoms: ProductUom[]
   onEdit: (uom: ProductUom) => void
-  onDelete: (id: string) => void
+  onDelete: (uom: ProductUom) => void
   onRestore: (id: string) => void
   loading?: boolean
 }
@@ -166,7 +166,7 @@ export function ProductUomTable({ uoms, onEdit, onDelete, onRestore, loading }: 
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => onDelete(uom.id)}
+                        onClick={() => onDelete(uom)}
                         className="text-red-600 hover:text-red-900 p-1.5 rounded hover:bg-red-50 transition-colors"
                         title={uom.is_base_unit ? 'Base unit cannot be deleted' : 'Delete'}
                         disabled={uom.is_base_unit || uom.status_uom === 'INACTIVE'}

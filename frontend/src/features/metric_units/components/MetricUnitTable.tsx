@@ -4,22 +4,18 @@ import { TableSkeleton } from '@/components/ui/Skeleton'
 interface MetricUnitTableProps {
   metricUnits: MetricUnit[]
   onEdit: (id: string) => void
-  onDelete: (id: string) => void
-  onRestore: (id: string) => void
+  onDelete: (unit: MetricUnit) => void
+  onRestore: (unit: MetricUnit) => void
   loading?: boolean
 }
 
 export const MetricUnitTable = ({ metricUnits, onEdit, onDelete, onRestore, loading }: MetricUnitTableProps) => {
-  const handleDelete = (id: string, unitName: string) => {
-    if (confirm(`Delete metric unit "${unitName}"?`)) {
-      onDelete(id)
-    }
+  const handleDelete = (unit: MetricUnit) => {
+    onDelete(unit)
   }
 
-  const handleRestore = (id: string, unitName: string) => {
-    if (confirm(`Restore metric unit "${unitName}"?`)) {
-      onRestore(id)
-    }
+  const handleRestore = (unit: MetricUnit) => {
+    onRestore(unit)
   }
 
   if (loading) {
@@ -83,7 +79,7 @@ export const MetricUnitTable = ({ metricUnits, onEdit, onDelete, onRestore, load
                 </button>
                 {unit.is_active ? (
                   <button 
-                    onClick={() => handleDelete(unit.id, unit.unit_name)} 
+                    onClick={() => handleDelete(unit)} 
                     className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 transition-colors"
                     aria-label={`Delete ${unit.unit_name}`}
                   >
@@ -91,7 +87,7 @@ export const MetricUnitTable = ({ metricUnits, onEdit, onDelete, onRestore, load
                   </button>
                 ) : (
                   <button 
-                    onClick={() => handleRestore(unit.id, unit.unit_name)} 
+                    onClick={() => handleRestore(unit)} 
                     className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 transition-colors"
                     aria-label={`Restore ${unit.unit_name}`}
                   >

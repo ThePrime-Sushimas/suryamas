@@ -4,7 +4,9 @@ import { useMetricUnitsStore } from '../store/metricUnits.store'
 import { MetricUnitTable } from '../components/MetricUnitTable'
 import { useToast } from '@/contexts/ToastContext'
 import Pagination from '@/components/ui/Pagination'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Ruler, Plus, Search, Filter, X } from 'lucide-react'
+import type { MetricUnit } from '../types'
 
 function debounce(fn: (value: string) => void, delay: number) {
   let timeoutId: ReturnType<typeof setTimeout>
@@ -34,6 +36,10 @@ export default function MetricUnitsPage() {
   const [search, setSearch] = useState('')
   const [localFilter, setLocalFilter] = useState<{ metric_type?: string; is_active?: string }>({})
   const [showFilter, setShowFilter] = useState(false)
+  const [metricUnitToDelete, setMetricUnitToDelete] = useState<MetricUnit | null>(null)
+  const [metricUnitToRestore, setMetricUnitToRestore] = useState<MetricUnit | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isRestoring, setIsRestoring] = useState(false)
 
   // Fetch data when page/limit changes
   useEffect(() => {
@@ -74,25 +80,51 @@ export default function MetricUnitsPage() {
 
   const activeFilterCount = (localFilter.metric_type ? 1 : 0) + (localFilter.is_active ? 1 : 0)
 
-  const handleDelete = useCallback(async (id: string) => {
+  const handleDelete = useCallback(async (unit: MetricUnit) => {
+    setMetricUnitToDelete(unit)
+  }, [])
+
+  const handleConfirmDelete = async () => {
+    if (!metricUnitToDelete) return
+    setIsDeleting(true)
     try {
-      await deleteMetricUnit(id)
+      await deleteMetricUnit(metricUnitToDelete.id)
       toast.success('Metric unit deleted successfully')
       fetchMetricUnits()
     } catch {
       toast.error('Failed to delete metric unit')
+    } finally {
+      setIsDeleting(false)
+      setMetricUnitToDelete(null)
     }
-  }, [deleteMetricUnit, toast, fetchMetricUnits])
+  }
 
-  const handleRestore = useCallback(async (id: string) => {
+  const handleCloseDeleteModal = () => {
+    setMetricUnitToDelete(null)
+  }
+
+  const handleRestore = useCallback(async (unit: MetricUnit) => {
+    setMetricUnitToRestore(unit)
+  }, [])
+
+  const handleConfirmRestore = async () => {
+    if (!metricUnitToRestore) return
+    setIsRestoring(true)
     try {
-      await restoreMetricUnit(id)
+      await restoreMetricUnit(metricUnitToRestore.id)
       toast.success('Metric unit restored successfully')
       fetchMetricUnits()
     } catch {
       toast.error('Failed to restore metric unit')
+    } finally {
+      setIsRestoring(false)
+      setMetricUnitToRestore(null)
     }
-  }, [restoreMetricUnit, toast, fetchMetricUnits])
+  }
+
+  const handleCloseRestoreModal = () => {
+    setMetricUnitToRestore(null)
+  }
 
   const handleFilterChange = (key: string, value: string) => {
     const newLocalFilter = { ...localFilter, [key]: value }
@@ -237,6 +269,32 @@ export default function MetricUnitsPage() {
           </>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!metricUnitToDelete}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title="Delete Metric Unit"
+        message={`Are you sure you want to delete "${metricUnitToDelete?.unit_name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+      />
+
+      {/* Restore Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!metricUnitToRestore}
+        onClose={handleCloseRestoreModal}
+        onConfirm={handleConfirmRestore}
+        title="Restore Metric Unit"
+        message={`Are you sure you want to restore "${metricUnitToRestore?.unit_name}"?`}
+        confirmText="Restore"
+        cancelText="Cancel"
+        variant="success"
+        isLoading={isRestoring}
+      />
     </div>
   )
 }

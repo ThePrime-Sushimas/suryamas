@@ -8,6 +8,7 @@ import { ProductUomForm } from '@/features/product-uoms/components/ProductUomFor
 import type { ProductUom, CreateProductUomDto, UpdateProductUomDto } from '@/features/product-uoms/types'
 import api from '@/lib/axios'
 import { CardSkeleton } from '@/components/ui/Skeleton'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -20,6 +21,8 @@ export default function ProductDetailPage() {
   const [uomsLoading, setUomsLoading] = useState(false)
   const [showUomForm, setShowUomForm] = useState(false)
   const [editingUom, setEditingUom] = useState<ProductUom | undefined>(undefined)
+  const [uomToDelete, setUomToDelete] = useState<{ id: string; name: string } | null>(null)
+  const [isDeleteProductModalOpen, setIsDeleteProductModalOpen] = useState(false)
   const { success, error: showError } = useToast()
 
   useEffect(() => {
@@ -95,15 +98,25 @@ export default function ProductDetailPage() {
     }
   }
 
-  const handleDeleteUom = async (uomId: string) => {
-    if (!confirm('Are you sure you want to delete this UOM?')) return
+  const handleDeleteUom = (uom: ProductUom) => {
+    setUomToDelete({ id: uom.id, name: uom.metric_units?.unit_name || 'this UOM' })
+  }
+
+  const handleConfirmDeleteUom = async () => {
+    if (!uomToDelete) return
     try {
-      await api.delete(`/products/${id}/uoms/${uomId}`)
+      await api.delete(`/products/${id}/uoms/${uomToDelete.id}`)
       success('UOM deleted successfully')
       fetchUoms()
     } catch {
       showError('Failed to delete UOM')
+    } finally {
+      setUomToDelete(null)
     }
+  }
+
+  const handleCloseUomDeleteModal = () => {
+    setUomToDelete(null)
   }
 
   const handleRestoreUom = async (uomId: string) => {
@@ -123,18 +136,26 @@ export default function ProductDetailPage() {
     }
   }, [storeError, showError, clearError])
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!id || !currentProduct) return
-    
-    if (confirm(`Are you sure you want to delete "${currentProduct.product_name}"?`)) {
-      try {
-        await deleteProduct(id)
-        success('Product deleted successfully')
-        navigate('/products')
-      } catch (err) {
-        showError(err instanceof Error ? err.message : 'Failed to delete product')
-      }
+    setIsDeleteProductModalOpen(true)
+  }
+
+  const handleConfirmDeleteProduct = async () => {
+    if (!id) return
+    try {
+      await deleteProduct(id)
+      success('Product deleted successfully')
+      navigate('/products')
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Failed to delete product')
+    } finally {
+      setIsDeleteProductModalOpen(false)
     }
+  }
+
+  const handleCloseDeleteProductModal = () => {
+    setIsDeleteProductModalOpen(false)
   }
 
   if (fetchLoading) {
@@ -394,6 +415,31 @@ export default function ProductDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Delete Product Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isDeleteProductModalOpen}
+        onClose={handleCloseDeleteProductModal}
+        onConfirm={handleConfirmDeleteProduct}
+        title="Delete Product"
+        message={`Are you sure you want to delete "${currentProduct.product_name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={mutationLoading}
+      />
+
+      {/* Delete UOM Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!uomToDelete}
+        onClose={handleCloseUomDeleteModal}
+        onConfirm={handleConfirmDeleteUom}
+        title="Delete UOM"
+        message={`Are you sure you want to delete the UOM "${uomToDelete?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </div>
   )
 }
