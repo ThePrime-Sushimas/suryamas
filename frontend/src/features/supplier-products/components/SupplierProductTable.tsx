@@ -213,13 +213,13 @@ export function SupplierProductTable({
                   <div className="flex gap-2">
                     <button
                       onClick={() => onManagePrices(item.id)}
-                      className="px-2 py-1 text-xs bg-green-600 dark:bg-green-600 text-white rounded hover:bg-green-700 dark:hover:bg-green-500"
+                      className="px-2 py-1 text-xs bg-blue-600 dark:bg-blue-600 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-500"
                     >
                       Manage Prices
                     </button>
                     <button
                       onClick={() => onEdit(item.id)}
-                      className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
+                      className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
                     >
                       Edit
                     </button>

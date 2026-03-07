@@ -240,7 +240,7 @@ export function SuppliersPage() {
                             handleRestore(supplier.id)
                           }}
                           disabled={mutationLoading}
-                          className="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 disabled:opacity-50"
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 disabled:opacity-50"
                         >
                           Restore
                         </button>
@@ -251,7 +251,7 @@ export function SuppliersPage() {
                               e.stopPropagation()
                               navigate(`/suppliers/${supplier.id}/edit`)
                             }}
-                            className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-3"
+                            className="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 mr-3"
                           >
                             Edit
                           </button>

@@ -265,15 +265,15 @@ export function SupplierProductsPage() {
 
       {/* Bulk Actions */}
       {selectedItems.length > 0 && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4 flex justify-between items-center">
-          <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-4 flex justify-between items-center">
+          <span className="text-sm font-medium text-green-800 dark:text-green-300">
             {selectedItems.length} item(s) selected
           </span>
           <div className="flex gap-2">
             {filters.include_deleted && (
               <button
                 onClick={handleBulkRestore}
-                className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700"
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
               >
                 Bulk Restore
               </button>
