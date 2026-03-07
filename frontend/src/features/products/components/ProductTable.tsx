@@ -199,7 +199,7 @@ export const ProductTable = ({
                       <button
                         onClick={() => onRestore(product.id)}
                         disabled={isDeleting}
-                        className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Restore
                       </button>
@@ -215,7 +215,7 @@ export const ProductTable = ({
                         <button
                           onClick={() => onEdit(product.id)}
                           disabled={isDeleting}
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Edit
                         </button>
