@@ -4,6 +4,7 @@ import { useProductUomsStore } from '../store/productUoms.store'
 import { ProductUomTable } from '../components/ProductUomTable'
 import { ProductUomForm } from '../components/ProductUomForm'
 import { useToast } from '@/contexts/ToastContext'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Package, Plus, ArrowLeft, X } from 'lucide-react'
 import type { ProductUom, CreateProductUomDto, UpdateProductUomDto } from '../types'
 import api from '@/lib/axios'
@@ -18,6 +19,7 @@ export default function ProductUomsPage() {
   const [editingUom, setEditingUom] = useState<ProductUom | undefined>()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showDeleted, setShowDeleted] = useState(false)
+  const [deleteData, setDeleteData] = useState<{ id: string; name: string } | null>(null)
 
   useEffect(() => {
     if (productId) {
@@ -56,20 +58,28 @@ export default function ProductUomsPage() {
     }
   }
 
-  const handleDelete = async (uomId: string) => {
+  const handleDelete = (uom: ProductUom) => {
     if (!productId || isSubmitting) return
+    setDeleteData({ id: uom.id, name: uom.metric_units?.unit_name || 'this UOM' })
+  }
 
-    if (!confirm('Are you sure you want to delete this UOM?')) return
+  const handleConfirmDelete = async () => {
+    if (!productId || !deleteData || isSubmitting) return
 
     setIsSubmitting(true)
     try {
-      await deleteUom(productId, uomId)
+      await deleteUom(productId, deleteData.id)
       success('UOM deleted successfully')
     } catch (err) {
       error(err instanceof Error ? err.message : 'Failed to delete UOM')
     } finally {
       setIsSubmitting(false)
+      setDeleteData(null)
     }
+  }
+
+  const handleCloseDeleteModal = () => {
+    setDeleteData(null)
   }
 
   const handleRestore = async (uomId: string) => {
@@ -191,6 +201,19 @@ export default function ProductUomsPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteData}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title="Delete UOM"
+        message={`Are you sure you want to delete "${deleteData?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isSubmitting}
+      />
     </div>
   )
 }

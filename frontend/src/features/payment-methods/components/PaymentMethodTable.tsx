@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { Edit2, Trash2, RotateCcw } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 import { TableSkeleton } from '@/components/ui/Skeleton'
 import { PaymentMethodStatusBadge } from './PaymentMethodStatusBadge'
 import type { PaymentMethod } from '../types'
@@ -28,9 +27,6 @@ export const PaymentMethodTable = ({
   onRestore, 
   loading 
 }: PaymentMethodTableProps) => {
-  const [deleteId, setDeleteId] = useState<number | null>(null)
-  const [restoreId, setRestoreId] = useState<number | null>(null)
-
   if (loading) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden border border-gray-200 dark:border-gray-700">
@@ -167,27 +163,28 @@ export const PaymentMethodTable = ({
                         <>
                           <button 
                             onClick={() => onEdit(method.id)} 
-                            className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 transition-colors flex items-center gap-1"
-                            title="Edit"
+                            className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 font-medium transition"
+                            aria-label={`Edit ${method.name}`}
                           >
-                            <Edit2 className="w-4 h-4" />
+                            Edit
                           </button>
                           <button 
-                            onClick={() => setDeleteId(method.id)} 
-                            className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors flex items-center gap-1"
-                            title="Delete"
+                            onClick={() => onDelete(method.id, method.name)} 
+                            className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-medium transition"
+                            aria-label={`Delete ${method.name}`}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            Delete
                           </button>
                         </>
                       )}
                       {isDeleted && (
                         <button 
-                          onClick={() => setRestoreId(method.id)} 
-                          className="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 transition-colors flex items-center gap-1"
-                          title="Restore"
+                          onClick={() => onRestore(method.id, method.name)} 
+                          className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 font-medium transition flex items-center gap-1"
+                          aria-label={`Restore ${method.name}`}
                         >
                           <RotateCcw className="w-4 h-4" />
+                          Restore
                         </button>
                       )}
                     </div>
@@ -198,66 +195,6 @@ export const PaymentMethodTable = ({
           </tbody>
         </table>
       </div>
-
-      {/* Delete Confirmation Modal */}
-      {deleteId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 border border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Delete Payment Method?</h3>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">
-              Are you sure you want to delete this payment method? This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setDeleteId(null)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  const method = paymentMethods.find(m => m.id === deleteId)
-                  if (method) onDelete(deleteId, method.name)
-                  setDeleteId(null)
-                }}
-                className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Restore Confirmation Modal */}
-      {restoreId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 border border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Restore Payment Method?</h3>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">
-              Are you sure you want to restore this payment method?
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setRestoreId(null)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  const method = paymentMethods.find(m => m.id === restoreId)
-                  if (method) onRestore(restoreId, method.name)
-                  setRestoreId(null)
-                }}
-                className="px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700"
-              >
-                Restore
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }

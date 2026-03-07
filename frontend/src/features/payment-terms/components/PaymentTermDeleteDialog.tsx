@@ -29,7 +29,7 @@ export const PaymentTermDeleteDialog = ({
           : `Are you sure you want to delete "${termName}"? This action can be reversed later.`
       }
       confirmText={isRestore ? 'Restore' : 'Delete'}
-      variant={isRestore ? 'info' : 'danger'}
+      variant={isRestore ? 'success' : 'danger'}
       isLoading={isLoading}
     />
   )

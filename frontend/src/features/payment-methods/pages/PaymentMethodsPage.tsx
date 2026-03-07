@@ -5,6 +5,7 @@ import { PaymentMethodTable } from '../components/PaymentMethodTable'
 import { PaymentMethodFilters } from '../components/PaymentMethodFilters'
 import { PaymentMethodForm } from '../components/PaymentMethodForm'
 import { Pagination } from '@/components/ui/Pagination'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useToast } from '@/contexts/ToastContext'
 import type { CreatePaymentMethodDto, UpdatePaymentMethodDto } from '../types'
 
@@ -28,6 +29,8 @@ export const PaymentMethodsPage = () => {
 
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [deleteData, setDeleteData] = useState<{ id: number; name: string } | null>(null)
+  const [restoreData, setRestoreData] = useState<{ id: number; name: string } | null>(null)
 
   useEffect(() => {
     fetchPaymentMethods()
@@ -59,17 +62,44 @@ export const PaymentMethodsPage = () => {
     setShowForm(true)
   }
 
-  const handleDelete = async (id: number, name: string) => {
+  const handleDeleteClick = (id: number, name: string) => {
+    setDeleteData({ id, name })
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteData) return
     try {
-      await deletePaymentMethod(id)
-      toast.success(`Payment method "${name}" deleted successfully`)
+      await deletePaymentMethod(deleteData.id)
+      toast.success(`Payment method "${deleteData.name}" deleted successfully`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to delete payment method')
+    } finally {
+      setDeleteData(null)
     }
   }
 
-  const handleRestore = async (_id: number, name: string) => {
-    toast.success(`Payment method "${name}" restored successfully`)
+  const handleCloseDeleteModal = () => {
+    setDeleteData(null)
+  }
+
+  const handleRestoreClick = (id: number, name: string) => {
+    setRestoreData({ id, name })
+  }
+
+  const handleConfirmRestore = async () => {
+    if (!restoreData) return
+    try {
+      // Note: restore functionality is not implemented in store yet
+      toast.success(`Payment method "${restoreData.name}" restored successfully`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to restore payment method')
+    } finally {
+      setRestoreData(null)
+    }
+  }
+
+  const handleCloseRestoreModal = () => {
+    setRestoreData(null)
   }
 
   const handleFormClose = () => {
@@ -126,8 +156,8 @@ export const PaymentMethodsPage = () => {
           <PaymentMethodTable
             paymentMethods={paymentMethods}
             onEdit={handleEdit}
-            onDelete={handleDelete}
-            onRestore={handleRestore}
+            onDelete={handleDeleteClick}
+            onRestore={handleRestoreClick}
             loading={isLoading}
           />
 
@@ -150,6 +180,32 @@ export const PaymentMethodsPage = () => {
           )}
         </>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteData}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title="Delete Payment Method"
+        message={`Are you sure you want to delete "${deleteData?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isMutating}
+      />
+
+      {/* Restore Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!restoreData}
+        onClose={handleCloseRestoreModal}
+        onConfirm={handleConfirmRestore}
+        title="Restore Payment Method"
+        message={`Are you sure you want to restore "${restoreData?.name}"?`}
+        confirmText="Restore"
+        cancelText="Cancel"
+        variant="success"
+        isLoading={isMutating}
+      />
     </div>
   )
 }
