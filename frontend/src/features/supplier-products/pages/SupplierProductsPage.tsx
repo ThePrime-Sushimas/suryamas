@@ -258,8 +258,6 @@ export function SupplierProductsPage() {
         onPreferredChange={handlePreferredChange}
         isActive={filters.is_active}
         onActiveChange={handleActiveChange}
-        pageSize={filters.limit || 10}
-        onPageSizeChange={handlePageSizeChange}
         onReset={handleResetFilters}
         includeDeleted={filters.include_deleted || false}
         onIncludeDeletedChange={(value) => setFilters(prev => ({ ...prev, include_deleted: value, page: 1 }))}

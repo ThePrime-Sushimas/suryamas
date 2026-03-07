@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { suppliersApi } from '@/features/suppliers/api/suppliers.api'
 import { productsApi } from '@/features/products/api/products.api'
-import { PAGE_SIZE_OPTIONS } from '../constants/supplier-product.constants'
 import type { Supplier } from '@/features/suppliers/types/supplier.types'
 import type { Product } from '@/features/products/types'
 
@@ -20,8 +19,6 @@ interface SupplierProductFiltersProps {
   onActiveChange: (value: boolean | undefined) => void
   includeDeleted: boolean
   onIncludeDeletedChange: (value: boolean) => void
-  pageSize: number
-  onPageSizeChange: (value: number) => void
   onReset: () => void
 }
 
@@ -36,8 +33,6 @@ export function SupplierProductFilters({
   onActiveChange,
   includeDeleted,
   onIncludeDeletedChange,
-  pageSize,
-  onPageSizeChange,
   onReset
 }: SupplierProductFiltersProps) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -89,7 +84,7 @@ export function SupplierProductFilters({
     return () => controller.abort()
   }, [])
 
-const handlePreferredChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handlePreferredChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value
     onPreferredChange(value === '' ? undefined : value === 'true')
   }
@@ -159,20 +154,6 @@ const handlePreferredChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
             <option value="">All</option>
             <option value="true">Active Only</option>
             <option value="false">Inactive Only</option>
-          </select>
-        </div>
-
-        {/* Page Size */}
-        <div className="w-40">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Show</label>
-          <select
-            value={pageSize}
-            onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            {PAGE_SIZE_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
           </select>
         </div>
 
