@@ -109,7 +109,7 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
     }
     if (baseUnit && selectedUnit) {
       return (
-        <span className="text-blue-600">
+        <span className="text-blue-600 dark:text-blue-400">
           1 {selectedUnit.unit_name} = {formData.conversion_factor.toLocaleString('id-ID')} {baseUnit.metric_units?.unit_name || '-'}
         </span>
       )
@@ -127,19 +127,19 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Basic Information Section */}
       <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider border-b border-gray-200 pb-2">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 pb-2">
           Basic Information
         </h3>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Unit <span className="text-red-500">*</span>
           </label>
           <select
             value={formData.metric_unit_id}
             onChange={e => setFormData({ ...formData, metric_unit_id: e.target.value, conversion_factor: 1 })}
             disabled={loading || isLoadingUnits}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             <option value="">{isLoadingUnits ? 'Loading...' : 'Select a unit'}</option>
             {metricUnits.map(unit => (
@@ -148,19 +148,19 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
               </option>
             ))}
           </select>
-          {errors.metric_unit_id && <p className="text-red-500 text-sm mt-1">{errors.metric_unit_id}</p>}
+          {errors.metric_unit_id && <p className="text-red-500 dark:text-red-400 text-sm mt-1">{errors.metric_unit_id}</p>}
         </div>
       </div>
 
       {/* Conversion Section */}
       <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider border-b border-gray-200 pb-2">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 pb-2">
           Conversion to Base Unit
         </h3>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Conversion Factor <span className="text-red-500">*</span>
             </label>
             <input
@@ -170,19 +170,19 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
               value={formData.conversion_factor}
               onChange={e => setFormData({ ...formData, conversion_factor: parseFloat(e.target.value) || 0 })}
               disabled={loading || formData.is_base_unit}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               placeholder="e.g., 1000"
             />
-            {errors.conversion_factor && <p className="text-red-500 text-sm mt-1">{errors.conversion_factor}</p>}
-            <p className="text-gray-500 text-xs mt-1">
+            {errors.conversion_factor && <p className="text-red-500 dark:text-red-400 text-sm mt-1">{errors.conversion_factor}</p>}
+            <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">
               {formData.is_base_unit 
                 ? 'Base unit: conversion factor is always 1'
                 : 'How many base units equal this unit'}
             </p>
           </div>
 
-          <div className="bg-gray-50 rounded-lg p-3">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Conversion Preview</label>
+          <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Conversion Preview</label>
             <div className="text-sm font-medium">
               {getConversionPreview()}
             </div>
@@ -192,16 +192,16 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
 
       {/* Price Section */}
       <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider border-b border-gray-200 pb-2">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 pb-2">
           Pricing
         </h3>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Base Price <span className="text-gray-400 font-normal">(per base unit)</span>
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">Rp</span>
             <input
               type="number"
               step="0.01"
@@ -209,12 +209,12 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
               value={formData.base_price || ''}
               onChange={e => setFormData({ ...formData, base_price: parseFloat(e.target.value) || 0 })}
               disabled={loading}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               placeholder="0"
             />
           </div>
-          {errors.base_price && <p className="text-red-500 text-sm mt-1">{errors.base_price}</p>}
-          <p className="text-gray-500 text-xs mt-1">
+          {errors.base_price && <p className="text-red-500 dark:text-red-400 text-sm mt-1">{errors.base_price}</p>}
+          <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">
             {baseUnit 
               ? `Price per 1 ${baseUnit.metric_units?.unit_name || 'base unit'}` 
               : 'Price per 1 base unit of this product'}
@@ -224,7 +224,7 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
 
       {/* Usage Flags Section */}
       <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider border-b border-gray-200 pb-2">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 pb-2">
           Usage & Status
         </h3>
 
@@ -232,22 +232,22 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
           {/* Is Base Unit */}
           <label className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-colors ${
             formData.is_base_unit 
-              ? 'border-blue-500 bg-blue-50' 
-              : 'border-gray-200 hover:border-gray-300'
+              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+              : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
           }`}>
             <input
               type="checkbox"
               checked={formData.is_base_unit}
               onChange={e => setFormData({ ...formData, is_base_unit: e.target.checked })}
               disabled={loading}
-              className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+              className="w-4 h-4 text-blue-600 dark:text-blue-400 rounded focus:ring-2 focus:ring-blue-500"
             />
             <div className="flex-1">
-              <span className="text-sm font-medium text-gray-900">Base Unit</span>
-              <p className="text-xs text-gray-500">Satuan dasar untuk konversi (hanya 1 per produk)</p>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">Base Unit</span>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Satuan dasar untuk konversi (hanya 1 per produk)</p>
             </div>
             {formData.is_base_unit && (
-              <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+              <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs font-medium rounded-full">
                 Required
               </span>
             )}
@@ -256,22 +256,22 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
           {/* Default Stock */}
           <label className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-colors ${
             formData.is_default_stock_unit 
-              ? 'border-green-500 bg-green-50' 
-              : 'border-gray-200 hover:border-gray-300'
+              ? 'border-green-500 bg-green-50 dark:bg-green-900/20' 
+              : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
           }`}>
             <input
               type="checkbox"
               checked={formData.is_default_stock_unit}
               onChange={e => setFormData({ ...formData, is_default_stock_unit: e.target.checked })}
               disabled={loading}
-              className="w-4 h-4 text-green-600 rounded focus:ring-2 focus:ring-green-500"
+              className="w-4 h-4 text-green-600 dark:text-green-400 rounded focus:ring-2 focus:ring-green-500"
             />
             <div className="flex-1">
-              <span className="text-sm font-medium text-gray-900">Default Stock Unit</span>
-              <p className="text-xs text-gray-500">Untuk laporan stok gudang</p>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">Default Stock Unit</span>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Untuk laporan stok gudang</p>
             </div>
             {formData.is_default_stock_unit && (
-              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+              <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-xs font-medium rounded-full">
                 Stock
               </span>
             )}
@@ -280,22 +280,22 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
           {/* Default Purchase */}
           <label className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-colors ${
             formData.is_default_purchase_unit 
-              ? 'border-purple-500 bg-purple-50' 
-              : 'border-gray-200 hover:border-gray-300'
+              ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20' 
+              : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
           }`}>
             <input
               type="checkbox"
               checked={formData.is_default_purchase_unit}
               onChange={e => setFormData({ ...formData, is_default_purchase_unit: e.target.checked })}
               disabled={loading}
-              className="w-4 h-4 text-purple-600 rounded focus:ring-2 focus:ring-purple-500"
+              className="w-4 h-4 text-purple-600 dark:text-purple-400 rounded focus:ring-2 focus:ring-purple-500"
             />
             <div className="flex-1">
-              <span className="text-sm font-medium text-gray-900">Default Purchase Unit</span>
-              <p className="text-xs text-gray-500">Untuk pembelian dari supplier</p>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">Default Purchase Unit</span>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Untuk pembelian dari supplier</p>
             </div>
             {formData.is_default_purchase_unit && (
-              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
+              <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 text-xs font-medium rounded-full">
                 Purchase
               </span>
             )}
@@ -304,22 +304,22 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
           {/* Default Transfer */}
           <label className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-colors ${
             formData.is_default_transfer_unit 
-              ? 'border-orange-500 bg-orange-50' 
-              : 'border-gray-200 hover:border-gray-300'
+              ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20' 
+              : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
           }`}>
             <input
               type="checkbox"
               checked={formData.is_default_transfer_unit}
               onChange={e => setFormData({ ...formData, is_default_transfer_unit: e.target.checked })}
               disabled={loading}
-              className="w-4 h-4 text-orange-600 rounded focus:ring-2 focus:ring-orange-500"
+              className="w-4 h-4 text-orange-600 dark:text-orange-400 rounded focus:ring-2 focus:ring-orange-500"
             />
             <div className="flex-1">
-              <span className="text-sm font-medium text-gray-900">Default Transfer Unit</span>
-              <p className="text-xs text-gray-500">Untuk transfer antar gudang/cabang</p>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">Default Transfer Unit</span>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Untuk transfer antar gudang/cabang</p>
             </div>
             {formData.is_default_transfer_unit && (
-              <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-medium rounded-full">
+              <span className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 text-xs font-medium rounded-full">
                 Transfer
               </span>
             )}
@@ -328,12 +328,12 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
 
         {/* Status */}
         <div className="pt-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
           <div className="flex gap-3">
             <label className={`flex-1 flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
               formData.status_uom === 'ACTIVE'
-                ? 'border-green-500 bg-green-50'
-                : 'border-gray-200 hover:border-gray-300'
+                ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
             }`}>
               <input
                 type="radio"
@@ -342,14 +342,14 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
                 checked={formData.status_uom === 'ACTIVE'}
                 onChange={e => setFormData({ ...formData, status_uom: e.target.value as UomStatus })}
                 disabled={loading}
-                className="w-4 h-4 text-green-600"
+                className="w-4 h-4 text-green-600 dark:text-green-400"
               />
-              <span className="text-sm font-medium">Active</span>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">Active</span>
             </label>
             <label className={`flex-1 flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
               formData.status_uom === 'INACTIVE'
-                ? 'border-gray-400 bg-gray-100'
-                : 'border-gray-200 hover:border-gray-300'
+                ? 'border-gray-400 bg-gray-100 dark:bg-gray-700'
+                : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
             }`}>
               <input
                 type="radio"
@@ -358,12 +358,12 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
                 checked={formData.status_uom === 'INACTIVE'}
                 onChange={e => setFormData({ ...formData, status_uom: e.target.value as UomStatus })}
                 disabled={loading}
-                className="w-4 h-4 text-gray-600"
+                className="w-4 h-4 text-gray-600 dark:text-gray-400"
               />
-              <span className="text-sm font-medium">Inactive</span>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">Inactive</span>
             </label>
           </div>
-          <p className="text-gray-500 text-xs mt-1">
+          <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">
             {formData.status_uom === 'INACTIVE' 
               ? 'Inactive units cannot be used in transactions' 
               : 'Active units are available for use'}
@@ -372,11 +372,11 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-3 pt-4 border-t border-gray-200">
+      <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
         <button
           type="submit"
           disabled={loading || isLoadingUnits}
-          className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+          className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
         >
           {loading ? 'Saving...' : uom ? 'Update UOM' : 'Create UOM'}
         </button>
@@ -384,7 +384,7 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
           type="button"
           onClick={onCancel}
           disabled={loading || isLoadingUnits}
-          className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors font-medium"
+          className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors font-medium"
         >
           Cancel
         </button>
