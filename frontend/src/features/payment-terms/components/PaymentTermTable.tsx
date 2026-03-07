@@ -1,4 +1,4 @@
-import { Edit2, Trash2, RotateCcw } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { PaymentTerm, CalculationType } from '../types'
 import { PaymentTermStatusBadge } from './PaymentTermStatusBadge'
@@ -130,18 +130,15 @@ export const PaymentTermTable = ({
                       <>
                         <button 
                           onClick={() => onEdit(term.id)} 
-                          className="text-blue-600 hover:text-blue-900 transition-colors flex items-center gap-1"
-                          aria-label={`Edit ${term.term_name}`}
+                          className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 font-medium transition"                          aria-label={`Edit ${term.term_name}`}
                         >
-                          <Edit2 className="w-4 h-4" />
                           Edit
                         </button>
                         <button 
                           onClick={() => onDelete(term.id, term.term_name)} 
-                          className="text-red-600 hover:text-red-900 transition-colors flex items-center gap-1"
+                          className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-medium transition"
                           aria-label={`Delete ${term.term_name}`}
                         >
-                          <Trash2 className="w-4 h-4" />
                           Delete
                         </button>
                       </>

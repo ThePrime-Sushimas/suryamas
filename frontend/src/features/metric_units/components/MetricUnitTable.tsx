@@ -72,7 +72,7 @@ export const MetricUnitTable = ({ metricUnits, onEdit, onDelete, onRestore, load
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                 <button 
                   onClick={() => onEdit(unit.id)} 
-                  className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                  className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 transition-colors"
                   aria-label={`Edit ${unit.unit_name}`}
                 >
                   Edit
@@ -88,7 +88,7 @@ export const MetricUnitTable = ({ metricUnits, onEdit, onDelete, onRestore, load
                 ) : (
                   <button 
                     onClick={() => handleRestore(unit)} 
-                    className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 transition-colors"
+                    className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
                     aria-label={`Restore ${unit.unit_name}`}
                   >
                     Restore
