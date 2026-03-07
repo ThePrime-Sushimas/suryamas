@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useCompaniesStore } from '../store/companies.store'
 import { useToast } from '@/contexts/ToastContext'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { BankAccountsSection } from '@/features/bank-accounts'
 
 function CompanyDetailPage() {
@@ -10,6 +11,8 @@ function CompanyDetailPage() {
   const { selectedCompany, loading, getCompanyById, deleteCompany, reset } = useCompaniesStore()
   const { success, error } = useToast()
   const [activeTab, setActiveTab] = useState<'overview' | 'bank-accounts'>('overview')
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -21,15 +24,29 @@ function CompanyDetailPage() {
     return () => reset()
   }, [id, getCompanyById, navigate, reset, error])
 
-  const handleDelete = async () => {
-    if (!id || !confirm('Are you sure you want to delete this company?')) return
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!id) return
     
+    setIsDeleting(true)
     try {
       await deleteCompany(id)
       success('Company deleted successfully')
       navigate('/companies')
     } catch {
       error('Failed to delete company')
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteConfirm(false)
+    }
+  }
+
+  const handleCloseDeleteConfirm = () => {
+    if (!isDeleting) {
+      setShowDeleteConfirm(false)
     }
   }
 
@@ -49,7 +66,7 @@ function CompanyDetailPage() {
               Edit
             </button>
             <button
-              onClick={handleDelete}
+              onClick={handleDeleteClick}
               className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
             >
               Delete
@@ -132,6 +149,18 @@ function CompanyDetailPage() {
       >
         Back to List
       </button>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title="Delete Company"
+        message={`Are you sure you want to delete "${selectedCompany?.company_name}"? This action cannot be undone.`}
+        confirmText={isDeleting ? 'Deleting...' : 'Delete'}
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onClose={handleCloseDeleteConfirm}
+      />
     </div>
   )
 }
