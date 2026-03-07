@@ -41,8 +41,8 @@ export function SupplierDetailPage() {
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
+      <div className="p-6 flex items-center justify-center bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="text-gray-600 dark:text-gray-400">Loading...</div>
       </div>
     )
   }
@@ -52,26 +52,26 @@ export function SupplierDetailPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
       <button
         onClick={() => navigate('/suppliers')}
-        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
+        className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to Suppliers
       </button>
 
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
         {/* Header */}
-        <div className="p-6 border-b">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex justify-between items-start">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-2xl font-bold text-gray-900">{supplier.supplier_name}</h1>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{supplier.supplier_name}</h1>
                 <SupplierStatusBadge isActive={supplier.is_active} />
                 <SupplierTypeBadge type={supplier.supplier_type} />
               </div>
-              <p className="text-gray-600">{supplier.supplier_code}</p>
+              <p className="text-gray-600 dark:text-gray-400">{supplier.supplier_code}</p>
             </div>
             <Link
               to={`/suppliers/${supplier.id}/edit`}
@@ -84,14 +84,14 @@ export function SupplierDetailPage() {
         </div>
 
         {/* Tabs */}
-        <div className="border-b">
+        <div className="border-b border-gray-200 dark:border-gray-700">
           <div className="flex gap-4 px-6">
             <button
               onClick={() => setActiveTab('overview')}
               className={`py-3 px-4 border-b-2 font-medium transition-colors ${
                 activeTab === 'overview'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               Overview
@@ -100,8 +100,8 @@ export function SupplierDetailPage() {
               onClick={() => setActiveTab('bank-accounts')}
               className={`py-3 px-4 border-b-2 font-medium transition-colors ${
                 activeTab === 'bank-accounts'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               Bank Accounts
@@ -114,43 +114,43 @@ export function SupplierDetailPage() {
           {activeTab === 'overview' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-1">Supplier Code</h3>
-                <p className="text-gray-900">{supplier.supplier_code}</p>
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Supplier Code</h3>
+                <p className="text-gray-900 dark:text-white">{supplier.supplier_code}</p>
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-1">Supplier Name</h3>
-                <p className="text-gray-900">{supplier.supplier_name}</p>
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Supplier Name</h3>
+                <p className="text-gray-900 dark:text-white">{supplier.supplier_name}</p>
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-1">Type</h3>
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Type</h3>
                 <SupplierTypeBadge type={supplier.supplier_type} />
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-1">Status</h3>
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Status</h3>
                 <SupplierStatusBadge isActive={supplier.is_active} />
               </div>
               {supplier.contact_person && (
                 <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-1">Contact Person</h3>
-                  <p className="text-gray-900">{supplier.contact_person}</p>
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Contact Person</h3>
+                  <p className="text-gray-900 dark:text-white">{supplier.contact_person}</p>
                 </div>
               )}
               {supplier.phone && (
                 <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-1">Phone</h3>
-                  <p className="text-gray-900">{supplier.phone}</p>
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Phone</h3>
+                  <p className="text-gray-900 dark:text-white">{supplier.phone}</p>
                 </div>
               )}
               {supplier.email && (
                 <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-1">Email</h3>
-                  <p className="text-gray-900">{supplier.email}</p>
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Email</h3>
+                  <p className="text-gray-900 dark:text-white">{supplier.email}</p>
                 </div>
               )}
               {supplier.address && (
                 <div className="md:col-span-2">
-                  <h3 className="text-sm font-medium text-gray-500 mb-1">Address</h3>
-                  <p className="text-gray-900">{supplier.address}</p>
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Address</h3>
+                  <p className="text-gray-900 dark:text-white">{supplier.address}</p>
                 </div>
               )}
             </div>
@@ -164,3 +164,4 @@ export function SupplierDetailPage() {
     </div>
   )
 }
+

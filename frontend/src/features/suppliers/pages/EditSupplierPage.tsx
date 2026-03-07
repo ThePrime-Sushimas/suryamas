@@ -54,8 +54,8 @@ export function EditSupplierPage() {
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
+      <div className="p-6 flex items-center justify-center bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="text-gray-600 dark:text-gray-400">Loading...</div>
       </div>
     )
   }
@@ -65,10 +65,10 @@ export function EditSupplierPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Edit Supplier</h1>
-        <p className="text-gray-600 mt-1">Update supplier information</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Supplier</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Update supplier information</p>
       </div>
 
       <SupplierForm
@@ -82,3 +82,4 @@ export function EditSupplierPage() {
     </div>
   )
 }
+

@@ -24,10 +24,10 @@ export function CreateSupplierPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Add New Supplier</h1>
-        <p className="text-gray-600 mt-1">Create a new supplier record</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Add New Supplier</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Create a new supplier record</p>
       </div>
 
       <SupplierForm
@@ -39,3 +39,4 @@ export function CreateSupplierPage() {
     </div>
   )
 }
+
