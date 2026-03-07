@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCompaniesStore } from '../store/companies.store'
 import { CompanyTable } from '../components/CompanyTable'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useToast } from '@/contexts/ToastContext'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { Building2, Plus, Search, Filter, X } from 'lucide-react'
@@ -10,6 +11,12 @@ import { Pagination } from '@/components/ui/Pagination'
 type CompanyFilter = {
   status?: 'active' | 'inactive' | 'suspended' | 'closed'
   company_type?: 'PT' | 'CV' | 'Firma' | 'Koperasi' | 'Yayasan'
+}
+
+type ConfirmState = {
+  open: boolean
+  id: string
+  name: string
 }
 
 export default function CompaniesPage() {
@@ -28,11 +35,11 @@ export default function CompaniesPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<CompanyFilter>({ status: 'active' })
   const [showFilter, setShowFilter] = useState(false)
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   
-  // Debounced search
   const debouncedSearch = useDebounce(search, 500)
-  
-  const { error } = useToast()
+  const toast = useToast()
   
   const activeFilterCount = useMemo(() => {
     let count = 0
@@ -41,7 +48,6 @@ export default function CompaniesPage() {
     return count
   }, [filter.status, filter.company_type])
 
-  // Handle search with debounce using useEffect
   useEffect(() => {
     const newFilters = { ...filter } as Record<string, unknown>
     if (debouncedSearch) {
@@ -57,32 +63,43 @@ export default function CompaniesPage() {
   }, [])
 
   useEffect(() => {
-    return () => {
-      reset()
-    }
+    return () => { reset() }
   }, [reset])
 
-  // Initial load - only once
   useEffect(() => {
     fetchCompanies(1, pagination.limit, undefined, filter)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Fetch data when page or limit changes
   useEffect(() => {
     fetchCompanies(pagination.page, pagination.limit, undefined, filter)
   }, [pagination.page, pagination.limit, fetchCompanies, filter])
 
-  const handleDelete = useCallback(async (id: string) => {
-    if (!confirm('Are you sure you want to delete this company? This will change the status to inactive.')) return
+  const handleDeleteClick = useCallback((id: string) => {
+    const company = companies.find(c => c.id === id)
+    setConfirm({ open: true, id, name: company?.company_name || 'this company' })
+  }, [companies])
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!confirm) return
     
+    setIsDeleting(true)
     try {
-      await deleteCompany(id)
+      await deleteCompany(confirm.id)
+      toast.success('Company deleted successfully')
       fetchCompanies(pagination.page, pagination.limit)
     } catch {
-      error('Failed to delete company')
+      toast.error('Failed to delete company')
+    } finally {
+      setIsDeleting(false)
+      setConfirm(null)
     }
-  }, [deleteCompany, fetchCompanies, pagination.page, pagination.limit, error])
+  }, [confirm, deleteCompany, fetchCompanies, pagination.page, pagination.limit, toast])
+
+  const handleCloseConfirm = useCallback(() => {
+    if (!isDeleting) {
+      setConfirm(null)
+    }
+  }, [isDeleting])
 
   const setFilterKey = useCallback(
     <K extends keyof CompanyFilter>(key: K, value?: CompanyFilter[K]) => {
@@ -90,7 +107,6 @@ export default function CompaniesPage() {
       if (!value) delete newFilter[key]
       else newFilter[key] = value
       setFilter(newFilter)
-      // Use store's setFilters to reset to page 1 automatically
       setFilters(newFilter)
     },
     [filter, setFilters]
@@ -188,10 +204,9 @@ export default function CompaniesPage() {
                 <option value="Yayasan">Yayasan</option>
               </select>
             </div>
-          </div>
-        )}
+        )
       </div>
-
+        )}
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
         {loading ? (
@@ -202,7 +217,7 @@ export default function CompaniesPage() {
               companies={companies}
               onView={id => navigate(`/companies/${id}`)}
               onEdit={id => navigate(`/companies/${id}/edit`)}
-              onDelete={handleDelete}
+              onDelete={handleDeleteClick}
               canEdit={true}
               canDelete={true}
             />
@@ -219,6 +234,18 @@ export default function CompaniesPage() {
           </>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirm?.open || false}
+        title="Delete Company"
+        message={`Are you sure you want to delete "${confirm?.name}"? This will change the status to inactive.`}
+        confirmText={isDeleting ? 'Deleting...' : 'Delete'}
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onClose={handleCloseConfirm}
+      />
     </div>
   )
-}
+</div>)}
