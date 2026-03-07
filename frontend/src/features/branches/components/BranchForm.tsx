@@ -13,8 +13,11 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
   const { companies, fetchCompanies } = useCompaniesStore()
 
   useEffect(() => {
-    fetchCompanies(1, 1000)
-  }, [fetchCompanies])
+    // Only fetch if companies list is empty
+    if (companies.length === 0) {
+      fetchCompanies(1, 1000)
+    }
+  }, [fetchCompanies, companies.length])
 
   const [formData, setFormData] = useState({
     company_id: initialData?.company_id || '',

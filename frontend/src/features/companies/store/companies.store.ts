@@ -25,6 +25,7 @@ interface CompaniesState {
   pagination: Pagination
   filters: CompanyFilters
   searchQuery: string
+  lastFetchedAt: number | null
   
   fetchCompanies: (page: number, limit: number, sort?: { field: string; order: string }, filter?: Record<string, unknown>) => Promise<void>
   searchCompanies: (q: string, page: number, limit: number, filter?: Record<string, unknown>) => Promise<void>
@@ -47,13 +48,27 @@ const initialState = {
   error: null,
   pagination: { page: 1, limit: 25, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
   filters: {},
-  searchQuery: ''
+  searchQuery: '',
+  lastFetchedAt: null as number | null
 }
 
 export const useCompaniesStore = create<CompaniesState>((set, get) => ({
   ...initialState,
 
   fetchCompanies: async (page, limit, sort, filter) => {
+    const { companies, lastFetchedAt } = get()
+    const now = Date.now()
+    const CACHE_TTL = 5 * 60 * 1000 // 5 minutes cache
+
+    // Skip fetch if we have data and it's still fresh (within TTL)
+    // and the request is for page 1 with reasonable limit
+    if (companies.length > 0 && lastFetchedAt && (now - lastFetchedAt) < CACHE_TTL) {
+      // Still update pagination if parameters changed, but skip the API call
+      if (page === 1 && (limit === 25 || limit === 100)) {
+        return
+      }
+    }
+
     set({ loading: true, error: null, filters: filter || {}, searchQuery: '' })
     try {
       const res = await companiesApi.list(page, limit, sort, filter)
@@ -61,6 +76,7 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
       set({ 
         companies: res.data, 
         loading: false,
+        lastFetchedAt: Date.now(),
         pagination: {
           page: res.pagination.page,
           limit: res.pagination.limit,
@@ -193,6 +209,7 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
     error: null,
     pagination: { page: 1, limit: 25, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
     filters: {},
-    searchQuery: ''
+    searchQuery: '',
+    lastFetchedAt: null
   })
 }))

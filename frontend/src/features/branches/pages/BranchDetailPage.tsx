@@ -75,6 +75,7 @@ function BranchDetailPage() {
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [deletingEmployee, setDeletingEmployee] = useState<string | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [employeeToDelete, setEmployeeToDelete] = useState<{ id: string; name: string } | null>(null)
   const { success, error: showError } = useToast()
 
   const ITEMS_PER_PAGE = 10
@@ -172,20 +173,29 @@ function BranchDetailPage() {
     }))
   }
 
-  const handleRemoveEmployee = async (employeeId: string, employeeName: string) => {
-    if (!confirm(`Hapus ${employeeName} dari cabang ini?`)) return
+  const handleRemoveEmployee = (employeeId: string, employeeName: string) => {
+    setEmployeeToDelete({ id: employeeId, name: employeeName })
+  }
 
-    setDeletingEmployee(employeeId)
+  const handleConfirmRemoveEmployee = async () => {
+    if (!employeeToDelete) return
+    
+    setDeletingEmployee(employeeToDelete.id)
     try {
-      await employeeBranchesApi.removeByEmployeeAndBranch(employeeId, id!)
-      setEmployees(prev => prev.filter(emp => emp.employee_id !== employeeId))
+      await employeeBranchesApi.removeByEmployeeAndBranch(employeeToDelete.id, id!)
+      setEmployees(prev => prev.filter(emp => emp.employee_id !== employeeToDelete.id))
       success('Employee berhasil dihapus dari cabang')
     } catch (err) {
       console.error('Failed to remove employee:', err)
       showError('Gagal menghapus employee dari cabang')
     } finally {
       setDeletingEmployee(null)
+      setEmployeeToDelete(null)
     }
+  }
+
+  const handleCloseEmployeeDeleteModal = () => {
+    setEmployeeToDelete(null)
   }
 
   if (loading) {
@@ -1156,6 +1166,19 @@ function BranchDetailPage() {
         cancelText="Cancel"
         variant="danger"
         isLoading={deleting}
+      />
+
+      {/* Employee Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!employeeToDelete}
+        onClose={handleCloseEmployeeDeleteModal}
+        onConfirm={handleConfirmRemoveEmployee}
+        title="Remove Employee from Branch"
+        message={`Are you sure you want to remove ${employeeToDelete?.name} from this branch? They will lose access to this branch's data and permissions.`}
+        confirmText="Remove"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={!!deletingEmployee}
       />
     </div>
   )

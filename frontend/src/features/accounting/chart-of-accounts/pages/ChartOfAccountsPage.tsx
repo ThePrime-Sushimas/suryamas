@@ -120,8 +120,11 @@ export default function ChartOfAccountsPage() {
 
 
   useEffect(() => {
-    fetchCompanies(1, 100) // Load companies to get company name
-  }, [fetchCompanies])
+    // Only fetch if companies list is empty
+    if (companies.length === 0) {
+      fetchCompanies(1, 100) // Load companies to get company name
+    }
+  }, [fetchCompanies, companies.length])
 
   useEffect(() => {
     return () => {
