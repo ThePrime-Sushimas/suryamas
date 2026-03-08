@@ -9,7 +9,6 @@ import ExportButton from '@/components/ExportButton'
 import { useToast } from '@/contexts/ToastContext'
 import { useBranchContext } from '@/features/branch_context/hooks/useBranchContext'
 import type { AccountingPurposeAccountFilter, AccountingPurposeAccountWithDetails } from '../types/accounting-purpose-account.types'
-import { DEFAULT_PAGE_SIZE } from '../constants/accounting-purpose-account.constants'
 
 export const AccountingPurposeAccountsListPage = () => {
   const navigate = useNavigate()
@@ -46,7 +45,8 @@ export const AccountingPurposeAccountsListPage = () => {
     if (branchContext?.company_id) {
       fetchPostableAccounts()
       fetchActivePurposes()
-      fetchAccounts(1, DEFAULT_PAGE_SIZE, sort, filter)
+      // Fetch all data for buku besar pembantu view (no pagination limit)
+      fetchAccounts(1, 1000, sort, filter)
     }
   }, [branchContext?.company_id, fetchPostableAccounts, fetchActivePurposes, fetchAccounts, sort, filter])
 
@@ -196,22 +196,24 @@ export const AccountingPurposeAccountsListPage = () => {
           />
         </div>
 
-        {/* Global Pagination Component */}
+        {/* Global Pagination Component - Hidden for buku besar pembantu view */}
         {pagination.total > 0 && (
-          <Pagination
-            pagination={{
-              page: pagination.page,
-              limit: pagination.limit,
-              total: pagination.total,
-              totalPages: pagination.totalPages,
-              hasNext: pagination.page < pagination.totalPages,
-              hasPrev: pagination.page > 1
-            }}
-            onPageChange={handlePageChange}
-            onLimitChange={handleLimitChange}
-            currentLength={accounts.length}
-            loading={loading.list}
-          />
+          <div className="hidden">
+            <Pagination
+              pagination={{
+                page: pagination.page,
+                limit: pagination.limit,
+                total: pagination.total,
+                totalPages: pagination.totalPages,
+                hasNext: pagination.page < pagination.totalPages,
+                hasPrev: pagination.page > 1
+              }}
+              onPageChange={handlePageChange}
+              onLimitChange={handleLimitChange}
+              currentLength={accounts.length}
+              loading={loading.list}
+            />
+          </div>
         )}
       </div>
 
