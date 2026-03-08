@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import type { AccountingPurposeAccountWithDetails } from '../types/accounting-purpose-account.types'
 import { SideBadge } from './SideBadge'
-import { PriorityBadge } from './PriorityBadge'
 import { useBulkSelection } from '@/hooks/_shared/useBulkSelection'
 
 interface AccountingPurposeAccountTableProps {
@@ -13,6 +12,12 @@ interface AccountingPurposeAccountTableProps {
   sortField?: string
   sortOrder?: 'asc' | 'desc'
   onBulkAction?: (action: 'activate' | 'deactivate' | 'delete', ids: string[]) => void
+}
+
+type GroupedAccounts = {
+  purposeCode: string
+  purposeName: string
+  accounts: AccountingPurposeAccountWithDetails[]
 }
 
 export const AccountingPurposeAccountTable = ({
@@ -35,9 +40,32 @@ export const AccountingPurposeAccountTable = ({
     clearSelection
   } = useBulkSelection(accounts)
 
+  const groupedAccounts = useMemo(() => {
+    const groups: GroupedAccounts[] = []
+    const purposeMap = new Map<string, AccountingPurposeAccountWithDetails[]>()
+
+    accounts.forEach((account) => {
+      const purposeKey = account.purpose_code || 'UNKNOWN'
+      if (!purposeMap.has(purposeKey)) {
+        purposeMap.set(purposeKey, [])
+      }
+      purposeMap.get(purposeKey)!.push(account)
+    })
+
+    purposeMap.forEach((accs, purposeCode) => {
+      const firstAccount = accs[0]
+      groups.push({
+        purposeCode,
+        purposeName: firstAccount.purpose_name || 'Unknown Purpose',
+        accounts: accs
+      })
+    })
+
+    return groups.sort((a, b) => a.purposeCode.localeCompare(b.purposeCode))
+  }, [accounts])
+
   const sortableColumns = useMemo(() => ({
     priority: 'Priority',
-    side: 'Side',
     created_at: 'Created',
     updated_at: 'Updated'
   }), [])
@@ -54,12 +82,27 @@ export const AccountingPurposeAccountTable = ({
     }
   }
 
+  const handleSelectAllInGroup = (groupAccounts: AccountingPurposeAccountWithDetails[], checked: boolean) => {
+    groupAccounts.forEach(account => {
+      selectOne(account.id, checked)
+    })
+  }
+
+  const isAllSelectedInGroup = (groupAccounts: AccountingPurposeAccountWithDetails[]) => {
+    return groupAccounts.every(account => isSelected(account.id))
+  }
+
   if (loading) {
     return (
-      <div className="animate-pulse">
+      <div className="animate-pulse space-y-6">
         <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-16 bg-gray-100 dark:bg-gray-800 rounded mb-2"></div>
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            <div className="h-8 bg-gray-300 dark:bg-gray-600"></div>
+            {[...Array(3)].map((_, j) => (
+              <div key={j} className="h-16 bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700"></div>
+            ))}
+          </div>
         ))}
       </div>
     )
@@ -95,119 +138,172 @@ export const AccountingPurposeAccountTable = ({
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-800">
-            <tr>
-              <th className="px-6 py-3 text-left">
-                <input
-                  type="checkbox"
-                  checked={isAllSelected}
-                  onChange={(e) => selectAll(e.target.checked)}
-                  className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700"
-                />
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Purpose
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Account
-              </th>
-              {Object.entries(sortableColumns).map(([field, label]) => (
-                <th
-                  key={field}
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-                  onClick={() => onSort(field)}
-                >
-                  <div className="flex items-center space-x-1">
-                    <span>{label}</span>
-                    <span className="text-gray-400">{getSortIcon(field)}</span>
-                  </div>
-                </th>
-              ))}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-            {accounts.map((account) => (
-              <tr key={account.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                <td className="px-6 py-4">
-                  <input
-                    type="checkbox"
-                    checked={isSelected(account.id)}
-                    onChange={(e) => selectOne(account.id, e.target.checked)}
-                    className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700"
-                  />
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div>
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">
-                      {account.purpose_code}
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      {account.purpose_name}
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div>
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">
-                      {account.account_code}
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      {account.account_name}
-                    </div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500">
-                      {account.account_type} • {account.normal_balance}
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <PriorityBadge priority={account.priority} />
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <SideBadge side={account.side} />
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  {account.created_at ? new Date(account.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  {account.updated_at ? new Date(account.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                    account.is_active 
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
-                      : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                  }`}>
-                    {account.is_active ? 'Active' : 'Inactive'}
+      {/* buku besar pembantu style - grouped by purpose */}
+      <div className="space-y-6">
+        {groupedAccounts.map((group) => (
+          <div 
+            key={group.purposeCode} 
+            className="border-2 border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm"
+          >
+            {/* Purpose Header - Like a ledger page header */}
+            <div className="bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 px-6 py-4 border-b-2 border-gray-300 dark:border-gray-600">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">
+                    {group.purposeCode}
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {group.purposeName}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Buku Besar Pembantu
                   </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <div className="flex justify-end space-x-2">
-                    <button
-                      onClick={() => onEdit(account)}
-                      className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => onDelete(account)}
-                      className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
-                    >
-                      Delete
-                    </button>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {group.accounts.length} akun
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Table Header - like journal header */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead className="bg-gray-50 dark:bg-gray-800">
+                  <tr>
+                    <th className="px-4 py-2 w-10">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelectedInGroup(group.accounts)}
+                        onChange={(e) => handleSelectAllInGroup(group.accounts, e.target.checked)}
+                        className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700"
+                      />
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">
+                      Kode Akun
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Nama Akun
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">
+                      Tipe
+                    </th>
+                    <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
+                      Priority
+                    </th>
+                    {/* Debit/Kredit columns side by side - like journal */}
+                    <th className="px-4 py-2 text-center text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wider w-24 bg-blue-50 dark:bg-blue-900/20">
+                      Debit
+                    </th>
+                    <th className="px-4 py-2 text-center text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wider w-24 bg-green-50 dark:bg-green-900/20">
+                      Kredit
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
+                      Status
+                    </th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                  {group.accounts.map((account) => (
+                    <tr key={account.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected(account.id)}
+                          onChange={(e) => selectOne(account.id, e.target.checked)}
+                          className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700"
+                        />
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-sm font-mono font-medium text-gray-900 dark:text-white">
+                          {account.account_code}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-sm text-gray-900 dark:text-white">
+                          {account.account_name}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {account.account_type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-center">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                          {account.priority}
+                        </span>
+                      </td>
+                      {/* Side by side Debit/Kredit - like journal */}
+                      <td className="px-4 py-3 whitespace-nowrap text-center bg-blue-50 dark:bg-blue-900/10">
+                        {account.side === 'DEBIT' ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-bold text-blue-600 dark:text-blue-400">
+                            ✓
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 dark:text-gray-600">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-center bg-green-50 dark:bg-green-900/10">
+                        {account.side === 'CREDIT' ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-bold text-green-600 dark:text-green-400">
+                            ✓
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 dark:text-gray-600">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          account.is_active 
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
+                            : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                        }`}>
+                          {account.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end space-x-3">
+                          <button
+                            onClick={() => onEdit(account)}
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => onDelete(account)}
+                            className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                {/* Total row for each purpose group */}
+                <tfoot className="bg-gray-100 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
+                  <tr>
+                    <td colSpan={5} className="px-4 py-2 text-right text-xs font-bold text-gray-600 dark:text-gray-400 uppercase">
+                      Total Akun:
+                    </td>
+                    <td className="px-4 py-2 text-center text-xs font-bold text-blue-600 dark:text-blue-400">
+                      {group.accounts.filter(a => a.side === 'DEBIT').length}
+                    </td>
+                    <td className="px-4 py-2 text-center text-xs font-bold text-green-600 dark:text-green-400">
+                      {group.accounts.filter(a => a.side === 'CREDIT').length}
+                    </td>
+                    <td colSpan={2}></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        ))}
       </div>
 
       {accounts.length === 0 && (
