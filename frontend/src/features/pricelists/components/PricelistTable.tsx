@@ -91,7 +91,7 @@ const PricelistRow = memo(function PricelistRow({
             {isDeleted && onRestore ? (
               <button
                 onClick={(e) => { e.stopPropagation(); onRestore(pricelist.id) }}
-                className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
               >
                 Restore
               </button>
