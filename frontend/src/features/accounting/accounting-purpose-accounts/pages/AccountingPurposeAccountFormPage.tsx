@@ -81,11 +81,11 @@ export const AccountingPurposeAccountFormPage = () => {
   if (isEdit && loading.detail) {
     return (
       <div className="animate-pulse space-y-6">
-        <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
         <div className="space-y-4">
-          <div className="h-10 bg-gray-200 rounded"></div>
-          <div className="h-10 bg-gray-200 rounded"></div>
-          <div className="h-10 bg-gray-200 rounded"></div>
+          <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
         </div>
       </div>
     )
@@ -94,7 +94,7 @@ export const AccountingPurposeAccountFormPage = () => {
   if (isEdit && !selectedAccount) {
     return (
       <div className="text-center py-12">
-        <div className="text-gray-500">Account mapping not found</div>
+        <div className="text-gray-500 dark:text-gray-400">Account mapping not found</div>
       </div>
     )
   }
@@ -108,23 +108,25 @@ export const AccountingPurposeAccountFormPage = () => {
   } : undefined
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">
-          {isEdit ? 'Edit' : 'Create'} Purpose Account Mapping
-        </h1>
-        <p className="text-sm text-gray-600">
-          {isEdit ? 'Update the' : 'Create a new'} accounting purpose to account mapping
-        </p>
-      </div>
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 p-6">
+      <div className="max-w-2xl mx-auto w-full space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+            {isEdit ? 'Edit' : 'Create'} Purpose Account Mapping
+          </h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {isEdit ? 'Update the' : 'Create a new'} accounting purpose to account mapping
+          </p>
+        </div>
 
-      <div className="bg-white shadow rounded-lg p-6">
-        <AccountingPurposeAccountForm
-          initialData={initialData}
-          onSubmit={handleSubmit}
-          onCancel={handleCancel}
-          isEdit={isEdit}
-        />
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+          <AccountingPurposeAccountForm
+            initialData={initialData}
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
+            isEdit={isEdit}
+          />
+        </div>
       </div>
     </div>
   )

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useAccountingPurposeAccountsStore } from '../store/accountingPurposeAccounts.store'
 import { AccountingPurposeAccountTable } from '../components/AccountingPurposeAccountTable'
 import { AccountingPurposeAccountFilters } from '../components/AccountingPurposeAccountFilters'
+import { Pagination } from '@/components/ui/Pagination'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import ExportButton from '@/components/ExportButton'
 import { useToast } from '@/contexts/ToastContext'
 import { useBranchContext } from '@/features/branch_context/hooks/useBranchContext'
@@ -29,6 +31,15 @@ export const AccountingPurposeAccountsListPage = () => {
 
   const [filter, setFilter] = useState<AccountingPurposeAccountFilter>({})
   const [sort, setSort] = useState<{ field: string; order: 'asc' | 'desc' }>({ field: 'priority', order: 'asc' })
+  
+  // Delete modal state
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [accountToDelete, setAccountToDelete] = useState<AccountingPurposeAccountWithDetails | null>(null)
+  
+  // Bulk delete modal state
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false)
+  const [bulkActionIds, setBulkActionIds] = useState<string[]>([])
+  const [bulkActionType, setBulkActionType] = useState<'activate' | 'deactivate' | 'delete'>('delete')
 
   // Reload data when company changes
   useEffect(() => {
@@ -50,6 +61,10 @@ export const AccountingPurposeAccountsListPage = () => {
     fetchAccounts(page, pagination.limit, sort, filter)
   }, [fetchAccounts, pagination.limit, sort, filter])
 
+  const handleLimitChange = useCallback((newLimit: number) => {
+    fetchAccounts(1, newLimit, sort, filter)
+  }, [fetchAccounts, sort, filter])
+
   const handleSort = useCallback((field: string) => {
     const newOrder: 'asc' | 'desc' = sort.field === field && sort.order === 'asc' ? 'desc' : 'asc'
     const newSort = { field, order: newOrder }
@@ -66,46 +81,72 @@ export const AccountingPurposeAccountsListPage = () => {
     navigate(`/accounting-purpose-accounts/${account.id}/edit`)
   }, [navigate])
 
-  const handleDelete = useCallback(async (account: AccountingPurposeAccountWithDetails) => {
-    if (confirm(`Delete mapping for ${account.account_code}?`)) {
-      try {
-        await deleteAccount(account.id)
-        success('Account mapping deleted successfully')
-      } catch (err) {
-        console.error('Delete error:', err)
-        error('Failed to delete account mapping')
-      }
-    }
-  }, [deleteAccount, success, error])
+  const handleDelete = useCallback((account: AccountingPurposeAccountWithDetails) => {
+    setAccountToDelete(account)
+    setIsDeleteModalOpen(true)
+  }, [])
 
-  const handleBulkAction = useCallback(async (action: 'activate' | 'deactivate' | 'delete', ids: string[]) => {
+  const handleConfirmDelete = async () => {
+    if (!accountToDelete) return
+    
     try {
-      if (action === 'delete') {
-        if (confirm(`Delete ${ids.length} account mappings?`)) {
-          await Promise.all(ids.map(id => deleteAccount(id)))
-          success(`${ids.length} account mappings deleted`)
-        }
+      await deleteAccount(accountToDelete.id)
+      success('Account mapping deleted successfully')
+    } catch (err) {
+      console.error('Delete error:', err)
+      error('Failed to delete account mapping')
+    } finally {
+      setIsDeleteModalOpen(false)
+      setAccountToDelete(null)
+    }
+  }
+
+  const handleCloseDeleteModal = () => {
+    setIsDeleteModalOpen(false)
+    setAccountToDelete(null)
+  }
+
+  const handleBulkAction = useCallback((action: 'activate' | 'deactivate' | 'delete', ids: string[]) => {
+    setBulkActionIds(ids)
+    setBulkActionType(action)
+    if (action === 'delete') {
+      setIsBulkDeleteModalOpen(true)
+    }
+  }, [])
+
+  const handleConfirmBulkAction = async () => {
+    try {
+      if (bulkActionType === 'delete') {
+        await Promise.all(bulkActionIds.map(id => deleteAccount(id)))
+        success(`${bulkActionIds.length} account mappings deleted`)
       } else {
-        await bulkUpdateStatus(ids, action === 'activate')
-        success(`${ids.length} account mappings ${action}d`)
+        await bulkUpdateStatus(bulkActionIds, bulkActionType === 'activate')
+        success(`${bulkActionIds.length} account mappings ${bulkActionType}d`)
       }
     } catch (err) {
       console.error('Bulk action error:', err)
-      error(`Failed to ${action} account mappings`)
+      error(`Failed to ${bulkActionType} account mappings`)
+    } finally {
+      setIsBulkDeleteModalOpen(false)
+      setBulkActionIds([])
     }
-  }, [deleteAccount, bulkUpdateStatus, success, error])
+  }
 
-
+  const handleCloseBulkDeleteModal = () => {
+    setIsBulkDeleteModalOpen(false)
+    setBulkActionIds([])
+  }
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-full">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
               Purpose Account Mappings
             </h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Manage accounting purpose to account mappings
             </p>
           </div>
@@ -113,7 +154,7 @@ export const AccountingPurposeAccountsListPage = () => {
           <div className="flex gap-2 mt-4 sm:mt-0">
             <button
               onClick={() => navigate('/accounting-purpose-accounts/deleted')}
-              className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
             >
               Show Deleted
             </button>
@@ -132,59 +173,71 @@ export const AccountingPurposeAccountsListPage = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+      {/* Filters */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <AccountingPurposeAccountFilters
           filter={filter}
           onFilterChange={handleFilterChange}
         />
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <AccountingPurposeAccountTable
-          accounts={accounts}
-          loading={loading.list}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onSort={handleSort}
-          sortField={sort.field}
-          sortOrder={sort.order}
-          onBulkAction={handleBulkAction}
-        />
+      {/* Table */}
+      <div className="flex-1 overflow-auto p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <AccountingPurposeAccountTable
+            accounts={accounts}
+            loading={loading.list}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onSort={handleSort}
+            sortField={sort.field}
+            sortOrder={sort.order}
+            onBulkAction={handleBulkAction}
+          />
+        </div>
+
+        {/* Global Pagination Component */}
+        {pagination.total > 0 && (
+          <Pagination
+            pagination={{
+              page: pagination.page,
+              limit: pagination.limit,
+              total: pagination.total,
+              totalPages: pagination.totalPages,
+              hasNext: pagination.page < pagination.totalPages,
+              hasPrev: pagination.page > 1
+            }}
+            onPageChange={handlePageChange}
+            onLimitChange={handleLimitChange}
+            currentLength={accounts.length}
+            loading={loading.list}
+          />
+        )}
       </div>
 
-      {pagination.totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white rounded-lg border border-gray-200 px-4 py-3">
-          <div className="text-sm text-gray-600">
-            Showing {((pagination.page - 1) * pagination.limit) + 1}
-            {' '}to{' '}
-            {Math.min(pagination.page * pagination.limit, pagination.total)}
-            {' '}of{' '}
-            {pagination.total} results
-          </div>
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title="Delete Account Mapping"
+        message={`Are you sure you want to delete the mapping for ${accountToDelete?.account_code}? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
 
-          <div className="flex gap-2">
-            <button
-              onClick={() => handlePageChange(pagination.page - 1)}
-              disabled={pagination.page === 1}
-              className="px-3 py-1.5 text-sm border rounded-md disabled:opacity-50 hover:bg-gray-50"
-            >
-              Previous
-            </button>
-
-            <span className="px-3 py-1.5 text-sm text-gray-700">
-              Page {pagination.page} of {pagination.totalPages}
-            </span>
-
-            <button
-              onClick={() => handlePageChange(pagination.page + 1)}
-              disabled={pagination.page === pagination.totalPages}
-              className="px-3 py-1.5 text-sm border rounded-md disabled:opacity-50 hover:bg-gray-50"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Bulk Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isBulkDeleteModalOpen}
+        onClose={handleCloseBulkDeleteModal}
+        onConfirm={handleConfirmBulkAction}
+        title="Delete Multiple Account Mappings"
+        message={`Are you sure you want to delete ${bulkActionIds.length} account mappings? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </div>
   )
 }

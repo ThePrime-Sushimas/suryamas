@@ -74,12 +74,12 @@ export const AccountingPurposeAccountForm = ({
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       {!isEdit && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Purpose <span className="text-red-500">*</span>
           </label>
           <select
             {...register('purpose_id')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             <option value="">Select Purpose</option>
             {purposeOptions.map(option => (
@@ -96,12 +96,12 @@ export const AccountingPurposeAccountForm = ({
 
       {!isEdit && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Account <span className="text-red-500">*</span>
           </label>
           <select
             {...register('account_id')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             <option value="">Select Account</option>
             {accountOptions.map(option => (
@@ -114,10 +114,10 @@ export const AccountingPurposeAccountForm = ({
             <p className="mt-1 text-sm text-red-600">{String(errors.account_id.message || 'Account is required')}</p>
           )}
           {selectedAccount && (
-            <div className="mt-1 text-sm text-gray-600">
+            <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
               <p>Normal Balance: <span className="font-medium">{selectedAccount.normal_balance}</span></p>
               {sideValidation.warning && (
-                <p className="text-yellow-600 font-medium">
+                <p className="text-yellow-600 dark:text-yellow-400 font-medium">
                   ⚠️ {sideValidation.warning}
                 </p>
               )}
@@ -127,12 +127,12 @@ export const AccountingPurposeAccountForm = ({
       )}
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Side <span className="text-red-500">*</span>
         </label>
         <select
           {...register('side')}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
           <option value="">Select Side</option>
           {SIDES.map(side => (
@@ -145,14 +145,14 @@ export const AccountingPurposeAccountForm = ({
           <p className="mt-1 text-sm text-red-600">{String(errors.side.message || 'Side is required')}</p>
         )}
         {sideValidation.warning && (
-          <p className="mt-1 text-sm text-yellow-600">
+          <p className="mt-1 text-sm text-yellow-600 dark:text-yellow-400">
             ⚠️ {sideValidation.warning}
           </p>
         )}
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Priority (Optional)</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority (Optional)</label>
         <input
           type="number"
           min="1"
@@ -160,10 +160,10 @@ export const AccountingPurposeAccountForm = ({
           {...register('priority', { 
             setValueAs: (value) => value === '' || value === null ? undefined : Number(value)
           })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           placeholder="Leave empty for auto-assignment"
         />
-        <p className="mt-1 text-xs text-gray-500">If empty, system will auto-assign the next available priority</p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">If empty, system will auto-assign the next available priority</p>
         {errors.priority && (
           <p className="mt-1 text-sm text-red-600">{String(errors.priority.message || 'Invalid priority')}</p>
         )}
@@ -175,9 +175,9 @@ export const AccountingPurposeAccountForm = ({
             <input
               type="checkbox"
               {...register('is_active')}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700"
             />
-            <span className="ml-2 text-sm text-gray-700">Active</span>
+            <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</span>
           </label>
         </div>
       )}
@@ -186,7 +186,7 @@ export const AccountingPurposeAccountForm = ({
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
         >
           Cancel
         </button>
