@@ -3,6 +3,8 @@ import { Plus, Trash2, RotateCcw } from 'lucide-react'
 import { useAccountingPurposesStore } from '../store/accountingPurposes.store'
 import { AccountingPurposeTable } from '../components/AccountingPurposeTable'
 import { AccountingPurposeFilters } from '../components/AccountingPurposeFilters'
+import { Pagination } from '@/components/ui/Pagination'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import type { FilterParams } from '../types/accounting-purpose.types'
 
 interface AccountingPurposesListPageProps {
@@ -39,6 +41,7 @@ export const AccountingPurposesListPage = ({
 
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const [showBulkRestoreConfirm, setShowBulkRestoreConfirm] = useState(false)
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false)
 
   useEffect(() => {
     fetchPurposes(1, 25)
@@ -60,21 +63,31 @@ export const AccountingPurposesListPage = ({
     fetchPurposes(page, pagination.limit)
   }
 
+  const handleLimitChange = (limit: number) => {
+    fetchPurposes(1, limit)
+  }
+
   const handleBulkDelete = async () => {
+    setIsBulkProcessing(true)
     try {
       await bulkDelete(selectedIds)
       setShowBulkDeleteConfirm(false)
     } catch (error) {
       console.error('Bulk delete failed:', error)
+    } finally {
+      setIsBulkProcessing(false)
     }
   }
 
   const handleBulkRestore = async () => {
+    setIsBulkProcessing(true)
     try {
       await bulkRestore(selectedIds)
       setShowBulkRestoreConfirm(false)
     } catch (error) {
       console.error('Bulk restore failed:', error)
+    } finally {
+      setIsBulkProcessing(false)
     }
   }
 
@@ -83,21 +96,21 @@ export const AccountingPurposesListPage = ({
   )
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Accounting Purposes</h1>
-              <p className="text-sm text-gray-500">Manage accounting purpose codes for transactions</p>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Accounting Purposes</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Manage accounting purpose codes for transactions</p>
             </div>
           </div>
           
           <div className="flex items-center gap-2">
             <button
               onClick={onCreateNew}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
             >
               <Plus className="w-4 h-4" />
               New Purpose
@@ -110,12 +123,12 @@ export const AccountingPurposesListPage = ({
       <div className="flex-1 overflow-auto p-6">
         {/* Error Message */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
             <div className="flex justify-between items-center">
-              <p className="text-red-800">{error}</p>
+              <p className="text-red-800 dark:text-red-300">{error}</p>
               <button
                 onClick={clearError}
-                className="text-red-600 hover:text-red-800"
+                className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
               >
                 ×
               </button>
@@ -134,15 +147,15 @@ export const AccountingPurposesListPage = ({
 
         {/* Bulk Actions */}
         {selectedIds.length > 0 && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-center justify-between">
-            <span className="text-sm text-blue-800">
+          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6 flex items-center justify-between">
+            <span className="text-sm text-blue-800 dark:text-blue-300">
               {selectedIds.length} item(s) selected
             </span>
             <div className="flex gap-2">
               {hasDeletedSelected ? (
                 <button
                   onClick={() => setShowBulkRestoreConfirm(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-800"
                 >
                   <RotateCcw size={16} />
                   Restore Selected
@@ -150,7 +163,7 @@ export const AccountingPurposesListPage = ({
               ) : (
                 <button
                   onClick={() => setShowBulkDeleteConfirm(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-800"
                 >
                   <Trash2 size={16} />
                   Delete Selected
@@ -158,7 +171,7 @@ export const AccountingPurposesListPage = ({
               )}
               <button
                 onClick={clearSelection}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
               >
                 Clear
               </button>
@@ -181,81 +194,47 @@ export const AccountingPurposesListPage = ({
 
         {/* Pagination */}
         {pagination.totalPages > 1 && (
-          <div className="flex justify-center items-center gap-2 mt-6">
-            <button
-              onClick={() => handlePageChange(pagination.page - 1)}
-              disabled={!pagination.hasPrev || loading}
-              className="px-3 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-            >
-              Previous
-            </button>
-            
-            <span className="px-4 py-2 text-sm text-gray-600">
-              Page {pagination.page} of {pagination.totalPages}
-            </span>
-            
-            <button
-              onClick={() => handlePageChange(pagination.page + 1)}
-              disabled={!pagination.hasNext || loading}
-              className="px-3 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-            >
-              Next
-            </button>
+          <div className="mt-6">
+            <Pagination
+              pagination={{
+                page: pagination.page,
+                limit: pagination.limit,
+                total: pagination.total,
+                totalPages: pagination.totalPages,
+                hasNext: pagination.hasNext,
+                hasPrev: pagination.hasPrev
+              }}
+              onPageChange={handlePageChange}
+              onLimitChange={handleLimitChange}
+              loading={loading}
+            />
           </div>
         )}
       </div>
 
       {/* Bulk Delete Confirmation Modal */}
-      {showBulkDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Confirm Bulk Delete</h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to delete {selectedIds.length} item(s)?
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowBulkDeleteConfirm(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleBulkDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={showBulkDeleteConfirm}
+        onClose={() => setShowBulkDeleteConfirm(false)}
+        onConfirm={handleBulkDelete}
+        title="Confirm Bulk Delete"
+        message={`Are you sure you want to delete ${selectedIds.length} item(s)?`}
+        confirmText={isBulkProcessing ? 'Deleting...' : 'Delete'}
+        variant="danger"
+        isLoading={isBulkProcessing}
+      />
 
       {/* Bulk Restore Confirmation Modal */}
-      {showBulkRestoreConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Confirm Bulk Restore</h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to restore {selectedIds.length} item(s)?
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowBulkRestoreConfirm(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleBulkRestore}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                Restore
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={showBulkRestoreConfirm}
+        onClose={() => setShowBulkRestoreConfirm(false)}
+        onConfirm={handleBulkRestore}
+        title="Confirm Bulk Restore"
+        message={`Are you sure you want to restore ${selectedIds.length} item(s)?`}
+        confirmText={isBulkProcessing ? 'Restoring...' : 'Restore'}
+        variant="success"
+        isLoading={isBulkProcessing}
+      />
     </div>
   )
 }

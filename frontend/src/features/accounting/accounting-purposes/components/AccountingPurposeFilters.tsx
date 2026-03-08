@@ -51,7 +51,7 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
               placeholder="Search purposes..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               disabled={loading}
             />
           </div>
@@ -62,8 +62,8 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
           onClick={() => setShowFilters(!showFilters)}
           className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors ${
             hasActiveFilters 
-              ? 'border-blue-500 bg-blue-50 text-blue-700' 
-              : 'border-gray-300 hover:bg-gray-50'
+              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
+              : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
           }`}
           disabled={loading}
         >
@@ -78,16 +78,16 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
       </div>
 
       {showFilters && (
-        <div className="bg-gray-50 p-4 rounded-lg border">
+        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Applied To
               </label>
               <select
                 value={appliedTo}
                 onChange={(e) => setAppliedTo(e.target.value as AppliedToType | '')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 disabled={loading}
               >
                 <option value="">All Types</option>
@@ -100,13 +100,13 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Status
               </label>
               <select
                 value={isActive === '' ? '' : isActive.toString()}
                 onChange={(e) => setIsActive(e.target.value === '' ? '' : e.target.value === 'true')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 disabled={loading}
               >
                 <option value="">All Status</option>
@@ -116,13 +116,13 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Deleted Status
               </label>
               <select
                 value={deletedFilter}
                 onChange={(e) => setDeletedFilter(e.target.value as 'active' | 'deleted')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 disabled={loading}
               >
                 <option value="active">Active Only</option>
@@ -134,7 +134,7 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
               <button
                 type="button"
                 onClick={clearFilters}
-                className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
                 disabled={loading || !hasActiveFilters}
               >
                 <X size={16} />

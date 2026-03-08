@@ -26,10 +26,10 @@ export const AccountingPurposeFormPage = ({
 
   if (!currentBranch?.company_id) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Company Selected</h2>
-          <p className="text-gray-600">Please select a branch to continue.</p>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Company Selected</h2>
+          <p className="text-gray-600 dark:text-gray-400">Please select a branch to continue.</p>
         </div>
       </div>
     )
@@ -61,15 +61,15 @@ export const AccountingPurposeFormPage = ({
       <div className="flex items-center gap-4">
         <button
           onClick={onBack}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-700 dark:text-gray-300"
         >
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {isEdit ? 'Edit Accounting Purpose' : 'Create New Accounting Purpose'}
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-gray-400">
             {isEdit 
               ? 'Update the accounting purpose details' 
               : 'Add a new accounting purpose for transactions'
@@ -80,13 +80,13 @@ export const AccountingPurposeFormPage = ({
 
       {/* Error Message */}
       {displayError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{displayError}</p>
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <p className="text-red-800 dark:text-red-300">{displayError}</p>
         </div>
       )}
 
       {/* Form */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
         <AccountingPurposeForm
           initialData={initialData}
           isEdit={isEdit}

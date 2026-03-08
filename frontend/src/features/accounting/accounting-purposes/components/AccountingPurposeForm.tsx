@@ -111,22 +111,22 @@ export const AccountingPurposeForm = ({
 
   if (isSystemPurpose && isEdit) {
     return (
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+      <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
         <div className="text-center">
-          <div className="text-gray-400 mb-4">
+          <div className="text-gray-400 dark:text-gray-500 mb-4">
             <svg className="w-12 h-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">System Purpose</h3>
-          <p className="text-gray-600 mb-4">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">System Purpose</h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             This is a system-defined accounting purpose and cannot be modified.
           </p>
           {onCancel && (
             <button
               type="button"
               onClick={onCancel}
-              className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+              className="bg-gray-600 dark:bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
             >
               Back to List
             </button>
@@ -140,7 +140,7 @@ export const AccountingPurposeForm = ({
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label htmlFor="purpose_code" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="purpose_code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Purpose Code *
           </label>
           <input
@@ -150,22 +150,22 @@ export const AccountingPurposeForm = ({
             value={formData.purpose_code}
             onChange={handleChange}
             onBlur={handleBlur}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             disabled={isEdit || isLoading}
             maxLength={50}
             placeholder="e.g., SALES_INVOICE"
             aria-invalid={!!errors.purpose_code}
           />
           {isEdit && (
-            <p className="text-xs text-gray-500 mt-1">Purpose code cannot be changed</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Purpose code cannot be changed</p>
           )}
           {errors.purpose_code && (
-            <p className="text-red-600 text-sm mt-1">{errors.purpose_code}</p>
+            <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.purpose_code}</p>
           )}
         </div>
 
         <div>
-          <label htmlFor="purpose_name" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="purpose_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Purpose Name *
           </label>
           <input
@@ -175,48 +175,50 @@ export const AccountingPurposeForm = ({
             value={formData.purpose_name}
             onChange={handleChange}
             onBlur={handleBlur}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             disabled={isLoading}
             maxLength={255}
             placeholder="e.g., Sales Invoice"
             aria-invalid={!!errors.purpose_name}
           />
           {errors.purpose_name && (
-            <p className="text-red-600 text-sm mt-1">{errors.purpose_name}</p>
+            <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.purpose_name}</p>
           )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <label htmlFor="applied_to" className="block text-sm font-medium text-gray-700 mb-1">
-          Applied To *
-        </label>
-        <select
-          id="applied_to"
-          name="applied_to"
-          value={formData.applied_to}
-          onChange={handleChange}
-          onBlur={handleBlur}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          disabled={isLoading}
-          aria-invalid={!!errors.applied_to}
-        >
-          {APPLIED_TO_OPTIONS.map(option => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <p className="text-xs text-gray-500 mt-1">
-          Defines which type of transactions this purpose applies to
-        </p>
-        {errors.applied_to && (
-          <p className="text-red-600 text-sm mt-1">{errors.applied_to}</p>
-        )}
+        <div>
+          <label htmlFor="applied_to" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Applied To *
+          </label>
+          <select
+            id="applied_to"
+            name="applied_to"
+            value={formData.applied_to}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            disabled={isLoading}
+            aria-invalid={!!errors.applied_to}
+          >
+            {APPLIED_TO_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Defines which type of transactions this purpose applies to
+          </p>
+          {errors.applied_to && (
+            <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.applied_to}</p>
+          )}
+        </div>
       </div>
 
       <div>
-        <label htmlFor="branch_id" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="branch_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Branch
         </label>
         <select
@@ -225,7 +227,7 @@ export const AccountingPurposeForm = ({
           value={formData.branch_id}
           onChange={handleChange}
           onBlur={handleBlur}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           disabled={isLoading || loadingBranches}
           aria-invalid={!!errors.branch_id}
         >
@@ -236,16 +238,16 @@ export const AccountingPurposeForm = ({
             </option>
           ))}
         </select>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           Leave empty to apply to all branches, or select a specific branch
         </p>
         {errors.branch_id && (
-          <p className="text-red-600 text-sm mt-1">{errors.branch_id}</p>
+          <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.branch_id}</p>
         )}
       </div>
 
       <div>
-        <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Description
         </label>
         <textarea
@@ -255,13 +257,13 @@ export const AccountingPurposeForm = ({
           onChange={handleChange}
           onBlur={handleBlur}
           rows={3}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           disabled={isLoading}
           maxLength={500}
           placeholder="Optional description for this accounting purpose..."
         />
         {errors.description && (
-          <p className="text-red-600 text-sm mt-1">{errors.description}</p>
+          <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.description}</p>
         )}
       </div>
 
@@ -273,23 +275,23 @@ export const AccountingPurposeForm = ({
             type="checkbox"
             checked={formData.is_active}
             onChange={handleChange}
-            className="mr-2 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            className="mr-2 w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 bg-white dark:bg-gray-700"
             disabled={isLoading}
           />
-          <span className="text-sm font-medium text-gray-700">Active</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Active</span>
         </label>
-        <p className="text-xs text-gray-500 mt-1 ml-6">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
           Only active purposes can be used in transactions
         </p>
       </div>
 
-      <div className="flex gap-3 pt-4 border-t">
+      <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
         {onCancel && (
           <button
             type="button"
             onClick={onCancel}
             disabled={isLoading}
-            className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+            className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 px-4 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
           >
             Cancel
           </button>
@@ -297,7 +299,7 @@ export const AccountingPurposeForm = ({
         <button
           type="submit"
           disabled={isLoading || Object.keys(errors).length > 0}
-          className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+          className="flex-1 bg-blue-600 dark:bg-blue-700 text-white py-2 px-4 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
         >
           {isLoading ? 'Saving...' : isEdit ? 'Update Purpose' : 'Create Purpose'}
         </button>

@@ -4,6 +4,7 @@ import { AccountingPurposesListPage } from './AccountingPurposesListPage'
 import { AccountingPurposeFormPage } from './AccountingPurposeFormPage'
 import { AccountingPurposeDetailPage } from './AccountingPurposeDetailPage'
 import { useAccountingPurposesStore } from '../store/accountingPurposes.store'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import type { AccountingPurpose } from '../types/accounting-purpose.types'
 
 type PageView = 'list' | 'create' | 'edit' | 'detail'
@@ -13,15 +14,17 @@ export const AccountingPurposesPage = () => {
   const [currentView, setCurrentView] = useState<PageView>('list')
   const [selectedPurposeId, setSelectedPurposeId] = useState<string | null>(null)
   const [selectedPurpose, setSelectedPurpose] = useState<AccountingPurpose | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string | null }>({ open: false, id: null })
+  const [restoreConfirm, setRestoreConfirm] = useState<{ open: boolean; id: string | null }>({ open: false, id: null })
   const { deletePurpose, restorePurpose, fetchPurposeById } = useAccountingPurposesStore()
   
   if (!currentBranch?.company_id) {
     return (
-      <div className="h-screen flex flex-col bg-gray-50">
+      <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">No Company Selected</h2>
-            <p className="text-gray-600">Please select a branch to continue.</p>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Company Selected</h2>
+            <p className="text-gray-600 dark:text-gray-400">Please select a branch to continue.</p>
           </div>
         </div>
       </div>
@@ -50,25 +53,33 @@ export const AccountingPurposesPage = () => {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this accounting purpose?')) {
-      try {
-        await deletePurpose(id)
-        setCurrentView('list')
-      } catch (error) {
-        console.error('Failed to delete purpose:', error)
-      }
+  const handleDeleteClick = (id: string) => {
+    setDeleteConfirm({ open: true, id })
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm.id) return
+    try {
+      await deletePurpose(deleteConfirm.id)
+      setDeleteConfirm({ open: false, id: null })
+      setCurrentView('list')
+    } catch (error) {
+      console.error('Failed to delete purpose:', error)
     }
   }
 
-  const handleRestore = async (id: string) => {
-    if (window.confirm('Are you sure you want to restore this accounting purpose?')) {
-      try {
-        await restorePurpose(id)
-        setCurrentView('list')
-      } catch (error) {
-        console.error('Failed to restore purpose:', error)
-      }
+  const handleRestoreClick = (id: string) => {
+    setRestoreConfirm({ open: true, id })
+  }
+
+  const handleRestoreConfirm = async () => {
+    if (!restoreConfirm.id) return
+    try {
+      await restorePurpose(restoreConfirm.id)
+      setRestoreConfirm({ open: false, id: null })
+      setCurrentView('list')
+    } catch (error) {
+      console.error('Failed to restore purpose:', error)
     }
   }
 
@@ -89,7 +100,7 @@ export const AccountingPurposesPage = () => {
     case 'edit':
     case 'detail':
       return (
-        <div className="h-screen flex flex-col bg-gray-50">
+        <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
           <div className="flex-1 overflow-auto p-6">
             {currentView === 'create' && (
               <AccountingPurposeFormPage
@@ -112,7 +123,8 @@ export const AccountingPurposesPage = () => {
                 purposeId={selectedPurposeId!}
                 onBack={handleBack}
                 onEdit={handleEdit}
-                onDelete={handleDelete}
+                onDelete={handleDeleteClick}
+                onRestore={handleRestoreClick}
               />
             )}
           </div>
@@ -121,13 +133,37 @@ export const AccountingPurposesPage = () => {
 
     default:
       return (
-        <AccountingPurposesListPage
-          onCreateNew={handleCreateNew}
-          onView={handleView}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onRestore={handleRestore}
-        />
+        <>
+          <AccountingPurposesListPage
+            onCreateNew={handleCreateNew}
+            onView={handleView}
+            onEdit={handleEdit}
+            onDelete={handleDeleteClick}
+            onRestore={handleRestoreClick}
+          />
+          
+          {/* Delete Confirmation Modal */}
+          <ConfirmModal
+            isOpen={deleteConfirm.open}
+            onClose={() => setDeleteConfirm({ open: false, id: null })}
+            onConfirm={handleDeleteConfirm}
+            title="Confirm Delete"
+            message="Are you sure you want to delete this accounting purpose?"
+            confirmText="Delete"
+            variant="danger"
+          />
+
+          {/* Restore Confirmation Modal */}
+          <ConfirmModal
+            isOpen={restoreConfirm.open}
+            onClose={() => setRestoreConfirm({ open: false, id: null })}
+            onConfirm={handleRestoreConfirm}
+            title="Confirm Restore"
+            message="Are you sure you want to restore this accounting purpose?"
+            confirmText="Restore"
+            variant="success"
+          />
+        </>
       )
   }
 }
