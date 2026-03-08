@@ -45,7 +45,7 @@ const ActionDropdown = ({
 
   const dropdown = isOpen ? (
     <div 
-      className="fixed w-48 bg-white rounded-md shadow-lg border z-50"
+      className="fixed w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-50"
       style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
     >
       <div className="py-1">
@@ -54,7 +54,7 @@ const ActionDropdown = ({
             onView(node.id)
             onToggle()
           }}
-          className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+          className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
         >
           <Eye className="w-4 h-4" />
           View Details
@@ -65,7 +65,7 @@ const ActionDropdown = ({
               onEdit(node.id)
               onToggle()
             }}
-            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
           >
             <Edit className="w-4 h-4" />
             Edit
@@ -77,7 +77,7 @@ const ActionDropdown = ({
               onAddChild(node.id)
               onToggle()
             }}
-            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
           >
             <Plus className="w-4 h-4" />
             Add Child Account
@@ -89,7 +89,7 @@ const ActionDropdown = ({
               onRestore(node.id)
               onToggle()
             }}
-            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-green-600 hover:bg-green-50"
+            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
           >
             <RotateCcw className="w-4 h-4" />
             Restore
@@ -101,7 +101,7 @@ const ActionDropdown = ({
                 onDelete(node.id)
                 onToggle()
               }}
-              className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+              className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
             >
               <Trash2 className="w-4 h-4" />
               Delete
@@ -117,9 +117,9 @@ const ActionDropdown = ({
       <button
         ref={buttonRef}
         onClick={onToggle}
-        className="p-1 hover:bg-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded opacity-0 group-hover:opacity-100 transition-opacity"
       >
-        <MoreVertical className="w-4 h-4" />
+        <MoreVertical className="w-4 h-4 text-gray-600 dark:text-gray-400" />
       </button>
       {dropdown && createPortal(dropdown, document.body)}
       {isOpen && (
@@ -181,7 +181,7 @@ const TreeNode = ({
   return (
     <div>
       <div 
-        className={`group flex items-center gap-2 py-2 px-3 hover:bg-gray-50 rounded-lg ${node.deleted_at ? 'bg-gray-50 opacity-75' : ''}`}
+        className={`group flex items-center gap-2 py-2 px-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg ${node.deleted_at ? 'bg-gray-50 dark:bg-gray-800/50 opacity-75' : ''}`}
         style={{ paddingLeft: `${level * 20 + 12}px` }}
       >
         {/* Expand/Collapse Button */}
@@ -203,29 +203,29 @@ const TreeNode = ({
         {/* Account Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3">
-            <div className={`text-sm ${node.is_header ? 'font-bold' : ''} ${!node.is_postable ? 'italic' : ''}`}>
+            <div className={`text-sm ${node.is_header ? 'font-bold' : ''} ${!node.is_postable ? 'italic' : ''} text-gray-900 dark:text-white`}>
               {buildAccountDisplayName(node.account_code, node.account_name)}
             </div>
             <AccountTypeBadge type={node.account_type} />
             {node.account_subtype && (
-              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+              <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
                 {node.account_subtype}
               </span>
             )}
           </div>
           <div className="flex items-center gap-4 mt-1">
             {node.is_header && (
-              <span className="text-xs text-blue-600 font-medium">Header</span>
+              <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">Header</span>
             )}
             {node.is_postable && (
-              <span className="text-xs text-green-600 font-medium">Postable</span>
+              <span className="text-xs text-green-600 dark:text-green-400 font-medium">Postable</span>
             )}
-            <span className="text-xs text-gray-500">{node.currency_code}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">{node.currency_code}</span>
             {node.deleted_at ? (
-              <span className="text-xs font-medium text-gray-600">Deleted</span>
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Deleted</span>
             ) : (
               <span className={`text-xs font-medium ${
-                node.is_active ? 'text-green-600' : 'text-red-600'
+                node.is_active ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
               }`}>
                 {node.is_active ? 'Active' : 'Inactive'}
               </span>
@@ -326,27 +326,27 @@ export const ChartOfAccountTree = ({
 
   if (tree.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border p-8 text-center text-gray-500">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center text-gray-500 dark:text-gray-400">
         No accounts found
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border">
-      <div className="flex items-center justify-between p-4 border-b">
-        <h3 className="text-sm font-medium text-gray-900">Chart of Accounts Tree</h3>
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+        <h3 className="text-sm font-medium text-gray-900 dark:text-white">Chart of Accounts Tree</h3>
         <div className="flex gap-2">
           <button
             onClick={handleExpandAll}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50"
           >
             <Expand className="w-3 h-3" />
             Expand All
           </button>
           <button
             onClick={handleCollapseAll}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600"
           >
             <Minimize className="w-3 h-3" />
             Collapse All

@@ -11,13 +11,13 @@ export const ChartOfAccountFilters = ({ filter, onFilterChange, showFilter }: Ch
   if (!showFilter) return null
 
   return (
-    <div className="mt-3 pt-3 border-t border-gray-200 grid grid-cols-3 gap-3">
+    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 grid grid-cols-3 gap-3">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Account Type</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Type</label>
         <select
           value={filter.account_type || ''}
           onChange={e => onFilterChange('account_type', (e.target.value || undefined) as AccountType)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
           <option value="">All Types</option>
           {ACCOUNT_TYPES.map(type => (
@@ -27,25 +27,25 @@ export const ChartOfAccountFilters = ({ filter, onFilterChange, showFilter }: Ch
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Account Subtype</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Subtype</label>
         <input
           type="text"
           value={filter.account_subtype || ''}
           onChange={e => onFilterChange('account_subtype', e.target.value || undefined)}
           placeholder="Enter subtype..."
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
         <select
           value={filter.is_active === undefined ? '' : filter.is_active ? 'active' : 'inactive'}
           onChange={e => {
             const value = e.target.value
             onFilterChange('is_active', value === '' ? undefined : value === 'active')
           }}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
           <option value="">All Status</option>
           <option value="active">Active</option>
@@ -54,14 +54,14 @@ export const ChartOfAccountFilters = ({ filter, onFilterChange, showFilter }: Ch
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Header Account</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Header Account</label>
         <select
           value={filter.is_header === undefined ? '' : filter.is_header ? 'yes' : 'no'}
           onChange={e => {
             const value = e.target.value
             onFilterChange('is_header', value === '' ? undefined : value === 'yes')
           }}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
           <option value="">All</option>
           <option value="yes">Header Only</option>
@@ -70,14 +70,14 @@ export const ChartOfAccountFilters = ({ filter, onFilterChange, showFilter }: Ch
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Postable</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Postable</label>
         <select
           value={filter.is_postable === undefined ? '' : filter.is_postable ? 'yes' : 'no'}
           onChange={e => {
             const value = e.target.value
             onFilterChange('is_postable', value === '' ? undefined : value === 'yes')
           }}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
           <option value="">All</option>
           <option value="yes">Postable Only</option>

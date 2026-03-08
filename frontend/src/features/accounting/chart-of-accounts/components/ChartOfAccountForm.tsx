@@ -213,11 +213,11 @@ export const ChartOfAccountForm = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {errors.submit && <p className="text-red-500 text-sm">{errors.submit}</p>}
+      {errors.submit && <p className="text-red-500 dark:text-red-400 text-sm">{errors.submit}</p>}
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Account Code *</label>
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Account Code *</label>
           <input
             type="text"
             name="account_code"
@@ -225,57 +225,57 @@ export const ChartOfAccountForm = ({
             onChange={handleChange}
             onBlur={handleBlur}
             disabled={isEdit}
-            className="w-full px-3 py-2 border rounded-md disabled:bg-gray-100 uppercase"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md disabled:bg-gray-100 dark:disabled:bg-gray-800 bg-white dark:bg-gray-700 text-gray-900 dark:text-white uppercase"
             maxLength={30}
             placeholder="e.g., CASH-001"
           />
-          {errors.account_code && <p className="text-red-500 text-xs mt-1">{errors.account_code}</p>}
+          {errors.account_code && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.account_code}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Account Type *</label>
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Account Type *</label>
           <select 
             name="account_type" 
             value={formData.account_type} 
             onChange={handleChange}
             disabled={isEdit || !!lockedAccountType}
-            className="w-full px-3 py-2 border rounded-md disabled:bg-gray-100"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md disabled:bg-gray-100 dark:disabled:bg-gray-800 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             {ACCOUNT_TYPES.map(type => (
               <option key={type} value={type}>{ACCOUNT_TYPE_LABELS[type]}</option>
             ))}
           </select>
           {lockedAccountType && (
-            <p className="text-xs text-blue-600 mt-1">Account type locked to match parent account</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Account type locked to match parent account</p>
           )}
-          {errors.account_type && <p className="text-red-500 text-xs mt-1">{errors.account_type}</p>}
+          {errors.account_type && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.account_type}</p>}
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1">Account Name *</label>
+        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Account Name *</label>
         <input
           type="text"
           name="account_name"
           value={formData.account_name}
           onChange={handleChange}
           onBlur={handleBlur}
-          className="w-full px-3 py-2 border rounded-md"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           maxLength={255}
           placeholder="e.g., Cash in Hand"
         />
-        {errors.account_name && <p className="text-red-500 text-xs mt-1">{errors.account_name}</p>}
+        {errors.account_name && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.account_name}</p>}
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1">Branch</label>
+        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Branch</label>
         <select
           name="branch_id"
           value={formData.branch_id}
           onChange={handleChange}
           onBlur={handleBlur}
           disabled={!formData.company_id}
-          className="w-full px-3 py-2 border rounded-md disabled:bg-gray-100"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md disabled:bg-gray-100 dark:disabled:bg-gray-800 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
           <option value="">All Branches</option>
           {availableBranches.map(branch => (
@@ -284,32 +284,32 @@ export const ChartOfAccountForm = ({
             </option>
           ))}
         </select>
-        {errors.branch_id && <p className="text-red-500 text-xs mt-1">{errors.branch_id}</p>}
+        {errors.branch_id && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.branch_id}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Account Subtype</label>
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Account Subtype</label>
           <input
             type="text"
             name="account_subtype"
             value={formData.account_subtype}
             onChange={handleChange}
             onBlur={handleBlur}
-            className="w-full px-3 py-2 border rounded-md"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             placeholder="e.g., Current Assets"
           />
-          {errors.account_subtype && <p className="text-red-500 text-xs mt-1">{errors.account_subtype}</p>}
+          {errors.account_subtype && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.account_subtype}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Parent Account</label>
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Parent Account</label>
           <select
             name="parent_account_id"
             value={formData.parent_account_id}
             onChange={handleChange}
             onBlur={handleBlur}
-            className="w-full px-3 py-2 border rounded-md"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             <option value="">No Parent (Root Level)</option>
             {availableParents.map(parent => (
@@ -318,7 +318,7 @@ export const ChartOfAccountForm = ({
               </option>
             ))}
           </select>
-          {errors.parent_account_id && <p className="text-red-500 text-xs mt-1">{errors.parent_account_id}</p>}
+          {errors.parent_account_id && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.parent_account_id}</p>}
         </div>
       </div>
 
@@ -330,10 +330,10 @@ export const ChartOfAccountForm = ({
             checked={formData.is_header}
             onChange={handleChange}
             onBlur={handleBlur}
-            className="mr-2 rounded border-gray-300"
+            className="mr-2 rounded border-gray-300 dark:border-gray-600"
           />
-          <label className="text-sm font-medium">Header Account</label>
-          {errors.is_header && <p className="text-red-500 text-xs mt-1">{errors.is_header}</p>}
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Header Account</label>
+          {errors.is_header && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.is_header}</p>}
         </div>
 
         <div className="flex items-center">
@@ -344,10 +344,10 @@ export const ChartOfAccountForm = ({
             onChange={handleChange}
             onBlur={handleBlur}
             disabled={formData.is_header}
-            className="mr-2 rounded border-gray-300 disabled:opacity-50"
+            className="mr-2 rounded border-gray-300 dark:border-gray-600 disabled:opacity-50"
           />
-          <label className="text-sm font-medium">Postable</label>
-          {errors.is_postable && <p className="text-red-500 text-xs mt-1">{errors.is_postable}</p>}
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Postable</label>
+          {errors.is_postable && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.is_postable}</p>}
         </div>
 
         {isEdit && (
@@ -357,61 +357,61 @@ export const ChartOfAccountForm = ({
               name="is_active"
               checked={formData.is_active}
               onChange={handleChange}
-              className="mr-2 rounded border-gray-300"
+              className="mr-2 rounded border-gray-300 dark:border-gray-600"
             />
-            <label className="text-sm font-medium">Active</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Active</label>
           </div>
         )}
       </div>
 
       <div className="grid grid-cols-3 gap-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Currency Code *</label>
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Currency Code *</label>
           <select
             name="currency_code"
             value={formData.currency_code}
             onChange={handleChange}
             onBlur={handleBlur}
-            className="w-full px-3 py-2 border rounded-md"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             {CURRENCY_CODES.map(code => (
               <option key={code} value={code}>{code}</option>
             ))}
           </select>
-          {errors.currency_code && <p className="text-red-500 text-xs mt-1">{errors.currency_code}</p>}
+          {errors.currency_code && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.currency_code}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Normal Balance</label>
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Normal Balance</label>
           <input
             type="text"
             value={normalBalance}
             disabled
-            className="w-full px-3 py-2 border rounded-md bg-gray-100 text-gray-600"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Sort Order</label>
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Sort Order</label>
           <input
             type="number"
             name="sort_order"
             value={formData.sort_order}
             onChange={handleChange}
             onBlur={handleBlur}
-            className="w-full px-3 py-2 border rounded-md"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             min="0"
             max="9999"
             placeholder="0-9999"
           />
-          {errors.sort_order && <p className="text-red-500 text-xs mt-1">{errors.sort_order}</p>}
+          {errors.sort_order && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.sort_order}</p>}
         </div>
       </div>
 
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+        className="w-full bg-blue-600 dark:bg-blue-700 text-white py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 dark:disabled:bg-gray-600"
       >
         {isLoading ? 'Saving...' : isEdit ? 'Update Account' : 'Create Account'}
       </button>

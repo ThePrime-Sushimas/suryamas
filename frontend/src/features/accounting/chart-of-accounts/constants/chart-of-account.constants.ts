@@ -26,6 +26,15 @@ export const ACCOUNT_TYPE_COLORS: Record<AccountType, string> = {
   EXPENSE: 'bg-orange-100 text-orange-800'
 }
 
+// Dark mode colors for account type badges
+export const ACCOUNT_TYPE_COLORS_DARK: Record<AccountType, string> = {
+  ASSET: 'dark:bg-green-900 dark:text-green-200',
+  LIABILITY: 'dark:bg-red-900 dark:text-red-200',
+  EQUITY: 'dark:bg-blue-900 dark:text-blue-200',
+  REVENUE: 'dark:bg-purple-900 dark:text-purple-200',
+  EXPENSE: 'dark:bg-orange-900 dark:text-orange-200'
+}
+
 export const CURRENCY_CODES = ['IDR', 'USD', 'EUR', 'SGD', 'MYR']
 
 export const DEFAULT_CURRENCY = 'IDR'

@@ -6,6 +6,8 @@ import { useChartOfAccountsStore } from '../store/chartOfAccounts.store'
 import { ChartOfAccountTable } from '../components/ChartOfAccountTable'
 import { ChartOfAccountTree } from '../components/ChartOfAccountTree'
 import { ChartOfAccountFilters } from '../components/ChartOfAccountFilters'
+// import { Pagination } from '@/components/ui/Pagination'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { useToast } from '@/contexts/ToastContext'
 import { Building2, Plus, Search, Filter, X, Table, TreePine, Trash2 } from 'lucide-react'
@@ -82,6 +84,29 @@ export default function ChartOfAccountsPage() {
   const [showFilter, setShowFilter] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   
+  // // Pagination state
+  // const [pagination, setPagination] = useState({
+  //   page: 1,
+  //   limit: 25,
+  //   total: 0,
+  //   totalPages: 0
+  // })
+  
+  // Confirm modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean
+    title: string
+    message: string
+    onConfirm: () => void
+    variant?: 'danger' | 'warning' | 'info' | 'success'
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    variant: 'danger'
+  })
+  
   // Use company from branch context only
   const selectedCompanyId = currentBranch?.company_id || ''
   
@@ -139,70 +164,104 @@ export default function ChartOfAccountsPage() {
 
   const handleDelete = useCallback(async (id: string) => {
     if (!selectedCompanyId) return
-    if (!confirm('Are you sure you want to delete this account?')) return
     
-    try {
-      await deleteAccount(id)
-      success('Account deleted successfully')
-    } catch {
-      if (error?.scope === 'submit') {
-        showError(error.message)
-      } else {
-        showError('Failed to delete account')
+    // Show confirm modal instead of window.confirm()
+    const accountToDelete = flattenTree(tree).find(a => a.id === id)
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Account',
+      message: `Are you sure you want to delete "${accountToDelete?.account_name || 'this account'}"? This action cannot be undone.`,
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteAccount(id)
+          success('Account deleted successfully')
+        } catch {
+          if (error?.scope === 'submit') {
+            showError(error.message)
+          } else {
+            showError('Failed to delete account')
+          }
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }))
       }
-    }
-  }, [selectedCompanyId, deleteAccount, error, success, showError])
+    })
+  }, [selectedCompanyId, deleteAccount, error, success, showError, tree])
 
   const handleBulkDelete = useCallback(async () => {
     if (!selectedCompanyId) return
     if (selectedIds.length === 0) return
-    if (!confirm(`Are you sure you want to delete ${selectedIds.length} accounts?`)) return
     
-    try {
-      await bulkDelete(selectedIds)
-      setSelectedIds([])
-      success(`${selectedIds.length} accounts deleted successfully`)
-    } catch {
-      if (error?.scope === 'submit') {
-        showError(error.message)
-      } else {
-        showError('Failed to delete accounts')
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Accounts',
+      message: `Are you sure you want to delete ${selectedIds.length} accounts? This action cannot be undone.`,
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await bulkDelete(selectedIds)
+          setSelectedIds([])
+          success(`${selectedIds.length} accounts deleted successfully`)
+        } catch {
+          if (error?.scope === 'submit') {
+            showError(error.message)
+          } else {
+            showError('Failed to delete accounts')
+          }
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }))
       }
-    }
+    })
   }, [selectedCompanyId, selectedIds, bulkDelete, error, success, showError])
 
   const handleRestore = useCallback(async (id: string) => {
     if (!selectedCompanyId) return
-    if (!confirm('Are you sure you want to restore this account?')) return
     
-    try {
-      await restoreAccount(id)
-      success('Account restored successfully')
-    } catch {
-      if (error?.scope === 'submit') {
-        showError(error.message)
-      } else {
-        showError('Failed to restore account')
+    setConfirmModal({
+      isOpen: true,
+      title: 'Restore Account',
+      message: 'Are you sure you want to restore this account?',
+      variant: 'success',
+      onConfirm: async () => {
+        try {
+          await restoreAccount(id)
+          success('Account restored successfully')
+        } catch {
+          if (error?.scope === 'submit') {
+            showError(error.message)
+          } else {
+            showError('Failed to restore account')
+          }
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }))
       }
-    }
+    })
   }, [selectedCompanyId, restoreAccount, error, success, showError])
 
   const handleBulkRestore = useCallback(async () => {
     if (!selectedCompanyId) return
     if (selectedIds.length === 0) return
-    if (!confirm(`Are you sure you want to restore ${selectedIds.length} accounts?`)) return
     
-    try {
-      await bulkRestore(selectedIds)
-      setSelectedIds([])
-      success(`${selectedIds.length} accounts restored successfully`)
-    } catch {
-      if (error?.scope === 'submit') {
-        showError(error.message)
-      } else {
-        showError('Failed to restore accounts')
+    setConfirmModal({
+      isOpen: true,
+      title: 'Restore Accounts',
+      message: `Are you sure you want to restore ${selectedIds.length} accounts?`,
+      variant: 'success',
+      onConfirm: async () => {
+        try {
+          await bulkRestore(selectedIds)
+          setSelectedIds([])
+          success(`${selectedIds.length} accounts restored successfully`)
+        } catch {
+          if (error?.scope === 'submit') {
+            showError(error.message)
+          } else {
+            showError('Failed to restore accounts')
+          }
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }))
       }
-    }
+    })
   }, [selectedCompanyId, selectedIds, bulkRestore, error, success, showError])
 
   const handleBulkStatusUpdate = useCallback(async (is_active: boolean) => {
@@ -240,15 +299,15 @@ export default function ChartOfAccountsPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Building2 className="w-6 h-6 text-blue-600" />
+            <Building2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Chart of Accounts</h1>
-              <p className="text-sm text-gray-500">
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Chart of Accounts</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 <span className="font-medium">{companyName}</span>
                 <span className="mx-2">•</span>
                 {viewMode === 'tree' ? `${tree.length} root accounts` : `${debouncedSearch ? filterTree(tree, debouncedSearch).length : flattenTree(tree).length} accounts`}
@@ -259,7 +318,7 @@ export default function ChartOfAccountsPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate('/chart-of-accounts/new')}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
             >
               <Plus className="w-4 h-4" />
               Create Account
@@ -269,7 +328,7 @@ export default function ChartOfAccountsPage() {
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
         <div className="flex gap-2 mb-3">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -278,12 +337,12 @@ export default function ChartOfAccountsPage() {
               placeholder="Search accounts..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -292,7 +351,7 @@ export default function ChartOfAccountsPage() {
           <button
             onClick={() => setShowFilter(!showFilter)}
             className={`px-4 py-2 border rounded-lg flex items-center gap-2 transition-colors ${
-              showFilter ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-gray-300 hover:bg-gray-50'
+              showFilter ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
             }`}
           >
             <Filter className="w-4 h-4" />
@@ -311,8 +370,8 @@ export default function ChartOfAccountsPage() {
               onClick={() => handleViewModeChange('tree')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
                 viewMode === 'tree' 
-                  ? 'bg-blue-100 text-blue-700' 
-                  : 'text-gray-600 hover:bg-gray-100'
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
             >
               <TreePine className="w-4 h-4" />
@@ -322,8 +381,8 @@ export default function ChartOfAccountsPage() {
               onClick={() => handleViewModeChange('table')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
                 viewMode === 'table' 
-                  ? 'bg-blue-100 text-blue-700' 
-                  : 'text-gray-600 hover:bg-gray-100'
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
             >
               <Table className="w-4 h-4" />
@@ -331,12 +390,12 @@ export default function ChartOfAccountsPage() {
             </button>
             
             {/* Show Deleted Toggle */}
-            <label className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600">
+            <label className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400">
               <input
                 type="checkbox"
                 checked={filter.show_deleted || false}
                 onChange={(e) => setFilterKey('show_deleted', e.target.checked || undefined)}
-                className="rounded border-gray-300"
+                className="rounded border-gray-300 dark:border-gray-600"
               />
               Show Deleted
             </label>
@@ -345,11 +404,11 @@ export default function ChartOfAccountsPage() {
           {/* Bulk Actions */}
           {selectedIds.length > 0 && viewMode === 'table' && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">{selectedIds.length} selected</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">{selectedIds.length} selected</span>
               {filter.show_deleted ? (
                 <button
                   onClick={handleBulkRestore}
-                  className="px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200"
+                  className="px-3 py-1.5 text-sm bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-md hover:bg-green-200 dark:hover:bg-green-900/50"
                 >
                   Restore
                 </button>
@@ -357,19 +416,19 @@ export default function ChartOfAccountsPage() {
                 <>
                   <button
                     onClick={() => handleBulkStatusUpdate(true)}
-                    className="px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200"
+                    className="px-3 py-1.5 text-sm bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-md hover:bg-green-200 dark:hover:bg-green-900/50"
                   >
                     Activate
                   </button>
                   <button
                     onClick={() => handleBulkStatusUpdate(false)}
-                    className="px-3 py-1.5 text-sm bg-yellow-100 text-yellow-700 rounded-md hover:bg-yellow-200"
+                    className="px-3 py-1.5 text-sm bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-md hover:bg-yellow-200 dark:hover:bg-yellow-900/50"
                   >
                     Deactivate
                   </button>
                   <button
                     onClick={handleBulkDelete}
-                    className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 flex items-center gap-1"
+                    className="px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center gap-1"
                   >
                     <Trash2 className="w-3 h-3" />
                     Delete
@@ -392,10 +451,10 @@ export default function ChartOfAccountsPage() {
       <div className="flex-1 overflow-auto p-6">
         {!selectedCompanyId ? (
           <div className="text-center py-8">
-            <p className="text-gray-500 mb-4">No branch context available</p>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">No branch context available</p>
           </div>
         ) : (viewMode === 'table' ? loading.tree : loading.tree) ? (
-          <div className="text-center py-8 text-gray-500">Loading...</div>
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading...</div>
         ) : (
           <>
             {viewMode === 'tree' ? (
@@ -428,6 +487,16 @@ export default function ChartOfAccountsPage() {
           </>
         )}
       </div>
+
+      {/* Global Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+      />
     </div>
   )
 }
