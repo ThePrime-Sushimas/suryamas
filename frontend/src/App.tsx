@@ -1116,6 +1116,16 @@ function App() {
                     }
                   />
                   <Route
+                    path="accounting-purposes/:id"
+                    element={
+                      <ProtectedRoute>
+                        <Suspense fallback={<LoadingFallback />}>
+                          <AccountingPurposesPage />
+                        </Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
                     path="accounting-purpose-accounts/*"
                     element={
                       <ProtectedRoute>

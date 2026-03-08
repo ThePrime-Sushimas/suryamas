@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useBranchContext } from '@/features/branch_context'
 import { AccountingPurposesListPage } from './AccountingPurposesListPage'
 import { AccountingPurposeFormPage } from './AccountingPurposeFormPage'
@@ -10,6 +11,8 @@ import type { AccountingPurpose } from '../types/accounting-purpose.types'
 type PageView = 'list' | 'create' | 'edit' | 'detail'
 
 export const AccountingPurposesPage = () => {
+  const navigate = useNavigate()
+  const { id } = useParams<{ id: string }>()
   const currentBranch = useBranchContext()
   const [currentView, setCurrentView] = useState<PageView>('list')
   const [selectedPurposeId, setSelectedPurposeId] = useState<string | null>(null)
@@ -18,6 +21,14 @@ export const AccountingPurposesPage = () => {
   const [restoreConfirm, setRestoreConfirm] = useState<{ open: boolean; id: string | null }>({ open: false, id: null })
   const { deletePurpose, restorePurpose, fetchPurposeById } = useAccountingPurposesStore()
   
+  // Handle URL parameter for direct access to detail page
+  useEffect(() => {
+    if (id) {
+      setSelectedPurposeId(id)
+      setCurrentView('detail')
+    }
+  }, [id])
+
   if (!currentBranch?.company_id) {
     return (
       <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -39,7 +50,7 @@ export const AccountingPurposesPage = () => {
 
   const handleView = (id: string) => {
     setSelectedPurposeId(id)
-    setCurrentView('detail')
+    navigate(`/accounting-purposes/${id}`)
   }
 
   const handleEdit = async (id: string) => {
@@ -87,12 +98,14 @@ export const AccountingPurposesPage = () => {
     setCurrentView('list')
     setSelectedPurposeId(null)
     setSelectedPurpose(null)
+    navigate('/accounting-purposes')
   }
 
   const handleSuccess = () => {
     setCurrentView('list')
     setSelectedPurposeId(null)
     setSelectedPurpose(null)
+    navigate('/accounting-purposes')
   }
 
   switch (currentView) {

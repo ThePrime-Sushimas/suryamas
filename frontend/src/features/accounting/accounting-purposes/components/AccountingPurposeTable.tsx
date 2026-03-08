@@ -195,13 +195,14 @@ export const AccountingPurposeTable = ({
             {purposes.map((purpose) => (
               <tr 
                 key={purpose.id} 
-                className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                className={`hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${
                   selectedIds.includes(purpose.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                 } ${
                   purpose.is_deleted ? 'bg-red-50 dark:bg-red-900/20' : ''
                 }`}
+                onClick={() => onView(purpose.id)}
               >
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     checked={selectedIds.includes(purpose.id)}
@@ -247,10 +248,13 @@ export const AccountingPurposeTable = ({
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   {new Date(purpose.created_at).toLocaleDateString()}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" onClick={(e) => e.stopPropagation()}>
                   <button
                     data-dropdown={purpose.id}
-                    onClick={() => handleDropdownToggle(purpose.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDropdownToggle(purpose.id)
+                    }}
                     className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
                   >
                     <MoreVertical size={16} />
