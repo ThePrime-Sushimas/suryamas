@@ -1,6 +1,3 @@
-import { useState } from 'react'
-import { createPortal } from 'react-dom'
-import { MoreVertical, Edit, Trash2, Eye, Lock, RotateCcw } from 'lucide-react'
 import type { AccountingPurpose } from '../types/accounting-purpose.types'
 import { AppliedToBadge } from './AppliedToBadge'
 import { SystemLockBadge } from './SystemLockBadge'
@@ -28,107 +25,6 @@ export const AccountingPurposeTable = ({
   onToggleSelectAll,
   loading 
 }: AccountingPurposeTableProps) => {
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
-
-  const handleDropdownToggle = (id: string) => {
-    setActiveDropdown(activeDropdown === id ? null : id)
-  }
-
-  const ActionDropdown = ({ purpose }: { purpose: AccountingPurpose }) => {
-    if (activeDropdown !== purpose.id) return null
-
-    const canModify = !purpose.is_system
-    const isDeleted = purpose.is_deleted
-
-    // Get dropdown element position safely
-    const getDropdownPosition = () => {
-      const element = document.querySelector(`[data-dropdown="${purpose.id}"]`)
-      if (!element) {
-        return { top: 0, left: 0 }
-      }
-      const rect = element.getBoundingClientRect()
-      return {
-        top: rect.bottom + 5,
-        left: rect.left
-      }
-    }
-
-    const position = getDropdownPosition()
-
-    return createPortal(
-      <div className="fixed inset-0 z-50" onClick={() => setActiveDropdown(null)}>
-        <div 
-          className="absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-40"
-          style={{
-            top: `${position.top}px`,
-            left: `${position.left}px`
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => {
-              onView(purpose.id)
-              setActiveDropdown(null)
-            }}
-            className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-          >
-            <Eye size={16} />
-            View Details
-          </button>
-          
-          {isDeleted ? (
-            <button
-              onClick={() => {
-                onRestore(purpose.id)
-                setActiveDropdown(null)
-              }}
-              className="w-full px-4 py-2 text-left text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2"
-            >
-              <RotateCcw size={16} />
-              Restore
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={() => {
-                  onEdit(purpose.id)
-                  setActiveDropdown(null)
-                }}
-                disabled={!canModify}
-                className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
-                  canModify 
-                    ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700' 
-                    : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                }`}
-                title={!canModify ? 'System purposes cannot be edited' : ''}
-              >
-                {canModify ? <Edit size={16} /> : <Lock size={16} />}
-                Edit
-              </button>
-              
-              <button
-                onClick={() => {
-                  onDelete(purpose.id)
-                  setActiveDropdown(null)
-                }}
-                disabled={!canModify}
-                className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
-                  canModify 
-                    ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20' 
-                    : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                }`}
-                title={!canModify ? 'System purposes cannot be deleted' : ''}
-              >
-                {canModify ? <Trash2 size={16} /> : <Lock size={16} />}
-                Delete
-              </button>
-            </>
-          )}
-        </div>
-      </div>,
-      document.body
-    )
-  }
 
   if (loading) {
     return (
@@ -186,8 +82,8 @@ export const AccountingPurposeTable = ({
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 Created
               </th>
-              <th className="relative px-6 py-3">
-                <span className="sr-only">Actions</span>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Actions
               </th>
             </tr>
           </thead>
@@ -248,18 +144,42 @@ export const AccountingPurposeTable = ({
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   {new Date(purpose.created_at).toLocaleDateString()}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    data-dropdown={purpose.id}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDropdownToggle(purpose.id)
-                    }}
-                    className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-                  >
-                    <MoreVertical size={16} />
-                  </button>
-                  <ActionDropdown purpose={purpose} />
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
+                  {purpose.is_deleted ? (
+                    <button
+                      onClick={() => onRestore(purpose.id)}
+                      className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                    >
+                      Restore
+                    </button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => onEdit(purpose.id)}
+                        disabled={purpose.is_system}
+                        className={`${
+                          purpose.is_system
+                            ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                            : 'text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300'
+                        }`}
+                        title={purpose.is_system ? 'System purposes cannot be edited' : ''}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => onDelete(purpose.id)}
+                        disabled={purpose.is_system}
+                        className={`${
+                          purpose.is_system
+                            ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                            : 'text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300'
+                        }`}
+                        title={purpose.is_system ? 'System purposes cannot be deleted' : ''}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
@@ -269,3 +189,4 @@ export const AccountingPurposeTable = ({
     </div>
   )
 }
+
