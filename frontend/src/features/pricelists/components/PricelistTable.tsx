@@ -7,7 +7,8 @@
 
 import { memo, useCallback, useState } from 'react'
 import type { PricelistWithRelations, SortField, SortOrder } from '../types/pricelist.types'
-import { formatPrice, formatDate, formatStatus, getValidityStatus, getStatusColorClass, getValidityColorClass } from '../utils/format'
+import { formatPrice, formatDate, formatStatus, getValidityStatus, getValidityColorClass } from '../utils/format'
+import { getStatusColorClass } from '../constants/pricelist.constants'
 import { TableSkeleton } from '@/components/ui/Skeleton'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 
