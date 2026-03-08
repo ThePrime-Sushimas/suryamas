@@ -74,6 +74,7 @@ export const AccountingPurposesPage = () => {
       await deletePurpose(deleteConfirm.id)
       setDeleteConfirm({ open: false, id: null })
       setCurrentView('list')
+      navigate('/accounting-purposes')
     } catch (error) {
       console.error('Failed to delete purpose:', error)
     }
@@ -89,6 +90,7 @@ export const AccountingPurposesPage = () => {
       await restorePurpose(restoreConfirm.id)
       setRestoreConfirm({ open: false, id: null })
       setCurrentView('list')
+      navigate('/accounting-purposes')
     } catch (error) {
       console.error('Failed to restore purpose:', error)
     }
@@ -98,6 +100,8 @@ export const AccountingPurposesPage = () => {
     setCurrentView('list')
     setSelectedPurposeId(null)
     setSelectedPurpose(null)
+    setDeleteConfirm({ open: false, id: null })
+    setRestoreConfirm({ open: false, id: null })
     navigate('/accounting-purposes')
   }
 
@@ -105,6 +109,8 @@ export const AccountingPurposesPage = () => {
     setCurrentView('list')
     setSelectedPurposeId(null)
     setSelectedPurpose(null)
+    setDeleteConfirm({ open: false, id: null })
+    setRestoreConfirm({ open: false, id: null })
     navigate('/accounting-purposes')
   }
 
@@ -136,7 +142,6 @@ export const AccountingPurposesPage = () => {
                 purposeId={selectedPurposeId!}
                 onBack={handleBack}
                 onEdit={handleEdit}
-                onDelete={handleDeleteClick}
                 onRestore={handleRestoreClick}
               />
             )}

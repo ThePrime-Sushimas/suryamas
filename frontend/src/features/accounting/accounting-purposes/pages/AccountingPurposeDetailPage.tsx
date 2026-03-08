@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { ArrowLeft, Edit, Trash2, RotateCcw, Calendar, User } from 'lucide-react'
+import { ArrowLeft, Edit, RotateCcw, Calendar, User } from 'lucide-react'
 import { useAccountingPurposesStore } from '../store/accountingPurposes.store'
 import { AppliedToBadge } from '../components/AppliedToBadge'
 import { SystemLockBadge } from '../components/SystemLockBadge'
@@ -8,7 +8,6 @@ interface AccountingPurposeDetailPageProps {
   purposeId: string
   onBack: () => void
   onEdit: (id: string) => void
-  onDelete: (id: string) => void
   onRestore?: (id: string) => void
 }
 
@@ -16,7 +15,6 @@ export const AccountingPurposeDetailPage = ({
   purposeId,
   onBack,
   onEdit,
-  onDelete,
   onRestore
 }: AccountingPurposeDetailPageProps) => {
   const { selectedPurpose, loading, error, fetchPurposeById } = useAccountingPurposesStore()
@@ -106,35 +104,19 @@ export const AccountingPurposeDetailPage = ({
               Restore
             </button>
           ) : (
-            <>
-              <button
-                onClick={() => onEdit(purpose.id)}
-                disabled={!canModify}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  canModify
-                    ? 'bg-blue-600 dark:bg-blue-700 text-white hover:bg-blue-700 dark:hover:bg-blue-800'
-                    : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                }`}
-                title={!canModify ? 'System purposes cannot be edited' : ''}
-              >
-                <Edit size={16} />
-                Edit
-              </button>
-              
-              <button
-                onClick={() => onDelete(purpose.id)}
-                disabled={!canModify}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  canModify
-                    ? 'bg-red-600 dark:bg-red-700 text-white hover:bg-red-700 dark:hover:bg-red-800'
-                    : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                }`}
-                title={!canModify ? 'System purposes cannot be deleted' : ''}
-              >
-                <Trash2 size={16} />
-                Delete
-              </button>
-            </>
+            <button
+              onClick={() => onEdit(purpose.id)}
+              disabled={!canModify}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                canModify
+                  ? 'bg-blue-600 dark:bg-blue-700 text-white hover:bg-blue-700 dark:hover:bg-blue-800'
+                  : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+              }`}
+              title={!canModify ? 'System purposes cannot be edited' : ''}
+            >
+              <Edit size={16} />
+              Edit
+            </button>
           )}
         </div>
       </div>
