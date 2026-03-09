@@ -78,6 +78,7 @@ export class AccountingPurposeAccountsRepository {
   ): Promise<{ data: AccountingPurposeAccountWithDetails[]; total: number }> {
     const client = trx?.client || supabase
     
+    // Apply all filters including account_type to main query
     let query = client
       .from('accounting_purpose_accounts')
       .select(`
@@ -88,6 +89,47 @@ export class AccountingPurposeAccountsRepository {
       .eq('company_id', companyId)
       .is('deleted_at', null)
     
+    // Apply all filters
+    if (filter) {
+      if (filter.purpose_id) {
+        query = query.eq('purpose_id', filter.purpose_id)
+      }
+      if (filter.side) {
+        query = query.eq('side', filter.side)
+      }
+      if (filter.is_required !== undefined) {
+        query = query.eq('is_required', filter.is_required)
+      }
+      if (filter.is_active !== undefined) {
+        query = query.eq('is_active', filter.is_active)
+      }
+      if (filter.account_type) {
+        query = query.eq('chart_of_accounts.account_type', filter.account_type)
+      }
+    }
+    
+    // Apply sorting
+    if (sort) {
+      const validFields = ['priority', 'side', 'created_at', 'updated_at', 'is_active', 'is_required']
+      if (validFields.includes(sort.field)) {
+        query = query.order(sort.field, { ascending: sort.order === 'asc' })
+      }
+    } else {
+      query = query.order('priority', { ascending: true }).order('side', { ascending: true })
+    }
+    
+    // Execute main query with pagination
+    const { data, error } = await query.range(
+      pagination.offset, 
+      pagination.offset + pagination.limit - 1
+    )
+
+    if (error) {
+      logError('FindAll query error', { error: error.message })
+      throw new Error(error.message)
+    }
+    
+    // For count query (simpler without complex joins)
     let countQuery = client
       .from('accounting_purpose_accounts')
       .select('*', { count: 'exact', head: true })
@@ -96,42 +138,29 @@ export class AccountingPurposeAccountsRepository {
     
     if (filter) {
       if (filter.purpose_id) {
-        query = query.eq('purpose_id', filter.purpose_id)
         countQuery = countQuery.eq('purpose_id', filter.purpose_id)
       }
       if (filter.side) {
-        query = query.eq('side', filter.side)
         countQuery = countQuery.eq('side', filter.side)
       }
       if (filter.is_required !== undefined) {
-        query = query.eq('is_required', filter.is_required)
         countQuery = countQuery.eq('is_required', filter.is_required)
       }
-      // Remove account_type filter since it's not in this table
-      // if (filter.account_type) {
-      //   query = query.eq('chart_of_accounts.account_type', filter.account_type)
-      //   countQuery = countQuery.eq('chart_of_accounts.account_type', filter.account_type)
-      // }
-    }
-    
-    if (sort) {
-      const validFields = ['priority', 'side', 'created_at', 'updated_at']
-      if (validFields.includes(sort.field)) {
-        query = query.order(sort.field, { ascending: sort.order === 'asc' })
+      if (filter.is_active !== undefined) {
+        countQuery = countQuery.eq('is_active', filter.is_active)
       }
-      // Remove account_name sort since it's not in this table
-    } else {
-      query = query.order('priority', { ascending: true }).order('side', { ascending: true })
     }
     
-    const [{ data, error }, { count, error: countError }] = await Promise.all([
-      query.range(pagination.offset, pagination.offset + pagination.limit - 1),
-      countQuery
-    ])
-
-    if (error) throw new Error(error.message)
-    if (countError) throw new Error(countError.message)
+    const { count, error: countError } = await countQuery
     
+    if (countError) {
+      logError('FindAll count query error', { error: countError.message })
+      throw new Error(countError.message)
+    }
+    
+    const total = count || 0
+    
+    // Map the data to include related fields
     const mappedData = (data || []).map((item: any) => ({
       ...item,
       purpose_name: item.accounting_purposes?.purpose_name,
@@ -142,7 +171,7 @@ export class AccountingPurposeAccountsRepository {
       normal_balance: item.chart_of_accounts?.normal_balance,
     }))
     
-    return { data: mappedData, total: count || 0 }
+    return { data: mappedData, total }
   }
 
   async findById(id: string, trx?: TransactionContext): Promise<AccountingPurposeAccount | null> {
@@ -331,15 +360,17 @@ export class AccountingPurposeAccountsRepository {
       `)
       .eq('company_id', companyId)
       .is('deleted_at', null)
-      .limit(limit)
     
+    // Apply all filters
     if (filter) {
       if (filter.purpose_id) query = query.eq('purpose_id', filter.purpose_id)
       if (filter.side) query = query.eq('side', filter.side)
       if (filter.is_active !== undefined) query = query.eq('is_active', filter.is_active)
+      if (filter.account_type) query = query.eq('chart_of_accounts.account_type', filter.account_type)
     }
     
-    const { data, error } = await query.order('priority', { ascending: true })
+    const { data, error } = await query.order('priority', { ascending: true }).limit(limit)
+    
     if (error) {
       logError('Repository export error', { error: error.message })
       throw new Error(error.message)
@@ -365,6 +396,7 @@ export class AccountingPurposeAccountsRepository {
   ): Promise<{ data: AccountingPurposeAccountWithDetails[]; total: number }> {
     const client = trx?.client || supabase
     
+    // Main query with joins - apply all filters
     let query = client
       .from('accounting_purpose_accounts')
       .select(`
@@ -375,23 +407,20 @@ export class AccountingPurposeAccountsRepository {
       .eq('company_id', companyId)
       .not('deleted_at', 'is', null)
     
-    let countQuery = client
-      .from('accounting_purpose_accounts')
-      .select('*', { count: 'exact', head: true })
-      .eq('company_id', companyId)
-      .not('deleted_at', 'is', null)
-    
+    // Apply all filters
     if (filter) {
       if (filter.purpose_id) {
         query = query.eq('purpose_id', filter.purpose_id)
-        countQuery = countQuery.eq('purpose_id', filter.purpose_id)
       }
       if (filter.side) {
         query = query.eq('side', filter.side)
-        countQuery = countQuery.eq('side', filter.side)
+      }
+      if (filter.account_type) {
+        query = query.eq('chart_of_accounts.account_type', filter.account_type)
       }
     }
     
+    // Apply sorting
     if (sort) {
       const validFields = ['deleted_at', 'priority', 'side', 'created_at']
       if (validFields.includes(sort.field)) {
@@ -401,13 +430,70 @@ export class AccountingPurposeAccountsRepository {
       query = query.order('deleted_at', { ascending: false })
     }
     
-    const [{ data, error }, { count, error: countError }] = await Promise.all([
-      query.range(pagination.offset, pagination.offset + pagination.limit - 1),
-      countQuery
-    ])
+    // Execute main query with pagination
+    const { data, error } = await query.range(
+      pagination.offset, 
+      pagination.offset + pagination.limit - 1
+    )
 
-    if (error) throw new Error(error.message)
-    if (countError) throw new Error(countError.message)
+    if (error) {
+      logError('FindDeleted query error', { error: error.message })
+      throw new Error(error.message)
+    }
+    
+    // For count query, we need to get IDs first if account_type filter is present
+    let total = 0
+    
+    if (filter?.account_type) {
+      // Get IDs that match the account_type filter
+      let idQuery = client
+        .from('accounting_purpose_accounts')
+        .select('id, chart_of_accounts!inner(account_type)')
+        .eq('company_id', companyId)
+        .not('deleted_at', 'is', null)
+        .eq('chart_of_accounts.account_type', filter.account_type)
+      
+      if (filter.purpose_id) {
+        idQuery = idQuery.eq('purpose_id', filter.purpose_id)
+      }
+      if (filter.side) {
+        idQuery = idQuery.eq('side', filter.side)
+      }
+      
+      const { data: idData, error: idError } = await idQuery
+      
+      if (idError) {
+        logError('FindDeleted count query error', { error: idError.message })
+        throw new Error(idError.message)
+      }
+      
+      total = idData?.length || 0
+    } else {
+      // Simple count query without joins
+      let countQuery = client
+        .from('accounting_purpose_accounts')
+        .select('*', { count: 'exact', head: true })
+        .eq('company_id', companyId)
+        .not('deleted_at', 'is', null)
+      
+      if (filter) {
+        if (filter.purpose_id) {
+          countQuery = countQuery.eq('purpose_id', filter.purpose_id)
+        }
+        if (filter.side) {
+          countQuery = countQuery.eq('side', filter.side)
+        }
+      }
+      
+      const { count, error: countError } = await countQuery
+      
+      if (countError) {
+        logError('FindDeleted count query error', { error: countError.message })
+        throw new Error(countError.message)
+      }
+      
+      total = count || 0
+    }
     
     const mappedData = (data || []).map((item: any) => ({
       ...item,
@@ -419,7 +505,7 @@ export class AccountingPurposeAccountsRepository {
       normal_balance: item.chart_of_accounts?.normal_balance,
     }))
     
-    return { data: mappedData, total: count || 0 }
+    return { data: mappedData, total }
   }
 
   async restore(id: string, userId: string, trx?: TransactionContext): Promise<void> {
