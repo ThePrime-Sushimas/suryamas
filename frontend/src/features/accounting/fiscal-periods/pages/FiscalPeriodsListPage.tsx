@@ -1,8 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useFiscalPeriodsStore } from '../store/fiscalPeriods.store'
 import { FiscalPeriodFilters } from '../components/FiscalPeriodFilters'
 import { FiscalPeriodTable } from '../components/FiscalPeriodTable'
+import { Pagination } from '@/components/ui/Pagination'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import type { FiscalPeriodWithDetails } from '../types/fiscal-period.types'
 
 export function FiscalPeriodsListPage() {
@@ -17,8 +19,18 @@ export function FiscalPeriodsListPage() {
     restorePeriod,
     exportPeriods,
     setPage,
+    setLimit,
     clearError,
   } = useFiscalPeriodsStore()
+
+  // Confirm modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean
+    periodId: string | null
+  }>({
+    isOpen: false,
+    periodId: null,
+  })
 
   useEffect(() => {
     fetchPeriods()
@@ -28,10 +40,19 @@ export function FiscalPeriodsListPage() {
     navigate(`/accounting/fiscal-periods/${period.id}/edit`)
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this period?')) {
-      await deletePeriod(id)
+  const handleDeleteClick = (id: string) => {
+    setConfirmModal({ isOpen: true, periodId: id })
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (confirmModal.periodId) {
+      await deletePeriod(confirmModal.periodId)
     }
+    setConfirmModal({ isOpen: false, periodId: null })
+  }
+
+  const handleDeleteCancel = () => {
+    setConfirmModal({ isOpen: false, periodId: null })
   }
 
   const handleRestore = async (id: string) => {
@@ -42,17 +63,37 @@ export function FiscalPeriodsListPage() {
     await exportPeriods()
   }
 
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage)
+    fetchPeriods()
+  }
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit)
+    fetchPeriods()
+  }
+
   const hasOpenPeriod = periods.some(p => p.is_open && !p.deleted_at)
+
+  // Prepare pagination info for global component
+  const paginationInfo = {
+    page: pagination.page,
+    limit: pagination.limit,
+    total: pagination.total,
+    totalPages: pagination.totalPages,
+    hasNext: pagination.hasNext,
+    hasPrev: pagination.hasPrev,
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="text-2xl font-bold">Fiscal Periods</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Fiscal Periods</h1>
         <div className="flex gap-3 flex-wrap">
           <button
             onClick={handleExport}
-            className="px-4 py-2 border rounded hover:bg-gray-50 transition"
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition text-gray-700 dark:text-gray-300"
           >
             Export
           </button>
@@ -67,9 +108,9 @@ export function FiscalPeriodsListPage() {
 
       {/* Warning: No Open Period */}
       {!hasOpenPeriod && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded p-4 text-sm md:text-base">
-          <p className="font-medium text-yellow-800">⚠️ No Open Fiscal Period</p>
-          <p className="text-yellow-700 mt-1">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-4 text-sm md:text-base">
+          <p className="font-medium text-yellow-800 dark:text-yellow-300">⚠️ No Open Fiscal Period</p>
+          <p className="text-yellow-700 dark:text-yellow-400 mt-1">
             Journal posting is currently disabled. Please open a fiscal period to continue.
           </p>
         </div>
@@ -77,11 +118,11 @@ export function FiscalPeriodsListPage() {
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded p-4 text-sm md:text-base">
-          <p className="text-red-700">{error}</p>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-4 text-sm md:text-base">
+          <p className="text-red-700 dark:text-red-400">{error}</p>
           <button
             onClick={clearError}
-            className="text-red-600 underline mt-2 text-sm hover:text-red-800 transition"
+            className="text-red-600 dark:text-red-400 underline mt-2 text-sm hover:text-red-800 dark:hover:text-red-300 transition"
           >
             Dismiss
           </button>
@@ -89,19 +130,19 @@ export function FiscalPeriodsListPage() {
       )}
 
       {/* Filters */}
-      <div className="bg-white border border-gray-200 rounded p-4 shadow">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded p-4 shadow">
         <FiscalPeriodFilters />
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded shadow">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow">
         {loading ? (
-          <div className="text-center py-12 text-gray-500 text-lg">Loading Fiscal Periods...</div>
+          <div className="text-center py-12 text-gray-500 dark:text-gray-400 text-lg">Loading Fiscal Periods...</div>
         ) : (
           <FiscalPeriodTable
             periods={periods}
             onEdit={handleEdit}
-            onDelete={handleDelete}
+            onDelete={handleDeleteClick}
             onRestore={handleRestore}
             onRefresh={fetchPeriods}
             canUpdate={true}
@@ -110,28 +151,27 @@ export function FiscalPeriodsListPage() {
         )}
       </div>
 
-      {/* Pagination */}
+      {/* Global Pagination */}
       {pagination.totalPages > 1 && (
-        <div className="flex justify-center items-center gap-3 mt-4 flex-wrap">
-          <button
-            onClick={() => { setPage(pagination.page - 1); fetchPeriods() }}
-            disabled={!pagination.hasPrev}
-            className="px-4 py-2 border rounded disabled:opacity-50 hover:bg-gray-50 transition"
-          >
-            Previous
-          </button>
-          <span className="px-4 py-2">
-            Page <span className="font-semibold">{pagination.page}</span> of <span className="font-semibold">{pagination.totalPages}</span>
-          </span>
-          <button
-            onClick={() => { setPage(pagination.page + 1); fetchPeriods() }}
-            disabled={!pagination.hasNext}
-            className="px-4 py-2 border rounded disabled:opacity-50 hover:bg-gray-50 transition"
-          >
-            Next
-          </button>
-        </div>
+        <Pagination
+          pagination={paginationInfo}
+          onPageChange={handlePageChange}
+          onLimitChange={handleLimitChange}
+          loading={loading}
+        />
       )}
+
+      {/* Global Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Fiscal Period"
+        message="Are you sure you want to delete this fiscal period? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </div>
   )
 }

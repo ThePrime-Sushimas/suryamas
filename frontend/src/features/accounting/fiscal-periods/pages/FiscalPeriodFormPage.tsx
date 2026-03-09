@@ -26,8 +26,8 @@ export function FiscalPeriodFormPage() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto" role="main">
-      <h1 id="page-title" className="text-2xl font-bold mb-6">Create Fiscal Period</h1>
-      <div className="bg-white rounded-lg shadow p-6" aria-labelledby="page-title">
+      <h1 id="page-title" className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Create Fiscal Period</h1>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-6" aria-labelledby="page-title">
         <FiscalPeriodForm onSubmit={handleSubmit} onCancel={handleCancel} />
       </div>
     </div>

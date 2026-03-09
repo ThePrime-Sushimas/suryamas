@@ -22,14 +22,14 @@ export function FiscalPeriodFilters() {
   return (
     <div className="flex gap-4 items-end">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="fiscal-year-filter">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" htmlFor="fiscal-year-filter">
           Fiscal Year
         </label>
         <select
           id="fiscal-year-filter"
           value={localFilters.fiscal_year || ''}
           onChange={(e) => setLocalFilters({ ...localFilters, fiscal_year: e.target.value ? Number(e.target.value) : undefined })}
-          className="border rounded px-3 py-2"
+          className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           aria-label="Filter by fiscal year"
         >
           <option value="">All Years</option>
@@ -40,14 +40,14 @@ export function FiscalPeriodFilters() {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="status-filter">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" htmlFor="status-filter">
           Status
         </label>
         <select
           id="status-filter"
           value={localFilters.is_open === undefined ? '' : localFilters.is_open ? 'true' : 'false'}
           onChange={(e) => setLocalFilters({ ...localFilters, is_open: e.target.value === '' ? undefined : e.target.value === 'true' })}
-          className="border rounded px-3 py-2"
+          className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           aria-label="Filter by status"
         >
           <option value="">All</option>
@@ -64,12 +64,12 @@ export function FiscalPeriodFilters() {
             onChange={(e) => setLocalFilters({ ...localFilters, show_deleted: e.target.checked })}
             className="rounded"
           />
-          <span className="text-sm text-gray-700">Show Deleted</span>
+          <span className="text-sm text-gray-700 dark:text-gray-300">Show Deleted</span>
         </label>
       </div>
 
       <div className="flex-1">
-        <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="search-filter">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" htmlFor="search-filter">
           Search
         </label>
         <input
@@ -78,7 +78,7 @@ export function FiscalPeriodFilters() {
           placeholder="Search period..."
           value={localFilters.q || ''}
           onChange={(e) => setLocalFilters({ ...localFilters, q: e.target.value })}
-          className="border rounded px-3 py-2 w-full"
+          className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 w-full bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
           aria-label="Search fiscal periods"
         />
       </div>
@@ -92,7 +92,7 @@ export function FiscalPeriodFilters() {
 
       <button
         onClick={handleReset}
-        className="px-4 py-2 border rounded hover:bg-gray-50"
+        className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
       >
         Reset
       </button>

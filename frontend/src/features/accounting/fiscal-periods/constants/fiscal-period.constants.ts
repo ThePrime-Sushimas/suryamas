@@ -11,8 +11,8 @@ export const FISCAL_PERIOD_STATUS_LABELS = {
 }
 
 export const FISCAL_PERIOD_STATUS_COLORS = {
-  OPEN: 'bg-green-100 text-green-800',
-  CLOSED: 'bg-red-100 text-red-800',
+  OPEN: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+  CLOSED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
 }
 
 export const DEFAULT_PAGE_SIZE = 10

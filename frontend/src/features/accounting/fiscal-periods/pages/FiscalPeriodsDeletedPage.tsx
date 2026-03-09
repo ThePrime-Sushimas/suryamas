@@ -2,10 +2,11 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useFiscalPeriodsStore } from '../store/fiscalPeriods.store'
 import { FiscalPeriodTable } from '../components/FiscalPeriodTable'
+import { Pagination } from '@/components/ui/Pagination'
 
 export function FiscalPeriodsDeletedPage() {
   const navigate = useNavigate()
-  const { periods, loading, fetchPeriods, restorePeriod, setFilters } = useFiscalPeriodsStore()
+  const { periods, loading, pagination, fetchPeriods, restorePeriod, setFilters, setPage, setLimit } = useFiscalPeriodsStore()
 
   useEffect(() => {
     setFilters({ show_deleted: true })
@@ -13,32 +14,65 @@ export function FiscalPeriodsDeletedPage() {
 
   const deletedPeriods = periods.filter(p => p.deleted_at)
 
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage)
+    fetchPeriods()
+  }
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit)
+    fetchPeriods()
+  }
+
+  const paginationInfo = {
+    page: pagination.page,
+    limit: pagination.limit,
+    total: pagination.total,
+    totalPages: pagination.totalPages,
+    hasNext: pagination.hasNext,
+    hasPrev: pagination.hasPrev,
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Deleted Fiscal Periods</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Deleted Fiscal Periods</h1>
         <button
           onClick={() => navigate('/accounting/fiscal-periods')}
-          className="px-4 py-2 border rounded hover:bg-gray-50"
+          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
         >
           Back to List
         </button>
       </div>
 
       {loading ? (
-        <div className="text-center py-8">Loading...</div>
+        <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading...</div>
       ) : deletedPeriods.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">No deleted periods</div>
+        <div className="text-center py-8 text-gray-500 dark:text-gray-400">No deleted periods</div>
       ) : (
-        <FiscalPeriodTable
-          periods={deletedPeriods}
-          onEdit={() => {}}
-          onDelete={() => {}}
-          onRestore={restorePeriod}
-          onRefresh={fetchPeriods}
-          canUpdate={true}
-          canDelete={false}
-        />
+        <>
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow">
+            <FiscalPeriodTable
+              periods={deletedPeriods}
+              onEdit={() => {}}
+              onDelete={() => {}}
+              onRestore={restorePeriod}
+              onRefresh={fetchPeriods}
+              canUpdate={true}
+              canDelete={false}
+            />
+          </div>
+
+          {/* Global Pagination */}
+          {pagination.totalPages > 1 && (
+            <Pagination
+              pagination={paginationInfo}
+              onPageChange={handlePageChange}
+              onLimitChange={handleLimitChange}
+              loading={loading}
+            />
+          )}
+        </>
       )}
     </div>
   )

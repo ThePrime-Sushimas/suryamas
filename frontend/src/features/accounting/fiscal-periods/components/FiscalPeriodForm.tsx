@@ -74,7 +74,7 @@ export function FiscalPeriodForm({ initialData, onSubmit, onCancel }: FiscalPeri
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="period" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="period" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Period <span className="text-red-500">*</span>
         </label>
         <input
@@ -86,17 +86,17 @@ export function FiscalPeriodForm({ initialData, onSubmit, onCancel }: FiscalPeri
           onChange={(e) => setFormData({ ...formData, period: e.target.value })}
           aria-invalid={!!errors.period}
           aria-describedby={errors.period ? 'period-error' : undefined}
-          className={`w-full border rounded px-3 py-2 ${errors.period ? 'border-red-500' : ''}`}
+          className={`w-full border rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 ${errors.period ? 'border-red-500 dark:border-red-500' : ''}`}
         />
         {errors.period && (
-          <p id="period-error" className="text-red-500 text-sm mt-1" role="alert">
+          <p id="period-error" className="text-red-500 dark:text-red-400 text-sm mt-1" role="alert">
             {errors.period}
           </p>
         )}
       </div>
 
       <div>
-        <label htmlFor="period_start" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="period_start" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Period Start <span className="text-red-500">*</span>
         </label>
         <input
@@ -106,17 +106,17 @@ export function FiscalPeriodForm({ initialData, onSubmit, onCancel }: FiscalPeri
           onChange={(e) => setFormData({ ...formData, period_start: e.target.value })}
           aria-invalid={!!errors.period_start}
           aria-describedby={errors.period_start ? 'period-start-error' : undefined}
-          className={`w-full border rounded px-3 py-2 ${errors.period_start ? 'border-red-500' : ''}`}
+          className={`w-full border rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 ${errors.period_start ? 'border-red-500 dark:border-red-500' : ''}`}
         />
         {errors.period_start && (
-          <p id="period-start-error" className="text-red-500 text-sm mt-1" role="alert">
+          <p id="period-start-error" className="text-red-500 dark:text-red-400 text-sm mt-1" role="alert">
             {errors.period_start}
           </p>
         )}
       </div>
 
       <div>
-        <label htmlFor="period_end" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="period_end" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Period End <span className="text-red-500">*</span>
         </label>
         <input
@@ -126,10 +126,10 @@ export function FiscalPeriodForm({ initialData, onSubmit, onCancel }: FiscalPeri
           onChange={(e) => setFormData({ ...formData, period_end: e.target.value })}
           aria-invalid={!!errors.period_end}
           aria-describedby={errors.period_end ? 'period-end-error' : undefined}
-          className={`w-full border rounded px-3 py-2 ${errors.period_end ? 'border-red-500' : ''}`}
+          className={`w-full border rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 ${errors.period_end ? 'border-red-500 dark:border-red-500' : ''}`}
         />
         {errors.period_end && (
-          <p id="period-end-error" className="text-red-500 text-sm mt-1" role="alert">
+          <p id="period-end-error" className="text-red-500 dark:text-red-400 text-sm mt-1" role="alert">
             {errors.period_end}
           </p>
         )}
@@ -144,7 +144,7 @@ export function FiscalPeriodForm({ initialData, onSubmit, onCancel }: FiscalPeri
           aria-checked={formData.is_year_end}
           className="rounded"
         />
-        <label htmlFor="is_year_end" className="text-sm text-gray-700">
+        <label htmlFor="is_year_end" className="text-sm text-gray-700 dark:text-gray-300">
           Year End Period
         </label>
       </div>
@@ -158,13 +158,13 @@ export function FiscalPeriodForm({ initialData, onSubmit, onCancel }: FiscalPeri
           aria-checked={formData.is_adjustment_allowed}
           className="rounded"
         />
-        <label htmlFor="is_adjustment_allowed" className="text-sm text-gray-700">
+        <label htmlFor="is_adjustment_allowed" className="text-sm text-gray-700 dark:text-gray-300">
           Allow Adjustments
         </label>
       </div>
 
       {errors.submit && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm" role="alert">
+        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-red-700 dark:text-red-400 text-sm" role="alert">
           {errors.submit}
         </div>
       )}
@@ -174,7 +174,7 @@ export function FiscalPeriodForm({ initialData, onSubmit, onCancel }: FiscalPeri
           type="button"
           onClick={onCancel}
           disabled={loading}
-          className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50"
+          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 text-gray-700 dark:text-gray-300"
         >
           Cancel
         </button>
