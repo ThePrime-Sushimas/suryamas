@@ -3,33 +3,50 @@ import { validatePeriodFormat, validateDateRange } from '../utils/validation'
 import type { CreateFiscalPeriodDto, FiscalPeriod } from '../types/fiscal-period.types'
 
 interface FiscalPeriodFormProps {
-  initialData?: FiscalPeriod
+  initialData?: FiscalPeriod | null
   onSubmit: (dto: CreateFiscalPeriodDto) => Promise<void>
   onCancel: () => void
 }
 
+// Default values for new form
+const DEFAULT_FORM_DATA: CreateFiscalPeriodDto = {
+  period: '',
+  period_start: '',
+  period_end: '',
+  is_adjustment_allowed: true,
+  is_year_end: false,
+}
+
 export function FiscalPeriodForm({ initialData, onSubmit, onCancel }: FiscalPeriodFormProps) {
-  const [formData, setFormData] = useState<CreateFiscalPeriodDto>({
-    period: '',
-    period_start: '',
-    period_end: '',
-    is_adjustment_allowed: true,
-    is_year_end: false,
+  // Initialize form data - use initialData if available, otherwise use defaults
+  const [formData, setFormData] = useState<CreateFiscalPeriodDto>(() => {
+    if (initialData) {
+      return {
+        period: initialData.period || '',
+        period_start: initialData.period_start || '',
+        period_end: initialData.period_end || '',
+        is_adjustment_allowed: initialData.is_adjustment_allowed ?? true,
+        is_year_end: initialData.is_year_end ?? false,
+      }
+    }
+    return DEFAULT_FORM_DATA
   })
+  
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
 
+  // Update form when initialData changes after initial render
   useEffect(() => {
     if (initialData) {
       setFormData({
-        period: initialData.period,
-        period_start: initialData.period_start,
-        period_end: initialData.period_end,
-        is_adjustment_allowed: initialData.is_adjustment_allowed,
-        is_year_end: initialData.is_year_end,
+        period: initialData.period || '',
+        period_start: initialData.period_start || '',
+        period_end: initialData.period_end || '',
+        is_adjustment_allowed: initialData.is_adjustment_allowed ?? true,
+        is_year_end: initialData.is_year_end ?? false,
       })
     }
-  }, [initialData])
+  }, [initialData?.id, initialData?.period, initialData?.period_start, initialData?.period_end])
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {}

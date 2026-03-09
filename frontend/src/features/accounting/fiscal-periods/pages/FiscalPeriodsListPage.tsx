@@ -73,7 +73,10 @@ export function FiscalPeriodsListPage() {
     fetchPeriods()
   }
 
-  const hasOpenPeriod = periods.some(p => p.is_open && !p.deleted_at)
+  // Add safety check for periods
+  const hasOpenPeriod = (periods && periods.length > 0) 
+    ? periods.some(p => p.is_open && !p.deleted_at) 
+    : false
 
   // Prepare pagination info for global component
   const paginationInfo = {
@@ -140,7 +143,7 @@ export function FiscalPeriodsListPage() {
           <div className="text-center py-12 text-gray-500 dark:text-gray-400 text-lg">Loading Fiscal Periods...</div>
         ) : (
           <FiscalPeriodTable
-            periods={periods}
+            periods={periods || []}
             onEdit={handleEdit}
             onDelete={handleDeleteClick}
             onRestore={handleRestore}

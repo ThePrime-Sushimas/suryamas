@@ -6,19 +6,36 @@ import type {
   UpdateFiscalPeriodDto,
   ClosePeriodDto,
   FiscalPeriodFilter,
-  FiscalPeriodListResponse,
 } from '../types/fiscal-period.types'
 
 const BASE_URL = '/accounting/fiscal-periods'
 
+// API Response wrapper types
+interface ApiResponse<T> {
+  success: boolean
+  message: string
+  data: T
+  pagination?: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+    hasNext: boolean
+    hasPrev: boolean
+  }
+}
+
+// List response - data is array directly, pagination at root level
+type FiscalPeriodListApiResponse = ApiResponse<FiscalPeriodWithDetails[]>
+
 export const fiscalPeriodsApi = {
   list: async (params: FiscalPeriodFilter & { page?: number; limit?: number }) => {
-    const { data } = await api.get<FiscalPeriodListResponse>(BASE_URL, { params })
+    const { data } = await api.get<FiscalPeriodListApiResponse>(BASE_URL, { params })
     return data
   },
 
   getById: async (id: string) => {
-    const { data } = await api.get<FiscalPeriodWithDetails>(`${BASE_URL}/${id}`)
+    const { data } = await api.get<ApiResponse<FiscalPeriodWithDetails>>(`${BASE_URL}/${id}`)
     return data
   },
 

@@ -38,6 +38,7 @@ interface FiscalPeriodsState {
   setPage: (page: number) => void
   setLimit: (limit: number) => void
   clearError: () => void
+  resetSelectedPeriod: () => void
   refresh: () => Promise<void>
 }
 
@@ -66,9 +67,19 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
         page: pagination.page,
         limit: pagination.limit,
       })
+      
+      // API returns { success, message, data: [...], pagination: {...} } structure
+      // response.data is the array of fiscal periods (directly)
+      // response.pagination is at the root level
+      const apiData = response.data || []
+      const apiPagination = response.pagination || get().pagination
+      
       set({
-        periods: response.data,
-        pagination: response.pagination,
+        periods: apiData,
+        pagination: {
+          ...get().pagination,
+          ...apiPagination,
+        },
       })
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'An error occurred' })
@@ -80,7 +91,9 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
   fetchPeriodById: async (id: string) => {
     set({ loading: true, error: null })
     try {
-      const period = await fiscalPeriodsApi.getById(id)
+      const response = await fiscalPeriodsApi.getById(id)
+      // API returns { success, message, data } structure
+      const period = response.data
       set({ selectedPeriod: period })
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'An error occurred' })
@@ -109,8 +122,8 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
       await get().fetchPeriods()
 
       if (get().selectedPeriod?.id === id) {
-        const updated = await fiscalPeriodsApi.getById(id)
-        set({ selectedPeriod: updated })
+        const response = await fiscalPeriodsApi.getById(id)
+        set({ selectedPeriod: response.data })
       }
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'An error occurred' })
@@ -127,8 +140,8 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
       await get().fetchPeriods()
 
       if (get().selectedPeriod?.id === id) {
-        const updated = await fiscalPeriodsApi.getById(id)
-        set({ selectedPeriod: updated })
+        const response = await fiscalPeriodsApi.getById(id)
+        set({ selectedPeriod: response.data })
       }
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'An error occurred' })
@@ -220,6 +233,8 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  resetSelectedPeriod: () => set({ selectedPeriod: null }),
 
   refresh: async () => {
     await get().fetchPeriods()
