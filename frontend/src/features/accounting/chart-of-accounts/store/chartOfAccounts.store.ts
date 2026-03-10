@@ -124,7 +124,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
     set(state => ({ loading: { ...state.loading, postable: true }, error: null }))
     
     try {
-      const res = await chartOfAccountsApi.list(1, 10000, undefined, { is_postable: true })
+      const res = await chartOfAccountsApi.list(1, 1000, undefined, { is_postable: true })
       set(state => ({ 
         postableAccounts: res.data,
         loading: { ...state.loading, postable: false },

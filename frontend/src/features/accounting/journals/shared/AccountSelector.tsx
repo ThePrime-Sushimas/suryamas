@@ -109,53 +109,53 @@ export function AccountSelector({ value, onChange, disabled, placeholder, accoun
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
-        className="w-full border rounded px-3 py-2 text-left flex items-center justify-between hover:border-gray-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
+        className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-left flex items-center justify-between hover:border-gray-400 dark:hover:border-gray-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed bg-white dark:bg-gray-700"
       >
-        <span className={selectedAccount ? 'text-gray-900' : 'text-gray-400'}>
+        <span className={selectedAccount ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}>
           {selectedAccount
             ? `${selectedAccount.account_code} - ${selectedAccount.account_name}`
             : placeholder || 'Select account...'}
         </span>
-        <ChevronDown size={16} className="text-gray-400" />
+        <ChevronDown size={16} className="text-gray-400 dark:text-gray-500" />
       </button>
 
       {isOpen && (
         <>
           <div className="fixed inset-0 z-9998" onClick={() => setIsOpen(false)} />
-          <div ref={dropdownRef} style={dropdownStyle} className="bg-white border rounded-lg shadow-lg max-h-80 overflow-hidden">
-            <div className="p-2 border-b bg-white sticky top-0">
+          <div ref={dropdownRef} style={dropdownStyle} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-80 overflow-hidden">
+            <div className="p-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 sticky top-0">
               <div className="relative">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search account..."
-                  className="w-full pl-9 pr-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                   autoFocus
                   onClick={(e) => e.stopPropagation()}
                 />
               </div>
             </div>
 
-            <div className="overflow-y-auto max-h-64 bg-white">
+            <div className="overflow-y-auto max-h-64 bg-white dark:bg-gray-800">
               {loading ? (
-                <div className="p-4 text-center text-gray-500 text-sm">Loading accounts...</div>
+                <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">Loading accounts...</div>
               ) : filteredAccounts.length === 0 ? (
-                <div className="p-4 text-center text-gray-500 text-sm">No accounts found</div>
+                <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">No accounts found</div>
               ) : (
                 filteredAccounts.map((account) => (
                   <button
                     key={account.id}
                     type="button"
                     onClick={() => handleSelect(account.id)}
-                    className={`w-full px-3 py-2 text-left hover:bg-blue-50 flex flex-col border-b last:border-b-0 ${
-                      value === account.id ? 'bg-blue-100' : ''
+                    className={`w-full px-3 py-2 text-left hover:bg-blue-50 dark:hover:bg-blue-900/30 flex flex-col border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${
+                      value === account.id ? 'bg-blue-100 dark:bg-blue-900/40' : ''
                     }`}
                   >
-                    <span className="font-medium text-sm">{account.account_code}</span>
-                    <span className="text-xs text-gray-600">{account.account_name}</span>
-                    <span className="text-xs text-gray-400">{account.account_type}</span>
+                    <span className="font-medium text-sm text-gray-900 dark:text-gray-100">{account.account_code}</span>
+                    <span className="text-xs text-gray-600 dark:text-gray-400">{account.account_name}</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">{account.account_type}</span>
                   </button>
                 ))
               )}
