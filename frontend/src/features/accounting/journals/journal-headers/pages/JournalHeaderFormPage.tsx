@@ -224,7 +224,7 @@ export function JournalHeaderFormPage() {
                   </button>
                   
                   <button
-                    onClick={() => navigate('/accounting/chart-of-accounts')}
+                    onClick={() => navigate('/chart-of-accounts')}
                     className="w-full text-left p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 hover:border-green-200 dark:hover:border-green-600 transition-all group"
                   >
                     <div className="flex items-center gap-3">

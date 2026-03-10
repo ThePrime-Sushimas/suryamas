@@ -22,7 +22,7 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
   
   const [draftLoaded, setDraftLoaded] = useState(false)
   const [journalDate, setJournalDate] = useState(initialData?.journal_date || new Date().toISOString().split('T')[0])
-  const [journalType, setJournalType] = useState(initialData?.journal_type || 'MANUAL')
+  const [journalType, setJournalType] = useState(initialData?.journal_type || 'GENERAL')
   const [description, setDescription] = useState(initialData?.description || '')
   const [lines, setLines] = useState<JournalLine[]>(
     initialData?.lines?.map(l => ({
