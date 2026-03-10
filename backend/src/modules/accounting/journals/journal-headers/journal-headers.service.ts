@@ -152,10 +152,11 @@ export class JournalHeadersService {
       }
 
       const totals = calculateTotals(data.lines)
-      
-      // Update header with new totals
+
+      // Update header with new totals (exclude lines - they are handled separately)
+      const { lines: _lines, ...headerData } = data
       await journalHeadersRepository.update(id, {
-        ...data,
+        ...headerData,
         total_debit: totals.total_debit,
         total_credit: totals.total_credit
       }, userId)
