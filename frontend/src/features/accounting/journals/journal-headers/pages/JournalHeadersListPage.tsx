@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, ArrowUpDown, Trash2 } from 'lucide-react'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useJournalHeadersStore } from '../store/journalHeaders.store'
 import { JournalHeaderFilters } from '../components/JournalHeaderFilters'
 import { JournalHeaderTable } from '../components/JournalHeaderTable'
@@ -23,6 +25,11 @@ export function JournalHeadersListPage() {
     hasAppliedFilters,
   } = useJournalHeadersStore()
 
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({
+    isOpen: false,
+    id: null,
+  })
+
   const handleView = (journal: JournalHeader) => {
     navigate(`/accounting/journals/${journal.id}`)
   }
@@ -31,10 +38,19 @@ export function JournalHeadersListPage() {
     navigate(`/accounting/journals/${journal.id}/edit`)
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Apakah Anda yakin ingin menghapus journal ini?')) {
-      await deleteJournal(id)
+  const handleDelete = (id: string) => {
+    setDeleteConfirm({ isOpen: true, id })
+  }
+
+  const handleConfirmDelete = async () => {
+    if (deleteConfirm.id) {
+      await deleteJournal(deleteConfirm.id)
     }
+    setDeleteConfirm({ isOpen: false, id: null })
+  }
+
+  const handleCloseDeleteConfirm = () => {
+    setDeleteConfirm({ isOpen: false, id: null })
   }
 
   const handleSort = (field: JournalSortParams['sort']) => {
@@ -189,6 +205,18 @@ export function JournalHeadersListPage() {
           )}
         </>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        onClose={handleCloseDeleteConfirm}
+        onConfirm={handleConfirmDelete}
+        title="Hapus Journal"
+        message="Apakah Anda yakin ingin menghapus journal ini? Tindakan ini tidak dapat dibatalkan."
+        confirmText="Hapus"
+        cancelText="Batal"
+        variant="danger"
+      />
     </div>
   )
 }

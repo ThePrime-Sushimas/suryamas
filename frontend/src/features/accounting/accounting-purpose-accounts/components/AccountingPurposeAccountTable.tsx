@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import type { AccountingPurposeAccountWithDetails } from '../types/accounting-purpose-account.types'
-import { SideBadge } from './SideBadge'
 import { useBulkSelection } from '@/hooks/_shared/useBulkSelection'
 
 interface AccountingPurposeAccountTableProps {
@@ -25,17 +24,12 @@ export const AccountingPurposeAccountTable = ({
   loading,
   onEdit,
   onDelete,
-  onSort,
-  sortField,
-  sortOrder,
   onBulkAction
 }: AccountingPurposeAccountTableProps) => {
   const {
     selectedIds,
-    selectAll,
     selectOne,
     isSelected,
-    isAllSelected,
     selectedCount,
     clearSelection
   } = useBulkSelection(accounts)
@@ -64,16 +58,7 @@ export const AccountingPurposeAccountTable = ({
     return groups.sort((a, b) => a.purposeCode.localeCompare(b.purposeCode))
   }, [accounts])
 
-  const sortableColumns = useMemo(() => ({
-    priority: 'Priority',
-    created_at: 'Created',
-    updated_at: 'Updated'
-  }), [])
 
-  const getSortIcon = (field: string) => {
-    if (sortField !== field) return '↕️'
-    return sortOrder === 'asc' ? '↑' : '↓'
-  }
 
   const handleBulkAction = (action: 'activate' | 'deactivate' | 'delete') => {
     if (selectedCount > 0 && onBulkAction) {
@@ -146,7 +131,7 @@ export const AccountingPurposeAccountTable = ({
             className="border-2 border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm"
           >
             {/* Purpose Header - Like a ledger page header */}
-            <div className="bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 px-6 py-4 border-b-2 border-gray-300 dark:border-gray-600">
+            <div className="bg-linear-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 px-6 py-4 border-b-2 border-gray-300 dark:border-gray-600">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">

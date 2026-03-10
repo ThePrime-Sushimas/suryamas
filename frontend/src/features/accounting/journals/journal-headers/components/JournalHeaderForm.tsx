@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { Plus } from 'lucide-react'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { BalanceIndicator } from '../../journal-lines/components/BalanceIndicator'
 import { JournalLinesTable } from './JournalLinesTable'
 import { JOURNAL_TYPES } from '../../shared/journal.constants'
@@ -42,6 +43,8 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
   )
   const [errors, setErrors] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showDeleteLineConfirm, setShowDeleteLineConfirm] = useState(false)
+  const [lineIndexToDelete, setLineIndexToDelete] = useState<number | null>(null)
 
   const balance = useMemo(() => calculateBalance(lines), [lines])
   
@@ -107,17 +110,32 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
 
   const handleRemoveLine = useCallback((index: number) => {
     if (lines.length <= 2) {
-      alert('Journal must have at least 2 lines')
+      setLineIndexToDelete(index)
+      setShowDeleteLineConfirm(true)
       return
     }
+    // Show confirmation modal for deleting line
+    setLineIndexToDelete(index)
+    setShowDeleteLineConfirm(true)
+  }, [lines.length])
+
+  const confirmDeleteLine = useCallback(() => {
+    if (lineIndexToDelete === null) return
     setLines(prev => {
-      const newLines = prev.filter((_, i) => i !== index)
+      const newLines = prev.filter((_, i) => i !== lineIndexToDelete)
       newLines.forEach((line, i) => {
         line.line_number = i + 1
       })
       return newLines
     })
-  }, [lines.length])
+    setShowDeleteLineConfirm(false)
+    setLineIndexToDelete(null)
+  }, [lineIndexToDelete])
+
+  const handleCloseDeleteLineConfirm = useCallback(() => {
+    setShowDeleteLineConfirm(false)
+    setLineIndexToDelete(null)
+  }, [])
 
   const handleLineChange = useCallback((index: number, field: keyof JournalLine, value: string | number) => {
     setLines(prev => prev.map((line, i) => {
@@ -293,6 +311,21 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
       <div className="text-xs text-gray-500 dark:text-gray-400 text-center bg-gray-50 dark:bg-gray-800/50 rounded-lg py-2 px-4">
         <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-gray-700 dark:text-gray-300 font-mono text-xs">Ctrl+Enter</kbd> untuk submit, <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-gray-700 dark:text-gray-300 font-mono text-xs">Esc</kbd> untuk cancel
       </div>
+
+      {/* Delete Line Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteLineConfirm}
+        onClose={handleCloseDeleteLineConfirm}
+        onConfirm={confirmDeleteLine}
+        title="Hapus Baris Jurnal"
+        message={lines.length <= 2 
+          ? "Journal harus memiliki minimal 2 baris. Apakah Anda tetap ingin menghapus baris ini?" 
+          : `Apakah Anda yakin ingin menghapus baris jurnal nomor ${lineIndexToDelete !== null ? lineIndexToDelete + 1 : ''}?`
+        }
+        confirmText="Hapus"
+        cancelText="Batal"
+        variant="danger"
+      />
     </form>
   )
 }

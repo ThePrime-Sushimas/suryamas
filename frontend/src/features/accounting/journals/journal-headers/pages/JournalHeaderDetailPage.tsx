@@ -5,6 +5,7 @@ import {
   ArrowLeft, Copy, Printer, MoreHorizontal, Calendar, 
   Building2, FileText, Banknote, Clock, Tag
 } from 'lucide-react'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useJournalHeadersStore } from '../store/journalHeaders.store'
 import { JournalStatusBadge } from '../components/JournalStatusBadge'
 import { JournalTypeBadge } from '../components/JournalTypeBadge'
@@ -36,6 +37,9 @@ export function JournalHeaderDetailPage() {
   const [reverseReason, setReverseReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [showReverseModal, setShowReverseModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showPostModal, setShowPostModal] = useState(false)
+  const [showRejectConfirmModal, setShowRejectConfirmModal] = useState(false)
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -90,10 +94,8 @@ export function JournalHeaderDetailPage() {
   const handleEdit = () => navigate(`/accounting/journals/${id}/edit`)
   
   const handleDelete = async () => {
-    if (confirm('Apakah Anda yakin ingin menghapus jurnal ini?')) {
-      await deleteJournal(id!)
-      navigate('/accounting/journals')
-    }
+    await deleteJournal(id!)
+    navigate('/accounting/journals')
   }
 
   const handleSubmit = async () => {
@@ -108,25 +110,23 @@ export function JournalHeaderDetailPage() {
 
   const handleReject = async () => {
     if (!rejectReason.trim()) {
-      alert('Mohon berikan alasan penolakan')
+      setShowRejectModal(true)
       return
     }
     await rejectJournal(id!, { rejection_reason: rejectReason })
     setShowRejectModal(false)
+    setShowRejectConfirmModal(false)
     setRejectReason('')
     fetchJournalById(id!)
   }
 
   const handlePost = async () => {
-    if (confirm('Apakah Anda yakin ingin memposting jurnal ini ke buku besar?')) {
-      await postJournal(id!)
-      fetchJournalById(id!)
-    }
+    await postJournal(id!)
+    fetchJournalById(id!)
   }
 
   const handleReverse = async () => {
     if (!reverseReason.trim()) {
-      alert('Mohon berikan alasan pembalikan')
       return
     }
     await reverseJournal(id!, { reversal_reason: reverseReason })
@@ -230,8 +230,8 @@ export function JournalHeaderDetailPage() {
                 )}
                 {canDelete && (
                   <button
-                    onClick={handleDelete}
-                    className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                    onClick={() => setShowDeleteModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 dark:text-red-400 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                   >
                     <Trash2 size={18} />
                     Hapus
@@ -425,8 +425,8 @@ export function JournalHeaderDetailPage() {
               mutating={mutating}
               handleSubmit={handleSubmit}
               handleApprove={handleApprove}
-              handlePost={handlePost}
-              setShowRejectModal={setShowRejectModal}
+              handlePost={async () => setShowPostModal(true)}
+              setShowRejectModal={() => setShowRejectConfirmModal(true)}
               setShowReverseModal={setShowReverseModal}
             />
           </div>
@@ -476,28 +476,28 @@ export function JournalHeaderDetailPage() {
       {/* Reverse Modal */}
       {showReverseModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full">
             <div className="p-6">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
-                  <RotateCcw className="w-5 h-5 text-orange-600" />
+                <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center">
+                  <RotateCcw className="w-5 h-5 text-orange-600 dark:text-orange-400" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Balikkan Jurnal</h3>
-                  <p className="text-sm text-gray-500">Aksi ini akan membuat jurnal baru dengan nilai terbalik</p>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Balikkan Jurnal</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Aksi ini akan membuat jurnal baru dengan nilai terbalik</p>
                 </div>
               </div>
               <textarea
                 value={reverseReason}
                 onChange={(e) => setReverseReason(e.target.value)}
                 placeholder="Masukkan alasan pembalikan..."
-                className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 rows={4}
               />
               <div className="flex gap-3 mt-4">
                 <button
                   onClick={() => setShowReverseModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   Batal
                 </button>
@@ -512,6 +512,45 @@ export function JournalHeaderDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDelete}
+        title="Hapus Jurnal"
+        message="Apakah Anda yakin ingin menghapus jurnal ini? Tindakan ini tidak dapat dibatalkan."
+        confirmText="Hapus"
+        cancelText="Batal"
+        variant="danger"
+      />
+
+      {/* Post Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showPostModal}
+        onClose={() => setShowPostModal(false)}
+        onConfirm={handlePost}
+        title="Posting Jurnal"
+        message="Apakah Anda yakin ingin memposting jurnal ini ke buku besar? Jurnal yang sudah diposting tidak dapat diubah."
+        confirmText="Posting"
+        cancelText="Batal"
+        variant="warning"
+      />
+
+      {/* Reject Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showRejectConfirmModal}
+        onClose={() => setShowRejectConfirmModal(false)}
+        onConfirm={() => {
+          setShowRejectConfirmModal(false)
+          setShowRejectModal(true)
+        }}
+        title="Tolak Jurnal"
+        message="Apakah Anda yakin ingin menolak jurnal ini? Harap berikan alasan penolakan."
+        confirmText="Lanjutkan"
+        cancelText="Batal"
+        variant="danger"
+      />
     </div>
   )
 }

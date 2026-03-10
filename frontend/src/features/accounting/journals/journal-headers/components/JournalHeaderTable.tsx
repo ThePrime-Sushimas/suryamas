@@ -104,7 +104,8 @@ export function JournalHeaderTable({
             {journals.map((journal, index) => (
               <tr
                 key={journal.id}
-                className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                onClick={() => onView?.(journal)}
+                className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer ${
                   index % 2 === 1 ? 'bg-gray-50/50 dark:bg-gray-900/20' : ''
                 }`}
               >
@@ -145,7 +146,7 @@ export function JournalHeaderTable({
                   <JournalStatusBadge status={journal.status} />
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center justify-center gap-1">
+                  <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
                     {showDeleted ? (
                       onRestore && (
                         <button
