@@ -1,18 +1,29 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { useJournalHeadersStore } from '../store/journalHeaders.store'
 import { JournalHeaderTable } from '../components/JournalHeaderTable'
 import { useJournalPermissions } from '../hooks/useJournalPermissions'
+import { Pagination } from '@/components/ui/Pagination'
 
 export function JournalHeadersDeletedPage() {
   const navigate = useNavigate()
   const permissions = useJournalPermissions()
-  const { journals, loading, fetchJournals, restoreJournal } = useJournalHeadersStore()
+  const { journals, loading, pagination, fetchJournals, setPage, setLimit, restoreJournal } = useJournalHeadersStore()
 
   useEffect(() => {
     fetchJournals({ show_deleted: true })
   }, [fetchJournals])
+
+  const handlePageChange = useCallback((page: number) => {
+    setPage(page)
+    fetchJournals({ show_deleted: true })
+  }, [setPage, fetchJournals])
+
+  const handleLimitChange = useCallback((limit: number) => {
+    setLimit(limit)
+    fetchJournals({ show_deleted: true })
+  }, [setLimit, fetchJournals])
 
   const handleRestore = async (id: string) => {
     if (confirm('Are you sure you want to restore this journal?')) {
@@ -50,6 +61,24 @@ export function JournalHeadersDeletedPage() {
           />
         )}
       </div>
+
+      {/* Global Pagination Component */}
+      {pagination.total > 0 && (
+        <Pagination
+          pagination={{
+            page: pagination.page,
+            limit: pagination.limit,
+            total: pagination.total,
+            totalPages: pagination.totalPages,
+            hasNext: pagination.hasNext,
+            hasPrev: pagination.hasPrev
+          }}
+          onPageChange={handlePageChange}
+          onLimitChange={handleLimitChange}
+          currentLength={journals.length}
+          loading={loading}
+        />
+      )}
     </div>
   )
 }
