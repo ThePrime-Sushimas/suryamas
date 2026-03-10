@@ -13,12 +13,14 @@ import { BalanceIndicator } from '../../journal-lines/components/BalanceIndicato
 import { formatCurrency, formatDateShort } from '../../shared/journal.utils'
 import { canTransitionTo } from '../../shared/journal.constants'
 import { useJournalPermissions } from '../hooks/useJournalPermissions'
+import { useTheme } from '@/contexts/ThemeContext'
 import type { JournalLineWithDetails } from '../../shared/journal.types'
 import type { JournalHeaderWithLines } from '../types/journal-header.types'
 
 export function JournalHeaderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  useTheme()
   const permissions = useJournalPermissions()
   const {
     selectedJournal,
@@ -50,12 +52,12 @@ export function JournalHeaderDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
-            <Clock className="w-8 h-8 text-blue-600 animate-spin" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-4">
+            <Clock className="w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin" />
           </div>
-          <p className="text-gray-600 font-medium">Memuat data jurnal...</p>
+          <p className="text-gray-600 dark:text-gray-400 font-medium">Memuat data jurnal...</p>
         </div>
       </div>
     )
@@ -63,16 +65,16 @@ export function JournalHeaderDetailPage() {
 
   if (!selectedJournal) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 mb-4">
-            <XCircle className="w-8 h-8 text-red-600" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+            <XCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Jurnal Tidak Ditemukan</h2>
-          <p className="text-gray-600 mb-4">Jurnal yang Anda cari tidak ada atau telah dihapus.</p>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Jurnal Tidak Ditemukan</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">Jurnal yang Anda cari tidak ada atau telah dihapus.</p>
           <button
             onClick={() => navigate('/accounting/journals')}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
           >
             <ArrowLeft size={18} />
             Kembali ke Daftar
@@ -142,30 +144,30 @@ export function JournalHeaderDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Top Navigation Bar */}
-      <div className="bg-white border-b sticky top-0 z-40">
+      <div className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Breadcrumb & Back */}
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate('/accounting/journals')}
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-3 py-2 rounded-lg transition-colors"
+                className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded-lg transition-colors"
               >
                 <ArrowLeft size={18} />
                 <span className="hidden sm:inline">Kembali</span>
               </button>
-              <div className="hidden sm:block h-6 w-px bg-gray-300" />
+              <div className="hidden sm:block h-6 w-px bg-gray-300 dark:bg-gray-600" />
               <nav className="hidden md:flex items-center gap-2 text-sm">
                 <button
                   onClick={() => navigate('/accounting/journals')}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                 >
                   Jurnal
                 </button>
-                <span className="text-gray-400">/</span>
-                <span className="text-gray-900 font-medium">Detail</span>
+                <span className="text-gray-400 dark:text-gray-500">/</span>
+                <span className="text-gray-900 dark:text-white font-medium">Detail</span>
               </nav>
             </div>
 
@@ -173,12 +175,12 @@ export function JournalHeaderDetailPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleCopyJournalNumber}
-                className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 {copied ? (
                   <>
-                    <CheckCircle size={18} className="text-green-600" />
-                    <span className="hidden sm:inline text-green-600">Tersalin!</span>
+                    <CheckCircle size={18} className="text-green-600 dark:text-green-400" />
+                    <span className="hidden sm:inline text-green-600 dark:text-green-400">Tersalin!</span>
                   </>
                 ) : (
                   <>
@@ -187,11 +189,11 @@ export function JournalHeaderDetailPage() {
                   </>
                 )}
               </button>
-              <button className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+              <button className="flex items-center gap-2 px-3 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
                 <Printer size={18} />
                 <span className="hidden sm:inline">Cetak</span>
               </button>
-              <button className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+              <button className="flex items-center gap-2 px-3 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
                 <MoreHorizontal size={18} />
               </button>
             </div>
@@ -203,18 +205,18 @@ export function JournalHeaderDetailPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         
         {/* Header Card */}
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="p-6">
             <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
               {/* Journal Title */}
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-2xl font-bold text-gray-900">
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                     {selectedJournal.journal_number}
                   </h1>
                   <JournalStatusBadge status={selectedJournal.status} />
                 </div>
-                <p className="text-gray-600 text-lg">{selectedJournal.description}</p>
+                <p className="text-gray-600 dark:text-gray-400 text-lg">{selectedJournal.description}</p>
               </div>
 
               {/* Action Buttons */}
@@ -222,7 +224,7 @@ export function JournalHeaderDetailPage() {
                 {canEdit && (
                   <button
                     onClick={handleEdit}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors shadow-sm"
                   >
                     <Edit size={18} />
                     Edit
@@ -231,7 +233,7 @@ export function JournalHeaderDetailPage() {
                 {canDelete && (
                   <button
                     onClick={() => setShowDeleteModal(true)}
-                    className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 dark:text-red-400 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                   >
                     <Trash2 size={18} />
                     Hapus
@@ -242,7 +244,7 @@ export function JournalHeaderDetailPage() {
           </div>
 
           {/* Quick Stats */}
-          <div className="border-t bg-gray-50 px-6 py-4">
+          <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-6 py-4">
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
               <QuickStatItem
                 icon={<Calendar className="w-5 h-5" />}
@@ -258,10 +260,10 @@ export function JournalHeaderDetailPage() {
                 icon={<Banknote className="w-5 h-5" />}
                 label="Mata Uang"
                 value={
-                  <span className="font-medium">
+                  <span className="font-medium text-gray-900 dark:text-white">
                     {selectedJournal.currency || 'IDR'}
                     {selectedJournal.exchange_rate && selectedJournal.exchange_rate !== 1 && (
-                      <span className="text-xs text-gray-500 ml-1">(Rate: {selectedJournal.exchange_rate})</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">(Rate: {selectedJournal.exchange_rate})</span>
                     )}
                   </span>
                 }
@@ -284,7 +286,7 @@ export function JournalHeaderDetailPage() {
                 icon={<Banknote className="w-5 h-5" />}
                 label="Total"
                 value={
-                  <span className="font-semibold text-green-600">
+                  <span className="font-semibold text-green-600 dark:text-green-400">
                     {formatCurrency(selectedJournal.total_debit || 0, selectedJournal.currency)}
                   </span>
                 }
@@ -295,13 +297,13 @@ export function JournalHeaderDetailPage() {
 
         {/* Reversed Alert */}
         {selectedJournal.is_reversed && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
             <div className="flex items-start gap-3">
-              <RotateCcw className="w-5 h-5 text-red-600 mt-0.5" />
+              <RotateCcw className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
               <div>
-                <h3 className="font-semibold text-red-800">Jurnal Telah Dibalikkan</h3>
+                <h3 className="font-semibold text-red-800 dark:text-red-300">Jurnal Telah Dibalikkan</h3>
                 {selectedJournal.reversal_reason && (
-                  <p className="text-red-700 text-sm mt-1">Alasan: {selectedJournal.reversal_reason}</p>
+                  <p className="text-red-700 dark:text-red-400 text-sm mt-1">Alasan: {selectedJournal.reversal_reason}</p>
                 )}
               </div>
             </div>
@@ -313,56 +315,56 @@ export function JournalHeaderDetailPage() {
           {/* Left Column - Details Cards */}
           <div className="lg:col-span-2 space-y-6">
             {/* Journal Lines Table */}
-            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-              <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                   <FileText className="w-5 h-5" />
                   Rincian Jurnal
                 </h2>
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
                   {selectedJournal.lines?.length || 0} baris
                 </span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-100 border-b sticky top-0">
+                  <thead className="bg-gray-100 dark:bg-gray-700 border-b dark:border-gray-600 sticky top-0">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-12">#</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Akun</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Deskripsi</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase w-36">Debit</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase w-36">Credit</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase w-12">#</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">Akun</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">Deskripsi</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase w-36">Debit</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase w-36">Credit</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                     {(selectedJournal.lines && selectedJournal.lines.length > 0) ? (
                       selectedJournal.lines.map((line, index) => {
                         const lineWithDetails = line as JournalLineWithDetails
                         const isEven = index % 2 === 0
                         return (
-                          <tr key={line.id || line.line_number} className={`hover:bg-blue-50 transition-colors ${isEven ? 'bg-white' : 'bg-gray-50'}`}>
-                            <td className="px-4 py-3 text-gray-500 font-medium">{line.line_number}</td>
+                          <tr key={line.id || line.line_number} className={`hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${isEven ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
+                            <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-medium">{line.line_number}</td>
                             <td className="px-4 py-3">
-                              <div className="font-semibold text-gray-900">
+                              <div className="font-semibold text-gray-900 dark:text-white">
                                 {lineWithDetails.account_code || line.account_id}
                               </div>
                               {lineWithDetails.account_name && (
-                                <div className="text-xs text-gray-500 mt-0.5">{lineWithDetails.account_name}</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{lineWithDetails.account_name}</div>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-gray-600">{line.description || '-'}</td>
+                            <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{line.description || '-'}</td>
                             <td className="px-4 py-3 text-right whitespace-nowrap font-medium">
                               {line.debit_amount > 0 ? (
-                                <span className="text-gray-900">{formatCurrency(line.debit_amount, selectedJournal.currency)}</span>
+                                <span className="text-gray-900 dark:text-white">{formatCurrency(line.debit_amount, selectedJournal.currency)}</span>
                               ) : (
-                                <span className="text-gray-400">-</span>
+                                <span className="text-gray-400 dark:text-gray-500">-</span>
                               )}
                             </td>
                             <td className="px-4 py-3 text-right whitespace-nowrap font-medium">
                               {line.credit_amount > 0 ? (
-                                <span className="text-gray-900">{formatCurrency(line.credit_amount, selectedJournal.currency)}</span>
+                                <span className="text-gray-900 dark:text-white">{formatCurrency(line.credit_amount, selectedJournal.currency)}</span>
                               ) : (
-                                <span className="text-gray-400">-</span>
+                                <span className="text-gray-400 dark:text-gray-500">-</span>
                               )}
                             </td>
                           </tr>
@@ -370,41 +372,41 @@ export function JournalHeaderDetailPage() {
                       })
                     ) : (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                        <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                           <div className="flex flex-col items-center">
-                            <FileText className="w-12 h-12 text-gray-300 mb-2" />
+                            <FileText className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-2" />
                             <p>Tidak ada rincian jurnal</p>
                           </div>
                         </td>
                       </tr>
                     )}
                   </tbody>
-                  <tfoot className="bg-gray-100 border-t font-semibold">
+                  <tfoot className="bg-gray-100 dark:bg-gray-700 border-t dark:border-gray-600 font-semibold">
                     <tr>
-                      <td colSpan={3} className="px-4 py-3 text-right text-gray-700">Total:</td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap text-gray-900">
+                      <td colSpan={3} className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">Total:</td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap text-gray-900 dark:text-white">
                         {formatCurrency(selectedJournal.total_debit || 0, selectedJournal.currency)}
                       </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap text-gray-900">
+                      <td className="px-4 py-3 text-right whitespace-nowrap text-gray-900 dark:text-white">
                         {formatCurrency(selectedJournal.total_credit || 0, selectedJournal.currency)}
                       </td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
-              <div className="px-6 py-4 border-t bg-gray-50">
+              <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                 <BalanceIndicator balance={balance} currency={selectedJournal.currency} />
               </div>
             </div>
 
             {/* Rejection Reason Alert */}
             {selectedJournal.rejection_reason && (
-              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+              <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
                 <div className="flex items-start gap-3">
-                  <XCircle className="w-5 h-5 text-orange-600 mt-0.5" />
+                  <XCircle className="w-5 h-5 text-orange-600 dark:text-orange-400 mt-0.5" />
                   <div>
-                    <h3 className="font-semibold text-orange-800">Alasan Penolakan</h3>
-                    <p className="text-orange-700 text-sm mt-1">{selectedJournal.rejection_reason}</p>
+                    <h3 className="font-semibold text-orange-800 dark:text-orange-300">Alasan Penolakan</h3>
+                    <p className="text-orange-700 dark:text-orange-400 text-sm mt-1">{selectedJournal.rejection_reason}</p>
                   </div>
                 </div>
               </div>
@@ -435,29 +437,29 @@ export function JournalHeaderDetailPage() {
 
       {/* Reject Modal */}
       {showRejectModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full">
             <div className="p-6">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                  <XCircle className="w-5 h-5 text-red-600" />
+                <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
+                  <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Tolak Jurnal</h3>
-                  <p className="text-sm text-gray-500">Berikan alasan penolakan</p>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tolak Jurnal</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Berikan alasan penolakan</p>
                 </div>
               </div>
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="Masukkan alasan penolakan..."
-                className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 rows={4}
               />
               <div className="flex gap-3 mt-4">
                 <button
                   onClick={() => setShowRejectModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   Batal
                 </button>
@@ -475,7 +477,7 @@ export function JournalHeaderDetailPage() {
 
       {/* Reverse Modal */}
       {showReverseModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full">
             <div className="p-6">
               <div className="flex items-center gap-3 mb-4">
@@ -567,10 +569,10 @@ function QuickStatItem({
 }) {
   return (
     <div className="flex items-start gap-2">
-      <div className="text-gray-400 mt-0.5">{icon}</div>
+      <div className="text-gray-400 dark:text-gray-500 mt-0.5">{icon}</div>
       <div>
-        <p className="text-xs text-gray-500 uppercase tracking-wide">{label}</p>
-        <div className="text-sm text-gray-900 mt-0.5">{value}</div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</p>
+        <div className="text-sm text-gray-900 dark:text-white mt-0.5">{value}</div>
       </div>
     </div>
   )
@@ -583,35 +585,35 @@ function AuditTimelineCard({ journal }: { journal: JournalHeaderWithLines }) {
       user: journal.created_by_name,
       action: 'Dibuat',
       icon: <FileText className="w-4 h-4" />,
-      color: 'bg-blue-100 text-blue-600',
+      color: 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400',
     },
     journal.submitted_at && {
       date: journal.submitted_at,
       user: journal.submitted_by,
       action: 'Dikirim',
       icon: <Send className="w-4 h-4" />,
-      color: 'bg-indigo-100 text-indigo-600',
+      color: 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400',
     },
     journal.approved_at && {
       date: journal.approved_at,
       user: journal.approved_by_name,
       action: 'Disetujui',
       icon: <CheckCircle className="w-4 h-4" />,
-      color: 'bg-green-100 text-green-600',
+      color: 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400',
     },
     journal.posted_at && {
       date: journal.posted_at,
       user: journal.posted_by_name,
       action: 'Diposting',
       icon: <Banknote className="w-4 h-4" />,
-      color: 'bg-purple-100 text-purple-600',
+      color: 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400',
     },
     journal.rejected_at && {
       date: journal.rejected_at,
       user: journal.rejected_by,
       action: 'Ditolak',
       icon: <XCircle className="w-4 h-4" />,
-      color: 'bg-red-100 text-red-600',
+      color: 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400',
     },
   ].filter(Boolean) as Array<{
     date: string
@@ -625,9 +627,9 @@ function AuditTimelineCard({ journal }: { journal: JournalHeaderWithLines }) {
   timelineEvents.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-      <div className="px-4 py-3 border-b bg-gray-50">
-        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+        <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
           <Clock className="w-4 h-4" />
           Riwayat Aktivitas
         </h3>
@@ -636,7 +638,7 @@ function AuditTimelineCard({ journal }: { journal: JournalHeaderWithLines }) {
         {timelineEvents.length > 0 ? (
           <div className="relative">
             {/* Vertical Line */}
-            <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" />
+            <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-700" />
             
             <div className="space-y-4">
               {timelineEvents.map((event, index) => (
@@ -645,10 +647,10 @@ function AuditTimelineCard({ journal }: { journal: JournalHeaderWithLines }) {
                     {event.icon}
                   </div>
                   <div className="flex-1 min-w-0 pt-1">
-                    <p className="font-medium text-gray-900 text-sm">{event.action}</p>
-                    <p className="text-xs text-gray-500">{formatDateShort(event.date)}</p>
+                    <p className="font-medium text-gray-900 dark:text-white text-sm">{event.action}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatDateShort(event.date)}</p>
                     {event.user && (
-                      <p className="text-xs text-gray-400 mt-0.5">oleh {event.user}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">oleh {event.user}</p>
                     )}
                   </div>
                 </div>
@@ -656,7 +658,7 @@ function AuditTimelineCard({ journal }: { journal: JournalHeaderWithLines }) {
             </div>
           </div>
         ) : (
-          <p className="text-sm text-gray-500 text-center py-4">Belum ada aktivitas</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Belum ada aktivitas</p>
         )}
       </div>
     </div>
@@ -693,16 +695,16 @@ function ActionButtonsCard({
   if (!hasActions) return null
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-      <div className="px-4 py-3 border-b bg-gray-50">
-        <h3 className="font-semibold text-gray-900">Aksi</h3>
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+        <h3 className="font-semibold text-gray-900 dark:text-white">Aksi</h3>
       </div>
       <div className="p-4 space-y-3">
         {canSubmit && (
           <button
             onClick={handleSubmit}
             disabled={mutating}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Send size={18} />
             <span className="font-medium">Kirim untuk Persetujuan</span>
@@ -712,7 +714,7 @@ function ActionButtonsCard({
           <button
             onClick={handleApprove}
             disabled={mutating}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <CheckCircle size={18} />
             <span className="font-medium">Setujui</span>
@@ -722,7 +724,7 @@ function ActionButtonsCard({
           <button
             onClick={() => setShowRejectModal(true)}
             disabled={mutating}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3 bg-red-600 dark:bg-red-500 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <XCircle size={18} />
             <span className="font-medium">Tolak</span>
@@ -732,7 +734,7 @@ function ActionButtonsCard({
           <button
             onClick={handlePost}
             disabled={mutating}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3 bg-purple-600 dark:bg-purple-500 text-white rounded-lg hover:bg-purple-700 dark:hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Banknote size={18} />
             <span className="font-medium">Posting ke GL</span>
@@ -742,7 +744,7 @@ function ActionButtonsCard({
           <button
             onClick={() => setShowReverseModal(true)}
             disabled={mutating}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3 bg-orange-600 dark:bg-orange-500 text-white rounded-lg hover:bg-orange-700 dark:hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <RotateCcw size={18} />
             <span className="font-medium">Balikkan Jurnal</span>
