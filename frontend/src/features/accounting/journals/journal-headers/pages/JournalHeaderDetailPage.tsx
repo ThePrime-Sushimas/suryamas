@@ -14,6 +14,7 @@ import { formatCurrency, formatDateShort } from '../../shared/journal.utils'
 import { canTransitionTo } from '../../shared/journal.constants'
 import { useJournalPermissions } from '../hooks/useJournalPermissions'
 import { useTheme } from '@/contexts/ThemeContext'
+import { useToast } from '@/contexts/ToastContext'
 import type { JournalLineWithDetails } from '../../shared/journal.types'
 import type { JournalHeaderWithLines } from '../types/journal-header.types'
 
@@ -22,6 +23,7 @@ export function JournalHeaderDetailPage() {
   const navigate = useNavigate()
   useTheme()
   const permissions = useJournalPermissions()
+  const toast = useToast()
   const {
     selectedJournal,
     loading,
@@ -43,6 +45,10 @@ export function JournalHeaderDetailPage() {
   const [showPostModal, setShowPostModal] = useState(false)
   const [showRejectConfirmModal, setShowRejectConfirmModal] = useState(false)
   const [copied, setCopied] = useState(false)
+  
+  // Loading states for modal operations
+  const [isPosting, setIsPosting] = useState(false)
+  const [isReversing, setIsReversing] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -123,18 +129,35 @@ export function JournalHeaderDetailPage() {
   }
 
   const handlePost = async () => {
-    await postJournal(id!)
-    fetchJournalById(id!)
+    setIsPosting(true)
+    try {
+      await postJournal(id!)
+      await fetchJournalById(id!)
+      setShowPostModal(false)
+      toast.success('Jurnal berhasil diposting ke buku besar')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal memposting jurnal')
+    } finally {
+      setIsPosting(false)
+    }
   }
 
   const handleReverse = async () => {
     if (!reverseReason.trim()) {
       return
     }
-    await reverseJournal(id!, { reversal_reason: reverseReason })
-    setShowReverseModal(false)
-    setReverseReason('')
-    navigate('/accounting/journals')
+    setIsReversing(true)
+    try {
+      await reverseJournal(id!, { reversal_reason: reverseReason })
+      setShowReverseModal(false)
+      setReverseReason('')
+      toast.success('Jurnal berhasil dibalikkan')
+      navigate('/accounting/journals')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal membalikkan jurnal')
+    } finally {
+      setIsReversing(false)
+    }
   }
 
   const handleCopyJournalNumber = async () => {
@@ -499,15 +522,24 @@ export function JournalHeaderDetailPage() {
               <div className="flex gap-3 mt-4">
                 <button
                   onClick={() => setShowReverseModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  disabled={isReversing}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   onClick={handleReverse}
-                  className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                  disabled={isReversing}
+                  className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
                 >
-                  Balikkan
+                  {isReversing ? (
+                    <>
+                      <Clock className="w-4 h-4 animate-spin" />
+                      Memproses...
+                    </>
+                  ) : (
+                    'Balikkan'
+                  )}
                 </button>
               </div>
             </div>
@@ -537,6 +569,7 @@ export function JournalHeaderDetailPage() {
         confirmText="Posting"
         cancelText="Batal"
         variant="warning"
+        isLoading={isPosting}
       />
 
       {/* Reject Confirmation Modal */}
