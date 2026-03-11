@@ -648,6 +648,12 @@ function AuditTimelineCard({ journal }: { journal: JournalHeaderWithLines }) {
       icon: <XCircle className="w-4 h-4" />,
       color: 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400',
     },
+    journal.is_reversed && journal.reversal_date && {
+      date: journal.reversal_date,
+      action: 'Dibalikkan',
+      icon: <RotateCcw className="w-4 h-4" />,
+      color: 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400',
+    },
   ].filter(Boolean) as Array<{
     date: string
     user?: string
