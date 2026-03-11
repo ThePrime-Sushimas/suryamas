@@ -15,14 +15,22 @@ export function JournalHeadersDeletedPage() {
     fetchJournals({ show_deleted: true })
   }, [fetchJournals])
 
-  const handlePageChange = useCallback((page: number) => {
-    setPage(page)
-    fetchJournals({ show_deleted: true })
+  const handlePageChange = useCallback(async (page: number) => {
+    try {
+      setPage(page)
+      await fetchJournals({ show_deleted: true })
+    } catch (error) {
+      console.error('Failed to fetch journals:', error)
+    }
   }, [setPage, fetchJournals])
 
-  const handleLimitChange = useCallback((limit: number) => {
-    setLimit(limit)
-    fetchJournals({ show_deleted: true })
+  const handleLimitChange = useCallback(async (limit: number) => {
+    try {
+      setLimit(limit)
+      await fetchJournals({ show_deleted: true })
+    } catch (error) {
+      console.error('Failed to fetch journals:', error)
+    }
   }, [setLimit, fetchJournals])
 
   const handleRestore = async (id: string) => {

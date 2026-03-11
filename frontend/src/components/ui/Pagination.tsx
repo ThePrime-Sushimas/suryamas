@@ -64,8 +64,42 @@ export const Pagination: React.FC<PaginationProps> = ({
   const showingEnd = currentLength ? Math.min(page * limit, (page - 1) * limit + currentLength) : page * limit
 
   // Don't render if no data
-  if (total === 0) {
+  if (total === 0 && !loading) {
     return null
+  }
+
+  // Skeleton loading state
+  if (loading) {
+    return (
+      <div 
+        className={`flex flex-wrap items-center justify-between gap-4 px-4 py-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 ${className}`}
+        role="navigation"
+        aria-label="Pagination"
+      >
+        {/* Left side: Info and limit select skeleton */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="animate-pulse">
+            <div className="h-4 w-48 bg-gray-200 dark:bg-gray-700 rounded" />
+          </div>
+          <div className="animate-pulse">
+            <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded" />
+          </div>
+        </div>
+
+        {/* Right side: Page navigation skeleton */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="animate-pulse">
+            <div className="h-8 w-28 bg-gray-200 dark:bg-gray-700 rounded" />
+          </div>
+          <div className="animate-pulse">
+            <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded" />
+          </div>
+          <div className="animate-pulse">
+            <div className="h-8 w-28 bg-gray-200 dark:bg-gray-700 rounded" />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

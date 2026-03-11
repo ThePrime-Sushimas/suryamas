@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, ArrowUpDown, Trash2 } from 'lucide-react'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { Pagination } from '@/components/ui/Pagination'
 import { useJournalHeadersStore } from '../store/journalHeaders.store'
 import { JournalHeaderFilters } from '../components/JournalHeaderFilters'
 import { JournalHeaderTable } from '../components/JournalHeaderTable'
@@ -20,6 +21,7 @@ export function JournalHeadersListPage() {
     fetchJournals,
     deleteJournal,
     setPage,
+    setLimit,
     setFilters,
     clearError,
     hasAppliedFilters,
@@ -59,19 +61,25 @@ export function JournalHeadersListPage() {
     fetchJournals({ sort: field, order: newOrder })
   }
 
-  const handlePrevPage = () => {
-    setPage(pagination.page - 1)
-    if (hasAppliedFilters) {
-      fetchJournals({})
+  const handlePageChange = useCallback(async (page: number) => {
+    try {
+      setPage(page)
+      // fetchJournals akan menggunakan filters dari store secara otomatis
+      await fetchJournals()
+    } catch (error) {
+      console.error('Failed to fetch journals:', error)
     }
-  }
+  }, [setPage, fetchJournals])
 
-  const handleNextPage = () => {
-    setPage(pagination.page + 1)
-    if (hasAppliedFilters) {
-      fetchJournals({})
+  const handleLimitChange = useCallback(async (limit: number) => {
+    try {
+      setLimit(limit)
+      // fetchJournals akan menggunakan filters dari store secara otomatis
+      await fetchJournals()
+    } catch (error) {
+      console.error('Failed to fetch journals:', error)
     }
-  }
+  }, [setLimit, fetchJournals])
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
@@ -177,31 +185,21 @@ export function JournalHeadersListPage() {
           />
 
           {/* Pagination */}
-          {pagination.totalPages > 1 && (
-            <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handlePrevPage}
-                  disabled={!pagination.hasPrev}
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors"
-                >
-                  Previous
-                </button>
-                <span className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                  Halaman {pagination.page} dari {pagination.totalPages}
-                </span>
-                <button
-                  onClick={handleNextPage}
-                  disabled={!pagination.hasNext}
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors"
-                >
-                  Next
-                </button>
-              </div>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Total {pagination.total} data
-              </span>
-            </div>
+          {pagination.total > 0 && (
+            <Pagination
+              pagination={{
+                page: pagination.page,
+                limit: pagination.limit,
+                total: pagination.total,
+                totalPages: pagination.totalPages,
+                hasNext: pagination.hasNext,
+                hasPrev: pagination.hasPrev
+              }}
+              onPageChange={handlePageChange}
+              onLimitChange={handleLimitChange}
+              currentLength={journals.length}
+              loading={loading}
+            />
           )}
         </>
       )}
