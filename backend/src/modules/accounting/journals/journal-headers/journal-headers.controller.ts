@@ -188,6 +188,11 @@ export class JournalHeadersController {
       const companyId = this.getCompanyId(req as any)
       const employeeId = getEmployeeId(req as any)
       
+      const journal = await journalHeadersService.getById(req.validated.params.id, companyId)
+      if (journal.status !== 'POSTED' || journal.is_reversed) {
+        throw new Error('Cannot reverse this journal')
+      }
+      
       const reversal = await journalHeadersService.reverse(
         req.validated.params.id,
         req.validated.body.reversal_reason,

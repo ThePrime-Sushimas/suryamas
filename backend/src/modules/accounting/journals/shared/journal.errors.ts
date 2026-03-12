@@ -53,6 +53,16 @@ export const JournalErrors = {
     'ALREADY_REVERSED'
   ),
   
+  REVERSE_NON_POSTED: (status: JournalStatus) => new JournalError(
+    `Cannot reverse journal with status ${status}. Only POSTED journals can be reversed`,
+    'REVERSE_NON_POSTED'
+  ),
+  
+  CANNOT_REVERSE_REVERSAL: () => new JournalError(
+    'Cannot reverse a reversal journal',
+    'CANNOT_REVERSE_REVERSAL'
+  ),
+  
   INVALID_STATUS_TRANSITION: (from: JournalStatus, to: JournalStatus) => new JournalError(
     `Cannot change status from ${from} to ${to}`,
     'INVALID_STATUS_TRANSITION'

@@ -325,16 +325,18 @@ export class JournalHeadersService {
     const original = await this.getById(id, companyId)
     
     if (original.status !== 'POSTED') {
-      throw JournalErrors.INVALID_STATUS_TRANSITION(original.status, 'REVERSED')
+      throw JournalErrors.REVERSE_NON_POSTED(original.status)
     }
     
     if (original.is_reversed) {
       throw JournalErrors.ALREADY_REVERSED()
     }
 
+    if (original.reversal_of_journal_id) {
+      throw JournalErrors.CANNOT_REVERSE_REVERSAL()
+    }
+
     // Create reversal journal with swapped debit/credit
-    // NOTE: Uses original.journal_type (accounting standard)
-    // Alternative: Some ERPs use separate 'ADJUSTMENT' type for reversals
     const reversalLines = original.lines.map(line => ({
       line_number: line.line_number,
       account_id: line.account_id,
@@ -348,12 +350,13 @@ export class JournalHeadersService {
       branch_id: original.branch_id,
       journal_date: new Date().toISOString().split('T')[0],
       journal_type: original.journal_type,
-      description: `REVERSAL: ${original.description}`,
+      description: `REVERSAL OF ${original.journal_number}`,
       currency: original.currency,
       exchange_rate: original.exchange_rate,
       reference_type: 'journal_reversal',
       reference_id: id,
       reference_number: original.journal_number,
+      reversal_of_journal_id: id,
       lines: reversalLines
     }, userId)
 
@@ -361,8 +364,8 @@ export class JournalHeadersService {
     await this.submit(reversal.id, userId, companyId)
     await this.approve(reversal.id, userId, companyId)
     await this.post(reversal.id, userId, companyId)
-
-    // Mark original as reversed
+    
+    // Mark original as reversed to prevent multiple reversals
     await journalHeadersRepository.markReversed(id, reversal.id, reason)
 
     await AuditService.log('REVERSE', 'journal_header', id, userId, {

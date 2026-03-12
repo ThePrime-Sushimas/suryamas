@@ -97,7 +97,9 @@ export function JournalHeaderDetailPage() {
   const canApprove = permissions.canApprove && canTransitionTo(selectedJournal.status, 'APPROVED')
   const canReject = permissions.canReject && (selectedJournal.status === 'SUBMITTED' || selectedJournal.status === 'APPROVED')
   const canPost = permissions.canPost && canTransitionTo(selectedJournal.status, 'POSTED')
-  const canReverse = permissions.canReverse && selectedJournal.status === 'POSTED' && !selectedJournal.is_reversed
+  const canReverse = permissions.canReverse && 
+    selectedJournal.status === 'POSTED' && 
+    !selectedJournal.is_reversed
 
   const handleEdit = () => navigate(`/accounting/journals/${id}/edit`)
   

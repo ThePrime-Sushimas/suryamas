@@ -247,6 +247,7 @@ export class JournalHeadersRepository {
     total_debit: number
     total_credit: number
     status: JournalStatus
+    reversal_of_journal_id?: string
   }, userId: string): Promise<JournalHeaderWithLines> {
     const { lines, ...headerData } = data
     
@@ -255,6 +256,7 @@ export class JournalHeadersRepository {
       .from('journal_headers')
       .insert({
         ...headerData,
+        reversal_of_journal_id: data.reversal_of_journal_id,
         created_by: userId,
         updated_by: userId,
         created_at: new Date().toISOString(),
@@ -345,26 +347,23 @@ export class JournalHeadersRepository {
   }
 
   /**
-   * Get next sequence number for journal numbering
-   * 
-   * CONCURRENCY NOTE:
-   * Race condition possible if 2 users create journal simultaneously.
-   * DB unique constraint (company_id, journal_type, period, sequence_number)
-   * will block duplicate. Second insert will fail and client should retry.
+   * Get next sequence number ATOMIC using UPSERT
+   * 100% race-condition proof
    */
   async getNextSequence(companyId: string, type: string, period: string): Promise<number> {
     const { data, error } = await supabase
-      .from('journal_headers')
-      .select('sequence_number')
-      .eq('company_id', companyId)
-      .eq('journal_type', type)
-      .eq('period', period)
-      .order('sequence_number', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+      .rpc('get_next_journal_sequence', {
+        company_id: companyId,
+        journal_type: type,
+        period: period
+      })
 
-    if (error) throw new Error(error.message)
-    return (data?.sequence_number || 0) + 1
+    if (error) {
+      logError('Sequence generation failed', { error: error.message, companyId, type, period })
+      throw new Error(`Sequence generation failed: ${error.message}`)
+    }
+    
+    return data as number
   }
 
   async markReversed(id: string, reversalJournalId: string, reason: string): Promise<void> {
@@ -372,7 +371,7 @@ export class JournalHeadersRepository {
       .from('journal_headers')
       .update({
         is_reversed: true,
-        reversed_by: reversalJournalId, // NOTE: This is journal_id, not user_id (semantic naming issue acknowledged)
+        reversed_by_journal_id: reversalJournalId,
         reversal_date: new Date().toISOString(),
         reversal_reason: reason,
         updated_at: new Date().toISOString()

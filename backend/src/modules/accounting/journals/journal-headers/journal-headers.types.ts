@@ -20,6 +20,8 @@ export interface JournalHeader {
   exchange_rate: number
   status: JournalStatus
   is_reversed: boolean
+  reversal_of_journal_id?: string  // journal ini membalik journal apa
+  reversed_by_journal_id?: string  // journal ini dibalik oleh journal apa
   is_auto?: boolean
   reversed_by?: string
   reversal_date?: string
@@ -44,12 +46,14 @@ export interface JournalHeader {
 }
 
 export interface JournalHeaderWithLines extends JournalHeader {
+  branch_name?: string
   lines: JournalLine[]
 }
 
 export interface CreateJournalDto {
   // company_id comes from auth context, not client
   branch_id?: string
+  reversal_of_journal_id?: string
   journal_date: string
   journal_type: JournalType
   description: string
