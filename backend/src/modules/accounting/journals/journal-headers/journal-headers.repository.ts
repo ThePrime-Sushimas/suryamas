@@ -352,11 +352,11 @@ export class JournalHeadersRepository {
    */
   async getNextSequence(companyId: string, type: string, period: string): Promise<number> {
     const { data, error } = await supabase
-      .rpc('get_next_journal_sequence', {
-        company_id: companyId,
-        journal_type: type,
-        period: period
-      })
+.rpc('get_next_journal_sequence', {
+  p_company_id: companyId,
+  p_period: period,
+  p_journal_type: type
+})
 
     if (error) {
       logError('Sequence generation failed', { error: error.message, companyId, type, period })
