@@ -21,12 +21,9 @@ export class JournalHeadersRepository {
       .select('*', { count: 'exact', head: true })
       .eq('company_id', companyId)
     
-    // Default: show only active (not deleted)
-    // show_deleted=true: show all (including deleted)
-    if (!filter?.show_deleted) {
-      query = query.is('deleted_at', null)
-      countQuery = countQuery.is('deleted_at', null)
-    }
+    // Use helper for consistent deleted filter
+    query = this.applyDeletedFilter(query, filter)
+    countQuery = this.applyDeletedFilter(countQuery, filter)
     
     if (filter) {
       if (filter.branch_id) {
@@ -59,7 +56,10 @@ export class JournalHeadersRepository {
       }
     }
     
-    if (sort) {
+    // Deleted sorting: newest deleted first
+    if (filter?.show_deleted) {
+      query = query.order('deleted_at', { ascending: false })
+    } else if (sort) {
       query = query.order(sort.field, { ascending: sort.order === 'asc' })
     } else {
       query = query.order('journal_date', { ascending: false })
@@ -109,11 +109,9 @@ export class JournalHeadersRepository {
       .select('*', { count: 'exact', head: true })
       .eq('company_id', companyId)
     
-    // Default: show only active (not deleted)
-    if (!filter?.show_deleted) {
-      query = query.is('deleted_at', null)
-      countQuery = countQuery.is('deleted_at', null)
-    }
+    // Use helper for consistent deleted filter
+    query = this.applyDeletedFilter(query, filter)
+    countQuery = this.applyDeletedFilter(countQuery, filter)
     
     if (filter) {
       if (filter.branch_id) {
@@ -146,7 +144,10 @@ export class JournalHeadersRepository {
       }
     }
     
-    if (sort) {
+    // Deleted sorting: newest deleted first  
+    if (filter?.show_deleted) {
+      query = query.order('deleted_at', { ascending: false })
+    } else if (sort) {
       query = query.order(sort.field, { ascending: sort.order === 'asc' })
     } else {
       query = query.order('journal_date', { ascending: false })
@@ -379,6 +380,13 @@ export class JournalHeadersRepository {
       .eq('id', id)
 
     if (error) throw new Error(error.message)
+  }
+
+  private applyDeletedFilter(query: any, filter?: JournalFilter) {
+    if (filter?.show_deleted) {
+      return query.not('deleted_at', 'is', null)
+    }
+    return query.is('deleted_at', null)
   }
 
   async restore(id: string, userId: string): Promise<void> {
