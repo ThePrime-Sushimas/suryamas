@@ -9,6 +9,7 @@ interface Props {
   onChange: (accountId: string) => void
   disabled?: boolean
   placeholder?: string
+  tabIndex?: number
   /**
    * Optional account info passed directly for cases where account is not in the cache
    * (e.g., when editing a journal with non-postable accounts)
@@ -20,7 +21,7 @@ interface Props {
   } | null
 }
 
-export function AccountSelector({ value, onChange, disabled, placeholder, accountInfo }: Props) {
+export function AccountSelector({ value, onChange, disabled, placeholder, tabIndex, accountInfo }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
@@ -107,6 +108,7 @@ export function AccountSelector({ value, onChange, disabled, placeholder, accoun
       <button
         ref={buttonRef}
         type="button"
+        tabIndex={tabIndex}
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
         className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-left flex items-center justify-between hover:border-gray-400 dark:hover:border-gray-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed bg-white dark:bg-gray-700"
