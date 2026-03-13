@@ -460,6 +460,27 @@ export async function generateJournalsOptimized(
     logInfo('Transaction groups created', { total_groups: totalGroups })
 
     // ==============================
+    // PHASE 1.5: Fiscal Period Validation (10-15%)
+    // ==============================
+    onProgress?.({ current: 10, total: 100, phase: 'period_validation', message: 'Checking fiscal periods...' })
+    
+    const uniquePeriods = Array.from(new Set(transactions.map(t => t.transaction_date.substring(0, 7))))
+    const { data: fiscalPeriods, error: periodError } = await supabase
+      .from('fiscal_periods')
+      .select('period, is_open')
+      .in('period', uniquePeriods)
+      .eq('company_id', companyId)
+      .is('deleted_at', null)
+
+    if (periodError) {
+      logError('Failed to fetch fiscal periods', { error: periodError, companyId })
+      throw new Error(`Gagal memvalidasi periode fiskal: ${periodError.message}`)
+    }
+
+    const periodStatusMap = new Map<string, boolean>()
+    fiscalPeriods?.forEach(p => periodStatusMap.set(p.period, p.is_open))
+
+    // ==============================
     // PHASE 2: Payment Method + COA Lookup (15-25%)
     // ==============================
     onProgress?.({ current: 15, total: 100, phase: 'lookup', message: 'Resolving payment methods and COA accounts...' })
@@ -552,6 +573,28 @@ export async function generateJournalsOptimized(
       })
 
       try {
+        // ==============================
+        // Step 4.0: Validate Fiscal Period
+        // ==============================
+        const periodKey = date.substring(0, 7)
+        if (!periodStatusMap.has(periodKey)) {
+          failedResults.push({
+            date,
+            branch: branchName,
+            error: `Periode fiskal ${periodKey} belum dibuat`
+          })
+          continue
+        }
+        
+        if (!periodStatusMap.get(periodKey)) {
+          failedResults.push({
+            date,
+            branch: branchName,
+            error: `Periode fiskal ${periodKey} sudah ditutup (Locked)`
+          })
+          continue
+        }
+
         // ==============================
         // Step 4.1: Resolve Branch ID
         // ==============================
