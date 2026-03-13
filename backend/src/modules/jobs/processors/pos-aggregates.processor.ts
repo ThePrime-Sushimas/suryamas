@@ -520,27 +520,20 @@ export async function generateAggregatedTransactionsOptimized(
           continue;
         }
 
-        // Calculate aggregated amounts
-        const grossAmount = groupLines.reduce(
-          (sum: number, line: any) => sum + Number(line.subtotal || 0),
-          0,
-        );
-        const discountAmount = groupLines.reduce(
-          (sum: number, line: any) => sum + Number(line.discount || 0),
-          0,
-        );
-        const billDiscountAmount = groupLines.reduce(
-          (sum: number, line: any) => sum + Number(line.bill_discount || 0),
-          0,
-        );
-        const taxAmount = groupLines.reduce(
-          (sum: number, line: any) => sum + Number(line.tax || 0),
-          0,
-        );
-        const serviceChargeAmount = groupLines.reduce(
-          (sum: number, line: any) => sum + Number(line.service_charge || 0),
-          0,
-        );
+        // Calculate aggregated amounts - OPTIMIZED: Single loop for all components
+        let grossAmount = 0;
+        let discountAmount = 0;
+        let billDiscountAmount = 0;
+        let taxAmount = 0;
+        let serviceChargeAmount = 0;
+
+        for (const line of groupLines) {
+          grossAmount += Number(line.subtotal || 0);
+          discountAmount += Number(line.discount || 0);
+          billDiscountAmount += Number(line.bill_discount || 0);
+          taxAmount += Number(line.tax || 0);
+          serviceChargeAmount += Number(line.service_charge || 0);
+        }
 
         // Bill after discount = gross + tax + service_charge - (discount + bill_discount)
         const billAfterDiscount =
