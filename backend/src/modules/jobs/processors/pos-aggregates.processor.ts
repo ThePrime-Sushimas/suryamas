@@ -23,6 +23,7 @@ import { logInfo, logError, logWarn } from "@/config/logger";
 // ==============================
 const BATCH_SIZE = 100; // Insert batch size
 const CHECK_BATCH_SIZE = 500; // Duplicate check batch size
+const SPLIT_PAYMENT_REGEX = /^(.*?)\s*\(\s*([\d.,]+)\s*\)$/;
 
 interface ProgressCallback {
   (progress: {
@@ -194,7 +195,7 @@ function groupLinesByTransaction(lines: any[]): Map<string, any[]> {
       let totalSplitAmount = 0;
 
       for (const part of parts) {
-        const match = part.match(/^(.*?)\s*\(\s*([\d.,]+)\s*\)$/);
+        const match = SPLIT_PAYMENT_REGEX.exec(part);
         if (match) {
           const name = match[1].trim();
           // Normalize Indonesian/European number format (dot as thousand separator)
