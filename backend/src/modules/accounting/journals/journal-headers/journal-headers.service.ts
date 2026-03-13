@@ -6,8 +6,9 @@ import { JournalStatus } from '../shared/journal.types'
 import { JournalErrors } from '../shared/journal.errors'
 import { validateJournalLines, validateJournalBalance, calculateTotals, generateJournalNumber, getPeriodFromDate, canTransition } from '../shared/journal.utils'
 import { PaginatedResponse, createPaginatedResponse } from '../../../../utils/pagination.util'
-import { logInfo, logError } from '../../../../config/logger'
+import { logInfo, logError, logWarn } from '../../../../config/logger'
 import { AuditService } from '../../../monitoring/monitoring.service'
+import { supabase } from '../../../../config/supabase'
 
 export class JournalHeadersService {
   
@@ -329,6 +330,87 @@ export class JournalHeadersService {
     })
 
     logInfo('Journal posted', { journal_id: id, user_id: userId })
+
+    // Cek apakah pos_import perlu di-update ke POSTED
+    // Berjalan secara async (fire-and-forget) agar tidak block response
+    if (journal.source_module === 'POS_AGGREGATES') {
+      this.updatePosImportStatusIfFullyPosted(id).catch(err => {
+        logError('Failed to update pos_import status after journal post', {
+          journal_id: id,
+          error: err
+        })
+      })
+    }
+  }
+
+  /**
+   * Setelah sebuah jurnal POS_AGGREGATES di-post, update status transaksi
+   * dan cek apakah pos_import sudah bisa di-mark POSTED.
+   *
+   * Kondisi MAPPED → POSTED:
+   * 1. source_module jurnal = 'POS_AGGREGATES'
+   * 2. Semua aggregated_transactions (non-deleted, non-FAILED) dari pos_import tersebut
+   *    sudah memiliki journal_id (tidak ada yang masih null)
+   */
+  private async updatePosImportStatusIfFullyPosted(journalId: string): Promise<void> {
+    try {
+
+      // 1️⃣ Update semua transaksi dari jurnal ini ke POSTED
+      const { data: updated, error: updateError } = await supabase
+        .from('aggregated_transactions')
+        .update({
+          status: 'POSTED',
+          updated_at: new Date().toISOString()
+        })
+        .eq('journal_id', journalId)
+        .eq('source_type', 'POS')
+        .eq('status', 'PROCESSING')
+        .is('deleted_at', null)
+        .select('source_id')
+        .limit(1)
+
+      if (updateError || !updated || updated.length === 0) {
+        logWarn('No aggregated transactions updated', { journal_id: journalId })
+        return
+      }
+
+      const posImportId = updated[0].source_id
+
+      // 2️⃣ Hitung transaksi yang belum punya journal
+      const { count: remaining, error: countError } = await supabase
+        .from('aggregated_transactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('source_id', posImportId)
+        .eq('source_type', 'POS')
+        .is('deleted_at', null)
+        .neq('status', 'FAILED')
+        .is('journal_id', null)
+
+      if (countError) {
+        logError('Failed counting remaining transactions', { pos_import_id: posImportId })
+        return
+      }
+
+      // 3️⃣ Jika semua sudah punya journal → update pos_import
+      if (remaining === 0) {
+        await supabase
+          .from('pos_imports')
+          .update({
+            status: 'POSTED',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', posImportId)
+          .eq('status', 'MAPPED')
+
+        logInfo('POS import fully posted', { pos_import_id: posImportId })
+      }
+
+    } catch (error) {
+      logError('updatePosImportStatusIfFullyPosted failed', {
+        journal_id: journalId,
+        error
+      })
+    }
   }
 
   async reverse(id: string, reason: string, userId: string, companyId: string): Promise<JournalHeaderWithLines> {
