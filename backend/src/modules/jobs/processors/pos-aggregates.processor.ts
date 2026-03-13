@@ -571,18 +571,20 @@ export async function generateAggregatedTransactionsOptimized(
         // Nett amount = bill after discount - total fee
         const nettAmount = billAfterDiscount - totalFeeAmount;
 
-        logInfo("Fee calculated for transaction", {
-          source_ref: sourceRef,
-          gross_amount: grossAmount,
-          discount_amount: discountAmount + billDiscountAmount,
-          tax_amount: taxAmount,
-          bill_after_discount: billAfterDiscount,
-          fee_percentage: pmResult.fee_percentage,
-          percentage_fee: percentageFeeAmount,
-          fixed_fee: fixedFeeAmount,
-          total_fee: totalFeeAmount,
-          nett_amount: nettAmount,
-        });
+        if (i % 500 === 0) {
+          logInfo("Fee calculated for transaction - sample", {
+            source_ref: sourceRef,
+            gross_amount: grossAmount,
+            discount_amount: discountAmount + billDiscountAmount,
+            tax_amount: taxAmount,
+            bill_after_discount: billAfterDiscount,
+            fee_percentage: pmResult.fee_percentage,
+            percentage_fee: percentageFeeAmount,
+            fixed_fee: fixedFeeAmount,
+            total_fee: totalFeeAmount,
+            nett_amount: nettAmount,
+          });
+        }
 
         // Prepare insert data
         const insertData = {
