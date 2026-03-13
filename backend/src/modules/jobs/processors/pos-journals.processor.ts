@@ -464,11 +464,10 @@ export async function generateJournalsOptimized(
     // ==============================
     onProgress?.({ current: 10, total: 100, phase: 'period_validation', message: 'Checking fiscal periods...' })
     
-    const uniquePeriods = Array.from(new Set(transactions.map(t => t.transaction_date.substring(0, 7))))
+    // Fetch all non-deleted fiscal periods to check against date ranges
     const { data: fiscalPeriods, error: periodError } = await supabase
       .from('fiscal_periods')
-      .select('period, is_open')
-      .in('period', uniquePeriods)
+      .select('id, period, period_start, period_end, is_open')
       .eq('company_id', companyId)
       .is('deleted_at', null)
 
@@ -477,8 +476,10 @@ export async function generateJournalsOptimized(
       throw new Error(`Gagal memvalidasi periode fiskal: ${periodError.message}`)
     }
 
-    const periodStatusMap = new Map<string, boolean>()
-    fiscalPeriods?.forEach(p => periodStatusMap.set(p.period, p.is_open))
+    // Helper to find period by date
+    const findPeriodForDate = (date: string) => {
+      return fiscalPeriods?.find(p => date >= p.period_start && date <= p.period_end)
+    }
 
     // ==============================
     // PHASE 2: Payment Method + COA Lookup (15-25%)
@@ -574,26 +575,30 @@ export async function generateJournalsOptimized(
 
       try {
         // ==============================
-        // Step 4.0: Validate Fiscal Period
+        // Step 4.0: Validate Fiscal Period (Range Check)
         // ==============================
-        const periodKey = date.substring(0, 7)
-        if (!periodStatusMap.has(periodKey)) {
+        const activePeriod = findPeriodForDate(date)
+
+        if (!activePeriod) {
           failedResults.push({
             date,
             branch: branchName,
-            error: `Periode fiskal ${periodKey} belum dibuat`
+            error: `Tidak ditemukan periode fiskal yang melingkupi tanggal ini`
           })
           continue
         }
         
-        if (!periodStatusMap.get(periodKey)) {
+        if (!activePeriod.is_open) {
           failedResults.push({
             date,
             branch: branchName,
-            error: `Periode fiskal ${periodKey} sudah ditutup (Locked)`
+            error: `Periode fiskal ${activePeriod.period} sudah ditutup (Locked)`
           })
           continue
         }
+
+        // Use the official period name from database
+        const periodHeaderName = activePeriod.period
 
         // ==============================
         // Step 4.1: Resolve Branch ID

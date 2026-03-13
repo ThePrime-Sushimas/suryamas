@@ -80,11 +80,21 @@ export class JournalHeadersService {
       }
     }
 
-    // Calculate totals
+    // Calulate totals
     const totals = calculateTotals(data.lines)
     
+    // Resolve fiscal period by date (strict range check)
+    const fiscalPeriod = await fiscalPeriodsRepository.findByDate(data.company_id, data.journal_date)
+    if (!fiscalPeriod) {
+      throw JournalErrors.VALIDATION_ERROR('journal_date', `Tidak ditemukan periode fiskal untuk tanggal ${data.journal_date}`)
+    }
+    if (!fiscalPeriod.is_open) {
+      throw JournalErrors.PERIOD_CLOSED(fiscalPeriod.period)
+    }
+
+    const period = fiscalPeriod.period
+
     // Get next sequence and generate journal number
-    const period = getPeriodFromDate(data.journal_date)
     const sequence = await journalHeadersRepository.getNextSequence(
       data.company_id,
       data.journal_type,
@@ -296,9 +306,9 @@ export class JournalHeadersService {
       throw JournalErrors.NOT_BALANCED()
     }
 
-    // Check period not closed
-    const period = await fiscalPeriodsRepository.findByCompanyAndPeriod(companyId, journal.period)
-    if (!period || !period.is_open) {
+    // Check period not closed (strict range check)
+    const fiscalPeriod = await fiscalPeriodsRepository.findByDate(companyId, journal.journal_date)
+    if (!fiscalPeriod || !fiscalPeriod.is_open) {
       throw JournalErrors.PERIOD_CLOSED(journal.period)
     }
 

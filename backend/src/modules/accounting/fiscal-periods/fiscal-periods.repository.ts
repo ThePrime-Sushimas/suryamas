@@ -298,6 +298,43 @@ return result
       throw FiscalPeriodErrors.REPOSITORY_ERROR('findByCompanyAndPeriod', (error as Error).message)
     }
   }
+  async findByDate(companyId: string, date: string): Promise<FiscalPeriod | null> {
+    if (!companyId?.trim() || !date?.trim()) {
+      return null
+    }
+
+    const cacheKey = this.getCacheKey('period_by_date', { companyId, date })
+    const cached = this.getFromCache<FiscalPeriod>(cacheKey)
+    if (cached) {
+      return cached
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('fiscal_periods')
+        .select('*')
+        .eq('company_id', companyId)
+        .lte('period_start', date)
+        .gte('period_end', date)
+        .is('deleted_at', null)
+        .maybeSingle()
+
+      if (error) {
+        logError('Repository findByDate error', { error: error.message, date, company_id: companyId })
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('findByDate', error.message)
+      }
+
+      if (data) {
+        this.setCache(cacheKey, data)
+      }
+
+      return data
+    } catch (error) {
+      if (error instanceof FiscalPeriodError) throw error
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('findByDate', (error as Error).message)
+    }
+  }
+
 
   async findByIds(companyId: string, ids: string[]): Promise<FiscalPeriod[]> {
     if (!companyId?.trim() || !Array.isArray(ids) || ids.length === 0) {
