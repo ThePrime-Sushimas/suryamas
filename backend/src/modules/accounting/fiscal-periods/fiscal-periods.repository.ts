@@ -374,6 +374,64 @@ return result
     }
   }
 
+  async findAnyByCompanyAndPeriod(companyId: string, period: string): Promise<FiscalPeriod | null> {
+    if (!companyId?.trim() || !period?.trim()) {
+      return null
+    }
+
+    try {
+      // Use limit(1) instead of maybeSingle to be safe against multiple deleted records
+      const { data, error } = await supabase
+        .from('fiscal_periods')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('period', period)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (error) {
+        logError('Repository findAnyByCompanyAndPeriod error', { error: error.message, period, company_id: companyId })
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('findAnyByCompanyAndPeriod', error.message)
+      }
+      
+      return data && data.length > 0 ? data[0] : null
+    } catch (error) {
+      if (error instanceof FiscalPeriodError) throw error
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('findAnyByCompanyAndPeriod', (error as Error).message)
+    }
+  }
+
+  async restoreWithUpdate(id: string, companyId: string, updates: UpdateFiscalPeriodDto & { updated_by: string }): Promise<FiscalPeriod> {
+    try {
+      const { data, error } = await supabase
+        .from('fiscal_periods')
+        .update({
+          ...updates,
+          deleted_at: null,
+          deleted_by: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .eq('company_id', companyId)
+        .select()
+        .single()
+
+      if (error) {
+        logError('Repository restoreWithUpdate error', { error: error.message, id, company_id: companyId })
+        throw FiscalPeriodErrors.REPOSITORY_ERROR('restoreWithUpdate', error.message)
+      }
+
+      this.invalidateCache('list:')
+      this.invalidateCache('period:')
+      this.invalidateCache('detail:')
+      
+      return data
+    } catch (error) {
+      if (error instanceof FiscalPeriodError) throw error
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('restoreWithUpdate', (error as Error).message)
+    }
+  }
+
   async create(data: CreateFiscalPeriodDto & { company_id: string }, userId: string): Promise<FiscalPeriod> {
     if (!userId?.trim()) {
       throw FiscalPeriodErrors.VALIDATION_ERROR('userId', 'User ID is required')

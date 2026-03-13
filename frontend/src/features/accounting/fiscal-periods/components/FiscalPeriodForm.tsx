@@ -55,7 +55,7 @@ export function FiscalPeriodForm({ initialData, onSubmit, onCancel }: FiscalPeri
     if (!trimmedPeriod) {
       newErrors.period = 'Period is required'
     } else if (!validatePeriodFormat(trimmedPeriod)) {
-      newErrors.period = 'Invalid format. Use YYYY-MM (e.g., 2024-01)'
+      newErrors.period = 'Invalid format. Use YYYY-MM or YYYY-MM-suffix (e.g., 2024-01 or 2024-01-A)'
     }
 
     if (!formData.period_start) {
@@ -97,8 +97,8 @@ export function FiscalPeriodForm({ initialData, onSubmit, onCancel }: FiscalPeri
         <input
           id="period"
           type="text"
-          placeholder="YYYY-MM (e.g., 2024-01)"
-          pattern="\d{4}-(0[1-9]|1[0-2])"
+          placeholder="YYYY-MM (e.g., 2024-01 or 2024-01-A)"
+          pattern="\d{4}-(0[1-9]|1[0-2])(-[a-zA-Z0-9]+)?"
           value={formData.period}
           onChange={(e) => setFormData({ ...formData, period: e.target.value })}
           aria-invalid={!!errors.period}

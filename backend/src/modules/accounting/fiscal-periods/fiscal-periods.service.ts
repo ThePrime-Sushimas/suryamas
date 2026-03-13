@@ -264,9 +264,37 @@ export class FiscalPeriodsService {
       this.validatePeriodFormat(sanitizedData.period)
       this.validateDateRange(sanitizedData.period_start, sanitizedData.period_end)
       
-      const existingPeriod = await this.repository.findByCompanyAndPeriod(data.company_id, sanitizedData.period)
+      const existingPeriod = await this.repository.findAnyByCompanyAndPeriod(data.company_id, sanitizedData.period)
+      
+      logInfo('Checking existing period before create', { 
+        period: sanitizedData.period, 
+        found: !!existingPeriod,
+        existing_data: existingPeriod 
+      })
+
       if (existingPeriod) {
-        throw FiscalPeriodErrors.PERIOD_EXISTS(sanitizedData.period, data.company_id)
+        if (!existingPeriod.deleted_at) {
+          logWarn('Period already exists and is not deleted', { period: sanitizedData.period })
+          throw FiscalPeriodErrors.PERIOD_EXISTS(sanitizedData.period, data.company_id)
+        }
+        
+        // If deleted, restore and update it
+        logInfo('Restoring previously deleted fiscal period', { 
+          period_id: existingPeriod.id, 
+          period: sanitizedData.period 
+        })
+        
+        const restoredPeriod = await this.repository.restoreWithUpdate(
+          existingPeriod.id, 
+          data.company_id, 
+          {
+            ...sanitizedData,
+            updated_by: userId
+          }
+        )
+        
+        await this.auditService.log('RESTORE', 'fiscal_period', restoredPeriod.id, userId, existingPeriod, restoredPeriod)
+        return restoredPeriod
       }
       
       // Validate no date overlap with existing periods
@@ -378,7 +406,34 @@ export class FiscalPeriodsService {
       }
       
       const sanitizedData: UpdateFiscalPeriodDto = {
-        ...(data.is_adjustment_allowed !== undefined && { is_adjustment_allowed: data.is_adjustment_allowed })
+        ...(data.period !== undefined && { period: this.sanitizeInput(data.period) }),
+        ...(data.period_start !== undefined && { period_start: this.sanitizeInput(data.period_start) }),
+        ...(data.period_end !== undefined && { period_end: this.sanitizeInput(data.period_end) }),
+        ...(data.is_adjustment_allowed !== undefined && { is_adjustment_allowed: data.is_adjustment_allowed }),
+        ...(data.is_year_end !== undefined && { is_year_end: data.is_year_end })
+      }
+
+      // Validations if period or dates changed
+      if (sanitizedData.period && sanitizedData.period !== existing.period) {
+        this.validatePeriodFormat(sanitizedData.period)
+        const otherExists = await this.repository.findAnyByCompanyAndPeriod(companyId, sanitizedData.period)
+        if (otherExists && otherExists.id !== id) {
+          throw FiscalPeriodErrors.PERIOD_EXISTS(sanitizedData.period, companyId)
+        }
+      }
+
+      const newStart = sanitizedData.period_start || existing.period_start
+      const newEnd = sanitizedData.period_end || existing.period_end
+      
+      if (sanitizedData.period_start || sanitizedData.period_end) {
+        this.validateDateRange(newStart, newEnd)
+        await this.validateNoDateOverlap(companyId, newStart, newEnd, id)
+      }
+
+      if (sanitizedData.is_year_end !== undefined || sanitizedData.period) {
+        const checkIsYearEnd = sanitizedData.is_year_end !== undefined ? sanitizedData.is_year_end : existing.is_year_end
+        const checkPeriod = sanitizedData.period || existing.period
+        await this.validateYearEndRules(companyId, checkPeriod, checkIsYearEnd, id)
       }
       
       const period = await this.repository.update(id.trim(), companyId, {

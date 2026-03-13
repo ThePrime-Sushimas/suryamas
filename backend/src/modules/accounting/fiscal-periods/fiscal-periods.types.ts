@@ -31,10 +31,13 @@ export interface CreateFiscalPeriodDto {
 
 export interface UpdateFiscalPeriodDto {
   /**
-   * Only adjustment flag is mutable.
-   * Closed period cannot be modified.
+   * Fields that can be modified while period is open.
    */
+  period?: string
+  period_start?: string
+  period_end?: string
   is_adjustment_allowed?: boolean
+  is_year_end?: boolean
 }
 
 export interface ClosePeriodDto {

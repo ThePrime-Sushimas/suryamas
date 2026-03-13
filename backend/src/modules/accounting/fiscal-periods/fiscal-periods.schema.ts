@@ -46,7 +46,11 @@ export const updateFiscalPeriodSchema = z.object({
     id: uuidSchema,
   }),
   body: z.object({
+    period: periodSchema.optional(),
+    period_start: dateSchema.optional(),
+    period_end: dateSchema.optional(),
     is_adjustment_allowed: z.boolean().optional(),
+    is_year_end: z.boolean().optional(),
   }).strict(),
 })
 

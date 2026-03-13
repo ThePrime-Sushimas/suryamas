@@ -1,4 +1,4 @@
-export const PERIOD_FORMAT_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/
+export const PERIOD_FORMAT_REGEX = /^\d{4}-(0[1-9]|1[0-2])(-[a-zA-Z0-9]+)?$/
 
 export const FISCAL_PERIOD_STATUS = {
   OPEN: 'OPEN',
