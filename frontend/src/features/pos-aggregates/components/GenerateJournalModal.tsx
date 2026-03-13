@@ -40,6 +40,7 @@ interface GenerationResult {
   transactions_processed: number
   failed_count: number
   duration_ms: number
+  failed_details?: Array<{ date: string; branch: string; error: string }>
 }
 
 // =============================================================================
@@ -151,13 +152,16 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
             message: 'Selesai!'
           })
           
+          const importResults = job.metadata?.importResults as any
+          
           setResult({
             success: true,
             jobId: id,
-            journals_created: 0, // Will be updated via metadata
-            transactions_processed: 0,
-            failed_count: 0,
-            duration_ms: 0,
+            journals_created: importResults?.total_journals || 0,
+            transactions_processed: importResults?.total_transactions || 0,
+            failed_count: importResults?.failed?.length || 0,
+            duration_ms: importResults?.duration_ms || 0,
+            failed_details: importResults?.failed || []
           })
 
           // Refresh data
@@ -499,26 +503,67 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
                     </p>
 
                     {/* Stats */}
-                    <div className="grid grid-cols-3 gap-4 mb-6">
-                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
-                        <p className="text-lg font-bold text-blue-600 dark:text-blue-400">Processing</p>
+                    <div className="grid grid-cols-4 gap-4 mb-6">
+                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider font-bold mb-1">Berhasil</p>
+                        <p className="text-xl font-bold text-green-600 dark:text-green-400">{result.journals_created}</p>
+                        <p className="text-[10px] text-gray-400">Jurnal</p>
                       </div>
-                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Job ID</p>
-                        <p className="text-lg font-bold text-gray-900 dark:text-white truncate">
-                          {jobId?.slice(0, 8)}...
-                        </p>
+                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider font-bold mb-1">Gagal</p>
+                        <p className="text-xl font-bold text-red-600 dark:text-red-400">{result.failed_count}</p>
+                        <p className="text-[10px] text-gray-400">Grup</p>
                       </div>
-                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Aksi</p>
-                        <button
-                          onClick={() => navigate('/jobs')}
-                          className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
-                        >
-                          Lihat di Jobs
-                        </button>
+                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider font-bold mb-1">Total</p>
+                        <p className="text-xl font-bold text-gray-900 dark:text-white">{result.transactions_processed}</p>
+                        <p className="text-[10px] text-gray-400">Transaksi</p>
                       </div>
+                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider font-bold mb-1">Durasi</p>
+                        <p className="text-xl font-bold text-gray-900 dark:text-white">{(result.duration_ms / 1000).toFixed(1)}s</p>
+                        <p className="text-[10px] text-gray-400">Waktu</p>
+                      </div>
+                    </div>
+
+                    {/* Failed Details List */}
+                    {result.failed_details && result.failed_details.length > 0 && (
+                      <div className="mt-6 text-left">
+                        <h5 className="text-sm font-bold text-red-700 dark:text-red-400 flex items-center gap-2 mb-3">
+                          <AlertCircle className="w-4 h-4" />
+                          Detail Kegagalan ({result.failed_count})
+                        </h5>
+                        <div className="max-h-48 overflow-y-auto border border-red-100 dark:border-red-900/30 rounded-lg bg-red-50/30 dark:bg-red-900/10">
+                          <table className="w-full text-xs text-left">
+                            <thead className="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300">
+                              <tr>
+                                <th className="px-3 py-2 font-bold">Tanggal</th>
+                                <th className="px-3 py-2 font-bold">Cabang</th>
+                                <th className="px-3 py-2 font-bold">Alasan</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-red-100 dark:divide-red-900/20">
+                              {result.failed_details.map((fail, idx) => (
+                                <tr key={idx} className="text-red-700 dark:text-red-400">
+                                  <td className="px-3 py-2 whitespace-nowrap">{fail.date}</td>
+                                  <td className="px-3 py-2 truncate max-w-[120px]">{fail.branch}</td>
+                                  <td className="px-3 py-2 italic">{fail.error}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Footer Info */}
+                    <div className="mt-6 flex justify-center gap-4">
+                      <button
+                        onClick={() => window.location.href = '/jobs'}
+                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                      >
+                        Lihat Riwayat Job
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -598,11 +643,6 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
       </div>
     </div>
   )
-}
-
-// Add navigate import
-const navigate = (path: string) => {
-  window.location.href = path
 }
 
 export default GenerateJournalModal
