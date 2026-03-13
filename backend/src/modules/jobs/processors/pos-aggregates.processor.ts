@@ -226,8 +226,13 @@ function groupLinesByTransaction(lines: any[]): Map<string, any[]> {
         } else if (totalSplitAmount > 0) {
           // Multiple payments: "Name A (Amt A), Name B (Amt B)"
           // Explode into multiple virtual lines allocated by ratio
+          const lineTotal = Number(line.total || 0);
+
           for (const split of splits) {
-            const ratio = split.amount / totalSplitAmount;
+            // Ratio is based on the actual split amount vs the stated total in the line
+            // Fallback to totalSplitAmount if line.total is missing/zero
+            const ratio = lineTotal > 0 ? split.amount / lineTotal : split.amount / totalSplitAmount;
+            
             const salesDate = line.sales_date || "unknown";
             const branch = line.branch || "unknown";
             const paymentMethod = normalizePaymentMethodName(split.name);
@@ -245,7 +250,8 @@ function groupLinesByTransaction(lines: any[]): Map<string, any[]> {
               bill_discount: Number(line.bill_discount || 0) * ratio,
               tax: Number(line.tax || 0) * ratio,
               service_charge: Number(line.service_charge || 0) * ratio,
-              total: Number(line.total || 0) * ratio,
+              // Use the actual split amount as the total for reconciliation accuracy
+              total: split.amount,
             });
           }
           continue;
