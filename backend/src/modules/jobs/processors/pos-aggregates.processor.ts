@@ -409,33 +409,37 @@ export async function generateAggregatedTransactionsOptimized(
         source_ref: key.replace(/\|/g, "-"),
       };
     });
-
-    // Batch check existence - split into chunks untuk avoid large queries
+       // Batch check existence - split into chunks untuk avoid large queries
     const existingSources = new Set<string>();
+    const allSourceRefs = sourceRefsToCheck.map(s => s.source_ref);
 
-    for (let i = 0; i < sourceRefsToCheck.length; i += CHECK_BATCH_SIZE) {
-      const batch = sourceRefsToCheck.slice(i, i + CHECK_BATCH_SIZE);
+    for (let i = 0; i < allSourceRefs.length; i += CHECK_BATCH_SIZE) {
+      const batchRefs = allSourceRefs.slice(i, i + CHECK_BATCH_SIZE);
+      
+      const { data, error } = await supabase
+        .from("aggregated_transactions")
+        .select("source_ref")
+        .eq("source_type", "POS")
+        .eq("source_id", posImportId)
+        .in("source_ref", batchRefs);
 
-      // Check each dalam batch
-      for (const { source_type, source_id, source_ref } of batch) {
-        const exists = await posAggregatesRepository.sourceExists(
-          source_type,
-          source_id,
-          source_ref,
-        );
-        if (exists) {
-          existingSources.add(source_ref);
+      if (error) {
+        logError("Batch duplicate check failed", { error });
+        // Fallback or handle error - for now we continue
+      } else if (data) {
+        for (const item of data) {
+          existingSources.add(item.source_ref);
         }
       }
 
       // Progress update
       const progress =
-        30 + Math.min(20, Math.floor((i / sourceRefsToCheck.length) * 20));
+        30 + Math.min(20, Math.floor((i / allSourceRefs.length) * 20));
       onProgress?.({
         current: progress,
         total: 100,
         phase: "checking",
-        message: `Checking duplicates ${Math.min(i + batch.length, totalGroups)}/${totalGroups}...`,
+        message: `Checking duplicates ${Math.min(i + batchRefs.length, totalGroups)}/${totalGroups}...`,
       });
     }
 
