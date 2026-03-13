@@ -625,7 +625,7 @@ function AuditTimelineCard({ journal }: { journal: JournalHeaderWithLines }) {
     },
     journal.submitted_at && {
       date: journal.submitted_at,
-      user: journal.submitted_by,
+      user: journal.submitted_by_name,
       action: 'Dikirim',
       icon: <Send className="w-4 h-4" />,
       color: 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400',
@@ -646,13 +646,14 @@ function AuditTimelineCard({ journal }: { journal: JournalHeaderWithLines }) {
     },
     journal.rejected_at && {
       date: journal.rejected_at,
-      user: journal.rejected_by,
+      user: journal.rejected_by_name,
       action: 'Ditolak',
       icon: <XCircle className="w-4 h-4" />,
       color: 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400',
     },
     journal.is_reversed && journal.reversal_date && {
       date: journal.reversal_date,
+      user: journal.reversed_by_name,
       action: 'Dibalikkan',
       icon: <RotateCcw className="w-4 h-4" />,
       color: 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400',

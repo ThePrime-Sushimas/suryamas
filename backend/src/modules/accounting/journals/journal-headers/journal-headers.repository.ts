@@ -79,7 +79,7 @@ export class JournalHeadersRepository {
       branch_name: (item as any).branches?.branch_name || null
     }))
     
-    return { data: mappedData, total: count || 0 }
+    return { data: await this.populateNames(mappedData), total: count || 0 }
   }
 
   async findAllWithLines(
@@ -178,7 +178,7 @@ export class JournalHeadersRepository {
       }
     })
     
-    return { data: mappedData, total: count || 0 }
+    return { data: await this.populateNames(mappedData), total: count || 0 }
   }
 
   async findById(id: string, includeDeleted: boolean = false): Promise<JournalHeaderWithLines | null> {
@@ -222,12 +222,60 @@ export class JournalHeadersRepository {
       }
     })
 
-    return { 
+    const result = { 
       ...header, 
       branch_name: (header as any).branches?.branch_name || null,
       lines: linesWithAccounts
     }
+
+    const [populated] = await this.populateNames([result])
+    return populated
   }
+
+  private async populateNames(data: any[]): Promise<any[]> {
+    if (!data.length) return data
+
+    const ids = new Set<string>()
+    data.forEach(item => {
+      if (item.created_by) ids.add(item.created_by)
+      if (item.updated_by) ids.add(item.updated_by)
+      if (item.submitted_by) ids.add(item.submitted_by)
+      if (item.approved_by) ids.add(item.approved_by)
+      if (item.posted_by) ids.add(item.posted_by)
+      if (item.rejected_by) ids.add(item.rejected_by)
+      if (item.reversed_by) ids.add(item.reversed_by)
+      if (item.deleted_by) ids.add(item.deleted_by)
+    })
+
+    const idList = Array.from(ids).filter(Boolean)
+    if (idList.length === 0) return data
+
+    // Fetch employees checking BOTH id and user_id columns to be exhaustive
+    // Using two queries to avoid potential complex OR query issues with Supabase filters
+    const [{ data: byId }, { data: byUserId }] = await Promise.all([
+      supabase.from('employees').select('id, full_name').in('id', idList),
+      supabase.from('employees').select('user_id, full_name').in('user_id', idList)
+    ])
+
+    const nameMap = new Map<string, string>()
+    byId?.forEach(emp => nameMap.set(emp.id, emp.full_name))
+    byUserId?.forEach(emp => {
+      if (emp.user_id) nameMap.set(emp.user_id, emp.full_name)
+    })
+
+    return data.map(item => ({
+      ...item,
+      created_by_name: (item.created_by && nameMap.get(item.created_by)) || null,
+      updated_by_name: (item.updated_by && nameMap.get(item.updated_by)) || null,
+      submitted_by_name: (item.submitted_by && nameMap.get(item.submitted_by)) || null,
+      approved_by_name: (item.approved_by && nameMap.get(item.approved_by)) || null,
+      posted_by_name: (item.posted_by && nameMap.get(item.posted_by)) || null,
+      rejected_by_name: (item.rejected_by && nameMap.get(item.rejected_by)) || null,
+      reversed_by_name: (item.reversed_by && nameMap.get(item.reversed_by)) || null,
+      deleted_by_name: (item.deleted_by && nameMap.get(item.deleted_by)) || null,
+    }))
+  }
+
 
   /**
    * Create journal with compensating transaction pattern

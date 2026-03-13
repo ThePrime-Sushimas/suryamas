@@ -48,6 +48,9 @@ export interface JournalHeaderWithLines extends JournalHeader {
   created_by_name?: string
   approved_by_name?: string
   posted_by_name?: string
+  submitted_by_name?: string
+  rejected_by_name?: string
+  reversed_by_name?: string
 }
 
 export interface CreateJournalDto {
