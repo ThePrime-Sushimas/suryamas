@@ -407,11 +407,25 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
 
     await jobsService.updateProgress(jobId, 95, userId)
 
-    // PHASE 6: Finalization
+    // PHASE 6: Finalization - RECOMMENDED SAFE APPROACH
+    const currentPosImport = await posImportsRepository.findById(posImportId!, importCompanyId!)
+    const analyzeDuplicates = currentPosImport!.total_rows - currentPosImport!.new_rows
+    
+    // VALIDASI: Compare analyze vs actual skipped (allow ±5 tolerance)
+    if (Math.abs(analyzeDuplicates - results.skipped) > 5) {
+      logWarn("Duplicate count mismatch between analyze and import phase", {
+        analyzeDuplicates,
+        importSkipped: results.skipped,
+        difference: Math.abs(analyzeDuplicates - results.skipped),
+        totalRows: results.total,
+        actuallyCreated: results.created
+      })
+    }
+    
     await posImportsRepository.update(posImportId!, importCompanyId!, {
       status: 'IMPORTED',
       new_rows: results.created,
-      duplicate_rows: results.skipped,
+      duplicate_rows: results.skipped, // Use actual import results
       error_message: results.errors.length > 0 ? `${results.errors.length} batches had errors` : undefined
     }, userId)
 
