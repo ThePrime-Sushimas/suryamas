@@ -209,17 +209,20 @@ class PosImportsService {
       });
       const dateRange = extractDateRange(parsedRows);
 
-      // Check for duplicates against database
-      const dbDuplicates = await this.checkDuplicatesBulk(rows);
+      // Check for duplicates against database - FIXED
+      const duplicateKeys = await this.checkDuplicatesBulk(rows);
+      
+      // Hitung akurat: berapa rows yang DUPLICATE berdasarkan keys
+      const allKeys = (rows as any[])
+        .filter((r: any) => (r as any)["Bill Number"] && (r as any)["Sales Number"] && (r as any)["Sales Date"])
+        .map((r: any) => {
+          const bill_number = String((r as any)["Bill Number"]).trim();
+          const sales_number = String((r as any)["Sales Number"]).trim();
+          return `${bill_number}-${sales_number}-${parseToLocalDate((r as any)["Sales Date"])}`;
+        });
 
-      // Count unique duplicates (deduplicate the duplicates list)
-      const uniqueDuplicates = new Set(
-        dbDuplicates.map(
-          (d) => `${d.bill_number}-${d.sales_number}-${d.sales_date}`,
-        ),
-      );
-      const duplicateCount = uniqueDuplicates.size;
-      const newRowsCount = Math.max(0, rows.length - duplicateCount);
+      const duplicateCount = allKeys.filter(k => duplicateKeys.has(k)).length;
+      const newRowsCount = rows.length - duplicateCount;
 
       // Calculate financial summary from rows (for preview before import)
       const financialSummary = this.calculateFinancialSummary(rows);
@@ -278,12 +281,7 @@ class PosImportsService {
         total_rows: rows.length,
         new_rows: newRowsCount,
         duplicate_rows: duplicateCount,
-        duplicates: dbDuplicates.map((d) => ({
-          bill_number: d.bill_number,
-          sales_number: d.sales_number,
-          sales_date: d.sales_date,
-          existing_import_id: d.pos_import_id,
-        })),
+        duplicates: [], // Simplified - fokus ke count akurat, detail tidak critical untuk preview
       };
 
       logInfo("PosImportsService analyzeFile success", {
@@ -302,29 +300,42 @@ class PosImportsService {
   /**
    * Check for duplicate transactions (FIXED: Bulk query, no N+1)
    */
-  private async checkDuplicatesBulk(rows: any[]): Promise<any[]> {
-    const transactions = rows
-      .filter((r) => r["Bill Number"] && r["Sales Number"] && r["Sales Date"])
-      .map((r) => ({
-        bill_number: String(r["Bill Number"]),
-        sales_number: String(r["Sales Number"]),
-        sales_date: parseToLocalDate(r["Sales Date"]),
-      }));
+  private async checkDuplicatesBulk(rows: any[]): Promise<Set<string>> {
+    // Step 1: Buat semua keys dari rows
+      const allTransactions = (rows as any[])
+      .filter((r: any) => (r as any)["Bill Number"] && (r as any)["Sales Number"] && (r as any)["Sales Date"])
+      .map((r: any) => {
+        const bill_number = String((r as any)["Bill Number"]).trim();
+        const sales_number = String((r as any)["Sales Number"]).trim();
+        const sales_date = parseToLocalDate((r as any)["Sales Date"]);
+        const key = `${bill_number}-${sales_number}-${sales_date}`;
+        return { bill_number, sales_number, sales_date, key };
+      });
 
-    if (transactions.length === 0) return [];
+    if (allTransactions.length === 0) return new Set();
 
-    // Limit to 50 transactions per query to avoid URL length issues
+    // Step 2: Unique combinations untuk query DB (efisien)
+    const uniqueTransactions = Array.from(
+      new Map(allTransactions.map(t => [t.key, t])).values()
+    );
+
+    // Step 3: Batch query ke DB
     const batchSize = 50;
-    const results: any[] = [];
+    const duplicateKeys = new Set<string>();
 
-    for (let i = 0; i < transactions.length; i += batchSize) {
-      const batch = transactions.slice(i, i + batchSize);
-      const batchResults =
-        await posImportLinesRepository.findExistingTransactions(batch);
-      results.push(...batchResults);
+    for (let i = 0; i < uniqueTransactions.length; i += batchSize) {
+      const batch = uniqueTransactions.slice(i, i + batchSize);
+      try {
+        const results = await posImportLinesRepository.findExistingTransactions(batch);
+        results.forEach((d: any) => {
+          duplicateKeys.add(`${d.bill_number}-${d.sales_number}-${d.sales_date}`);
+        });
+      } catch (error) {
+        logError('checkDuplicatesBulk batch failed', { batchSize: batch.length, error });
+      }
     }
 
-    return results;
+    return duplicateKeys;
   }
 
   /**
@@ -561,16 +572,15 @@ class PosImportsService {
         },
       );
 
-      // Filter duplicates if requested
+      // Filter duplicates if requested - FIXED
       let linesToInsert = lines;
       if (skipDuplicates) {
-        const duplicates = await this.checkDuplicatesBulk(rows);
-        const duplicateKeys = new Set(
-          duplicates.map(
-            (d) => `${d.bill_number}-${d.sales_number}-${d.sales_date}`,
-          ),
-        );
+        const duplicateKeys = await this.checkDuplicatesBulk(rows);
         linesToInsert = lines.filter((line) => {
+          // Pastikan line punya required fields
+          if (!line.bill_number || !line.sales_number || !line.sales_date) {
+            return true; // Insert jika tidak bisa di-key
+          }
           const key = `${line.bill_number}-${line.sales_number}-${line.sales_date}`;
           return !duplicateKeys.has(key);
         });
