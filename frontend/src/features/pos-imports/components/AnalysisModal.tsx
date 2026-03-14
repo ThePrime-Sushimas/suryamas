@@ -209,27 +209,9 @@ export const AnalysisModal = ({ result, onConfirm, onCancel, isLoading }: Analys
           >
             Cancel
           </button>
-          {hasDuplicates && (
-            <button
-              onClick={() => onConfirm(true)}
-              disabled={isLoading}
-              className="px-4 py-2 text-white bg-orange-600 rounded-lg hover:bg-orange-700 disabled:opacity-50 flex flex-col items-start gap-1"
-            >
-              <div className="flex items-center gap-2">
-                {isLoading && (
-                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                )}
-                <span>Import {analysis.new_rows} New Rows</span>
-              </div>
-              <span className="text-xs opacity-90">Skip {analysis.duplicate_rows} duplicates</span>
-            </button>
-          )}
           <button
-            onClick={() => onConfirm(false)}
-            disabled={isLoading}
+            onClick={() => onConfirm(true)}
+disabled={isLoading || analysis.new_rows === 0}
             className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex flex-col items-start gap-1"
           >
             <div className="flex items-center gap-2">
@@ -239,10 +221,10 @@ export const AnalysisModal = ({ result, onConfirm, onCancel, isLoading }: Analys
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
               )}
-              <span>{hasDuplicates ? `Import All ${analysis.total_rows} Rows` : 'Confirm Import'}</span>
+{analysis.new_rows === 0 ? 'Nothing to import' : hasDuplicates ? `Import ${analysis.new_rows} New Rows` : 'Confirm Import'}
             </div>
             {hasDuplicates && (
-              <span className="text-xs opacity-90">May create {analysis.duplicate_rows} duplicates</span>
+              <span className="text-xs opacity-90">Skip {analysis.duplicate_rows} duplicates</span>
             )}
           </button>
         </div>
