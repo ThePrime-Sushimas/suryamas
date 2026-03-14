@@ -19,6 +19,10 @@ export interface PosImport {
   status: PosImportStatus
   error_message?: string
   journal_id?: string
+  chunk_info?: {
+    total_chunks: number
+    original_size_mb: number
+  }
   created_at: string
   created_by?: string
   updated_at: string
@@ -46,6 +50,10 @@ export interface UpdatePosImportDto {
   total_rows?: number
   new_rows?: number
   duplicate_rows?: number
+  chunk_info?: {
+    total_chunks: number
+    original_size_mb: number
+  }
 }
 
 export interface PosImportFilter {

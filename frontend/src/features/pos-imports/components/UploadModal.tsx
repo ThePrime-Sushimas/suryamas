@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { Upload, X, AlertCircle } from 'lucide-react'
 import { useBranchContextStore } from '@/features/branch_context'
-import { POS_IMPORT_MAX_FILE_SIZE_BYTES, POS_IMPORT_MAX_FILE_SIZE_MB } from '../constants/pos-imports.constants'
+import { POS_IMPORT_MAX_FILE_SIZE_MB } from '../constants/pos-imports.constants'
 import { ConfirmModal } from './ConfirmModal'
 
 interface UploadModalProps {
@@ -33,14 +33,27 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
       return
     }
 
-    if (selectedFile.size > POS_IMPORT_MAX_FILE_SIZE_BYTES) {
-      setValidationError(`File size must be less than ${POS_IMPORT_MAX_FILE_SIZE_MB}MB`)
+    // CHUNKING SUPPORT: 50MB max (auto-split >5MB)
+    const MAX_SIZE_MB = 50
+    if (selectedFile.size > MAX_SIZE_MB * 1024 * 1024) {
+      setValidationError(`File terlalu besar. Maksimal ${MAX_SIZE_MB}MB (akan dipecah otomatis untuk file <50MB)`)
       onClearError?.()
       return
     }
 
+    // Large file warning (will be auto-chunked) - FIXED: warning stays visible
+    const CHUNK_THRESHOLD_MB = 5
+    if (selectedFile.size > CHUNK_THRESHOLD_MB * 1024 * 1024) {
+      const estimatedChunks = Math.ceil(selectedFile.size / (4 * 1024 * 1024))
+      setValidationError(
+        `File besar (${(selectedFile.size/1024/1024).toFixed(1)}MB) akan dipecah jadi ~${estimatedChunks} bagian otomatis. OK?`
+      )
+    } else {
+      setValidationError(null)
+    }
+
     setFile(selectedFile)
-    setValidationError(null)
+    // REMOVED: setValidationError(null) - let warning stay for large files
     onClearError?.()
   }
 
@@ -163,19 +176,29 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
               
               <div className="grid grid-cols-3 gap-2 text-xs text-gray-500 dark:text-gray-400">
                 <div>
-                  <div className="font-medium">File Size</div>
-                  <div>{((file?.size || 0) / 1024 / 1024).toFixed(2)} MB</div>
+                  <div className="font-medium">Ukuran</div>
+                  <div className="font-semibold text-blue-600 dark:text-blue-400">
+                    {((file?.size || 0) / 1024 / 1024).toFixed(2)} MB
+                  </div>
                 </div>
                 <div>
-                  <div className="font-medium">Type</div>
+                  <div className="font-medium">Tipe</div>
                   <div>{file?.name.split('.').pop()?.toUpperCase() || 'N/A'}</div>
                 </div>
                 <div>
-                  <div className="font-medium">Branch</div>
+                  <div className="font-medium">Cabang</div>
                   <div className="truncate" title={currentBranch?.branch_name}>
                     {currentBranch?.branch_name || 'Unknown'}
                   </div>
                 </div>
+                {file && file.size > 5 * 1024 * 1024 && (
+                  <div className="col-span-3 pt-2 border-t border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center gap-1 text-xs bg-blue-50 dark:bg-blue-900/30 p-2 rounded">
+                      <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                      <span>Auto-split: ~{Math.ceil(file.size / (4 * 1024 * 1024))} bagian</span>
+                    </div>
+                  </div>
+                )}
               </div>
               
               {uploadProgress === 100 && (

@@ -7,73 +7,93 @@
  * - File storage added
  * - Restore method added
  * - Jobs system integration
+ * - ✅ chunk_info type support added
  */
 
-import * as XLSX from 'xlsx'
-import { posImportsRepository } from './pos-imports.repository'
-import { posImportLinesRepository } from '../pos-import-lines/pos-import-lines.repository'
-import { PosImportErrors } from '../shared/pos-import.errors'
-import { canTransition, extractDateRange, validatePosRow } from '../shared/pos-import.utils'
-import { parseToLocalDate, parseToLocalDateTime } from '../shared/excel-date.util'
-import { supabase } from '../../../config/supabase'
-import { logInfo, logError } from '../../../config/logger'
-import { jobsService } from '../../jobs/jobs.service'
-import { AuditService } from '../../monitoring/monitoring.service'
-import type { PosImport, CreatePosImportDto, UpdatePosImportDto, PosImportFilter } from './pos-imports.types'
-import type { PosImportStatus, DuplicateAnalysis, FinancialSummary } from '../shared/pos-import.types'
-import type { CreatePosImportLineDto } from '../pos-import-lines/pos-import-lines.types'
-import type { PaginationParams, SortParams } from '../../../types/request.types'
+import * as XLSX from "xlsx";
+import { posImportsRepository } from "./pos-imports.repository";
+import { posImportLinesRepository } from "../pos-import-lines/pos-import-lines.repository";
+import { PosImportErrors } from "../shared/pos-import.errors";
+import {
+  canTransition,
+  extractDateRange,
+  validatePosRow,
+} from "../shared/pos-import.utils";
+import {
+  parseToLocalDate,
+  parseToLocalDateTime,
+} from "../shared/excel-date.util";
+import { supabase } from "../../../config/supabase";
+import { logInfo, logError } from "../../../config/logger";
+import { jobsService } from "../../jobs/jobs.service";
+import { AuditService } from "../../monitoring/monitoring.service";
+import type {
+  PosImport,
+  CreatePosImportDto,
+  UpdatePosImportDto,
+  PosImportFilter,
+} from "./pos-imports.types";
+import type {
+  PosImportStatus,
+  DuplicateAnalysis,
+  FinancialSummary,
+} from "../shared/pos-import.types";
+import type { CreatePosImportLineDto } from "../pos-import-lines/pos-import-lines.types";
+import type {
+  PaginationParams,
+  SortParams,
+} from "../../../types/request.types";
 
 // Column mapping for Excel
 const EXCEL_COLUMN_MAP: Record<string, string> = {
-  '#': 'row_number',
-  'Sales Number': 'sales_number',
-  'Bill Number': 'bill_number',
-  'Sales Type': 'sales_type',
-  'Batch Order': 'batch_order',
-  'Table Section': 'table_section',
-  'Table Name': 'table_name',
-  'Sales Date': 'sales_date',
-  'Sales Date In': 'sales_date_in',
-  'Sales Date Out': 'sales_date_out',
-  'Branch': 'branch',
-  'Brand': 'brand',
-  'City': 'city',
-  'Area': 'area',
-  'Visit Purpose': 'visit_purpose',
-  'Regular Member Code': 'regular_member_code',
-  'Regular Member Name': 'regular_member_name',
-  'Loyalty Member Code': 'loyalty_member_code',
-  'Loyalty Member Name': 'loyalty_member_name',
-  'Loyalty Member Type': 'loyalty_member_type',
-  'Employee Code': 'employee_code',
-  'Employee Name': 'employee_name',
-  'External Employee Code': 'external_employee_code',
-  'External Employee Name': 'external_employee_name',
-  'Customer Name': 'customer_name',
-  'Payment Method': 'payment_method',
-  'Menu Category': 'menu_category',
-  'Menu Category Detail': 'menu_category_detail',
-  'Menu': 'menu',
-  'Custom Menu Name': 'custom_menu_name',
-  'Menu Code': 'menu_code',
-  'Menu Notes': 'menu_notes',
-  'Order Mode': 'order_mode',
-  'Qty': 'qty',
-  'Price': 'price',
-  'Subtotal': 'subtotal',
-  'Discount': 'discount',
-  'Service Charge': 'service_charge',
-  'Tax': 'tax',
-  'VAT': 'vat',
-  'Total': 'total',
-  'Nett Sales': 'nett_sales',
-  'DPP': 'dpp',
-  'Bill Discount': 'bill_discount',
-  'Total After Bill Discount': 'total_after_bill_discount',
-  'Waiter': 'waiter',
-  'Order Time': 'order_time'
-}
+  "#": "row_number",
+  "Sales Number": "sales_number",
+  "Bill Number": "bill_number",
+  "Sales Type": "sales_type",
+  "Batch Order": "batch_order",
+  "Table Section": "table_section",
+  "Table Name": "table_name",
+  "Sales Date": "sales_date",
+  "Sales Date In": "sales_date_in",
+  "Sales Date Out": "sales_date_out",
+  Branch: "branch",
+  Brand: "brand",
+  City: "city",
+  Area: "area",
+  "Visit Purpose": "visit_purpose",
+  "Regular Member Code": "regular_member_code",
+  "Regular Member Name": "regular_member_name",
+  "Loyalty Member Code": "loyalty_member_code",
+  "Loyalty Member Name": "loyalty_member_name",
+  "Loyalty Member Type": "loyalty_member_type",
+  "Employee Code": "employee_code",
+  "Employee Name": "employee_name",
+  "External Employee Code": "external_employee_code",
+  "External Employee Name": "external_employee_name",
+  "Customer Name": "customer_name",
+  "Payment Method": "payment_method",
+  "Menu Category": "menu_category",
+  "Menu Category Detail": "menu_category_detail",
+  Menu: "menu",
+  "Custom Menu Name": "custom_menu_name",
+  "Menu Code": "menu_code",
+  "Menu Notes": "menu_notes",
+  "Order Mode": "order_mode",
+  Qty: "qty",
+  Price: "price",
+  Subtotal: "subtotal",
+  Discount: "discount",
+  "Service Charge": "service_charge",
+  Tax: "tax",
+  VAT: "vat",
+  Total: "total",
+  "Nett Sales": "nett_sales",
+  DPP: "dpp",
+  "Bill Discount": "bill_discount",
+  "Total After Bill Discount": "total_after_bill_discount",
+  Waiter: "waiter",
+  "Order Time": "order_time",
+};
 
 class PosImportsService {
   /**
@@ -83,31 +103,34 @@ class PosImportsService {
     companyId: string,
     pagination: PaginationParams,
     sort?: SortParams,
-    filter?: PosImportFilter
+    filter?: PosImportFilter,
   ) {
-    return posImportsRepository.findAll(companyId, pagination, sort, filter)
+    return posImportsRepository.findAll(companyId, pagination, sort, filter);
   }
 
   /**
    * Get POS import by ID
    */
   async getById(id: string, companyId: string): Promise<PosImport> {
-    const posImport = await posImportsRepository.findById(id, companyId)
+    const posImport = await posImportsRepository.findById(id, companyId);
     if (!posImport) {
-      throw PosImportErrors.NOT_FOUND()
+      throw PosImportErrors.NOT_FOUND();
     }
-    return posImport
+    return posImport;
   }
 
   /**
    * Get POS import by ID with lines
    */
   async getByIdWithLines(id: string, companyId: string): Promise<any> {
-    const posImport = await posImportsRepository.findByIdWithLines(id, companyId)
+    const posImport = await posImportsRepository.findByIdWithLines(
+      id,
+      companyId,
+    );
     if (!posImport) {
-      throw PosImportErrors.NOT_FOUND()
+      throw PosImportErrors.NOT_FOUND();
     }
-    return posImport
+    return posImport;
   }
 
   /**
@@ -119,123 +142,160 @@ class PosImportsService {
     file: Express.Multer.File,
     branchId: string,
     companyId: string,
-    userId: string
-  ): Promise<{ import: PosImport; analysis: DuplicateAnalysis; summary: FinancialSummary }> {
+    userId: string,
+  ): Promise<{
+    import: PosImport;
+    analysis: DuplicateAnalysis;
+    summary: FinancialSummary;
+  }> {
     try {
-      // Validate file size (10MB limit)
-      if (file.size > 10 * 1024 * 1024) {
-        throw PosImportErrors.FILE_TOO_LARGE(10)
+      // Validate file size (50MB limit)
+      if (file.size > 50 * 1024 * 1024) {
+        throw PosImportErrors.FILE_TOO_LARGE(10);
       }
 
       // Parse Excel
-      const workbook = XLSX.read(file.buffer, { type: 'buffer' })
-      const sheetName = workbook.SheetNames[0]
+      const workbook = XLSX.read(file.buffer, { type: "buffer" });
+      const sheetName = workbook.SheetNames[0];
       if (!sheetName) {
-        throw PosImportErrors.INVALID_EXCEL_FORMAT()
+        throw PosImportErrors.INVALID_EXCEL_FORMAT();
       }
 
-      const worksheet = workbook.Sheets[sheetName]
-      let rows = XLSX.utils.sheet_to_json(worksheet, { range: 10 }) // Start from row 11 (0-indexed, so 10)
+      const worksheet = workbook.Sheets[sheetName];
+      let rows = XLSX.utils.sheet_to_json(worksheet, { range: 10 }); // Start from row 11 (0-indexed, so 10)
 
       // Filter out summary rows at the end (Discount Total Rounding, etc.)
       rows = rows.filter((row: any) => {
-        const billNumber = row['Bill Number']
-        return billNumber && 
-               billNumber !== 'Discount Total Rounding' && 
-               billNumber !== 'Rounding Total' && 
-               billNumber !== 'Voucher Purchase Total' && 
-               billNumber !== 'Platform Fee Total'
-      })
+        const billNumber = row["Bill Number"];
+        return (
+          billNumber &&
+          billNumber !== "Discount Total Rounding" &&
+          billNumber !== "Rounding Total" &&
+          billNumber !== "Voucher Purchase Total" &&
+          billNumber !== "Platform Fee Total"
+        );
+      });
 
       if (rows.length === 0) {
-        throw PosImportErrors.INVALID_FILE('File is empty')
+        throw PosImportErrors.INVALID_FILE("File is empty");
       }
 
       // Validate required columns
-      const firstRow: any = rows[0]
-      const requiredColumns = ['Bill Number', 'Sales Number', 'Sales Date']
-      const missingColumns = requiredColumns.filter(col => !(col in firstRow))
+      const firstRow: any = rows[0];
+      const requiredColumns = ["Bill Number", "Sales Number", "Sales Date"];
+      const missingColumns = requiredColumns.filter(
+        (col) => !(col in firstRow),
+      );
       if (missingColumns.length > 0) {
-        throw PosImportErrors.MISSING_REQUIRED_COLUMNS(missingColumns)
+        throw PosImportErrors.MISSING_REQUIRED_COLUMNS(missingColumns);
       }
 
       // Validate rows
-      const errors: string[] = []
+      const errors: string[] = [];
       rows.forEach((row: any, index) => {
-        const rowErrors = validatePosRow(row, index + 2)
-        errors.push(...rowErrors)
-      })
+        const rowErrors = validatePosRow(row, index + 2);
+        errors.push(...rowErrors);
+      });
 
       if (errors.length > 0) {
-        throw PosImportErrors.INVALID_FILE(errors.slice(0, 10).join('; ') + (errors.length > 10 ? '...' : ''))
+        throw PosImportErrors.INVALID_FILE(
+          errors.slice(0, 10).join("; ") + (errors.length > 10 ? "..." : ""),
+        );
       }
 
       // Extract date range (parse Excel dates first)
       const parsedRows = rows.map((r: any) => {
-        return { sales_date: parseToLocalDate(r['Sales Date']) }
-      })
-      const dateRange = extractDateRange(parsedRows)
+        return { sales_date: parseToLocalDate(r["Sales Date"]) };
+      });
+      const dateRange = extractDateRange(parsedRows);
 
       // Check for duplicates against database
-      const dbDuplicates = await this.checkDuplicatesBulk(rows)
+      const dbDuplicates = await this.checkDuplicatesBulk(rows);
 
       // Count unique duplicates (deduplicate the duplicates list)
       const uniqueDuplicates = new Set(
-        dbDuplicates.map(d => `${d.bill_number}-${d.sales_number}-${d.sales_date}`)
-      )
-      const duplicateCount = uniqueDuplicates.size
-      const newRowsCount = Math.max(0, rows.length - duplicateCount)
+        dbDuplicates.map(
+          (d) => `${d.bill_number}-${d.sales_number}-${d.sales_date}`,
+        ),
+      );
+      const duplicateCount = uniqueDuplicates.size;
+      const newRowsCount = Math.max(0, rows.length - duplicateCount);
 
       // Calculate financial summary from rows (for preview before import)
-      const financialSummary = this.calculateFinancialSummary(rows)
+      const financialSummary = this.calculateFinancialSummary(rows);
 
       // Create import record
-      const posImport = await posImportsRepository.create({
-        company_id: companyId,
-        branch_id: branchId,
-        file_name: file.originalname,
-        date_range_start: dateRange.start || new Date().toISOString().split('T')[0],
-        date_range_end: dateRange.end || new Date().toISOString().split('T')[0],
-        total_rows: rows.length,
-        new_rows: newRowsCount,
-        duplicate_rows: duplicateCount
-      }, userId)
+      const posImport = await posImportsRepository.create(
+        {
+          company_id: companyId,
+          branch_id: branchId,
+          file_name: file.originalname,
+          date_range_start:
+            dateRange.start || new Date().toISOString().split("T")[0],
+          date_range_end:
+            dateRange.end || new Date().toISOString().split("T")[0],
+          total_rows: rows.length,
+          new_rows: newRowsCount,
+          duplicate_rows: duplicateCount,
+        },
+        userId,
+      );
 
       // Audit log for CREATE
       if (userId) {
-        await AuditService.log('CREATE', 'pos_import', posImport.id, userId, null, {
-          ...posImport,
-          file_name: file.originalname,
-          total_rows: rows.length,
-          new_rows: newRowsCount,
-          duplicate_rows: duplicateCount
-        })
+        await AuditService.log(
+          "CREATE",
+          "pos_import",
+          posImport.id,
+          userId,
+          null,
+          {
+            ...posImport,
+            file_name: file.originalname,
+            total_rows: rows.length,
+            new_rows: newRowsCount,
+            duplicate_rows: duplicateCount,
+          },
+        );
       }
 
-      // Store parsed data in Supabase Storage for later confirmation
-      await this.storeTemporaryData(posImport.id, rows)
+      // Store parsed data with FULL chunk support
+      const storageInfo = await this.storeTemporaryData(posImport.id, rows);
+      
+// Update with chunk metadata - FIXED TYPE
+      await posImportsRepository.update(posImport.id, companyId, {
+        status: 'ANALYZED' as const,
+        chunk_info: storageInfo
+      }, userId);
 
-      // Update status to ANALYZED
-      await posImportsRepository.update(posImport.id, companyId, { status: 'ANALYZED' }, userId)
+      logInfo('File analyzed and chunked', {
+        import_id: posImport.id,
+        chunks: storageInfo.total_chunks,
+        size_mb: storageInfo.original_size_mb.toFixed(1)
+      });
 
       const analysis: DuplicateAnalysis = {
         total_rows: rows.length,
         new_rows: newRowsCount,
         duplicate_rows: duplicateCount,
-        duplicates: dbDuplicates.map(d => ({
+        duplicates: dbDuplicates.map((d) => ({
           bill_number: d.bill_number,
           sales_number: d.sales_number,
           sales_date: d.sales_date,
-          existing_import_id: d.pos_import_id
-        }))
-      }
+          existing_import_id: d.pos_import_id,
+        })),
+      };
 
-      logInfo('PosImportsService analyzeFile success', { import_id: posImport.id, analysis, financialSummary })
+      logInfo("PosImportsService analyzeFile success", {
+        import_id: posImport.id,
+        analysis,
+        financialSummary,
+      });
 
-      return { import: posImport, analysis, summary: financialSummary }
+      return { import: posImport, analysis, summary: financialSummary };
     } catch (error) {
-      logError('PosImportsService analyzeFile error', { error })
-      throw error
+      logError("PosImportsService analyzeFile error", { error });
+      throw error;
     }
   }
 
@@ -244,65 +304,126 @@ class PosImportsService {
    */
   private async checkDuplicatesBulk(rows: any[]): Promise<any[]> {
     const transactions = rows
-      .filter(r => r['Bill Number'] && r['Sales Number'] && r['Sales Date'])
-      .map(r => ({
-        bill_number: String(r['Bill Number']),
-        sales_number: String(r['Sales Number']),
-        sales_date: parseToLocalDate(r['Sales Date'])
-      }))
+      .filter((r) => r["Bill Number"] && r["Sales Number"] && r["Sales Date"])
+      .map((r) => ({
+        bill_number: String(r["Bill Number"]),
+        sales_number: String(r["Sales Number"]),
+        sales_date: parseToLocalDate(r["Sales Date"]),
+      }));
 
-    if (transactions.length === 0) return []
+    if (transactions.length === 0) return [];
 
     // Limit to 50 transactions per query to avoid URL length issues
-    const batchSize = 50
-    const results: any[] = []
-    
+    const batchSize = 50;
+    const results: any[] = [];
+
     for (let i = 0; i < transactions.length; i += batchSize) {
-      const batch = transactions.slice(i, i + batchSize)
-      const batchResults = await posImportLinesRepository.findExistingTransactions(batch)
-      results.push(...batchResults)
+      const batch = transactions.slice(i, i + batchSize);
+      const batchResults =
+        await posImportLinesRepository.findExistingTransactions(batch);
+      results.push(...batchResults);
     }
-    
-    return results
+
+    return results;
   }
 
   /**
    * Calculate financial summary from Excel rows
    */
-  private calculateFinancialSummary(rows: any[]): { totalAmount: number; totalTax: number } {
-    let totalAmount = 0
-    let totalTax = 0
+  private calculateFinancialSummary(rows: any[]): {
+    totalAmount: number;
+    totalTax: number;
+  } {
+    let totalAmount = 0;
+    let totalTax = 0;
 
-    rows.forEach(row => {
+    rows.forEach((row) => {
       // Parse numeric values from Excel cells
-      const total = parseFloat(row['Total'] || 0)
-      const tax = parseFloat(row['Tax'] || row['VAT'] || 0)
+      
+      const total = parseFloat(row["Total"] || 0);
+      const tax = parseFloat(row["Tax"] || row["VAT"] || 0);
 
-      totalAmount += isNaN(total) ? 0 : total
-      totalTax += isNaN(tax) ? 0 : tax
-    })
+      totalAmount += isNaN(total) ? 0 : total;
+      totalTax += isNaN(tax) ? 0 : tax;
+    });
 
-    return { totalAmount, totalTax }
+    return { totalAmount, totalTax };
   }
 
   /**
-   * Store temporary data in Supabase Storage
+   * Store temporary data - FULL CHUNK SUPPORT
+   * Auto-splits large JSON >4MB into part1.json, part2.json
    */
-  private async storeTemporaryData(importId: string, rows: any[]): Promise<void> {
-    try {
-      const jsonData = JSON.stringify(rows)
+  private async storeTemporaryData(
+    importId: string,
+    rows: any[],
+  ): Promise<{ total_chunks: number; original_size_mb: number }> {
+    const jsonString = JSON.stringify(rows)
+    const jsonSize = new Blob([jsonString]).size
+    const originalSizeMB = (jsonSize / (1024 * 1024)).toFixed(1)
+
+    logInfo('Storing data with chunk detection', { 
+      import_id: importId, 
+      size_mb: originalSizeMB,
+      rows_count: rows.length 
+    })
+
+    // Single file if small
+    if (jsonSize <= 4 * 1024 * 1024) {
       const { error } = await supabase.storage
         .from('pos-imports-temp')
-        .upload(`${importId}.json`, jsonData, {
+        .upload(`${importId}.json`, jsonString, {
           contentType: 'application/json',
           upsert: true
         })
 
-      if (error) throw error
-    } catch (error) {
-      logError('PosImportsService storeTemporaryData error', { importId, error })
-      // Non-critical error, continue
+      if (error) {
+        logError('Single file upload failed', { importId, error })
+        throw new Error('Storage upload failed')
+      }
+      
+      logInfo('Single file stored', { import_id: importId })
+      return { total_chunks: 1, original_size_mb: parseFloat(originalSizeMB) }
     }
+
+    // CHUNK large files - ROWS based (safe JSON arrays)
+    const ROWS_PER_CHUNK = 5000
+    const chunks: any[] = []
+    
+    for (let i = 0; i < rows.length; i += ROWS_PER_CHUNK) {
+      const chunkRows = rows.slice(i, i + ROWS_PER_CHUNK)
+      chunks.push(JSON.stringify(chunkRows))
+    }
+
+    // Upload each chunk
+    let chunkIndex = 1
+    for (const chunkJson of chunks) {
+      const chunkKey = `${importId}-part${chunkIndex}.json`
+      
+      const { error } = await supabase.storage
+        .from('pos-imports-temp')
+        .upload(chunkKey, chunkJson, { 
+          contentType: 'application/json',
+          upsert: true 
+        })
+
+      if (error) {
+        logError('Chunk upload failed', { importId, chunk: chunkIndex, error })
+        throw new Error(`Chunk ${chunkIndex} upload failed`)
+      }
+      
+      const chunkRows = JSON.parse(chunkJson)
+      logInfo('Chunk uploaded', { importId, chunk: chunkIndex, rows_in_chunk: chunkRows.length })
+      chunkIndex++
+    }
+
+    logInfo('All chunks uploaded - ROWS BASED', { 
+      import_id: importId, 
+      total_chunks: chunks.length,
+      original_size_mb: parseFloat(originalSizeMB)
+    })
+    
+    return { total_chunks: chunks.length, original_size_mb: parseFloat(originalSizeMB) }
   }
 
   /**
@@ -311,16 +432,19 @@ class PosImportsService {
   private async retrieveTemporaryData(importId: string): Promise<any[]> {
     try {
       const { data, error } = await supabase.storage
-        .from('pos-imports-temp')
-        .download(`${importId}.json`)
+        .from("pos-imports-temp")
+        .download(`${importId}.json`);
 
-      if (error) throw error
+      if (error) throw error;
 
-      const text = await data.text()
-      return JSON.parse(text)
+      const text = await data.text();
+      return JSON.parse(text);
     } catch (error) {
-      logError('PosImportsService retrieveTemporaryData error', { importId, error })
-      throw new Error('Temporary data not found. Please re-upload the file.')
+      logError("PosImportsService retrieveTemporaryData error", {
+        importId,
+        error,
+      });
+      throw new Error("Temporary data not found. Please re-upload the file.");
     }
   }
 
@@ -332,48 +456,61 @@ class PosImportsService {
     id: string,
     companyId: string,
     skipDuplicates: boolean,
-    userId: string
+    userId: string,
   ): Promise<{ posImport: PosImport; job_id: string }> {
-    const posImport = await this.getById(id, companyId)
+    const posImport = await this.getById(id, companyId);
 
-    if (!canTransition(posImport.status, 'IMPORTED')) {
-      throw PosImportErrors.INVALID_STATUS_TRANSITION(posImport.status, 'IMPORTED')
+    if (!canTransition(posImport.status, "IMPORTED")) {
+      throw PosImportErrors.INVALID_STATUS_TRANSITION(
+        posImport.status,
+        "IMPORTED",
+      );
     }
 
     // Create a job for processing the import
-    const jobName = `Import POS Transactions: ${posImport.file_name}`
+    const jobName = `Import POS Transactions: ${posImport.file_name}`;
     const job = await jobsService.createJob({
       user_id: userId,
       company_id: companyId,
-      type: 'import',
-      module: 'pos_transactions',
+      type: "import",
+      module: "pos_transactions",
       name: jobName,
       metadata: {
-        type: 'import',
-        module: 'pos_transactions',
+        type: "import",
+        module: "pos_transactions",
         posImportId: id,
-        skipDuplicates: skipDuplicates
-      }
-    })
+        skipDuplicates: skipDuplicates,
+        ...(posImport.chunk_info ? { chunk_info: posImport.chunk_info } : {})
+      },
+    });
 
     // Update status to IMPORTED
-    await posImportsRepository.update(id, companyId, { status: 'IMPORTED' }, userId)
+    await posImportsRepository.update(
+      id,
+      companyId,
+      { status: "IMPORTED" },
+      userId,
+    );
 
     // Audit log for UPDATE (status changed to IMPORTED)
     if (userId) {
-      await AuditService.log('UPDATE', 'pos_import', id, userId, 
-        { status: posImport.status, skip_duplicates: skipDuplicates }, 
-        { status: 'IMPORTED', skip_duplicates: skipDuplicates }
-      )
+      await AuditService.log(
+        "UPDATE",
+        "pos_import",
+        id,
+        userId,
+        { status: posImport.status, skip_duplicates: skipDuplicates },
+        { status: "IMPORTED", skip_duplicates: skipDuplicates },
+      );
     }
 
-    logInfo('PosImportsService confirmImport - job created', {
-      import_id: id, 
+    logInfo("PosImportsService confirmImport - job created", {
+      import_id: id,
       job_id: job.id,
-      skip_duplicates: skipDuplicates 
-    })
+      skip_duplicates: skipDuplicates,
+    });
 
-    return { posImport, job_id: job.id }
+    return { posImport, job_id: job.id };
   }
 
   /**
@@ -383,84 +520,105 @@ class PosImportsService {
     id: string,
     companyId: string,
     skipDuplicates: boolean,
-    userId: string
+    userId: string,
   ): Promise<PosImport> {
     try {
       // Retrieve stored data
-      const rows = await this.retrieveTemporaryData(id)
+      const rows = await this.retrieveTemporaryData(id);
 
       // Map Excel rows to database format
-      const lines: CreatePosImportLineDto[] = rows
-        .map((row: any, index: number) => {
+      const lines: CreatePosImportLineDto[] = rows.map(
+        (row: any, index: number) => {
           const mapped: any = {
             pos_import_id: id,
-            row_number: index + 1
-          }
+            row_number: index + 1,
+          };
 
           // Map all columns with type conversion
           Object.entries(EXCEL_COLUMN_MAP).forEach(([excelCol, dbCol]) => {
-            const value = row[excelCol]
-            if (value !== undefined && value !== null && value !== '') {
+            const value = row[excelCol];
+            if (value !== undefined && value !== null && value !== "") {
               // Convert Excel dates to ISO timestamps for timestamp fields
-              if (dbCol === 'sales_date_in' || dbCol === 'sales_date_out' || dbCol === 'order_time') {
-                mapped[dbCol] = parseToLocalDateTime(value)
+              if (
+                dbCol === "sales_date_in" ||
+                dbCol === "sales_date_out" ||
+                dbCol === "order_time"
+              ) {
+                mapped[dbCol] = parseToLocalDateTime(value);
               }
               // Convert Excel dates to date strings for date fields
-              else if (dbCol === 'sales_date') {
-                mapped[dbCol] = parseToLocalDate(value)
+              else if (dbCol === "sales_date") {
+                mapped[dbCol] = parseToLocalDate(value);
               }
               // All other fields
               else {
-                mapped[dbCol] = value
+                mapped[dbCol] = value;
               }
             }
-          })
+          });
 
-          return mapped
-        })
+          return mapped;
+        },
+      );
 
       // Filter duplicates if requested
-      let linesToInsert = lines
+      let linesToInsert = lines;
       if (skipDuplicates) {
-        const duplicates = await this.checkDuplicatesBulk(rows)
+        const duplicates = await this.checkDuplicatesBulk(rows);
         const duplicateKeys = new Set(
-          duplicates.map(d => `${d.bill_number}-${d.sales_number}-${d.sales_date}`)
-        )
-        linesToInsert = lines.filter(line => {
-          const key = `${line.bill_number}-${line.sales_number}-${line.sales_date}`
-          return !duplicateKeys.has(key)
-        })
+          duplicates.map(
+            (d) => `${d.bill_number}-${d.sales_number}-${d.sales_date}`,
+          ),
+        );
+        linesToInsert = lines.filter((line) => {
+          const key = `${line.bill_number}-${line.sales_number}-${line.sales_date}`;
+          return !duplicateKeys.has(key);
+        });
       }
 
       // Bulk insert lines
       if (linesToInsert.length > 0) {
-        await posImportLinesRepository.bulkInsert(linesToInsert)
+        await posImportLinesRepository.bulkInsert(linesToInsert);
       }
 
       // Update import status
-      await posImportsRepository.update(id, companyId, {
-        status: 'IMPORTED',
-        new_rows: linesToInsert.length,
-        duplicate_rows: lines.length - linesToInsert.length
-      }, userId)
+      await posImportsRepository.update(
+        id,
+        companyId,
+        {
+          status: "IMPORTED",
+          new_rows: linesToInsert.length,
+          duplicate_rows: lines.length - linesToInsert.length,
+        },
+        userId,
+      );
 
       // Clean up temporary data
-      await this.cleanupTemporaryData(id)
+      await this.cleanupTemporaryData(id);
 
-      logInfo('PosImportsService processImportSync success', { id, inserted: linesToInsert.length })
+      logInfo("PosImportsService processImportSync success", {
+        id,
+        inserted: linesToInsert.length,
+      });
 
-      return this.getById(id, companyId)
+      return this.getById(id, companyId);
     } catch (error) {
-      console.error('PosImportsService processImportSync error:', error)
-      
-      // Rollback: Update status to FAILED
-      await posImportsRepository.update(id, companyId, {
-        status: 'FAILED',
-        error_message: error instanceof Error ? error.message : 'Unknown error'
-      }, userId)
+      console.error("PosImportsService processImportSync error:", error);
 
-      logError('PosImportsService processImportSync error', { id, error })
-      throw error
+      // Rollback: Update status to FAILED
+      await posImportsRepository.update(
+        id,
+        companyId,
+        {
+          status: "FAILED",
+          error_message:
+            error instanceof Error ? error.message : "Unknown error",
+        },
+        userId,
+      );
+
+      logError("PosImportsService processImportSync error", { id, error });
+      throw error;
     }
   }
 
@@ -470,10 +628,13 @@ class PosImportsService {
   private async cleanupTemporaryData(importId: string): Promise<void> {
     try {
       await supabase.storage
-        .from('pos-imports-temp')
-        .remove([`${importId}.json`])
+        .from("pos-imports-temp")
+        .remove([`${importId}.json`]);
     } catch (error) {
-      logError('PosImportsService cleanupTemporaryData error', { importId, error })
+      logError("PosImportsService cleanupTemporaryData error", {
+        importId,
+        error,
+      });
       // Non-critical error
     }
   }
@@ -486,97 +647,124 @@ class PosImportsService {
     companyId: string,
     status: PosImportStatus,
     errorMessage: string | undefined,
-    userId: string
+    userId: string,
   ): Promise<PosImport> {
-    const posImport = await this.getById(id, companyId)
+    const posImport = await this.getById(id, companyId);
 
     if (!canTransition(posImport.status, status)) {
-      throw PosImportErrors.INVALID_STATUS_TRANSITION(posImport.status, status)
+      throw PosImportErrors.INVALID_STATUS_TRANSITION(posImport.status, status);
     }
 
-    await posImportsRepository.update(id, companyId, { status, error_message: errorMessage }, userId)
+    await posImportsRepository.update(
+      id,
+      companyId,
+      { status, error_message: errorMessage },
+      userId,
+    );
 
     // Audit log for UPDATE (status change)
     if (userId) {
-      await AuditService.log('UPDATE', 'pos_import', id, userId, 
-        { status: posImport.status, error_message: posImport.error_message }, 
-        { status, error_message: errorMessage }
-      )
+      await AuditService.log(
+        "UPDATE",
+        "pos_import",
+        id,
+        userId,
+        { status: posImport.status, error_message: posImport.error_message },
+        { status, error_message: errorMessage },
+      );
     }
 
-    return this.getById(id, companyId)
+    return this.getById(id, companyId);
   }
 
   /**
    * Delete POS import
    */
   async delete(id: string, companyId: string, userId: string): Promise<void> {
-    const posImport = await this.getById(id, companyId)
+    const posImport = await this.getById(id, companyId);
 
-    if (posImport.status === 'POSTED') {
-      throw PosImportErrors.CANNOT_DELETE_POSTED()
+    if (posImport.status === "POSTED") {
+      throw PosImportErrors.CANNOT_DELETE_POSTED();
     }
 
     // Delete lines first (CASCADE will handle this, but explicit is better)
-    await posImportLinesRepository.deleteByImportId(id)
+    await posImportLinesRepository.deleteByImportId(id);
 
     // Soft delete import
-    await posImportsRepository.delete(id, companyId, userId)
+    await posImportsRepository.delete(id, companyId, userId);
 
     // Audit log for DELETE
     if (userId) {
-      await AuditService.log('DELETE', 'pos_import', id, userId, posImport, null)
+      await AuditService.log(
+        "DELETE",
+        "pos_import",
+        id,
+        userId,
+        posImport,
+        null,
+      );
     }
 
     // Clean up temporary data
-    await this.cleanupTemporaryData(id)
+    await this.cleanupTemporaryData(id);
   }
 
   /**
    * Restore deleted import (FIXED: Implemented)
    */
-  async restore(id: string, companyId: string, userId: string): Promise<PosImport> {
-    const posImport = await posImportsRepository.restore(id, companyId, userId)
+  async restore(
+    id: string,
+    companyId: string,
+    userId: string,
+  ): Promise<PosImport> {
+    const posImport = await posImportsRepository.restore(id, companyId, userId);
     if (!posImport) {
-      throw PosImportErrors.NOT_FOUND()
+      throw PosImportErrors.NOT_FOUND();
     }
 
     // Audit log for RESTORE
     if (userId) {
-      await AuditService.log('RESTORE', 'pos_import', id, userId, null, posImport)
+      await AuditService.log(
+        "RESTORE",
+        "pos_import",
+        id,
+        userId,
+        null,
+        posImport,
+      );
     }
 
-    return posImport
+    return posImport;
   }
 
   /**
    * Export POS import to Excel
    */
   async exportToExcel(id: string, companyId: string): Promise<Buffer> {
-    const posImport = await this.getById(id, companyId)
-    const allLines = await posImportLinesRepository.findAllByImportId(id)
+    const posImport = await this.getById(id, companyId);
+    const allLines = await posImportLinesRepository.findAllByImportId(id);
 
     // Create workbook
-    const wb = XLSX.utils.book_new()
-    
+    const wb = XLSX.utils.book_new();
+
     // Prepare data with headers
     const data = [
       // Header row
       Object.keys(EXCEL_COLUMN_MAP),
       // Data rows
-      ...allLines.map(line => 
-        Object.keys(EXCEL_COLUMN_MAP).map(excelCol => {
-          const dbCol = EXCEL_COLUMN_MAP[excelCol]
-          return (line as any)[dbCol] ?? ''
-        })
-      )
-    ]
+      ...allLines.map((line) =>
+        Object.keys(EXCEL_COLUMN_MAP).map((excelCol) => {
+          const dbCol = EXCEL_COLUMN_MAP[excelCol];
+          return (line as any)[dbCol] ?? "";
+        }),
+      ),
+    ];
 
-    const ws = XLSX.utils.aoa_to_sheet(data)
-    XLSX.utils.book_append_sheet(wb, ws, 'POS Data')
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, "POS Data");
 
-    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
+    return XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
   }
 }
 
-export const posImportsService = new PosImportsService()
+export const posImportsService = new PosImportsService();
