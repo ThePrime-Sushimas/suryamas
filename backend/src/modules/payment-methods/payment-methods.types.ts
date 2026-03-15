@@ -27,6 +27,8 @@ export interface PaymentMethod {
   payment_type: PaymentType
   bank_account_id: number | null
   coa_account_id: string | null
+  fee_coa_account_id?: string | null
+
 
   // === Status ===
   is_active: boolean
@@ -60,6 +62,9 @@ export interface PaymentMethodWithDetails extends PaymentMethod {
   coa_code?: string
   coa_name?: string
   coa_type?: string
+  fee_coa_code?: string
+  fee_coa_name?: string
+  fee_coa_type?: string
 }
 
 /**
@@ -78,6 +83,7 @@ export interface CreatePaymentMethodDto {
   is_default?: boolean
   requires_bank_account?: boolean
   sort_order?: number
+  fee_coa_account_id?: string | null
 
   // === 🔥 FEE CONFIGURATION (3 KOLOM) ===
   fee_percentage?: number              // Default: 0
@@ -99,6 +105,7 @@ export interface UpdatePaymentMethodDto {
   is_default?: boolean
   requires_bank_account?: boolean
   sort_order?: number
+  fee_coa_account_id?: string | null
 
   // === 🔥 FEE CONFIGURATION (3 KOLOM) ===
   fee_percentage?: number

@@ -41,6 +41,7 @@ interface GenerateJournalsResult {
 
 interface PaymentMethodCoa {
   coaAccountId: string
+  feeCoacountId: string | null
   name: string
   code: string
   bankAccountId?: string
@@ -91,7 +92,7 @@ async function lookupPaymentMethodsWithCoa(
   // Batch query untuk payment methods + COA
   const { data: paymentMethods, error } = await supabase
     .from('payment_methods')
-    .select('id, name, code, coa_account_id, bank_account_id')
+    .select('id, name, code, coa_account_id,fee_coa_account_id, bank_account_id')
     .in('id', paymentMethodIds)
     .eq('is_active', true)
 
@@ -104,6 +105,7 @@ async function lookupPaymentMethodsWithCoa(
   for (const pm of paymentMethods || []) {
     result.set(pm.id, {
       coaAccountId: pm.coa_account_id || '',
+      feeCoacountId: pm.fee_coa_account_id|| null,
       name: pm.name,
       code: pm.code,
       bankAccountId: pm.bank_account_id || undefined
@@ -526,6 +528,7 @@ export async function generateJournalsOptimized(
             } else {
               paymentMethodCoaMap.set(pm.id, {
                 coaAccountId: coaId,
+                feeCoacountId: null,
                 name: '',
                 code: ''
               })
@@ -613,14 +616,20 @@ export async function generateJournalsOptimized(
         // ==============================
         // Step 4.2: Calculate Totals
         // ==============================
-        const totalAmount = groupTransactions.reduce((sum, tx) => sum + Number(tx.nett_amount), 0)
+        const totalDebitAmount = groupTransactions.reduce((sum, tx) => sum + Number(tx.bill_after_discount), 0)
+        const totalFeeAmount = groupTransactions.reduce((sum, tx) => sum + Number(tx.total_fee_amount), 0)
+        const totalNettAmount = groupTransactions.reduce((sum, tx) => sum + Number(tx.nett_amount), 0)
         const transactionIds = groupTransactions.map(tx => tx.id)
 
         // ==============================
         // Step 4.3: Group by Payment Method COA
         // ==============================
-        const coaGroups = new Map<string, { amount: number; paymentMethodName?: string }>()
-        
+        const coaGroups = new Map<string, { 
+          amount: number
+          feeAmount: number
+          feeCoacountId: string | null
+          paymentMethodName?: string 
+        }>()        
         for (const tx of groupTransactions) {
           const pm = paymentMethodCoaMap.get(tx.payment_method_id)
           const coaId = pm?.coaAccountId
@@ -632,11 +641,17 @@ export async function generateJournalsOptimized(
             })
             continue
           }
-
           if (!coaGroups.has(coaId)) {
-            coaGroups.set(coaId, { amount: 0, paymentMethodName: pm?.name })
+            coaGroups.set(coaId, { 
+              amount: 0, 
+              feeAmount: 0,
+              feeCoacountId: pm?.feeCoacountId || null,
+              paymentMethodName: pm?.name 
+            })
           }
-          coaGroups.get(coaId)!.amount += Number(tx.nett_amount)
+          const group = coaGroups.get(coaId)!
+          group.amount += Number(tx.bill_after_discount)   // ← GROSS bukan nett
+          group.feeAmount += Number(tx.total_fee_amount)    // ← tambah fee
         }
 
         if (coaGroups.size === 0) {
@@ -662,7 +677,7 @@ export async function generateJournalsOptimized(
           journalDate: date,
           period,
           description: `POS Sales ${date} - ${branchName}`,
-          totalAmount
+          totalAmount: totalDebitAmount,  // ← pakai gross
         })
 
         if (!journalHeader) {
@@ -684,7 +699,7 @@ export async function generateJournalsOptimized(
             branch_name: branchName,
             transaction_ids: transactionIds,
             journal_id: journalHeader.id,
-            total_amount: totalAmount,
+            total_amount: totalDebitAmount,
             journal_number: journalNumber
           })
           continue
@@ -703,7 +718,7 @@ export async function generateJournalsOptimized(
             line_number: lineNumber++,
             account_id: coaAccountId,
             description: `POS Sales - ${group.paymentMethodName || 'Payment'}`,
-            debit_amount: group.amount,
+            debit_amount: group.amount,   // bill_after_discount (GROSS)
             credit_amount: 0,
             currency: 'IDR',
             exchange_rate: 1,
@@ -711,22 +726,44 @@ export async function generateJournalsOptimized(
             base_credit_amount: 0,
             created_at: new Date().toISOString()
           })
-        })
+  // DEBIT fee expense
+  if (group.feeAmount > 0 && group.feeCoacountId) {
+    journalLines.push({
+      journal_header_id: journalHeader.id,
+      line_number: lineNumber++,
+      account_id: group.feeCoacountId,
+      description: `Fee - ${group.paymentMethodName || 'Payment'}`,
+      debit_amount: group.feeAmount,
+      credit_amount: 0,
+      currency: 'IDR',
+      exchange_rate: 1,
+      base_debit_amount: group.feeAmount,
+      base_credit_amount: 0,
+      created_at: new Date().toISOString()
+    })
+  } else if (group.feeAmount > 0 && !group.feeCoacountId) {
+    logWarn('Fee amount exists but no fee COA configured', {
+      payment_method: group.paymentMethodName,
+      fee_amount: group.feeAmount
+    })
+  }
+})  // ← forEach ditutup di sini
 
-        // Credit line (Sales Revenue)
-        journalLines.push({
-          journal_header_id: journalHeader.id,
-          line_number: lineNumber++,
-          account_id: salesCoaAccountId,
-          description: 'POS Sales Revenue',
-          debit_amount: 0,
-          credit_amount: totalAmount,
-          currency: 'IDR',
-          exchange_rate: 1,
-          base_debit_amount: 0,
-          base_credit_amount: totalAmount,
-          created_at: new Date().toISOString()
-        })
+
+// CREDIT Sales Revenue (pakai nett_amount = gross - fee)
+journalLines.push({
+  journal_header_id: journalHeader.id,
+  line_number: lineNumber++,
+  account_id: salesCoaAccountId,
+  description: 'POS Sales Revenue',
+  debit_amount: 0,
+  credit_amount: totalNettAmount,
+  currency: 'IDR',
+  exchange_rate: 1,
+  base_debit_amount: 0,
+  base_credit_amount: totalNettAmount,
+  created_at: new Date().toISOString()
+})
 
         // ==============================
         // Step 4.7: Insert Lines with Retry + Chunking
@@ -749,7 +786,7 @@ export async function generateJournalsOptimized(
           branch_name: branchName,
           transaction_ids: transactionIds,
           journal_id: journalHeader.id,
-          total_amount: totalAmount,
+          total_amount: totalDebitAmount,
           journal_number: journalNumber
         })
 

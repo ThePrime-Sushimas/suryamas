@@ -232,8 +232,7 @@ function groupLinesByTransaction(lines: any[]): Map<string, any[]> {
           for (const split of splits) {
             // Ratio is based on the actual split amount vs the stated total in the line
             // Fallback to totalSplitAmount if line.total is missing/zero
-            const ratio = lineTotal > 0 ? split.amount / lineTotal : split.amount / totalSplitAmount;
-            
+            const ratio = totalSplitAmount > 0 ? split.amount / totalSplitAmount : 1 / splits.length;            
             const salesDate = line.sales_date || "unknown";
             const branch = line.branch || "unknown";
             const paymentMethod = normalizePaymentMethodName(split.name);

@@ -90,6 +90,9 @@ export class PaymentMethodsService {
         if (data.coa_account_id) {
           await this.validateCoaAccount(data.coa_account_id, data.company_id, trx)
         }
+        if (data.fee_coa_account_id) {
+          await this.validateCoaAccount(data.fee_coa_account_id, data.company_id, trx)
+        }
 
         // === 🔥 VALIDATE FEE CONFIGURATION ===
         this.validateFeeConfig({
@@ -161,6 +164,9 @@ export class PaymentMethodsService {
         // Validate COA if provided
         if (data.coa_account_id) {
           await this.validateCoaAccount(data.coa_account_id, existing.company_id, trx)
+        }
+        if (data.fee_coa_account_id) {
+          await this.validateCoaAccount(data.fee_coa_account_id, existing.company_id, trx)
         }
 
         // === 🔥 VALIDATE FEE CONFIGURATION ===
@@ -289,12 +295,16 @@ export class PaymentMethodsService {
       { header: 'Account Number', key: 'account_number', width: 20 },
       { header: 'COA Code', key: 'coa_code', width: 15 },
       { header: 'COA Name', key: 'coa_name', width: 30 },
+      { header: 'Fee COA Code', key: 'fee_coa_code', width: 15 },  // tambah
+      { header: 'Fee COA Name', key: 'fee_coa_name', width: 30 },  // tambah
+      { header: 'Fee %', key: 'fee_percentage', width: 10 },        // tambah
+      { header: 'Fee Fixed', key: 'fee_fixed_amount', width: 15 },  // tambah
       { header: 'Default', key: 'is_default', width: 10 },
       { header: 'Active', key: 'is_active', width: 10 },
       { header: 'Sort Order', key: 'sort_order', width: 10 },
       { header: 'Created At', key: 'created_at', width: 20 }
     ]
-    return await ExportService.generateExcel(data, columns)
+        return await ExportService.generateExcel(data, columns)
   }
 
   async getOptions(companyId: string): Promise<PaymentMethodWithDetails[]> {
