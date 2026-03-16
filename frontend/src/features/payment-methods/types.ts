@@ -21,9 +21,13 @@ export interface PaymentMethod {
   account_number?: string
   account_name?: string
   coa_account_id: string | null
+  fee_coa_account_id: string | null
   coa_code?: string
   coa_name?: string
   coa_type?: string
+  fee_coa_code?: string
+  fee_coa_name?: string
+  fee_coa_type?: string
   is_active: boolean
   is_default: boolean
   requires_bank_account: boolean

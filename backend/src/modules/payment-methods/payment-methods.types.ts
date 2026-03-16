@@ -26,7 +26,7 @@ export interface PaymentMethod {
   description: string | null
   payment_type: PaymentType
   bank_account_id: number | null
-  coa_account_id: string | null
+  coa_account_id: string | null 
   fee_coa_account_id?: string | null
 
 
@@ -49,6 +49,9 @@ export interface PaymentMethod {
   updated_by: string | null
   deleted_at: string | null
   deleted_by: string | null
+  fee_coa_code?: string
+  fee_coa_name?: string
+  fee_coa_type?: string
 }
 
 /**

@@ -69,6 +69,9 @@ export const PaymentMethodTable = ({
                 Fee Configuration
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Fee COA
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               COA
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -139,7 +142,16 @@ export const PaymentMethodTable = ({
                       <span className="text-sm text-gray-400 dark:text-gray-500">Gratis</span>
                     )}
                   </td>
-
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {method.fee_coa_code && method.fee_coa_name ? (
+                      <div className="text-sm">
+                        <span className="text-gray-900 dark:text-gray-100 font-mono">{method.fee_coa_code}</span>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xs">{method.fee_coa_name}</div>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-400 dark:text-gray-500">-</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                   {method.coa_code && method.coa_name ? (
                       <div className="text-sm">
