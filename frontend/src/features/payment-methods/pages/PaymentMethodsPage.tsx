@@ -52,6 +52,7 @@ export const PaymentMethodsPage = () => {
       }
       setShowForm(false)
       setEditingId(null)
+      await fetchPaymentMethods(page, limit)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save payment method')
     }
