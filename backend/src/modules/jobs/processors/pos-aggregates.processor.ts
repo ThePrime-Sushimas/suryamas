@@ -424,7 +424,7 @@ export async function generateAggregatedTransactionsOptimized(
 
       if (error) {
         logError("Batch duplicate check failed", { error });
-        // Fallback or handle error - for now we continue
+        throw new Error(`Duplicate check failed. Aborting to prevent duplicates. Error: ${error.message}`);
       } else if (data) {
         for (const item of data) {
           existingSources.add(item.source_ref);
