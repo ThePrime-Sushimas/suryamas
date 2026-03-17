@@ -22,7 +22,7 @@ import { logInfo, logError, logWarn } from "@/config/logger";
 // CONFIGURATION
 // ==============================
 const BATCH_SIZE = 100; // Insert batch size
-const CHECK_BATCH_SIZE = 500; // Duplicate check batch size
+const CHECK_BATCH_SIZE = 50; // Supabase REST header limit aman
 const SPLIT_PAYMENT_REGEX = /^(.*?)\s*\(\s*([\d.,]+)\s*\)$/;
 
 interface ProgressCallback {
@@ -750,32 +750,40 @@ export async function generateAggregatedTransactionsOptimized(
       message: "Updating import status...",
     });
 
-    // Update pos_import status ke MAPPED
+    // Update pos_import status ke MAPPED jika ada yang berhasil atau sudah ada sebelumnya
     if (createdCount > 0 || skippedGroups.length > 0) {
       try {
-        await supabase
+        logInfo("Updating pos_import status to MAPPED", {
+          pos_import_id: posImportId,
+          created: createdCount,
+          skipped: skippedGroups.length,
+        });
+
+        const { error: statusError } = await supabase
           .from("pos_imports")
           .update({
             status: "MAPPED",
             updated_at: new Date().toISOString(),
           })
           .eq("id", posImportId);
+
+        if (statusError) throw statusError;
       } catch (statusError) {
-        logError("Failed to update pos_import status", {
+        logError("Failed to update pos_import status to MAPPED", {
           pos_import_id: posImportId,
           error: statusError,
         });
       }
     }
-
-    // Update pos_import status ke FAILED jika semua gagal
-    if (
-      createdCount === 0 &&
-      skippedGroups.length === 0 &&
-      failedStoredCount > 0
-    ) {
+    // Jika tidak ada yang berhasil/skip, dan ada yang gagal, set ke FAILED
+    else if (failedStoredCount > 0) {
       try {
-        await supabase
+        logInfo("Updating pos_import status to FAILED", {
+          pos_import_id: posImportId,
+          failed: failedStoredCount,
+        });
+
+        const { error: statusError } = await supabase
           .from("pos_imports")
           .update({
             status: "FAILED",
@@ -783,12 +791,24 @@ export async function generateAggregatedTransactionsOptimized(
             updated_at: new Date().toISOString(),
           })
           .eq("id", posImportId);
+
+        if (statusError) throw statusError;
       } catch (statusError) {
         logError("Failed to update pos_import status to FAILED", {
           pos_import_id: posImportId,
           error: statusError,
         });
       }
+    }
+    // Kasus edge: lines ada tapi tidak ada group yang bisa diproses (sangat jarang)
+    else {
+      logInfo(
+        "No transactions were created, skipped, or failed. Status remains unchanged.",
+        {
+          pos_import_id: posImportId,
+          total_groups: totalGroups,
+        },
+      );
     }
 
     const duration = Date.now() - startTime;

@@ -1,11 +1,5 @@
-/**
- * POS Imports Repository
- * Following journal-headers.repository.ts pattern
- */
-
 import { supabase } from '../../../config/supabase'
 import { logInfo, logError } from '../../../config/logger'
-import { PosImportErrors } from '../shared/pos-import.errors'
 import type { 
   PosImport, 
   CreatePosImportDto, 
@@ -14,82 +8,7 @@ import type {
 } from './pos-imports.types'
 import type { PaginationParams, SortParams } from '../../../types/request.types'
 
-interface CacheEntry<T> {
-  data: T
-  timestamp: number
-  ttl: number
-}
-
-interface PosImportsConfig {
-  cacheTTL: number
-  maxCacheSize: number
-  cleanupInterval: number
-}
-
-const defaultConfig: PosImportsConfig = {
-  cacheTTL: 5 * 60 * 1000,
-  maxCacheSize: 100,
-  cleanupInterval: 10 * 60 * 1000
-}
-
 export class PosImportsRepository {
-  private cache = new Map<string, CacheEntry<any>>()
-  private cleanupTimer: NodeJS.Timeout | null = null
-  private readonly config: PosImportsConfig
-
-  constructor(config: PosImportsConfig = defaultConfig) {
-    this.config = config
-    this.startCacheCleanup()
-  }
-
-  private getCacheKey(prefix: string, params: Record<string, any>): string {
-    return `${prefix}:${JSON.stringify(params)}`
-  }
-
-  private getFromCache<T>(key: string): T | null {
-    const entry = this.cache.get(key)
-    if (!entry) return null
-    if (Date.now() - entry.timestamp > entry.ttl) {
-      this.cache.delete(key)
-      return null
-    }
-    return entry.data
-  }
-
-  private setCache<T>(key: string, data: T, ttl?: number): void {
-    if (this.cache.size >= this.config.maxCacheSize) {
-      const firstKey = this.cache.keys().next().value
-      if (firstKey) this.cache.delete(firstKey)
-    }
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now(),
-      ttl: ttl || this.config.cacheTTL
-    })
-  }
-
-  private invalidateCache(pattern?: string): void {
-    if (!pattern) {
-      this.cache.clear()
-      return
-    }
-    for (const key of this.cache.keys()) {
-      if (key.includes(pattern)) {
-        this.cache.delete(key)
-      }
-    }
-  }
-
-  private startCacheCleanup(): void {
-    this.cleanupTimer = setInterval(() => {
-      const now = Date.now()
-      for (const [key, entry] of this.cache.entries()) {
-        if (now - entry.timestamp > entry.ttl) {
-          this.cache.delete(key)
-        }
-      }
-    }, this.config.cleanupInterval)
-  }
 
   async findAll(
     companyId: string,
@@ -98,35 +17,17 @@ export class PosImportsRepository {
     filter?: PosImportFilter
   ): Promise<{ data: PosImport[]; total: number }> {
     try {
-      const cacheKey = this.getCacheKey('list', { companyId, pagination, sort, filter })
-      const cached = this.getFromCache<{ data: PosImport[]; total: number }>(cacheKey)
-      if (cached) return cached
-
       let query = supabase
         .from('pos_imports')
         .select('*', { count: 'exact' })
         .eq('company_id', companyId)
         .eq('is_deleted', false)
 
-      if (filter?.branch_id) {
-        query = query.eq('branch_id', filter.branch_id)
-      }
-
-      if (filter?.status) {
-        query = query.eq('status', filter.status)
-      }
-
-      if (filter?.date_from) {
-        query = query.gte('date_range_start', filter.date_from)
-      }
-
-      if (filter?.date_to) {
-        query = query.lte('date_range_end', filter.date_to)
-      }
-
-      if (filter?.search) {
-        query = query.ilike('file_name', `%${filter.search}%`)
-      }
+      if (filter?.branch_id) query = query.eq('branch_id', filter.branch_id)
+      if (filter?.status) query = query.eq('status', filter.status)
+      if (filter?.date_from) query = query.gte('date_range_start', filter.date_from)
+      if (filter?.date_to) query = query.lte('date_range_end', filter.date_to)
+      if (filter?.search) query = query.ilike('file_name', `%${filter.search}%`)
 
       if (sort?.field && sort?.order) {
         query = query.order(sort.field, { ascending: sort.order === 'asc' })
@@ -144,17 +45,12 @@ export class PosImportsRepository {
       if (error) {
         logError('PosImportsRepository Supabase error', { 
           company_id: companyId, 
-          error: error,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
+          error: error.message
         })
         throw new Error(`Database error: ${error.message}`)
       }
 
       const result = { data: data || [], total: count || 0 }
-      this.setCache(cacheKey, result)
 
       logInfo('PosImportsRepository findAll success', {
         company_id: companyId,
@@ -164,22 +60,13 @@ export class PosImportsRepository {
 
       return result
     } catch (error) {
-      logError('PosImportsRepository findAll error', { 
-        company_id: companyId, 
-        error,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        errorStack: error instanceof Error ? error.stack : undefined
-      })
+      logError('PosImportsRepository findAll error', { company_id: companyId, error })
       throw error
     }
   }
 
   async findById(id: string, companyId: string): Promise<PosImport | null> {
     try {
-      const cacheKey = this.getCacheKey('detail', { id, companyId })
-      const cached = this.getFromCache<PosImport>(cacheKey)
-      if (cached) return cached
-
       const { data, error } = await supabase
         .from('pos_imports')
         .select('*')
@@ -193,7 +80,6 @@ export class PosImportsRepository {
         throw error
       }
 
-      this.setCache(cacheKey, data)
       return data
     } catch (error) {
       logError('PosImportsRepository findById error', { id, error })
@@ -201,10 +87,6 @@ export class PosImportsRepository {
     }
   }
 
-  /**
-   * Find POS Import by ID only (without company filter)
-   * Useful for cross-company operations
-   */
   async findByIdOnly(id: string): Promise<PosImport | null> {
     try {
       const { data, error } = await supabase
@@ -228,10 +110,6 @@ export class PosImportsRepository {
 
   async findByIdWithLines(id: string, companyId: string): Promise<any | null> {
     try {
-      const cacheKey = this.getCacheKey('detail-with-lines', { id, companyId })
-      const cached = this.getFromCache<any>(cacheKey)
-      if (cached) return cached
-
       const { data, error } = await supabase
         .from('pos_imports')
         .select('*, pos_import_lines(*)')
@@ -245,7 +123,6 @@ export class PosImportsRepository {
         throw error
       }
 
-      this.setCache(cacheKey, data)
       return data
     } catch (error) {
       logError('PosImportsRepository findByIdWithLines error', { id, error })
@@ -266,8 +143,6 @@ export class PosImportsRepository {
         .single()
 
       if (error) throw error
-
-      this.invalidateCache('list')
 
       logInfo('PosImportsRepository create success', { id: data.id })
       return data
@@ -297,8 +172,6 @@ export class PosImportsRepository {
         throw error
       }
 
-      this.invalidateCache()
-
       logInfo('PosImportsRepository update success', { id })
       return data
     } catch (error) {
@@ -321,8 +194,6 @@ export class PosImportsRepository {
         .eq('company_id', companyId)
 
       if (error) throw error
-
-      this.invalidateCache()
 
       logInfo('PosImportsRepository delete success', { id })
     } catch (error) {
@@ -353,22 +224,12 @@ export class PosImportsRepository {
         throw error
       }
 
-      this.invalidateCache()
-
       logInfo('PosImportsRepository restore success', { id })
       return data
     } catch (error) {
       logError('PosImportsRepository restore error', { id, error })
       throw error
     }
-  }
-
-  destroy(): void {
-    if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer)
-      this.cleanupTimer = null
-    }
-    this.cache.clear()
   }
 }
 

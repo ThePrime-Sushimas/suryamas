@@ -61,7 +61,9 @@ export class JobsController {
 
       const job = await jobsService.getJobById(id, userId)
       if (job.company_id !== companyId) throw new Error('Access denied to this job')
-
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+      res.set('Pragma', 'no-cache')
+  
       sendSuccess(res, job, 'Job retrieved successfully')
     } catch (error) {
       logError('Controller getJobById error', { error })

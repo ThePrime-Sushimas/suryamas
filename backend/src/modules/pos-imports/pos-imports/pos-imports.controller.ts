@@ -32,7 +32,8 @@ class PosImportsController {
       const paginationParams = pagination || { page: 1, limit: 10 }
 
       const result = await posImportsService.list(company_id, paginationParams as any, sort as any, filter as any)
-
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+      res.set('Pragma', 'no-cache')
       return sendSuccess(res, result.data, 'POS imports retrieved', 200, {
         page: (paginationParams as any).page,
         limit: (paginationParams as any).limit,

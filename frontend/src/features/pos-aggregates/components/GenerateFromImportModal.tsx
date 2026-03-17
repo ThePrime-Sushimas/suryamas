@@ -4,6 +4,7 @@ import { Database, FileText, Check, X, Loader2, ExternalLink, Clock } from 'luci
 import { usePosAggregatesStore } from '../store/posAggregates.store'
 import { useToast } from '@/contexts/ToastContext'
 import { useBranchContextStore } from '@/features/branch_context'
+import { usePosImportsStore } from '../../pos-imports/store/pos-imports.store'
 
 interface PosImport {
   id: string
@@ -32,7 +33,7 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
   const toast = useToast()
   const currentBranch = useBranchContextStore((s) => s.currentBranch)
   const { generateFromImportWithJob } = usePosAggregatesStore()
-  
+
   const [imports, setImports] = useState<PosImport[]>([])
   const [loading, setLoading] = useState(true)
   const [generatingId, setGeneratingId] = useState<string | null>(null)
@@ -44,13 +45,22 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
   const fetchImports = useCallback(async () => {
     setLoading(true)
     try {
-      // Import API from pos-imports
       const { posImportsApi } = await import('../../pos-imports/api/pos-imports.api')
-      // Use list method with status=IMPORTED filter
       const response = await posImportsApi.list({ status: 'IMPORTED' })
-      // Map the response to PosImport interface
       const importedOnly = response.data.filter((imp: PosImport) => imp.status === 'IMPORTED')
-      setImports(importedOnly)
+      
+      // ✅ Jangan overwrite item yang sedang PROCESSING
+      setImports((prev) => {
+        const processingIds = new Set(
+          prev.filter(imp => imp.status === 'PROCESSING').map(imp => imp.id)
+        )
+        // Keep PROCESSING items, replace sisanya dengan fresh data dari API
+        const freshNonProcessing = importedOnly.filter(
+          (imp: PosImport) => !processingIds.has(imp.id)
+        )
+        const stillProcessing = prev.filter(imp => imp.status === 'PROCESSING')
+        return [...stillProcessing, ...freshNonProcessing]
+      })
     } catch (error) {
       console.error('Failed to fetch imports:', error)
       toast.error('Gagal mengambil data import')
@@ -126,19 +136,34 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
         }
 
         if (job.status === 'completed') {
-          // Job completed successfully
           pollingJobs.current.delete(jobId)
-          setImports((prev) =>
-            prev.map((imp) =>
-              imp.id === importId ? { ...imp, status: 'MAPPED' } : imp
-            )
-          )
           
-          // Refresh data
-          fetchImports()
+          // 1. Update modal list — hapus item yang sudah MAPPED
+          setImports((prev) => prev.filter((imp) => imp.id !== importId))
+          
+          // 2. Update PosImportsStore langsung — surgical update + force refetch
+          const store = usePosImportsStore.getState()
+          
+          // Update optimistic dulu biar UI langsung berubah
+          usePosImportsStore.setState({
+            imports: store.imports.map(imp =>
+              imp.id === importId
+                ? { ...imp, status: 'MAPPED' as const }
+                : imp
+            )
+          })
+          
+          // Lalu fetch ulang dari server dengan filter yang sedang aktif
+          // Ini pastikan data fresh dari database
+          store.fetchImports()
+          
           onGenerated()
           
-          toast.success('Generate completed!')
+          toast.success('Generate selesai! Status sudah berubah ke MAPPED.')
+          const stillProcessing = pollingJobs.current.size > 0
+          if (!stillProcessing) {
+            setTimeout(() => onClose(), 1500) // Delay 1.5 detik biar user sempat lihat toast
+          }
         } else if (job.status === 'failed') {
           // Job failed
           pollingJobs.current.delete(jobId)
@@ -147,7 +172,7 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
               imp.id === importId ? { ...imp, status: 'FAILED' } : imp
             )
           )
-          
+
           toast.error(`Job failed: ${job.error_message || 'Unknown error'}`)
         } else if (attempts < maxAttempts) {
           // Still processing, continue polling
@@ -198,7 +223,6 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
         return newSet
       })
       
-      onGenerated()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal generate dari import')
     } finally {
