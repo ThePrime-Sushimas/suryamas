@@ -115,9 +115,12 @@ export class ChartOfAccountsRepository {
       const validFields = ['account_code', 'account_name', 'account_type', 'level', 'sort_order', 'created_at', 'updated_at']
       if (validFields.includes(sort.field)) {
         query = query.order(sort.field, { ascending: sort.order === 'asc' })
+        // Tie-breaker: id ASC (stable sort)
+        query = query.order('id', { ascending: true })
       }
     } else {
-      query = query.order('level', { ascending: true }).order('sort_order', { ascending: true }).order('account_code', { ascending: true })
+      // Bulletproof default: account_code ASC + id ASC tie-breaker
+      query = query.order('account_code', { ascending: true }).order('id', { ascending: true })
     }
     
     const [{ data, error }, { count, error: countError }] = await Promise.all([

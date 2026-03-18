@@ -100,14 +100,25 @@ export const PaymentMethodForm = ({
       try {
         const [bankRes, coaRes] = await Promise.all([
           api.get('/bank-accounts', { params: { limit: 100 } }),
-          api.get('/chart-of-accounts', { params: { limit: 100, is_postable: true } })
+          api.get('/chart-of-accounts', { 
+            params: { 
+              limit: 300, 
+              is_postable: true,
+              sort_field: 'account_code', 
+              sort_order: 'asc'           
+            } 
+          })
         ])
         
         console.log('Bank accounts response:', bankRes.data)
         console.log('COA response:', coaRes.data)
         
         setBankAccounts(bankRes.data.data || [])
-        setCOAAccounts(coaRes.data.data || [])
+        // Fallback client-side sort if backend fails
+        const sortedCoa = (coaRes.data.data || []).sort((a: COAOption, b: COAOption) => 
+          a.account_code.localeCompare(b.account_code)
+        )
+        setCOAAccounts(sortedCoa)
       } catch (error) {
         console.error('Failed to fetch options:', error)
       } finally {

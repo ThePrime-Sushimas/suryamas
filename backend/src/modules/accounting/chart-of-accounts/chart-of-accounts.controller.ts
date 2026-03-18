@@ -72,10 +72,19 @@ export class ChartOfAccountsController {
         throw new Error('Page size cannot exceed 1000')
       }
 
+// Controller normalization DISABLED - middleware handles
+      console.log('CHART ACCOUNTS DEBUG:', { 
+        sort: req.sort, 
+        filterParams: req.filterParams,
+        is_postable: req.filterParams?.is_postable 
+      })
+
+      const normalizedSort = req.sort || { field: 'account_code', order: 'asc' as const }
+      
       const result = await chartOfAccountsService.list(
         companyId,
         { ...req.pagination, offset }, 
-        req.sort, 
+        normalizedSort,
         req.filterParams
       )
       
