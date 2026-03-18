@@ -1,37 +1,59 @@
 /**
- * POS Journal Generation Optimized Processor
- * 
- * Features:
- * 1. Progress tracking dengan callback
- * 2. Batch payment method + COA lookup
- * 3. Chunked journal lines insert
- * 4. Error handling per chunk
- * 5. Retry mechanism dengan exponential backoff
- * 6. Transaction rollback capability
+ * POS Journal Generation Processor — Rewrite
+ *
+ * Architecture:
+ * - DEBIT per channel  → payment_methods.coa_account_id (ASSET or LIABILITY)
+ * - DEBIT fee expense  → payment_methods.fee_coa_account_id
+ * - CREDIT revenue     → SAL-INV purpose accounts (CREDIT side, REVENUE type, lowest priority)
+ * - CREDIT tax         → SAL-INV purpose accounts (CREDIT side, LIABILITY type, lowest priority)
+ *
+ * Journal balance formula (strict):
+ *   Σ DEBIT  = Σ(bill_after_discount per channel) + Σ(fee_amount per channel)
+ *   Σ CREDIT = Σ(bill_after_discount - tax_amount) + Σ(tax_amount) + Σ(fee_amount if liability offset exists)
+ *            = Σ(bill) + Σ(fee if liability offset)
+ *
+ * BLOCK conditions (journal not created, goes to failed[]):
+ *   1. fee_amount > 0 AND fee_coa_account_id IS NULL
+ *   2. SAL-INV purpose not found or not active
+ *   3. SAL-INV has no CREDIT REVENUE account
+ *   4. tax_amount > 0 AND SAL-INV has no CREDIT LIABILITY account
+ *   5. Total balance mismatch after line construction
+ *
+ * Special payment_type handling:
+ *   COMPLIMENT → CREDIT to coa_account_id (reduces revenue)
+ *   MEMBER_DEPOSIT → DEBIT to coa_account_id (reduces liability)
+ *   ASSET types → DEBIT to coa_account_id
  */
 
 import { supabase } from '../../../config/supabase'
 import { logInfo, logError, logWarn } from '../../../config/logger'
-import type { AggregatedTransaction, GenerateJournalResult } from '../../pos-imports/pos-aggregates/pos-aggregates.types'
+import type {
+  AggregatedTransaction,
+  GenerateJournalResult,
+} from '../../pos-imports/pos-aggregates/pos-aggregates.types'
 
 // ==============================
 // CONFIGURATION
 // ==============================
-const CHUNK_SIZE = 500              // Journal lines insert chunk size
-const PM_LOOKUP_BATCH = 500         // Payment method lookup batch size
-const MAX_RETRIES = 3               // Max retry attempts per operation
-const RETRY_DELAY_MS = 1000         // Base delay for retry (ms)
-const BATCH_SIZE = 1000             // Transactions per batch processing
+const CHUNK_SIZE = 500
+const MAX_RETRIES = 3
+const RETRY_DELAY_MS = 1000
+const SAL_INV_PURPOSE_CODE = 'SAL-INV'
 
 // ==============================
 // TYPES
 // ==============================
 
-interface ProgressCallback {
-  (progress: { current: number; total: number; phase: string; message: string }): void
+export interface ProgressCallback {
+  (progress: {
+    current: number
+    total: number
+    phase: string
+    message: string
+  }): void
 }
 
-interface GenerateJournalsResult {
+export interface GenerateJournalsResult {
   success: GenerateJournalResult[]
   failed: Array<{ date: string; branch: string; error: string }>
   total_transactions: number
@@ -39,114 +61,220 @@ interface GenerateJournalsResult {
   duration_ms: number
 }
 
-interface PaymentMethodCoa {
-  coaAccountId: string
-  feeCoacountId: string | null
+interface PaymentMethodResolved {
+  id: number
   name: string
   code: string
-  bankAccountId?: string
+  paymentType: string
+  coaAccountId: string
+  coaAccountType: string // ASSET | LIABILITY | REVENUE | EXPENSE
+  feeCoaAccountId: string | null
+  feeLiabilityCoaAccountId: string | null // MDR Payable per channel (accrual model)
 }
 
-interface JournalGenerationError {
-  groupKey: string
-  date: string
-  branch: string
-  error: string
-  retryCount: number
-  isRecoverable: boolean
+interface SalInvConfig {
+  revenueAccountId: string   // CREDIT REVENUE lowest priority
+  taxAccountId: string | null // CREDIT LIABILITY lowest priority (PB1/PPN)
 }
 
 // ==============================
-// HELPER FUNCTIONS
+// UTILITIES
 // ==============================
 
-/**
- * Sleep utility untuk retry delay
- */
 function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/**
- * Exponential backoff delay calculation
- */
-function getRetryDelay(attempt: number, baseDelay: number = RETRY_DELAY_MS): number {
-  return baseDelay * Math.pow(2, attempt - 1)
+function getRetryDelay(attempt: number): number {
+  return RETRY_DELAY_MS * Math.pow(2, attempt - 1)
+}
+
+/** Round to 2 decimal places to avoid floating point drift */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
 }
 
 // ==============================
-// CORE FUNCTIONS
+// LOOKUP FUNCTIONS
 // ==============================
 
 /**
- * Batch lookup payment methods dengan COA accounts
- * Optimization: Single query dengan JOIN untuk semua payment methods
+ * Batch resolve payment methods with all COA fields.
+ * Uses two separate queries to avoid Supabase PostgREST
+ * nested join issues with foreign key aliases.
+ * Returns a Map keyed by payment_method id.
  */
-async function lookupPaymentMethodsWithCoa(
+async function resolvePaymentMethods(
   paymentMethodIds: number[]
-): Promise<Map<number, PaymentMethodCoa>> {
-  const result = new Map<number, PaymentMethodCoa>()
-
+): Promise<Map<number, PaymentMethodResolved>> {
+  const result = new Map<number, PaymentMethodResolved>()
   if (paymentMethodIds.length === 0) return result
 
-  // Batch query untuk payment methods + COA
-  const { data: paymentMethods, error } = await supabase
+  // Query 1: Get payment methods (no join)
+  const { data: pms, error: pmError } = await supabase
     .from('payment_methods')
-    .select('id, name, code, coa_account_id,fee_coa_account_id, bank_account_id')
+    .select('id, name, code, payment_type, coa_account_id, fee_coa_account_id, fee_liability_coa_account_id')
     .in('id', paymentMethodIds)
     .eq('is_active', true)
+    .is('deleted_at', null)
 
-  if (error) {
-    logError('Failed to lookup payment methods with COA', { error, count: paymentMethodIds.length })
+  if (pmError) {
+    logError('resolvePaymentMethods: PM query failed', { error: pmError })
     return result
   }
 
-  // Build map dengan COA
-  for (const pm of paymentMethods || []) {
+  if (!pms || pms.length === 0) {
+    logError('resolvePaymentMethods: no payment methods returned', { ids: paymentMethodIds })
+    return result
+  }
+
+  // Query 2: Get COA account_type for all coa_account_ids
+  const coaIds = [...new Set(pms.map(pm => pm.coa_account_id).filter(Boolean))]
+  const coaTypeMap = new Map<string, string>()
+
+  if (coaIds.length > 0) {
+    const { data: coas, error: coaError } = await supabase
+      .from('chart_of_accounts')
+      .select('id, account_type')
+      .in('id', coaIds)
+
+    if (coaError) {
+      logError('resolvePaymentMethods: COA query failed', { error: coaError })
+    } else {
+      for (const coa of coas ?? []) {
+        coaTypeMap.set(coa.id, coa.account_type)
+      }
+    }
+  }
+
+  // Build result map
+  for (const pm of pms) {
+    const coaType = pm.coa_account_id
+      ? (coaTypeMap.get(pm.coa_account_id) ?? 'ASSET')
+      : 'ASSET'
+
     result.set(pm.id, {
-      coaAccountId: pm.coa_account_id || '',
-      feeCoacountId: pm.fee_coa_account_id|| null,
+      id: pm.id,
       name: pm.name,
       code: pm.code,
-      bankAccountId: pm.bank_account_id || undefined
+      paymentType: pm.payment_type,
+      coaAccountId: pm.coa_account_id ?? '',
+      coaAccountType: coaType,
+      feeCoaAccountId: pm.fee_coa_account_id ?? null,
+      feeLiabilityCoaAccountId: (pm as any).fee_liability_coa_account_id ?? null,
     })
   }
 
-  return result
-}
-
-/**
- * Batch lookup bank accounts untuk COA fallback
- */
-async function lookupBankAccountsWithCoa(
-  bankAccountIds: string[]
-): Promise<Map<string, string>> {
-  const result = new Map<string, string>()
-
-  if (bankAccountIds.length === 0) return result
-
-  const { data: bankAccounts, error } = await supabase
-    .from('bank_accounts')
-    .select('id, coa_account_id')
-    .in('id', bankAccountIds)
-    .not('coa_account_id', 'is', null)
-
-  if (error) {
-    logError('Failed to lookup bank accounts with COA', { error, count: bankAccountIds.length })
-    return result
-  }
-
-  for (const ba of bankAccounts || []) {
-    result.set(ba.id, ba.coa_account_id)
-  }
+  logInfo('resolvePaymentMethods: resolved', {
+    requested: paymentMethodIds.length,
+    resolved: result.size,
+  })
 
   return result
 }
 
 /**
- * Find branch by name dengan caching
+ * Load SAL-INV purpose config once per processor run.
+ * Returns revenue account (CREDIT REVENUE lowest priority)
+ * and tax account (CREDIT LIABILITY lowest priority, nullable).
  */
-async function findBranchByName(branchName: string): Promise<{ id: string } | null> {
+let salInvCache: { companyId: string; config: SalInvConfig } | null = null
+
+async function getSalInvConfig(companyId: string): Promise<SalInvConfig> {
+  if (salInvCache?.companyId === companyId) return salInvCache.config
+
+  // Get purpose id
+  const { data: purpose, error: purposeError } = await supabase
+    .from('accounting_purposes')
+    .select('id')
+    .eq('purpose_code', SAL_INV_PURPOSE_CODE)
+    .eq('company_id', companyId)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (purposeError || !purpose) {
+    throw new Error(
+      `SAL-INV purpose tidak ditemukan atau tidak aktif untuk company ${companyId}`
+    )
+  }
+
+  // Get all CREDIT accounts for SAL-INV (no nested join)
+  const { data: accounts, error: accountsError } = await supabase
+    .from('accounting_purpose_accounts')
+    .select('account_id, priority')
+    .eq('purpose_id', purpose.id)
+    .eq('side', 'CREDIT')
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .order('priority', { ascending: true })
+
+  if (accountsError) {
+    throw new Error(`Gagal load SAL-INV accounts: ${accountsError.message}`)
+  }
+
+  if (!accounts || accounts.length === 0) {
+    throw new Error('SAL-INV tidak memiliki akun CREDIT yang aktif')
+  }
+
+  // Get account types for all CREDIT account IDs
+  const creditCoaIds = accounts.map(a => a.account_id)
+  const { data: creditCoas, error: creditCoaError } = await supabase
+    .from('chart_of_accounts')
+    .select('id, account_type')
+    .in('id', creditCoaIds)
+
+  if (creditCoaError) {
+    throw new Error(`Gagal load COA types untuk SAL-INV: ${creditCoaError.message}`)
+  }
+
+  const creditCoaTypeMap = new Map<string, string>()
+  for (const coa of creditCoas ?? []) {
+    creditCoaTypeMap.set(coa.id, coa.account_type)
+  }
+
+  // Find lowest priority REVENUE account
+  const revenueAccount = accounts.find(
+    (a) => creditCoaTypeMap.get(a.account_id) === 'REVENUE'
+  )
+  if (!revenueAccount) {
+    throw new Error('SAL-INV tidak memiliki akun CREDIT dengan tipe REVENUE')
+  }
+
+  // Find lowest priority LIABILITY account (for tax/PB1)
+  const taxAccount = accounts.find(
+    (a) => creditCoaTypeMap.get(a.account_id) === 'LIABILITY'
+  ) ?? null
+
+  const config: SalInvConfig = {
+    revenueAccountId: revenueAccount.account_id,
+    taxAccountId: taxAccount?.account_id ?? null,
+  }
+
+  salInvCache = { companyId, config }
+  logInfo('SAL-INV config loaded', {
+    revenueAccountId: config.revenueAccountId,
+    taxAccountId: config.taxAccountId,
+  })
+
+  return config
+}
+
+/** Clear caches — call between test runs */
+export function clearProcessorCaches(): void {
+  salInvCache = null
+}
+
+// ==============================
+// BRANCH LOOKUP WITH CACHE
+// ==============================
+
+async function resolveBranch(
+  branchName: string,
+  cache: Map<string, string | null>
+): Promise<string | null> {
+  if (cache.has(branchName)) return cache.get(branchName)!
+
   const { data, error } = await supabase
     .from('branches')
     .select('id')
@@ -154,115 +282,36 @@ async function findBranchByName(branchName: string): Promise<{ id: string } | nu
     .eq('status', 'active')
     .maybeSingle()
 
-  if (error || !data) {
-    return null
-  }
-
-  return data
+  const id = error || !data ? null : data.id
+  cache.set(branchName, id)
+  return id
 }
 
-/**
- * Get sales COA (SAL-INV) dengan caching
- */
-let salesCoaCache: string | null = null
+// ==============================
+// FISCAL PERIOD VALIDATION
+// ==============================
 
-async function getSalesCoaAccountId(): Promise<string | null> {
-  if (salesCoaCache) return salesCoaCache
-
-  // Find SAL-INV purpose
-  const { data: salesPurpose } = await supabase
-    .from('accounting_purposes')
-    .select('id')
-    .eq('purpose_code', 'SAL-INV')
-    .eq('is_active', true)
-    .maybeSingle()
-
-  if (!salesPurpose) return null
-
-  // Get CREDIT side account for SAL-INV
-  const { data: salesAccounts } = await supabase
-    .from('accounting_purpose_accounts')
-    .select('account_id')
-    .eq('purpose_id', salesPurpose.id)
-    .eq('side', 'CREDIT')
-    .eq('is_active', true)
-    .eq('is_auto', true)
-    .order('priority', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-
-  if (salesAccounts) {
-    salesCoaCache = salesAccounts.account_id
-    return salesCoaCache
-  }
-
-  return null
+interface FiscalPeriod {
+  id: string
+  period: string
+  period_start: string
+  period_end: string
+  is_open: boolean
 }
 
-/**
- * Check if journal lines already exist untuk idempotency
- */
-async function checkJournalLinesExist(journalHeaderId: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('journal_lines')
-    .select('id', { count: 'exact', head: true })
-    .eq('journal_header_id', journalHeaderId)
-    .limit(1)
-
-  if (error) {
-    logError('Failed to check journal lines existence', { journalHeaderId, error })
-    return false
-  }
-
-  return (data?.length || 0) > 0
-}
-
-/**
- * Update aggregated transactions dengan journal ID
- */
-async function updateTransactionsJournalId(
-  transactionIds: string[],
-  journalId: string
-): Promise<void> {
-  const { error } = await supabase
-    .from('aggregated_transactions')
-    .update({
-      journal_id: journalId,
-      status: 'PROCESSING' as const,
-      updated_at: new Date().toISOString()
-    })
-    .in('id', transactionIds)
-
-  if (error) {
-    logError('Failed to update transactions journal_id', { transactionIds, journalId, error })
-    throw error
-  }
-}
-
-/**
- * Rollback journal header jika insert lines gagal
- */
-async function rollbackJournalHeader(journalHeaderId: string): Promise<void> {
-  try {
-    await supabase
-      .from('journal_headers')
-      .delete()
-      .eq('id', journalHeaderId)
-    
-    logInfo('Rolled back journal header', { journalHeaderId })
-  } catch (error) {
-    logError('Failed to rollback journal header', { journalHeaderId, error })
-    // Don't throw - rollback failure shouldn't block the process
-  }
+function findPeriodForDate(
+  date: string,
+  periods: FiscalPeriod[]
+): FiscalPeriod | undefined {
+  return periods.find(
+    (p) => date >= p.period_start && date <= p.period_end
+  )
 }
 
 // ==============================
 // JOURNAL CREATION WITH RETRY
 // ==============================
 
-/**
- * Create journal header dengan retry mechanism
- */
 async function createJournalHeaderWithRetry(
   params: {
     companyId: string
@@ -273,126 +322,143 @@ async function createJournalHeaderWithRetry(
     description: string
     totalAmount: number
   },
-  retryCount: number = 0
+  attempt = 0
 ): Promise<{ id: string } | null> {
   try {
-    const { data, error } = await supabase
-      .rpc('create_journal_header_atomic', {
-        p_company_id: params.companyId,
-        p_branch_id: params.branchId,
-        p_journal_number: params.journalNumber,
-        p_journal_type: 'SALES',
-        p_journal_date: params.journalDate,
-        p_period: params.period,
-        p_description: params.description,
-        p_total_amount: params.totalAmount,
-        p_source_module: 'POS_AGGREGATES'
-      })
+    const { data, error } = await supabase.rpc('create_journal_header_atomic', {
+      p_company_id: params.companyId,
+      p_branch_id: params.branchId,
+      p_journal_number: params.journalNumber,
+      p_journal_type: 'SALES',
+      p_journal_date: params.journalDate,
+      p_period: params.period,
+      p_description: params.description,
+      p_total_amount: params.totalAmount,
+      p_source_module: 'POS_AGGREGATES',
+    })
 
-    if (error) {
-      throw new Error(error.message)
-    }
-
+    if (error) throw new Error(error.message)
     return (data as any)?.id ? { id: (data as any).id } : null
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-    
-    // Check if retryable
-    const isRetryable = retryCount < MAX_RETRIES && (
-      errorMsg.includes('connection') ||
-      errorMsg.includes('timeout') ||
-      errorMsg.includes('rate limit') ||
-      errorMsg.includes('too many requests')
-    )
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    const isRetryable =
+      attempt < MAX_RETRIES &&
+      (msg.includes('connection') ||
+        msg.includes('timeout') ||
+        msg.includes('rate limit'))
 
     if (isRetryable) {
-      const delay = getRetryDelay(retryCount + 1)
-      logWarn('Retrying journal header creation', { 
-        journalNumber: params.journalNumber,
-        attempt: retryCount + 1,
-        maxAttempts: MAX_RETRIES,
-        delayMs: delay,
-        error: errorMsg
-      })
-      
-      await sleep(delay)
-      return createJournalHeaderWithRetry(params, retryCount + 1)
+      await sleep(getRetryDelay(attempt + 1))
+      return createJournalHeaderWithRetry(params, attempt + 1)
     }
+    throw err
+  }
+}
 
+async function insertJournalLinesWithRetry(
+  journalHeaderId: string,
+  lines: any[],
+  attempt = 0
+): Promise<void> {
+  if (lines.length === 0) return
+
+  for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
+    const chunk = lines.slice(i, i + CHUNK_SIZE)
+    try {
+      const { error } = await supabase.from('journal_lines').insert(chunk)
+      if (error) throw new Error(error.message)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      const isRetryable =
+        attempt < MAX_RETRIES &&
+        (msg.includes('connection') ||
+          msg.includes('timeout') ||
+          msg.includes('rate limit'))
+
+      if (isRetryable) {
+        await sleep(getRetryDelay(attempt + 1))
+        return insertJournalLinesWithRetry(journalHeaderId, lines, attempt + 1)
+      }
+      throw err
+    }
+  }
+}
+
+async function rollbackJournalHeader(journalHeaderId: string): Promise<void> {
+  try {
+    await supabase.from('journal_headers').delete().eq('id', journalHeaderId)
+    logInfo('Rolled back journal header', { journalHeaderId })
+  } catch (err) {
+    logError('Rollback failed', { journalHeaderId, err })
+  }
+}
+
+async function checkJournalLinesExist(journalHeaderId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('journal_lines')
+    .select('id')
+    .eq('journal_header_id', journalHeaderId)
+    .limit(1)
+  return (data?.length ?? 0) > 0
+}
+
+async function updateTransactionsJournalId(
+  transactionIds: string[],
+  journalId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('aggregated_transactions')
+    .update({
+      journal_id: journalId,
+      status: 'PROCESSING' as const,
+      updated_at: new Date().toISOString(),
+    })
+    .in('id', transactionIds)
+
+  if (error) {
+    logError('updateTransactionsJournalId failed', { transactionIds, journalId, error })
     throw error
   }
 }
 
-/**
- * Insert journal lines dengan retry dan chunked insert
- */
-async function insertJournalLinesWithRetry(
-  journalHeaderId: string,
-  lines: any[],
-  retryCount: number = 0
-): Promise<void> {
-  if (lines.length === 0) return
+// ==============================
+// JOURNAL LINE BUILDER
+// ==============================
 
-  const errors: string[] = []
+interface JournalLineInput {
+  journal_header_id: string
+  line_number: number
+  account_id: string
+  description: string
+  debit_amount: number
+  credit_amount: number
+  currency: string
+  exchange_rate: number
+  base_debit_amount: number
+  base_credit_amount: number
+  created_at: string
+}
 
-  // Chunked insert
-  for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
-    const chunk = lines.slice(i, i + CHUNK_SIZE)
-    const chunkIndex = Math.floor(i / CHUNK_SIZE) + 1
-    const totalChunks = Math.ceil(lines.length / CHUNK_SIZE)
-
-    try {
-      const { error } = await supabase
-        .from('journal_lines')
-        .insert(chunk)
-
-      if (error) {
-        throw new Error(error.message)
-      }
-
-      logInfo('Journal lines chunk inserted', { 
-        journalHeaderId, 
-        chunkIndex, 
-        totalChunks,
-        linesInChunk: chunk.length 
-      })
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-      
-      // Check if retryable
-      const isRetryable = retryCount < MAX_RETRIES && (
-        errorMsg.includes('connection') ||
-        errorMsg.includes('timeout') ||
-        errorMsg.includes('rate limit') ||
-        errorMsg.includes('too many requests')
-      )
-
-      if (isRetryable) {
-        const delay = getRetryDelay(retryCount + 1)
-        logWarn('Retrying journal lines chunk', { 
-          journalHeaderId, 
-          chunkIndex, 
-          totalChunks,
-          attempt: retryCount + 1,
-          maxAttempts: MAX_RETRIES,
-          delayMs: delay,
-          error: errorMsg
-        })
-        
-        await sleep(delay)
-        
-        // Retry the entire line insert operation
-        await insertJournalLinesWithRetry(journalHeaderId, lines, retryCount + 1)
-        return
-      } else {
-        // Non-retryable error, collect and continue
-        errors.push(`Chunk ${chunkIndex}: ${errorMsg}`)
-      }
-    }
-  }
-
-  if (errors.length > 0) {
-    throw new Error(errors.join('; '))
+function makeLine(
+  headerId: string,
+  lineNum: number,
+  accountId: string,
+  description: string,
+  debit: number,
+  credit: number
+): JournalLineInput {
+  return {
+    journal_header_id: headerId,
+    line_number: lineNum,
+    account_id: accountId,
+    description,
+    debit_amount: round2(debit),
+    credit_amount: round2(credit),
+    currency: 'IDR',
+    exchange_rate: 1,
+    base_debit_amount: round2(debit),
+    base_credit_amount: round2(credit),
+    created_at: new Date().toISOString(),
   }
 }
 
@@ -400,22 +466,6 @@ async function insertJournalLinesWithRetry(
 // MAIN PROCESSOR
 // ==============================
 
-/**
- * Generate journals dari aggregated transactions
- * 
- * Features:
- * - Progress tracking dengan callback
- * - Batch payment method + COA lookup
- * - Chunked journal lines insert
- * - Error handling per group
- * - Retry mechanism dengan exponential backoff
- * - Transaction rollback capability
- * 
- * @param transactions - Array of aggregated transactions
- * @param companyId - Company ID untuk journal creation
- * @param onProgress - Optional progress callback
- * @returns GenerateJournalsResult
- */
 export async function generateJournalsOptimized(
   transactions: AggregatedTransaction[],
   companyId: string,
@@ -423,435 +473,345 @@ export async function generateJournalsOptimized(
 ): Promise<GenerateJournalsResult> {
   const startTime = Date.now()
 
-  try {
-    // Validasi input
-    if (transactions.length === 0) {
-      return { 
-        success: [], 
-        failed: [], 
-        total_transactions: 0, 
-        total_journals: 0,
-        duration_ms: 0
-      }
-    }
-
-    logInfo('Starting optimized journal generation', {
-      transaction_count: transactions.length,
-      company_id: companyId
-    })
-
-    // ==============================
-    // PHASE 1: Grouping (5-15%)
-    // ==============================
-    onProgress?.({ current: 5, total: 100, phase: 'grouping', message: 'Grouping transactions by date and branch...' })
-
-    const txByDateBranch = new Map<string, AggregatedTransaction[]>()
-    
-    for (const tx of transactions) {
-      const branchName = tx.branch_name || 'Unknown'
-      const key = `${tx.transaction_date}|${branchName}`
-      if (!txByDateBranch.has(key)) {
-        txByDateBranch.set(key, [])
-      }
-      txByDateBranch.get(key)!.push(tx)
-    }
-
-    const dateBranchGroups = Array.from(txByDateBranch.entries())
-    const totalGroups = dateBranchGroups.length
-
-    logInfo('Transaction groups created', { total_groups: totalGroups })
-
-    // ==============================
-    // PHASE 1.5: Fiscal Period Validation (10-15%)
-    // ==============================
-    onProgress?.({ current: 10, total: 100, phase: 'period_validation', message: 'Checking fiscal periods...' })
-    
-    // Fetch all non-deleted fiscal periods to check against date ranges
-    const { data: fiscalPeriods, error: periodError } = await supabase
-      .from('fiscal_periods')
-      .select('id, period, period_start, period_end, is_open')
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-
-    if (periodError) {
-      logError('Failed to fetch fiscal periods', { error: periodError, companyId })
-      throw new Error(`Gagal memvalidasi periode fiskal: ${periodError.message}`)
-    }
-
-    // Helper to find period by date
-    const findPeriodForDate = (date: string) => {
-      return fiscalPeriods?.find(p => date >= p.period_start && date <= p.period_end)
-    }
-
-    // ==============================
-    // PHASE 2: Payment Method + COA Lookup (15-25%)
-    // ==============================
-    onProgress?.({ current: 15, total: 100, phase: 'lookup', message: 'Resolving payment methods and COA accounts...' })
-
-    // Get unique payment method IDs
-    const uniquePaymentMethodIds = Array.from(
-      new Set(transactions.map(t => t.payment_method_id))
-    )
-
-    // Batch lookup payment methods + COA
-    const paymentMethodCoaMap = await lookupPaymentMethodsWithCoa(uniquePaymentMethodIds)
-
-    // Check for missing COA and try bank accounts fallback
-    const missingCoaPaymentMethodIds = uniquePaymentMethodIds.filter(id => {
-      const pm = paymentMethodCoaMap.get(id)
-      return !pm || !pm.coaAccountId
-    })
-
-    if (missingCoaPaymentMethodIds.length > 0) {
-      logWarn('Some payment methods missing COA, trying bank accounts fallback', { 
-        count: missingCoaPaymentMethodIds.length 
-      })
-
-      // Get payment methods dengan bank_account_id
-      const { data: pmWithBank } = await supabase
-        .from('payment_methods')
-        .select('id, bank_account_id')
-        .in('id', missingCoaPaymentMethodIds)
-        .not('bank_account_id', 'is', null)
-
-      if (pmWithBank && pmWithBank.length > 0) {
-        const bankIds = pmWithBank.map(pm => pm.bank_account_id!)
-        const bankCoaMap = await lookupBankAccountsWithCoa(bankIds)
-        
-        // Update payment method map dengan bank COA fallback
-        for (const pm of pmWithBank) {
-          const coaId = bankCoaMap.get(pm.bank_account_id!)
-          if (coaId) {
-            const existing = paymentMethodCoaMap.get(pm.id)
-            if (existing) {
-              existing.coaAccountId = coaId
-            } else {
-              paymentMethodCoaMap.set(pm.id, {
-                coaAccountId: coaId,
-                feeCoacountId: null,
-                name: '',
-                code: ''
-              })
-            }
-          }
-        }
-      }
-    }
-
-    // ==============================
-    // PHASE 3: Get Sales COA (25-30%)
-    // ==============================
-    onProgress?.({ current: 25, total: 100, phase: 'config', message: 'Loading accounting configuration...' })
-
-    const salesCoaAccountId = await getSalesCoaAccountId()
-
-    if (!salesCoaAccountId) {
-      throw new Error('Sales COA (SAL-INV) belum dikonfigurasi')
-    }
-
-    logInfo('Sales COA resolved', { salesCoaAccountId })
-    onProgress?.({ current: 30, total: 100, phase: 'config', message: 'Configuration loaded...' })
-
-    // ==============================
-    // PHASE 4: Process Groups (30-90%)
-    // ==============================
-    onProgress?.({ current: 30, total: 100, phase: 'processing', message: 'Generating journal entries...' })
-
-    const successResults: GenerateJournalResult[] = []
-    const failedResults: Array<{ date: string; branch: string; error: string }> = []
-
-    // Branch cache untuk avoid repeated lookups
-    const branchCache = new Map<string, string | null>()
-
-    for (let groupIndex = 0; groupIndex < dateBranchGroups.length; groupIndex++) {
-      const [key, groupTransactions] = dateBranchGroups[groupIndex]
-      const [date, branchName] = key.split('|')
-
-      // Progress update dengan granular updates
-      const progress = 30 + Math.min(60, Math.floor((groupIndex / totalGroups) * 60))
-      onProgress?.({ 
-        current: progress, 
-        total: 100, 
-        phase: 'processing', 
-        message: `Processing ${branchName} - ${date} (${groupIndex + 1}/${totalGroups})...` 
-      })
-
-      try {
-        // ==============================
-        // Step 4.0: Validate Fiscal Period (Range Check)
-        // ==============================
-        const activePeriod = findPeriodForDate(date)
-
-        if (!activePeriod) {
-          failedResults.push({
-            date,
-            branch: branchName,
-            error: `Tidak ditemukan periode fiskal yang melingkupi tanggal ini`
-          })
-          continue
-        }
-        
-        if (!activePeriod.is_open) {
-          failedResults.push({
-            date,
-            branch: branchName,
-            error: `Periode fiskal ${activePeriod.period} sudah ditutup (Locked)`
-          })
-          continue
-        }
-
-        // Use the official period name from database
-        const periodHeaderName = activePeriod.period
-
-        // ==============================
-        // Step 4.1: Resolve Branch ID
-        // ==============================
-        let resolvedBranchId: string | null = null
-        if (!branchCache.has(branchName)) {
-          const branch = await findBranchByName(branchName)
-          branchCache.set(branchName, branch?.id || null)
-        }
-        resolvedBranchId = branchCache.get(branchName)!
-
-        // ==============================
-        // Step 4.2: Calculate Totals
-        // ==============================
-        const totalDebitAmount = groupTransactions.reduce((sum, tx) => sum + Number(tx.bill_after_discount), 0)
-        const totalFeeAmount = groupTransactions.reduce((sum, tx) => sum + Number(tx.total_fee_amount), 0)
-        const totalNettAmount = groupTransactions.reduce((sum, tx) => sum + Number(tx.nett_amount), 0)
-        const transactionIds = groupTransactions.map(tx => tx.id)
-
-        // ==============================
-        // Step 4.3: Group by Payment Method COA
-        // ==============================
-        const coaGroups = new Map<string, { 
-          amount: number
-          feeAmount: number
-          feeCoacountId: string | null
-          paymentMethodName?: string 
-        }>()        
-        for (const tx of groupTransactions) {
-          const pm = paymentMethodCoaMap.get(tx.payment_method_id)
-          const coaId = pm?.coaAccountId
-
-          if (!coaId) {
-            logWarn('Skipping transaction - no COA', { 
-              transaction_id: tx.id, 
-              payment_method_id: tx.payment_method_id 
-            })
-            continue
-          }
-          if (!coaGroups.has(coaId)) {
-            coaGroups.set(coaId, { 
-              amount: 0, 
-              feeAmount: 0,
-              feeCoacountId: pm?.feeCoacountId || null,
-              paymentMethodName: pm?.name 
-            })
-          }
-          const group = coaGroups.get(coaId)!
-          group.amount += Number(tx.bill_after_discount)   // ← GROSS bukan nett
-          group.feeAmount += Number(tx.total_fee_amount)    // ← tambah fee
-        }
-
-        if (coaGroups.size === 0) {
-          failedResults.push({
-            date,
-            branch: branchName,
-            error: 'No valid COA accounts found for payment methods'
-          })
-          continue
-        }
-
-        // ==============================
-        // Step 4.4: Create Journal Header
-        // ==============================
-        const period = date.substring(0, 7)
-        const branchNameNormalized = branchName.replace(/\s+/g, '-').toUpperCase()
-        const journalNumber = `RCP-${branchNameNormalized}-${date}`
-
-        const journalHeader = await createJournalHeaderWithRetry({
-          companyId,
-          branchId: resolvedBranchId,
-          journalNumber,
-          journalDate: date,
-          period,
-          description: `POS Sales ${date} - ${branchName}`,
-          totalAmount: totalDebitAmount,  // ← pakai gross
-        })
-
-        if (!journalHeader) {
-          throw new Error('Failed to create journal header')
-        }
-
-        // ==============================
-        // Step 4.5: Check for existing lines (idempotency)
-        // ==============================
-        const linesExist = await checkJournalLinesExist(journalHeader.id)
-
-        if (linesExist) {
-          logInfo('Journal lines already exist, skipping', { journalId: journalHeader.id })
-          
-          await updateTransactionsJournalId(transactionIds, journalHeader.id)
-
-          successResults.push({
-            date,
-            branch_name: branchName,
-            transaction_ids: transactionIds,
-            journal_id: journalHeader.id,
-            total_amount: totalDebitAmount,
-            journal_number: journalNumber
-          })
-          continue
-        }
-
-        // ==============================
-        // Step 4.6: Create Journal Lines
-        // ==============================
-        const journalLines: any[] = []
-        let lineNumber = 1
-
-        // Debit lines (one per COA group)
-        Array.from(coaGroups.entries()).forEach(([coaAccountId, group]) => {
-          journalLines.push({
-            journal_header_id: journalHeader.id,
-            line_number: lineNumber++,
-            account_id: coaAccountId,
-            description: `POS Sales - ${group.paymentMethodName || 'Payment'}`,
-            debit_amount: group.amount,   // bill_after_discount (GROSS)
-            credit_amount: 0,
-            currency: 'IDR',
-            exchange_rate: 1,
-            base_debit_amount: group.amount,
-            base_credit_amount: 0,
-            created_at: new Date().toISOString()
-          })
-  // DEBIT fee expense
-  if (group.feeAmount > 0 && group.feeCoacountId) {
-    journalLines.push({
-      journal_header_id: journalHeader.id,
-      line_number: lineNumber++,
-      account_id: group.feeCoacountId,
-      description: `Fee - ${group.paymentMethodName || 'Payment'}`,
-      debit_amount: group.feeAmount,
-      credit_amount: 0,
-      currency: 'IDR',
-      exchange_rate: 1,
-      base_debit_amount: group.feeAmount,
-      base_credit_amount: 0,
-      created_at: new Date().toISOString()
-    })
-  } else if (group.feeAmount > 0 && !group.feeCoacountId) {
-    logWarn('Fee amount exists but no fee COA configured', {
-      payment_method: group.paymentMethodName,
-      fee_amount: group.feeAmount
-    })
+  if (transactions.length === 0) {
+    return { success: [], failed: [], total_transactions: 0, total_journals: 0, duration_ms: 0 }
   }
-})  // ← forEach ditutup di sini
 
+  logInfo('Starting journal generation', {
+    transaction_count: transactions.length,
+    company_id: companyId,
+  })
 
-// CREDIT Sales Revenue (pakai nett_amount = gross - fee)
-journalLines.push({
-  journal_header_id: journalHeader.id,
-  line_number: lineNumber++,
-  account_id: salesCoaAccountId,
-  description: 'POS Sales Revenue',
-  debit_amount: 0,
-  credit_amount: totalNettAmount,
-  currency: 'IDR',
-  exchange_rate: 1,
-  base_debit_amount: 0,
-  base_credit_amount: totalNettAmount,
-  created_at: new Date().toISOString()
-})
+  // ── PHASE 1: Load global config (fail-fast) ──────────────────────────
+  onProgress?.({ current: 5, total: 100, phase: 'config', message: 'Loading SAL-INV config...' })
 
-        // ==============================
-        // Step 4.7: Insert Lines with Retry + Chunking
-        // ==============================
-        try {
-          await insertJournalLinesWithRetry(journalHeader.id, journalLines)
-        } catch (insertError) {
-          // Rollback journal header if lines insert fails
-          await rollbackJournalHeader(journalHeader.id)
-          throw insertError
+  let salInvConfig: SalInvConfig
+  try {
+    salInvConfig = await getSalInvConfig(companyId)
+  } catch (err) {
+    throw new Error(
+      `Konfigurasi akuntansi tidak lengkap: ${err instanceof Error ? err.message : err}`
+    )
+  }
+
+  // ── PHASE 2: Load fiscal periods ─────────────────────────────────────
+  onProgress?.({ current: 10, total: 100, phase: 'fiscal', message: 'Loading fiscal periods...' })
+
+  const { data: fiscalPeriods, error: periodError } = await supabase
+    .from('fiscal_periods')
+    .select('id, period, period_start, period_end, is_open')
+    .eq('company_id', companyId)
+    .is('deleted_at', null)
+
+  if (periodError) throw new Error(`Gagal load fiscal periods: ${periodError.message}`)
+
+  // ── PHASE 3: Group transactions by date + branch ──────────────────────
+  onProgress?.({ current: 15, total: 100, phase: 'grouping', message: 'Grouping transactions...' })
+
+  const txByGroup = new Map<string, AggregatedTransaction[]>()
+  for (const tx of transactions) {
+    const key = `${tx.transaction_date}|${tx.branch_name ?? 'Unknown'}`
+    if (!txByGroup.has(key)) txByGroup.set(key, [])
+    txByGroup.get(key)!.push(tx)
+  }
+
+  const groups = Array.from(txByGroup.entries())
+  logInfo('Transaction groups created', { total_groups: groups.length })
+
+  // ── PHASE 4: Resolve all payment methods in one batch ─────────────────
+  onProgress?.({ current: 20, total: 100, phase: 'lookup', message: 'Resolving payment methods...' })
+
+  const uniquePmIds = Array.from(new Set(transactions.map((t) => t.payment_method_id)))
+  const pmMap = await resolvePaymentMethods(uniquePmIds)
+
+  // ── PHASE 5: Process each group ───────────────────────────────────────
+  onProgress?.({ current: 25, total: 100, phase: 'processing', message: 'Generating journals...' })
+
+  const successResults: GenerateJournalResult[] = []
+  const failedResults: Array<{ date: string; branch: string; error: string }> = []
+  const branchCache = new Map<string, string | null>()
+
+  for (let gi = 0; gi < groups.length; gi++) {
+    const [key, groupTxs] = groups[gi]
+    const [date, branchName] = key.split('|')
+
+    const progress = 25 + Math.min(65, Math.floor((gi / groups.length) * 65))
+    onProgress?.({
+      current: progress,
+      total: 100,
+      phase: 'processing',
+      message: `Processing ${branchName} - ${date} (${gi + 1}/${groups.length})`,
+    })
+
+    try {
+      // ── 5.1 Validate fiscal period ──────────────────────────────────
+      const period = findPeriodForDate(date, fiscalPeriods ?? [])
+
+      if (!period) {
+        failedResults.push({ date, branch: branchName, error: 'Tidak ada periode fiskal untuk tanggal ini' })
+        continue
+      }
+      if (!period.is_open) {
+        failedResults.push({ date, branch: branchName, error: `Periode ${period.period} sudah ditutup` })
+        continue
+      }
+
+      // ── 5.2 Resolve branch ─────────────────────────────────────────
+      const branchId = await resolveBranch(branchName, branchCache)
+
+      // ── 5.3 Validate all payment methods have required COA ─────────
+      const validationErrors: string[] = []
+
+      for (const tx of groupTxs) {
+        const pm = pmMap.get(tx.payment_method_id)
+
+        if (!pm) {
+          validationErrors.push(`Payment method id ${tx.payment_method_id} tidak ditemukan atau tidak aktif`)
+          continue
+        }
+        if (!pm.coaAccountId) {
+          validationErrors.push(`Payment method ${pm.name} tidak memiliki COA account`)
+          continue
         }
 
-        // ==============================
-        // Step 4.8: Update Transactions
-        // ==============================
-        await updateTransactionsJournalId(transactionIds, journalHeader.id)
-
-        successResults.push({
-          date,
-          branch_name: branchName,
-          transaction_ids: transactionIds,
-          journal_id: journalHeader.id,
-          total_amount: totalDebitAmount,
-          journal_number: journalNumber
-        })
-
-      } catch (error) {
-        logError('Failed to generate journal for group', { date, branch: branchName, error })
-        
-        failedResults.push({
-          date,
-          branch: branchName,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        })
-
-        // Continue with next group - atomic per group
+        const feeAmt = Number(tx.total_fee_amount ?? 0)
+        if (feeAmt > 0 && !pm.feeCoaAccountId) {
+          validationErrors.push(
+            `Payment method ${pm.name} memiliki fee Rp ${feeAmt.toLocaleString('id-ID')} tapi fee_coa_account_id belum dikonfigurasi`
+          )
+        }
+        if (feeAmt > 0 && pm.feeCoaAccountId && !pm.feeLiabilityCoaAccountId) {
+          validationErrors.push(
+            `Payment method ${pm.name} memiliki fee tapi fee_liability_coa_account_id belum dikonfigurasi (diperlukan untuk full accrual model)`
+          )
+        }
       }
+
+      if (validationErrors.length > 0) {
+        failedResults.push({ date, branch: branchName, error: validationErrors.join('; ') })
+        continue
+      }
+
+      // ── 5.4 Validate tax config ────────────────────────────────────
+      const totalTax = round2(groupTxs.reduce((s, t) => s + Number(t.tax_amount ?? 0), 0))
+      if (totalTax > 0 && !salInvConfig.taxAccountId) {
+        failedResults.push({
+          date, branch: branchName,
+          error: 'Ada tax_amount > 0 tapi SAL-INV tidak memiliki akun LIABILITY untuk pajak. Tambahkan akun PB1 ke SAL-INV purpose.',
+        })
+        continue
+      }
+
+      // ── 5.5 Build aggregated data per payment method ───────────────
+      interface PmAgg {
+        pm: PaymentMethodResolved
+        billTotal: number
+        taxTotal: number
+        feeTotal: number
+      }
+
+      const pmAggMap = new Map<number, PmAgg>()
+
+      for (const tx of groupTxs) {
+        const pm = pmMap.get(tx.payment_method_id)!
+        if (!pmAggMap.has(pm.id)) {
+          pmAggMap.set(pm.id, { pm, billTotal: 0, taxTotal: 0, feeTotal: 0 })
+        }
+        const agg = pmAggMap.get(pm.id)!
+        agg.billTotal = round2(agg.billTotal + Number(tx.bill_after_discount))
+        agg.taxTotal  = round2(agg.taxTotal  + Number(tx.tax_amount ?? 0))
+        agg.feeTotal  = round2(agg.feeTotal  + Number(tx.total_fee_amount ?? 0))
+      }
+
+      const pmAggList = Array.from(pmAggMap.values())
+
+      // ── 5.6 Compute group totals ───────────────────────────────────
+      const grandBill    = round2(pmAggList.reduce((s, a) => s + a.billTotal, 0))
+      const grandTax     = round2(pmAggList.reduce((s, a) => s + a.taxTotal,  0))
+      const grandFee     = round2(pmAggList.reduce((s, a) => s + a.feeTotal,  0))
+      const grandRevenue = round2(grandBill - grandTax)   // revenue = bill - PB1
+
+      // ── 5.7 Create journal header ──────────────────────────────────
+      const branchSlug    = branchName.replace(/\s+/g, '-').toUpperCase()
+      const journalNumber = `RCP-${branchSlug}-${date}`
+      const periodCode    = period.period
+
+      const journalHeader = await createJournalHeaderWithRetry({
+        companyId,
+        branchId,
+        journalNumber,
+        journalDate: date,
+        period: periodCode,
+        description: `POS Sales ${date} - ${branchName}`,
+        totalAmount: grandBill,
+      })
+
+      if (!journalHeader) throw new Error('create_journal_header_atomic returned null')
+
+      // ── 5.8 Idempotency check ──────────────────────────────────────
+      const linesExist = await checkJournalLinesExist(journalHeader.id)
+      if (linesExist) {
+        logInfo('Journal lines already exist, skipping insert', { journalId: journalHeader.id })
+        await updateTransactionsJournalId(groupTxs.map((t) => t.id), journalHeader.id)
+        successResults.push({
+          date, branch_name: branchName,
+          transaction_ids: groupTxs.map((t) => t.id),
+          journal_id: journalHeader.id,
+          total_amount: grandBill,
+          journal_number: journalNumber,
+        })
+        continue
+      }
+
+      // ── 5.9 Build journal lines ────────────────────────────────────
+      const lines: JournalLineInput[] = []
+      let lineNum = 1
+      const now = new Date().toISOString()
+
+      let checkDebit  = 0
+      let checkCredit = 0
+
+      for (const agg of pmAggList) {
+        const { pm, billTotal, feeTotal } = agg
+        const pmDesc = pm.name
+
+        // Determine debit/credit direction based on COA type
+        if (pm.paymentType === 'COMPLIMENT') {
+          // COMPLIMENT: credit to revenue account (reduces revenue)
+          lines.push(makeLine(journalHeader.id, lineNum++, pm.coaAccountId,
+            `POS Sales - ${pmDesc}`, 0, billTotal))
+          checkCredit = round2(checkCredit + billTotal)
+        } else {
+          // ASSET or LIABILITY: debit (increases asset or decreases liability)
+          lines.push(makeLine(journalHeader.id, lineNum++, pm.coaAccountId,
+            `POS Sales - ${pmDesc}`, billTotal, 0))
+          checkDebit = round2(checkDebit + billTotal)
+        }
+
+        // ── Fee lines: Full Accrual Model ──────────────────────────
+        // DEBIT  fee_coa_account_id      (expense recognized now)
+        // CREDIT fee_liability_coa_account_id (payable until settlement)
+        // Cleared later in bank reconciliation journal:
+        //   DEBIT  fee_liability  + DEBIT  bank
+        //   CREDIT channel_AR
+        if (feeTotal > 0 && pm.feeCoaAccountId) {
+          // Debit: fee expense
+          lines.push(makeLine(journalHeader.id, lineNum++, pm.feeCoaAccountId,
+            `Fee - ${pmDesc}`, feeTotal, 0))
+          checkDebit = round2(checkDebit + feeTotal)
+
+          if (pm.feeLiabilityCoaAccountId) {
+            // Credit: fee payable liability (accrual)
+            lines.push(makeLine(journalHeader.id, lineNum++, pm.feeLiabilityCoaAccountId,
+              `MDR Payable - ${pmDesc}`, 0, feeTotal))
+            checkCredit = round2(checkCredit + feeTotal)
+          } else {
+            // Fee COA configured but no liability account
+            // Journal will not be strictly balanced — block it
+            logError('fee_liability_coa_account_id missing for accrual model', {
+              payment_method: pm.name, fee_amount: feeTotal,
+            })
+          }
+        }
+      }
+
+      // Credit: revenue GROSS (full bill_after_discount)
+      // In accrual model: revenue = gross, fee is separate liability
+      // grandRevenue = grandBill - grandTax (PB1 separated)
+      lines.push(makeLine(journalHeader.id, lineNum++, salInvConfig.revenueAccountId,
+        'POS Sales Revenue', 0, grandRevenue))
+      checkCredit = round2(checkCredit + grandRevenue)
+
+      // Credit: PB1 tax liability (if any)
+      if (grandTax > 0 && salInvConfig.taxAccountId) {
+        lines.push(makeLine(journalHeader.id, lineNum++, salInvConfig.taxAccountId,
+          'PB1 Tax Payable', 0, grandTax))
+        checkCredit = round2(checkCredit + grandTax)
+      }
+
+      // ── 5.10 Balance validation (STRICT — full accrual) ───────────
+      // Formula:
+      //   DEBIT  = Σ(bill per channel) + Σ(fee expense)
+      //   CREDIT = Σ(revenue gross) + Σ(tax) + Σ(fee liability)
+      //          = Σ(bill - tax) + Σ(tax) + Σ(fee)
+      //          = Σ(bill) + Σ(fee)
+      //   → DEBIT must equal CREDIT (strict)
+      const balanceDiff = round2(Math.abs(checkDebit - checkCredit))
+
+      if (balanceDiff > 1) {
+        await rollbackJournalHeader(journalHeader.id)
+        failedResults.push({
+          date, branch: branchName,
+          error: `Journal tidak balance: DEBIT ${checkDebit.toLocaleString('id-ID')} ≠ CREDIT ${checkCredit.toLocaleString('id-ID')} (selisih ${balanceDiff.toLocaleString('id-ID')}). Pastikan fee_liability_coa_account_id terkonfigurasi di semua payment methods yang memiliki fee.`,
+        })
+        continue
+      }
+
+      // ── 5.11 Insert lines ──────────────────────────────────────────
+      try {
+        await insertJournalLinesWithRetry(journalHeader.id, lines)
+      } catch (insertErr) {
+        await rollbackJournalHeader(journalHeader.id)
+        throw insertErr
+      }
+
+      // ── 5.12 Update transaction status ────────────────────────────
+      await updateTransactionsJournalId(groupTxs.map((t) => t.id), journalHeader.id)
+
+      logInfo('Journal created', {
+        journalId: journalHeader.id,
+        journalNumber,
+        date, branchName,
+        lines: lines.length,
+        debit: checkDebit,
+        credit: checkCredit,
+        grandBill, grandRevenue, grandTax, grandFee,
+      })
+
+      successResults.push({
+        date, branch_name: branchName,
+        transaction_ids: groupTxs.map((t) => t.id),
+        journal_id: journalHeader.id,
+        total_amount: grandBill,
+        journal_number: journalNumber,
+      })
+    } catch (err) {
+      logError('Failed to generate journal for group', { date, branch: branchName, err })
+      failedResults.push({
+        date, branch: branchName,
+        error: err instanceof Error ? err.message : 'Unknown error',
+      })
     }
+  }
 
-    const duration = Date.now() - startTime
+  // ── PHASE 6: Done ─────────────────────────────────────────────────────
+  const duration = Date.now() - startTime
 
-    // ==============================
-    // PHASE 5: Finalization (95-100%)
-    // ==============================
-    onProgress?.({ current: 95, total: 100, phase: 'finalizing', message: 'Completing...' })
+  onProgress?.({
+    current: 100, total: 100, phase: 'complete',
+    message: `Selesai: ${successResults.length} jurnal dibuat, ${failedResults.length} gagal`,
+  })
 
-    onProgress?.({ 
-      current: 100, 
-      total: 100, 
-      phase: 'complete', 
-      message: `Done! ${successResults.length} journals created, ${failedResults.length} failed` 
-    })
+  logInfo('Journal generation complete', {
+    transactions: transactions.length,
+    journals_created: successResults.length,
+    journals_failed: failedResults.length,
+    duration_ms: duration,
+  })
 
-    logInfo('Optimized journal generation complete', {
-      transactions: transactions.length,
-      journals_created: successResults.length,
-      journals_failed: failedResults.length,
-      duration_ms: duration
-    })
-
-    return {
-      success: successResults,
-      failed: failedResults,
-      total_transactions: transactions.length,
-      total_journals: successResults.length,
-      duration_ms: duration
-    }
-
-  } catch (error) {
-    logError('generateJournalsOptimized failed', { error })
-    throw error
+  return {
+    success: successResults,
+    failed: failedResults,
+    total_transactions: transactions.length,
+    total_journals: successResults.length,
+    duration_ms: duration,
   }
 }
 
-/**
- * Simple version tanpa progress callback
- */
+/** Alias without progress callback */
 export async function generateJournals(
   transactions: AggregatedTransaction[],
   companyId: string
 ): Promise<GenerateJournalsResult> {
   return generateJournalsOptimized(transactions, companyId)
 }
-
-/**
- * Clear sales COA cache (useful for testing)
- */
-export function clearSalesCoaCache(): void {
-  salesCoaCache = null
-}
-
