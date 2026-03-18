@@ -122,7 +122,7 @@ export const processPosJournals: JobProcessor<PosJournalsJobMetadata> = async (
 
       // Apply branch filter
       if (metadata.branch_name) {
-        query = query.eq('branch_name', metadata.branch_name)
+        query = query.ilike('branch_name', metadata.branch_name)
       }
 
       // Apply payment method filter
