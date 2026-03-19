@@ -1,28 +1,42 @@
 /**
- * POS Journal Generation Processor — Rewrite
+ * POS Journal Generation Processor — Rewrite v2
  *
  * Architecture:
- * - DEBIT per channel  → payment_methods.coa_account_id (ASSET or LIABILITY)
- * - DEBIT fee expense  → payment_methods.fee_coa_account_id
- * - CREDIT revenue     → SAL-INV purpose accounts (CREDIT side, REVENUE type, lowest priority)
- * - CREDIT tax         → SAL-INV purpose accounts (CREDIT side, LIABILITY type, lowest priority)
+ * - DEBIT per channel        → payment_methods.coa_account_id (ASSET or LIABILITY)
+ * - DEBIT fee expense        → payment_methods.fee_coa_account_id
+ * - DEBIT sales discount     → SAL-INV purpose accounts (DEBIT side, REVENUE type) ← NEW
+ * - CREDIT revenue (gross)   → SAL-INV purpose accounts (CREDIT side, REVENUE type, lowest priority)
+ * - CREDIT tax               → SAL-INV purpose accounts (CREDIT side, LIABILITY type, lowest priority)
+ * - CREDIT fee liability     → payment_methods.fee_liability_coa_account_id
  *
  * Journal balance formula (strict):
- *   Σ DEBIT  = Σ(bill_after_discount per channel) + Σ(fee_amount per channel)
- *   Σ CREDIT = Σ(bill_after_discount - tax_amount) + Σ(tax_amount) + Σ(fee_amount if liability offset exists)
- *            = Σ(bill) + Σ(fee if liability offset)
+ *   Σ DEBIT  = Σ(bill_after_discount per channel) + Σ(fee_amount) + Σ(discount_amount)
+ *   Σ CREDIT = Σ(gross_amount) + Σ(tax_amount) + Σ(fee_liability)
+ *            = Σ(bill + discount - discount) + Σ(tax) + Σ(fee)
+ *            = Σ(gross) + Σ(tax) + Σ(fee)
+ *
+ * Proof:
+ *   gross + tax - discount = bill_after_discount
+ *   → gross = bill_after_discount + discount - tax
+ *
+ *   DEBIT  = bill + fee + discount
+ *   CREDIT = gross + tax + fee
+ *          = (bill + discount - tax) + tax + fee
+ *          = bill + discount + fee  ✓
  *
  * BLOCK conditions (journal not created, goes to failed[]):
  *   1. fee_amount > 0 AND fee_coa_account_id IS NULL
- *   2. SAL-INV purpose not found or not active
- *   3. SAL-INV has no CREDIT REVENUE account
- *   4. tax_amount > 0 AND SAL-INV has no CREDIT LIABILITY account
- *   5. Total balance mismatch after line construction
+ *   2. fee_amount > 0 AND fee_liability_coa_account_id IS NULL
+ *   3. SAL-INV purpose not found or not active
+ *   4. SAL-INV has no CREDIT REVENUE account
+ *   5. tax_amount > 0 AND SAL-INV has no CREDIT LIABILITY account
+ *   6. discount_amount > 0 AND SAL-INV has no DEBIT REVENUE account  ← NEW
+ *   7. Total balance mismatch after line construction
  *
  * Special payment_type handling:
- *   COMPLIMENT → CREDIT to coa_account_id (reduces revenue)
+ *   COMPLIMENT    → CREDIT to coa_account_id (reduces revenue)
  *   MEMBER_DEPOSIT → DEBIT to coa_account_id (reduces liability)
- *   ASSET types → DEBIT to coa_account_id
+ *   ASSET types   → DEBIT to coa_account_id
  */
 
 import { supabase } from '../../../config/supabase'
@@ -69,12 +83,13 @@ interface PaymentMethodResolved {
   coaAccountId: string
   coaAccountType: string // ASSET | LIABILITY | REVENUE | EXPENSE
   feeCoaAccountId: string | null
-  feeLiabilityCoaAccountId: string | null // MDR Payable per channel (accrual model)
+  feeLiabilityCoaAccountId: string | null
 }
 
 interface SalInvConfig {
-  revenueAccountId: string   // CREDIT REVENUE lowest priority
+  revenueAccountId: string    // CREDIT REVENUE lowest priority (gross sales)
   taxAccountId: string | null // CREDIT LIABILITY lowest priority (PB1/PPN)
+  discountAccountId: string | null // DEBIT REVENUE lowest priority (contra revenue) ← NEW
 }
 
 // ==============================
@@ -175,15 +190,20 @@ async function resolvePaymentMethods(
 
 /**
  * Load SAL-INV purpose config once per processor run.
- * Returns revenue account (CREDIT REVENUE lowest priority)
- * and tax account (CREDIT LIABILITY lowest priority, nullable).
+ *
+ * CREDIT side:
+ *   - REVENUE type  → gross sales revenue account
+ *   - LIABILITY type → tax payable account (PB1/PPN)
+ *
+ * DEBIT side (NEW):
+ *   - REVENUE type  → sales discount account (contra revenue, e.g. 410301)
  */
 let salInvCache: { companyId: string; config: SalInvConfig } | null = null
 
 async function getSalInvConfig(companyId: string): Promise<SalInvConfig> {
   if (salInvCache?.companyId === companyId) return salInvCache.config
 
-  // Get purpose id
+  // ── Get purpose id ───────────────────────────────────────────────────
   const { data: purpose, error: purposeError } = await supabase
     .from('accounting_purposes')
     .select('id')
@@ -199,12 +219,11 @@ async function getSalInvConfig(companyId: string): Promise<SalInvConfig> {
     )
   }
 
-  // Get all CREDIT accounts for SAL-INV (no nested join)
+  // ── Get ALL accounts for SAL-INV (both DEBIT and CREDIT sides) ───────
   const { data: accounts, error: accountsError } = await supabase
     .from('accounting_purpose_accounts')
-    .select('account_id, priority')
+    .select('account_id, side, priority')
     .eq('purpose_id', purpose.id)
-    .eq('side', 'CREDIT')
     .eq('is_active', true)
     .is('deleted_at', null)
     .order('priority', { ascending: true })
@@ -214,47 +233,64 @@ async function getSalInvConfig(companyId: string): Promise<SalInvConfig> {
   }
 
   if (!accounts || accounts.length === 0) {
+    throw new Error('SAL-INV tidak memiliki akun yang aktif')
+  }
+
+  // Separate by side
+  const creditAccounts = accounts.filter(a => a.side === 'CREDIT')
+  const debitAccounts  = accounts.filter(a => a.side === 'DEBIT')
+
+  if (creditAccounts.length === 0) {
     throw new Error('SAL-INV tidak memiliki akun CREDIT yang aktif')
   }
 
-  // Get account types for all CREDIT account IDs
-  const creditCoaIds = accounts.map(a => a.account_id)
-  const { data: creditCoas, error: creditCoaError } = await supabase
+  // ── Get COA account types for all account IDs ────────────────────────
+  const allCoaIds = [...new Set(accounts.map(a => a.account_id))]
+
+  const { data: allCoas, error: coaError } = await supabase
     .from('chart_of_accounts')
     .select('id, account_type')
-    .in('id', creditCoaIds)
+    .in('id', allCoaIds)
 
-  if (creditCoaError) {
-    throw new Error(`Gagal load COA types untuk SAL-INV: ${creditCoaError.message}`)
+  if (coaError) {
+    throw new Error(`Gagal load COA types untuk SAL-INV: ${coaError.message}`)
   }
 
-  const creditCoaTypeMap = new Map<string, string>()
-  for (const coa of creditCoas ?? []) {
-    creditCoaTypeMap.set(coa.id, coa.account_type)
+  const coaTypeMap = new Map<string, string>()
+  for (const coa of allCoas ?? []) {
+    coaTypeMap.set(coa.id, coa.account_type)
   }
 
-  // Find lowest priority REVENUE account
-  const revenueAccount = accounts.find(
-    (a) => creditCoaTypeMap.get(a.account_id) === 'REVENUE'
+  // ── CREDIT: find lowest priority REVENUE account (gross sales) ────────
+  const revenueAccount = creditAccounts.find(
+    a => coaTypeMap.get(a.account_id) === 'REVENUE'
   )
   if (!revenueAccount) {
     throw new Error('SAL-INV tidak memiliki akun CREDIT dengan tipe REVENUE')
   }
 
-  // Find lowest priority LIABILITY account (for tax/PB1)
-  const taxAccount = accounts.find(
-    (a) => creditCoaTypeMap.get(a.account_id) === 'LIABILITY'
+  // ── CREDIT: find lowest priority LIABILITY account (tax/PB1) ──────────
+  const taxAccount = creditAccounts.find(
+    a => coaTypeMap.get(a.account_id) === 'LIABILITY'
+  ) ?? null
+
+  // ── DEBIT: find lowest priority REVENUE account (discount/contra) ─────
+  const discountAccount = debitAccounts.find(
+    a => coaTypeMap.get(a.account_id) === 'REVENUE'
   ) ?? null
 
   const config: SalInvConfig = {
-    revenueAccountId: revenueAccount.account_id,
-    taxAccountId: taxAccount?.account_id ?? null,
+    revenueAccountId:  revenueAccount.account_id,
+    taxAccountId:      taxAccount?.account_id ?? null,
+    discountAccountId: discountAccount?.account_id ?? null,
   }
 
   salInvCache = { companyId, config }
+
   logInfo('SAL-INV config loaded', {
-    revenueAccountId: config.revenueAccountId,
-    taxAccountId: config.taxAccountId,
+    revenueAccountId:  config.revenueAccountId,
+    taxAccountId:      config.taxAccountId,
+    discountAccountId: config.discountAccountId,
   })
 
   return config
@@ -304,7 +340,7 @@ function findPeriodForDate(
   periods: FiscalPeriod[]
 ): FiscalPeriod | undefined {
   return periods.find(
-    (p) => date >= p.period_start && date <= p.period_end
+    p => date >= p.period_start && date <= p.period_end
   )
 }
 
@@ -326,14 +362,14 @@ async function createJournalHeaderWithRetry(
 ): Promise<{ id: string } | null> {
   try {
     const { data, error } = await supabase.rpc('create_journal_header_atomic', {
-      p_company_id: params.companyId,
-      p_branch_id: params.branchId,
+      p_company_id:    params.companyId,
+      p_branch_id:     params.branchId,
       p_journal_number: params.journalNumber,
-      p_journal_type: 'SALES',
-      p_journal_date: params.journalDate,
-      p_period: params.period,
-      p_description: params.description,
-      p_total_amount: params.totalAmount,
+      p_journal_type:  'SALES',
+      p_journal_date:  params.journalDate,
+      p_period:        params.period,
+      p_description:   params.description,
+      p_total_amount:  params.totalAmount,
       p_source_module: 'POS_AGGREGATES',
     })
 
@@ -448,17 +484,17 @@ function makeLine(
   credit: number
 ): JournalLineInput {
   return {
-    journal_header_id: headerId,
-    line_number: lineNum,
-    account_id: accountId,
+    journal_header_id:  headerId,
+    line_number:        lineNum,
+    account_id:         accountId,
     description,
-    debit_amount: round2(debit),
-    credit_amount: round2(credit),
-    currency: 'IDR',
-    exchange_rate: 1,
-    base_debit_amount: round2(debit),
+    debit_amount:       round2(debit),
+    credit_amount:      round2(credit),
+    currency:           'IDR',
+    exchange_rate:      1,
+    base_debit_amount:  round2(debit),
     base_credit_amount: round2(credit),
-    created_at: new Date().toISOString(),
+    created_at:         new Date().toISOString(),
   }
 }
 
@@ -521,7 +557,7 @@ export async function generateJournalsOptimized(
   // ── PHASE 4: Resolve all payment methods in one batch ─────────────────
   onProgress?.({ current: 20, total: 100, phase: 'lookup', message: 'Resolving payment methods...' })
 
-  const uniquePmIds = Array.from(new Set(transactions.map((t) => t.payment_method_id)))
+  const uniquePmIds = Array.from(new Set(transactions.map(t => t.payment_method_id)))
   const pmMap = await resolvePaymentMethods(uniquePmIds)
 
   // ── PHASE 5: Process each group ───────────────────────────────────────
@@ -592,22 +628,14 @@ export async function generateJournalsOptimized(
         continue
       }
 
-      // ── 5.4 Validate tax config ────────────────────────────────────
-      const totalTax = round2(groupTxs.reduce((s, t) => s + Number(t.tax_amount ?? 0), 0))
-      if (totalTax > 0 && !salInvConfig.taxAccountId) {
-        failedResults.push({
-          date, branch: branchName,
-          error: 'Ada tax_amount > 0 tapi SAL-INV tidak memiliki akun LIABILITY untuk pajak. Tambahkan akun PB1 ke SAL-INV purpose.',
-        })
-        continue
-      }
-
-      // ── 5.5 Build aggregated data per payment method ───────────────
+      // ── 5.4 Build aggregated data per payment method ───────────────
       interface PmAgg {
         pm: PaymentMethodResolved
-        billTotal: number
-        taxTotal: number
-        feeTotal: number
+        billTotal:     number  // bill_after_discount
+        grossTotal:    number  // gross_amount (revenue before discount & tax)
+        discountTotal: number  // discount_amount
+        taxTotal:      number  // tax_amount (PB1/PPN)
+        feeTotal:      number  // total_fee_amount
       }
 
       const pmAggMap = new Map<number, PmAgg>()
@@ -615,23 +643,67 @@ export async function generateJournalsOptimized(
       for (const tx of groupTxs) {
         const pm = pmMap.get(tx.payment_method_id)!
         if (!pmAggMap.has(pm.id)) {
-          pmAggMap.set(pm.id, { pm, billTotal: 0, taxTotal: 0, feeTotal: 0 })
+          pmAggMap.set(pm.id, {
+            pm,
+            billTotal:     0,
+            grossTotal:    0,
+            discountTotal: 0,
+            taxTotal:      0,
+            feeTotal:      0,
+          })
         }
         const agg = pmAggMap.get(pm.id)!
-        agg.billTotal = round2(agg.billTotal + Number(tx.bill_after_discount))
-        agg.taxTotal  = round2(agg.taxTotal  + Number(tx.tax_amount ?? 0))
-        agg.feeTotal  = round2(agg.feeTotal  + Number(tx.total_fee_amount ?? 0))
+        agg.billTotal     = round2(agg.billTotal     + Number(tx.bill_after_discount))
+        agg.grossTotal    = round2(agg.grossTotal    + Number(tx.gross_amount))
+        agg.discountTotal = round2(agg.discountTotal + Number(tx.discount_amount ?? 0))
+        agg.taxTotal      = round2(agg.taxTotal      + Number(tx.tax_amount ?? 0))
+        agg.feeTotal      = round2(agg.feeTotal      + Number(tx.total_fee_amount ?? 0))
       }
 
       const pmAggList = Array.from(pmAggMap.values())
 
-      // ── 5.6 Compute group totals ───────────────────────────────────
-      const grandBill    = round2(pmAggList.reduce((s, a) => s + a.billTotal, 0))
-      const grandTax     = round2(pmAggList.reduce((s, a) => s + a.taxTotal,  0))
-      const grandFee     = round2(pmAggList.reduce((s, a) => s + a.feeTotal,  0))
-      const grandRevenue = round2(grandBill - grandTax)   // revenue = bill - PB1
+      // ── 5.5 Compute group totals ───────────────────────────────────
+      const grandBill     = round2(pmAggList.reduce((s, a) => s + a.billTotal,     0))
+      const grandGross    = round2(pmAggList.reduce((s, a) => s + a.grossTotal,    0))
+      const grandDiscount = round2(pmAggList.reduce((s, a) => s + a.discountTotal, 0))
+      const grandTax      = round2(pmAggList.reduce((s, a) => s + a.taxTotal,      0))
+      const grandFee      = round2(pmAggList.reduce((s, a) => s + a.feeTotal,      0))
+
+      // Sanity check: gross + tax - discount should equal bill
+      // gross_amount in aggregated_transactions is already net of discount
+      // Formula: bill_after_discount = gross_amount + tax_amount - discount_amount
+      // (this depends on how POS system computes it — log a warning if off)
+      const expectedBill = round2(grandGross + grandTax - grandDiscount)
+      if (Math.abs(expectedBill - grandBill) > 1) {
+        logWarn('Bill amount mismatch — check aggregation formula', {
+          date, branchName,
+          grandBill, grandGross, grandTax, grandDiscount,
+          expectedBill,
+        })
+      }
+
+      // ── 5.6 Validate tax & discount config ────────────────────────
+      if (grandTax > 0 && !salInvConfig.taxAccountId) {
+        failedResults.push({
+          date, branch: branchName,
+          error: 'Ada tax_amount > 0 tapi SAL-INV tidak memiliki akun LIABILITY untuk pajak. Tambahkan akun PB1 Payable ke SAL-INV purpose (CREDIT side, account_type LIABILITY).',
+        })
+        continue
+      }
+
+      if (grandDiscount > 0 && !salInvConfig.discountAccountId) {
+        failedResults.push({
+          date, branch: branchName,
+          error: 'Ada discount_amount > 0 tapi SAL-INV tidak memiliki akun REVENUE untuk diskon. Tambahkan akun 410301 (Bill Discount) ke SAL-INV purpose (DEBIT side, account_type REVENUE).',
+        })
+        continue
+      }
 
       // ── 5.7 Create journal header ──────────────────────────────────
+      // total_amount = total DEBIT = total CREDIT of all journal lines
+      // = grandBill + grandFee + grandDiscount
+      const grandTotalDebit = round2(grandBill + grandFee + grandDiscount)
+
       const branchSlug    = branchName.replace(/\s+/g, '-').toUpperCase()
       const journalNumber = `RCP-${branchSlug}-${date}`
       const periodCode    = period.period
@@ -643,7 +715,7 @@ export async function generateJournalsOptimized(
         journalDate: date,
         period: periodCode,
         description: `POS Sales ${date} - ${branchName}`,
-        totalAmount: grandBill,
+        totalAmount: grandTotalDebit, // ← total actual debit = total actual credit
       })
 
       if (!journalHeader) throw new Error('create_journal_header_atomic returned null')
@@ -652,13 +724,13 @@ export async function generateJournalsOptimized(
       const linesExist = await checkJournalLinesExist(journalHeader.id)
       if (linesExist) {
         logInfo('Journal lines already exist, skipping insert', { journalId: journalHeader.id })
-        await updateTransactionsJournalId(groupTxs.map((t) => t.id), journalHeader.id)
+        await updateTransactionsJournalId(groupTxs.map(t => t.id), journalHeader.id)
         successResults.push({
           date, branch_name: branchName,
-          transaction_ids: groupTxs.map((t) => t.id),
-          journal_id: journalHeader.id,
-          total_amount: grandBill,
-          journal_number: journalNumber,
+          transaction_ids: groupTxs.map(t => t.id),
+          journal_id:      journalHeader.id,
+          total_amount:    grandTotalDebit,
+          journal_number:  journalNumber,
         })
         continue
       }
@@ -666,48 +738,40 @@ export async function generateJournalsOptimized(
       // ── 5.9 Build journal lines ────────────────────────────────────
       const lines: JournalLineInput[] = []
       let lineNum = 1
-      const now = new Date().toISOString()
 
       let checkDebit  = 0
       let checkCredit = 0
 
+      // ── DEBIT lines: channel receivables / cash ────────────────────
       for (const agg of pmAggList) {
         const { pm, billTotal, feeTotal } = agg
         const pmDesc = pm.name
 
-        // Determine debit/credit direction based on COA type
         if (pm.paymentType === 'COMPLIMENT') {
-          // COMPLIMENT: credit to revenue account (reduces revenue)
+          // COMPLIMENT reduces revenue → CREDIT channel account
           lines.push(makeLine(journalHeader.id, lineNum++, pm.coaAccountId,
             `POS Sales - ${pmDesc}`, 0, billTotal))
           checkCredit = round2(checkCredit + billTotal)
         } else {
-          // ASSET or LIABILITY: debit (increases asset or decreases liability)
+          // ASSET / LIABILITY / MEMBER_DEPOSIT → DEBIT channel account
           lines.push(makeLine(journalHeader.id, lineNum++, pm.coaAccountId,
             `POS Sales - ${pmDesc}`, billTotal, 0))
           checkDebit = round2(checkDebit + billTotal)
         }
 
         // ── Fee lines: Full Accrual Model ──────────────────────────
-        // DEBIT  fee_coa_account_id      (expense recognized now)
-        // CREDIT fee_liability_coa_account_id (payable until settlement)
-        // Cleared later in bank reconciliation journal:
-        //   DEBIT  fee_liability  + DEBIT  bank
-        //   CREDIT channel_AR
+        // DEBIT  fee_coa_account_id          (MDR expense recognized now)
+        // CREDIT fee_liability_coa_account_id (MDR payable until bank settlement)
         if (feeTotal > 0 && pm.feeCoaAccountId) {
-          // Debit: fee expense
           lines.push(makeLine(journalHeader.id, lineNum++, pm.feeCoaAccountId,
             `Fee - ${pmDesc}`, feeTotal, 0))
           checkDebit = round2(checkDebit + feeTotal)
 
           if (pm.feeLiabilityCoaAccountId) {
-            // Credit: fee payable liability (accrual)
             lines.push(makeLine(journalHeader.id, lineNum++, pm.feeLiabilityCoaAccountId,
               `MDR Payable - ${pmDesc}`, 0, feeTotal))
             checkCredit = round2(checkCredit + feeTotal)
           } else {
-            // Fee COA configured but no liability account
-            // Journal will not be strictly balanced — block it
             logError('fee_liability_coa_account_id missing for accrual model', {
               payment_method: pm.name, fee_amount: feeTotal,
             })
@@ -715,34 +779,67 @@ export async function generateJournalsOptimized(
         }
       }
 
-      // Credit: revenue GROSS (full bill_after_discount)
-      // In accrual model: revenue = gross, fee is separate liability
-      // grandRevenue = grandBill - grandTax (PB1 separated)
-      lines.push(makeLine(journalHeader.id, lineNum++, salInvConfig.revenueAccountId,
-        'POS Sales Revenue', 0, grandRevenue))
-      checkCredit = round2(checkCredit + grandRevenue)
+      // ── DEBIT: sales discount (contra revenue) ─────────────────────
+      // Represents discount given to customers.
+      // Normal balance DEBIT (contra to CREDIT revenue).
+      // Only posted if there is actual discount in this group.
+      if (grandDiscount > 0 && salInvConfig.discountAccountId) {
+        lines.push(makeLine(
+          journalHeader.id, lineNum++,
+          salInvConfig.discountAccountId,
+          'Sales Discount',
+          grandDiscount, 0
+        ))
+        checkDebit = round2(checkDebit + grandDiscount)
+      }
 
-      // Credit: PB1 tax liability (if any)
+      // ── CREDIT: gross sales revenue ────────────────────────────────
+      // gross_amount = revenue before discount & tax
+      // This is the full topline revenue figure.
+      lines.push(makeLine(
+        journalHeader.id, lineNum++,
+        salInvConfig.revenueAccountId,
+        'POS Sales Revenue',
+        0, grandGross
+      ))
+      checkCredit = round2(checkCredit + grandGross)
+
+      // ── CREDIT: PB1 / PPN tax payable ─────────────────────────────
       if (grandTax > 0 && salInvConfig.taxAccountId) {
-        lines.push(makeLine(journalHeader.id, lineNum++, salInvConfig.taxAccountId,
-          'PB1 Tax Payable', 0, grandTax))
+        lines.push(makeLine(
+          journalHeader.id, lineNum++,
+          salInvConfig.taxAccountId,
+          'PB1 Tax Payable',
+          0, grandTax
+        ))
         checkCredit = round2(checkCredit + grandTax)
       }
 
-      // ── 5.10 Balance validation (STRICT — full accrual) ───────────
-      // Formula:
-      //   DEBIT  = Σ(bill per channel) + Σ(fee expense)
-      //   CREDIT = Σ(revenue gross) + Σ(tax) + Σ(fee liability)
-      //          = Σ(bill - tax) + Σ(tax) + Σ(fee)
-      //          = Σ(bill) + Σ(fee)
-      //   → DEBIT must equal CREDIT (strict)
+      // ── 5.10 Balance validation ────────────────────────────────────
+      //
+      // Expected:
+      //   DEBIT  = Σ(bill per channel) + Σ(fee expense) + Σ(discount)
+      //   CREDIT = Σ(gross revenue)    + Σ(tax payable) + Σ(fee liability)
+      //
+      // Proof of balance:
+      //   gross = bill + discount - tax   (from aggregated_transactions formula)
+      //   CREDIT = (bill + discount - tax) + tax + fee
+      //          =  bill + discount + fee
+      //          = DEBIT ✓
+      //
       const balanceDiff = round2(Math.abs(checkDebit - checkCredit))
 
       if (balanceDiff > 1) {
         await rollbackJournalHeader(journalHeader.id)
         failedResults.push({
           date, branch: branchName,
-          error: `Journal tidak balance: DEBIT ${checkDebit.toLocaleString('id-ID')} ≠ CREDIT ${checkCredit.toLocaleString('id-ID')} (selisih ${balanceDiff.toLocaleString('id-ID')}). Pastikan fee_liability_coa_account_id terkonfigurasi di semua payment methods yang memiliki fee.`,
+          error: [
+            `Journal tidak balance:`,
+            `DEBIT ${checkDebit.toLocaleString('id-ID')} ≠ CREDIT ${checkCredit.toLocaleString('id-ID')}`,
+            `(selisih ${balanceDiff.toLocaleString('id-ID')}).`,
+            `Pastikan fee_liability_coa_account_id terkonfigurasi di semua payment methods yang memiliki fee`,
+            `dan akun discount terdaftar di SAL-INV purpose.`,
+          ].join(' '),
         })
         continue
       }
@@ -756,24 +853,30 @@ export async function generateJournalsOptimized(
       }
 
       // ── 5.12 Update transaction status ────────────────────────────
-      await updateTransactionsJournalId(groupTxs.map((t) => t.id), journalHeader.id)
+      await updateTransactionsJournalId(groupTxs.map(t => t.id), journalHeader.id)
 
       logInfo('Journal created', {
-        journalId: journalHeader.id,
+        journalId:      journalHeader.id,
         journalNumber,
-        date, branchName,
-        lines: lines.length,
-        debit: checkDebit,
-        credit: checkCredit,
-        grandBill, grandRevenue, grandTax, grandFee,
+        date,
+        branchName,
+        lines:          lines.length,
+        debit:          checkDebit,
+        credit:         checkCredit,
+        grandBill,
+        grandGross,
+        grandDiscount,
+        grandTax,
+        grandFee,
+        grandTotalDebit,
       })
 
       successResults.push({
         date, branch_name: branchName,
-        transaction_ids: groupTxs.map((t) => t.id),
-        journal_id: journalHeader.id,
-        total_amount: grandBill,
-        journal_number: journalNumber,
+        transaction_ids: groupTxs.map(t => t.id),
+        journal_id:      journalHeader.id,
+        total_amount:    grandTotalDebit,
+        journal_number:  journalNumber,
       })
     } catch (err) {
       logError('Failed to generate journal for group', { date, branch: branchName, err })
@@ -793,18 +896,18 @@ export async function generateJournalsOptimized(
   })
 
   logInfo('Journal generation complete', {
-    transactions: transactions.length,
+    transactions:     transactions.length,
     journals_created: successResults.length,
-    journals_failed: failedResults.length,
-    duration_ms: duration,
+    journals_failed:  failedResults.length,
+    duration_ms:      duration,
   })
 
   return {
-    success: successResults,
-    failed: failedResults,
+    success:            successResults,
+    failed:             failedResults,
     total_transactions: transactions.length,
-    total_journals: successResults.length,
-    duration_ms: duration,
+    total_journals:     successResults.length,
+    duration_ms:        duration,
   }
 }
 
