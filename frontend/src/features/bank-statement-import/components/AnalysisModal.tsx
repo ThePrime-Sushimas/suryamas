@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   XCircle,
   Loader2,
-  Upload,
   FileCheck,
   Eye,
   FileText,
@@ -36,7 +35,7 @@ export function AnalysisModal({
   error,
 }: AnalysisModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('summary')
-  const [skipDuplicates, setSkipDuplicates] = useState(false)
+
   const [isProcessing, setIsProcessing] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
 
@@ -135,11 +134,11 @@ export function AnalysisModal({
   const validPercentage = total_rows > 0 ? Math.round((valid_rows / total_rows) * 100) : 0
 
   // Handle confirm with processing state
-  const handleConfirm = async (skipDuplicatesValue: boolean) => {
+const handleConfirm = async () => {
     setIsProcessing(true)
     setLocalError(null)
     try {
-      await onConfirm(skipDuplicatesValue)
+    await onConfirm(true)  // Always skip duplicates
       // Modal akan ditutup oleh parent component setelah berhasil
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Gagal memulai import. Silakan coba lagi.')
@@ -380,31 +379,16 @@ export function AnalysisModal({
         {/* Footer */}
         <div className="bg-gray-50/95 dark:bg-gray-800/95 border-t border-gray-100 dark:border-gray-800 p-6 backdrop-blur-md">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <label className="flex items-center gap-3 cursor-pointer group select-none">
-              <div className="relative flex items-center">
-                <input
-                  type="checkbox"
-                  checked={skipDuplicates}
-                  onChange={(e) => setSkipDuplicates(e.target.checked)}
-                  disabled={isProcessing}
-                  className="peer h-5 w-5 cursor-pointer appearance-none rounded-lg border-2 border-gray-300 bg-white checked:border-blue-600 checked:bg-blue-600 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700"
-                />
-                <CheckCircle2 
-                  className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 text-white opacity-0 transition-opacity peer-checked:opacity-100" 
-                />
-              </div>
-              <div className="flex flex-col">
-                <span className={`text-sm font-semibold ${duplicateCount === 0 ? 'text-gray-400' : 'text-gray-700 dark:text-gray-200'}`}>
-                  Lewati Data Duplikat
-                </span>
-                {duplicateCount > 0 && (
-                  <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" />
-                    {duplicateCount.toLocaleString()} baris akan dilewati
+            {duplicateCount > 0 && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl dark:bg-amber-900/20 dark:border-amber-800 mb-4">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                    Skip Duplikat Aktif: {duplicateCount.toLocaleString()} baris akan dilewati otomatis
                   </span>
-                )}
+                </div>
               </div>
-            </label>
+            )}
 
             <div className="flex gap-3 w-full sm:w-auto">
               <button
@@ -416,12 +400,11 @@ export function AnalysisModal({
                 Batal
               </button>
               
-              {skipDuplicates ? (
-                <button
+              <button
                   type="button"
                   className="px-6 py-2.5 rounded-xl font-semibold text-white text-sm shadow-lg shadow-blue-500/25 flex items-center gap-2 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 transition-all transform hover:scale-105 active:scale-95 flex-1 sm:flex-none"
                   disabled={isProcessing}
-                  onClick={() => handleConfirm(true)}
+                  onClick={handleConfirm}
                 >
                   {isProcessing ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -431,22 +414,6 @@ export function AnalysisModal({
                   {isProcessing ? 'Memproses...' : 'Import & Lewati Duplikat'}
                   <ArrowRight className="w-4 h-4 ml-1" />
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  className="px-6 py-2.5 rounded-xl font-semibold text-white text-sm shadow-lg shadow-blue-500/25 flex items-center gap-2 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 transition-all transform hover:scale-105 active:scale-95 flex-1 sm:flex-none"
-                  disabled={isProcessing}
-                  onClick={() => handleConfirm(false)}
-                >
-                  {isProcessing ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Upload className="w-4 h-4" />
-                  )}
-                  {isProcessing ? 'Memproses...' : 'Import Semua Data'}
-                  <ArrowRight className="w-4 h-4 ml-1" />
-                </button>
-              )}
             </div>
           </div>
         </div>
