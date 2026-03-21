@@ -257,37 +257,7 @@ const handleConfirm = async () => {
                 </div>
               </div>
 
-              <div className="flex-1 w-full md:max-w-md">
-                <div className="flex justify-between text-xs mb-2">
-                  <span className="text-gray-500 font-medium">Kualitas Data</span>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400">{validPercentage}% Valid</span>
-                  </div>
-                </div>
-                <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-3 overflow-hidden flex shadow-inner">
-                  <div 
-                    className="bg-linear-to-r from-emerald-400 to-emerald-500 h-full transition-all duration-700" 
-                    style={{ width: `${validPercentage}%` }} 
-                    title={`Valid: ${validPercentage}%`}
-                  />
-                  <div 
-                    className="bg-linear-to-r from-amber-400 to-amber-500 h-full transition-all duration-700" 
-                    style={{ width: `${(pendingCount / total_rows) * 100}%` }} 
-                    title={`Pending: ${Math.round((pendingCount / total_rows) * 100)}%`}
-                  />
-                  <div 
-                    className="bg-linear-to-r from-rose-400 to-rose-500 h-full transition-all duration-700" 
-                    style={{ width: `${(invalid_rows / total_rows) * 100}%` }} 
-                    title={`Invalid: ${Math.round((invalid_rows / total_rows) * 100)}%`}
-                  />
-                </div>
-                <div className="flex justify-between text-xs mt-1.5">
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium">{valid_rows.toLocaleString()} valid</span>
-                  <span className="text-amber-600 dark:text-amber-400 font-medium">{pendingCount.toLocaleString()} pending</span>
-                  <span className="text-rose-600 dark:text-rose-400 font-medium">{invalid_rows.toLocaleString()} invalid</span>
-                </div>
-              </div>
+
             </div>
           </div>
           
