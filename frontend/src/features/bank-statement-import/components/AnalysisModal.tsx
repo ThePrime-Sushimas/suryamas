@@ -58,18 +58,26 @@ export function AnalysisModal({
 
     const { import: imp, summary, stats, warnings: resultWarnings, duplicates: resultDuplicates, analysis } = result
 
-    // Calculate duplicate count
+    // ✅ SIMPLIFIED duplicate: analysis first
     const duplicateCount = analysis?.duplicate_count 
-      ?? analysis?.duplicates?.length 
-      ?? resultDuplicates?.length 
-      ?? summary?.duplicate_count 
-      ?? stats?.duplicate_rows 
-      ?? 0
+      ?? (analysis?.duplicates?.length || 0)
+      ?? (resultDuplicates?.length || 0)
+      ?? (summary?.duplicate_count || stats?.duplicate_rows || 0)
 
-    // Use summary or stats for data
-    const total_rows = summary?.total_statements || stats?.total_rows || 0
-    const valid_rows = stats?.valid_rows || 0
-    const invalid_rows = stats?.invalid_rows || 0
+    // ✅ FIXED PRIORITY: analysis.* > stats.* > 0
+    let total_rows = 0
+    let valid_rows = 0  
+    let invalid_rows = 0
+    
+    if (analysis) {
+      total_rows = analysis.total_rows || 0
+      valid_rows = analysis.valid_rows || 0
+      invalid_rows = analysis.invalid_rows || 0
+    } else if (stats) {
+      total_rows = stats.total_rows || 0
+      valid_rows = stats.valid_rows || 0
+      invalid_rows = stats.invalid_rows || 0
+    }
     
     // Calculate pending (rows that are not valid and not invalid)
     const pendingCount = total_rows - valid_rows - invalid_rows

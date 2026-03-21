@@ -8,10 +8,21 @@ interface AnalysisSummaryProps {
 export function AnalysisSummary({ result }: AnalysisSummaryProps) {
   const { analysis, stats } = result
 
-  // Data dari backend analysis format
-  const totalRows = analysis?.total_rows || stats?.total_rows || 0
-  const validRows = analysis?.valid_rows || stats?.valid_rows || 0
-  const invalidRows = analysis?.invalid_rows || stats?.invalid_rows || 0
+  // ✅ FIXED: analysis.* > stats.* > 0 (consistent with Modal)
+  let totalRows = 0
+  let validRows = 0
+  let invalidRows = 0
+  
+  if (analysis) {
+    totalRows = analysis.total_rows || 0
+    validRows = analysis.valid_rows || 0
+    invalidRows = analysis.invalid_rows || 0
+  } else if (stats) {
+    totalRows = stats.total_rows || 0
+    validRows = stats.valid_rows || 0
+    invalidRows = stats.invalid_rows || 0
+  }
+  
   const duplicates = analysis?.duplicates || result.duplicates || []
   const duplicateCount = duplicates.length
 
