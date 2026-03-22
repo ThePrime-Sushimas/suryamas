@@ -21,7 +21,8 @@ import { formatCurrency, formatFileSize } from '../utils/format'
 import type {
   BankStatementImport,
   BankStatementAnalysisResult,
-  BankStatementImportStatus
+  BankStatementImportStatus,
+  BankStatementPreviewRow
 } from '../types/bank-statement-import.types'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
@@ -54,7 +55,7 @@ function BankStatementImportDetailPageContent() {
   const [selectedRowInfo, setSelectedRowInfo] = useState<{ rowNumber: number; date: string } | null>(null)
   
   // Tab state for preview
-  const [activePreviewTab, setActivePreviewTab] = useState<'all' | 'valid' | 'duplicate' | 'invalid'>('all')
+  const [activePreviewTab, setActivePreviewTab] = useState<'processed' | 'original' | 'valid' | 'duplicate' | 'invalid'>('processed')
 
   // Go back handler
   const goBack = () => {
@@ -168,6 +169,13 @@ function BankStatementImportDetailPageContent() {
 
   // Filter preview rows based on active tab
   const filteredPreviewRows = useMemo(() => {
+    // Original preview (pre-import sample)
+    const originalPreview = analysisResult?.analysis_data?.preview || []
+    
+    if (activePreviewTab === 'original') {
+      return originalPreview
+    }
+    
     if (!previewRows) return []
     
     switch (activePreviewTab) {
@@ -177,11 +185,11 @@ function BankStatementImportDetailPageContent() {
         return previewRows.filter(row => duplicateRowNumbers.has(row.row_number))
       case 'invalid':
         return previewRows.filter(row => !row.is_valid)
-      case 'all':
+      case 'processed':
       default:
         return previewRows
     }
-  }, [previewRows, activePreviewTab, duplicateRowNumbers])
+  }, [previewRows, activePreviewTab, duplicateRowNumbers, analysisResult?.analysis_data?.preview])
 
   // Count rows by status
   const validCount = previewRows?.filter(row => row.is_valid && !duplicateRowNumbers.has(row.row_number)).length || 0
@@ -500,18 +508,24 @@ function BankStatementImportDetailPageContent() {
 
       {/* Analysis Preview with Tabs */}
       {(() => {
-        if (!previewRows || previewRows.length === 0) return null
+        if (!previewRows && !analysisResult?.analysis_data?.preview) return null
+        
+        // Original preview from analysis (pre-import sample)
+        const originalPreview = analysisResult?.analysis_data?.preview || []
         
         return (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col gap-2 mb-4">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Pratinjau Data
                 </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Menampilkan {filteredPreviewRows.length.toLocaleString()} dari {importData.total_rows?.toLocaleString() || 0} data
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {previewRows 
+                    ? `Processed: ${previewRows.length.toLocaleString()}/${importData?.total_rows?.toLocaleString() || 0} rows 
+                       (${(importData?.total_rows || 0) - (previewRows.length || 0)} filtered)`
+                    : `Original sample: ${originalPreview.length} rows (pre-import)`}
                 </p>
               </div>
             </div>
@@ -519,25 +533,47 @@ function BankStatementImportDetailPageContent() {
             {/* Tab Navigation */}
             <div className="flex gap-2 overflow-x-auto scrollbar-thin">
               <button
-                onClick={() => setActivePreviewTab('all')}
+                onClick={() => setActivePreviewTab('processed')}
                 className={`
                   px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap
-                  ${activePreviewTab === 'all' 
-                    ? 'bg-linear-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' 
-                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  ${activePreviewTab === 'processed' 
+                    ? 'bg-linear-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/25' 
+                    : 'text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
                   }
                 `}
               >
-                <Eye className="w-4 h-4" />
-                Semua
+                <CheckCircle2 className="w-4 h-4" />
+                Processed
                 <span className={`
                   text-xs px-2 py-0.5 rounded-full font-bold
-                  ${activePreviewTab === 'all' 
+                  ${activePreviewTab === 'processed' 
                     ? 'bg-white/20 text-white' 
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                    : 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300'
                   }
                 `}>
-                  {previewRows.length}
+                  {previewRows?.length || 0}
+                </span>
+              </button>
+              <button
+                onClick={() => setActivePreviewTab('original')}
+                className={`
+                  px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap
+                  ${activePreviewTab === 'original' 
+                    ? 'bg-linear-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' 
+                    : 'text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                  }
+                `}
+              >
+                <FileText className="w-4 h-4" />
+                Original
+                <span className={`
+                  text-xs px-2 py-0.5 rounded-full font-bold
+                  ${activePreviewTab === 'original' 
+                    ? 'bg-white/20 text-white' 
+                    : 'bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300'
+                  }
+                `}>
+                  {originalPreview.length}
                 </span>
               </button>
               
