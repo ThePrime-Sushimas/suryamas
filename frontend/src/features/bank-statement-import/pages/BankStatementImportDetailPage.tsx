@@ -12,7 +12,7 @@ import {
   X,
   CheckCircle2,
   AlertTriangle,
-  XCircle
+  XCircle 
 } from 'lucide-react'
 import type { PreviewData } from '../types/bank-statement-import.types'
 import { bankStatementImportApi } from '../api/bank-statement-import.api'
@@ -204,7 +204,6 @@ function BankStatementImportDetailPageContent() {
 
   // Count rows by status
   // ✅ FIXED: Counts from processed preview data
-  const validCount = processedPreview?.preview_rows.filter(row => row.is_valid && !duplicateRowNumbers.has(row.row_number)).length || 0
   const duplicateCount = processedPreview?.preview_rows.filter(row => duplicateRowNumbers.has(row.row_number)).length || 0
   const invalidCount = processedPreview?.preview_rows.filter(row => !row.is_valid).length || 0
   // ✅ FIXED: True filtered = original - processed (rejected before DB)
@@ -622,28 +621,7 @@ function BankStatementImportDetailPageContent() {
                 </span>
               </button>
               
-              <button
-                onClick={() => setActivePreviewTab('valid')}
-                className={`
-                  px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap
-                  ${activePreviewTab === 'valid' 
-                    ? 'bg-linear-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/25' 
-                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'
-                  }
-                `}
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                Valid
-                <span className={`
-                  text-xs px-2 py-0.5 rounded-full font-bold
-                  ${activePreviewTab === 'valid' 
-                    ? 'bg-white/20 text-white' 
-                    : 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300'
-                  }
-                `}>
-                  {validCount}
-                </span>
-              </button>
+              {/* ✅ REMOVED: Valid tab (redundant with Processed - both show same DB rows) */}
               
               {duplicateCount > 0 && (
                 <button
