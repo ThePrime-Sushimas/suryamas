@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { bankStatementImportApi } from '../api/bank-statement-import.api'
 import type { BankStatementPreviewRow } from '../types/bank-statement-import.types'
 import ReactDOM from 'react-dom'
@@ -36,7 +36,9 @@ export function AnalysisModal({
   onCancel,
   error,
 }: AnalysisModalProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('summary')
+const [activeTab, setActiveTab] = useState<TabType>('summary')
+
+const abortControllerRef = useRef<AbortController | null>(null)
 
 const [isProcessing, setIsProcessing] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
@@ -129,21 +131,22 @@ const [isProcessing, setIsProcessing] = useState(false)
       return
     }
     const controller = new AbortController()
-
+    abortControllerRef.current = controller  // ← simpan ke ref
+    
     setPreviewLoading(true)
-    bankStatementImportApi.getPreview(processedData.imp.id, processedData.total_rows)
+    bankStatementImportApi.getPreview(processedData.imp.id, processedData.total_rows, controller.signal)
       .then(response => {
         setPreviewRows(response.preview_rows || [])
       })
       .catch(err => {
-        // ← ignore abort error, itu expected
         if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
         console.error('Preview fetch failed:', err)
         setPreviewRows([])
       })
       .finally(() => setPreviewLoading(false))
-      return () => controller.abort()
-    }, [processedData.imp?.id, processedData.total_rows])
+
+    return () => controller.abort()
+  }, [processedData.imp?.id, processedData.total_rows])
 
   if (!result) return null
 
@@ -185,6 +188,8 @@ const handleConfirm = async () => {
 
   // Handle cancel - always works even during processing
   const handleCancel = () => {
+    // Abort preview fetch SEBELUM parent delete import
+    abortControllerRef.current?.abort()
     onCancel()
   }
 
