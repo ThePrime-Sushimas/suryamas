@@ -1,7 +1,8 @@
-/**
- * Duplicate Detection Utility
- * Detects duplicate bank statement transactions
- */
+  /**
+   * Duplicate Detection Utility
+   * Detects duplicate bank statement transactions
+   * ✅ ENTITY EXTRACTION: extractKeyInfo() → strip noise → hard reject different names
+   */
 
 import { DUPLICATE_DETECTION } from '../bank-statement-import.constants'
 import type { 
@@ -20,9 +21,32 @@ export class DuplicateDetector {
   /**
    * Calculate match score between two transactions
    */
+  /**
+   * Calculate match score between two transactions
+   * ✅ NEW: Entity extraction hard reject + similarity fallback
+   */
   calculateMatchScore(row: ParsedBankStatementRow, existing: BankStatement): number {
     let score = 0
 
+    // ✅ STEP 1: ENTITY EXTRACTION - Hard reject different identities
+    const key1 = this.extractKeyInfo(row.description || '')
+    const key2 = this.extractKeyInfo(existing.description || '')
+
+    if (key1 && key2) {
+      // Hard reject if different core identities
+      if (key1 !== key2) {
+        return 0
+      }
+      
+      // Fuzzy match for similar names (85% threshold)
+      const nameSimilarity = this.calculateStringSimilarity(key1.toLowerCase(), key2.toLowerCase())
+      if (nameSimilarity < 0.85) {
+        return 0
+      }
+    }
+
+    // ✅ STEP 2: Original scoring (only if entity check passes)
+    
     // Date match (30 points)
     if (String(row.transaction_date) === existing.transaction_date) {
       score += 30
@@ -45,7 +69,7 @@ export class DuplicateDetector {
       score += 20
     }
 
-    // Description similarity (10 points)
+    // Description similarity (10 points) - now more reliable post-entity check
     if (row.description && existing.description) {
       const similarity = this.calculateStringSimilarity(
         String(row.description).toLowerCase(),
@@ -56,6 +80,31 @@ export class DuplicateDetector {
 
     return Math.min(score, 100)
   }
+
+  /**
+   * ✅ NEW: Extract key identity info from description
+   * Strips noise words → extracts names/IDs → "451 WENDRI KBB"
+   */
+  private extractKeyInfo(desc: string): string | null {
+    if (!desc || typeof desc !== 'string') return null
+
+    let cleaned = desc
+      .toUpperCase()
+      .trim()
+
+    // ✅ NOISE WORDS: Bank transaction boilerplate
+    const noiseRegex = /BI-FAST|DB|BIAYA|TXN?X?|KE|ADMIN|FEE|TRANSFER|SETTLEMENT|SYSTEM|TRF|DEBIT|KREDIT/gi
+    cleaned = cleaned.replace(noiseRegex, '').trim()
+
+    // Keep ID signals (numbers + names), remove pure noise
+    cleaned = cleaned.replace(/^\s*[,;\.\/]+\s*/g, '').trim()
+
+    // If empty after cleaning → no identity signal
+    if (!cleaned || cleaned.length < 2) return null
+
+    return cleaned
+  }
+
 
   /**
    * Calculate string similarity (simple Levenshtein-based)
@@ -114,12 +163,20 @@ export class DuplicateDetector {
 
     rows.forEach((row) => {
       existingStatements.forEach((existing) => {
-        // BALANCE CHECK: Different balance = different transaction
+        // ✅ BALANCE INDICATOR: HARD REJECT + Scoring (per user request)
         const rowBalance = typeof row.balance === 'number' ? row.balance : 0
         const existingBalance = existing.balance || 0
-        if (Math.abs(rowBalance - existingBalance) > 1) return // Rp1 tolerance
+        
+        // Hard reject different balance (strongest signal)
+        if (Math.abs(rowBalance - existingBalance) > 1) {
+          return // Rp1 tolerance
+        }
+        
+        // +25 points for balance match (high confidence indicator)
+        let matchScore = 25 // Base balance points
 
-        const matchScore = this.calculateMatchScore(row, existing)
+        // Add entity + other scoring  
+        matchScore += this.calculateMatchScore(row, existing)
 
         if (matchScore >= matchThreshold) {
           const debitAmount = typeof row.debit_amount === 'number'
@@ -134,6 +191,7 @@ export class DuplicateDetector {
             transaction_date: String(row.transaction_date),
             debit_amount: debitAmount,
             credit_amount: creditAmount,
+            balance_matched: true, // ✅ New indicator
             existing_import_id: existing.import_id || 0,
             existing_statement_id: existing.id,
             row_numbers: [row.row_number],

@@ -517,8 +517,14 @@ export class BankStatementImportRepository {
         .limit(20)
 
       // Add description OR reference condition
+      // ✅ ENTITY FILTER: Skip noise keywords, use normalized desc
       if (pair.description && pair.description.trim()) {
-        const descKeywords = pair.description.substring(0, 100).split(' ').filter(Boolean).slice(0, 3)
+        // Extract keywords AFTER removing noise (like duplicate-detector)
+        const normalizedDesc = pair.description.toUpperCase()
+          .replace(/BI-FAST|DB|BIAYA|TXN?X?|KE|ADMIN|FEE|TRANSFER|SETTLEMENT|SYSTEM|TRF/gi, '')
+          .substring(0, 100)
+        
+        const descKeywords = normalizedDesc.split(' ').filter(Boolean).slice(0, 3)
         if (descKeywords.length > 0) {
           query = query.or(
             `description.ilike.%${descKeywords.join('%')}%,

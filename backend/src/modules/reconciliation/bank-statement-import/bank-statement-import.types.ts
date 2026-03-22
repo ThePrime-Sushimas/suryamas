@@ -274,6 +274,8 @@ export interface BankStatementPreviewRow {
  * Duplicate detection result
  */
 export interface BankStatementDuplicate {
+  balance_matched?: boolean; // ✅ Balance indicator (user request)
+
   reference_number?: string
   transaction_date: string
   debit_amount: number
