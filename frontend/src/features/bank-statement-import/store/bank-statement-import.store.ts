@@ -609,7 +609,7 @@ export const useBankStatementImportStore = create<BankStatementImportState>((set
   openUploadModal: () => set({ showUploadModal: true }),
   closeUploadModal: () => set({ showUploadModal: false }),
   openAnalysisModal: () => set({ showAnalysisModal: true }),
-  closeAnalysisModal: () => set({ showAnalysisModal: false }),
+  closeAnalysisModal: () => set({ showAnalysisModal: false, analyzeResult: null, currentImport: null }),
   openConfirmModal: () => set({ showConfirmModal: true }),
   closeConfirmModal: () => set({ showConfirmModal: false }),
 
