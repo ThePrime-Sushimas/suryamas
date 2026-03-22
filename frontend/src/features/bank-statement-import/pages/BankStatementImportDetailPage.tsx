@@ -365,36 +365,24 @@ function BankStatementImportDetailPageContent() {
           </div>
         )}
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">Total Baris</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-              {importData.total_rows?.toLocaleString() || 0}
+        {/* Processed Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+          <div className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              Processed Rows
+            </p>
+            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+              {importData.processed_rows?.toLocaleString() || 0}
             </p>
           </div>
-          <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">Baris Valid</p>
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
-              {stats?.valid_rows?.toLocaleString() || importData.total_rows?.toLocaleString() || 0}
+          <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
+              <XCircle className="w-4 h-4 text-red-500" />
+              Failed Rows
             </p>
-          </div>
-          <div className="bg-red-50 dark:bg-red-900/30 rounded-lg p-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">Baris Gagal</p>
             <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
-              {stats?.invalid_rows?.toLocaleString() || importData.failed_rows?.toLocaleString() || 0}
-            </p>
-          </div>
-          <div className="bg-yellow-50 dark:bg-yellow-900/30 rounded-lg p-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">Duplikat</p>
-            <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">
-              {stats?.duplicate_rows?.toLocaleString() || 0}
-            </p>
-          </div>
-          <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">Baris Baru</p>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
-              {stats?.new_rows?.toLocaleString() || 0}
+              {importData.failed_rows?.toLocaleString() || 0}
             </p>
           </div>
         </div>
