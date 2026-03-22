@@ -112,6 +112,12 @@ export interface BankStatementPreviewRow {
   warnings?: string[]
 }
 
+export interface PreviewData {
+  preview_rows: BankStatementPreviewRow[]
+  total_rows: number
+  import_id: number
+}
+
 export interface BankStatementImportFilters {
   status?: BankStatementImportStatus | 'ALL'
   dateFrom?: string
