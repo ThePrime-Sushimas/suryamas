@@ -484,7 +484,10 @@ export class BankStatementImportRepository {
    * Check for duplicate transactions
    * Improved to handle empty reference_numbers and match by date + amount + description similarity
    */
- async checkDuplicates(transactions: { reference_number?: string; transaction_date: string; debit_amount: number; credit_amount: number; description?: string; balance?: number }[]): Promise<BankStatement[]> {
+ async checkDuplicates(
+    transactions: { reference_number?: string; transaction_date: string; debit_amount: number; credit_amount: number; description?: string; balance?: number; bank_account_id: number }[], 
+    bankAccountId: number
+  ): Promise<BankStatement[]> {
     if (transactions.length === 0) return []
 
     const dateAmountPairs = transactions.map(t => ({
@@ -506,15 +509,20 @@ export class BankStatementImportRepository {
     const allDuplicates: BankStatement[] = []
     
     for (const pair of uniquePairs) {
-      // STRICTER: Require description OR reference match + date+amount
+      // ✅ FIXED: Add bank_account_id filter + company isolation
       let query = supabase
         .from('bank_statements')
-        .select('id, reference_number, transaction_date, credit_amount, debit_amount, import_id, description, balance')
+        .select(`
+          id, reference_number, transaction_date, credit_amount, debit_amount, 
+          import_id, description, balance, bank_account_id
+        `)
         .eq('transaction_date', pair.transaction_date)
         .eq('debit_amount', pair.debit_amount)
         .eq('credit_amount', pair.credit_amount)
+        .eq('bank_account_id', bankAccountId)
         .is('deleted_at', null)
         .limit(20)
+
 
       // Add description OR reference condition
       // ✅ ENTITY FILTER: Skip noise keywords, use normalized desc

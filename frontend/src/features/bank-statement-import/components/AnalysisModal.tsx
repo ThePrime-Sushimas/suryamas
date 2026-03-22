@@ -38,10 +38,13 @@ export function AnalysisModal({
 }: AnalysisModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('summary')
 
-  const [isProcessing, setIsProcessing] = useState(false)
+const [isProcessing, setIsProcessing] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const [previewRows, setPreviewRows] = useState<BankStatementPreviewRow[]>([])
   const [previewLoading, setPreviewLoading] = useState(true)
+  
+  // ✅ NEW: User-controlled duplicate skipping
+  const [skipDuplicates, setSkipDuplicates] = useState(true)
 
   // Process result data with useMemo before any early returns
   const processedData = useMemo<{ 
@@ -153,12 +156,21 @@ export function AnalysisModal({
   // Calculate percentages
   const validPercentage = total_rows > 0 ? Math.round((valid_rows / total_rows) * 100) : 0
 
-  // Handle confirm with processing state
+// Handle confirm with USER-CONTROLLED duplicate skipping ✅
 const handleConfirm = async () => {
+    if (duplicateCount > 0 && !skipDuplicates) {
+      const confirmed = confirm(
+        `⚠️ Ada ${duplicateCount.toLocaleString()} duplikat yang akan menyebabkan import GAGAL.\n\n` +
+        `Pastikan Anda sudah menangani duplikat ini sebelum melanjutkan.\n\n` +
+        `Lanjutkan?`
+      )
+      if (!confirmed) return
+    }
+
     setIsProcessing(true)
     setLocalError(null)
     try {
-    await onConfirm(true)  // Always skip duplicates
+      await onConfirm(skipDuplicates)
       // Modal akan ditutup oleh parent component setelah berhasil
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Gagal memulai import. Silakan coba lagi.')
@@ -371,16 +383,49 @@ const handleConfirm = async () => {
         {/* Footer */}
         <div className="bg-gray-50/95 dark:bg-gray-800/95 border-t border-gray-100 dark:border-gray-800 p-6 backdrop-blur-md">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            {duplicateCount > 0 && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl dark:bg-amber-900/20 dark:border-amber-800 mb-4">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-                    Skip Duplikat Aktif: {duplicateCount.toLocaleString()} baris akan dilewati otomatis
-                  </span>
+            {/* ✅ DYNAMIC DUPLICATE HANDLING UI */}
+            <div className="p-4 bg-linear-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl mb-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="flex items-center gap-3 p-3 bg-white/60 dark:bg-gray-800/50 rounded-xl border">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                  <div>
+                    <p className="font-semibold text-amber-900 dark:text-amber-200">
+                      {duplicateCount.toLocaleString()} Duplikat Ditemukan
+                    </p>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      Transaksi identik sudah ada di database
+                    </p>
+                  </div>
                 </div>
+                
+                {/* ✅ CHECKBOX CONTROL */}
+                <label className="flex items-center gap-3 p-3 bg-white/80 dark:bg-gray-800/60 backdrop-blur-sm rounded-xl border cursor-pointer hover:shadow-md transition-all group min-w-fit">
+                  <input
+                    type="checkbox"
+                    checked={skipDuplicates}
+                    onChange={(e) => setSkipDuplicates(e.target.checked)}
+                    className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                  />
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 transition-colors">
+                    Lewati duplikat otomatis
+                  </span>
+                  {duplicateCount > 0 && (
+                    <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-mono">
+                      {duplicateCount.toLocaleString()} baris
+                    </span>
+                  )}
+                </label>
               </div>
-            )}
+              
+              {!skipDuplicates && duplicateCount > 0 && (
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl dark:bg-red-900/20 dark:border-red-800">
+                  <p className="text-sm text-red-800 dark:text-red-300 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>Import akan GAGAL jika ada duplikat. Pastikan data sudah dibersihkan.</span>
+                  </p>
+                </div>
+              )}
+            </div>
 
             <div className="flex gap-3 w-full sm:w-auto">
               <button

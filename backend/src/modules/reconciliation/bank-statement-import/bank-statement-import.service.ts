@@ -215,6 +215,53 @@ export class BankStatementImportService {
       const { validRows, invalidRows, validationErrors } =
         await this.validateRows(rows, companyId, bankAccountId);
 
+      // Calculate date range FIRST for overlap check
+      const dates = validRows.map((r) => new Date(r.transaction_date));
+      const dateRangeStart = dates.length > 0 
+        ? new Date(Math.min(...dates.map((d) => d.getTime()))).toISOString().split("T")[0]
+        : null;
+      const dateRangeEnd = dates.length > 0 
+        ? new Date(Math.max(...dates.map((d) => d.getTime()))).toISOString().split("T")[0]
+        : null;
+
+      // ✅ OVERLAP WARNING: Alert user about existing data
+      let overlapWarning = '';
+      if (dateRangeStart && dateRangeEnd) {
+        const { count } = await supabase
+          .from('bank_statements')
+          .select('*', { count: 'exact', head: true })
+          .eq('company_id', companyId)
+          .eq('bank_account_id', bankAccountId)
+          .gte('transaction_date', dateRangeStart)
+          .lte('transaction_date', dateRangeEnd)
+          .is('deleted_at', null);
+
+        if (count && count > 0) {
+          overlapWarning = `⚠️ Found ${count} existing statements (${dateRangeStart} to ${dateRangeEnd}). Duplicates will be filtered if skip_duplicates=true.`;
+        }
+      }
+
+// ✅ FIXED: Single analysis declaration + proper typing
+      const analysis: BankStatementAnalysis = {
+        total_rows: rows.length,
+        valid_rows: validRows.length,
+        invalid_rows: invalidRows.length,
+        date_range_start: dateRangeStart || '',
+        date_range_end: dateRangeEnd || '',
+        preview: this.generatePreview(validRows, 10),
+        duplicates: [],
+        duplicate_count: 0,
+        column_mapping: columnMapping,
+        errors: validationErrors,
+        warnings: [],
+      };
+
+      logInfo("Checking for duplicates against database...", {
+        valid_rows: validRows.length,
+        company_id: companyId,
+        bank_account_id: bankAccountId,
+      });
+
       // Check for duplicates against existing database records
       const existingDuplicates = await this.detectDuplicates(
         validRows,
@@ -222,28 +269,25 @@ export class BankStatementImportService {
         bankAccountId,
       );
 
-// Remove intra-file check per user request - focus DB vs import only
+      // Remove intra-file check per user request - focus DB vs import only
       const duplicates = [...existingDuplicates];
 
-      // Calculate date range
-      const dates = validRows.map((r) => new Date(r.transaction_date));
-      const dateRangeStart =
-        dates.length > 0
-          ? new Date(Math.min(...dates.map((d) => d.getTime())))
-              .toISOString()
-              .split("T")[0]
-          : "";
-      const dateRangeEnd =
-        dates.length > 0
-          ? new Date(Math.max(...dates.map((d) => d.getTime())))
-              .toISOString()
-              .split("T")[0]
-          : "";
+      // Populate analysis with duplicates
+      analysis.duplicates = duplicates;
+      analysis.duplicate_count = duplicates.length;
+
+      // ✅ FIXED: Safe warnings push
+      if (overlapWarning) {
+        analysis.warnings = analysis.warnings || [];
+        analysis.warnings.push(overlapWarning);
+      }
+
+// ✅ Date range (post-overlap check - simplified since calculated above)
+      const simplifiedDateRangeStart = dateRangeStart || '';
+      const simplifiedDateRangeEnd = dateRangeEnd || '';
 
       // Generate preview
-      const preview = this.generatePreview(validRows, 10);
-
-      // Create import record
+      // Create import record  
       const createDto: CreateBankStatementImportDto = {
         company_id: companyId,
         bank_account_id: bankAccountId,
@@ -259,38 +303,26 @@ export class BankStatementImportService {
         throw BankStatementImportErrors.CREATE_FAILED();
       }
 
-      // Create analysis result
-      const analysis: BankStatementAnalysis = {
-        total_rows: rows.length,
-        valid_rows: validRows.length,
-        invalid_rows: invalidRows.length,
-        date_range_start: dateRangeStart,
-        date_range_end: dateRangeEnd,
-        preview,
-        duplicates,
-        duplicate_count: duplicates.length,
-        column_mapping: columnMapping,
-        errors: validationErrors,
-        warnings: this.generateWarnings(duplicates, invalidRows),
-      };
+      // ✅ FIXED: Use the existing analysis object (no duplicate declaration)
+      analysis.warnings = this.generateWarnings(duplicates, invalidRows);
 
       // Update import with analysis data
       await this.repository.update(importRecord.id, {
         status: IMPORT_STATUS.ANALYZED,
         total_rows: rows.length,
-        date_range_start: dateRangeStart || undefined,
-        date_range_end: dateRangeEnd || undefined,
+        date_range_start: simplifiedDateRangeStart || undefined,
+        date_range_end: simplifiedDateRangeEnd || undefined,
         analysis_data: {
-          preview: preview,
-          duplicates: duplicates,
-          duplicate_count: duplicates.length,
+          preview: analysis.preview,
+          duplicates: analysis.duplicates,
+          duplicate_count: analysis.duplicate_count,
           invalid_count: invalidRows.length,
           column_mapping: columnMapping,
           date_range: {
-            start: dateRangeStart,
-            end: dateRangeEnd,
+            start: simplifiedDateRangeStart,
+            end: simplifiedDateRangeEnd,
           },
-          warnings: analysis.warnings,
+          warnings: analysis.warnings || [],
           analyzed_at: new Date().toISOString(),
         } as any,
       });
@@ -2460,13 +2492,14 @@ export class BankStatementImportService {
       transaction_date: r.transaction_date,
       debit_amount: r.debit_amount,
       credit_amount: r.credit_amount,
+      bank_account_id: bankAccountId
     }));
 
-    const existingStatements =
-      await this.repository.checkDuplicates(transactions.map(t => ({
-        ...t,
-        balance: 0  // Pass balance=0 as placeholder - checked in detector
-      } as any)));
+    // ✅ FIXED: Pass bankAccountId to repository
+    const existingStatements = await this.repository.checkDuplicates(
+      transactions, 
+      bankAccountId
+    );
 
     // Use the duplicate detector for more robust matching
     const parsedRows = rows.map((r) => ({
@@ -2476,6 +2509,7 @@ export class BankStatementImportService {
       description: r.description,
       debit_amount: r.debit_amount,
       credit_amount: r.credit_amount,
+      balance: r.balance, // Pass actual balance
       is_valid: true,
     }));
 

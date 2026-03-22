@@ -167,13 +167,13 @@ export class DuplicateDetector {
         const rowBalance = typeof row.balance === 'number' ? row.balance : 0
         const existingBalance = existing.balance || 0
         
-        // Hard reject different balance (strongest signal)
-        if (Math.abs(rowBalance - existingBalance) > 1) {
-          return // Rp1 tolerance
+        // ✅ STRICT BALANCE: exact match tolerance 0.01 (overlapping periods)
+        if (Math.abs(rowBalance - existingBalance) > 0.01) {
+          return 
         }
         
-        // +25 points for balance match (high confidence indicator)
-        let matchScore = 25 // Base balance points
+        // +30 points for exact balance match (ULTIMATE signal)
+        let matchScore = 30
 
         // Add entity + other scoring  
         matchScore += this.calculateMatchScore(row, existing)
