@@ -184,7 +184,8 @@ function BankStatementImportDetailPageContent() {
         case 'processed':
           return processedPreview?.preview_rows || []
         case 'filtered':
-          return filteredPreview?.preview_rows || []
+          // ✅ Filtered rows rejected before DB - show empty + explanation
+          return [] // No preview available for pre-insert rejections
         case 'valid':
         case 'duplicate': 
         case 'invalid':
@@ -206,7 +207,9 @@ function BankStatementImportDetailPageContent() {
   const validCount = processedPreview?.preview_rows.filter(row => row.is_valid && !duplicateRowNumbers.has(row.row_number)).length || 0
   const duplicateCount = processedPreview?.preview_rows.filter(row => duplicateRowNumbers.has(row.row_number)).length || 0
   const invalidCount = processedPreview?.preview_rows.filter(row => !row.is_valid).length || 0
-  const filteredTotal = invalidCount + duplicateCount
+  // ✅ FIXED: True filtered = original - processed (rejected before DB)
+  const calculatedFilteredTotal = (importData?.total_rows || 0) - (importData?.processed_rows || 0)
+  const filteredTotal = calculatedFilteredTotal > 0 ? calculatedFilteredTotal : 0
 
   // Open description modal
   const openDescriptionModal = (description: string, rowNumber: number, date: string) => {
@@ -534,15 +537,16 @@ function BankStatementImportDetailPageContent() {
                   Pratinjau Data
                 </h2>
                 {/* ✅ FIXED: Crystal clear 395 vs 156 explanation */}
+                {/* ✅ FIXED: Header uses reliable importData counts */}
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                  📊 Original CSV: {originalPreview?.total_rows?.toLocaleString() || 'N/A'} rows | 
-                  ✅ Processed: {processedPreview?.total_rows?.toLocaleString() || '0'} rows | 
-                  ❌ Filtered: {filteredTotal.toLocaleString()} rows
+                  📊 Original CSV: {originalPreview?.total_rows?.toLocaleString() || importData?.total_rows?.toLocaleString() || 'N/A'} rows | 
+                  ✅ Processed: {importData?.processed_rows?.toLocaleString() || '0'} rows | 
+                  ❌ Filtered Out: {filteredTotal.toLocaleString()} rows (rejected before DB)
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {originalPreview ? 'Full CSV (temp storage)' : 'Original unavailable (temp cleared)'} | 
-                  {processedPreview ? 'Database rows' : 'No processed data'} | 
-                  Invalid + Duplicates
+                  {originalPreview ? `Full CSV (${originalPreview.preview_rows.length} fetched)` : 'Original unavailable (temp cleared)'} | 
+                  {processedPreview ? `DB rows (${processedPreview.preview_rows.length} shown)` : 'No processed data'} | 
+                  {filteredTotal > 0 ? `Rejected before insert (${filteredTotal} rows)` : 'No rejections'}
                 </p>
               </div>
             </div>
