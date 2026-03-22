@@ -128,6 +128,10 @@ export function BankStatementImportListPage() {
     return await uploadFile(file, bankAccountId)
   }
 
+  const handleCancel = async () => {
+    await closeAnalysisModal()
+  }
+
   const handleConfirm = async (skipDuplicates: boolean) => {
     try {
       await confirmImport(skipDuplicates)
@@ -572,7 +576,7 @@ export function BankStatementImportListPage() {
       <AnalysisModal
         result={analyzeResult}
         onConfirm={handleConfirm}
-        onCancel={closeAnalysisModal}
+        onCancel={handleCancel}
         error={errors.confirm}
       />
 

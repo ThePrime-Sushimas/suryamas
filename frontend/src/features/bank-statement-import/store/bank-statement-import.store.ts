@@ -609,7 +609,30 @@ export const useBankStatementImportStore = create<BankStatementImportState>((set
   openUploadModal: () => set({ showUploadModal: true }),
   closeUploadModal: () => set({ showUploadModal: false }),
   openAnalysisModal: () => set({ showAnalysisModal: true }),
-  closeAnalysisModal: () => set({ showAnalysisModal: false, analyzeResult: null, currentImport: null }),
+  closeAnalysisModal: async () => {
+    const { currentImport, loading } = get()
+    
+    // Block jika sedang processing
+    if (loading.confirm) return
+    
+    // Delete file jika ada
+    if (currentImport?.id) {
+      try {
+        await bankStatementImportApi.delete(currentImport.id)
+      } catch {
+        // Gagal delete? tetap lanjut tutup
+      }
+    }
+
+    // Fetch ulang + clear state
+    await get().fetchImports()
+    
+    set({ 
+      showAnalysisModal: false, 
+      analyzeResult: null, 
+      currentImport: null 
+    })
+  },
   openConfirmModal: () => set({ showConfirmModal: true }),
   closeConfirmModal: () => set({ showConfirmModal: false }),
 

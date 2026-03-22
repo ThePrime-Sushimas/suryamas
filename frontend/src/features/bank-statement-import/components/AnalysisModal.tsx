@@ -128,6 +128,7 @@ const [isProcessing, setIsProcessing] = useState(false)
       setPreviewLoading(false)
       return
     }
+    const controller = new AbortController()
 
     setPreviewLoading(true)
     bankStatementImportApi.getPreview(processedData.imp.id, processedData.total_rows)
@@ -135,11 +136,14 @@ const [isProcessing, setIsProcessing] = useState(false)
         setPreviewRows(response.preview_rows || [])
       })
       .catch(err => {
+        // ← ignore abort error, itu expected
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
         console.error('Preview fetch failed:', err)
         setPreviewRows([])
       })
       .finally(() => setPreviewLoading(false))
-  }, [processedData.imp?.id, processedData.total_rows])
+      return () => controller.abort()
+    }, [processedData.imp?.id, processedData.total_rows])
 
   if (!result) return null
 
@@ -430,9 +434,13 @@ const handleConfirm = async () => {
             <div className="flex gap-3 w-full sm:w-auto">
               <button
                 type="button"
-                className="px-5 py-2.5 rounded-xl font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-sm flex-1 sm:flex-none"
-                onClick={handleCancel}
                 disabled={isProcessing}
+                className={`px-5 py-2.5 rounded-xl font-semibold text-sm flex-1 sm:flex-none transition-colors
+                  ${isProcessing 
+                    ? 'text-gray-400 bg-gray-100 cursor-not-allowed' 
+                    : 'text-gray-600 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700'
+                  }`}
+                onClick={handleCancel}
               >
                 Batal
               </button>
