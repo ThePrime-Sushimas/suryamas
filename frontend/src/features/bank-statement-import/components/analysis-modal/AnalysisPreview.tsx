@@ -5,18 +5,21 @@ type PreviewTab = 'all' | 'valid' | 'duplicate' | 'invalid'
 
 interface AnalysisPreviewProps {
   previewData: unknown[]
+  totalImportableCount?: number
+  previewLoading?: boolean
   duplicates?: unknown[]
   invalidRows?: unknown[]
-  maxRows?: number
 }
 
 export function AnalysisPreview({ 
   previewData, 
+  totalImportableCount = 0,
+  previewLoading = false,
   duplicates = [],
-  invalidRows = [],
-  maxRows = 10 
+  invalidRows = []
 }: AnalysisPreviewProps) {
   const [activeTab, setActiveTab] = useState<PreviewTab>('all')
+  const maxRows = 9999; // ✅ FIXED: Show ALL preview data
 
   // Combine all data with type markers
   const allData = useMemo(() => {
@@ -46,19 +49,22 @@ export function AnalysisPreview({
     return combined
   }, [previewData, duplicates, invalidRows])
 
-  // Filter data based on active tab
+  // Filter data based on active tab  
   const displayData = useMemo(() => {
     let filtered = allData
     if (activeTab !== 'all') {
       filtered = allData.filter(item => item.type === activeTab)
     }
+    // ✅ FIXED: Show ALL valid data for import preview
     return filtered.slice(0, maxRows)
-  }, [allData, activeTab, maxRows])
+  }, [allData, activeTab])
+
 
   const validCount = Array.isArray(previewData) ? previewData.length : 0
   const duplicateCount = Array.isArray(duplicates) ? duplicates.length : 0
   const invalidCount = Array.isArray(invalidRows) ? invalidRows.length : 0
-  const totalCount = validCount + duplicateCount + invalidCount
+  // ✅ FIXED: "Semua" = ACTUAL import data (passed from Modal: valid_rows - duplicates)
+  const totalCount = totalImportableCount || validCount
 
   const truncateText = (text: string, maxLength: number = 35): string => {
     if (!text) return '-'
@@ -139,6 +145,47 @@ export function AnalysisPreview({
     }
   }
 
+  if (previewLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-2 border-b border-gray-100 dark:border-gray-800 pb-3">
+          <div className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse h-6 w-20"></div>
+          <div className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse h-6 w-24"></div>
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-32 animate-pulse"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24 animate-pulse"></div>
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm animate-pulse">
+          <table className="table table-sm w-full">
+            <thead className="bg-gray-50/50 dark:bg-gray-800/50">
+              <tr>
+                <th className="py-3 px-4"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-8"></div></th>
+                <th className="py-3 px-4"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20"></div></th>
+                <th className="py-3 px-4"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div></th>
+                <th className="py-3 px-4 text-right"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-16 mx-auto"></div></th>
+                <th className="py-3 px-4 text-right"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-16 mx-auto"></div></th>
+                <th className="py-3 px-4"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-12"></div></th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...Array(5)].map((_, i) => (
+                <tr key={i}>
+                  <td className="py-3 px-4"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-6"></div></td>
+                  <td className="py-3 px-4"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24"></div></td>
+                  <td className="py-3 px-4"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-48"></div></td>
+                  <td className="py-3 px-4 text-right"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20 mx-auto"></div></td>
+                  <td className="py-3 px-4 text-right"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20 mx-auto"></div></td>
+                  <td className="py-3 px-4"><div className="h-6 bg-gray-200 dark:bg-gray-700 rounded-full w-16 mx-auto"></div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
   if (totalCount === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
@@ -160,7 +207,7 @@ export function AnalysisPreview({
               : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
           }`}
         >
-          Semua ({totalCount})
+          Semua ({totalCount.toLocaleString()})
         </button>
         <button
           onClick={() => setActiveTab('valid')}
@@ -209,9 +256,8 @@ export function AnalysisPreview({
           {activeTab === 'invalid' && 'Data Invalid'}
         </h4>
         <span className="text-xs text-gray-500">
-          Menampilkan {displayData.length} dari {
-            activeTab === 'all' ? totalCount :
-            activeTab === 'valid' ? validCount :
+          Menampilkan {displayData.length.toLocaleString()} dari {
+            (activeTab === 'all' || activeTab === 'valid') ? totalCount :
             activeTab === 'duplicate' ? duplicateCount :
             invalidCount
           } baris
@@ -276,7 +322,7 @@ export function AnalysisPreview({
         <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
           <Eye className="w-4 h-4" />
           <span>
-            Menampilkan {maxRows} dari {
+            Menampilkan {maxRows.toLocaleString()} dari {
               activeTab === 'all' ? totalCount :
               activeTab === 'valid' ? validCount :
               activeTab === 'duplicate' ? duplicateCount :

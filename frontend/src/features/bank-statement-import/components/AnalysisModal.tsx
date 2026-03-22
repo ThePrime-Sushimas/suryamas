@@ -1,4 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { bankStatementImportApi } from '../api/bank-statement-import.api'
+import type { BankStatementPreviewRow } from '../types/bank-statement-import.types'
 import ReactDOM from 'react-dom'
 import {
   AlertTriangle,
@@ -38,18 +40,25 @@ export function AnalysisModal({
 
   const [isProcessing, setIsProcessing] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [previewRows, setPreviewRows] = useState<BankStatementPreviewRow[]>([])
+  const [previewLoading, setPreviewLoading] = useState(true)
 
   // Process result data with useMemo before any early returns
-  const processedData = useMemo(() => {
+  const processedData = useMemo<{ 
+    imp: any;
+    duplicateCount: number;
+    total_rows: number;
+    valid_rows: number;
+    duplicates: unknown[];
+    invalidRows: unknown[];
+    warnings: string[];
+  }>(() => {
     if (!result) {
       return {
         imp: null,
         duplicateCount: 0,
         total_rows: 0,
         valid_rows: 0,
-        invalid_rows: 0,
-        pendingCount: 0,
-        preview: [],
         duplicates: [],
         invalidRows: [],
         warnings: [],
@@ -67,23 +76,18 @@ export function AnalysisModal({
     // ✅ FIXED PRIORITY: analysis.* > stats.* > 0
     let total_rows = 0
     let valid_rows = 0  
-    let invalid_rows = 0
     
     if (analysis) {
       total_rows = analysis.total_rows || 0
       valid_rows = analysis.valid_rows || 0
-      invalid_rows = analysis.invalid_rows || 0
     } else if (stats) {
       total_rows = stats.total_rows || 0
       valid_rows = stats.valid_rows || 0
-      invalid_rows = stats.invalid_rows || 0
     }
     
-    // Calculate pending (rows that are not valid and not invalid)
-    const pendingCount = total_rows - valid_rows - invalid_rows
+
     
-    // For preview, use analysis.preview (from upload) or summary.preview (from summary endpoint)
-    const rawPreview = analysis?.preview || summary?.preview || []
+
     const warnings = resultWarnings || []
     
     // Get duplicates and invalid rows for preview
@@ -102,26 +106,37 @@ export function AnalysisModal({
     })
     
     // Filter preview to only show valid (non-duplicate) rows
-    const preview = Array.isArray(rawPreview) 
-      ? rawPreview.filter((row: unknown) => {
-          const r = row as { row_number?: number }
-          return !duplicateRowNumbers.has(r.row_number || 0)
-        })
-      : []
 
     return {
       imp,
       duplicateCount,
       total_rows,
       valid_rows,
-      invalid_rows,
-      pendingCount,
-      preview,
       duplicates,
       invalidRows,
       warnings,
     }
   }, [result])
+
+  // ✅ FIXED: Fetch FULL preview data (not sample) for modal tabs
+  useEffect(() => {
+    if (!processedData.imp?.id || processedData.total_rows === 0) {
+      setPreviewRows([])
+      setPreviewLoading(false)
+      return
+    }
+
+    setPreviewLoading(true)
+    bankStatementImportApi.getPreview(processedData.imp.id, processedData.total_rows)
+      .then(response => {
+        setPreviewRows(response.preview_rows || [])
+      })
+      .catch(err => {
+        console.error('Preview fetch failed:', err)
+        setPreviewRows([])
+      })
+      .finally(() => setPreviewLoading(false))
+  }, [processedData.imp?.id, processedData.total_rows])
 
   if (!result) return null
 
@@ -129,10 +144,7 @@ export function AnalysisModal({
     imp, 
     duplicateCount, 
     total_rows, 
-    valid_rows, 
-    invalid_rows, 
-    pendingCount, 
-    preview, 
+    valid_rows,
     duplicates, 
     invalidRows, 
     warnings 
@@ -342,9 +354,11 @@ const handleConfirm = async () => {
           {/* Tab Content */}
           <div className="min-h-[300px]">
             {activeTab === 'summary' && <AnalysisSummary result={result} />}
-            {activeTab === 'preview' && (
+{activeTab === 'preview' && (
               <AnalysisPreview 
-                previewData={preview} 
+                previewData={previewRows.filter(row => row.is_valid)}
+                totalImportableCount={valid_rows - duplicateCount}
+                previewLoading={previewLoading}
                 duplicates={duplicates}
                 invalidRows={invalidRows}
               />
