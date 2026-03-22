@@ -114,6 +114,11 @@ export class DuplicateDetector {
 
     rows.forEach((row) => {
       existingStatements.forEach((existing) => {
+        // BALANCE CHECK: Different balance = different transaction
+        const rowBalance = typeof row.balance === 'number' ? row.balance : 0
+        const existingBalance = existing.balance || 0
+        if (Math.abs(rowBalance - existingBalance) > 1) return // Rp1 tolerance
+
         const matchScore = this.calculateMatchScore(row, existing)
 
         if (matchScore >= matchThreshold) {

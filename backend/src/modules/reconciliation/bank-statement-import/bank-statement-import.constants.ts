@@ -24,7 +24,7 @@ export const BATCH_PROCESSING = {
 
 // Duplicate detection
 export const DUPLICATE_DETECTION = {
-  MATCH_THRESHOLD: 80, // 80% match score
+  MATCH_THRESHOLD: 90, // Require reference/desc match for fees
   MAX_DUPLICATE_CHECK: 1000,
 }
 

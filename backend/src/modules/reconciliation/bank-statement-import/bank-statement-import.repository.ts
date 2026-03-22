@@ -484,20 +484,17 @@ export class BankStatementImportRepository {
    * Check for duplicate transactions
    * Improved to handle empty reference_numbers and match by date + amount + description similarity
    */
-  async checkDuplicates(transactions: { reference_number?: string; transaction_date: string; debit_amount: number; credit_amount: number; description?: string }[]): Promise<BankStatement[]> {
+ async checkDuplicates(transactions: { reference_number?: string; transaction_date: string; debit_amount: number; credit_amount: number; description?: string; balance?: number }[]): Promise<BankStatement[]> {
     if (transactions.length === 0) return []
 
-    // Build conditions for duplicate checking
-    // We check for exact matches on: date + debit + credit
-    // Reference number is used if available, but not required
     const dateAmountPairs = transactions.map(t => ({
       transaction_date: t.transaction_date,
       debit_amount: t.debit_amount,
       credit_amount: t.credit_amount,
-      description: t.description || ''
+      description: t.description || '',
+      reference_number: t.reference_number || ''
     }))
 
-    // Remove duplicates from dateAmountPairs to reduce query size
     const uniquePairs = dateAmountPairs.filter((pair, index, self) =>
       index === self.findIndex(p => 
         p.transaction_date === pair.transaction_date &&
@@ -506,44 +503,42 @@ export class BankStatementImportRepository {
       )
     )
 
-    // Query for each unique pair
     const allDuplicates: BankStatement[] = []
     
     for (const pair of uniquePairs) {
-      const { data, error } = await supabase
+      // STRICTER: Require description OR reference match + date+amount
+      let query = supabase
         .from('bank_statements')
-        .select('id, reference_number, transaction_date, credit_amount, debit_amount, import_id, description')
+        .select('id, reference_number, transaction_date, credit_amount, debit_amount, import_id, description, balance')
         .eq('transaction_date', pair.transaction_date)
         .eq('debit_amount', pair.debit_amount)
         .eq('credit_amount', pair.credit_amount)
         .is('deleted_at', null)
-        .limit(50)
+        .limit(20)
+
+      // Add description OR reference condition
+      if (pair.description && pair.description.trim()) {
+        const descKeywords = pair.description.substring(0, 100).split(' ').filter(Boolean).slice(0, 3)
+        if (descKeywords.length > 0) {
+          query = query.or(
+            `description.ilike.%${descKeywords.join('%')}%,
+             reference_number.eq.${pair.reference_number || ''}`
+          )
+        }
+      } else if (pair.reference_number) {
+        query = query.eq('reference_number', pair.reference_number)
+      }
+
+      const { data, error } = await query
 
       if (error) {
         logError('BankStatementImportRepository.checkDuplicates error', { error: error.message, pair })
         continue
       }
 
-      if (data && data.length > 0) {
-        // Filter by description similarity if description is provided
-        // This helps catch duplicates even when reference numbers are empty
-        if (pair.description && pair.description.length > 10) {
-          const similarDuplicates = (data as BankStatement[]).filter(stmt => {
-            if (!stmt.description) return true // Include if no description to compare
-            const similarity = this.calculateDescriptionSimilarity(
-              pair.description.toLowerCase(),
-              stmt.description.toLowerCase()
-            )
-            return similarity > 0.7 // 70% similarity threshold
-          })
-          allDuplicates.push(...similarDuplicates)
-        } else {
-          allDuplicates.push(...data as BankStatement[])
-        }
-      }
+      allDuplicates.push(...(data as BankStatement[]))
     }
 
-    // Remove duplicates from results
     const uniqueDuplicates = allDuplicates.filter((dup, index, self) =>
       index === self.findIndex(d => d.id === dup.id)
     )

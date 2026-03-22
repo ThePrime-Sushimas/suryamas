@@ -222,21 +222,8 @@ export class BankStatementImportService {
         bankAccountId,
       );
 
-      // Check for intra-file duplicates (duplicates within the same file)
-      const intraFileDuplicates = duplicateDetector.detectIntraFileDuplicates(
-        validRows.map((r) => ({
-          row_number: r.row_number,
-          transaction_date: r.transaction_date,
-          reference_number: r.reference_number,
-          description: r.description,
-          debit_amount: r.debit_amount,
-          credit_amount: r.credit_amount,
-          is_valid: true,
-        })),
-      );
-
-      // Merge duplicates (existing + intra-file)
-      const duplicates = [...existingDuplicates, ...intraFileDuplicates];
+// Remove intra-file check per user request - focus DB vs import only
+      const duplicates = [...existingDuplicates];
 
       // Calculate date range
       const dates = validRows.map((r) => new Date(r.transaction_date));
@@ -475,21 +462,8 @@ export class BankStatementImportService {
         importRecord.bank_account_id,
       );
 
-      // Check for intra-file duplicates
-      const intraFileDuplicates = duplicateDetector.detectIntraFileDuplicates(
-        validRows.map((r) => ({
-          row_number: r.row_number,
-          transaction_date: r.transaction_date,
-          reference_number: r.reference_number,
-          description: r.description,
-          debit_amount: r.debit_amount,
-          credit_amount: r.credit_amount,
-          is_valid: true,
-        })),
-      );
-
-      // Merge all duplicates
-      const allDuplicates = [...existingDuplicates, ...intraFileDuplicates];
+      // No intra-file check - focus DB vs import only
+      const allDuplicates = [...existingDuplicates];
 
       const duplicateKeys = new Set(
         allDuplicates.map(
@@ -509,7 +483,6 @@ export class BankStatementImportService {
         after_filter: rowsToInsert.length,
         skipped: validRows.length - rowsToInsert.length,
         existing_duplicates: existingDuplicates.length,
-        intra_file_duplicates: intraFileDuplicates.length,
       });
     }
 
@@ -2490,7 +2463,10 @@ export class BankStatementImportService {
     }));
 
     const existingStatements =
-      await this.repository.checkDuplicates(transactions);
+      await this.repository.checkDuplicates(transactions.map(t => ({
+        ...t,
+        balance: 0  // Pass balance=0 as placeholder - checked in detector
+      } as any)));
 
     // Use the duplicate detector for more robust matching
     const parsedRows = rows.map((r) => ({
