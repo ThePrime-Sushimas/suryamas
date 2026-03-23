@@ -32,12 +32,14 @@ export interface BankStatementImport {
   // API response returns: { job_id: "uuid-string" }
   job_id?: string
   // Analysis data stored in database
-  analysis_data?: {
+    analysis_data?: {
     preview?: BankStatementPreviewRow[]
     column_mapping?: Record<string, string>
     valid_rows?: number
     invalid_rows?: number
     warnings?: string[]
+    duplicates?: BankStatementDuplicateRow[]
+    duplicate_count?: number
   } | null
   created_by?: string
   deleted_at?: string | null

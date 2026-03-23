@@ -178,8 +178,8 @@ export function ImportProgressCard({
                 
                 {/* Error recovery info */}
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="text-xs px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded">
-                    {failed_rows.toLocaleString()} baris gagal
+              <span className="text-xs px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded">
+{importData.analysis_data?.duplicate_count ?? 0} duplikat dilewati
                   </span>
                   {onRetry && (
                     <button
@@ -212,10 +212,16 @@ export function ImportProgressCard({
             <p className="text-xs text-gray-500 dark:text-gray-400">Duplikat</p>
           </div>
           <div className="text-center">
+            <p className="text-lg font-bold text-orange-600 dark:text-orange-400">
+{importData.analysis_data?.duplicate_count ?? importData.analysis_data?.duplicates?.length ?? 0}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Duplikat</p>
+          </div>
+          <div className="text-center">
             <p className="text-lg font-bold text-red-600 dark:text-red-400">
               {failed_rows.toLocaleString()}
             </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Gagal</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Error</p>
           </div>
         </div>
       </div>

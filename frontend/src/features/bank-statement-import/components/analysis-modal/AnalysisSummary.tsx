@@ -109,10 +109,10 @@ export function AnalysisSummary({ result }: AnalysisSummaryProps) {
         </div>
 
         {/* Duplicates */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+        <div className="bg-amber-50 dark:bg-amber-950/50 rounded-xl p-4 border border-amber-200/50 dark:border-amber-800/50">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Duplikat</span>
-            <AlertCircle className="w-4 h-4 text-orange-500" />
+            <span className="text-sm font-medium text-amber-800 dark:text-amber-200">Duplikat</span>
+            <AlertCircle className="w-4 h-4 text-amber-500" />
           </div>
           <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             {duplicateCount.toLocaleString()}
