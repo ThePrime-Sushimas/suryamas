@@ -87,8 +87,8 @@ function BankStatementImportDetailPageContent() {
       })
       
       try {
-        // 1. Original: Full CSV (limit=importTotalRows → temp storage)
-        bankStatementImportApi.getPreview(numericId, importTotalRows)
+        // 1. Raw CSV: No limit (full preview if available)
+        bankStatementImportApi.getPreview(numericId, 0)
           .then(originalRes => setOriginalPreview({
             preview_rows: sortPreviewRows(originalRes.preview_rows || []),
             total_rows: originalRes.total_rows,
@@ -538,14 +538,14 @@ function BankStatementImportDetailPageContent() {
                 {/* ✅ FIXED: Crystal clear 395 vs 156 explanation */}
                 {/* ✅ FIXED: Header uses reliable importData counts */}
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                  📊 Original CSV: {originalPreview?.total_rows?.toLocaleString() || importData?.total_rows?.toLocaleString() || 'N/A'} rows | 
-                  ✅ Processed: {importData?.processed_rows?.toLocaleString() || '0'} rows | 
+                  📊 Raw CSV: {importData?.total_rows?.toLocaleString() || 'N/A'} rows | 
+                  ✅ Parsed to DB: {importData?.processed_rows?.toLocaleString() || '0'} rows | 
                   ❌ Filtered Out: {filteredTotal.toLocaleString()} rows (rejected before DB)
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {originalPreview ? `Full CSV (${originalPreview.preview_rows.length} fetched)` : 'Original unavailable (temp cleared)'} | 
-                  {processedPreview ? `DB rows (${processedPreview.preview_rows.length} shown)` : 'No processed data'} | 
-                  {filteredTotal > 0 ? `Rejected before insert (${filteredTotal} rows)` : 'No rejections'}
+                  Raw File: {importData?.total_rows?.toLocaleString()} total lines | 
+                  Parsed DB: {processedPreview?.preview_rows?.length || 0} shown | 
+                  Filtered Out: {filteredTotal} rows (header/invalid/skipped)
                 </p>
               </div>
             </div>
