@@ -374,6 +374,26 @@ export interface BankStatementImportJobMetadata {
 }
 
 // ============================================================================
+// REPOSITORY INTERFACES
+// ============================================================================
+
+export interface ImportJobParams {
+  importId: number
+  fileName: string
+  bankAccountId: number
+  companyId: string
+  skipDuplicates: boolean
+  totalRows: number
+  userId?: string
+}
+
+export interface JobProgressUpdate {
+  processed_rows: number
+  total_rows: number
+  percentage: number
+}
+
+// ============================================================================
 // VALIDATION INTERFACES
 // ============================================================================
 

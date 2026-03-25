@@ -11,7 +11,9 @@ import {
   UpdateBankStatementImportDto,
   CreateBankStatementDto,
   BankStatementImportFilterParams,
-  BankStatementFilterParams
+  BankStatementFilterParams,
+  ImportJobParams,
+  JobProgressUpdate,
 } from './bank-statement-import.types'
 import { BankStatementImportErrors } from './bank-statement-import.errors'
 import { logError, logWarn, logInfo } from '../../../config/logger'
@@ -675,7 +677,7 @@ export class BankStatementImportRepository {
 
     if (error) {
       logError('BankStatementImportRepository.countExistingStatements error', { companyId, bankAccountId, error: error.message })
-      return 0
+      throw new Error(`Failed to count existing statements: ${error.message}`)
     }
 
     return count || 0
@@ -684,15 +686,7 @@ export class BankStatementImportRepository {
   /**
    * Create background job record for import
    */
-  async createImportJob(params: {
-    importId: number
-    fileName: string
-    bankAccountId: number
-    companyId: string
-    skipDuplicates: boolean
-    totalRows: number
-    userId?: string
-  }): Promise<{ id: number }> {
+  async createImportJob(params: ImportJobParams): Promise<number> {
     const { data, error } = await supabase
       .from('jobs')
       .insert({
@@ -710,7 +704,7 @@ export class BankStatementImportRepository {
         user_id: params.userId,
         company_id: params.companyId,
       })
-      .select()
+      .select('id')
       .single()
 
     if (error) {
@@ -718,7 +712,13 @@ export class BankStatementImportRepository {
       throw new Error('Failed to create job')
     }
 
-    return { id: (data as any).id as number }
+    const jobId = (data as { id?: unknown } | null)?.id
+    if (typeof jobId !== 'number') {
+      logError('BankStatementImportRepository.createImportJob invalid response', { data })
+      throw new Error('Failed to create job')
+    }
+
+    return jobId
   }
 
   /**
@@ -726,7 +726,7 @@ export class BankStatementImportRepository {
    */
   async updateJobProgress(
     jobId: number,
-    progress: { processed_rows: number; total_rows: number; percentage: number }
+    progress: JobProgressUpdate
   ): Promise<void> {
     const { error } = await supabase
       .from('jobs')
@@ -741,7 +741,7 @@ export class BankStatementImportRepository {
   /**
    * Get import file name (for source_file field)
    */
-  async getImportFileName(importId: number): Promise<string | null> {
+  async getImportFileName(importId: number): Promise<string> {
     const { data, error } = await supabase
       .from('bank_statement_imports')
       .select('file_name')
@@ -749,17 +749,22 @@ export class BankStatementImportRepository {
       .maybeSingle()
 
     if (error) {
-      logWarn('BankStatementImportRepository.getImportFileName error', { importId, error: error.message })
-      return null
+      logError('BankStatementImportRepository.getImportFileName error', { importId, error: error.message })
+      throw new Error(`Failed to get import file name: ${error.message}`)
     }
 
-    return (data as any)?.file_name ?? null
+    const fileName = (data as { file_name?: unknown } | null)?.file_name
+    if (typeof fileName !== 'string' || fileName.length === 0) {
+      throw new Error(`Import with ID ${importId} not found`)
+    }
+
+    return fileName
   }
 
   /**
    * Store temporary import rows to Supabase Storage
    */
-  async uploadTemporaryData(importId: number, rows: any[]): Promise<void> {
+  async uploadTemporaryData<T = any>(importId: number, rows: T[]): Promise<void> {
     const jsonData = JSON.stringify(rows)
     const { error } = await supabase.storage
       .from('bank-statement-imports-temp')
@@ -779,7 +784,7 @@ export class BankStatementImportRepository {
   /**
    * Retrieve temporary import rows from Supabase Storage
    */
-  async downloadTemporaryData(importId: number): Promise<any[]> {
+  async downloadTemporaryData<T = any>(importId: number): Promise<T[]> {
     const { data, error } = await supabase.storage
       .from('bank-statement-imports-temp')
       .download(`${importId}.json`)
@@ -790,7 +795,7 @@ export class BankStatementImportRepository {
     }
 
     const text = await data.text()
-    return JSON.parse(text)
+    return JSON.parse(text) as T[]
   }
 
   /**

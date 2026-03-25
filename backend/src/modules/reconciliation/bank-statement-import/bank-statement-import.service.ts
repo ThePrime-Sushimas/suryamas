@@ -213,14 +213,24 @@ export class BankStatementImportService {
       // ✅ OVERLAP WARNING: Alert user about existing data
       let overlapWarning = '';
       if (dateRangeStart && dateRangeEnd) {
-        const count = await this.repository.countExistingStatements(
-          companyId,
-          bankAccountId,
-          dateRangeStart,
-          dateRangeEnd,
-        )
-        if (count > 0) {
-          overlapWarning = `⚠️ Found ${count} existing statements (${dateRangeStart} to ${dateRangeEnd}). Duplicates will be filtered if skip_duplicates=true.`
+        try {
+          const count = await this.repository.countExistingStatements(
+            companyId,
+            bankAccountId,
+            dateRangeStart,
+            dateRangeEnd,
+          )
+          if (count > 0) {
+            overlapWarning = `⚠️ Found ${count} existing statements (${dateRangeStart} to ${dateRangeEnd}). Duplicates will be filtered if skip_duplicates=true.`
+          }
+        } catch (error: any) {
+          logError("BankStatementImport: Failed to count overlap statements", {
+            company_id: companyId,
+            bank_account_id: bankAccountId,
+            date_range_start: dateRangeStart,
+            date_range_end: dateRangeEnd,
+            error: error?.message || String(error),
+          });
         }
       }
 
@@ -381,7 +391,7 @@ export class BankStatementImportService {
     }
 
     // Create job
-    const job = await this.repository.createImportJob({
+    const jobId = await this.repository.createImportJob({
       importId,
       fileName: importRecord.file_name,
       bankAccountId: importRecord.bank_account_id,
@@ -394,12 +404,12 @@ export class BankStatementImportService {
     // Update import status and job_id
     await this.repository.update(importId, {
       status: IMPORT_STATUS.IMPORTING,
-      job_id: String(job.id),
+      job_id: String(jobId),
     });
 
     logInfo("BankStatementImport: Job created", {
       import_id: importId,
-      job_id: job.id,
+      job_id: jobId,
     });
 
     // Audit log for confirmation
@@ -409,12 +419,12 @@ export class BankStatementImportService {
       String(importId),
       userId || null,
       { status: importRecord.status },
-      { status: IMPORT_STATUS.IMPORTING, job_id: String(job.id) },
+      { status: IMPORT_STATUS.IMPORTING, job_id: String(jobId) },
     );
 
     return {
       import: importRecord,
-      job_id: String(job.id),
+      job_id: String(jobId),
     };
   }
 
@@ -2376,8 +2386,16 @@ export class BankStatementImportService {
     // Get import record to get file_name for source_file
     let importRecord: any = null;
     if (importId) {
-      const fileName = await this.repository.getImportFileName(importId)
-      importRecord = fileName ? { file_name: fileName } : null
+      try {
+        const fileName = await this.repository.getImportFileName(importId)
+        importRecord = { file_name: fileName }
+      } catch (error: any) {
+        logError("BankStatementImport: Failed to load import file name", {
+          import_id: importId,
+          error: error?.message || String(error),
+        });
+        importRecord = null;
+      }
     }
 
     const validRows: any[] = [];
