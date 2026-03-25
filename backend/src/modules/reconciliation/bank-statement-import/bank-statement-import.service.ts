@@ -2559,6 +2559,8 @@ export class BankStatementImportService {
     } catch (error) {
       logError("BankStatementImport: retrieveTemporaryData error", {
         importId,
+        bucket: "bank-statement-imports-temp",
+        path: `${importId}.json`,
         error,
       });
       throw new Error("Temporary data not found. Please re-upload the file.");

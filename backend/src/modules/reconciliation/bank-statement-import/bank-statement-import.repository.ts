@@ -17,6 +17,7 @@ import {
 } from './bank-statement-import.types'
 import { BankStatementImportErrors } from './bank-statement-import.errors'
 import { logError, logWarn, logInfo } from '../../../config/logger'
+import { jobsRepository } from '@/modules/jobs'
 
 // ============================================================================
 // REPOSITORY CLASS
@@ -723,13 +724,15 @@ export class BankStatementImportRepository {
     jobId: string,
     progress: JobProgressUpdate
   ): Promise<void> {
-    const { error } = await supabase
-      .from('jobs')
-      .update({ progress })
-      .eq('id', jobId)
-
-    if (error) {
-      logWarn('BankStatementImportRepository.updateJobProgress error', { jobId, error: error.message })
+    const percentage = Math.max(0, Math.min(100, Math.round(progress.percentage)))
+    try {
+      await jobsRepository.updateProgress(jobId, percentage)
+    } catch (error: any) {
+      logWarn('BankStatementImportRepository.updateJobProgress error', {
+        jobId,
+        percentage,
+        error: error?.message || String(error)
+      })
     }
   }
 
@@ -761,31 +764,180 @@ export class BankStatementImportRepository {
    */
   async uploadTemporaryData<T = any>(importId: number, rows: T[]): Promise<void> {
     const jsonData = JSON.stringify(rows)
+    const bucket = 'bank-statement-imports-temp'
+    const objectPath = `${importId}.json`
+
+    const supabaseHost = (() => {
+      try {
+        const url = process.env.SUPABASE_URL
+        if (!url) return null
+        return new URL(url).host
+      } catch {
+        return null
+      }
+    })()
+
+    // In Node, pass Buffer to avoid ambiguous string handling
+    const body = Buffer.from(jsonData, 'utf8')
     const { error } = await supabase.storage
-      .from('bank-statement-imports-temp')
-      .upload(`${importId}.json`, jsonData, {
+      .from(bucket)
+      .upload(objectPath, body, {
         contentType: 'application/json',
         upsert: true
       })
 
     if (error) {
-      logError('BankStatementImportRepository.uploadTemporaryData error', { importId, error: error.message })
+      logError('BankStatementImportRepository.uploadTemporaryData error', {
+        importId,
+        bucket,
+        path: objectPath,
+        supabase_host: supabaseHost,
+        error_name: (error as any)?.name,
+        error_message: (error as any)?.message,
+        error_status: (error as any)?.statusCode ?? (error as any)?.status,
+        error
+      })
       throw error
     }
 
-    logInfo('BankStatementImportRepository.uploadTemporaryData success', { importId })
+    // Postflight: verify object exists (best-effort, makes env mismatch obvious)
+    try {
+      const { data: listed, error: listErr } = await supabase.storage
+        .from(bucket)
+        .list('', { search: objectPath })
+      if (listErr) {
+        logWarn('BankStatementImportRepository.uploadTemporaryData verify list error', {
+          importId,
+          bucket,
+          path: objectPath,
+          supabase_host: supabaseHost,
+          error_name: (listErr as any)?.name,
+          error_message: (listErr as any)?.message,
+          error: listErr
+        })
+      } else {
+        const found = (listed || []).some(o => o.name === objectPath)
+        if (!found) {
+          logWarn('BankStatementImportRepository.uploadTemporaryData verify not found', {
+            importId,
+            bucket,
+            path: objectPath,
+            supabase_host: supabaseHost,
+            listed_names_sample: (listed || []).slice(0, 5).map(o => o.name)
+          })
+        }
+      }
+    } catch (e) {
+      logWarn('BankStatementImportRepository.uploadTemporaryData verify failed', {
+        importId,
+        bucket,
+        path: objectPath,
+        supabase_host: supabaseHost,
+        error_string: String(e)
+      })
+    }
+
+    logInfo('BankStatementImportRepository.uploadTemporaryData success', { importId, bucket, path: objectPath, supabase_host: supabaseHost })
   }
 
   /**
    * Retrieve temporary import rows from Supabase Storage
    */
   async downloadTemporaryData<T = any>(importId: number): Promise<T[]> {
+    const objectPath = `${importId}.json`
+    const bucket = 'bank-statement-imports-temp'
+    const supabaseHost = (() => {
+      try {
+        const url = process.env.SUPABASE_URL
+        if (!url) return null
+        return new URL(url).host
+      } catch {
+        return null
+      }
+    })()
+
+    // Preflight: check bucket existence to make errors actionable
+    try {
+      const { data: buckets, error: bucketErr } = await supabase.storage.listBuckets()
+      if (bucketErr) {
+        logWarn('BankStatementImportRepository.downloadTemporaryData listBuckets error', {
+          importId,
+          bucket,
+          path: objectPath,
+          error_name: (bucketErr as any)?.name,
+          error_message: (bucketErr as any)?.message,
+          error: bucketErr
+        })
+      } else {
+        const exists = buckets?.some(b => b.name === bucket) ?? false
+        if (!exists) {
+          logError('BankStatementImportRepository.downloadTemporaryData bucket missing', { importId, bucket })
+          throw new Error(`Storage bucket not found: ${bucket}`)
+        }
+      }
+    } catch (e) {
+      // If listBuckets itself fails (permissions/env), keep original behavior but with better log
+      logWarn('BankStatementImportRepository.downloadTemporaryData bucket preflight failed', {
+        importId,
+        bucket,
+        path: objectPath,
+        error_string: String(e)
+      })
+    }
+
     const { data, error } = await supabase.storage
-      .from('bank-statement-imports-temp')
-      .download(`${importId}.json`)
+      .from(bucket)
+      .download(objectPath)
 
     if (error) {
-      logError('BankStatementImportRepository.downloadTemporaryData error', { importId, error: error.message })
+      // Extra diagnostics: try list() to see if object exists (best-effort)
+      try {
+        const { data: listed, error: listErr } = await supabase.storage
+          .from(bucket)
+          .list('', { search: objectPath })
+        if (listErr) {
+          logWarn('BankStatementImportRepository.downloadTemporaryData list error', {
+            importId,
+            bucket,
+            path: objectPath,
+            error_name: (listErr as any)?.name,
+            error_message: (listErr as any)?.message,
+            error: listErr
+          })
+        } else {
+          logWarn('BankStatementImportRepository.downloadTemporaryData list result', {
+            importId,
+            bucket,
+            path: objectPath,
+            found: (listed || []).some(o => o.name === objectPath),
+            listed_names_sample: (listed || []).slice(0, 5).map(o => o.name)
+          })
+        }
+      } catch (e) {
+        logWarn('BankStatementImportRepository.downloadTemporaryData list diagnostic failed', {
+          importId,
+          bucket,
+          path: objectPath,
+          error_string: String(e)
+        })
+      }
+
+      logError('BankStatementImportRepository.downloadTemporaryData error', {
+        importId,
+        bucket,
+        path: objectPath,
+        supabase_host: supabaseHost,
+        error_name: (error as any)?.name,
+        error_message: (error as any)?.message,
+        error_status: (error as any)?.statusCode ?? (error as any)?.status,
+        error_string: String(error),
+        error_keys: error ? Object.getOwnPropertyNames(error as any) : [],
+        original_error_string: String((error as any)?.originalError),
+        original_error_keys: (error as any)?.originalError
+          ? Object.getOwnPropertyNames((error as any).originalError)
+          : [],
+        error
+      })
       throw error
     }
 
