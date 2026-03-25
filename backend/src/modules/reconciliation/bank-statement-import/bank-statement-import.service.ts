@@ -432,7 +432,7 @@ export class BankStatementImportService {
    * Process import (called by job worker)
    */
   async processImport(
-    jobId: number,
+    jobId: string,
     importId: number,
     companyId: string,
     skipDuplicates: boolean,

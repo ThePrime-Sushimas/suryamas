@@ -686,34 +686,29 @@ export class BankStatementImportRepository {
   /**
    * Create background job record for import
    */
-  async createImportJob(params: ImportJobParams): Promise<number> {
-    const { data, error } = await supabase
-      .from('jobs')
-      .insert({
-        name: `Import Bank Statement ${params.fileName}`,
-        type: 'import',
-        module: 'bank_statements',
-        status: 'pending',
-        metadata: {
-          importId: params.importId,
-          bankAccountId: params.bankAccountId,
-          companyId: params.companyId,
-          skipDuplicates: params.skipDuplicates,
-          totalRows: params.totalRows
-        },
-        user_id: params.userId,
-        company_id: params.companyId,
-      })
-      .select('id')
-      .single()
+  async createImportJob(params: ImportJobParams): Promise<string> {
+    const { data, error } = await supabase.rpc('create_job_atomic', {
+      p_user_id: params.userId,
+      p_company_id: params.companyId,
+      p_type: 'import',
+      p_module: 'bank_statements',
+      p_name: `Import Bank Statement ${params.fileName}`,
+      p_metadata: {
+        importId: params.importId,
+        bankAccountId: params.bankAccountId,
+        companyId: params.companyId,
+        skipDuplicates: params.skipDuplicates,
+        totalRows: params.totalRows
+      }
+    })
 
     if (error) {
       logError('BankStatementImportRepository.createImportJob error', { error: error.message })
-      throw new Error('Failed to create job')
+      throw new Error(`Failed to create job: ${error.message}`)
     }
 
     const jobId = (data as { id?: unknown } | null)?.id
-    if (typeof jobId !== 'number') {
+    if (typeof jobId !== 'string' || jobId.length === 0) {
       logError('BankStatementImportRepository.createImportJob invalid response', { data })
       throw new Error('Failed to create job')
     }
@@ -725,7 +720,7 @@ export class BankStatementImportRepository {
    * Update job progress payload
    */
   async updateJobProgress(
-    jobId: number,
+    jobId: string,
     progress: JobProgressUpdate
   ): Promise<void> {
     const { error } = await supabase

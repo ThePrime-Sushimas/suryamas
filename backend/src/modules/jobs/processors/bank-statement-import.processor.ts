@@ -71,10 +71,8 @@ export const processBankStatementImport: JobProcessor<BankStatementImportJobMeta
     const repository = new BankStatementImportRepository()
     const service = new BankStatementImportService(repository)
 
-    // Process the import - convert string jobId to number
-    const jobIdNum = parseInt(jobId, 10)
     const processResult = await service.processImport(
-      jobIdNum,
+      jobId,
       importId,
       importCompanyId,
       skipDuplicates || false
