@@ -14,7 +14,7 @@ import {
   BankStatementFilterParams
 } from './bank-statement-import.types'
 import { BankStatementImportErrors } from './bank-statement-import.errors'
-import { logError, logWarn } from '../../../config/logger'
+import { logError, logWarn, logInfo } from '../../../config/logger'
 
 // ============================================================================
 // REPOSITORY CLASS
@@ -637,6 +637,175 @@ export class BankStatementImportRepository {
 
     if (error) {
       logError('BankStatementImportRepository.deleteByImportId error', { importId, error: error.message })
+    }
+  }
+
+  /**
+   * Hard delete of an import record
+   */
+  async hardDelete(id: number): Promise<void> {
+    const { error } = await supabase
+      .from('bank_statement_imports')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      logError('BankStatementImportRepository.hardDelete error', { id, error: error.message })
+      throw new Error(`Failed to hard delete import: ${error.message}`)
+    }
+  }
+
+  /**
+   * Count existing statements in a date range
+   */
+  async countExistingStatements(
+    companyId: string,
+    bankAccountId: number,
+    startDate: string,
+    endDate: string
+  ): Promise<number> {
+    const { count, error } = await supabase
+      .from('bank_statements')
+      .select('*', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .eq('bank_account_id', bankAccountId)
+      .gte('transaction_date', startDate)
+      .lte('transaction_date', endDate)
+      .is('deleted_at', null)
+
+    if (error) {
+      logError('BankStatementImportRepository.countExistingStatements error', { companyId, bankAccountId, error: error.message })
+      return 0
+    }
+
+    return count || 0
+  }
+
+  /**
+   * Create background job record for import
+   */
+  async createImportJob(params: {
+    importId: number
+    fileName: string
+    bankAccountId: number
+    companyId: string
+    skipDuplicates: boolean
+    totalRows: number
+    userId?: string
+  }): Promise<{ id: number }> {
+    const { data, error } = await supabase
+      .from('jobs')
+      .insert({
+        name: `Import Bank Statement ${params.fileName}`,
+        type: 'import',
+        module: 'bank_statements',
+        status: 'pending',
+        metadata: {
+          importId: params.importId,
+          bankAccountId: params.bankAccountId,
+          companyId: params.companyId,
+          skipDuplicates: params.skipDuplicates,
+          totalRows: params.totalRows
+        },
+        user_id: params.userId,
+        company_id: params.companyId,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      logError('BankStatementImportRepository.createImportJob error', { error: error.message })
+      throw new Error('Failed to create job')
+    }
+
+    return { id: (data as any).id as number }
+  }
+
+  /**
+   * Update job progress payload
+   */
+  async updateJobProgress(
+    jobId: number,
+    progress: { processed_rows: number; total_rows: number; percentage: number }
+  ): Promise<void> {
+    const { error } = await supabase
+      .from('jobs')
+      .update({ progress })
+      .eq('id', jobId)
+
+    if (error) {
+      logWarn('BankStatementImportRepository.updateJobProgress error', { jobId, error: error.message })
+    }
+  }
+
+  /**
+   * Get import file name (for source_file field)
+   */
+  async getImportFileName(importId: number): Promise<string | null> {
+    const { data, error } = await supabase
+      .from('bank_statement_imports')
+      .select('file_name')
+      .eq('id', importId)
+      .maybeSingle()
+
+    if (error) {
+      logWarn('BankStatementImportRepository.getImportFileName error', { importId, error: error.message })
+      return null
+    }
+
+    return (data as any)?.file_name ?? null
+  }
+
+  /**
+   * Store temporary import rows to Supabase Storage
+   */
+  async uploadTemporaryData(importId: number, rows: any[]): Promise<void> {
+    const jsonData = JSON.stringify(rows)
+    const { error } = await supabase.storage
+      .from('bank-statement-imports-temp')
+      .upload(`${importId}.json`, jsonData, {
+        contentType: 'application/json',
+        upsert: true
+      })
+
+    if (error) {
+      logError('BankStatementImportRepository.uploadTemporaryData error', { importId, error: error.message })
+      throw error
+    }
+
+    logInfo('BankStatementImportRepository.uploadTemporaryData success', { importId })
+  }
+
+  /**
+   * Retrieve temporary import rows from Supabase Storage
+   */
+  async downloadTemporaryData(importId: number): Promise<any[]> {
+    const { data, error } = await supabase.storage
+      .from('bank-statement-imports-temp')
+      .download(`${importId}.json`)
+
+    if (error) {
+      logError('BankStatementImportRepository.downloadTemporaryData error', { importId, error: error.message })
+      throw error
+    }
+
+    const text = await data.text()
+    return JSON.parse(text)
+  }
+
+  /**
+   * Remove temporary import rows from Supabase Storage (best-effort)
+   */
+  async removeTemporaryData(importId: number): Promise<void> {
+    try {
+      const { data: buckets } = await supabase.storage.listBuckets()
+      const bucketExists = buckets?.some(b => b.name === 'bank-statement-imports-temp')
+      if (!bucketExists) return
+
+      await supabase.storage.from('bank-statement-imports-temp').remove([`${importId}.json`])
+      logInfo('BankStatementImportRepository.removeTemporaryData success', { importId })
+    } catch (error) {
+      logWarn('BankStatementImportRepository.removeTemporaryData error', { importId, error })
     }
   }
 }

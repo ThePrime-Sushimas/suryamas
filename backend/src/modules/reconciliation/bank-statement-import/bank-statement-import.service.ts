@@ -3,7 +3,6 @@
  * Handles business logic untuk bank statement import operations
  */
 
-import { supabase } from "../../../config/supabase";
 import { logInfo, logError } from "../../../config/logger";
 import { BankStatementImportRepository } from "./bank-statement-import.repository";
 import {
@@ -148,20 +147,7 @@ export class BankStatementImportService {
         });
 
         // Hard delete the old record to allow new upload
-        const { error: hardDeleteError } = await supabase
-          .from("bank_statement_imports")
-          .delete()
-          .eq("id", existingImport.id);
-
-        if (hardDeleteError) {
-          logError("BankStatementImport: Failed to hard delete old import", {
-            import_id: existingImport.id,
-            error: hardDeleteError.message,
-          });
-          throw new Error(
-            "Tidak dapat memproses file yang sama. Silakan coba lagi.",
-          );
-        }
+        await this.repository.hardDelete(existingImport.id)
 
         logInfo(
           "BankStatementImport: Successfully deleted old import, allowing new upload",
@@ -227,17 +213,14 @@ export class BankStatementImportService {
       // ✅ OVERLAP WARNING: Alert user about existing data
       let overlapWarning = '';
       if (dateRangeStart && dateRangeEnd) {
-        const { count } = await supabase
-          .from('bank_statements')
-          .select('*', { count: 'exact', head: true })
-          .eq('company_id', companyId)
-          .eq('bank_account_id', bankAccountId)
-          .gte('transaction_date', dateRangeStart)
-          .lte('transaction_date', dateRangeEnd)
-          .is('deleted_at', null);
-
-        if (count && count > 0) {
-          overlapWarning = `⚠️ Found ${count} existing statements (${dateRangeStart} to ${dateRangeEnd}). Duplicates will be filtered if skip_duplicates=true.`;
+        const count = await this.repository.countExistingStatements(
+          companyId,
+          bankAccountId,
+          dateRangeStart,
+          dateRangeEnd,
+        )
+        if (count > 0) {
+          overlapWarning = `⚠️ Found ${count} existing statements (${dateRangeStart} to ${dateRangeEnd}). Duplicates will be filtered if skip_duplicates=true.`
         }
       }
 
@@ -398,37 +381,20 @@ export class BankStatementImportService {
     }
 
     // Create job
-    const { data: job, error } = await supabase
-      .from("jobs")
-      .insert({
-        name: `Import Bank Statement ${importRecord.file_name}`,
-        type: "import",
-        module: "bank_statements",
-        status: "pending",
-        metadata: {
-          importId,
-          bankAccountId: importRecord.bank_account_id,
-          companyId,
-          skipDuplicates,
-          totalRows: importRecord.total_rows,
-        },
-        user_id: userId,
-        company_id: companyId,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      logError("BankStatementImport: Failed to create job", {
-        error: error.message,
-      });
-      throw new Error("Failed to create job");
-    }
+    const job = await this.repository.createImportJob({
+      importId,
+      fileName: importRecord.file_name,
+      bankAccountId: importRecord.bank_account_id,
+      companyId,
+      skipDuplicates,
+      totalRows: importRecord.total_rows,
+      userId,
+    })
 
     // Update import status and job_id
     await this.repository.update(importId, {
       status: IMPORT_STATUS.IMPORTING,
-      job_id: job.id,
+      job_id: String(job.id),
     });
 
     logInfo("BankStatementImport: Job created", {
@@ -443,7 +409,7 @@ export class BankStatementImportService {
       String(importId),
       userId || null,
       { status: importRecord.status },
-      { status: IMPORT_STATUS.IMPORTING, job_id: job.id },
+      { status: IMPORT_STATUS.IMPORTING, job_id: String(job.id) },
     );
 
     return {
@@ -536,18 +502,11 @@ export class BankStatementImportService {
       );
 
       // Update job progress
-      await supabase
-        .from("jobs")
-        .update({
-          progress: {
-            processed_rows: processedCount,
-            total_rows: rowsToInsert.length,
-            percentage: Math.round(
-              (processedCount / rowsToInsert.length) * 100,
-            ),
-          },
-        })
-        .eq("id", jobId);
+      await this.repository.updateJobProgress(jobId, {
+        processed_rows: processedCount,
+        total_rows: rowsToInsert.length,
+        percentage: Math.round((processedCount / rowsToInsert.length) * 100),
+      })
 
       logInfo("BankStatementImport: Batch processed", {
         import_id: importId,
@@ -2417,12 +2376,8 @@ export class BankStatementImportService {
     // Get import record to get file_name for source_file
     let importRecord: any = null;
     if (importId) {
-      const { data } = await supabase
-        .from("bank_statement_imports")
-        .select("file_name")
-        .eq("id", importId)
-        .maybeSingle();
-      importRecord = data;
+      const fileName = await this.repository.getImportFileName(importId)
+      importRecord = fileName ? { file_name: fileName } : null
     }
 
     const validRows: any[] = [];
@@ -2567,20 +2522,7 @@ export class BankStatementImportService {
     rows: any[],
   ): Promise<void> {
     try {
-      const jsonData = JSON.stringify(rows);
-      const { error } = await supabase.storage
-        .from("bank-statement-imports-temp")
-        .upload(`${importId}.json`, jsonData, {
-          contentType: "application/json",
-          upsert: true,
-        });
-
-      if (error) throw error;
-
-      logInfo(
-        "BankStatementImport: Stored temporary data in Supabase Storage",
-        { importId },
-      );
+      await this.repository.uploadTemporaryData(importId, rows)
     } catch (error) {
       logError("BankStatementImport: storeTemporaryData error", {
         importId,
@@ -2595,14 +2537,7 @@ export class BankStatementImportService {
    */
   private async retrieveTemporaryData(importId: number): Promise<any[]> {
     try {
-      const { data, error } = await supabase.storage
-        .from("bank-statement-imports-temp")
-        .download(`${importId}.json`);
-
-      if (error) throw error;
-
-      const text = await data.text();
-      return JSON.parse(text);
+      return await this.repository.downloadTemporaryData(importId)
     } catch (error) {
       logError("BankStatementImport: retrieveTemporaryData error", {
         importId,
@@ -2617,25 +2552,7 @@ export class BankStatementImportService {
    */
   private async cleanupTemporaryData(importId: number): Promise<void> {
     try {
-      // Check if storage bucket exists first
-      const { data: buckets } = await supabase.storage.listBuckets();
-      const bucketExists = buckets?.some(
-        (b) => b.name === "bank-statement-imports-temp",
-      );
-
-      if (!bucketExists) {
-        logInfo(
-          "BankStatementImport: Storage bucket not found, skipping cleanup",
-          { importId },
-        );
-        return;
-      }
-
-      await supabase.storage
-        .from("bank-statement-imports-temp")
-        .remove([`${importId}.json`]);
-
-      logInfo("BankStatementImport: Cleaned up temporary data", { importId });
+      await this.repository.removeTemporaryData(importId)
     } catch (error) {
       logError("BankStatementImport: cleanupTemporaryData error", {
         importId,
