@@ -430,7 +430,7 @@ export function BankReconciliationPage() {
         </div>
       )}
 
-      {/* Bank Account Tabs */}
+      {/* Bank Account Tabs
       <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 overflow-x-auto scrollbar-none pb-px">
         {bankAccounts.map((account) => (
           <button
@@ -463,7 +463,7 @@ export function BankReconciliationPage() {
             )}
           </button>
         ))}
-      </div>
+      </div> */}
 
       {/* Filters */}
       <BankReconciliationFilters

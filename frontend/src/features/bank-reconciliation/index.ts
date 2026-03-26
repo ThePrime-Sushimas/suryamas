@@ -9,7 +9,6 @@ export { MultiMatchModal } from "./components/reconciliation/MultiMatchModal";
 export { MultiMatchGroupList } from "./components/reconciliation/MultiMatchGroupList";
 export { ReconciliationSummaryCards } from "./components/reconciliation/ReconciliationSummary";
 export { BankReconciliationFilters } from "./components/BankReconciliationFilters";
-export { BankReconciliationHeader } from "./components/BankReconciliationHeader";
 export { ErrorBoundary, withErrorBoundary } from "./components/ErrorBoundary";
 
 // Hooks
