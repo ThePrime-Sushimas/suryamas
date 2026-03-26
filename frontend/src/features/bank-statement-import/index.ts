@@ -7,7 +7,6 @@ export { UploadModal } from './components/UploadModal'
 export { AnalysisModal } from './components/AnalysisModal'
 
 // Components
-export { ImportProgressCard, ImportProgressMini } from './components/ImportProgressCard'
 export { BankStatementImportStatusBadge } from './components/common/StatusBadge'
 
 // New Redesigned Components - Common

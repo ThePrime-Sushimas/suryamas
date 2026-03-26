@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   Upload,
   FileText,
@@ -9,26 +9,24 @@ import {
   Eye,
   Trash2,
   CheckSquare,
-  Trash
-} from 'lucide-react'
-import { useBankStatementImportStore } from '../store/bank-statement-import.store'
-import type { BankStatementImport } from '../types/bank-statement-import.types'
-import { TableSkeleton } from '@/components/ui/Skeleton'
-import { StatusBadge } from '../components/common/StatusBadge'
-import { UploadModal } from '../components/UploadModal'
-import { AnalysisModal } from '../components/AnalysisModal'
-import { ImportProgressCard } from '../components/ImportProgressCard'
-import { Pagination } from '@/components/ui/Pagination'
-import { formatFileSize } from '../utils/format'
-import { format } from 'date-fns'
-import { id as idLocale } from 'date-fns/locale'
-import { useNavigate } from 'react-router-dom'
-import { useToast } from '@/contexts/ToastContext'
-import { useJobPolling } from '@/hooks/_shared/useJobPolling'
+  Trash,
+} from "lucide-react";
+import { useBankStatementImportStore } from "../store/bank-statement-import.store";
+import { TableSkeleton } from "@/components/ui/Skeleton";
+import { StatusBadge } from "../components/common/StatusBadge";
+import { UploadModal } from "../components/UploadModal";
+import { AnalysisModal } from "../components/AnalysisModal";
+import { Pagination } from "@/components/ui/Pagination";
+import { formatFileSize } from "../utils/format";
+import { format } from "date-fns";
+import { id as idLocale } from "date-fns/locale";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/contexts/ToastContext";
+import { useJobPolling } from "@/hooks/_shared/useJobPolling";
 
 export function BankStatementImportListPage() {
-  const navigate = useNavigate()
-  const toast = useToast()
+  const navigate = useNavigate();
+  const toast = useToast();
 
   const {
     imports,
@@ -53,136 +51,150 @@ export function BankStatementImportListPage() {
     closeAnalysisModal,
     clearError,
     showUploadModal,
-  } = useBankStatementImportStore()
+  } = useBankStatementImportStore();
 
-  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState<number | null>(null)
-  const [showBulkDeleteConfirmation, setShowBulkDeleteConfirmation] = useState(false)
-  const [filters, setFilters] = useState({ search: '', status: '' })
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState<
+    number | null
+  >(null);
+  const [showBulkDeleteConfirmation, setShowBulkDeleteConfirmation] =
+    useState(false);
+  const [filters, setFilters] = useState({ search: "", status: "" });
 
   // Derived values - MUST be declared before useEffect that uses them
-  const importsArray = useMemo(() => Array.isArray(imports) ? imports : [], [imports])
+  const importsArray = useMemo(
+    () => (Array.isArray(imports) ? imports : []),
+    [imports],
+  );
 
   // Track which import IDs are currently being polled
-  const [polledImportIds, setPolledImportIds] = useState<Set<number>>(new Set())
+  const [polledImportIds, setPolledImportIds] = useState<Set<number>>(
+    new Set(),
+  );
 
   // Single job polling instance
-  const { startPolling, stopPolling, job: currentJob } = useJobPolling({
+  const { startPolling, stopPolling } = useJobPolling({
     interval: 2000,
     onComplete: useCallback(() => {
-      fetchImports()
+      fetchImports();
     }, [fetchImports]),
     onError: useCallback(() => {
-      fetchImports()
+      fetchImports();
     }, [fetchImports]),
-  })
+  });
 
   // Start polling for importing items - FIXED: proper cleanup and single polling
   useEffect(() => {
-    const importingItems = importsArray.filter(imp => imp.status === 'IMPORTING' && imp.job_id)
-    
+    const importingItems = importsArray.filter(
+      (imp) => imp.status === "IMPORTING" && imp.job_id,
+    );
+
     // Start polling for new importing items
-    importingItems.forEach(imp => {
+    importingItems.forEach((imp) => {
       if (!polledImportIds.has(imp.id) && imp.job_id) {
-        startPolling(imp.job_id)
-        setPolledImportIds(prev => new Set(prev).add(imp.id))
+        startPolling(imp.job_id);
+        setPolledImportIds((prev) => new Set(prev).add(imp.id));
       }
-    })
+    });
 
     // Cleanup: stop polling for items that are no longer importing
-    polledImportIds.forEach(importId => {
-      const stillImporting = importingItems.some(imp => imp.id === importId)
+    polledImportIds.forEach((importId) => {
+      const stillImporting = importingItems.some((imp) => imp.id === importId);
       if (!stillImporting) {
-        stopPolling()
-        setPolledImportIds(prev => {
-          const next = new Set(prev)
-          next.delete(importId)
-          return next
-        })
+        stopPolling();
+        setPolledImportIds((prev) => {
+          const next = new Set(prev);
+          next.delete(importId);
+          return next;
+        });
       }
-    })
-  }, [importsArray, startPolling, stopPolling, polledImportIds])
+    });
+  }, [importsArray, startPolling, stopPolling, polledImportIds]);
 
   // Initial fetch
   useEffect(() => {
-    fetchImports()
-  }, [fetchImports])
+    fetchImports();
+  }, [fetchImports]);
 
   // Derived values
-  const allIds = importsArray.map((imp) => imp.id)
-  const allSelected = importsArray.length > 0 && importsArray.every((imp) => selectedIds.has(imp.id))
+  const allIds = importsArray.map((imp) => imp.id);
+  const allSelected =
+    importsArray.length > 0 &&
+    importsArray.every((imp) => selectedIds.has(imp.id));
 
   // Filter imports - FIXED: server-side filtering via store
   const filteredImports = useMemo(() => {
-    let result = importsArray
+    let result = importsArray;
     if (filters.search) {
-      const query = filters.search.toLowerCase()
-      result = result.filter(imp => imp.file_name.toLowerCase().includes(query))
+      const query = filters.search.toLowerCase();
+      result = result.filter((imp) =>
+        imp.file_name.toLowerCase().includes(query),
+      );
     }
     if (filters.status) {
-      result = result.filter(imp => imp.status === filters.status)
+      result = result.filter((imp) => imp.status === filters.status);
     }
-    return result
-  }, [importsArray, filters])
+    return result;
+  }, [importsArray, filters]);
 
   const handleUpload = async (file: File, bankAccountId: string) => {
-    return await uploadFile(file, bankAccountId)
-  }
+    return await uploadFile(file, bankAccountId);
+  };
 
   const handleCancel = async () => {
-    await closeAnalysisModal()
-  }
+    await closeAnalysisModal();
+  };
 
   const handleConfirm = async (skipDuplicates: boolean) => {
     try {
-      await confirmImport(skipDuplicates)
-      toast.success('Import berhasil dikonfirmasi dan sedang diproses.')
-      closeAnalysisModal()
+      await confirmImport(skipDuplicates);
+      toast.success("Import berhasil dikonfirmasi dan sedang diproses.");
+      closeAnalysisModal();
     } catch {
       // Error ditampilkan melalui error state
     }
-  }
+  };
 
   const handleDelete = async (id: number) => {
-    setShowDeleteConfirmation(id)
-  }
+    setShowDeleteConfirmation(id);
+  };
 
   const confirmDelete = async () => {
     if (showDeleteConfirmation) {
       try {
-        await deleteImport(showDeleteConfirmation)
-        toast.success('Import berhasil dihapus.')
+        await deleteImport(showDeleteConfirmation);
+        toast.success("Import berhasil dihapus.");
       } catch {
         // Error ditampilkan melalui error state
       }
-      setShowDeleteConfirmation(null)
+      setShowDeleteConfirmation(null);
     }
-  }
+  };
 
   const handleBulkDelete = async () => {
-    const ids = Array.from(selectedIds)
-    if (ids.length === 0) return
-    
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
     try {
-      await bulkDelete(ids)
-      toast.success(`${ids.length} import berhasil dihapus.`)
+      await bulkDelete(ids);
+      toast.success(`${ids.length} import berhasil dihapus.`);
     } catch {
       // Error ditampilkan melalui error state
     }
-    setShowBulkDeleteConfirmation(false)
-  }
+    setShowBulkDeleteConfirmation(false);
+  };
 
   const handleRefresh = () => {
-    fetchImports()
-  }
+    fetchImports();
+  };
 
   // FIXED: Select All now shows clear intent - selects only current page items
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      selectAll(allIds)
+      selectAll(allIds);
     } else {
-      clearSelection()
+      clearSelection();
     }
-  }
+  };
 
   // Loading state
   if (loading.list && importsArray.length === 0) {
@@ -211,7 +223,7 @@ export function BankStatementImportListPage() {
           <TableSkeleton rows={5} columns={6} />
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -229,7 +241,9 @@ export function BankStatementImportListPage() {
             disabled={loading.list}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           >
-            <RefreshCw className={`w-4 h-4 ${loading.list ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`w-4 h-4 ${loading.list ? "animate-spin" : ""}`}
+            />
             <span>Refresh</span>
           </button>
           <button
@@ -253,13 +267,17 @@ export function BankStatementImportListPage() {
                 <AlertCircle className="text-red-500" size={20} />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-red-900 dark:text-red-400">Terjadi Kesalahan</h3>
-                <p className="text-sm text-red-700 dark:text-red-400 mt-1">{errors.general}</p>
-                
+                <h3 className="font-semibold text-red-900 dark:text-red-400">
+                  Terjadi Kesalahan
+                </h3>
+                <p className="text-sm text-red-700 dark:text-red-400 mt-1">
+                  {errors.general}
+                </p>
+
                 {/* Action Button */}
                 <div className="flex gap-2 mt-3">
                   <button
-                    onClick={() => clearError('general')}
+                    onClick={() => clearError("general")}
                     className="px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
                   >
                     Tutup
@@ -278,60 +296,26 @@ export function BankStatementImportListPage() {
         </div>
       )}
 
-      {/* Active Import Progress */}
-      {importsArray.some((imp) => imp.status === 'IMPORTING') && (
-        <div className="space-y-4">
-          {importsArray
-            .filter((imp) => imp.status === 'IMPORTING')
-            .slice(0, 1)
-            .map((imp) => {
-              // Merge job data with import data if available
-              const jobProgress = currentJob && typeof currentJob.progress === 'object' && currentJob.progress !== null
-                ? currentJob.progress 
-                : null
-              const jobData = currentJob && polledImportIds.has(imp.id)
-                ? {
-                    ...imp,
-                    processed_rows: jobProgress?.processed_rows || imp.processed_rows,
-                    total_rows: jobProgress?.total_rows || imp.total_rows,
-                    status: (currentJob.status === 'completed' ? 'COMPLETED' : 
-                            currentJob.status === 'failed' ? 'FAILED' : 'IMPORTING') as BankStatementImport['status'],
-                  }
-                : imp
-              
-              return (
-                <ImportProgressCard
-                  key={imp.id}
-                  importData={jobData}
-                  onCancel={(id) => {
-                    // Handle cancel - could call cancelImport from store
-                    console.debug('Cancel import requested:', id)
-                  }}
-                  onRetry={(id) => {
-                    // Handle retry - could call retryImport from store
-                    console.debug('Retry import requested:', id)
-                  }}
-                />
-              )
-            })}
-        </div>
-      )}
-
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              size={16}
+            />
             <input
               type="text"
               value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              onChange={(e) =>
+                setFilters({ ...filters, search: e.target.value })
+              }
               placeholder="Cari nama file..."
               className="w-full pl-9 pr-9 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             {filters.search && (
               <button
-                onClick={() => setFilters({ ...filters, search: '' })}
+                onClick={() => setFilters({ ...filters, search: "" })}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 <X size={16} />
@@ -354,9 +338,9 @@ export function BankStatementImportListPage() {
             <span className="text-sm text-gray-600 dark:text-gray-400">
               {filteredImports.length} dari {importsArray.length} file
             </span>
-          {(filters.search || filters.status) && (
+            {(filters.search || filters.status) && (
               <button
-                onClick={() => setFilters({ search: '', status: '' })}
+                onClick={() => setFilters({ search: "", status: "" })}
                 className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
               >
                 Hapus Filter
@@ -373,16 +357,18 @@ export function BankStatementImportListPage() {
             <FileText className="w-8 h-8 text-gray-400" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            {filters.search || filters.status ? 'Tidak ada hasil pencarian' : 'Belum ada import'}
+            {filters.search || filters.status
+              ? "Tidak ada hasil pencarian"
+              : "Belum ada import"}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            {filters.search || filters.status 
-              ? 'Coba ubah filter atau kata pencarian'
-              : 'Upload bank statement untuk memulai'}
+            {filters.search || filters.status
+              ? "Coba ubah filter atau kata pencarian"
+              : "Upload bank statement untuk memulai"}
           </p>
           {(filters.search || filters.status) && (
             <button
-              onClick={() => setFilters({ search: '', status: '' })}
+              onClick={() => setFilters({ search: "", status: "" })}
               className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
             >
               Hapus Filter
@@ -466,11 +452,11 @@ export function BankStatementImportListPage() {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {filteredImports.map((imp) => (
-                  <tr 
+                  <tr
                     key={imp.id}
                     className={`
                       hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors
-                      ${selectedIds.has(imp.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
+                      ${selectedIds.has(imp.id) ? "bg-blue-50 dark:bg-blue-900/20" : ""}
                     `}
                   >
                     <td className="text-center px-4 py-3">
@@ -483,28 +469,33 @@ export function BankStatementImportListPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className={`
+                        <div
+                          className={`
                           p-2 rounded-lg 
-                          ${imp.file_name.endsWith('.csv') 
-                            ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' 
-                            : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                          ${
+                            imp.file_name.endsWith(".csv")
+                              ? "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400"
+                              : "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
                           }
-                        `}>
+                        `}
+                        >
                           <FileText className="w-5 h-5" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900 dark:text-white truncate max-w-[200px] sm:max-w-[300px]" title={imp.file_name}>
+                          <p
+                            className="font-medium text-gray-900 dark:text-white truncate max-w-[200px] sm:max-w-[300px]"
+                            title={imp.file_name}
+                          >
                             {imp.file_name}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {imp.bank_name && imp.account_number 
+                            {imp.bank_name && imp.account_number
                               ? `${imp.bank_name} - ${imp.account_number}`
-                              : imp.account_number 
+                              : imp.account_number
                                 ? imp.account_number
-                                : imp.bank_account_id 
+                                : imp.bank_account_id
                                   ? `Account #${imp.bank_account_id}`
-                                  : '-'
-                            }
+                                  : "-"}
                           </p>
                         </div>
                       </div>
@@ -513,18 +504,30 @@ export function BankStatementImportListPage() {
                       {formatFileSize(imp.file_size)}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                      {imp.created_at ? format(new Date(imp.created_at), 'dd MMM yyyy, HH:mm', { locale: idLocale }) : '-'}
+                      {imp.created_at
+                        ? format(
+                            new Date(imp.created_at),
+                            "dd MMM yyyy, HH:mm",
+                            { locale: idLocale },
+                          )
+                        : "-"}
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
                       {imp.total_rows?.toLocaleString() || 0}
                     </td>
                     <td className="px-4 py-3">
-                      <StatusBadge status={imp.status} size="sm" animated={imp.status === 'IMPORTING'} />
+                      <StatusBadge
+                        status={imp.status}
+                        size="sm"
+                        animated={imp.status === "IMPORTING"}
+                      />
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => navigate(`/bank-statement-import/${imp.id}`)}
+                          onClick={() =>
+                            navigate(`/bank-statement-import/${imp.id}`)
+                          }
                           className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Lihat Detail"
                         >
@@ -588,16 +591,17 @@ export function BankStatementImportListPage() {
               Konfirmasi Hapus
             </h3>
             <p className="text-gray-500 dark:text-gray-400 mb-6">
-              Apakah Anda yakin ingin menghapus data import ini? Tindakan ini tidak dapat dibatalkan.
+              Apakah Anda yakin ingin menghapus data import ini? Tindakan ini
+              tidak dapat dibatalkan.
             </p>
             <div className="flex justify-end gap-3">
-              <button 
+              <button
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
                 onClick={() => setShowDeleteConfirmation(null)}
               >
                 Batal
               </button>
-              <button 
+              <button
                 className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700"
                 onClick={confirmDelete}
                 disabled={loading.delete}
@@ -608,7 +612,7 @@ export function BankStatementImportListPage() {
                     Menghapus...
                   </span>
                 ) : (
-                  'Hapus'
+                  "Hapus"
                 )}
               </button>
             </div>
@@ -624,17 +628,20 @@ export function BankStatementImportListPage() {
               Konfirmasi Hapus Massal
             </h3>
             <p className="text-gray-500 dark:text-gray-400 mb-6">
-              Apakah Anda yakin ingin menghapus <span className="font-semibold text-red-600">{selectedIds.size} data import</span> ini? 
-              Tindakan ini tidak dapat dibatalkan.
+              Apakah Anda yakin ingin menghapus{" "}
+              <span className="font-semibold text-red-600">
+                {selectedIds.size} data import
+              </span>{" "}
+              ini? Tindakan ini tidak dapat dibatalkan.
             </p>
             <div className="flex justify-end gap-3">
-              <button 
+              <button
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
                 onClick={() => setShowBulkDeleteConfirmation(false)}
               >
                 Batal
               </button>
-              <button 
+              <button
                 className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700"
                 onClick={handleBulkDelete}
                 disabled={loading.delete}
@@ -653,6 +660,5 @@ export function BankStatementImportListPage() {
         </div>
       )}
     </div>
-  )
+  );
 }
-
