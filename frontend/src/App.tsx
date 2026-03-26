@@ -566,6 +566,16 @@ function App() {
                     }
                   />
                   <Route
+                    path="bank-statement-import/:id"
+                    element={
+                      <ProtectedRoute>
+                        <Suspense fallback={<LoadingFallback />}>
+                          <BankStatementImportDetailPage />
+                        </Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
                     path="permissions"
                     element={
                       <ProtectedRoute>

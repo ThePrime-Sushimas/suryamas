@@ -1,796 +1,878 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useParams } from 'react-router-dom'
+/**
+ * BankStatementImportDetailPage.tsx
+ *
+ * Halaman detail untuk 1 sesi bank statement import.
+ * Data source: GET /bank-statement-imports/:id (summary + metadata)
+ *              GET /bank-statement-imports/:id/statements (transaksi berhasil diimport)
+ *
+ * Routing: /bank-statement-import/:id
+ * Letakkan file ini di: src/features/bank-statement-import/pages/BankStatementImportDetailPage.tsx
+ */
+
+import { useEffect, useState, useCallback } from "react";
+import api from "@/lib/axios";
+import { useParams, useNavigate } from "react-router-dom";
+import { format } from "date-fns";
+import { id as idLocale } from "date-fns/locale";
 import {
   ArrowLeft,
-  AlertCircle,
   FileText,
-  Calendar,
-  Hash,
-  Upload,
-  Loader2,
-  Maximize2,
-  X,
-  CheckCircle2,
   AlertTriangle,
-  XCircle 
-} from 'lucide-react'
-import type { PreviewData } from '../types/bank-statement-import.types'
-import { bankStatementImportApi } from '../api/bank-statement-import.api'
-import { StatusBadge } from '../components/common/StatusBadge'
-import { formatCurrency, formatFileSize } from '../utils/format'
-import type {
-  BankStatementImport,
-  BankStatementAnalysisResult,
-  BankStatementImportStatus,
-  BankStatementPreviewRow
-} from '../types/bank-statement-import.types'
-import { format } from 'date-fns'
-import { id as idLocale } from 'date-fns/locale'
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Loader2,
+  ChevronDown,
+  Copy,
+  AlertCircle,
+  TrendingDown,
+  TrendingUp,
+  Hash,
+  Calendar,
+} from "lucide-react";
 
+// ---------------------------------------------------------------------------
+// TYPES
+// ---------------------------------------------------------------------------
 
-function BankStatementImportDetailPageContent() {
-  const { id } = useParams<{ id: string }>()
-  const [importData, setImportData] = useState<BankStatementImport | null>(null)
-  const [analysisResult, setAnalysisResult] = useState<BankStatementAnalysisResult | null>(null)
-  const [processedPreview, setProcessedPreview] = useState<PreviewData | null>(null)
-  const [filteredPreview] = useState<PreviewData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [confirming, setConfirming] = useState(false)
-  
-  // Description modal state
-  const [showDescriptionModal, setShowDescriptionModal] = useState(false)
-  const [selectedDescription, setSelectedDescription] = useState<string>('')
-  const [selectedRowInfo, setSelectedRowInfo] = useState<{ rowNumber: number; date: string } | null>(null)
-  
-  // Tab state for preview - added 'filtered'
-  const [activePreviewTab, setActivePreviewTab] = useState<'processed' | 'filtered' | 'valid' | 'duplicate' | 'invalid'>('processed')
+type ImportStatus =
+  | "PENDING"
+  | "ANALYZED"
+  | "IMPORTING"
+  | "COMPLETED"
+  | "FAILED";
 
-  // Go back handler
-  const goBack = () => {
-    window.history.back()
+interface AnalysisDateRange {
+  start: string;
+  end: string;
+}
+
+interface ColumnMapping {
+  description?: string;
+  debit_amount?: string;
+  credit_amount?: string;
+  transaction_date?: string;
+  balance?: string;
+  reference_number?: string;
+  [key: string]: string | undefined;
+}
+
+interface AnalysisData {
+  preview?: unknown[];
+  preview_raw_csv?: unknown[];
+  warnings?: string[];
+  date_range?: AnalysisDateRange;
+  duplicates?: unknown[];
+  analyzed_at?: string;
+  invalid_count?: number;
+  column_mapping?: ColumnMapping;
+  total_raw_rows?: number;
+  duplicate_count?: number;
+}
+
+interface BankAccount {
+  banks?: { bank_name: string };
+  account_name?: string;
+  account_number?: string;
+}
+
+interface ImportDetail {
+  id: number;
+  company_id: string;
+  bank_account_id: number;
+  file_name: string;
+  file_size: number | null;
+  file_hash: string | null;
+  status: ImportStatus;
+  total_rows: number;
+  processed_rows: number;
+  failed_rows: number;
+  date_range_start: string | null;
+  date_range_end: string | null;
+  error_message: string | null;
+  error_details: unknown | null;
+  analysis_data: AnalysisData | null;
+  created_at: string;
+  updated_at: string | null;
+  created_by: string | null;
+  deleted_at: string | null;
+  job_id: string | null;
+  bank_accounts?: BankAccount;
+  bank_name?: string;
+  account_number?: string;
+  account_name?: string;
+}
+
+interface BankStatement {
+  id: number;
+  transaction_date: string;
+  transaction_time: string | null;
+  reference_number: string | null;
+  description: string;
+  debit_amount: number;
+  credit_amount: number;
+  balance: number | null;
+  is_reconciled: boolean;
+  row_number: number | null;
+}
+
+interface StatementsResponse {
+  data: BankStatement[];
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  // some backends return array directly
+  [key: string]: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// API HELPERS — menggunakan axios instance project (auth + branch header otomatis)
+// ---------------------------------------------------------------------------
+
+const API_BASE = "/bank-statement-imports";
+
+async function fetchImportDetail(id: string): Promise<ImportDetail> {
+  const { data: json } = await api.get(`${API_BASE}/${id}`);
+  // Normalise: backend wraps in { success, data } or { data }
+  return json.data ?? json;
+}
+
+async function fetchStatements(
+  id: string,
+  page: number,
+  limit: number,
+): Promise<{ rows: BankStatement[]; hasMore: boolean; total: number }> {
+  const { data: json } = await api.get(
+    `${API_BASE}/${id}/statements?page=${page}&limit=${limit}`,
+  );
+
+  // Handle berbagai shape response
+  const raw: StatementsResponse = json.data ?? json;
+  const rows: BankStatement[] = Array.isArray(raw)
+    ? (raw as unknown as BankStatement[])
+    : Array.isArray(raw.data)
+      ? (raw.data as BankStatement[])
+      : [];
+
+  const total: number =
+    (raw.pagination as { total?: number } | undefined)?.total ??
+    (raw as { total?: number }).total ??
+    rows.length;
+
+  const hasMore = rows.length === limit;
+
+  return { rows, hasMore, total };
+}
+
+// ---------------------------------------------------------------------------
+// UTILS
+// ---------------------------------------------------------------------------
+
+function formatFileSize(bytes: number | null): string {
+  if (!bytes) return "-";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "-";
+  try {
+    return format(new Date(dateStr), "dd MMM yyyy", { locale: idLocale });
+  } catch {
+    return dateStr;
   }
+}
 
-  // Fetch data with useCallback to prevent infinite loop
-  const fetchData = useCallback(async () => {
-    if (!id) {
-      return
-    }
+function formatDateTime(dateStr: string | null): string {
+  if (!dateStr) return "-";
+  try {
+    return format(new Date(dateStr), "dd MMM yyyy, HH:mm", {
+      locale: idLocale,
+    });
+  } catch {
+    return dateStr;
+  }
+}
 
-    const numericId = Number(id)
-    if (isNaN(numericId)) {
-      setError('ID tidak valid')
-      setLoading(false)
-      return
-    }
+// ---------------------------------------------------------------------------
+// SUB-COMPONENTS
+// ---------------------------------------------------------------------------
 
-    try {
-      setLoading(true)
-      setError(null)
+const STATUS_CONFIG: Record<
+  ImportStatus,
+  { label: string; color: string; bg: string; icon: React.ReactNode }
+> = {
+  PENDING: {
+    label: "Menunggu",
+    color: "text-yellow-700 dark:text-yellow-400",
+    bg: "bg-yellow-100 dark:bg-yellow-900/30",
+    icon: <Clock size={14} />,
+  },
+  ANALYZED: {
+    label: "Siap Import",
+    color: "text-blue-700 dark:text-blue-400",
+    bg: "bg-blue-100 dark:bg-blue-900/30",
+    icon: <FileText size={14} />,
+  },
+  IMPORTING: {
+    label: "Sedang Import",
+    color: "text-purple-700 dark:text-purple-400",
+    bg: "bg-purple-100 dark:bg-purple-900/30",
+    icon: <Loader2 size={14} className="animate-spin" />,
+  },
+  COMPLETED: {
+    label: "Selesai",
+    color: "text-green-700 dark:text-green-400",
+    bg: "bg-green-100 dark:bg-green-900/30",
+    icon: <CheckCircle2 size={14} />,
+  },
+  FAILED: {
+    label: "Gagal",
+    color: "text-red-700 dark:text-red-400",
+    bg: "bg-red-100 dark:bg-red-900/30",
+    icon: <XCircle size={14} />,
+  },
+};
 
-      // First, try to get summary which includes preview
-      const summaryRes = await bankStatementImportApi.getSummary(numericId)
-      setAnalysisResult(summaryRes)
-      setImportData(summaryRes.import)
-      
-      // ✅ FIXED: Fetch 3 previews in parallel: Original(395), Processed(156), Filtered
-      const processedRows = summaryRes.import?.processed_rows || 0
-      
-      // Parallel fetches with sorting helper
-      const sortPreviewRows = (rows: any[]) => rows.sort((a, b) => {
-        const dateA = new Date(a.transaction_date).getTime()
-        const dateB = new Date(b.transaction_date).getTime()
-        return dateA !== dateB ? dateB - dateA : a.row_number - b.row_number
-      })
-      
-      try {
-        // Processed: DB rows (limit=processedRows)
-        bankStatementImportApi.getPreview(numericId, processedRows)
-          .then(processedRes => setProcessedPreview({
-            preview_rows: sortPreviewRows(processedRes.preview_rows || []),
-            total_rows: processedRes.total_rows,
-            import_id: numericId
-          }))
-          .catch(() => setProcessedPreview(null))
-          
-      } catch (previewError) {
-        console.warn('Preview fetch failed:', previewError)
-        // Don't set error for previews - non-critical
-      }
-      
-      setLoading(false)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal memuat data')
-      setLoading(false)
-    }
-  }, [id])
+function StatusBadge({ status }: { status: ImportStatus }) {
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.PENDING;
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.bg} ${cfg.color}`}
+    >
+      {cfg.icon}
+      {cfg.label}
+    </span>
+  );
+}
 
+function StatCard({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  accent?: "green" | "red" | "blue" | "gray";
+}) {
+  const accentMap = {
+    green: "border-l-green-500",
+    red: "border-l-red-500",
+    blue: "border-l-blue-500",
+    gray: "border-l-gray-400",
+  };
+  return (
+    <div
+      className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 ${
+        accentMap[accent ?? "gray"]
+      } p-4`}
+    >
+      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+        {label}
+      </p>
+      <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+        {typeof value === "number" ? value.toLocaleString("id-ID") : value}
+      </p>
+      {sub && (
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{sub}</p>
+      )}
+    </div>
+  );
+}
+
+function CopyableHash({ hash }: { hash: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(hash).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button
+      onClick={copy}
+      title="Salin hash"
+      className="flex items-center gap-1 font-mono text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+    >
+      <span className="truncate max-w-[180px]">{hash}</span>
+      <Copy size={12} className={copied ? "text-green-500" : ""} />
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TRANSACTION TABLE
+// ---------------------------------------------------------------------------
+
+const STATEMENTS_PAGE_SIZE = 50;
+
+function TransactionTable({
+  importId,
+  importStatus,
+}: {
+  importId: string;
+  importStatus: ImportStatus;
+}) {
+  const [rows, setRows] = useState<BankStatement[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Initial load
   useEffect(() => {
-    fetchData()
-  }, [fetchData])
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetchStatements(importId, 1, STATEMENTS_PAGE_SIZE)
+      .then(({ rows: r, hasMore: more, total: t }) => {
+        if (cancelled) return;
+        setRows(r);
+        setHasMore(more);
+        setTotal(t);
+        setPage(1);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setError(e.message ?? "Gagal memuat transaksi");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [importId]);
 
-  // // Export handler
-  // const handleExport = async () => {
-  //   if (!importData) return
-  //   setExporting(true)
-  //   try {
-  //     const blob = await bankStatementImportApi.export(Number(id))
-  //     const url = window.URL.createObjectURL(blob)
-  //     const a = document.createElement('a')
-  //     a.href = url
-  //     a.download = `${importData.file_name.replace(/\.[^/.]+$/, '')}_export_${new Date().toISOString().split('T')[0]}.xlsx`
-  //     document.body.appendChild(a)
-  //     a.click()
-  //     document.body.removeChild(a)
-  //     window.URL.revokeObjectURL(url)
-  //   } catch {
-  //     setError('Gagal mengekspor data')
-  //   } finally {
-  //     setExporting(false)
-  //   }
-  // }
-
-  // Confirm import handler
-  const handleConfirm = async (skipDuplicates: boolean = false) => {
-    if (!importData) return
-    setConfirming(true)
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
     try {
-      await bankStatementImportApi.confirm(importData.id, { skip_duplicates: skipDuplicates })
-      // Refresh data after confirm
-      await fetchData()
-    } catch (err) {
-      console.error('Error confirming import:', err)
-      setError(err instanceof Error ? err.message : 'Gagal memulai import')
+      const nextPage = page + 1;
+      const { rows: more, hasMore: stillMore } = await fetchStatements(
+        importId,
+        nextPage,
+        STATEMENTS_PAGE_SIZE,
+      );
+      setRows((prev) => [...prev, ...more]);
+      setHasMore(stillMore);
+      setPage(nextPage);
+    } catch (e) {
+      setError((e as Error).message ?? "Gagal memuat lebih banyak data");
     } finally {
-      setConfirming(false)
+      setLoadingMore(false);
     }
-  }
+  }, [importId, page, hasMore, loadingMore]);
 
-  // Check if can import (status is ANALYZED)
-  const canImport = importData?.status === 'ANALYZED'
-
-  // Get duplicate row numbers for filtering
-  const duplicateRowNumbers = useMemo(() => {
-    const rowNums = new Set<number>()
-    analysisResult?.duplicates?.forEach((dup: unknown) => {
-      const d = dup as { row_numbers?: number[]; row_number?: number }
-      if (d.row_numbers && Array.isArray(d.row_numbers)) {
-        d.row_numbers.forEach(num => rowNums.add(num))
-      } else if (d.row_number) {
-        rowNums.add(d.row_number)
-      }
-    })
-    return rowNums
-  }, [analysisResult?.duplicates])
-
-  // ✅ FIXED: Smart row selection from 3 preview sources
-  const filteredPreviewRows = useMemo((): BankStatementPreviewRow[] => {
-    const getRowsForTab = (tab: typeof activePreviewTab): BankStatementPreviewRow[] => {
-      switch (tab) {
-        case 'processed':
-          return processedPreview?.preview_rows || []
-        case 'filtered':
-          // ✅ Filtered rows rejected before DB - show empty + explanation
-          return [] // No preview available for pre-insert rejections
-        case 'valid':
-        case 'duplicate': 
-        case 'invalid':
-          // Filter from processed data
-          const rows = processedPreview?.preview_rows || []
-          if (tab === 'valid') return rows.filter(row => row.is_valid && !duplicateRowNumbers.has(row.row_number))
-          if (tab === 'duplicate') return rows.filter(row => duplicateRowNumbers.has(row.row_number))
-          return rows.filter(row => !row.is_valid)
-        default:
-          return processedPreview?.preview_rows || []
-      }
-    }
-    
-    return getRowsForTab(activePreviewTab)
-  }, [activePreviewTab, processedPreview, filteredPreview, duplicateRowNumbers])
-
-  // Count rows by status
-  // ✅ FIXED: Counts from processed preview data
-  const duplicateCount = processedPreview?.preview_rows.filter(row => duplicateRowNumbers.has(row.row_number)).length || 0
-  const invalidCount = processedPreview?.preview_rows.filter(row => !row.is_valid).length || 0
-  // ✅ FIXED: True filtered = original - processed (rejected before DB)
-  const calculatedFilteredTotal = (importData?.total_rows || 0) - (importData?.processed_rows || 0)
-  const filteredTotal = calculatedFilteredTotal > 0 ? calculatedFilteredTotal : 0
-
-  // Open description modal
-  const openDescriptionModal = (description: string, rowNumber: number, date: string) => {
-    setSelectedDescription(description)
-    setSelectedRowInfo({ rowNumber, date })
-    setShowDescriptionModal(true)
-  }
-
-  // Close description modal
-  const closeDescriptionModal = () => {
-    setShowDescriptionModal(false)
-    setSelectedDescription('')
-    setSelectedRowInfo(null)
-  }
-
-  // Loading state
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="flex items-center justify-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-          <p className="ml-3 text-sm text-gray-600">Memuat detail import...</p>
-        </div>
+      <div className="space-y-2 py-6">
+        {[...Array(5)].map((_, i) => (
+          <div
+            key={i}
+            className="h-10 bg-gray-100 dark:bg-gray-700 rounded animate-pulse"
+          />
+        ))}
       </div>
-    )
+    );
   }
 
-  // Error state
   if (error) {
     return (
-      <div className="p-6">
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl overflow-hidden">
-          <div className="p-4">
-            <div className="flex items-start gap-3">
-              <div className="bg-red-100 dark:bg-red-900/30 p-2 rounded-lg shrink-0">
-                <AlertCircle className="text-red-500" size={20} />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-red-900 dark:text-red-400">Terjadi Kesalahan</h3>
-                <p className="text-sm text-red-700 dark:text-red-400 mt-1">{error}</p>
-                
-                {/* Action Buttons */}
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={goBack}
-                    className="px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-1"
-                  >
-                    <ArrowLeft size={14} />
-                    Kembali
-                  </button>
-                  <button
-                    onClick={fetchData}
-                    className="px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
-                  >
-                    Coba Lagi
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl text-sm text-red-700 dark:text-red-400">
+        <AlertCircle size={16} />
+        {error}
       </div>
-    )
+    );
   }
 
-  // Not found state
-  if (!importData) {
+  if (importStatus === "IMPORTING") {
     return (
-      <div className="p-6">
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="text-yellow-500 shrink-0 mt-0.5" size={20} />
-            <div>
-              <h3 className="font-medium text-yellow-900 dark:text-yellow-400">Import Tidak Ditemukan</h3>
-              <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
-                Import yang Anda cari tidak ada atau telah dihapus.
-              </p>
-            </div>
-          </div>
-        </div>
+      <div className="flex items-center gap-3 p-6 bg-purple-50 dark:bg-purple-900/20 rounded-xl text-sm text-purple-700 dark:text-purple-400">
+        <Loader2 size={16} className="animate-spin shrink-0" />
+        <span>
+          Import sedang berjalan. Data transaksi akan muncul setelah selesai.
+        </span>
       </div>
-    )
+    );
   }
 
-  const stats = analysisResult?.stats
+  if (rows.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-12 text-center text-gray-500 dark:text-gray-400">
+        <FileText size={32} className="opacity-30" />
+        <p className="font-medium">
+          Tidak ada transaksi yang berhasil diimport
+        </p>
+        <p className="text-xs">
+          Kemungkinan semua baris diskip sebagai duplikat atau import gagal
+          sebelum memproses data.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={goBack}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Kembali ke Import
-        </button>
-        <div className="flex items-center gap-3">
-          {canImport && (
-            <button
-              onClick={() => handleConfirm(false)}
-              disabled={confirming}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              {confirming ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Upload size={16} />
-              )}
-              {confirming ? 'Memproses...' : 'Import Semua Data'}
-            </button>
-          )}        </div>
+    <div className="space-y-3">
+      {/* Row count info */}
+      <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+        <span>
+          Menampilkan{" "}
+          <span className="font-semibold text-gray-900 dark:text-white">
+            {rows.length}
+          </span>
+          {total > rows.length ? ` dari ${total.toLocaleString("id-ID")}` : ""}{" "}
+          transaksi
+        </span>
       </div>
 
-      {/* Import Info Card */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              {importData.file_name}
-            </h1>
-            <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-              <span className="flex items-center gap-1.5">
-                <Hash className="w-4 h-4" />
-                {importData.bank_name && importData.account_number
-                  ? `${importData.bank_name} - ${importData.account_number}`
-                  : importData.account_number
-                    ? importData.account_number
-                    : `Account #${importData.bank_account_id}`
-                }
-              </span>
-              <span className="flex items-center gap-1.5">
-                <FileText className="w-4 h-4" />
-                {formatFileSize(importData.file_size)}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Calendar className="w-4 h-4" />
-                {importData.created_at ? format(new Date(importData.created_at), 'dd MMM yyyy, HH:mm', { locale: idLocale }) : '-'}
-              </span>
-            </div>
-          </div>
-          <StatusBadge status={importData.status as BankStatementImportStatus} />
-        </div>
-
-        {/* Error Message - Enhanced */}
-        {importData.status === 'FAILED' && importData.error_message && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl overflow-hidden">
-            <div className="p-4">
-              <div className="flex items-start gap-3">
-                <div className="bg-red-100 dark:bg-red-900/30 p-2 rounded-lg shrink-0">
-                  <AlertCircle className="text-red-500" size={20} />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-red-900 dark:text-red-400">Import Gagal</h3>
-                  <p className="text-sm text-red-700 dark:text-red-400 mt-1">{importData.error_message}</p>
-                  
-                  {/* Recovery suggestion */}
-                  <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-red-100 dark:border-red-800">
-                    <p className="text-xs text-red-600 dark:text-red-400 font-medium mb-1">Saran Pemulihan:</p>
-                    <p className="text-sm text-red-700 dark:text-red-400">
-                      1. Cek file untuk memastikan format benar{'\n'}
-                      2. Refresh halaman dan upload ulang{'\n'}
-                      3. Jika masalah berlanjut, hubungi administrator
+      {/* Table */}
+      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 dark:bg-gray-700/50 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              <th className="px-4 py-3 text-left">Tanggal</th>
+              <th className="px-4 py-3 text-left">Keterangan</th>
+              <th className="px-4 py-3 text-right">Debit</th>
+              <th className="px-4 py-3 text-right">Kredit</th>
+              <th className="px-4 py-3 text-right">Saldo</th>
+              <th className="px-4 py-3 text-center">Rekonsiliasi</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+            {rows.map((row) => (
+              <tr
+                key={row.id}
+                className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
+              >
+                <td className="px-4 py-3 whitespace-nowrap text-gray-700 dark:text-gray-300 font-mono text-xs">
+                  {formatDate(row.transaction_date)}
+                </td>
+                <td className="px-4 py-3 max-w-[320px]">
+                  <p
+                    className="text-gray-900 dark:text-white truncate"
+                    title={row.description}
+                  >
+                    {row.description}
+                  </p>
+                  {row.reference_number && (
+                    <p className="text-xs text-gray-400 dark:text-gray-500 font-mono mt-0.5">
+                      {row.reference_number}
                     </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Failed count */}
-            <div className="px-4 py-3 bg-red-100/50 dark:bg-red-900/10 border-t border-red-200 dark:border-red-800">
-              <p className="text-sm font-bold text-red-600 dark:text-red-400">
-                {stats?.invalid_rows?.toLocaleString() || importData.failed_rows?.toLocaleString() || 0} baris tidak valid
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Processed Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-          <div className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              Processed Rows
-            </p>
-            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-              {importData.processed_rows?.toLocaleString() || 0}
-            </p>
-          </div>
-          <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
-              <XCircle className="w-4 h-4 text-red-500" />
-              Failed Rows
-            </p>
-            <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
-              {importData.failed_rows?.toLocaleString() || 0}
-            </p>
-          </div>
-        </div>
-
-        {/* Date Range */}
-        {(importData.date_range_start || importData.date_range_end) && (
-          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Rentang Tanggal</h3>
-            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-              <Calendar className="w-4 h-4" />
-              <span>
-                {importData.date_range_start
-                  ? format(new Date(importData.date_range_start), 'dd MMMM yyyy', { locale: idLocale })
-                  : '-'}
-              </span>
-              <span className="text-gray-400">-</span>
-              <span>
-                {importData.date_range_end
-                  ? format(new Date(importData.date_range_end), 'dd MMMM yyyy', { locale: idLocale })
-                  : '-'}
-              </span>
-            </div>
-          </div>
-        )}
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right whitespace-nowrap">
+                  {row.debit_amount > 0 ? (
+                    <span className="flex items-center justify-end gap-1 text-red-600 dark:text-red-400 font-medium">
+                      <TrendingDown size={12} />
+                      {formatCurrency(row.debit_amount)}
+                    </span>
+                  ) : (
+                    <span className="text-gray-300 dark:text-gray-600">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right whitespace-nowrap">
+                  {row.credit_amount > 0 ? (
+                    <span className="flex items-center justify-end gap-1 text-green-600 dark:text-green-400 font-medium">
+                      <TrendingUp size={12} />
+                      {formatCurrency(row.credit_amount)}
+                    </span>
+                  ) : (
+                    <span className="text-gray-300 dark:text-gray-600">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right whitespace-nowrap text-gray-700 dark:text-gray-300 font-mono text-xs">
+                  {row.balance != null ? formatCurrency(row.balance) : "—"}
+                </td>
+                <td className="px-4 py-3 text-center">
+                  {row.is_reconciled ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                      <CheckCircle2 size={13} /> Ya
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      Belum
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {/* Duplicates Table */}
-      {analysisResult?.duplicates && analysisResult.duplicates.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Data Duplikat ({analysisResult.duplicates.length})
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Berikut adalah data yang teridentifikasi sebagai duplikat dan mungkin akan dilewati saat import.
-            </p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Tanggal
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Deskripsi
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Debit
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Kredit
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Saldo
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {analysisResult.duplicates.map((dup, index) => (
-                  <tr key={`${dup.id}-${index}`} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                      {dup.transaction_date
-                        ? format(new Date(dup.transaction_date), 'dd/MM/yyyy', { locale: idLocale })
-                        : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-sm truncate">
-                      <button
-                        onClick={() => openDescriptionModal(dup.description || '-', index + 1, dup.transaction_date || '')}
-                        className="flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors w-full"
-                      >
-                        <span className="truncate flex-1 text-left">
-                          {dup.description || '-'}
-                        </span>
-                        {(dup.description || '').length > 50 && (
-                          <Maximize2 className="w-4 h-4 shrink-0 opacity-50" />
-                        )}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right font-mono text-red-600 dark:text-red-400">
-                      {dup.debit > 0 ? formatCurrency(dup.debit) : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right font-mono text-green-600 dark:text-green-400">
-                      {dup.credit > 0 ? formatCurrency(dup.credit) : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right font-mono text-gray-900 dark:text-white">
-                      {formatCurrency(dup.balance)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Warnings */}
-      {analysisResult?.warnings && analysisResult.warnings.length > 0 && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="text-yellow-500 shrink-0 mt-0.5" size={20} />
-            <div>
-              <h3 className="font-medium text-yellow-900 dark:text-yellow-400">Peringatan</h3>
-              <ul className="mt-2 space-y-1">
-                {analysisResult.warnings.map((warning, index) => (
-                  <li key={index} className="text-sm text-yellow-700 dark:text-yellow-400">
-                    • {warning}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Analysis Preview with Tabs */}
-{(() => {
-        // ✅ FIXED: analysis_data → analysis (per types.ts)
-        if (!processedPreview && !analysisResult?.analysis?.preview) return null
-        
-        // Legacy original sample fallback (small 10-row)
-        
-        return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex flex-col gap-2 mb-4">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Pratinjau Data
-                </h2>
-                {/* ✅ FIXED: Crystal clear 395 vs 156 explanation */}
-                {/* ✅ FIXED: Header uses reliable importData counts */}
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                  📊 Raw CSV: {importData?.total_rows?.toLocaleString() || 'N/A'} rows | 
-                  ✅ Parsed to DB: {importData?.processed_rows?.toLocaleString() || '0'} rows | 
-                  ❌ Filtered Out: {filteredTotal.toLocaleString()} rows (rejected before DB)
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Raw File: {importData?.total_rows?.toLocaleString()} total lines | 
-                  Parsed DB: {processedPreview?.preview_rows?.length || 0} shown | 
-                  Filtered Out: {filteredTotal} rows (header/invalid/skipped)
-                </p>
-              </div>
-            </div>
-            
-            {/* Tab Navigation */}
-            <div className="flex gap-2 overflow-x-auto scrollbar-thin">
-              <button
-                onClick={() => setActivePreviewTab('processed')}
-                className={`
-                  px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap
-                  ${activePreviewTab === 'processed' 
-                    ? 'bg-linear-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/25' 
-                    : 'text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
-                  }
-                `}
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                Processed
-                <span className={`
-                  text-xs px-2 py-0.5 rounded-full font-bold
-                  ${activePreviewTab === 'processed' 
-                    ? 'bg-white/20 text-white' 
-                    : 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300'
-                  }
-                `}>
-                  {processedPreview?.preview_rows.length || 0}
-                </span>
-              </button>
-
-              
-              {/* ✅ NEW: Filtered tab */}
-              <button
-                onClick={() => setActivePreviewTab('filtered')}
-                className={`
-                  px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap
-                  ${activePreviewTab === 'filtered' 
-                    ? 'bg-linear-to-r from-rose-500 to-amber-500 text-white shadow-lg shadow-rose-500/25' 
-                    : 'text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-amber-300 hover:bg-rose-50 dark:hover:bg-rose-900/20'
-                  }
-                `}
-              >
-                <AlertTriangle className="w-4 h-4" />
-                Filtered Out
-                <span className={`
-                  text-xs px-2 py-0.5 rounded-full font-bold
-                  ${activePreviewTab === 'filtered'
-                    ? 'bg-white/20 text-white'
-                    : 'bg-rose-100 dark:bg-rose-900 text-rose-700 dark:text-rose-300'
-                  }
-                `}>
-                  {filteredTotal}
-                </span>
-              </button>
-              
-              {/* ✅ REMOVED: Valid tab (redundant with Processed - both show same DB rows) */}
-              
-              {duplicateCount > 0 && (
-                <button
-                  onClick={() => setActivePreviewTab('duplicate')}
-                  className={`
-                    px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap
-                    ${activePreviewTab === 'duplicate' 
-                      ? 'bg-linear-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25' 
-                      : 'text-amber-600 hover:text-amber-700 dark:text-amber-500 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/10'
-                    }
-                  `}
-                >
-                  <AlertTriangle className="w-4 h-4" />
-                  Duplikat
-                  <span className={`
-                    text-xs px-2 py-0.5 rounded-full font-bold
-                    ${activePreviewTab === 'duplicate' 
-                      ? 'bg-white/20 text-white' 
-                      : 'bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-300'
-                    }
-                  `}>
-                    {duplicateCount}
-                  </span>
-                </button>
-              )}
-              
-              {invalidCount > 0 && (
-                <button
-                  onClick={() => setActivePreviewTab('invalid')}
-                  className={`
-                    px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap
-                    ${activePreviewTab === 'invalid' 
-                      ? 'bg-linear-to-r from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-500/25' 
-                      : 'text-rose-600 hover:text-rose-700 dark:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/10'
-                    }
-                  `}
-                >
-                  <XCircle className="w-4 h-4" />
-                  Invalid
-                  <span className={`
-                    text-xs px-2 py-0.5 rounded-full font-bold
-                    ${activePreviewTab === 'invalid' 
-                      ? 'bg-white/20 text-white' 
-                      : 'bg-rose-100 dark:bg-rose-800 text-rose-700 dark:text-rose-300'
-                    }
-                  `}>
-                    {invalidCount}
-                  </span>
-                </button>
-              )}
-            </div>
-          </div>
-          
-          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    No
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Tanggal
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Keterangan
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Debit
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Kredit
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Saldo
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredPreviewRows.map((row, index) => {
-                  const isDuplicate = duplicateRowNumbers.has(row.row_number)
-                  const status = !row.is_valid ? 'INVALID' : isDuplicate ? 'DUPLICATE' : 'VALID'
-                  
-                  return (
-                    <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                        {row.row_number}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                        {row.transaction_date
-                          ? format(new Date(row.transaction_date), 'dd/MM/yyyy', { locale: idLocale })
-                          : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-sm truncate">
-                        <button
-                          onClick={() => openDescriptionModal(row.description || '-', row.row_number, row.transaction_date)}
-                          className="flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors w-full"
-                        >
-                          <span className="truncate flex-1 text-left">
-                            {row.description || '-'}
-                          </span>
-                          {(row.description || '').length > 50 && (
-                            <Maximize2 className="w-4 h-4 shrink-0 opacity-50" />
-                          )}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-right font-mono text-red-600 dark:text-red-400">
-                        {row.debit_amount > 0 ? formatCurrency(row.debit_amount) : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-right font-mono text-green-600 dark:text-green-400">
-                        {row.credit_amount > 0 ? formatCurrency(row.credit_amount) : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-right font-mono text-gray-900 dark:text-white">
-                        {row.balance !== undefined && row.balance !== null ? formatCurrency(row.balance) : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`
-                          inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold
-                          ${status === 'VALID' 
-                            ? 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300' 
-                            : status === 'DUPLICATE'
-                              ? 'bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-300'
-                              : 'bg-rose-100 dark:bg-rose-800 text-rose-700 dark:text-rose-300'
-                          }
-                        `}>
-                          {status === 'VALID' && <CheckCircle2 className="w-3 h-3" />}
-                          {status === 'DUPLICATE' && <AlertTriangle className="w-3 h-3" />}
-                          {status === 'INVALID' && <XCircle className="w-3 h-3" />}
-                          {status}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )})()}
-
-      {/* Description Detail Modal */}
-      {showDescriptionModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-            {/* Modal Header */}
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between shrink-0">
-              <div>
-                <h3 className="font-bold text-lg text-gray-900 dark:text-white">
-                  Detail Keterangan
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Baris {selectedRowInfo?.rowNumber || '-'} • {selectedRowInfo?.date 
-                    ? format(new Date(selectedRowInfo.date), 'dd/MM/yyyy', { locale: idLocale })
-                    : '-'}
-                </p>
-              </div>
-              <button
-                onClick={closeDescriptionModal}
-                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            {/* Modal Content */}
-            <div className="p-6 overflow-y-auto flex-1">
-              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                <p className="text-gray-900 dark:text-white whitespace-pre-wrap wrap-break-word">
-                  {selectedDescription}
-                </p>
-              </div>
-              
-              {/* Additional Info */}
-              <div className="mt-4 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                <span className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                  {selectedDescription.length} karakter
-                </span>
-                <span className="text-gray-400">•</span>
-                <span>
-                  {selectedDescription.split(/\s+/).length} kata
-                </span>
-              </div>
-            </div>
-            
-            {/* Modal Footer */}
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end shrink-0">
-              <button
-                onClick={closeDescriptionModal}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
+      {/* Load More */}
+      {hasMore && (
+        <div className="flex justify-center pt-2">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50"
+          >
+            {loadingMore ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                Memuat...
+              </>
+            ) : (
+              <>
+                <ChevronDown size={14} />
+                Muat lebih banyak
+              </>
+            )}
+          </button>
         </div>
       )}
     </div>
-  )
+  );
 }
+
+// ---------------------------------------------------------------------------
+// MAIN PAGE
+// ---------------------------------------------------------------------------
 
 export function BankStatementImportDetailPage() {
-  return <BankStatementImportDetailPageContent />
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  const [importData, setImportData] = useState<ImportDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    fetchImportDetail(id)
+      .then(setImportData)
+      .catch((e) => setError(e.message ?? "Gagal memuat data"))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  // -------------------------------------------------------------------------
+  // LOADING STATE
+  // -------------------------------------------------------------------------
+  if (loading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          <div className="h-6 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div
+              key={i}
+              className="h-24 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse"
+            />
+          ))}
+        </div>
+        <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // ERROR STATE
+  // -------------------------------------------------------------------------
+  if (error || !importData) {
+    return (
+      <div className="p-6">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mb-6"
+        >
+          <ArrowLeft size={16} /> Kembali
+        </button>
+        <div className="flex flex-col items-center gap-3 py-16 text-center text-gray-500 dark:text-gray-400">
+          <AlertCircle size={40} className="text-red-400" />
+          <p className="font-semibold text-gray-900 dark:text-white">
+            Gagal memuat data
+          </p>
+          <p className="text-sm">{error ?? "Data tidak ditemukan"}</p>
+          <button
+            onClick={() => navigate(-1)}
+            className="mt-2 px-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+          >
+            Kembali ke daftar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // DERIVED DATA — semua optional-chained karena analysis_data bisa null
+  // -------------------------------------------------------------------------
+  const analysis = importData.analysis_data;
+  const bankName =
+    importData.bank_name ?? importData.bank_accounts?.banks?.bank_name ?? "-";
+  const accountNumber =
+    importData.account_number ??
+    importData.bank_accounts?.account_number ??
+    "-";
+  const accountName =
+    importData.account_name ?? importData.bank_accounts?.account_name ?? "-";
+
+  const dateStart =
+    importData.date_range_start ?? analysis?.date_range?.start ?? null;
+  const dateEnd =
+    importData.date_range_end ?? analysis?.date_range?.end ?? null;
+
+  const warnings = analysis?.warnings ?? [];
+  const duplicateCount = analysis?.duplicate_count ?? 0;
+  const invalidCount = analysis?.invalid_count ?? 0;
+  const totalRawRows = analysis?.total_raw_rows ?? importData.total_rows;
+
+  // Skipped = total raw - processed - failed
+  const skippedRows = Math.max(
+    0,
+    totalRawRows - importData.processed_rows - importData.failed_rows,
+  );
+
+  const isCompleted = importData.status === "COMPLETED";
+  const isFailed = importData.status === "FAILED";
+
+  // -------------------------------------------------------------------------
+  // RENDER
+  // -------------------------------------------------------------------------
+  return (
+    <div className="p-6 space-y-6 max-w-6xl mx-auto">
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="mt-1 p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white break-all">
+                {importData.file_name}
+              </h1>
+              <StatusBadge status={importData.status} />
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {bankName} · {accountNumber} · {accountName}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Warnings dari analysis ── */}
+      {warnings.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 space-y-1">
+          <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-semibold text-sm">
+            <AlertTriangle size={16} />
+            Peringatan Analisis
+          </div>
+          {warnings.map((w, i) => (
+            <p
+              key={i}
+              className="text-sm text-amber-700 dark:text-amber-300 pl-6"
+            >
+              {w}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {/* ── Error detail (status FAILED) ── */}
+      {isFailed && importData.error_message && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 text-red-700 dark:text-red-400 font-semibold text-sm mb-1">
+            <XCircle size={16} />
+            Penyebab Kegagalan
+          </div>
+          <p className="text-sm text-red-700 dark:text-red-300 pl-6 font-mono">
+            {importData.error_message}
+          </p>
+        </div>
+      )}
+
+      {/* ── Stat Cards ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard
+          label="Total Baris File"
+          value={totalRawRows}
+          sub="baris ditemukan di file"
+          accent="gray"
+        />
+        <StatCard
+          label="Berhasil Diimport"
+          value={importData.processed_rows}
+          sub={isCompleted ? "tersimpan di sistem" : "-"}
+          accent="green"
+        />
+        <StatCard
+          label="Diskip"
+          value={skippedRows}
+          sub={
+            duplicateCount > 0
+              ? `${duplicateCount} duplikat`
+              : "baris tidak diproses"
+          }
+          accent="blue"
+        />
+        <StatCard
+          label="Gagal"
+          value={importData.failed_rows + invalidCount}
+          sub={
+            invalidCount > 0
+              ? `${invalidCount} baris tidak valid`
+              : "baris error"
+          }
+          accent={importData.failed_rows + invalidCount > 0 ? "red" : "gray"}
+        />
+      </div>
+
+      {/* ── Metadata Grid ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Info File */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <FileText size={15} className="text-gray-400" />
+            Informasi File
+          </h2>
+          <dl className="space-y-2.5 text-sm">
+            <div className="flex justify-between items-center">
+              <dt className="text-gray-500 dark:text-gray-400">Ukuran</dt>
+              <dd className="font-medium text-gray-900 dark:text-white font-mono text-xs">
+                {formatFileSize(importData.file_size)}
+              </dd>
+            </div>
+            {importData.file_hash && (
+              <div className="flex justify-between items-center">
+                <dt className="text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                  <Hash size={12} /> SHA-256
+                </dt>
+                <dd>
+                  <CopyableHash hash={importData.file_hash} />
+                </dd>
+              </div>
+            )}
+            <div className="flex justify-between items-center">
+              <dt className="text-gray-500 dark:text-gray-400">Diupload</dt>
+              <dd className="font-medium text-gray-900 dark:text-white text-xs">
+                {formatDateTime(importData.created_at)}
+              </dd>
+            </div>
+            {importData.updated_at && (
+              <div className="flex justify-between items-center">
+                <dt className="text-gray-500 dark:text-gray-400">Diperbarui</dt>
+                <dd className="font-medium text-gray-900 dark:text-white text-xs">
+                  {formatDateTime(importData.updated_at)}
+                </dd>
+              </div>
+            )}
+            {analysis?.analyzed_at && (
+              <div className="flex justify-between items-center">
+                <dt className="text-gray-500 dark:text-gray-400">Dianalisis</dt>
+                <dd className="font-medium text-gray-900 dark:text-white text-xs">
+                  {formatDateTime(analysis.analyzed_at)}
+                </dd>
+              </div>
+            )}
+            {importData.job_id && (
+              <div className="flex justify-between items-center">
+                <dt className="text-gray-500 dark:text-gray-400">Job ID</dt>
+                <dd>
+                  <CopyableHash hash={importData.job_id} />
+                </dd>
+              </div>
+            )}
+          </dl>
+        </div>
+
+        {/* Rentang Tanggal + Column Mapping */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 space-y-4">
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <Calendar size={15} className="text-gray-400" />
+              Rentang Transaksi
+            </h2>
+            {dateStart && dateEnd ? (
+              <div className="flex items-center gap-3 text-sm">
+                <span className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg font-medium text-gray-900 dark:text-white">
+                  {formatDate(dateStart)}
+                </span>
+                <span className="text-gray-400">—</span>
+                <span className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg font-medium text-gray-900 dark:text-white">
+                  {formatDate(dateEnd)}
+                </span>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 dark:text-gray-500">
+                Tidak tersedia
+              </p>
+            )}
+          </div>
+
+          {/* Column mapping dari analisis */}
+          {analysis?.column_mapping &&
+            Object.keys(analysis.column_mapping).length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  Pemetaan Kolom
+                </h3>
+                <dl className="space-y-1.5">
+                  {Object.entries(analysis.column_mapping).map(([key, col]) =>
+                    col ? (
+                      <div key={key} className="flex justify-between text-xs">
+                        <dt className="text-gray-500 dark:text-gray-400 capitalize">
+                          {key.replace(/_/g, " ")}
+                        </dt>
+                        <dd className="font-mono text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+                          {col}
+                        </dd>
+                      </div>
+                    ) : null,
+                  )}
+                </dl>
+              </div>
+            )}
+        </div>
+      </div>
+
+      {/* ── Tabel Transaksi ── */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+            Transaksi Berhasil Diimport
+          </h2>
+          {importData.status === "COMPLETED" &&
+            importData.processed_rows === 0 && (
+              <span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1 rounded-full">
+                Semua baris diskip
+              </span>
+            )}
+        </div>
+
+        {id && (
+          <TransactionTable importId={id} importStatus={importData.status} />
+        )}
+      </div>
+    </div>
+  );
 }
 
-export default BankStatementImportDetailPage
+export default BankStatementImportDetailPage;
