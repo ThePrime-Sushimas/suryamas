@@ -1,4 +1,4 @@
-import { CheckCircle, Clock, AlertCircle, XCircle, TrendingUp } from 'lucide-react'
+import { CheckCircle, AlertCircle, TrendingUp } from 'lucide-react'
 import type { BankStatementAnalysisResult } from '../../types/bank-statement-import.types'
 
 interface AnalysisSummaryProps {
@@ -26,14 +26,9 @@ export function AnalysisSummary({ result }: AnalysisSummaryProps) {
   const duplicates = analysis?.duplicates || result.duplicates || []
   const duplicateCount = duplicates.length
 
-  // Hitung pending rows (yang bukan valid dan bukan invalid)
-  const pendingRows = totalRows - validRows - invalidRows
-
   // Calculate percentages
   const validPercentage = totalRows > 0 ? Math.round((validRows / totalRows) * 100) : 0
-  const pendingPercentage = totalRows > 0 ? Math.round((pendingRows / totalRows) * 100) : 0
   const duplicatePercentage = totalRows > 0 ? Math.round((duplicateCount / totalRows) * 100) : 0
-  const invalidPercentage = totalRows > 0 ? Math.round((invalidRows / totalRows) * 100) : 0
 
   return (
     <div className="space-y-4">
@@ -84,29 +79,7 @@ export function AnalysisSummary({ result }: AnalysisSummaryProps) {
               />
             </div>
           </div>
-        </div>
-
-        {/* Pending Rows */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Pending</span>
-            <Clock className="w-4 h-4 text-yellow-500" />
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            {pendingRows.toLocaleString()}
-          </p>
-          <div className="mt-2">
-            <div className="flex justify-between text-xs text-gray-500 mb-1">
-              <span>{pendingPercentage}% dari total</span>
-            </div>
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-              <div 
-                className="bg-yellow-500 h-1.5 rounded-full transition-all duration-300"
-                style={{ width: `${pendingPercentage}%` }}
-              />
-            </div>
-          </div>
-        </div>
+        </div>        
 
         {/* Duplicates */}
         <div className="bg-amber-50 dark:bg-amber-950/50 rounded-xl p-4 border border-amber-200/50 dark:border-amber-800/50">
@@ -129,28 +102,6 @@ export function AnalysisSummary({ result }: AnalysisSummaryProps) {
             </div>
           </div>
         </div>
-
-        {/* Invalid Rows */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Invalid</span>
-            <XCircle className="w-4 h-4 text-red-500" />
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            {invalidRows.toLocaleString()}
-          </p>
-          <div className="mt-2">
-            <div className="flex justify-between text-xs text-gray-500 mb-1">
-              <span>{invalidPercentage}% dari total</span>
-            </div>
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-              <div 
-                className="bg-red-500 h-1.5 rounded-full transition-all duration-300"
-                style={{ width: `${invalidPercentage}%` }}
-              />
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Summary Footer */}
@@ -159,19 +110,11 @@ export function AnalysisSummary({ result }: AnalysisSummaryProps) {
           <span className="flex items-center gap-1.5">
             <div className="w-2 h-2 bg-green-500 rounded-full" />
             <span className="text-gray-600 dark:text-gray-400">Valid: {validRows.toLocaleString()}</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <div className="w-2 h-2 bg-yellow-500 rounded-full" />
-            <span className="text-gray-600 dark:text-gray-400">Pending: {pendingRows.toLocaleString()}</span>
-          </span>
+          </span>          
           <span className="flex items-center gap-1.5">
             <div className="w-2 h-2 bg-orange-500 rounded-full" />
             <span className="text-gray-600 dark:text-gray-400">Duplikat: {duplicateCount.toLocaleString()}</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <div className="w-2 h-2 bg-red-500 rounded-full" />
-            <span className="text-gray-600 dark:text-gray-400">Invalid: {invalidRows.toLocaleString()}</span>
-          </span>
+          </span>           
         </div>
         <div className="text-right">
           <p className="font-medium text-gray-900 dark:text-gray-100">

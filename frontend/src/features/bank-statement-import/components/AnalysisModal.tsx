@@ -7,7 +7,6 @@ import {
   XCircle,
   Loader2,
   FileCheck,
-  Eye,
   FileText,
   FileBarChart,
   CheckCircle2,
@@ -333,19 +332,7 @@ const handleConfirm = async () => {
                 <BarChart3 className="w-4 h-4" />
                 Ringkasan
             </button>
-            <button
-              className={`
-                px-5 py-2.5 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap
-                ${activeTab === 'preview' 
-                  ? 'bg-linear-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' 
-                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'
-                }
-              `}
-              onClick={() => setActiveTab('preview')}
-            >
-                <Eye className="w-4 h-4" />
-                Preview Data
-            </button>
+                
             {(duplicateCount > 0 || (warnings && warnings.length > 0)) && (
               <button
                 className={`
