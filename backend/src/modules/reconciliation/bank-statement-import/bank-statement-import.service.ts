@@ -3,7 +3,7 @@
  * Handles business logic untuk bank statement import operations
  */
 
-import { logInfo, logError } from "../../../config/logger";
+import { logInfo, logError, logWarn } from "../../../config/logger";
 import { BankStatementImportRepository } from "./bank-statement-import.repository";
 import {
   BankStatementImport,
@@ -636,7 +636,9 @@ export class BankStatementImportService {
   }
 
   /**
-   * Get import summary
+   * Get import summary with status-based data source selection
+   * - COMPLETED/IMPORTING/FAILED: Use DB statements (primary)
+   * - ANALYZED/PENDING: Use temp storage or analysis_data
    */
   async getImportSummary(
     importId: number,
@@ -650,7 +652,7 @@ export class BankStatementImportService {
       reconciled_count: number;
       duplicate_count: number;
       preview?: BankStatementPreviewRow[];
-    };
+    } & { data_source: 'db' | 'temp' | 'analysis' };
   }> {
     const importRecord = await this.getImportById(importId, companyId);
 
@@ -660,72 +662,78 @@ export class BankStatementImportService {
 
     const summary = await this.repository.getSummaryByImportId(importId);
 
-    // Calculate duplicate_count based on import status
+    // Status-based data source selection
     let duplicateCount = 0;
     let preview: BankStatementPreviewRow[] | undefined;
+    let dataSource: 'db' | 'temp' | 'analysis' = 'db';
 
-    // Try from Supabase Storage first (for ANALYZED status)
-    try {
-      const rows = await this.retrieveTemporaryData(importId);
+    const completedStatuses = ['COMPLETED', 'IMPORTING', 'FAILED'] as const;
+    const analyzedStatuses = ['PENDING', 'ANALYZED'] as const;
 
-      // Generate preview
-      preview = this.generatePreview(
-        rows.slice(0, 10).map((r) => ({
-          ...r,
+    if (completedStatuses.includes(importRecord.status as any)) {
+      // Primary: Use DB statements for completed imports
+      dataSource = 'db';
+      const statementsResult = await this.repository.findByImportId(
+        importId,
+        { page: 1, limit: 10 }
+      );
+      if (statementsResult.data.length > 0) {
+        preview = statementsResult.data.map((stmt: any) => ({
+          row_number: stmt.row_number || 0,
+          transaction_date: stmt.transaction_date,
+          transaction_time: stmt.transaction_time || '',
+          description: stmt.description || '',
+          debit_amount: stmt.debit_amount || 0,
+          credit_amount: stmt.credit_amount || 0,
+          balance: stmt.balance,
+          reference_number: stmt.reference_number || '',
           is_valid: true,
           errors: [],
           warnings: [],
-        })),
-        10,
-      );
-
-      // Calculate duplicates from temporary data for ANALYZED status
-      if (importRecord.status === IMPORT_STATUS.ANALYZED) {
-        const { validRows } = await this.validateRows(
-          rows,
-          companyId,
-          importRecord.bank_account_id,
-          importId,
-        );
-        const duplicates = await this.detectDuplicates(
-          validRows,
-          companyId,
-          importRecord.bank_account_id,
-        );
-        duplicateCount = duplicates.length;
-        logInfo(
-          "BankStatementImport: Calculated duplicate count from temporary data",
-          { importId, duplicateCount },
-        );
+        }));
+        logInfo('Summary using DB statements', { importId, status: importRecord.status, previewCount: preview.length });
       }
-    } catch {
-      // Fallback: get from statements in database (for COMPLETED status)
+    } else if (analyzedStatuses.includes(importRecord.status as any)) {
+      // Secondary: Try temp data for analyzed imports
       try {
-        const statementsResult = await this.repository.findByImportId(
-          importId,
-          { page: 1, limit: 10 },
-        );
-        if (statementsResult.data.length > 0) {
-          preview = statementsResult.data.map((stmt) => ({
-            row_number: stmt.row_number || 0,
-            transaction_date: stmt.transaction_date,
-            transaction_time: stmt.transaction_time,
-            description: stmt.description || "",
-            debit_amount: stmt.debit_amount,
-            credit_amount: stmt.credit_amount,
-            balance: stmt.balance,
-            reference_number: stmt.reference_number,
+        dataSource = 'temp';
+        const rows = await this.retrieveTemporaryData(importId);
+        preview = this.generatePreview(
+          rows.slice(0, 10).map((r: any) => ({
+            ...r,
             is_valid: true,
             errors: [],
             warnings: [],
-          }));
-        }
-      } catch (error) {
-        logError(
-          "BankStatementImport: Could not fetch preview from statements",
-          { importId, error },
+          })),
+          10
         );
-        preview = undefined;
+
+        // Calculate duplicates only for ANALYZED
+        if (importRecord.status === 'ANALYZED') {
+          const { validRows } = await this.validateRows(
+            rows,
+            companyId,
+            importRecord.bank_account_id,
+            importId
+          );
+          const duplicates = await this.detectDuplicates(validRows, companyId, importRecord.bank_account_id);
+          duplicateCount = duplicates.length;
+        }
+
+        logInfo('Summary using temp data', { importId, status: importRecord.status, previewCount: preview?.length || 0 });
+      } catch (tempError) {
+        logWarn('Temp data unavailable, falling back to analysis_data', { 
+          importId, 
+          status: importRecord.status,
+          error: String(tempError).substring(0, 200)
+        });
+
+        // Fallback: Use stored analysis_data
+        dataSource = 'analysis';
+        const analysisPreview = (importRecord.analysis_data as any)?.preview;
+        if (Array.isArray(analysisPreview) && analysisPreview.length > 0) {
+          preview = analysisPreview.slice(0, 10);
+        }
       }
     }
 
@@ -738,6 +746,7 @@ export class BankStatementImportService {
         reconciled_count: summary.reconciled_count,
         duplicate_count: duplicateCount,
         preview,
+        data_source: dataSource,
       },
     };
   }
@@ -924,14 +933,18 @@ export class BankStatementImportService {
    * Get import preview
    * @param limit - Maximum number of rows to return (0 means all rows)
    */
+  /**
+   * Get import preview with status-based fallback (same logic as summary)
+   */
   async getImportPreview(
     importId: number,
     companyId: string,
-    limit: number,
+    limit: number = 10,
   ): Promise<{
     import: BankStatementImport;
     preview_rows: BankStatementPreviewRow[];
     total_rows: number;
+    data_source?: 'db' | 'temp' | 'analysis';
   }> {
     const importRecord = await this.getImportById(importId, companyId);
 
@@ -939,53 +952,56 @@ export class BankStatementImportService {
       throw BankStatementImportErrors.IMPORT_NOT_FOUND(importId);
     }
 
-    // Try to get from temporary data first
-    try {
-      const rows = await this.retrieveTemporaryData(importId);
+    const completedStatuses = ['COMPLETED', 'IMPORTING', 'FAILED'] as const;
+    let dataSource: 'db' | 'temp' | 'analysis' | undefined;
+    let totalRows = importRecord.total_rows || 0;
 
-      // If limit is 0 or greater than rows.length, return all rows
-      const rowsToProcess = limit > 0 ? rows.slice(0, limit) : rows;
-
-      const previewRows = this.generatePreview(
-        rowsToProcess.map((r) => ({
-          ...r,
-          is_valid: true,
-          errors: [],
-          warnings: [],
-        })),
-        rowsToProcess.length,
-      );
-
-      return {
-        import: importRecord,
-        preview_rows: previewRows,
-        total_rows: rows.length,
-      };
-    } catch {
-      // Fallback: get from statements in database
+    if (completedStatuses.includes(importRecord.status as any)) {
+      dataSource = 'db';
       const statementsResult = await this.repository.findByImportId(importId, {
         page: 1,
-        limit: limit > 0 ? limit : 10000,
+        limit: Math.max(limit, 10000), // Support large previews for export
       });
-      const previewRows = statementsResult.data.map((stmt) => ({
+      const previewRows = statementsResult.data.map((stmt: any) => ({
         row_number: stmt.row_number || 0,
         transaction_date: stmt.transaction_date,
-        transaction_time: stmt.transaction_time,
-        description: stmt.description || "",
-        debit_amount: stmt.debit_amount,
-        credit_amount: stmt.credit_amount,
+        transaction_time: stmt.transaction_time || '',
+        description: stmt.description || '',
+        debit_amount: stmt.debit_amount || 0,
+        credit_amount: stmt.credit_amount || 0,
         balance: stmt.balance,
-        reference_number: stmt.reference_number,
+        reference_number: stmt.reference_number || '',
         is_valid: true,
         errors: [],
         warnings: [],
       }));
-
-      return {
-        import: importRecord,
-        preview_rows: previewRows,
-        total_rows: statementsResult.total,
-      };
+      totalRows = statementsResult.total;
+      logInfo('Preview using DB statements', { importId, limit, count: previewRows.length });
+      return { import: importRecord, preview_rows: previewRows, total_rows: totalRows, data_source: dataSource };
+    } else {
+      // ANALYZED/PENDING: Try temp → analysis_data
+      try {
+        dataSource = 'temp';
+        const rows = await this.retrieveTemporaryData(importId);
+        const rowsToProcess = limit > 0 ? rows.slice(0, limit) : rows;
+        const previewRows = this.generatePreview(
+          rowsToProcess.map((r: any) => ({
+            ...r,
+            is_valid: true,
+            errors: [],
+            warnings: [],
+          })),
+          rowsToProcess.length
+        );
+        logInfo('Preview using temp data', { importId, limit, count: previewRows.length });
+        return { import: importRecord, preview_rows: previewRows, total_rows: rows.length, data_source: dataSource };
+      } catch {
+        dataSource = 'analysis';
+        const analysisPreview = (importRecord.analysis_data as any)?.preview || [];
+        const previewRows = analysisPreview.slice(0, limit);
+        logWarn('Preview using analysis_data fallback', { importId, count: previewRows.length });
+        return { import: importRecord, preview_rows: previewRows, total_rows: totalRows, data_source: dataSource };
+      }
     }
   }
 
@@ -2551,19 +2567,31 @@ export class BankStatementImportService {
   }
 
   /**
-   * Retrieve temporary data from Supabase Storage
+   * Retrieve temporary data from Supabase Storage (graceful fallback)
    */
   private async retrieveTemporaryData(importId: number): Promise<any[]> {
     try {
-      return await this.repository.downloadTemporaryData(importId)
-    } catch (error) {
+      const data = await this.repository.downloadTemporaryData(importId);
+      logInfo('Temp data retrieved successfully', { importId, rowCount: data.length });
+      return data;
+    } catch (error: any) {
+      // Graceful handling for StorageUnknownError (file not found)
+      if (error.name === 'StorageUnknownError' || String(error).includes('not found')) {
+        logWarn('Temp data not found (expected for completed imports)', { 
+          importId, 
+          error: String(error).substring(0, 100) 
+        });
+        return [];
+      }
+      
       logError("BankStatementImport: retrieveTemporaryData error", {
         importId,
         bucket: "bank-statement-imports-temp",
         path: `${importId}.json`,
-        error,
+        error_name: error.name,
+        error_message: error.message,
       });
-      throw new Error("Temporary data not found. Please re-upload the file.");
+      throw error;
     }
   }
 

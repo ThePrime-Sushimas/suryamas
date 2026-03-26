@@ -946,19 +946,73 @@ export class BankStatementImportRepository {
   }
 
   /**
-   * Remove temporary import rows from Supabase Storage (best-effort)
+   * Remove temporary import rows from Supabase Storage (reliable, 3x retry)
    */
-  async removeTemporaryData(importId: number): Promise<void> {
+  async removeTemporaryData(importId: number): Promise<boolean> {
+    const objectPath = `${importId}.json`;
+    const bucket = 'bank-statement-imports-temp';
+    
+    // Check bucket exists first
     try {
-      const { data: buckets } = await supabase.storage.listBuckets()
-      const bucketExists = buckets?.some(b => b.name === 'bank-statement-imports-temp')
-      if (!bucketExists) return
-
-      await supabase.storage.from('bank-statement-imports-temp').remove([`${importId}.json`])
-      logInfo('BankStatementImportRepository.removeTemporaryData success', { importId })
-    } catch (error) {
-      logWarn('BankStatementImportRepository.removeTemporaryData error', { importId, error })
+      const { data: buckets } = await supabase.storage.listBuckets();
+      const bucketExists = buckets?.some(b => b.name === bucket);
+      if (!bucketExists) {
+        logWarn('Temp bucket does not exist, skipping cleanup', { importId, bucket });
+        return false;
+      }
+    } catch (bucketCheckError) {
+      logWarn('Bucket check failed, proceeding with cleanup anyway', { importId, error: String(bucketCheckError) });
     }
+
+    // Retry logic: 3 attempts with exponential backoff
+    const maxRetries = 3;
+    let lastError: any;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const { error } = await supabase.storage
+          .from(bucket)
+          .remove([objectPath]);
+
+        if (!error) {
+          logInfo('BankStatementImportRepository.removeTemporaryData success', { 
+            importId, 
+            attempt,
+            path: objectPath 
+          });
+          return true;
+        }
+
+        lastError = error;
+        logWarn(`Cleanup attempt ${attempt} failed`, { 
+          importId, 
+          path: objectPath, 
+          error: error.message 
+        });
+
+        // Backoff: 100ms * attempt
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+        }
+      } catch (retryError) {
+        lastError = retryError;
+        logWarn(`Cleanup retry ${attempt} threw error`, { importId, error: String(retryError) });
+        
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+        }
+      }
+    }
+
+    // Final failure log
+    logError('BankStatementImportRepository.removeTemporaryData final failure after retries', {
+      importId,
+      path: objectPath,
+      attempts: maxRetries,
+      final_error: lastError?.message || String(lastError)
+    });
+
+    return false; // Failed but non-blocking
   }
 }
 

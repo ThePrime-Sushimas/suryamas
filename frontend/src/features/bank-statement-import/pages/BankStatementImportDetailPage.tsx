@@ -32,8 +32,6 @@ function BankStatementImportDetailPageContent() {
   const { id } = useParams<{ id: string }>()
   const [importData, setImportData] = useState<BankStatementImport | null>(null)
   const [analysisResult, setAnalysisResult] = useState<BankStatementAnalysisResult | null>(null)
-  // ✅ FIXED: 3 separate preview states for Original/Processed/Filtered
-  const [originalPreview, setOriginalPreview] = useState<PreviewData | null>(null)
   const [processedPreview, setProcessedPreview] = useState<PreviewData | null>(null)
   const [filteredPreview] = useState<PreviewData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -46,7 +44,7 @@ function BankStatementImportDetailPageContent() {
   const [selectedRowInfo, setSelectedRowInfo] = useState<{ rowNumber: number; date: string } | null>(null)
   
   // Tab state for preview - added 'filtered'
-  const [activePreviewTab, setActivePreviewTab] = useState<'processed' | 'original' | 'filtered' | 'valid' | 'duplicate' | 'invalid'>('processed')
+  const [activePreviewTab, setActivePreviewTab] = useState<'processed' | 'filtered' | 'valid' | 'duplicate' | 'invalid'>('processed')
 
   // Go back handler
   const goBack = () => {
@@ -76,7 +74,6 @@ function BankStatementImportDetailPageContent() {
       setImportData(summaryRes.import)
       
       // ✅ FIXED: Fetch 3 previews in parallel: Original(395), Processed(156), Filtered
-      const importTotalRows = summaryRes.import?.total_rows || 0
       const processedRows = summaryRes.import?.processed_rows || 0
       
       // Parallel fetches with sorting helper
@@ -87,16 +84,7 @@ function BankStatementImportDetailPageContent() {
       })
       
       try {
-        // 1. Raw CSV: No limit (full preview if available)
-        bankStatementImportApi.getPreview(numericId, 0)
-          .then(originalRes => setOriginalPreview({
-            preview_rows: sortPreviewRows(originalRes.preview_rows || []),
-            total_rows: originalRes.total_rows,
-            import_id: numericId
-          }))
-          .catch(() => setOriginalPreview(null)) // Temp cleared fallback
-        
-        // 2. Processed: DB rows (limit=processedRows)
+        // Processed: DB rows (limit=processedRows)
         bankStatementImportApi.getPreview(numericId, processedRows)
           .then(processedRes => setProcessedPreview({
             preview_rows: sortPreviewRows(processedRes.preview_rows || []),
@@ -179,8 +167,6 @@ function BankStatementImportDetailPageContent() {
   const filteredPreviewRows = useMemo((): BankStatementPreviewRow[] => {
     const getRowsForTab = (tab: typeof activePreviewTab): BankStatementPreviewRow[] => {
       switch (tab) {
-        case 'original':
-          return originalPreview?.preview_rows || []
         case 'processed':
           return processedPreview?.preview_rows || []
         case 'filtered':
@@ -200,7 +186,7 @@ function BankStatementImportDetailPageContent() {
     }
     
     return getRowsForTab(activePreviewTab)
-  }, [activePreviewTab, originalPreview, processedPreview, filteredPreview, duplicateRowNumbers])
+  }, [activePreviewTab, processedPreview, filteredPreview, duplicateRowNumbers])
 
   // Count rows by status
   // ✅ FIXED: Counts from processed preview data
@@ -523,7 +509,7 @@ function BankStatementImportDetailPageContent() {
       {/* Analysis Preview with Tabs */}
 {(() => {
         // ✅ FIXED: analysis_data → analysis (per types.ts)
-        if (!processedPreview && !originalPreview && !analysisResult?.analysis?.preview) return null
+        if (!processedPreview && !analysisResult?.analysis?.preview) return null
         
         // Legacy original sample fallback (small 10-row)
         
@@ -574,28 +560,7 @@ function BankStatementImportDetailPageContent() {
                   {processedPreview?.preview_rows.length || 0}
                 </span>
               </button>
-              <button
-                onClick={() => setActivePreviewTab('original')}
-                className={`
-                  px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap
-                  ${activePreviewTab === 'original' 
-                    ? 'bg-linear-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25' 
-                    : 'text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20'
-                  }
-                `}
-              >
-                <FileText className="w-4 h-4" />
-                Original CSV
-                <span className={`
-                  text-xs px-2 py-0.5 rounded-full font-bold
-                  ${activePreviewTab === 'original' 
-                    ? 'bg-white/20 text-white' 
-                    : 'bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300'
-                  }
-                `}>
-                  {originalPreview?.total_rows?.toLocaleString() || 'N/A'}
-                </span>
-              </button>
+
               
               {/* ✅ NEW: Filtered tab */}
               <button

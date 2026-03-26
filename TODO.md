@@ -1,29 +1,78 @@
-# Bank Statement Preview Fix - Progress Tracker
+# Bank Statement Import Temp Data Error Fix - TODO
 
-## ✅ Step 1: Create TODO.md [COMPLETED]
+## Approved Plan Steps (3 Main Changes)
 
-## ⏳ Step 2: Add PreviewData type (types/bank-statement-import.types.ts)
-- [ ] Define `PreviewData` interface
-- [ ] Export properly
+### ✅ 1. Service Layer: Status-based Fallback Logic
+**File**: `backend/src/modules/reconciliation/bank-statement-import/bank-statement-import.service.ts`
 
-## ✅ Step 3: Update BankStatementImportDetailPage.tsx - MAJOR REFACTOR  
-- [✅] New states: `originalPreview`, `processedPreview`, `filteredPreview`
-- [✅] 3 parallel API calls: summary, original(395), processed(156)
-- [✅] New tabs: Processed/Original/Filtered/Valid/Duplicate/Invalid
-- [✅] Clear header: \"📊 Original: 395 | ✅ Processed: 156 | ❌ Filtered: 239\"
-- [✅] Filtered rows logic (invalid + duplicates)
-- [✅] Edge cases: temp cleared fallback, 0 processed
-- [✅] TS strict compliance (no `any`)
+**Status**: ✅ COMPLETED
 
-## ⏳ Step 4: Test Implementation
-- [ ] Fresh CSV upload → Verify 3 tabs + counts
-- [ ] Network tab → 3 preview calls correct limits
-- [ ] Delete temp manually → Original fallback
-- [ ] `tsc --noEmit` → 0 errors
+**Changes**:
+- `getImportSummary()`: Status-based logic + `data_source` field
+- `retrieveTemporaryData()`: Graceful StorageUnknownError → `[]`
+- `getImportPreview()`: Same fallback logic
+- Added `logInfo`/`logWarn` for data source tracking
 
-## ⏳ Step 5: Update TODO.md & Complete
-- [ ] Mark steps ✅
-- [ ] `attempt_completion`
+**Tasks**:
+- [ ] Modify `getImportSummary()`: Check import.status first
+  - COMPLETED/IMPORTING/FAILED → Use DB statements (new `getStatementsPreview()` helper)
+  - PENDING/ANALYZED → Try temp data → Fallback to `analysis_data.preview`
+- [ ] Create `getStatementsPreview(importId, limit=10)` helper method
+- [ ] Update return type: Add `data_source: 'db' | 'temp' | 'analysis'`
+- [ ] Test both ANALYZED and COMPLETED imports
 
-**Current Progress: 1/5 (20%)**
+**Expected Impact**: Detail page `/198` will work for COMPLETED imports
+
+---
+
+### ✅ 2. Graceful Error Handling
+**File**: `backend/src/modules/reconciliation/bank-statement-import/bank-statement-import.service.ts`
+
+**Status**: [ ] Not Started
+
+**Tasks**:
+- [ ] Wrap `retrieveTemporaryData()`: Catch StorageUnknownError → return `[]`
+- [ ] Log data source used: `logInfo('Summary using DB data', {importId, status})`
+- [ ] Update `getImportPreview()`: Same status-based logic as summary
+
+**Expected Impact**: No more crashes, always returns data
+
+---
+
+### ✅ 3. Reliable Temp Data Cleanup
+**File**: `backend/src/modules/reconciliation/bank-statement-import/bank-statement-import.repository.ts`
+
+**Status**: ✅ COMPLETED
+
+**Changes**:
+- `removeTemporaryData()`: 3x retry + exponential backoff
+- Returns `boolean` success flag
+- Comprehensive logging (success/failure per attempt)
+- Non-blocking (never throws)
+
+**Tasks**:
+- [ ] Strengthen `removeTemporaryData()`: 3x retry + log success/failure
+- [ ] Call cleanup in `processImport()` completion (already there, make robust)
+- [ ] Add `temp_file_cleanup: boolean` field to import record on completion
+
+**Expected Impact**: Prevents future temp file leaks
+
+---
+
+## Testing Steps (After All Changes)
+```
+1. npm run dev (backend)
+2. Visit http://localhost:5173/bank-statement-import/198 → ✅ No crash
+3. Upload new CSV → ANALYZED → View detail → ✅ Shows preview from temp
+4. Confirm import → COMPLETED → View detail → ✅ Shows DB statements
+5. Check logs: 'Summary using DB data' for completed imports
+```
+
+## Completion Criteria
+- [ ] Import #198 detail page loads without StorageUnknownError
+- [ ] New imports: ANALYZED shows temp preview, COMPLETED shows DB preview
+- [ ] No regressions in upload/confirm flow
+- [ ] Logs show proper data_source usage
+
+**Next**: Mark steps as completed → `attempt_completion`
 
