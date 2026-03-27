@@ -11,16 +11,14 @@ export function AnalysisSummary({ result }: AnalysisSummaryProps) {
   // ✅ FIXED: analysis.* > stats.* > 0 (consistent with Modal)
   let totalRows = 0
   let validRows = 0
-  let invalidRows = 0
+  
   
   if (analysis) {
     totalRows = analysis.total_rows || 0
     validRows = analysis.valid_rows || 0
-    invalidRows = analysis.invalid_rows || 0
   } else if (stats) {
     totalRows = stats.total_rows || 0
     validRows = stats.valid_rows || 0
-    invalidRows = stats.invalid_rows || 0
   }
   
   const duplicates = analysis?.duplicates || result.duplicates || []
