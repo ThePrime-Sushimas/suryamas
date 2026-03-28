@@ -37,7 +37,7 @@ type DateRange = {
 
 export function BankReconciliationPage() {
   const navigate = useNavigate();
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  const [selectedAccountId] = useState<number | null>(null);
   const [isAutoMatchOpen, setIsAutoMatchOpen] = useState(false);
   const [selectedStatement, setSelectedStatement] = useState<BankStatementWithMatch | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
@@ -91,13 +91,9 @@ export function BankReconciliationPage() {
 
   // Set initial selected account (without auto-apply filters)
   useEffect(() => {
-    if (!selectedAccountId && bankAccounts.length > 0) {
-      const timeoutId = setTimeout(() => {
-        setSelectedAccountId(bankAccounts[0].id);
-      }, 0);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [bankAccounts, selectedAccountId]);
+    // Hapus auto-select, tidak perlu default account
+    // User harus pilih dari BankReconciliationFilters
+  }, [bankAccounts]);
 
   const handleApplyFilters = useCallback((filters: BankStatementFilter) => {
     setFilter(filters);
@@ -186,11 +182,12 @@ export function BankReconciliationPage() {
     if (!dateRange.startDate || !dateRange.endDate) {
       throw new Error("Silakan pilih rentang tanggal terlebih dahulu");
     }
-    
+    const activeBankAccountId = filter?.bankAccountIds?.[0] ?? undefined;
+
     return previewAutoMatch({
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
-      bankAccountId: selectedAccountId || undefined,
+      bankAccountId: activeBankAccountId,  // ← dari filter, bukan selectedAccountId
       matchingCriteria: criteria,
     });
   };
