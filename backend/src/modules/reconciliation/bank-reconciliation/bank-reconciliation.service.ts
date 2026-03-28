@@ -28,12 +28,34 @@ import { AuditService } from "../../monitoring/monitoring.service";
 export class BankReconciliationService {
   private readonly config = getReconciliationConfig();
 
+  private readonly descriptionKeywordMap: Record<string, string[]> = {
+    'grabfood':   ['visionet'],           // ✅ "VISIONET INTERNASI..."
+    'shopeefood': ['airpay'],             // ✅ "AIRPAY INTERNATION..."
+    'gofood':     ['dompet anak bangsa'], // ✅ "DOMPET ANAK BANGSA"
+  };
+
+  private matchesByKeyword(
+    statementDescription: string,
+    aggregatePaymentMethod: string,
+  ): boolean {
+    const desc = statementDescription.toLowerCase();
+    const method = aggregatePaymentMethod.toLowerCase();
+    for (const [paymentMethod, keywords] of Object.entries(this.descriptionKeywordMap)) {
+      if (method.includes(paymentMethod)) {
+        if (keywords.some(kw => desc.includes(kw))) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
   private readonly multiMatchConfig = {
     defaultTolerancePercent: 0.05,
     defaultDateToleranceDays: 2,
     defaultMaxStatements: 5,
     differenceThreshold: 100,
   };
+  
 
   constructor(
     private readonly repository: BankReconciliationRepository,
@@ -200,6 +222,23 @@ export class BankReconciliationService {
       "EXACT_AMOUNT_DATE",
       90,
     );
+
+    this.processMatching(
+      remainingStatements,
+      remainingAggregates,
+      matches,
+      (s:any, a:any) => {
+        const sAmount = s.credit_amount - s.debit_amount;
+        const amountOk = Math.abs(sAmount - a. nett_amount) <= matchingCriteria.amountTolerance;
+        const keywordOk = this.matchesByKeyword(
+          s.description || '',
+          a.payment_method_name || '',
+        );
+        return amountOk && keywordOk;
+      },
+      "KEYWORD_DESC",
+      85,
+    )
 
     this.processMatching(
       remainingStatements,
@@ -377,6 +416,22 @@ export class BankReconciliationService {
       },
       "EXACT_AMOUNT_DATE",
       90,
+    );
+
+    findMatches(
+      remainingStatements,
+      remainingAggregates,
+      (s,a) => {
+        const sAmount = s.credit_amount - s.debit_amount;
+        const amountOk = Math.abs(sAmount - a.nett_amount)<= matchingCriteria.amountTolerance;
+        const keywordOk = this.matchesByKeyword(
+          s.description || '',
+          s.payment_method_name || '',
+        );
+        return amountOk && keywordOk;
+      },
+      "KEYWORD_DESC",
+      85,
     );
 
     findMatches(

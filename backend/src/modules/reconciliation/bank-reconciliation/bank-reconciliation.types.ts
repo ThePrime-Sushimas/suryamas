@@ -30,7 +30,7 @@ export interface ReconciliationMatch {
   aggregateId: string;
   statementId: string;
   matchScore: number; // 0-100
-  matchCriteria: 'EXACT_REF' | 'EXACT_AMOUNT_DATE' | 'FUZZY_AMOUNT_DATE' | 'AMOUNT_ONLY';
+  matchCriteria: 'EXACT_REF' | 'EXACT_AMOUNT_DATE' | 'FUZZY_AMOUNT_DATE' | 'AMOUNT_ONLY' | 'KEYWORD_DESC';
   difference: number;
   notes?: string;
 }
