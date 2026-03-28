@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   ChevronRight,
   Check,
-  Square,
   RefreshCw,
   TrendingUp,
 } from "lucide-react";
@@ -47,6 +46,8 @@ export function AutoMatchDialog({
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const [activeTab, setActiveTab] = useState<string>('all');
   
   // Use ref to prevent infinite loop in useEffect
   const isInitialOpen = useRef(true);
@@ -106,15 +107,7 @@ export function AutoMatchDialog({
     });
   }, []);
 
-  const handleSelectAll = useCallback(() => {
-    if (!previewData) return;
-    const allMatchIds = new Set(previewData.matches.map(m => m.statementId));
-    setSelectedIds(allMatchIds);
-  }, [previewData]);
 
-  const handleDeselectAll = useCallback(() => {
-    setSelectedIds(new Set());
-  }, []);
 
   const handleConfirm = async () => {
     if (selectedIds.size === 0) return;
@@ -145,18 +138,20 @@ export function AutoMatchDialog({
     }).format(amount);
   };
 
-  const getMatchCriteriaLabel = (criteria: string) => {
-    switch (criteria) {
-      case "EXACT_REF":
-        return { text: "Ref Sama", color: "text-green-600 bg-green-50" };
-      case "EXACT_AMOUNT_DATE":
-        return { text: "Amount + Tanggal", color: "text-blue-600 bg-blue-50" };
-      case "FUZZY_AMOUNT_DATE":
-        return { text: "Fuzzy Match", color: "text-amber-600 bg-amber-50" };
-      default:
-        return { text: criteria, color: "text-gray-600 bg-gray-50" };
-    }
-  };
+const getMatchCriteriaLabel = (criteria: string) => {
+  switch (criteria) {
+    case "EXACT_REF":
+      return { text: "Ref Sama", color: "text-green-600 bg-green-50", tab: "exact_ref" };
+    case "EXACT_AMOUNT_DATE":
+      return { text: "Amount + Tanggal", color: "text-blue-600 bg-blue-50", tab: "exact_amount" };
+    case "KEYWORD_DESC":
+      return { text: "Keyword", color: "text-purple-600 bg-purple-50", tab: "keyword" };
+    case "FUZZY_AMOUNT_DATE":
+      return { text: "Fuzzy", color: "text-amber-600 bg-amber-50", tab: "fuzzy" };
+    default:
+      return { text: criteria, color: "text-gray-600 bg-gray-50", tab: "all" };
+  }
+};
 
   const getScoreColor = (score: number) => {
     if (score >= 90) return "text-green-600";
@@ -164,12 +159,46 @@ export function AutoMatchDialog({
     return "text-amber-600";
   };
 
+  const tabCounts = {
+    all: previewData?.matches.length || 0,
+    exact_ref: previewData?.matches.filter(m => m.matchCriteria === 'EXACT_REF').length || 0,
+    exact_amount: previewData?.matches.filter(m => m.matchCriteria === 'EXACT_AMOUNT_DATE').length || 0,
+    keyword: previewData?.matches.filter(m => m.matchCriteria === 'KEYWORD_DESC').length || 0,
+    fuzzy: previewData?.matches.filter(m => m.matchCriteria === 'FUZZY_AMOUNT_DATE').length || 0,
+  };
+
+  const filteredMatches = previewData?.matches.filter(m => {
+    if (activeTab === 'all') return true;
+    const map: Record<string, string> = {
+      exact_ref: 'EXACT_REF',
+      exact_amount: 'EXACT_AMOUNT_DATE',
+      keyword: 'KEYWORD_DESC',
+      fuzzy: 'FUZZY_AMOUNT_DATE',
+    };
+    return m.matchCriteria === map[activeTab];
+  }) || [];
+
+  const handleSelectTab = () => {
+    const tabIds = new Set(filteredMatches.map(m => m.statementId));
+    const allTabSelected = filteredMatches.every(m => selectedIds.has(m.statementId));
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (allTabSelected) {
+        tabIds.forEach(id => next.delete(id));
+      } else {
+        tabIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const allTabSelected = filteredMatches.length > 0 && 
+    filteredMatches.every(m => selectedIds.has(m.statementId));
+
   if (!isOpen) return null;
 
   const selectedCount = selectedIds.size;
-  const totalMatches = previewData?.matches.length || 0;
-  const allSelected = totalMatches > 0 && selectedCount === totalMatches;
-  const someSelected = selectedCount > 0 && selectedCount < totalMatches;
+
 
   return ReactDOM.createPortal(
     <div 
@@ -306,100 +335,123 @@ export function AutoMatchDialog({
           </div>
 
           {/* Summary Bar */}
-          {previewData && (
-            <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800 shrink-0">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      <span className="font-bold">{previewData.summary.totalStatements}</span> statements
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-500" />
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      <span className="font-bold text-green-600">{previewData.summary.matchedStatements}</span> match
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-500" />
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      <span className="font-bold text-amber-600">{previewData.summary.unmatchedStatements}</span> unmatched
-                    </span>
-                  </div>
-                </div>
+{previewData && (
+  <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800 shrink-0">
+    <div className="flex items-center gap-6">
+      <div className="flex items-center gap-2">
+        <TrendingUp className="w-4 h-4 text-gray-400" />
+        <span className="text-sm text-gray-600 dark:text-gray-400">
+          <span className="font-bold">{previewData.summary.totalStatements}</span> statements
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <CheckCircle2 className="w-4 h-4 text-green-500" />
+        <span className="text-sm text-gray-600 dark:text-gray-400">
+          <span className="font-bold text-green-600">{previewData.summary.matchedStatements}</span> match
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <AlertCircle className="w-4 h-4 text-amber-500" />
+        <span className="text-sm text-gray-600 dark:text-gray-400">
+          <span className="font-bold text-amber-600">{previewData.summary.unmatchedStatements}</span> unmatched
+        </span>
+      </div>
+    </div>
+  </div>
+)}
 
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={allSelected || someSelected ? handleDeselectAll : handleSelectAll}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors"
-                  >
-                    {allSelected || someSelected ? (
-                      <>
-                        <Square className="w-4 h-4" />
-                        Deselect All ({selectedCount})
-                      </>
-                    ) : (
-                      <>
-                        <Square className="w-4 h-4" />
-                        Select All ({totalMatches})
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+{/* Tab Bar */}
+{previewData && (
+  <div className="flex items-center gap-1 border-b border-gray-100 dark:border-gray-800 px-6 overflow-x-auto scrollbar-none shrink-0">
+    {[
+      { key: 'all', label: 'Semua', count: tabCounts.all, color: 'text-gray-600 bg-gray-100' },
+      { key: 'exact_ref', label: 'Ref Sama', count: tabCounts.exact_ref, color: 'text-green-700 bg-green-100' },
+      { key: 'exact_amount', label: 'Amount + Tanggal', count: tabCounts.exact_amount, color: 'text-blue-700 bg-blue-100' },
+      { key: 'keyword', label: 'Keyword', count: tabCounts.keyword, color: 'text-purple-700 bg-purple-100' },
+      { key: 'fuzzy', label: 'Fuzzy', count: tabCounts.fuzzy, color: 'text-amber-700 bg-amber-100' },
+    ].map(tab => (
+      <button
+        key={tab.key}
+        onClick={() => setActiveTab(tab.key)}
+        className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${
+          activeTab === tab.key
+            ? 'border-blue-600 text-blue-600'
+            : 'border-transparent text-gray-500 hover:text-gray-700'
+        }`}
+      >
+        {tab.label}
+        <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${tab.color}`}>
+          {tab.count}
+        </span>
+      </button>
+    ))}
+  </div>
+)}
+
+{/* Select Row */}
+{previewData && filteredMatches.length > 0 && (
+  <div className="flex items-center justify-between px-6 py-2 border-b border-gray-100 dark:border-gray-800 shrink-0">
+    <span className="text-xs text-gray-400 font-medium">
+      {filteredMatches.filter(m => selectedIds.has(m.statementId)).length} dari {filteredMatches.length} dipilih
+    </span>
+    <button
+      onClick={handleSelectTab}
+      className="text-xs font-bold text-blue-600 hover:text-blue-700"
+    >
+      {allTabSelected ? 'Deselect tab ini' : 'Select tab ini'}
+    </button>
+  </div>
+)}
 
           {/* Match List */}
           <div className="flex-1 overflow-y-auto p-6">
-            {isPreviewLoading ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-4" />
-                <p className="text-gray-500 dark:text-gray-400">
-                  Mencari kecocokan...
-                </p>
-              </div>
-            ) : error ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                <AlertCircle className="w-8 h-8 text-red-500 mb-4" />
-                <p className="text-red-500 dark:text-red-400 text-center">
-                  {error}
-                </p>
-                <button
-                  onClick={handlePreview}
-                  className="mt-4 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Coba Lagi
-                </button>
-              </div>
-            ) : previewData?.matches.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                <AlertCircle className="w-8 h-8 text-amber-500 mb-4" />
-                <p className="text-gray-700 dark:text-gray-300 font-bold text-center">
-                  Tidak ada kecocokan ditemukan
-                </p>
-                <p className="text-gray-500 dark:text-gray-400 text-sm text-center mt-2">
-                  Coba ubah kriteria pencocokan atau lakukan pencocokan manual
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {previewData?.matches.map((match) => (
-                  <MatchItem
-                    key={match.statementId}
-                    match={match}
-                    isSelected={selectedIds.has(match.statementId)}
-                    onToggle={() => handleToggleSelect(match.statementId)}
-                    getMatchCriteriaLabel={getMatchCriteriaLabel}
-                    getScoreColor={getScoreColor}
-                    formatCurrency={formatCurrency}
-                  />
-                ))}
-              </div>
-            )}
+  {isPreviewLoading ? (
+    <div className="flex flex-col items-center justify-center py-12">
+      <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-4" />
+      <p className="text-gray-500 dark:text-gray-400">Mencari kecocokan...</p>
+    </div>
+  ) : error ? (
+    <div className="flex flex-col items-center justify-center py-12">
+      <AlertCircle className="w-8 h-8 text-red-500 mb-4" />
+      <p className="text-red-500 dark:text-red-400 text-center">{error}</p>
+      <button
+        onClick={handlePreview}
+        className="mt-4 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors"
+      >
+        <RefreshCw className="w-4 h-4" />
+        Coba Lagi
+      </button>
+    </div>
+  ) : filteredMatches.length === 0 ? (
+    <div className="flex flex-col items-center justify-center py-12">
+      <AlertCircle className="w-8 h-8 text-amber-500 mb-4" />
+      <p className="text-gray-700 dark:text-gray-300 font-bold text-center">
+        {activeTab === 'all' 
+          ? 'Tidak ada kecocokan ditemukan' 
+          : 'Tidak ada transaksi dengan kriteria ini'}
+      </p>
+      <p className="text-gray-500 dark:text-gray-400 text-sm text-center mt-2">
+        {activeTab === 'all' 
+          ? 'Coba ubah kriteria pencocokan atau lakukan pencocokan manual'
+          : 'Coba lihat tab lain atau ubah kriteria pencocokan'}
+      </p>
+    </div>
+  ) : (
+    <div className="space-y-3">
+      {filteredMatches.map((match) => (
+        <MatchItem
+          key={match.statementId}
+          match={match}
+          isSelected={selectedIds.has(match.statementId)}
+          onToggle={() => handleToggleSelect(match.statementId)}
+          getMatchCriteriaLabel={getMatchCriteriaLabel}
+          getScoreColor={getScoreColor}
+          formatCurrency={formatCurrency}
+        />
+      ))}
+    </div>
+  )}
+
           </div>
         </div>
 
@@ -448,7 +500,7 @@ interface MatchItemProps {
   match: AutoMatchPreviewMatch;
   isSelected: boolean;
   onToggle: () => void;
-  getMatchCriteriaLabel: (criteria: string) => { text: string; color: string };
+  getMatchCriteriaLabel: (criteria: string) => { text: string; color: string; tab: string };
   getScoreColor: (score: number) => string;
   formatCurrency: (amount: number) => string;
 }

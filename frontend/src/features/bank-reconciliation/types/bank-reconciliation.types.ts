@@ -26,7 +26,8 @@ export type MatchCriteriaType =
   | "EXACT_REF"
   | "EXACT_AMOUNT_DATE"
   | "FUZZY_AMOUNT_DATE"
-  | "AMOUNT_ONLY";
+  | "AMOUNT_ONLY"
+  | "KEYWORD_DESC";
 
 /**
  * Configuration for matching logic
