@@ -426,7 +426,7 @@ export class BankReconciliationService {
         const amountOk = Math.abs(sAmount - a.nett_amount)<= matchingCriteria.amountTolerance;
         const keywordOk = this.matchesByKeyword(
           s.description || '',
-          s.payment_method_name || '',
+          a.payment_method_name || '',
         );
         return amountOk && keywordOk;
       },
