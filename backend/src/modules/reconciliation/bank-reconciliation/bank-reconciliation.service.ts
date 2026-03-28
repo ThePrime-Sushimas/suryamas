@@ -511,108 +511,155 @@ export class BankReconciliationService {
     companyId?: string,
     criteria?: Partial<MatchingCriteria>,
   ): Promise<any> {
-    // First, get all potential matches for the statements
-    // We need to run the matching algorithm to find the best match for each statement
-
-    // For now, we'll use a simplified approach:
-    // Get the matches from the preview data stored in memory or
-    // re-run matching for the selected statements only
-
-    // Since we don't have access to the preview results here,
-    // we'll need to fetch the statements and find their best matches
-
     const matchingCriteria = {
       amountTolerance: this.config.amountTolerance,
       dateBufferDays: this.config.dateBufferDays,
       ...criteria,
     };
-
-    const matches: ReconciliationMatch[] = [];
-
-    for (const statementId of statementIds) {
-      const statement = await this.repository.findById(statementId);
-      if (!statement || statement.is_reconciled) continue;
-
-      const stmtAmount = statement.credit_amount - statement.debit_amount;
-      const bufferStart = new Date(statement.transaction_date);
-      bufferStart.setDate(
-        bufferStart.getDate() - matchingCriteria.dateBufferDays,
-      );
-      const bufferEnd = new Date(statement.transaction_date);
-      bufferEnd.setDate(bufferEnd.getDate() + matchingCriteria.dateBufferDays);
-
-      // Get aggregates for the statement's date range
-      const aggregates =
-        await this.orchestratorService.getAggregatesByDateRange(
-          bufferStart,
-          bufferEnd,
-        );
-
-      // Find best match for this statement
-      let bestMatch: { agg: any; score: number; criteria: string } | null =
-        null;
-
-      for (const agg of aggregates) {
-        if (agg.reconciliation_status === "RECONCILED") continue;
-
-        const aggAmount = agg.nett_amount;
-        const amountDiff = Math.abs(stmtAmount - aggAmount);
-        const stmtDate = new Date(statement.transaction_date).toDateString();
-        const aggDate = new Date(agg.transaction_date).toDateString();
-
-        // Try EXACT_REF first
-        if (
-          statement.reference_number &&
-          agg.reference_number &&
-          statement.reference_number === agg.reference_number
-        ) {
-          bestMatch = { agg, score: 100, criteria: "EXACT_REF" };
-          break;
-        }
-
-        // Try EXACT_AMOUNT_DATE
-        if (
-          amountDiff <= matchingCriteria.amountTolerance &&
-          stmtDate === aggDate
-        ) {
-          const score = 90 - (amountDiff / (stmtAmount || 1)) * 10;
-          if (!bestMatch || score > bestMatch.score) {
-            bestMatch = { agg, score, criteria: "EXACT_AMOUNT_DATE" };
-          }
-        }
-
-        // Try FUZZY_AMOUNT_DATE
-        if (amountDiff <= matchingCriteria.amountTolerance) {
-          const dayDiff =
-            Math.abs(
-              new Date(statement.transaction_date).getTime() -
-                new Date(agg.transaction_date).getTime(),
-            ) /
-            (1000 * 3600 * 24);
-
-          if (dayDiff <= matchingCriteria.dateBufferDays) {
-            const score =
-              80 - (amountDiff / (stmtAmount || 1)) * 10 - dayDiff * 5;
-            if (!bestMatch || score > bestMatch.score) {
-              bestMatch = { agg, score, criteria: "FUZZY_AMOUNT_DATE" };
-            }
-          }
-        }
-      }
-
-      if (bestMatch) {
-        matches.push({
-          statementId: statement.id,
-          aggregateId: bestMatch.agg.id,
-          matchScore: bestMatch.score,
-          matchCriteria: bestMatch.criteria as any,
-          difference: Math.abs(stmtAmount - bestMatch.agg.nett_amount),
-        });
-      }
+  
+    // 1. Ambil semua statement yg dipilih
+    const statements = (
+      await Promise.all(statementIds.map((id) => this.repository.findById(id)))
+    ).filter((s) => s && !s.is_reconciled);
+  
+    if (statements.length === 0) {
+      return { matched: 0, failed: 0, matches: [] };
     }
-
-    // Perform reconciliation for all matched pairs
-    const reconciledMatches: any[] = [];
+  
+    // 2. Ambil aggregates (pakai range global biar konsisten)
+    const minDate = new Date(
+      Math.min(...statements.map((s) => new Date(s.transaction_date).getTime()))
+    );
+    const maxDate = new Date(
+      Math.max(...statements.map((s) => new Date(s.transaction_date).getTime()))
+    );
+  
+    const bufferStart = new Date(minDate);
+    bufferStart.setDate(bufferStart.getDate() - matchingCriteria.dateBufferDays);
+  
+    const bufferEnd = new Date(maxDate);
+    bufferEnd.setDate(bufferEnd.getDate() + matchingCriteria.dateBufferDays);
+  
+    const aggregates =
+      await this.orchestratorService.getAggregatesByDateRange(
+        bufferStart,
+        bufferEnd,
+      );
+  
+    // Clone untuk matching (biar bisa splice)
+    const remainingStatements = [...statements];
+    const remainingAggregates = [...aggregates];
+  
+    const matches: ReconciliationMatch[] = [];
+  
+    const process = (
+      predicate: (s: any, a: any) => boolean,
+      criteriaName: ReconciliationMatch["matchCriteria"],
+      score: number,
+    ) => {
+      for (let i = remainingStatements.length - 1; i >= 0; i--) {
+        const stmt = remainingStatements[i];
+  
+        const matchIdx = remainingAggregates.findIndex((agg) => {
+          if (agg.reconciliation_status === "RECONCILED") return false;
+          return predicate(stmt, agg);
+        });
+  
+        if (matchIdx !== -1) {
+          const agg = remainingAggregates[matchIdx];
+  
+          matches.push({
+            statementId: stmt.id,
+            aggregateId: agg.id,
+            matchScore: score,
+            matchCriteria: criteriaName,
+            difference: Math.abs(
+              stmt.credit_amount - stmt.debit_amount - agg.nett_amount,
+            ),
+          });
+  
+          remainingStatements.splice(i, 1);
+          remainingAggregates.splice(matchIdx, 1);
+        }
+      }
+    };
+  
+    // =========================
+    // MATCHING ORDER (IMPORTANT)
+    // =========================
+  
+    // 1. EXACT REF
+    process(
+      (s, a) =>
+        s.reference_number &&
+        a.reference_number &&
+        s.reference_number === a.reference_number,
+      "EXACT_REF",
+      100,
+    );
+  
+    // 2. EXACT AMOUNT + DATE
+    process(
+      (s, a) => {
+        const sAmount = s.credit_amount - s.debit_amount;
+        const sDate = new Date(s.transaction_date).toDateString();
+        const aDate = new Date(a.transaction_date).toDateString();
+  
+        return (
+          Math.abs(sAmount - a.nett_amount) <=
+            matchingCriteria.amountTolerance && sDate === aDate
+        );
+      },
+      "EXACT_AMOUNT_DATE",
+      90,
+    );
+  
+    // 3. KEYWORD (🔥 WAJIB ADA BIAR SESUAI PREVIEW)
+    process(
+      (s, a) => {
+        const sAmount = s.credit_amount - s.debit_amount;
+  
+        const amountOk =
+          Math.abs(sAmount - a.nett_amount) <=
+          matchingCriteria.amountTolerance;
+  
+        const keywordOk = this.matchesByKeyword(
+          s.description || "",
+          a.payment_method_name || "",
+        );
+  
+        return amountOk && keywordOk;
+      },
+      "KEYWORD_DESC",
+      85,
+    );
+  
+    // 4. FUZZY
+    process(
+      (s, a) => {
+        const sAmount = s.credit_amount - s.debit_amount;
+  
+        const sDate = new Date(s.transaction_date).getTime();
+        const aDate = new Date(a.transaction_date).getTime();
+  
+        const dayDiff = Math.abs(sDate - aDate) / (1000 * 3600 * 24);
+  
+        return (
+          Math.abs(sAmount - a.nett_amount) <=
+            matchingCriteria.amountTolerance &&
+          dayDiff <= matchingCriteria.dateBufferDays
+        );
+      },
+      "FUZZY_AMOUNT_DATE",
+      80,
+    );
+  
+    // =========================
+    // EXECUTE MATCHING
+    // =========================
+  
+    const successMatches: any[] = [];
+  
     for (const match of matches) {
       try {
         await this.repository.markAsReconciled(
@@ -620,11 +667,11 @@ export class BankReconciliationService {
           match.aggregateId,
           userId,
         );
-
+  
         await this.repository.logAction({
           companyId: companyId || "",
           userId,
-          action: "AUTO_MATCH",
+          action: "AUTO_MATCH", // ✅ tetap AUTO
           statementId: match.statementId,
           aggregateId: match.aggregateId,
           details: {
@@ -632,16 +679,23 @@ export class BankReconciliationService {
             matchCriteria: match.matchCriteria,
           },
         });
-
-        // Audit log for confirmAutoMatch (AUTO_MATCH)
+  
         if (userId) {
-          await AuditService.log('CREATE', 'bank_reconciliation', match.statementId, userId, 
-            { is_reconciled: false }, 
-            { is_reconciled: true, aggregateId: match.aggregateId, matchScore: match.matchScore }
-          )
+          await AuditService.log(
+            "CREATE",
+            "bank_reconciliation",
+            match.statementId,
+            userId,
+            { is_reconciled: false },
+            {
+              is_reconciled: true,
+              aggregateId: match.aggregateId,
+              matchScore: match.matchScore,
+            },
+          );
         }
-
-        reconciledMatches.push(match);
+  
+        successMatches.push(match);
       } catch (error: any) {
         logError("Error reconciling match", {
           statementId: match.statementId,
@@ -650,26 +704,23 @@ export class BankReconciliationService {
         });
       }
     }
-
-    // Update orchestrator
-    if (reconciledMatches.length > 0) {
-      const bulkUpdates = reconciledMatches.map((m) => ({
-        aggregateId: m.aggregateId,
-        status: "RECONCILED" as const,
-        statementId: m.statementId,
-      }));
+  
+    if (successMatches.length > 0) {
       await this.orchestratorService.bulkUpdateReconciliationStatus(
-        bulkUpdates,
+        successMatches.map((m) => ({
+          aggregateId: m.aggregateId,
+          status: "RECONCILED",
+          statementId: m.statementId,
+        })),
       );
     }
-
+  
     return {
-      matched: reconciledMatches.length,
-      failed: matches.length - reconciledMatches.length,
-      matches: reconciledMatches,
+      matched: successMatches.length,
+      failed: matches.length - successMatches.length,
+      matches: successMatches,
     };
   }
-
   private processMatching(
     statements: any[],
     aggregates: any[],
