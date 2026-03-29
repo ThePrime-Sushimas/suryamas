@@ -5,9 +5,9 @@
 
 import { Request, Response, NextFunction } from 'express'
 import { feeReconciliationService } from './fee-reconciliation.service'
-import { reconcileDailySchema, dailySummaryQuerySchema, approveMarketingFeeSchema } from './fee-reconciliation.schema'
+import { reconcileDailySchema, dailySummaryQuerySchema } from './fee-reconciliation.schema'
 import { createPaginatedResponse } from '../../../utils/pagination.util'
-import type { ReconcileDailyRequest, DailySummaryQuery, ApproveMarketingFeeRequest } from './fee-reconciliation.types'
+import type { ReconcileDailyRequest, DailySummaryQuery } from './fee-reconciliation.types'
 
 export class FeeReconciliationController {
   
@@ -54,57 +54,43 @@ export class FeeReconciliationController {
   }
 
   /**
-   * POST /reconciliation/fee/:id/approve
-   */
-  async approveMarketingFee(req: Request<{}, any, ApproveMarketingFeeRequest>, res: Response): Promise<void> {
-    const { reconciliationId, approvedBy, approvedAmount } = req.body
-
-    await feeReconciliationService.approveMarketingFee(
-      reconciliationId,
-      approvedBy,
-      approvedAmount
-    )
-
-    res.status(200).json({
-      success: true,
-      message: `Marketing fee for ${reconciliationId} approved`,
-      data: { reconciliationId, approvedBy, approvedAmount }
-    })
-  }
-
-  /**
-   * POST /reconciliation/fee/:id/reject
-   */
-  async rejectMarketingFee(req: Request, res: Response): Promise<void> {
-    // Parse from path params + body
-    const { reconciliationId } = req.params as { reconciliationId: string }
-    const { rejectedBy, reason } = req.body
-
-    await feeReconciliationService.rejectMarketingFee(
-      reconciliationId,
-      rejectedBy,
-      reason
-    )
-
-    res.status(200).json({
-      success: true,
-      message: `Marketing fee for ${reconciliationId} rejected`,
-      data: { reconciliationId, rejectedBy }
-    })
-  }
-
-  /**
    * GET /reconciliation/fee/discrepancies
    * Get transactions needing manual review
    */
   async getDiscrepancies(req: Request, res: Response): Promise<void> {
-    // TODO: Implement using service.getDailySummary() + filter needsReview
-    // Add pagination, filters (date, company, threshold)
-    
+    const { startDate, endDate, paymentMethodId } = req.query as {
+      startDate?:      string
+      endDate?:        string
+      paymentMethodId?: string
+    }
+
+    // Default: bulan ini
+    const today    = new Date()
+    const start    = startDate
+      ? new Date(startDate)
+      : new Date(today.getFullYear(), today.getMonth(), 1)
+    const end      = endDate ? new Date(endDate) : today
+    const pmId     = paymentMethodId && !isNaN(parseInt(paymentMethodId))
+      ? parseInt(paymentMethodId)
+      : undefined
+
+    const records = await feeReconciliationService.getDiscrepanciesReport(start, end, pmId)
+
+    // Summary untuk Finance
+    const summary = {
+      totalRecords:          records.length,
+      totalGross:            records.reduce((s, r) => s + r.grossAmount, 0),
+      totalExpectedFee:      records.reduce((s, r) => s + r.expectedFee, 0),
+      totalActualFee:        records.reduce((s, r) => s + (r.actualFee ?? 0), 0),
+      totalFeeDiscrepancy:   records.reduce((s, r) => s + (r.feeDiscrepancy ?? 0), 0),
+      recordsWithDiscrepancy: records.filter(r => r.feeDiscrepancy !== null && r.feeDiscrepancy !== 0).length,
+      recordsPending:         records.filter(r => r.feeDiscrepancy === null).length,
+    }
+
     res.status(200).json({
       success: true,
-      data: [],
-      message: 'Not implemented yet'
+      data:    records,
+      summary,
     })
   }
 }

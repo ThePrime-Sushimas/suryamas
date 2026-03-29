@@ -70,19 +70,7 @@ export interface ReconcileDailyRequest {
   tolerancePercentage?: number
 }
 
-/** Approve marketing fee request */
-export interface ApproveMarketingFeeRequest {
-  reconciliationId: string // paymentMethodId_date
-  approvedBy: string
-  approvedAmount?: number
-}
 
-/** Reject marketing fee request */
-export interface RejectMarketingFeeRequest {
-  reconciliationId: string
-  rejectedBy: string
-  reason: string
-}
 
 /** Daily summary query */
 export interface DailySummaryQuery {
@@ -128,6 +116,25 @@ export interface IFeeReconciliationRepository {
     aggregateId: string,
     totalBankAmount: number
   ): Promise<void>
+  getFeeDiscrepancies(
+    startDate: string,
+    endDate: string,
+    paymentMethodId?: number
+  ): Promise<FeeDiscrepancyRecord[]>
+}
+
+export interface FeeDiscrepancyRecord {
+  aggregateId:        string
+  transactionDate:    string        // YYYY-MM-DD
+  paymentMethodId:    number
+  paymentMethodCode:  string | null
+  paymentMethodName:  string | null
+  grossAmount:        number
+  nettAmount:         number
+  expectedFee:        number
+  actualFee:          number | null
+  feeDiscrepancy:     number | null
+  feeDiscrepancyNote: string | null
 }
 
 // ========================================

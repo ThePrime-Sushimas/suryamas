@@ -8,8 +8,6 @@ import { Router } from 'express'
 import { feeReconciliationController } from './fee-reconciliation.controller'
 import { 
   reconcileDailySchema,
-  approveMarketingFeeSchema,
-  rejectMarketingFeeSchema,
   dailySummaryQuerySchema 
 } from './fee-reconciliation.schema'
 import { validateSchema } from '../../../middleware/validation.middleware'
@@ -38,23 +36,6 @@ router.post(
   (req, res) => feeReconciliationController.reconcileDaily(req as any, res)
 )
 
-// POST /reconciliation/fee/:reconciliationId/approve
-// Approve marketing fee after manual review
-router.post(
-  '/:reconciliationId/approve',
-  canInsert('fee_reconciliation'),
-  validateSchema(approveMarketingFeeSchema),
-  (req, res) => feeReconciliationController.approveMarketingFee(req as any, res)
-)
-
-// POST /reconciliation/fee/:reconciliationId/reject
-// Reject marketing fee after manual review
-router.post(
-  '/:reconciliationId/reject',
-  canInsert('fee_reconciliation'),
-  validateSchema(rejectMarketingFeeSchema),
-  (req, res) => feeReconciliationController.rejectMarketingFee(req as any, res)
-)
 
 // GET /reconciliation/fee/daily-summary
 // Get reconciliation summary for date range

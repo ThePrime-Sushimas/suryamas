@@ -6,8 +6,6 @@
 import { z } from 'zod'
 import type { 
   ReconcileDailyRequest, 
-  ApproveMarketingFeeRequest, 
-  RejectMarketingFeeRequest, 
   DailySummaryQuery,
   FeeDiscrepancyParams 
 } from './fee-reconciliation.types'
@@ -25,23 +23,6 @@ export const reconcileDailySchema = z.object({
 
 export type ReconcileDailyRequestSchema = z.infer<typeof reconcileDailySchema>
 
-/** Approve marketing fee */
-export const approveMarketingFeeSchema = z.object({
-  reconciliationId: z.string().min(1, 'Reconciliation ID required'),
-  approvedBy: z.string().min(1, 'Approver required'),
-  approvedAmount: z.number().nonnegative().optional(),
-})
-
-export type ApproveMarketingFeeRequestSchema = z.infer<typeof approveMarketingFeeSchema>
-
-/** Reject marketing fee */
-export const rejectMarketingFeeSchema = z.object({
-  reconciliationId: z.string().min(1, 'Reconciliation ID required'),
-  rejectedBy: z.string().min(1, 'Rejector required'),
-  reason: z.string().min(10, 'Reason must be at least 10 characters').max(500),
-})
-
-export type RejectMarketingFeeRequestSchema = z.infer<typeof rejectMarketingFeeSchema>
 
 /** Get daily summary */
 export const dailySummaryQuerySchema = z.object({
@@ -107,13 +88,6 @@ export const dailySummaryResponseSchema = z.object({
   results: z.array(reconciliationResultSchema),
 })
 
-/** Approve response */
-export const approveResponseSchema = z.object({
-  success: z.literal(true),
-  reconciliationId: z.string(),
-  approvedBy: z.string(),
-  approvedAmount: z.number().nonnegative(),
-})
 
 /** Batch operation result */
 export const batchResultSchema = z.object({
@@ -129,8 +103,6 @@ export const batchResultSchema = z.object({
 
 export const schemas = {
   reconcileDaily: reconcileDailySchema,
-  approveMarketingFee: approveMarketingFeeSchema,
-  rejectMarketingFee: rejectMarketingFeeSchema,
   dailySummaryQuery: dailySummaryQuerySchema,
   feeDiscrepancyParams: feeDiscrepancyParamsSchema,
   dailySummaryResponse: dailySummaryResponseSchema,

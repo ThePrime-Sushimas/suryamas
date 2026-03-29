@@ -12,6 +12,7 @@ import {
   PosAggregate,
   FeeDiscrepancyParams,
   FeeDiscrepancyMultiParams,
+  FeeDiscrepancyRecord
 } from './fee-reconciliation.types'
 import { marketingFeeService } from './marketing-fee.service'
 import type { ReconciliationResult } from './fee-calculation.service'
@@ -344,7 +345,62 @@ export class FeeReconciliationRepository implements IFeeReconciliationRepository
       })
     }
   }
+
+  async getFeeDiscrepancies(
+    startDate: string,
+    endDate: string,
+    paymentMethodId?: number,
+  ): Promise<FeeDiscrepancyRecord[]> {
+    let query = supabase
+      .from('aggregated_transactions')
+      .select(`
+        id,
+        transaction_date,
+        payment_method_id,
+        gross_amount,
+        nett_amount,
+        total_fee_amount,
+        actual_fee_amount,
+        fee_discrepancy,
+        fee_discrepancy_note,
+        reconciliation_status,
+        payment_methods (
+          id,
+          code,
+          name
+        )
+      `)
+      .eq('reconciliation_status', 'RECONCILED')
+      .gte('transaction_date', startDate)
+      .lte('transaction_date', endDate)
+      .is('deleted_at', null)
+      .order('transaction_date', { ascending: false })
+
+    if (paymentMethodId) {
+      query = query.eq('payment_method_id', paymentMethodId)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      logError('getFeeDiscrepancies: failed', { error: error.message })
+      throw new Error(error.message)
+    }
+
+    return (data || []).map((row: any) => ({
+      aggregateId:        row.id,
+      transactionDate:    row.transaction_date,
+      paymentMethodId:    row.payment_method_id,
+      paymentMethodCode:  row.payment_methods?.code ?? null,
+      paymentMethodName:  row.payment_methods?.name ?? null,
+      grossAmount:        Number(row.gross_amount),
+      nettAmount:         Number(row.nett_amount),
+      expectedFee:        Number(row.total_fee_amount),
+      actualFee:          row.actual_fee_amount != null ? Number(row.actual_fee_amount) : null,
+      feeDiscrepancy:     row.fee_discrepancy != null ? Number(row.fee_discrepancy) : null,
+      feeDiscrepancyNote: row.fee_discrepancy_note ?? null,
+    }))
+  }
 }
 
 export const feeReconciliationRepository = new FeeReconciliationRepository()
-

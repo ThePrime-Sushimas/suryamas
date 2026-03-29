@@ -12,20 +12,14 @@
  * @see repo.ts for DB operations
  */
 
-import { feeCalculationService, FeeConfig, ReconciliationResult } from './fee-calculation.service'
+import { feeCalculationService, ReconciliationResult } from './fee-calculation.service'
 import { feeReconciliationRepository } from './fee-reconciliation.repository'
-import type { IFeeReconciliationRepository, PaymentMethodFeeConfig, FeeReconciliationSummary, PosAggregate } from './fee-reconciliation.types'
+import type { IFeeReconciliationRepository, FeeReconciliationSummary, FeeDiscrepancyRecord } from './fee-reconciliation.types'
 import { getFeeReconciliationConfig, type FeeReconciliationConfig } from './fee-reconciliation.config'
 import { 
-  FeeConfigNotFoundError,
   NoAggregatedTransactionsError,
-  DiscrepancyExceedsToleranceError,
-  ReconciliationAlreadyProcessedError,
-  InvalidReconciliationIdError 
 } from './fee-reconciliation.errors'
 import { logInfo, logWarn, logError } from '../../../config/logger'
-import { AuditService } from '../../monitoring/monitoring.service'
-import { bankReconciliationRepository } from '../bank-reconciliation/bank-reconciliation.repository'
 
 export class FeeReconciliationService {
   private config: FeeReconciliationConfig
@@ -221,98 +215,19 @@ export class FeeReconciliationService {
   }
 
   /**
-   * Approve marketing fee discrepancy
+   * Get fee discrepancies report for Finance review
    */
-  async approveMarketingFee(
-    reconciliationId: string,
-    approvedBy: string,
-    approvedAmount?: number
-  ): Promise<void> {
-    logInfo('Approving marketing fee', { reconciliationId, approvedBy })
+  async getDiscrepanciesReport(
+    startDate: Date,
+    endDate: Date,
+    paymentMethodId?: number,
+  ): Promise<FeeDiscrepancyRecord[]> {
+    const startStr = startDate.toISOString().split('T')[0]
+    const endStr   = endDate.toISOString().split('T')[0]
 
-    const [paymentMethodIdStr, dateStr] = reconciliationId.split('_')
-    const paymentMethodId = parseInt(paymentMethodIdStr!)
-    
-    if (isNaN(paymentMethodId)) {
-      throw new InvalidReconciliationIdError(reconciliationId)
-    }
+    logInfo('Getting fee discrepancies report', { startStr, endStr, paymentMethodId })
 
-    // Re-run reconciliation to get current state
-    const date = new Date(dateStr!)
-    const result = await this.reconcilePaymentMethod(paymentMethodId, date)
-
-    // Mark statements reconciled via bank-reconciliation repo (bank_statements is their domain)
-    await bankReconciliationRepository.getUnreconciledBatch(
-      new Date(dateStr!),
-      new Date(dateStr!),
-      undefined,
-      0,
-      undefined
-    ).then(async (statements) => {
-      const matchingIds = statements
-        .filter((s: any) => s.payment_method_id === paymentMethodId)
-        .map((s: any) => s.id)
-      if (matchingIds.length > 0) {
-        await bankReconciliationRepository.bulkUpdateReconciliationStatus(
-          matchingIds,
-          true,
-          approvedBy
-        )
-      }
-    })
-
-    // Audit
-    await AuditService.log(
-      'UPDATE',
-      'fee_reconciliation',
-      reconciliationId,
-      approvedBy,
-      { status: 'PENDING' },
-      { 
-        status: 'APPROVED',
-        approved_amount: approvedAmount ?? result.marketingFee,
-        marketing_fee: result.marketingFee 
-      }
-    )
-
-    logInfo('Marketing fee approved', { reconciliationId, approvedAmount: approvedAmount ?? result.marketingFee })
-  }
-
-  /**
-   * Reject marketing fee
-   */
-  async rejectMarketingFee(
-    reconciliationId: string,
-    rejectedBy: string,
-    reason: string
-  ): Promise<void> {
-    logInfo('Rejecting marketing fee', { reconciliationId, rejectedBy })
-
-    const [paymentMethodIdStr, dateStr] = reconciliationId.split('_')
-    const paymentMethodId = parseInt(paymentMethodIdStr!)
-    
-    if (isNaN(paymentMethodId)) {
-      throw new InvalidReconciliationIdError(reconciliationId)
-    }
-
-    // Note: rejection doesn't mark statements as reconciled — just audit log
-    // Statements remain unreconciled since fee was rejected
-
-    // Audit
-    await AuditService.log(
-      'UPDATE',
-      'fee_reconciliation',
-      reconciliationId,
-      rejectedBy,
-      { status: 'PENDING' },
-      { 
-        status: 'REJECTED',
-        reason,
-        notes: reason 
-      }
-    )
-
-    logInfo('Marketing fee rejected', { reconciliationId, reason })
+    return this.repo.getFeeDiscrepancies(startStr, endStr, paymentMethodId)
   }
 
   /**
