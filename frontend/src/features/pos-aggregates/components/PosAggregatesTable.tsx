@@ -140,7 +140,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
   if (isLoading) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <TableSkeleton rows={10} columns={16} />
+        <TableSkeleton rows={10} columns={18} />
       </div>
     )
   }
@@ -210,6 +210,12 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
               </th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Nett Amount
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Aktual (Bank)
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Selisih Fee
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Status
@@ -320,10 +326,55 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                       -{formatCurrency(transaction.total_fee_amount)}
                     </span>
                   </td>
-<td className="px-4 py-3 whitespace-nowrap text-right">
+                  <td className="px-4 py-3 whitespace-nowrap text-right">
                     <span className="text-sm font-bold text-green-700 dark:text-green-400">
                       {formatCurrency(transaction.nett_amount)}
                     </span>
+                  </td>
+
+                  {/* Actual Fee Amount dari Bank */}
+                  <td className="px-4 py-3 whitespace-nowrap text-right">
+                    {transaction.is_reconciled && transaction.actual_fee_amount != null ? (
+                      <span className="text-sm text-gray-700 dark:text-gray-300">
+                        {formatCurrency(transaction.actual_fee_amount)}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-gray-300 dark:text-gray-600">—</span>
+                    )}
+                  </td>
+
+                  {/* Fee Discrepancy */}
+                  <td className="px-4 py-3 whitespace-nowrap text-right">
+                    {transaction.is_reconciled && transaction.fee_discrepancy != null ? (
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className={`text-sm font-medium ${
+                          transaction.fee_discrepancy === 0
+                            ? 'text-green-600 dark:text-green-400'
+                            : transaction.fee_discrepancy > 0
+                              ? 'text-red-600 dark:text-red-400'    // bank bayar kurang
+                              : 'text-blue-600 dark:text-blue-400'  // bank bayar lebih
+                        }`}>
+                          {transaction.fee_discrepancy === 0
+                            ? '✓ 0'
+                            : transaction.fee_discrepancy > 0
+                              ? `-${formatCurrency(transaction.fee_discrepancy)}`
+                              : `+${formatCurrency(Math.abs(transaction.fee_discrepancy))}`
+                          }
+                        </span>
+                        {transaction.fee_discrepancy !== 0 && transaction.fee_discrepancy_note && (
+                          <span
+                            className="text-xs text-gray-400 dark:text-gray-500 max-w-[120px] truncate cursor-help"
+                            title={transaction.fee_discrepancy_note}
+                          >
+                            {transaction.fee_discrepancy_note}
+                          </span>
+                        )}
+                      </div>
+                    ) : transaction.is_reconciled ? (
+                      <span className="text-xs text-yellow-500 dark:text-yellow-400">menghitung...</span>
+                    ) : (
+                      <span className="text-sm text-gray-300 dark:text-gray-600">—</span>
+                    )}
                   </td>
 
                   <td className="px-4 py-3 whitespace-nowrap">

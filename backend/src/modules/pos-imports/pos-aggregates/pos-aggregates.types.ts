@@ -78,6 +78,9 @@ bill_after_discount: number; // subtotal + tax - discount (before fee)
   status: AggregatedTransactionStatus; // Default: 'READY'
   failed_at: string | null; // Timestamp when transaction failed
   failed_reason: string | null; // Reason why transaction failed
+  actual_fee_amount?: number | null; // From bank statement
+  fee_discrepancy?: number | null; // expected - actual
+  fee_discrepancy_note?: string | null;
 }
 
 /**
@@ -130,6 +133,9 @@ export interface AggregatedTransactionListItem extends Pick<
   | "version"
   | "failed_at"
   | "failed_reason"
+  | "actual_fee_amount"
+  | "fee_discrepancy"
+  | "fee_discrepancy_note"
 > {
   branch_name?: string;
   payment_method_name?: string;

@@ -30,6 +30,7 @@ import type {
   JournalGenerationResult,
   PaymentMethodOption,
   ListParams,
+  FeeDiscrepanciesResponse,
 } from '../types'
 
 // =============================================================================
@@ -704,6 +705,33 @@ export const posAggregatesApi = {
 
       return res.data.data || []
     }, 'Gagal mengambil opsi metode pembayaran', 'getPaymentMethodOptions')
+  },
+
+  /**
+   * Get fee discrepancies report for reconciled transactions
+   */
+  getFeeDiscrepancies: async (
+    startDate?: string,
+    endDate?: string,
+    paymentMethodId?: number,
+  ): Promise<FeeDiscrepanciesResponse> => {
+    return handleApiCall(async () => {
+      const params: Record<string, unknown> = {}
+      if (startDate)        params.startDate       = startDate
+      if (endDate)          params.endDate         = endDate
+      if (paymentMethodId)  params.paymentMethodId = paymentMethodId
+
+      const res = await api.get<FeeDiscrepanciesResponse>(
+        '/reconciliation/fee/discrepancies',
+        { params }
+      )
+
+      if (!res.data.success) {
+        throw new Error('Failed to fetch fee discrepancies')
+      }
+
+      return res.data
+    }, 'Gagal mengambil data selisih fee', 'getFeeDiscrepancies')
   },
 
   /**

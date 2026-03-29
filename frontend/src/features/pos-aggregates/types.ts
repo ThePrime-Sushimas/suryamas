@@ -83,6 +83,9 @@ export interface AggregatedTransactionWithDetails extends AggregatedTransaction 
   bank_account_number?: string | null;
   reconciled_at?: string | null;
   reconciled_by?: string | null;
+  actual_fee_amount?: number | null;
+  fee_discrepancy?: number | null;
+  fee_discrepancy_note?: string | null;
 }
 
 /**
@@ -107,6 +110,9 @@ export interface AggregatedTransactionListItem {
   fixed_fee_amount: number;
   total_fee_amount: number;
   nett_amount: number;
+  actual_fee_amount?: number | null;
+  fee_discrepancy?: number | null;
+  fee_discrepancy_note?: string | null;
   currency: string;
   journal_id: string | null;
   is_reconciled: boolean;
@@ -358,6 +364,34 @@ export interface BatchTransactionFormData {
 // API RESPONSE TYPES
 // =============================================================================
 
+export interface FeeDiscrepancyRecord {
+  aggregateId:        string;
+  transactionDate:    string;
+  paymentMethodId:    number;
+  paymentMethodCode:  string | null;
+  paymentMethodName:  string | null;
+  grossAmount:        number;
+  nettAmount:         number;
+  expectedFee:        number;
+  actualFee:          number | null;
+  feeDiscrepancy:     number | null;
+  feeDiscrepancyNote: string | null;
+}
+
+export interface FeeDiscrepanciesResponse {
+  success: boolean;
+  data:    FeeDiscrepancyRecord[];
+  summary: {
+    totalRecords:           number;
+    totalGross:             number;
+    totalExpectedFee:       number;
+    totalActualFee:         number;
+    totalFeeDiscrepancy:    number;
+    recordsWithDiscrepancy: number;
+    recordsPending:         number;
+  };
+}
+
 /**
  * Backend API response wrapper (matches sendSuccess format)
  */
@@ -437,6 +471,11 @@ export function mapToAggregatedTransactionListItem(
     fixed_fee_amount: transaction.fixed_fee_amount,
     total_fee_amount: transaction.total_fee_amount,
     nett_amount: transaction.nett_amount,
+    // TAMBAH INI ↓
+    actual_fee_amount:    transaction.actual_fee_amount    ?? null,
+    fee_discrepancy:      transaction.fee_discrepancy      ?? null,
+    fee_discrepancy_note: transaction.fee_discrepancy_note ?? null,
+    // ↑ sampai sini
     currency: transaction.currency,
     journal_id: transaction.journal_id,
     is_reconciled: transaction.is_reconciled,
@@ -450,7 +489,7 @@ export function mapToAggregatedTransactionListItem(
     journal_number: transaction.journal_number,
     failed_reason: transaction.failed_reason,
     failed_at: transaction.failed_at,
-  };
+  }
 }
 
 // =============================================================================
