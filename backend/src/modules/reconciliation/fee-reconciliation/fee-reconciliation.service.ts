@@ -260,6 +260,10 @@ export class FeeReconciliationService {
   ): Promise<void> {
     await this.repo.calculateAndSaveFeeDiscrepancyMultiMatch(aggregateId, totalBankAmount)
   }
+
+  async resetFeeDiscrepancy(aggregateId: string): Promise<void> {
+    await this.repo.resetFeeDiscrepancy(aggregateId)
+  }
 }
 
 // Singleton with dependency injection

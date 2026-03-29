@@ -121,6 +121,7 @@ export interface IFeeReconciliationRepository {
     endDate: string,
     paymentMethodId?: number
   ): Promise<FeeDiscrepancyRecord[]>
+  resetFeeDiscrepancy(aggregateId: string): Promise<void>
 }
 
 export interface FeeDiscrepancyRecord {

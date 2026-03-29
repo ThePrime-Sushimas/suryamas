@@ -346,6 +346,23 @@ export class FeeReconciliationRepository implements IFeeReconciliationRepository
     }
   }
 
+  async resetFeeDiscrepancy(aggregateId: string): Promise<void> {
+    const { error } = await supabase
+      .from('aggregated_transactions')
+      .update({
+        actual_fee_amount:    null,
+        fee_discrepancy:      null,
+        fee_discrepancy_note: null,
+        updated_at:           new Date().toISOString(),
+      })
+      .eq('id', aggregateId)
+
+    if (error) {
+      logError('resetFeeDiscrepancy: failed', { aggregateId, error: error.message })
+      // Fire-and-forget: jangan block undo flow
+    }
+  }
+
   async getFeeDiscrepancies(
     startDate: string,
     endDate: string,

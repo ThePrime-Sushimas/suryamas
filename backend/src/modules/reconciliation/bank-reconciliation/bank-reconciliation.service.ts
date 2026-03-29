@@ -135,6 +135,12 @@ export class BankReconciliationService {
     await this.repository.undoReconciliation(statementId, userId);
 
     if (statement.reconciliation_id) {
+      await this.feeReconciliationService.resetFeeDiscrepancy(
+        statement.reconciliation_id,
+      )
+    }
+
+    if (statement.reconciliation_id) {
       await this.orchestratorService.updateReconciliationStatus(
         statement.reconciliation_id,
         "PENDING",
@@ -957,6 +963,11 @@ export class BankReconciliationService {
       userId,
     );
 
+    await this.feeReconciliationService.calculateAndSaveFeeDiscrepancyMultiMatch(
+      aggregateId,
+      totalBankAmount,
+    );
+
     await this.orchestratorService.updateReconciliationStatus(
       aggregateId,
       "RECONCILED",
@@ -1016,6 +1027,12 @@ export class BankReconciliationService {
     }
 
     await this.repository.undoReconciliationGroup(groupId, userId);
+
+    if (group.aggregate_id) {
+      await this.feeReconciliationService.resetFeeDiscrepancy(
+        group.aggregate_id,
+      )
+    }
 
     if (group.aggregate_id) {
       await this.orchestratorService.updateReconciliationStatus(
