@@ -1,202 +1,89 @@
 /**
- * Fee Reconciliation Service
- * Handles fee reconciliation between expected and actual fees
- *
+ * Fee Reconciliation Service (Refactored)
+ * Pure orchestration layer - no direct DB access
+ * Dependencies injected, uses repository pattern
+ * 
  * Flow:
- * 1. POS IMPORT → AGGREGATED (per payment method)
- * 2. HITUNG EXPECTED: Gross - (percentage_fee + fixed_fee)
- * 3. COMPARE: Expected vs Actual dari mutasi bank
- * 4. SELISIH = Marketing Fee (input manual)
- *
- * @see PAYMENT_METHOD_FEE_MD.md for detailed documentation
+ * 1. repo.getFeeConfigsByCompany()
+ * 2. feeCalculationService.calculateExpectedNet()
+ * 3. repo.getUnreconciledDeposits()
+ * 4. repo.calculateAndSaveFeeDiscrepancy() if needed
+ * 
+ * @see repo.ts for DB operations
  */
 
-import { paymentMethodsRepository } from "../../payment-methods/payment-methods.repository";
-import {
-  feeCalculationService,
-  FeeConfig,
-  FeeCalculationResult,
-  BatchFeeResult,
-  ReconciliationResult,
-} from "./fee-calculation.service";
-import { logInfo, logWarn, logError } from "../../../config/logger";
-import { supabase } from "../../../config/supabase";
-import { AuditService } from "../../monitoring/monitoring.service";
-import { marketingFeeService } from "../fee-reconciliation/marketing-fee.service";
-
-// ============================================================================
-// TYPES
-// ============================================================================
-
-/**
- * Fee configuration dari payment method (3 kolom saja)
- */
-export interface PaymentMethodFeeConfig {
-  paymentMethodId: number;
-  paymentMethodCode: string;
-  paymentMethodName: string;
-  paymentType: string;
-  feePercentage: number;
-  feeFixedAmount: number;
-  feeFixedPerTransaction: boolean;
-}
-
-/**
- * Settlement transaction agregat
- */
-export interface SettlementTransaction {
-  settlement_id: string;
-  payment_method_id: number;
-  gross_amount: number;
-  transaction_count: number;
-  transaction_date: Date;
-}
-
-/**
- * Bank statement record
- */
-export interface BankStatementRecord {
-  id: string;
-  bank_account_id: number;
-  transaction_date: Date;
-  credit_amount: number;
-  description: string;
-  payment_method_id?: number;
-}
-
-/**
- * Reconciliation summary result
- */
-export interface FeeReconciliationSummary {
-  date: Date;
-  totalSettlements: number;
-  totalGrossAmount: number;
-  totalExpectedNet: number;
-  totalActualFromBank: number;
-  totalMarketingFee: number;
-  matchedCount: number;
-  discrepancyCount: number;
-  needsReviewCount: number;
-  results: ReconciliationResult[];
-}
-
-// ============================================================================
-// FEE RECONCILIATION SERVICE
-// ============================================================================
+import { feeCalculationService, FeeConfig, ReconciliationResult } from './fee-calculation.service'
+import { feeReconciliationRepository } from './fee-reconciliation.repository'
+import type { IFeeReconciliationRepository, PaymentMethodFeeConfig, FeeReconciliationSummary, PosAggregate } from './fee-reconciliation.types'
+import { getFeeReconciliationConfig, type FeeReconciliationConfig } from './fee-reconciliation.config'
+import { 
+  FeeConfigNotFoundError,
+  NoAggregatedTransactionsError,
+  DiscrepancyExceedsToleranceError,
+  ReconciliationAlreadyProcessedError,
+  InvalidReconciliationIdError 
+} from './fee-reconciliation.errors'
+import { logInfo, logWarn, logError } from '../../../config/logger'
+import { AuditService } from '../../monitoring/monitoring.service'
+import { bankReconciliationRepository } from '../bank-reconciliation/bank-reconciliation.repository'
 
 export class FeeReconciliationService {
-  /**
-   * Ambil fee configuration dari payment methods untuk company
-   */
-  async getPaymentMethodFeeConfigs(
-    companyId: string,
-  ): Promise<PaymentMethodFeeConfig[]> {
-    logInfo("Mengambil fee configs dari payment methods", { companyId });
+  private config: FeeReconciliationConfig
 
-    try {
-      const { data: paymentMethods, error } = await supabase
-        .from("payment_methods")
-        .select(
-          `
-          id,
-          code,
-          name,
-          payment_type,
-          fee_percentage,
-          fee_fixed_amount,
-          fee_fixed_per_transaction
-        `,
-        )
-        .eq("company_id", companyId)
-        .eq("is_active", true)
-        .is("deleted_at", null);
-
-      if (error) {
-        logError("Error mengambil payment methods", { error: error.message });
-        throw new Error(error.message);
-      }
-
-      return (paymentMethods || []).map((pm) => ({
-        paymentMethodId: pm.id,
-        paymentMethodCode: pm.code,
-        paymentMethodName: pm.name,
-        paymentType: pm.payment_type,
-        feePercentage: pm.fee_percentage || 0,
-        feeFixedAmount: pm.fee_fixed_amount || 0,
-        feeFixedPerTransaction: pm.fee_fixed_per_transaction || false,
-      }));
-    } catch (error) {
-      logError("Failed to get payment method fee configs", {
-        companyId,
-        error: (error as Error).message,
-      });
-      throw error;
-    }
+  constructor(
+    private readonly repo: IFeeReconciliationRepository = feeReconciliationRepository,
+  ) {
+    this.config = getFeeReconciliationConfig()
   }
 
   /**
-   * Hitung expected net untuk satu settlement
-   */
-  calculateExpectedNet(
-    grossAmount: number,
-    transactionCount: number,
-    feeConfig: PaymentMethodFeeConfig,
-  ): FeeCalculationResult {
-    const config: FeeConfig = {
-      fee_percentage: feeConfig.feePercentage,
-      fee_fixed_amount: feeConfig.feeFixedAmount,
-      fee_fixed_per_transaction: feeConfig.feeFixedPerTransaction,
-    };
-
-    return feeCalculationService.calculateExpectedNet(
-      grossAmount,
-      transactionCount,
-      config,
-    );
-  }
-
-  /**
-   * Reconcile fees untuk satu payment method pada tanggal tertentu
-   *
-   * Step 1: Ambil aggregated transactions dari POS
-   * Step 2: Hitung expected net
-   * Step 3: Ambil actual dari bank
-   * Step 4: Calculate difference = marketing fee
+   * Reconcile one payment method for specific date
    */
   async reconcilePaymentMethod(
     paymentMethodId: number,
     date: Date,
-    tolerancePercentage: number = 1,
+    tolerancePercentage = this.config.defaultTolerancePercentage
   ): Promise<ReconciliationResult> {
-    logInfo("Reconciling payment method", { paymentMethodId, date });
+    logInfo('Reconciling payment method', { paymentMethodId, date: date.toISOString().split('T')[0] })
 
-    // 1. Get payment method config
-    const feeConfig = await this.getPaymentMethodConfig(paymentMethodId);
+    // 1. Get fee config from repo
+    const feeConfig = await this.repo.getFeeConfigsByPaymentMethodId(paymentMethodId)
 
-    // 2. Get aggregated transactions (TODO: implement dari database)
-    const aggregated = await this.getAggregatedTransactions(
-      paymentMethodId,
-      date,
-    );
+    // 2. Get POS aggregates from repo
+    const dateStr = date.toISOString().split('T')[0]
+    const aggregate = await this.repo.getPosAggregatesByPaymentMethodDate(paymentMethodId, dateStr)
+    
+    if (!aggregate) {
+      throw new NoAggregatedTransactionsError(paymentMethodId, dateStr)
+    }
 
-    // 3. Calculate expected net
-    const expectedResult = this.calculateExpectedNet(
-      aggregated.totalAmount,
-      aggregated.transactionCount,
-      feeConfig,
-    );
+    const { total_gross_amount: grossAmount, total_transaction_count: txCount } = aggregate
 
-    // 4. Get actual from bank statement (TODO: implement dari database)
-    const actualFromBank = await this.getBankDeposits(paymentMethodId, date);
+    if (grossAmount <= 0) {
+      throw new Error('Gross amount must be positive')
+    }
 
-    // 5. Calculate marketing fee (difference)
-    const marketingCalc = feeCalculationService.calculateMarketingFee(
-      expectedResult.expectedNet,
-      actualFromBank,
-      tolerancePercentage,
-    );
+    // 3. Calculate expected net using feeCalculationService
+    const expectedResult = feeCalculationService.calculateExpectedNet(
+      grossAmount,
+      txCount,
+      {
+        fee_percentage: feeConfig.feePercentage,
+        fee_fixed_amount: feeConfig.feeFixedAmount,
+        fee_fixed_per_transaction: feeConfig.feeFixedPerTransaction,
+      }
+    )
 
-    return {
+    // 4. Get unreconciled bank deposits from repo
+    const actualFromBank = await this.repo.getUnreconciledDeposits(paymentMethodId, dateStr)
+
+    // 5. Calculate marketing fee discrepancy
+    const tolerance = expectedResult.expectedNet * (tolerancePercentage / 100)
+    const difference = expectedResult.expectedNet - actualFromBank
+    const isWithinTolerance = Math.abs(difference) <= tolerance
+    const needsReview = !isWithinTolerance || Math.abs(difference) > this.config.reviewThreshold
+
+    const result: ReconciliationResult = {
       paymentMethodId: feeConfig.paymentMethodId,
       paymentMethodCode: feeConfig.paymentMethodCode,
       paymentMethodName: feeConfig.paymentMethodName,
@@ -208,581 +95,258 @@ export class FeeReconciliationService {
       totalFee: expectedResult.totalFee,
       expectedNet: expectedResult.expectedNet,
       actualFromBank,
-      difference: marketingCalc.difference,
-      marketingFee: marketingCalc.marketingFee,
-      isWithinTolerance: marketingCalc.isWithinTolerance,
-      needsReview: marketingCalc.needsReview,
-    };
+      difference,
+      marketingFee: difference > 0 ? difference : 0,
+      isWithinTolerance,
+      needsReview,
+    }
+
+    if (needsReview && Math.abs(difference) > this.config.reviewThreshold) {
+      logWarn('Reconciliation needs manual review', { 
+        paymentMethodId, 
+        dateStr, 
+        difference, 
+        tolerance 
+      })
+    }
+
+    // Optional: save result for audit
+    await this.repo.createReconciliationResult(result)
+
+    return result
   }
 
   /**
-   * Reconcile semua payment methods untuk tanggal tertentu
+   * Reconcile all payment methods for a company on specific date
    */
   async reconcileDaily(
-    date: Date,
     companyId: string,
-    tolerancePercentage: number = 1,
+    date: Date,
+    tolerancePercentage = this.config.defaultTolerancePercentage
   ): Promise<FeeReconciliationSummary> {
-    logInfo("Reconciling daily transactions", { date, companyId });
+    logInfo('Daily reconciliation', { companyId, date: date.toISOString().split('T')[0] })
 
-    // 1. Get all active payment methods dengan fee configs
-    const feeConfigs = await this.getPaymentMethodFeeConfigs(companyId);
+    // 1. Get all fee configs
+    const feeConfigs = await this.repo.getFeeConfigsByCompany(companyId)
 
-    // 2. Reconcile each payment method
-    const results: ReconciliationResult[] = [];
-    let totalGross = 0;
-    let totalExpectedNet = 0;
-    let totalActualFromBank = 0;
-    let totalMarketingFee = 0;
-    let matchedCount = 0;
-    let discrepancyCount = 0;
-    let needsReviewCount = 0;
+    if (feeConfigs.length === 0) {
+      logWarn('No active payment methods with fee configs', { companyId })
+    }
 
-    for (const feeConfig of feeConfigs) {
-      const result = await this.reconcilePaymentMethod(
-        feeConfig.paymentMethodId,
-        date,
-        tolerancePercentage,
-      );
+    // 2. Process each in parallel batches
+    const dateStr = date.toISOString().split('T')[0]
+    const results: ReconciliationResult[] = []
+    let stats = {
+      totalGross: 0,
+      totalExpectedNet: 0,
+      totalActualBank: 0,
+      totalMarketingFee: 0,
+      matched: 0,
+      discrepancy: 0,
+      needsReview: 0,
+      failed: 0
+    }
 
-      results.push(result);
+    const batchSize = this.config.batchSize
 
-      totalGross += result.totalGross;
-      totalExpectedNet += result.expectedNet;
-      totalActualFromBank += result.actualFromBank;
-      totalMarketingFee += result.marketingFee;
+    for (let i = 0; i < feeConfigs.length; i += batchSize) {
+      const batch = feeConfigs.slice(i, i + batchSize)
+      const batchPromises = batch.map(async (config) => {
+        try {
+          const result = await this.reconcilePaymentMethod(
+            config.paymentMethodId,
+            date,
+            tolerancePercentage
+          )
+          return result
+        } catch (error) {
+          logError('Payment method reconciliation failed', {
+            paymentMethodId: config.paymentMethodId,
+            error: (error as Error).message
+          })
+          stats.failed++
+          return null
+        }
+      })
+
+      const batchResults = await Promise.all(batchPromises)
+      results.push(...batchResults.filter(Boolean) as ReconciliationResult[])
+
+      logInfo(`Processed batch ${Math.floor(i/batchSize)+1}/${Math.ceil(feeConfigs.length/batchSize)}`, { 
+        batchSize: batch.length,
+        success: batchResults.filter(Boolean).length,
+        failed: batchResults.filter(r => !r).length 
+      })
+    }
+
+    // 3. Calculate summary
+    results.forEach(result => {
+      stats.totalGross += result.totalGross
+      stats.totalExpectedNet += result.expectedNet
+      stats.totalActualBank += result.actualFromBank
+      stats.totalMarketingFee += result.marketingFee
 
       if (result.isWithinTolerance) {
-        matchedCount++;
+        stats.matched++
       } else {
-        discrepancyCount++;
+        stats.discrepancy++
       }
 
       if (result.needsReview) {
-        needsReviewCount++;
+        stats.needsReview++
       }
-    }
+    })
 
-    return {
+    const summary: FeeReconciliationSummary = {
       date,
       totalSettlements: results.length,
-      totalGrossAmount: totalGross,
-      totalExpectedNet,
-      totalActualFromBank,
-      totalMarketingFee,
-      matchedCount,
-      discrepancyCount,
-      needsReviewCount,
+      totalGrossAmount: stats.totalGross,
+      totalExpectedNet: stats.totalExpectedNet,
+      totalActualFromBank: stats.totalActualBank,
+      totalMarketingFee: stats.totalMarketingFee,
+      matchedCount: stats.matched,
+      discrepancyCount: stats.discrepancy,
+      needsReviewCount: stats.needsReview,
       results,
-    };
+    }
+
+    logInfo('Daily reconciliation complete', {
+      companyId,
+      dateStr,
+      settlements: results.length,
+      needsReview: stats.needsReview
+    })
+
+    return summary
   }
 
   /**
-   * Approve marketing fee (manual review)
+   * Approve marketing fee discrepancy
    */
   async approveMarketingFee(
     reconciliationId: string,
     approvedBy: string,
-    approvedAmount?: number,
+    approvedAmount?: number
   ): Promise<void> {
-    logInfo("Approving marketing fee", {
+    logInfo('Approving marketing fee', { reconciliationId, approvedBy })
+
+    const [paymentMethodIdStr, dateStr] = reconciliationId.split('_')
+    const paymentMethodId = parseInt(paymentMethodIdStr!)
+    
+    if (isNaN(paymentMethodId)) {
+      throw new InvalidReconciliationIdError(reconciliationId)
+    }
+
+    // Re-run reconciliation to get current state
+    const date = new Date(dateStr!)
+    const result = await this.reconcilePaymentMethod(paymentMethodId, date)
+
+    // Mark statements reconciled via bank-reconciliation repo (bank_statements is their domain)
+    await bankReconciliationRepository.getUnreconciledBatch(
+      new Date(dateStr!),
+      new Date(dateStr!),
+      undefined,
+      0,
+      undefined
+    ).then(async (statements) => {
+      const matchingIds = statements
+        .filter((s: any) => s.payment_method_id === paymentMethodId)
+        .map((s: any) => s.id)
+      if (matchingIds.length > 0) {
+        await bankReconciliationRepository.bulkUpdateReconciliationStatus(
+          matchingIds,
+          true,
+          approvedBy
+        )
+      }
+    })
+
+    // Audit
+    await AuditService.log(
+      'UPDATE',
+      'fee_reconciliation',
       reconciliationId,
       approvedBy,
-      approvedAmount,
-    });
-
-    try {
-      // First, get the reconciliation result to understand what we're approving
-      // For now, we'll assume reconciliationId is a combination of payment_method_id and date
-      const [paymentMethodIdStr, dateStr] = reconciliationId.split("_");
-      const paymentMethodId = parseInt(paymentMethodIdStr);
-      const date = new Date(dateStr);
-
-      if (isNaN(paymentMethodId) || isNaN(date.getTime())) {
-        throw new Error("Invalid reconciliation ID format");
+      { status: 'PENDING' },
+      { 
+        status: 'APPROVED',
+        approved_amount: approvedAmount ?? result.marketingFee,
+        marketing_fee: result.marketingFee 
       }
+    )
 
-      // Get the current reconciliation result
-      const result = await this.reconcilePaymentMethod(paymentMethodId, date);
-
-      // Mark bank statements as reconciled for this payment method and date
-      const dateString = date.toISOString().split("T")[0];
-      const { error: updateError } = await supabase
-        .from("bank_statements")
-        .update({
-          is_reconciled: true,
-          reconciliation_id: reconciliationId,
-          updated_at: new Date().toISOString(),
-          updated_by: approvedBy,
-        })
-        .eq("payment_method_id", paymentMethodId)
-        .eq("transaction_date", dateString)
-        .eq("is_reconciled", false)
-        .is("deleted_at", null);
-
-      if (updateError) {
-        logError("Error updating bank statements for approval", {
-          error: updateError.message,
-        });
-        throw new Error(updateError.message);
-      }
-
-      // TODO: Optionally create a reconciliation_results record
-      // const { error: insertError } = await supabase
-      //   .from('reconciliation_results')
-      //   .insert({
-      //     reconciliation_id: reconciliationId,
-      //     payment_method_id: paymentMethodId,
-      //     transaction_date: dateString,
-      //     status: 'APPROVED',
-      //     approved_amount: approvedAmount || result.marketingFee,
-      //     approved_by: approvedBy,
-      //     created_at: new Date().toISOString()
-      //   })
-
-      logInfo("Marketing fee approved successfully", {
-        reconciliationId,
-        approvedBy,
-        approvedAmount: approvedAmount || result.marketingFee,
-      });
-
-      // Audit log for APPROVE_MARKETING_FEE
-      await AuditService.log(
-        "UPDATE",
-        "fee_reconciliation",
-        reconciliationId,
-        approvedBy,
-        { is_reconciled: false },
-        {
-          is_reconciled: true,
-          status: "APPROVED",
-          approvedAmount: approvedAmount || result.marketingFee,
-        },
-      );
-    } catch (error) {
-      logError("Failed to approve marketing fee", {
-        reconciliationId,
-        approvedBy,
-        error: (error as Error).message,
-      });
-      throw error;
-    }
+    logInfo('Marketing fee approved', { reconciliationId, approvedAmount: approvedAmount ?? result.marketingFee })
   }
 
   /**
-   * Reject marketing fee (manual review)
+   * Reject marketing fee
    */
   async rejectMarketingFee(
     reconciliationId: string,
     rejectedBy: string,
-    reason: string,
+    reason: string
   ): Promise<void> {
-    logInfo("Rejecting marketing fee", {
+    logInfo('Rejecting marketing fee', { reconciliationId, rejectedBy })
+
+    const [paymentMethodIdStr, dateStr] = reconciliationId.split('_')
+    const paymentMethodId = parseInt(paymentMethodIdStr!)
+    
+    if (isNaN(paymentMethodId)) {
+      throw new InvalidReconciliationIdError(reconciliationId)
+    }
+
+    // Note: rejection doesn't mark statements as reconciled — just audit log
+    // Statements remain unreconciled since fee was rejected
+
+    // Audit
+    await AuditService.log(
+      'UPDATE',
+      'fee_reconciliation',
       reconciliationId,
       rejectedBy,
-      reason,
-    });
-
-    try {
-      // Parse reconciliation ID (assuming format: paymentMethodId_date)
-      const [paymentMethodIdStr, dateStr] = reconciliationId.split("_");
-      const paymentMethodId = parseInt(paymentMethodIdStr);
-      const date = new Date(dateStr);
-
-      if (isNaN(paymentMethodId) || isNaN(date.getTime())) {
-        throw new Error("Invalid reconciliation ID format");
-      }
-
-      // Mark bank statements as reconciled with rejection status
-      const dateString = date.toISOString().split("T")[0];
-      const { error: updateError } = await supabase
-        .from("bank_statements")
-        .update({
-          is_reconciled: true,
-          reconciliation_id: reconciliationId,
-          updated_at: new Date().toISOString(),
-          updated_by: rejectedBy,
-        })
-        .eq("payment_method_id", paymentMethodId)
-        .eq("transaction_date", dateString)
-        .eq("is_reconciled", false)
-        .is("deleted_at", null);
-
-      if (updateError) {
-        logError("Error updating bank statements for rejection", {
-          error: updateError.message,
-        });
-        throw new Error(updateError.message);
-      }
-
-      // TODO: Optionally create a reconciliation_results record with rejection
-      // const { error: insertError } = await supabase
-      //   .from('reconciliation_results')
-      //   .insert({
-      //     reconciliation_id: reconciliationId,
-      //     payment_method_id: paymentMethodId,
-      //     transaction_date: dateString,
-      //     status: 'REJECTED',
-      //     rejection_reason: reason,
-      //     rejected_by: rejectedBy,
-      //     created_at: new Date().toISOString()
-      //   })
-
-      logInfo("Marketing fee rejected successfully", {
-        reconciliationId,
-        rejectedBy,
+      { status: 'PENDING' },
+      { 
+        status: 'REJECTED',
         reason,
-      });
-
-      // Audit log for REJECT_MARKETING_FEE
-      await AuditService.log(
-        "UPDATE",
-        "fee_reconciliation",
-        reconciliationId,
-        rejectedBy,
-        { is_reconciled: false },
-        { is_reconciled: true, status: "REJECTED", reason },
-      );
-    } catch (error) {
-      logError("Failed to reject marketing fee", {
-        reconciliationId,
-        rejectedBy,
-        reason,
-        error: (error as Error).message,
-      });
-      throw error;
-    }
-  }
-// ============================================================================
-  // FEE DISCREPANCY — dipanggil dari BankReconciliationService
-  // ============================================================================
-
-  /**
-   * Hitung dan simpan fee discrepancy untuk single-match atau auto-match.
-   * Dipanggil setelah markAsReconciled() berhasil.
-   *
-   * Logic:
-   *   expectedNet    = nett_amount dari aggregated_transactions (sudah dikurangi expected fee)
-   *   actualFromBank = credit_amount - debit_amount dari bank_statements
-   *   difference     = expectedNet - actualFromBank
-   *   fee_discrepancy = difference (positif = bank bayar kurang, negatif = bank bayar lebih)
-   */
-  async calculateAndSaveFeeDiscrepancy(
-    aggregateId: string,
-    statementId: string,
-  ): Promise<void> {
-    try {
-      const { data: agg, error: aggErr } = await supabase
-        .from("aggregated_transactions")
-        .select("id, nett_amount, total_fee_amount, payment_method_id")
-        .eq("id", aggregateId)
-        .single();
-
-      if (aggErr || !agg) {
-        logWarn("calculateAndSaveFeeDiscrepancy: aggregate tidak ditemukan", { aggregateId });
-        return;
+        notes: reason 
       }
+    )
 
-      const { data: stmt, error: stmtErr } = await supabase
-        .from("bank_statements")
-        .select("credit_amount, debit_amount")
-        .eq("id", statementId)
-        .single();
-
-      if (stmtErr || !stmt) {
-        logWarn("calculateAndSaveFeeDiscrepancy: statement tidak ditemukan", { statementId });
-        return;
-      }
-
-      const actualFromBank = (stmt.credit_amount || 0) - (stmt.debit_amount || 0);
-      const expectedNet    = Number(agg.nett_amount);
-      const expectedFee    = Number(agg.total_fee_amount);
-
-      // Pakai MarketingFeeService yang sudah ada untuk identifikasi selisih
-      const feeResult = marketingFeeService.identifyMarketingFee({
-        expectedNet,
-        actualFromBank,
-        paymentMethodCode: String(agg.payment_method_id),
-        transactionDate: new Date(),
-      });
-
-      // fee_discrepancy: positif = bank bayar kurang dari expected (ada marketing fee / rate mismatch)
-      //                 negatif = bank bayar lebih (promo platform, reverse MDR, dll)
-      const feeDiscrepancy = feeResult.difference;
-      const actualFeeAmount = expectedFee + feeDiscrepancy;
-
-      let note: string | null = null;
-      if (Math.abs(feeDiscrepancy) >= 1) {
-        if (feeDiscrepancy > 0) {
-          note = `Bank bayar kurang Rp ${feeDiscrepancy.toLocaleString("id-ID")} dari expected — kemungkinan marketing fee atau rate mismatch (${feeResult.confidence} confidence)`;
-        } else {
-          note = `Bank bayar lebih Rp ${Math.abs(feeDiscrepancy).toLocaleString("id-ID")} dari expected — kemungkinan platform promo atau rate turun`;
-        }
-      }
-
-      const { error: updateErr } = await supabase
-        .from("aggregated_transactions")
-        .update({
-          actual_fee_amount:    actualFeeAmount,
-          fee_discrepancy:      feeDiscrepancy,
-          fee_discrepancy_note: note,
-          updated_at:           new Date().toISOString(),
-        })
-        .eq("id", aggregateId);
-
-      if (updateErr) {
-        logError("calculateAndSaveFeeDiscrepancy: gagal update", {
-          aggregateId,
-          error: updateErr.message,
-        });
-        return;
-      }
-
-      if (Math.abs(feeDiscrepancy) >= 1) {
-        logInfo("Fee discrepancy ditemukan dan disimpan", {
-          aggregateId,
-          statementId,
-          expectedFee,
-          actualFeeAmount,
-          feeDiscrepancy,
-          confidence: feeResult.confidence,
-        });
-      }
-    } catch (error) {
-      // Fire-and-forget: jangan sampai error di sini block flow rekonsiliasi utama
-      logError("calculateAndSaveFeeDiscrepancy: unexpected error", {
-        aggregateId,
-        statementId,
-        error: (error as Error).message,
-      });
-    }
+    logInfo('Marketing fee rejected', { reconciliationId, reason })
   }
 
   /**
-   * Hitung dan simpan fee discrepancy untuk multi-match.
-   * Dipanggil setelah markStatementsAsReconciledWithGroup() berhasil.
-   *
-   * Bedanya dengan single-match: actual amount sudah dihitung di luar
-   * (totalBankAmount dari semua statements di group).
-   */
-  async calculateAndSaveFeeDiscrepancyMultiMatch(
-    aggregateId: string,
-    totalBankAmount: number,
-  ): Promise<void> {
-    try {
-      const { data: agg, error: aggErr } = await supabase
-        .from("aggregated_transactions")
-        .select("id, nett_amount, total_fee_amount, payment_method_id")
-        .eq("id", aggregateId)
-        .single();
-
-      if (aggErr || !agg) {
-        logWarn("calculateAndSaveFeeDiscrepancyMultiMatch: aggregate tidak ditemukan", { aggregateId });
-        return;
-      }
-
-      const expectedNet = Number(agg.nett_amount);
-      const expectedFee = Number(agg.total_fee_amount);
-
-      const feeResult = marketingFeeService.identifyMarketingFee({
-        expectedNet,
-        actualFromBank:    totalBankAmount,
-        paymentMethodCode: String(agg.payment_method_id),
-        transactionDate:   new Date(),
-      });
-
-      const feeDiscrepancy  = feeResult.difference;
-      const actualFeeAmount = expectedFee + feeDiscrepancy;
-
-      let note: string | null = null;
-      if (Math.abs(feeDiscrepancy) >= 1) {
-        note = feeDiscrepancy > 0
-          ? `Multi-match: bank bayar kurang Rp ${feeDiscrepancy.toLocaleString("id-ID")} — kemungkinan marketing fee`
-          : `Multi-match: bank bayar lebih Rp ${Math.abs(feeDiscrepancy).toLocaleString("id-ID")} — kemungkinan platform promo`;
-      }
-
-      const { error: updateErr } = await supabase
-        .from("aggregated_transactions")
-        .update({
-          actual_fee_amount:    actualFeeAmount,
-          fee_discrepancy:      feeDiscrepancy,
-          fee_discrepancy_note: note,
-          updated_at:           new Date().toISOString(),
-        })
-        .eq("id", aggregateId);
-
-      if (updateErr) {
-        logError("calculateAndSaveFeeDiscrepancyMultiMatch: gagal update", {
-          aggregateId,
-          error: updateErr.message,
-        });
-        return;
-      }
-
-      logInfo("Multi-match fee discrepancy disimpan", {
-        aggregateId,
-        totalBankAmount,
-        expectedFee,
-        actualFeeAmount,
-        feeDiscrepancy,
-      });
-    } catch (error) {
-      logError("calculateAndSaveFeeDiscrepancyMultiMatch: unexpected error", {
-        aggregateId,
-        totalBankAmount,
-        error: (error as Error).message,
-      });
-    }
-  }
-  // ============================================================================
-  // PRIVATE METHODS (TODO: Implementasi database)
-  // ============================================================================
-
-  /**
-   * Get payment method config by ID
-   */
-  private async getPaymentMethodConfig(
-    paymentMethodId: number,
-  ): Promise<PaymentMethodFeeConfig> {
-    // TODO: Implement dari database
-    const { data, error } = await supabase
-      .from("payment_methods")
-      .select(
-        `
-        id, code, name, payment_type,
-        fee_percentage, fee_fixed_amount, fee_fixed_per_transaction
-      `,
-      )
-      .eq("id", paymentMethodId)
-      .is("deleted_at", null)
-      .maybeSingle();
-
-    if (error || !data) {
-      throw new Error(`Payment method ${paymentMethodId} not found`);
-    }
-
-    return {
-      paymentMethodId: data.id,
-      paymentMethodCode: data.code,
-      paymentMethodName: data.name,
-      paymentType: data.payment_type,
-      feePercentage: data.fee_percentage || 0,
-      feeFixedAmount: data.fee_fixed_amount || 0,
-      feeFixedPerTransaction: data.fee_fixed_per_transaction || false,
-    };
-  }
-
-  /**
-   * Get aggregated transactions untuk payment method dan tanggal
-   */
-  private async getAggregatedTransactions(
-    paymentMethodId: number,
-    date: Date,
-  ): Promise<{ totalAmount: number; transactionCount: number }> {
-    logInfo("Getting aggregated transactions", { paymentMethodId, date });
-
-    try {
-      const dateStr = date.toISOString().split("T")[0]; // YYYY-MM-DD format
-
-      // Query pos_aggregates table untuk aggregated transactions
-      const { data, error } = await supabase
-        .from("pos_aggregates")
-        .select("total_gross_amount, total_transaction_count")
-        .eq("payment_method_id", paymentMethodId)
-        .eq("transaction_date", dateStr)
-        .maybeSingle();
-
-      if (error) {
-        logError("Error getting aggregated transactions", {
-          error: error.message,
-          paymentMethodId,
-          date,
-        });
-        throw new Error(error.message);
-      }
-
-      return {
-        totalAmount: data?.total_gross_amount || 0,
-        transactionCount: data?.total_transaction_count || 0,
-      };
-    } catch (error) {
-      logError("Failed to get aggregated transactions", {
-        paymentMethodId,
-        date,
-        error: (error as Error).message,
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Get actual deposits dari bank untuk payment method dan tanggal
-   */
-  private async getBankDeposits(
-    paymentMethodId: number,
-    date: Date,
-  ): Promise<number> {
-    logInfo("Getting bank deposits", { paymentMethodId, date });
-
-    try {
-      const dateStr = date.toISOString().split("T")[0]; // YYYY-MM-DD format
-
-      // Query bank_statements table untuk total credit amounts (deposits)
-      const { data, error } = await supabase
-        .from("bank_statements")
-        .select("credit_amount")
-        .eq("payment_method_id", paymentMethodId)
-        .eq("transaction_date", dateStr)
-        .eq("is_reconciled", false) // Only unreconciled transactions
-        .is("deleted_at", null);
-
-      if (error) {
-        logError("Error getting bank deposits", {
-          error: error.message,
-          paymentMethodId,
-          date,
-        });
-        throw new Error(error.message);
-      }
-
-      // Sum all credit amounts
-      const totalDeposits = (data || []).reduce(
-        (sum, record) => sum + (record.credit_amount || 0),
-        0,
-      );
-
-      logInfo("Bank deposits calculated", {
-        paymentMethodId,
-        date,
-        totalDeposits,
-        recordCount: data?.length || 0,
-      });
-
-      return totalDeposits;
-    } catch (error) {
-      logError("Failed to get bank deposits", {
-        paymentMethodId,
-        date,
-        error: (error as Error).message,
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Get daily reconciliation summary
+   * Get daily summary (historical)
+   * TODO: Implement from reconciliation_results table after migration
    */
   async getDailySummary(
     companyId: string,
     startDate: Date,
-    endDate: Date,
+    endDate: Date
   ): Promise<FeeReconciliationSummary[]> {
-    logInfo("Getting daily summary", { companyId, startDate, endDate });
+    logInfo('Getting daily summary', { companyId, startDate, endDate })
+    
+    // TODO: Query reconciliation_results table
+    // Aggregate by date, payment method
+    return []
+  }
 
-    // TODO: Implement aggregation dari reconciliation_results table
-    return [];
+  // =====================================================
+  // BANK-RECON INTEGRATION (unchanged public API)
+  // =====================================================
+  
+  async calculateAndSaveFeeDiscrepancy(aggregateId: string, statementId: string): Promise<void> {
+    await this.repo.calculateAndSaveFeeDiscrepancy(aggregateId, statementId)
+  }
+
+  async calculateAndSaveFeeDiscrepancyMultiMatch(
+    aggregateId: string,
+    totalBankAmount: number
+  ): Promise<void> {
+    await this.repo.calculateAndSaveFeeDiscrepancyMultiMatch(aggregateId, totalBankAmount)
   }
 }
 
-// Export instance
-export const feeReconciliationService = new FeeReconciliationService();
+// Singleton with dependency injection
+export const feeReconciliationService = new FeeReconciliationService(feeReconciliationRepository)
+
