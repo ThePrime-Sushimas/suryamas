@@ -81,7 +81,10 @@ export class BankReconciliationService {
     }
 
     await this.repository.markAsReconciled(statementId, aggregateId, userId);
-
+    await this.feeReconciliationService.calculateAndSaveFeeDiscrepancy(
+      aggregateId,
+      statementId,
+    );
     await this.orchestratorService.updateReconciliationStatus(
       aggregateId,
       "RECONCILED",
@@ -266,7 +269,11 @@ export class BankReconciliationService {
         match.aggregateId,
         userId,
       );
-
+      await this.feeReconciliationService.calculateAndSaveFeeDiscrepancy(
+        match.aggregateId,
+        match.statementId,
+      );
+    
       bulkUpdates.push({
         aggregateId: match.aggregateId,
         status: "RECONCILED",
@@ -667,7 +674,10 @@ export class BankReconciliationService {
           match.aggregateId,
           userId,
         );
-  
+        await this.feeReconciliationService.calculateAndSaveFeeDiscrepancy(
+          match.aggregateId,
+          match.statementId,
+        );
         await this.repository.logAction({
           companyId: companyId || "",
           userId,

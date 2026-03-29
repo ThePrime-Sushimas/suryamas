@@ -22,6 +22,7 @@ import {
 import { logInfo, logWarn, logError } from "../../../config/logger";
 import { supabase } from "../../../config/supabase";
 import { AuditService } from "../../monitoring/monitoring.service";
+import { marketingFeeService } from "../fee-reconciliation/marketing-fee.service";
 
 // ============================================================================
 // TYPES
@@ -452,7 +453,187 @@ export class FeeReconciliationService {
       throw error;
     }
   }
+// ============================================================================
+  // FEE DISCREPANCY — dipanggil dari BankReconciliationService
+  // ============================================================================
 
+  /**
+   * Hitung dan simpan fee discrepancy untuk single-match atau auto-match.
+   * Dipanggil setelah markAsReconciled() berhasil.
+   *
+   * Logic:
+   *   expectedNet    = nett_amount dari aggregated_transactions (sudah dikurangi expected fee)
+   *   actualFromBank = credit_amount - debit_amount dari bank_statements
+   *   difference     = expectedNet - actualFromBank
+   *   fee_discrepancy = difference (positif = bank bayar kurang, negatif = bank bayar lebih)
+   */
+  async calculateAndSaveFeeDiscrepancy(
+    aggregateId: string,
+    statementId: string,
+  ): Promise<void> {
+    try {
+      const { data: agg, error: aggErr } = await supabase
+        .from("aggregated_transactions")
+        .select("id, nett_amount, total_fee_amount, payment_method_id")
+        .eq("id", aggregateId)
+        .single();
+
+      if (aggErr || !agg) {
+        logWarn("calculateAndSaveFeeDiscrepancy: aggregate tidak ditemukan", { aggregateId });
+        return;
+      }
+
+      const { data: stmt, error: stmtErr } = await supabase
+        .from("bank_statements")
+        .select("credit_amount, debit_amount")
+        .eq("id", statementId)
+        .single();
+
+      if (stmtErr || !stmt) {
+        logWarn("calculateAndSaveFeeDiscrepancy: statement tidak ditemukan", { statementId });
+        return;
+      }
+
+      const actualFromBank = (stmt.credit_amount || 0) - (stmt.debit_amount || 0);
+      const expectedNet    = Number(agg.nett_amount);
+      const expectedFee    = Number(agg.total_fee_amount);
+
+      // Pakai MarketingFeeService yang sudah ada untuk identifikasi selisih
+      const feeResult = marketingFeeService.identifyMarketingFee({
+        expectedNet,
+        actualFromBank,
+        paymentMethodCode: String(agg.payment_method_id),
+        transactionDate: new Date(),
+      });
+
+      // fee_discrepancy: positif = bank bayar kurang dari expected (ada marketing fee / rate mismatch)
+      //                 negatif = bank bayar lebih (promo platform, reverse MDR, dll)
+      const feeDiscrepancy = feeResult.difference;
+      const actualFeeAmount = expectedFee + feeDiscrepancy;
+
+      let note: string | null = null;
+      if (Math.abs(feeDiscrepancy) >= 1) {
+        if (feeDiscrepancy > 0) {
+          note = `Bank bayar kurang Rp ${feeDiscrepancy.toLocaleString("id-ID")} dari expected — kemungkinan marketing fee atau rate mismatch (${feeResult.confidence} confidence)`;
+        } else {
+          note = `Bank bayar lebih Rp ${Math.abs(feeDiscrepancy).toLocaleString("id-ID")} dari expected — kemungkinan platform promo atau rate turun`;
+        }
+      }
+
+      const { error: updateErr } = await supabase
+        .from("aggregated_transactions")
+        .update({
+          actual_fee_amount:    actualFeeAmount,
+          fee_discrepancy:      feeDiscrepancy,
+          fee_discrepancy_note: note,
+          updated_at:           new Date().toISOString(),
+        })
+        .eq("id", aggregateId);
+
+      if (updateErr) {
+        logError("calculateAndSaveFeeDiscrepancy: gagal update", {
+          aggregateId,
+          error: updateErr.message,
+        });
+        return;
+      }
+
+      if (Math.abs(feeDiscrepancy) >= 1) {
+        logInfo("Fee discrepancy ditemukan dan disimpan", {
+          aggregateId,
+          statementId,
+          expectedFee,
+          actualFeeAmount,
+          feeDiscrepancy,
+          confidence: feeResult.confidence,
+        });
+      }
+    } catch (error) {
+      // Fire-and-forget: jangan sampai error di sini block flow rekonsiliasi utama
+      logError("calculateAndSaveFeeDiscrepancy: unexpected error", {
+        aggregateId,
+        statementId,
+        error: (error as Error).message,
+      });
+    }
+  }
+
+  /**
+   * Hitung dan simpan fee discrepancy untuk multi-match.
+   * Dipanggil setelah markStatementsAsReconciledWithGroup() berhasil.
+   *
+   * Bedanya dengan single-match: actual amount sudah dihitung di luar
+   * (totalBankAmount dari semua statements di group).
+   */
+  async calculateAndSaveFeeDiscrepancyMultiMatch(
+    aggregateId: string,
+    totalBankAmount: number,
+  ): Promise<void> {
+    try {
+      const { data: agg, error: aggErr } = await supabase
+        .from("aggregated_transactions")
+        .select("id, nett_amount, total_fee_amount, payment_method_id")
+        .eq("id", aggregateId)
+        .single();
+
+      if (aggErr || !agg) {
+        logWarn("calculateAndSaveFeeDiscrepancyMultiMatch: aggregate tidak ditemukan", { aggregateId });
+        return;
+      }
+
+      const expectedNet = Number(agg.nett_amount);
+      const expectedFee = Number(agg.total_fee_amount);
+
+      const feeResult = marketingFeeService.identifyMarketingFee({
+        expectedNet,
+        actualFromBank:    totalBankAmount,
+        paymentMethodCode: String(agg.payment_method_id),
+        transactionDate:   new Date(),
+      });
+
+      const feeDiscrepancy  = feeResult.difference;
+      const actualFeeAmount = expectedFee + feeDiscrepancy;
+
+      let note: string | null = null;
+      if (Math.abs(feeDiscrepancy) >= 1) {
+        note = feeDiscrepancy > 0
+          ? `Multi-match: bank bayar kurang Rp ${feeDiscrepancy.toLocaleString("id-ID")} — kemungkinan marketing fee`
+          : `Multi-match: bank bayar lebih Rp ${Math.abs(feeDiscrepancy).toLocaleString("id-ID")} — kemungkinan platform promo`;
+      }
+
+      const { error: updateErr } = await supabase
+        .from("aggregated_transactions")
+        .update({
+          actual_fee_amount:    actualFeeAmount,
+          fee_discrepancy:      feeDiscrepancy,
+          fee_discrepancy_note: note,
+          updated_at:           new Date().toISOString(),
+        })
+        .eq("id", aggregateId);
+
+      if (updateErr) {
+        logError("calculateAndSaveFeeDiscrepancyMultiMatch: gagal update", {
+          aggregateId,
+          error: updateErr.message,
+        });
+        return;
+      }
+
+      logInfo("Multi-match fee discrepancy disimpan", {
+        aggregateId,
+        totalBankAmount,
+        expectedFee,
+        actualFeeAmount,
+        feeDiscrepancy,
+      });
+    } catch (error) {
+      logError("calculateAndSaveFeeDiscrepancyMultiMatch: unexpected error", {
+        aggregateId,
+        totalBankAmount,
+        error: (error as Error).message,
+      });
+    }
+  }
   // ============================================================================
   // PRIVATE METHODS (TODO: Implementasi database)
   // ============================================================================
