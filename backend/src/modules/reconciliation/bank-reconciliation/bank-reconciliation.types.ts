@@ -20,8 +20,9 @@ export enum BankReconciliationStatus {
 export interface MatchingCriteria {
   amountTolerance: number; // e.g., 0.01 for rounding
   dateBufferDays: number; // e.g., 1-3 days
-  differenceThreshold: number; // absolute amount that triggers override requirement
+  differenceThreshold?: number; // optional - absolute amount that triggers override requirement
 }
+
 
 /**
  * Result of a single match attempt
@@ -34,6 +35,60 @@ export interface ReconciliationMatch {
   difference: number;
   notes?: string;
 }
+
+// ==================== MATCHING ENGINE TYPES ====================
+
+/**
+ * Single matching strategy definition
+ */
+export interface MatchingStrategy {
+  name: string;
+  score: number;
+  predicate: (statement: any, aggregate: any, criteria: MatchingCriteria) => boolean;
+}
+
+/**
+ * Unified result from matching engine
+ * 'execute' mode: Array of ReconciliationMatch (for DB updates)
+ * 'preview' mode: Detailed preview with statement/aggregate details + summary
+ */
+export type MatchingEngineResult = 
+  | { mode: 'execute'; matches: ReconciliationMatch[] }
+  | { mode: 'preview'; matches: Array<{
+      statementId: string;
+      statement: {
+        id: string;
+        transaction_date: string;
+        description: string;
+        reference_number: string;
+        debit_amount: number;
+        credit_amount: number;
+        amount: number;
+      };
+      aggregate: {
+        id: string;
+        transaction_date: string;
+        nett_amount: number;
+        reference_number: string;
+        payment_method_name: string;
+        gross_amount: number;
+      };
+      matchScore: number;
+      matchCriteria: string;
+      difference: number;
+    }>; summary: {
+      totalStatements: number;
+      matchedStatements: number;
+      unmatchedStatements: number;
+    }; unmatchedStatements: Array<{
+      id: string;
+      transaction_date: string;
+      description: string;
+      reference_number: string;
+      debit_amount: number;
+      credit_amount: number;
+      amount: number;
+    }> };
 
 // ==================== DTOs ====================
 

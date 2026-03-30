@@ -24,8 +24,13 @@ import { reconciliationOrchestratorService } from "../orchestrator/reconciliatio
 import { logError } from "../../../config/logger";
 import { createPaginatedResponse } from "../../../utils/pagination.util";
 import { AuditService } from "../../monitoring/monitoring.service";
+import type {
+  MatchingStrategy,
+  MatchingEngineResult
+} from "./bank-reconciliation.types";
 
 export class BankReconciliationService {
+
   private readonly config = getReconciliationConfig();
 
   private readonly descriptionKeywordMap: Record<string, string[]> = {
@@ -55,13 +60,193 @@ export class BankReconciliationService {
     defaultMaxStatements: 5,
     differenceThreshold: 100,
   };
-  
+
+  // ==================== MATCHING ENGINE ====================
+
+  /**
+   * Core matching strategies - single source of truth
+   */
+  private readonly MATCHING_STRATEGIES: MatchingStrategy[] = [
+    {
+      name: 'EXACT_REF',
+      score: 100,
+      predicate: (s: any, a: any, criteria: MatchingCriteria) =>
+        Boolean(s.reference_number && a.reference_number && s.reference_number === a.reference_number)
+    },
+    {
+      name: 'EXACT_AMOUNT_DATE',
+      score: 90,
+      predicate: (s: any, a: any, criteria: MatchingCriteria) => {
+        const sAmount = s.credit_amount - s.debit_amount;
+        const sDate = new Date(s.transaction_date).toDateString();
+        const aDate = new Date(a.transaction_date).toDateString();
+        return (
+          Math.abs(sAmount - a.nett_amount) <= criteria.amountTolerance &&
+          sDate === aDate
+        );
+      }
+    },
+    {
+      name: 'KEYWORD_DESC',
+      score: 85,
+      predicate: (s: any, a: any, criteria: MatchingCriteria) => {
+        const sAmount = s.credit_amount - s.debit_amount;
+        const amountOk = Math.abs(sAmount - a.nett_amount) <= criteria.amountTolerance;
+        const keywordOk = this.matchesByKeyword(s.description || '', a.payment_method_name || '');
+        return amountOk && keywordOk;
+      }
+    },
+    {
+      name: 'FUZZY_AMOUNT_DATE',
+      score: 80,
+      predicate: (s: any, a: any, criteria: MatchingCriteria) => {
+        const sAmount = s.credit_amount - s.debit_amount;
+        const sDate = new Date(s.transaction_date).getTime();
+        const aDate = new Date(a.transaction_date).getTime();
+        const dayDiff = Math.abs(sDate - aDate) / (1000 * 3600 * 24);
+        return (
+          Math.abs(sAmount - a.nett_amount) <= criteria.amountTolerance &&
+          dayDiff <= criteria.dateBufferDays
+        );
+      }
+    }
+  ];
+
+  /**
+   * Core matching engine - used by autoMatch, previewAutoMatch, confirmAutoMatch
+   * @param statements - unreconciled bank statements
+   * @param aggregates - available POS aggregates  
+   * @param criteria - matching tolerance parameters
+   * @param mode - 'preview' returns detailed results, 'execute' mutates arrays
+   * @returns MatchingEngineResult
+   */
+  private runMatchingEngine(
+    statements: any[],
+    aggregates: any[],
+    criteria: MatchingCriteria,
+    mode: 'preview' | 'execute'
+  ): MatchingEngineResult {
+    // Clone arrays to avoid mutating originals in preview mode
+    let remainingStatements = mode === 'preview' ? [...statements] : statements;
+    let remainingAggregates = mode === 'preview' ? [...aggregates] : aggregates;
+    
+    const matches: ReconciliationMatch[] = [];
+    
+    // Skip reconciled aggregates in execute mode
+    if (mode === 'execute') {
+      remainingAggregates = remainingAggregates.filter(
+        a => a.reconciliation_status !== 'RECONCILED'
+      );
+    }
+
+    // Apply all strategies in order
+
+    for (const strategy of this.MATCHING_STRATEGIES) {
+      for (let i = remainingStatements.length - 1; i >= 0; i--) {
+        const stmt = remainingStatements[i];
+        const matchIdx = remainingAggregates.findIndex(agg => 
+          strategy.predicate(stmt, agg, criteria)
+        );
+
+        if (matchIdx !== -1) {
+          const agg = remainingAggregates[matchIdx];
+          
+          const match: ReconciliationMatch = {
+            statementId: stmt.id,
+            aggregateId: agg.id,
+            matchScore: strategy.score,
+            matchCriteria: strategy.name as any,
+            difference: Math.abs((stmt.credit_amount - stmt.debit_amount) - agg.nett_amount)
+          };
+
+          if (mode === 'execute') {
+            matches.push(match);
+            remainingStatements.splice(i, 1);
+            remainingAggregates.splice(matchIdx, 1);
+          } else {
+            // Preview mode: detailed match info
+            (matches as any[]).push({
+              statementId: stmt.id,
+              statement: {
+                id: stmt.id,
+                transaction_date: stmt.transaction_date,
+                description: stmt.description,
+                reference_number: stmt.reference_number,
+                debit_amount: stmt.debit_amount,
+                credit_amount: stmt.credit_amount,
+                amount: stmt.credit_amount - stmt.debit_amount
+              },
+              aggregate: {
+                id: agg.id,
+                transaction_date: agg.transaction_date,
+                nett_amount: agg.nett_amount,
+                reference_number: agg.reference_number,
+                payment_method_name: agg.payment_method_name,
+                gross_amount: agg.gross_amount
+              },
+              matchScore: strategy.score,
+              matchCriteria: strategy.name,
+              difference: match.difference
+            });
+            
+            remainingStatements.splice(i, 1);
+            remainingAggregates.splice(matchIdx, 1);
+          }
+        }
+      }
+    }
+
+    if (mode === 'execute') {
+      return { mode: 'execute', matches };
+    } else {
+      // Preview: adjust FUZZY scores + sort + build full response
+      const previewMatches = (matches as any[]).map((m: any) => {
+        let adjustedScore = m.matchScore;
+        if (m.matchCriteria === 'FUZZY_AMOUNT_DATE') {
+          const stmtAmount = m.statement.amount;
+          const amountDiff = m.difference;
+          const stmtDate = new Date(m.statement.transaction_date).getTime();
+          const aggDate = new Date(m.aggregate.transaction_date).getTime();
+          const dayDiff = Math.abs(stmtDate - aggDate) / (1000 * 3600 * 24);
+
+          if (amountDiff === 0) {
+            adjustedScore = 95 - dayDiff * 5;
+          } else {
+            const amountPenalty = (amountDiff / (stmtAmount || 1)) * 100;
+            adjustedScore = 80 - amountPenalty - dayDiff * 5;
+          }
+          adjustedScore = Math.max(0, Math.min(100, Math.round(adjustedScore)));
+        }
+        return { ...m, matchScore: adjustedScore };
+      }).sort((a: any, b: any) => b.matchScore - a.matchScore);
+
+      return {
+        mode: 'preview',
+        matches: previewMatches,
+        summary: {
+          totalStatements: statements.length,
+          matchedStatements: previewMatches.length,
+          unmatchedStatements: remainingStatements.length
+        },
+        unmatchedStatements: remainingStatements.map((s: any) => ({
+          id: s.id,
+          transaction_date: s.transaction_date,
+          description: s.description,
+          reference_number: s.reference_number,
+          debit_amount: s.debit_amount,
+          credit_amount: s.credit_amount,
+          amount: s.credit_amount - s.debit_amount
+        }))
+      };
+    }
+  }
 
   constructor(
     private readonly repository: BankReconciliationRepository,
     private readonly orchestratorService: IReconciliationOrchestratorService,
     private readonly feeReconciliationService: FeeReconciliationService,
   ) {}
+
 
   async reconcile(
     aggregateId: string,
@@ -199,74 +384,15 @@ export class BankReconciliationService {
       bufferEnd,
     );
 
-    const matches: ReconciliationMatch[] = [];
-    const remainingStatements = [...statements];
-    const remainingAggregates = [...aggregates];
+    // 🔥 REFACTORED: Use matching engine
+    const engineResult = this.runMatchingEngine(
+      statements,
+      aggregates,
+      matchingCriteria,
+      'execute'
+    ) as { matches: ReconciliationMatch[] };
 
-    this.processMatching(
-      remainingStatements,
-      remainingAggregates,
-      matches,
-      (s: any, a: any) =>
-        s.reference_number &&
-        a.reference_number &&
-        s.reference_number === a.reference_number,
-      "EXACT_REF",
-      100,
-    );
-
-    this.processMatching(
-      remainingStatements,
-      remainingAggregates,
-      matches,
-      (s: any, a: any) => {
-        const sAmount = s.credit_amount - s.debit_amount;
-        const sDate = new Date(s.transaction_date).toDateString();
-        const aDate = new Date(a.transaction_date).toDateString();
-        return (
-          Math.abs(sAmount - a.nett_amount) <=
-            matchingCriteria.amountTolerance && sDate === aDate
-        );
-      },
-      "EXACT_AMOUNT_DATE",
-      90,
-    );
-
-    this.processMatching(
-      remainingStatements,
-      remainingAggregates,
-      matches,
-      (s:any, a:any) => {
-        const sAmount = s.credit_amount - s.debit_amount;
-        const amountOk = Math.abs(sAmount - a. nett_amount) <= matchingCriteria.amountTolerance;
-        const keywordOk = this.matchesByKeyword(
-          s.description || '',
-          a.payment_method_name || '',
-        );
-        return amountOk && keywordOk;
-      },
-      "KEYWORD_DESC",
-      85,
-    )
-
-    this.processMatching(
-      remainingStatements,
-      remainingAggregates,
-      matches,
-      (s: any, a: any) => {
-        const sAmount = s.credit_amount - s.debit_amount;
-        const sDate = new Date(s.transaction_date).getTime();
-        const aDate = new Date(a.transaction_date).getTime();
-        const dayDiff = Math.abs(sDate - aDate) / (1000 * 3600 * 24);
-        return (
-          Math.abs(sAmount - a.nett_amount) <=
-            matchingCriteria.amountTolerance &&
-          dayDiff <= matchingCriteria.dateBufferDays
-        );
-      },
-      "FUZZY_AMOUNT_DATE",
-      80,
-    );
+    const matches = engineResult.matches;
 
     const bulkUpdates: any[] = [];
     for (const match of matches) {
@@ -315,10 +441,11 @@ export class BankReconciliationService {
 
     return {
       matched: matches.length,
-      unmatched: remainingStatements.length,
+      unmatched: statements.length - matches.length,
       matches,
     };
   }
+
 
   /**
    * Preview auto-match results without updating database
@@ -355,165 +482,21 @@ export class BankReconciliationService {
       bufferEnd,
     );
 
-    const matches: any[] = [];
-    const remainingStatements = [...statements];
-    const remainingAggregates = [...aggregates];
-
-    // Helper to process matching and return details
-    const findMatches = (
-      stmts: any[],
-      aggs: any[],
-      predicate: (s: any, a: any) => boolean,
-      criteriaName: string,
-      score: number,
-    ) => {
-      for (let i = stmts.length - 1; i >= 0; i--) {
-        const stmt = stmts[i];
-        const matchIdx = aggs.findIndex((agg) => predicate(stmt, agg));
-
-        if (matchIdx !== -1) {
-          const agg = aggs[matchIdx];
-          const stmtAmount = stmt.credit_amount - stmt.debit_amount;
-          matches.push({
-            statementId: stmt.id,
-            statement: {
-              id: stmt.id,
-              transaction_date: stmt.transaction_date,
-              description: stmt.description,
-              reference_number: stmt.reference_number,
-              debit_amount: stmt.debit_amount,
-              credit_amount: stmt.credit_amount,
-              amount: stmtAmount,
-            },
-            aggregate: {
-              id: agg.id,
-              transaction_date: agg.transaction_date,
-              nett_amount: agg.nett_amount,
-              reference_number: agg.reference_number,
-              payment_method_name: agg.payment_method_name,
-              gross_amount: agg.gross_amount,
-            },
-            matchScore: score,
-            matchCriteria: criteriaName,
-            difference: Math.abs(stmtAmount - agg.nett_amount),
-          });
-          stmts.splice(i, 1);
-          aggs.splice(matchIdx, 1);
-        }
-      }
-    };
-
-    // Run matching algorithms (same as autoMatch)
-    findMatches(
-      remainingStatements,
-      remainingAggregates,
-      (s, a) =>
-        s.reference_number &&
-        a.reference_number &&
-        s.reference_number === a.reference_number,
-      "EXACT_REF",
-      100,
-    );
-
-    findMatches(
-      remainingStatements,
-      remainingAggregates,
-      (s, a) => {
-        const sAmount = s.credit_amount - s.debit_amount;
-        const sDate = new Date(s.transaction_date).toDateString();
-        const aDate = new Date(a.transaction_date).toDateString();
-        return (
-          Math.abs(sAmount - a.nett_amount) <=
-            matchingCriteria.amountTolerance && sDate === aDate
-        );
-      },
-      "EXACT_AMOUNT_DATE",
-      90,
-    );
-
-    findMatches(
-      remainingStatements,
-      remainingAggregates,
-      (s,a) => {
-        const sAmount = s.credit_amount - s.debit_amount;
-        const amountOk = Math.abs(sAmount - a.nett_amount)<= matchingCriteria.amountTolerance;
-        const keywordOk = this.matchesByKeyword(
-          s.description || '',
-          a.payment_method_name || '',
-        );
-        return amountOk && keywordOk;
-      },
-      "KEYWORD_DESC",
-      85,
-    );
-
-    findMatches(
-      remainingStatements,
-      remainingAggregates,
-      (s, a) => {
-        const sAmount = s.credit_amount - s.debit_amount;
-        const sDate = new Date(s.transaction_date).getTime();
-        const aDate = new Date(a.transaction_date).getTime();
-        const dayDiff = Math.abs(sDate - aDate) / (1000 * 3600 * 24);
-        const amountDiff = Math.abs(sAmount - a.nett_amount);
-
-        return (
-          amountDiff <= matchingCriteria.amountTolerance &&
-          dayDiff <= matchingCriteria.dateBufferDays
-        );
-      },
-      "FUZZY_AMOUNT_DATE",
-      80, // Base score, will be adjusted in the response
-    );
+    // 🔥 REFACTORED: Use matching engine
+    const result = this.runMatchingEngine(
+      statements,
+      aggregates,
+      matchingCriteria,
+      'preview'
+    ) as Extract<MatchingEngineResult, { mode: 'preview' }>;
 
     return {
-      matches: matches
-        .map((m: any) => {
-          // Calculate more accurate score based on amount and date difference
-          let adjustedScore = m.matchScore;
-          if (m.matchCriteria === "FUZZY_AMOUNT_DATE") {
-            const stmtAmount = m.statement.amount;
-            const amountDiff = Math.abs(m.difference);
-            const stmtDate = new Date(m.statement.transaction_date).getTime();
-            const aggDate = new Date(m.aggregate.transaction_date).getTime();
-            const dayDiff = Math.abs(stmtDate - aggDate) / (1000 * 3600 * 24);
-
-            // If exact amount match, boost score
-            if (amountDiff === 0) {
-              adjustedScore = 95 - dayDiff * 5; // Max 95, decreases with day difference
-            } else {
-              // Reduce score based on amount difference
-              const amountPenalty = (amountDiff / (stmtAmount || 1)) * 100;
-              adjustedScore = 80 - amountPenalty - dayDiff * 5;
-            }
-            adjustedScore = Math.max(
-              0,
-              Math.min(100, Math.round(adjustedScore)),
-            );
-          }
-
-          return {
-            ...m,
-            matchScore: adjustedScore,
-          };
-        })
-        .sort((a: any, b: any) => b.matchScore - a.matchScore),
-      summary: {
-        totalStatements: statements.length,
-        matchedStatements: matches.length,
-        unmatchedStatements: remainingStatements.length,
-      },
-      unmatchedStatements: remainingStatements.map((s) => ({
-        id: s.id,
-        transaction_date: s.transaction_date,
-        description: s.description,
-        reference_number: s.reference_number,
-        debit_amount: s.debit_amount,
-        credit_amount: s.credit_amount,
-        amount: s.credit_amount - s.debit_amount,
-      })),
+      matches: result.matches,
+      summary: result.summary,
+      unmatchedStatements: result.unmatchedStatements
     };
   }
+
 
   /**
    * Confirm and reconcile selected matches only
@@ -530,7 +513,7 @@ export class BankReconciliationService {
       ...criteria,
     };
   
-    // 1. Ambil semua statement yg dipilih
+    // 1. Get selected statements
     const statements = (
       await Promise.all(statementIds.map((id) => this.repository.findById(id)))
     ).filter((s) => s && !s.is_reconciled);
@@ -539,7 +522,7 @@ export class BankReconciliationService {
       return { matched: 0, failed: 0, matches: [] };
     }
   
-    // 2. Ambil aggregates (pakai range global biar konsisten)
+    // 2. Get aggregates (use date range from statements)
     const minDate = new Date(
       Math.min(...statements.map((s) => new Date(s.transaction_date).getTime()))
     );
@@ -553,125 +536,23 @@ export class BankReconciliationService {
     const bufferEnd = new Date(maxDate);
     bufferEnd.setDate(bufferEnd.getDate() + matchingCriteria.dateBufferDays);
   
-    const aggregates =
-      await this.orchestratorService.getAggregatesByDateRange(
-        bufferStart,
-        bufferEnd,
-      );
-  
-    // Clone untuk matching (biar bisa splice)
-    const remainingStatements = [...statements];
-    const remainingAggregates = [...aggregates];
-  
-    const matches: ReconciliationMatch[] = [];
-  
-    const process = (
-      predicate: (s: any, a: any) => boolean,
-      criteriaName: ReconciliationMatch["matchCriteria"],
-      score: number,
-    ) => {
-      for (let i = remainingStatements.length - 1; i >= 0; i--) {
-        const stmt = remainingStatements[i];
-  
-        const matchIdx = remainingAggregates.findIndex((agg) => {
-          if (agg.reconciliation_status === "RECONCILED") return false;
-          return predicate(stmt, agg);
-        });
-  
-        if (matchIdx !== -1) {
-          const agg = remainingAggregates[matchIdx];
-  
-          matches.push({
-            statementId: stmt.id,
-            aggregateId: agg.id,
-            matchScore: score,
-            matchCriteria: criteriaName,
-            difference: Math.abs(
-              stmt.credit_amount - stmt.debit_amount - agg.nett_amount,
-            ),
-          });
-  
-          remainingStatements.splice(i, 1);
-          remainingAggregates.splice(matchIdx, 1);
-        }
-      }
-    };
-  
-    // =========================
-    // MATCHING ORDER (IMPORTANT)
-    // =========================
-  
-    // 1. EXACT REF
-    process(
-      (s, a) =>
-        s.reference_number &&
-        a.reference_number &&
-        s.reference_number === a.reference_number,
-      "EXACT_REF",
-      100,
+    const aggregates = await this.orchestratorService.getAggregatesByDateRange(
+      bufferStart,
+      bufferEnd,
     );
   
-    // 2. EXACT AMOUNT + DATE
-    process(
-      (s, a) => {
-        const sAmount = s.credit_amount - s.debit_amount;
-        const sDate = new Date(s.transaction_date).toDateString();
-        const aDate = new Date(a.transaction_date).toDateString();
+    // 🔥 REFACTORED: Use matching engine (execute mode)
+    const engineResult = this.runMatchingEngine(
+      statements,
+      aggregates,
+      matchingCriteria,
+      'execute'
+    ) as { matches: ReconciliationMatch[] };
   
-        return (
-          Math.abs(sAmount - a.nett_amount) <=
-            matchingCriteria.amountTolerance && sDate === aDate
-        );
-      },
-      "EXACT_AMOUNT_DATE",
-      90,
-    );
+    const matches = engineResult.matches;
   
-    // 3. KEYWORD (🔥 WAJIB ADA BIAR SESUAI PREVIEW)
-    process(
-      (s, a) => {
-        const sAmount = s.credit_amount - s.debit_amount;
-  
-        const amountOk =
-          Math.abs(sAmount - a.nett_amount) <=
-          matchingCriteria.amountTolerance;
-  
-        const keywordOk = this.matchesByKeyword(
-          s.description || "",
-          a.payment_method_name || "",
-        );
-  
-        return amountOk && keywordOk;
-      },
-      "KEYWORD_DESC",
-      85,
-    );
-  
-    // 4. FUZZY
-    process(
-      (s, a) => {
-        const sAmount = s.credit_amount - s.debit_amount;
-  
-        const sDate = new Date(s.transaction_date).getTime();
-        const aDate = new Date(a.transaction_date).getTime();
-  
-        const dayDiff = Math.abs(sDate - aDate) / (1000 * 3600 * 24);
-  
-        return (
-          Math.abs(sAmount - a.nett_amount) <=
-            matchingCriteria.amountTolerance &&
-          dayDiff <= matchingCriteria.dateBufferDays
-        );
-      },
-      "FUZZY_AMOUNT_DATE",
-      80,
-    );
-  
-    // =========================
-    // EXECUTE MATCHING
-    // =========================
-  
-    const successMatches: any[] = [];
+    // Execute reconciliation for matches
+    const successMatches: ReconciliationMatch[] = [];
   
     for (const match of matches) {
       try {
@@ -687,7 +568,7 @@ export class BankReconciliationService {
         await this.repository.logAction({
           companyId: companyId || "",
           userId,
-          action: "AUTO_MATCH", // ✅ tetap AUTO
+          action: "AUTO_MATCH",
           statementId: match.statementId,
           aggregateId: match.aggregateId,
           details: {
@@ -721,51 +602,14 @@ export class BankReconciliationService {
       }
     }
   
-    if (successMatches.length > 0) {
-      await this.orchestratorService.bulkUpdateReconciliationStatus(
-        successMatches.map((m) => ({
-          aggregateId: m.aggregateId,
-          status: "RECONCILED",
-          statementId: m.statementId,
-        })),
-      );
-    }
-  
     return {
       matched: successMatches.length,
       failed: matches.length - successMatches.length,
       matches: successMatches,
     };
   }
-  private processMatching(
-    statements: any[],
-    aggregates: any[],
-    matches: ReconciliationMatch[],
-    predicate: (s: any, a: any) => boolean,
-    criteriaName: ReconciliationMatch["matchCriteria"],
-    score: number,
-  ) {
-    for (let i = statements.length - 1; i >= 0; i--) {
-      const statement = statements[i];
-      const matchIdx = aggregates.findIndex((agg) => predicate(statement, agg));
 
-      if (matchIdx !== -1) {
-        const agg = aggregates[matchIdx];
-        matches.push({
-          aggregateId: agg.id,
-          statementId: statement.id,
-          matchScore: score,
-          matchCriteria: criteriaName,
-          difference: Math.abs(
-            statement.credit_amount - statement.debit_amount - agg.nett_amount,
-          ),
-        });
 
-        statements.splice(i, 1);
-        aggregates.splice(matchIdx, 1);
-      }
-    }
-  }
 
   async getStatements(
     startDate?: Date,
