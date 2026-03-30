@@ -228,8 +228,18 @@ export const bankReconciliationApi = {
    */
   async getUnreconciledStatements(
     bankAccountId?: number,
+    startDate?: string,
+    endDate?: string,
+    search?: string,
+    limit?: number,
   ): Promise<BankStatementWithMatch[]> {
-    const params = bankAccountId ? { bankAccountId } : {};
+    const params: Record<string, unknown> = {};
+    if (bankAccountId) params.bankAccountId = bankAccountId;
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    if (search) params.search = search;
+    if (limit) params.limit = limit
+
     const response = await api.get(
       "/reconciliation/bank/statements/unreconciled",
       { params },

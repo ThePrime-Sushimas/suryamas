@@ -186,90 +186,102 @@ export function BankMutationSelectorModal({
   // =========================================================================
   // FETCH WITH ABORT CONTROLLER & RETRY MECHANISM
   // =========================================================================
-  const fetchStatements = useCallback(async (currentRetryCount = 0) => {
-    if (!isOpen) return;
-    
-    // Cancel previous request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
+  // Function baru 1: fetch dengan search parameter
+  const fetchStatementsWithSearch = useCallback(async (
+    search?: string,
+    currentRetryCount = 0
+  ) => {
+    if (!isOpen) return
 
-    setLoadingStates(prev => ({ ...prev, fetch: true }));
-    setError(null);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    abortControllerRef.current = new AbortController()
+
+    setLoadingStates(prev => ({ ...prev, fetch: true }))
+    setError(null)
+
+    const today = new Date()
+    const threeMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 3, 1)
 
     try {
-      // Pass bankAccountId to API
-      const data = await bankReconciliationApi.getUnreconciledStatements(bankAccountId);
-      
-      // Transform to include match info if aggregate is provided
-      const targetAmount = aggregate?.nett_amount || 0;
-      
+      const data = await bankReconciliationApi.getUnreconciledStatements(
+        bankAccountId,
+        threeMonthsAgo.toISOString().split('T')[0],
+        today.toISOString().split('T')[0],
+        search || undefined,
+        search ? 1000 : 200,
+      )
+
+      const targetAmount = aggregate?.nett_amount || 0
+
       const transformedData: BankMutationItem[] = data.map(s => {
-        // Konsisten: gunakan helper function yang sama
-        const bankAmount = calculateBankAmount(s.credit_amount, s.debit_amount);
-        const difference = Math.abs(bankAmount - targetAmount);
-        const matchPercentage = calculateMatchPercentage(bankAmount, targetAmount);
+        const bankAmount = calculateBankAmount(s.credit_amount, s.debit_amount)
+        const difference = Math.abs(bankAmount - targetAmount)
+        const matchPercentage = calculateMatchPercentage(bankAmount, targetAmount)
+        return { ...s, targetAmount, difference, matchPercentage }
+      })
 
-        return {
-          ...s,
-          targetAmount,
-          difference,
-          matchPercentage,
-        };
-      });
-
-      setStatements(transformedData);
-      setRetryCount(0); // Reset retry count on success
-      trackEvent('bank_mutation_fetch_success', { count: transformedData.length });
+      setStatements(transformedData)
+      setRetryCount(0)
+      trackEvent('bank_mutation_fetch_success', { count: transformedData.length })
     } catch (err) {
-      // AbortError - user closed modal or new request started
-      if (err instanceof Error && err.name === 'AbortError') {
-        return;
-      }
-      
-      console.error('Error fetching statements:', err);
-      
+      if (err instanceof Error && err.name === 'AbortError') return
+
       if (currentRetryCount < MAX_RETRY_COUNT - 1) {
-        // Exponential backoff
-        const delay = RETRY_DELAYS[currentRetryCount];
-        
-        // Check if component is still mounted and modal is open
+        const delay = RETRY_DELAYS[currentRetryCount]
         setTimeout(() => {
           if (isOpen) {
-            setRetryCount(prev => prev + 1);
-            fetchStatements(currentRetryCount + 1);
+            setRetryCount(prev => prev + 1)
+            fetchStatementsWithSearch(search, currentRetryCount + 1)
           }
-        }, delay);
+        }, delay)
       } else {
-        setError('Gagal mengambil data mutasi bank setelah 3 percobaan. Silakan coba lagi.');
-        trackEvent('bank_mutation_fetch_failed', { error: String(err) });
+        setError('Gagal mengambil data mutasi bank setelah 3 percobaan. Silakan coba lagi.')
+        trackEvent('bank_mutation_fetch_failed', { error: String(err) })
       }
     } finally {
-      // Only update loading state if request wasn't aborted
       if (!abortControllerRef.current?.signal.aborted) {
-        setLoadingStates(prev => ({ ...prev, fetch: false }));
+        setLoadingStates(prev => ({ ...prev, fetch: false }))
       }
     }
-  }, [isOpen, aggregate, bankAccountId, trackEvent]);
+  }, [isOpen, aggregate, bankAccountId, trackEvent])
+
+  // Function baru 2: fetch tanpa search (untuk initial load dan refresh button)
+  const fetchStatements = useCallback((currentRetryCount = 0) => {
+    return fetchStatementsWithSearch(undefined, currentRetryCount)
+  }, [fetchStatementsWithSearch])
 
   // =========================================================================
   // EFFECTS
   // =========================================================================
-  
-  // Fetch data when modal opens
+  const isInitialLoad = useRef(true)
+  // useEffect yang sudah ada — jangan diubah:
   useEffect(() => {
     if (isOpen) {
-      fetchStatements();
+      isInitialLoad.current = true
+      fetchStatements()
+    } else {
+      // Reset flag saat modal tutup
+      isInitialLoad.current = true
     }
-    
-    // Cleanup: cancel request when modal closes or component unmounts
     return () => {
       if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+        abortControllerRef.current.abort()
       }
-    };
-  }, [isOpen, fetchStatements]);
+    }
+  }, [isOpen, fetchStatements])
+  
+  // useEffect kedua — skip initial load:
+  useEffect(() => {
+    if (!isOpen) return
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false
+      return 
+    }
+    // User mengubah search (termasuk hapus → kosong)
+    fetchStatementsWithSearch(debouncedSearchTerm || undefined)
+  }, [debouncedSearchTerm, fetchStatementsWithSearch])
 
   // Track search events
   useEffect(() => {
@@ -297,38 +309,26 @@ export function BankMutationSelectorModal({
   // FILTERING WITH USE MEMO (Performance Optimization)
   // =========================================================================
   const filteredStatements = useMemo(() => {
-    let filtered = statements;
+    let filtered = statements
 
-    // Search filter dengan debounced term
-    if (debouncedSearchTerm) {
-      const term = debouncedSearchTerm.toLowerCase();
-      filtered = filtered.filter(s => 
-        s.description?.toLowerCase().includes(term) ||
-        s.reference_number?.toLowerCase().includes(term) ||
-        (typeof s.id === 'string' && s.id.toLowerCase().includes(term))
-      );
-    }
+    // Search sudah server-side — tidak perlu filter lokal lagi
 
-    // Exact match filter (amount within 1%)
     if (showExactMatchOnly) {
       filtered = filtered.filter(s => 
         s.matchPercentage !== undefined && s.matchPercentage >= MATCH_THRESHOLDS.EXACT
-      );
+      )
     }
 
-    // Sort by match percentage (best match first)
     return [...filtered].sort((a, b) => {
-      // Prioritize exact matches
-      const aExact = (a.matchPercentage || 0) >= MATCH_THRESHOLDS.EXACT;
-      const bExact = (b.matchPercentage || 0) >= MATCH_THRESHOLDS.EXACT;
-      if (aExact && !bExact) return -1;
-      if (!aExact && bExact) return 1;
+      const aExact = (a.matchPercentage || 0) >= MATCH_THRESHOLDS.EXACT
+      const bExact = (b.matchPercentage || 0) >= MATCH_THRESHOLDS.EXACT
+      if (aExact && !bExact) return -1
+      if (!aExact && bExact) return 1
+      return (b.matchPercentage || 0) - (a.matchPercentage || 0)
+    })
+  }, [statements, showExactMatchOnly])
 
-      // Then sort by match percentage
-      return (b.matchPercentage || 0) - (a.matchPercentage || 0);
-    });
-  }, [statements, debouncedSearchTerm, showExactMatchOnly]);
-
+  
   // =========================================================================
   // BEST MATCH CALCULATION
   // =========================================================================

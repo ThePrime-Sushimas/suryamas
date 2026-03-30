@@ -1246,42 +1246,43 @@ export class BankReconciliationService {
   async getUnreconciledStatements(
     bankAccountId?: number,
     search?: string,
-    limit: number = 50,
+    limit: number = 200,
     offset: number = 0,
+    startDate?: Date,  // ← tambah
+    endDate?: Date,    // ← tambah
   ): Promise<any[]> {
     try {
       // Get today's date as default
-      const today = new Date();
-      const startDate = new Date(today.getFullYear(), today.getMonth(), 1); // Start of month
-      const endDate = today;
+      const today = new Date()
+      // Default: 3 bulan ke belakang kalau tidak dipass
+      const effectiveStart = startDate ?? new Date(today.getFullYear(), today.getMonth() - 3, 1)
+      const effectiveEnd   = endDate ?? today
 
       let statements: any[];
 
       if (bankAccountId) {
         statements = await this.repository.getUnreconciledBatch(
-          startDate,
-          endDate,
-          limit * 10, // Get more data for filtering
-          0,
+          effectiveStart,
+          effectiveEnd,
+          limit,
+          offset,          
           bankAccountId,
         );
       } else {
-        // Get from all accounts - we need to fetch all
+        // Multi-account - fetch EXTRA records per account (Promise.all for parallel)
         const accounts = await this.repository.getAllBankAccounts();
-        const allStatements: any[] = [];
-
-        for (const account of accounts) {
-          const accountStatements = await this.repository.getUnreconciledBatch(
-            startDate,
-            endDate,
-            limit * 10,
-            0,
-            account.id,
-          );
-          allStatements.push(...accountStatements);
-        }
-
-        statements = allStatements;
+        const accountStatements = await Promise.all(
+          accounts.map(account =>
+            this.repository.getUnreconciledBatch(
+              effectiveStart,
+              effectiveEnd,
+              limit + offset, // ← ambil lebih untuk bisa di-offset setelah merge
+              0,              // ← selalu 0 per account
+              account.id,
+            )
+          )
+        )
+        statements = accountStatements.flat()
       }
 
       // Apply search filter if provided
@@ -1326,27 +1327,29 @@ export class BankReconciliationService {
   async findStatementsByAmount(
     targetAmount: number,
     tolerancePercent: number = 0.05, // 5% default tolerance
+    startDate?: Date, 
+    endDate?: Date,
   ): Promise<any[]> {
     try {
       // Get today's date as default
       const today = new Date();
-      const startDate = new Date(today.getFullYear(), today.getMonth(), 1); // Start of month
-      const endDate = today;
+      const effectiveStart = startDate?? new Date(today.getFullYear(), today.getMonth()-3, 1); // Start of month
+      const effectiveEnd = endDate?? today;
 
       // Get all unreconciled statements
       const accounts = await this.repository.getAllBankAccounts();
-      const allStatements: any[] = [];
-
-      for (const account of accounts) {
-        const accountStatements = await this.repository.getUnreconciledBatch(
-          startDate,
-          endDate,
-          10000,
-          0,
-          account.id,
-        );
-        allStatements.push(...accountStatements);
-      }
+      const accountStatements = await Promise.all(
+        accounts.map(account =>
+          this.repository.getUnreconciledBatch(
+            effectiveStart,
+            effectiveEnd,
+            10000,
+            0,
+            account.id,
+          )
+        )
+      )
+      const allStatements = accountStatements.flat()
 
       // Calculate tolerance
       const tolerance = targetAmount * tolerancePercent;

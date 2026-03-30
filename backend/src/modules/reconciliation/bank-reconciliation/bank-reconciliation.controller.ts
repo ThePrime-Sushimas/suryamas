@@ -624,14 +624,16 @@ export class BankReconciliationController {
     res: Response,
   ): Promise<void> {
     try {
-      const { bankAccountId, search, limit, offset } = req.query;
+      const { bankAccountId, search, limit, offset, startDate, endDate } = req.query;
 
       // Get unreconciled statements - either for specific account or all accounts
       const statements = await this.service.getUnreconciledStatements(
         bankAccountId ? parseInt(bankAccountId as string) : undefined,
         search as string | undefined,
         limit ? parseInt(limit as string) : 50,
-        offset ? parseInt(offset as string) : 0
+        offset ? parseInt(offset as string) : 0,
+        startDate ? new Date(startDate as string) : undefined,
+        endDate ? new Date(endDate as string) : undefined
       );
 
       res.status(200).json({
@@ -661,7 +663,7 @@ export class BankReconciliationController {
     res: Response,
   ): Promise<void> {
     try {
-      const { amount, tolerance } = req.query;
+      const { amount, tolerance, startDate, endDate } = req.query;
 
       if (!amount) {
         res.status(400).json({
@@ -686,7 +688,9 @@ export class BankReconciliationController {
 
       const statements = await this.service.findStatementsByAmount(
         amountNum,
-        toleranceNum
+        toleranceNum,
+        startDate ? new Date (startDate as string) : undefined,
+        endDate ? new Date(endDate as string) : undefined
       );
 
       res.status(200).json({
