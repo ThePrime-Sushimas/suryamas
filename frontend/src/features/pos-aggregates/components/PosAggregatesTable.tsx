@@ -212,7 +212,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                 Nett Amount
               </th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Aktual (Bank)
+                Aktual Fee (Bank)
               </th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Selisih Fee

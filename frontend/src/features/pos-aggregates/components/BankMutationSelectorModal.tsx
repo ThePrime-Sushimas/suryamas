@@ -210,7 +210,7 @@ export function BankMutationSelectorModal({
         threeMonthsAgo.toISOString().split('T')[0],
         today.toISOString().split('T')[0],
         search || undefined,
-        search ? 1000 : 200,
+        search ? 1000 :1000
       )
 
       const targetAmount = aggregate?.nett_amount || 0
