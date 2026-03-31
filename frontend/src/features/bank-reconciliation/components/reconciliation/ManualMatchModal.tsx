@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
 import {
   X,
@@ -42,7 +42,7 @@ export function ManualMatchModal({
   const [overrideDifference, setOverrideDifference] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
-  const handleSearch = useCallback(async () => {
+  const handleSearch = async () => {
     setIsSearching(true);
     try {
       // Build filter for unreconciled aggregates
@@ -60,19 +60,40 @@ export function ManualMatchModal({
     } finally {
       setIsSearching(false);
     }
-  }, [search]);
+  };
 
   useEffect(() => {
     if (isOpen && item) {
-      handleSearch();
+      setSearch("");
+      setSelectedId(null);
+      setOverrideDifference(false);
+      setIsSearching(true);
+      posAggregatesApi.list(1,500,null, {is_reconciled:false})
+        .then((result) => setAggregates(result.data))
+        .catch((err) => console.error ("Failed to fetch aggregates:",err))
+        .finally(() => setIsSearching(false));
     }
-  }, [isOpen, item, handleSearch]);
+  }, [isOpen, item]);
 
-  if (!isOpen || !item) return null;
+  // Tambah di bawah useEffect yang sudah ada
+useEffect(() => {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") onClose();
+  };
+
+  if (isOpen) {
+    document.addEventListener("keydown", handleKeyDown);
+  }
+
+  return () => {
+    document.removeEventListener("keydown", handleKeyDown);
+  };
+}, [isOpen, onClose]);
 
   const statement = item;
   const bankAmount =
     (statement?.debit_amount ?? 0) || (statement?.credit_amount ?? 0) || 0;
+if (!isOpen || !item) return null;
 
   const modalContent = (
     <div className="fixed inset-0 z-50 overflow-hidden">
