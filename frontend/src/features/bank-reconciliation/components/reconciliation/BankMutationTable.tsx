@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import {
-  Search,
   ArrowRight,
   CheckCircle,
   AlertCircle,
@@ -63,8 +62,6 @@ interface BankMutationTableProps {
   onLimitChange?: (limit: number) => void;
 }
 
-type TableFilter = "ALL" | "UNRECONCILED" | "RECONCILED" | "DISCREPANCY";
-
 // =============================================================================
 // COMPONENT
 // =============================================================================
@@ -84,8 +81,6 @@ export function BankMutationTable({
   onPageChange,
   onLimitChange,
 }: BankMutationTableProps) {
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<TableFilter>("ALL");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedStatementIds, setSelectedStatementIds] = useState<string[]>([]);
   const [showEmptySelectionWarning, setShowEmptySelectionWarning] = useState(false);
@@ -114,26 +109,7 @@ export function BankMutationTable({
     return map;
   }, [reconciliationGroups]);
 
-  // Filter items with proper memoization
-  const filteredItems = useMemo(() => {
-    const searchLower = search.toLowerCase();
-    return items.filter((item) => {
-      const matchesSearch =
-        item.description?.toLowerCase().includes(searchLower) ||
-        item.reference_number?.toLowerCase().includes(searchLower);
-
-      switch (filter) {
-        case "UNRECONCILED":
-          return matchesSearch && !item.is_reconciled && item.status !== "DISCREPANCY";
-        case "RECONCILED":
-          return matchesSearch && item.is_reconciled;
-        case "DISCREPANCY":
-          return matchesSearch && item.status === "DISCREPANCY";
-        default:
-          return matchesSearch;
-      }
-    });
-  }, [items, search, filter]);
+  const filteredItems = items; // data sudah bersih dari backend
 
   // Memoized total calculation using O(1) lookup
   const selectedTotal = useMemo(() => {
@@ -183,15 +159,15 @@ export function BankMutationTable({
     setShowEmptySelectionWarning(false);
   }, []);
 
-  // Handle select all
-  const handleSelectAll = useCallback(() => {
-    if (selectedStatementIds.length === filteredItems.length) {
-      setSelectedStatementIds([]);
-    } else {
-      setSelectedStatementIds(filteredItems.map((item) => item.id));
-    }
-    setShowEmptySelectionWarning(false);
-  }, [filteredItems, selectedStatementIds.length]);
+  // Tidak ada perubahan logic, tapi hapus dependency yang tidak relevan
+const handleSelectAll = useCallback(() => {
+  if (selectedStatementIds.length === filteredItems.length) {
+    setSelectedStatementIds([]);
+  } else {
+    setSelectedStatementIds(filteredItems.map((item) => item.id));
+  }
+  setShowEmptySelectionWarning(false);
+}, [filteredItems, selectedStatementIds.length]); // tetap sama, filteredItems = items
 
   // Handle clear selection
   const handleClearSelection = useCallback(() => {
@@ -334,29 +310,7 @@ export function BankMutationTable({
               <Link2Off className="w-4 h-4" />
               <span className="hidden sm:inline">Select for Multi-Match</span>
             </button>
-          )}
-
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cari transaksi..."
-              className="pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 w-64"
-            />
-          </div>
-
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as TableFilter)}
-            className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border-none rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-400 focus:ring-2 focus:ring-blue-500 cursor-pointer"
-          >
-            <option value="ALL">Semua</option>
-            <option value="UNRECONCILED">Belum Cocok</option>
-            <option value="RECONCILED">Terekonsiliasi</option>
-            <option value="DISCREPANCY">Selisih</option>
-          </select>
+          )}         
         </div>
       </div>
 
