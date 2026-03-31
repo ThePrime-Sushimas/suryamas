@@ -8,7 +8,7 @@
  * This is a controlled component - all state is managed by the parent/hook.
  */
 
-import React, { useState, useRef } from 'react'
+import React, { useState } from 'react'
 import { Search, X, ChevronDown, Filter, Calendar, RefreshCw } from 'lucide-react'
 import type { BankAccountStatus } from '../types/bank-reconciliation.types'
 
@@ -68,22 +68,8 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
   const [showAccountDropdown, setShowAccountDropdown] = useState(false)
   const [showFilters, setShowFilters] = useState(true)
 
-  // Debounced search handler using useRef
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    onFiltersChange({ search: value })
-    
-    // Clear existing timeout
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
-    
-    // Set new timeout
-    searchTimeoutRef.current = setTimeout(() => {
-      onFiltersChange({ search: value || undefined })
-    }, 300)
+    onFiltersChange({ search: e.target.value || undefined })
   }
 
   // Handle status change
