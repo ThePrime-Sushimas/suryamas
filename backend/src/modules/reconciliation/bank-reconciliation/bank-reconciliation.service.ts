@@ -307,46 +307,56 @@ export class BankReconciliationService {
     };
   }
 
-  async undo(
-    statementId: string,
-    userId?: string,
-    companyId?: string,
-  ): Promise<void> {
+  async undo(statementId: string, userId?: string, companyId?: string): Promise<void> {
     const statement = await this.repository.findById(statementId);
-    if (!statement) {
-      throw new Error("Bank statement not found");
-    }
-
-    await this.repository.undoReconciliation(statementId, userId);
-
-    if (statement.reconciliation_id) {
-      await this.feeReconciliationService.resetFeeDiscrepancy(
-        statement.reconciliation_id,
-      )
-    }
-
-    if (statement.reconciliation_id) {
-      await this.orchestratorService.updateReconciliationStatus(
-        statement.reconciliation_id,
-        "PENDING",
+    if (!statement) throw new Error("Bank statement not found");
+  
+    let aggregateId = statement.reconciliation_id;
+    let isMultiMatch = false;
+  
+    if (!aggregateId && statement.reconciliation_group_id) {
+      const group = await this.repository.getReconciliationGroupById(
+        statement.reconciliation_group_id
       );
+      aggregateId = group?.aggregate_id ?? null;
+      isMultiMatch = true;
     }
-
+  
+    // Reset statement ini
+    await this.repository.undoReconciliation(statementId, userId);
+  
+    if (aggregateId) {
+      if (isMultiMatch) {
+        // Cek apakah masih ada statement lain di group yang belum di-undo
+        const remainingReconciled = await this.repository
+          .countReconciledStatementsInGroup(statement.reconciliation_group_id!);
+        
+        // Baru update aggregate kalau semua sudah di-undo
+        if (remainingReconciled === 0) {
+          await this.feeReconciliationService.resetFeeDiscrepancy(aggregateId);
+          await this.orchestratorService.updateReconciliationStatus(aggregateId, "PENDING");
+        }
+      } else {
+        // Manual/auto reconcile — langsung reset
+        await this.feeReconciliationService.resetFeeDiscrepancy(aggregateId);
+        await this.orchestratorService.updateReconciliationStatus(aggregateId, "PENDING");
+      }
+    }
+  
     await this.repository.logAction({
       companyId: companyId || statement.company_id,
       userId,
       action: "UNDO",
       statementId,
-      aggregateId: statement.reconciliation_id,
+      aggregateId,
       details: {},
     });
-
-    // Audit log for UNDO
+  
     if (userId) {
-      await AuditService.log('DELETE', 'bank_reconciliation', statementId, userId, 
-        { is_reconciled: true, reconciliation_id: statement.reconciliation_id }, 
+      await AuditService.log('DELETE', 'bank_reconciliation', statementId, userId,
+        { is_reconciled: true, reconciliation_id: statement.reconciliation_id },
         { is_reconciled: false }
-      )
+      );
     }
   }
 

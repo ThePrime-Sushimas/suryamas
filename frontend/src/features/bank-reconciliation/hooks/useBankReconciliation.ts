@@ -378,15 +378,17 @@ async (filters: BankStatementFilter, resetPagination = true) => {
     setIsLoading(true);
     try {
       await bankReconciliationApi.undo(statementId);
+      // HAPUS baris ini — endpoint tidak ada, dan backend seharusnya
+      // sudah handle update aggregated_transactions via orchestrator
+      // await posAggregatesApi.undoReconciliationFromBank(statementId);
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Failed to undo reconciliation",
-      );
+      setError(err instanceof Error ? err.message : "Failed to undo reconciliation");
       throw err;
     } finally {
       setIsLoading(false);
     }
   }, []);
+  
 
   const fetchPotentialMatches = useCallback(
     async (statementId: string) => {
@@ -430,10 +432,9 @@ async (filters: BankStatementFilter, resetPagination = true) => {
     setIsLoading(true);
     try {
       await bankReconciliationApi.undoMultiMatch(groupId);
+      // Tidak perlu extra call — backend sudah handle sync ke aggregated_transactions
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Failed to undo multi-match",
-      );
+      setError(err instanceof Error ? err.message : "Failed to undo multi-match");
       throw err;
     } finally {
       setIsLoading(false);

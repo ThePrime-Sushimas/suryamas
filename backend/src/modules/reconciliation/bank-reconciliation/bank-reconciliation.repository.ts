@@ -554,6 +554,19 @@ export class BankReconciliationRepository {
     }
   }
 
+  async countReconciledStatementsInGroup(groupId: string): Promise<number> {
+    // Setelah undoReconciliation dipanggil, statement ini sudah is_reconciled = false
+    // Jadi query ini menghitung yang MASIH reconciled di group
+    const { data, error } = await supabase
+      .from("bank_reconciliation_group_details")
+      .select("bank_statements!inner(is_reconciled)")
+      .eq("group_id", groupId)
+      .eq("bank_statements.is_reconciled", true);
+  
+    if (error) throw error;
+    return data?.length ?? 0;
+  }
+  
   /**
    * Get unreconciled statements in batches for large datasets
    */
