@@ -20,7 +20,10 @@ import { ManualMatchModal } from "../components/reconciliation/ManualMatchModal"
 import { AutoMatchDialog } from "../components/reconciliation/AutoMatchDialog";
 import { MultiMatchModal } from "../components/reconciliation/MultiMatchModal";
 import { MultiMatchGroupList } from "../components/reconciliation/MultiMatchGroupList";
-import { BankReconciliationFilters, type BankStatementFilter } from "../components/BankReconciliationFilters";
+import {
+  BankReconciliationFilters,
+  type BankStatementFilter,
+} from "../components/BankReconciliationFilters";
 import { useBankReconciliation } from "../hooks/useBankReconciliation";
 import type {
   BankStatementWithMatch,
@@ -39,16 +42,19 @@ export function BankReconciliationPage() {
   const navigate = useNavigate();
   const [selectedAccountId] = useState<number | null>(null);
   const [isAutoMatchOpen, setIsAutoMatchOpen] = useState(false);
-  const [selectedStatement, setSelectedStatement] = useState<BankStatementWithMatch | null>(null);
+  const [selectedStatement, setSelectedStatement] =
+    useState<BankStatementWithMatch | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [isMultiMatchModalOpen, setIsMultiMatchModalOpen] = useState(false);
-  const [multiMatchSelectedStatements, setMultiMatchSelectedStatements] = useState<BankStatementWithMatch[]>([]);
-  const [selectedAggregateForMultiMatch, setSelectedAggregateForMultiMatch] = useState<AggregatedTransactionListItem | null>(null);
+  const [multiMatchSelectedStatements, setMultiMatchSelectedStatements] =
+    useState<BankStatementWithMatch[]>([]);
+  const [selectedAggregateForMultiMatch, setSelectedAggregateForMultiMatch] =
+    useState<AggregatedTransactionListItem | null>(null);
   const [showGroupList, setShowGroupList] = useState(true);
   const [filtersApplied, setFiltersApplied] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>({
-    startDate: '',
-    endDate: '',
+    startDate: "",
+    endDate: "",
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,36 +101,42 @@ export function BankReconciliationPage() {
     // User harus pilih dari BankReconciliationFilters
   }, [bankAccounts]);
 
-  const handleApplyFilters = useCallback((filters: BankStatementFilter) => {
-    setFilter(filters);
-    setFiltersApplied(true);
-    setError(null);
+  const handleApplyFilters = useCallback(
+    (filters: BankStatementFilter) => {
+      if (!filters.startDate || !filters.endDate) {
+        setError("Silakan pilih rentang tanggal terlebih dahulu");
+        return;
+      }
+      setFilter(filters);
+      setFiltersApplied(true);
+      setError(null);
 
-    if (filters.startDate || filters.endDate) {
       setDateRange({
-        startDate: filters.startDate || '',
-        endDate: filters.endDate || '',
+        startDate: filters.startDate || "",
+        endDate: filters.endDate || "",
       });
-    }
 
-    fetchStatementsWithFilters(filters);
-
-    if (filters.startDate && filters.endDate) {
+      fetchStatementsWithFilters(filters);
       fetchReconciliationGroups(filters.startDate, filters.endDate);
-      // Fetch Settlement Groups
       fetchSettlementGroups({
         startDate: filters.startDate,
         endDate: filters.endDate,
         limit: 50,
         offset: 0,
       });
-    }
-  }, [setFilter, fetchStatementsWithFilters, fetchReconciliationGroups, fetchSettlementGroups]);
+    },
+    [
+      setFilter,
+      fetchStatementsWithFilters,
+      fetchReconciliationGroups,
+      fetchSettlementGroups,
+    ],
+  );
 
   const handleClearFilters = useCallback(() => {
     clearFilter();
     setFiltersApplied(false);
-    setDateRange({ startDate: '', endDate: '' });
+    setDateRange({ startDate: "", endDate: "" });
     setError(null);
   }, [clearFilter]);
 
@@ -138,9 +150,9 @@ export function BankReconciliationPage() {
         endDate: dateRange.endDate,
         bankAccountIds: selectedAccountId ? [selectedAccountId] : undefined,
       };
-      
+
       await fetchStatementsWithFilters(currentFilter);
-      
+
       if (dateRange.startDate && dateRange.endDate) {
         await fetchReconciliationGroups(dateRange.startDate, dateRange.endDate);
         // Refresh Settlement Groups
@@ -152,12 +164,20 @@ export function BankReconciliationPage() {
         });
       }
     } catch (err) {
-      console.error('Failed to refresh data:', err);
-      setError('Gagal memuat data terbaru. Silakan coba lagi.');
+      console.error("Failed to refresh data:", err);
+      setError("Gagal memuat data terbaru. Silakan coba lagi.");
     } finally {
       setIsRefreshing(false);
     }
-  }, [filter, dateRange.startDate, dateRange.endDate, selectedAccountId, fetchStatementsWithFilters, fetchReconciliationGroups, fetchSettlementGroups]);
+  }, [
+    filter,
+    dateRange.startDate,
+    dateRange.endDate,
+    selectedAccountId,
+    fetchStatementsWithFilters,
+    fetchReconciliationGroups,
+    fetchSettlementGroups,
+  ]);
 
   // Memoize unreconciled statements to avoid unnecessary re-computation
   const unreconciledStatements = useMemo(() => {
@@ -167,18 +187,20 @@ export function BankReconciliationPage() {
   const handleAutoMatchPreview = async () => {
     setIsLoadingPreview(true);
     setError(null);
-    
+
     if (!dateRange.startDate || !dateRange.endDate) {
       setError("Silakan pilih rentang tanggal terlebih dahulu");
       setIsLoadingPreview(false);
       return;
     }
-    
+
     setIsAutoMatchOpen(true);
     setIsLoadingPreview(false);
   };
 
-  const handleAutoMatchPreviewApi = async (criteria?: Partial<MatchingCriteria>) => {
+  const handleAutoMatchPreviewApi = async (
+    criteria?: Partial<MatchingCriteria>,
+  ) => {
     if (!dateRange.startDate || !dateRange.endDate) {
       throw new Error("Silakan pilih rentang tanggal terlebih dahulu");
     }
@@ -187,12 +209,15 @@ export function BankReconciliationPage() {
     return previewAutoMatch({
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
-      bankAccountId: activeBankAccountId,  // ← dari filter, bukan selectedAccountId
+      bankAccountId: activeBankAccountId, // ← dari filter, bukan selectedAccountId
       matchingCriteria: criteria,
     });
   };
 
-  const handleAutoMatch = async (statementIds: string[], criteria?: Partial<MatchingCriteria>) => {
+  const handleAutoMatch = async (
+    statementIds: string[],
+    criteria?: Partial<MatchingCriteria>,
+  ) => {
     try {
       await confirmAutoMatch({
         statementIds,
@@ -232,14 +257,15 @@ export function BankReconciliationPage() {
     aggregateId: string,
   ) => {
     const potentialMatch = potentialMatchesMap[item.id]?.[0];
-    const paymentMethodName = potentialMatch?.payment_method_name || 'Payment Gateway';
-    const branchName = potentialMatch?.branch_name || '';
+    const paymentMethodName =
+      potentialMatch?.payment_method_name || "Payment Gateway";
+    const branchName = potentialMatch?.branch_name || "";
     const amount = potentialMatch?.nett_amount || 0;
-    
-    const message = branchName 
+
+    const message = branchName
       ? `Cocokkan transaksi ini dengan ${paymentMethodName} (${branchName}) senilai ${amount.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}?`
       : `Cocokkan transaksi ini dengan ${paymentMethodName} senilai ${amount.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}?`;
-    
+
     if (confirm(message)) {
       try {
         await manualReconcile({
@@ -249,13 +275,26 @@ export function BankReconciliationPage() {
         });
         refreshData();
       } catch (err) {
-        const axiosErr = err as { response?: { data?: { code?: string; message?: string }; status?: number }; message?: string };
-        if (axiosErr.response?.data?.code === 'ALREADY_RECONCILED' || axiosErr.response?.status === 409) {
-          alert('Transaksi ini sudah pernah dicocokkan sebelumnya. Data akan diperbarui.');
+        const axiosErr = err as {
+          response?: {
+            data?: { code?: string; message?: string };
+            status?: number;
+          };
+          message?: string;
+        };
+        if (
+          axiosErr.response?.data?.code === "ALREADY_RECONCILED" ||
+          axiosErr.response?.status === 409
+        ) {
+          alert(
+            "Transaksi ini sudah pernah dicocokkan sebelumnya. Data akan diperbarui.",
+          );
           refreshData();
         } else {
           console.error("Quick match error:", err);
-          alert(`Gagal melakukan match: ${axiosErr.response?.data?.message || axiosErr.message || 'Terjadi kesalahan'}`);
+          alert(
+            `Gagal melakukan match: ${axiosErr.response?.data?.message || axiosErr.message || "Terjadi kesalahan"}`,
+          );
         }
       }
     }
@@ -278,17 +317,20 @@ export function BankReconciliationPage() {
     statementIds: string[],
   ): Promise<AggregatedTransactionListItem | null> => {
     try {
-      const normalizedStatementIds = statementIds.map(id => String(id));
+      const normalizedStatementIds = statementIds.map((id) => String(id));
       const totalAmount = statements
         .filter((s) => normalizedStatementIds.includes(String(s.id)))
-        .reduce((sum, s) => sum + (s.credit_amount || 0) - (s.debit_amount || 0), 0);
+        .reduce(
+          (sum, s) => sum + (s.credit_amount || 0) - (s.debit_amount || 0),
+          0,
+        );
 
       const filter: AggregatedTransactionFilterParams = {
         is_reconciled: false,
       };
 
       const result = await posAggregatesApi.list(1, 100, null, filter);
-      
+
       const found = result.data.find((agg) => {
         const diff = Math.abs(agg.nett_amount - totalAmount);
         const percentDiff = agg.nett_amount > 0 ? diff / agg.nett_amount : 0;
@@ -307,7 +349,9 @@ export function BankReconciliationPage() {
   };
 
   // Load available aggregates untuk pemilihan manual
-  const handleLoadAggregatesForMultiMatch = async (): Promise<AggregatedTransactionListItem[]> => {
+  const handleLoadAggregatesForMultiMatch = async (): Promise<
+    AggregatedTransactionListItem[]
+  > => {
     try {
       const filter: AggregatedTransactionFilterParams = {
         is_reconciled: false,
@@ -326,7 +370,7 @@ export function BankReconciliationPage() {
     overrideDifference: boolean,
   ) => {
     try {
-      const normalizedStatementIds = statementIds.map(id => String(id));
+      const normalizedStatementIds = statementIds.map((id) => String(id));
       await createMultiMatch({
         aggregateId: String(aggregateId),
         statementIds: normalizedStatementIds,
@@ -394,10 +438,12 @@ export function BankReconciliationPage() {
             disabled={isRefreshing || isLoading}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
           >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Memuat...' : 'Refresh'}
+            <RefreshCw
+              className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
+            />
+            {isRefreshing ? "Memuat..." : "Refresh"}
           </button>
-          
+
           <button
             onClick={handleAutoMatchPreview}
             disabled={isLoading || isLoadingPreview}
@@ -417,7 +463,9 @@ export function BankReconciliationPage() {
       {/* Error Display */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-800 p-4 rounded-2xl flex items-center justify-between">
-          <p className="text-sm text-red-600 dark:text-red-400 font-medium">{error}</p>
+          <p className="text-sm text-red-600 dark:text-red-400 font-medium">
+            {error}
+          </p>
           <button
             onClick={() => setError(null)}
             className="p-1 hover:bg-red-100 dark:hover:bg-red-800 rounded-lg transition-colors"
@@ -475,9 +523,7 @@ export function BankReconciliationPage() {
       {/* Tab Navigation */}
       {filtersApplied && (
         <div className="flex items-center gap-4 border-b border-gray-100 dark:border-gray-800">
-          <button
-            className="flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 border-blue-600 text-blue-600"
-          >
+          <button className="flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 border-blue-600 text-blue-600">
             <FileText className="w-4 h-4" />
             Semua Transaksi
             <span className="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full text-xs">
@@ -497,7 +543,7 @@ export function BankReconciliationPage() {
                 Pilih Filter untuk Melihat Data
               </h3>
               <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-                Silakan pilih rentang tanggal dan filter lainnya, kemudian klik 
+                Silakan pilih rentang tanggal dan filter lainnya, kemudian klik
                 "Terapkan Filter" untuk menampilkan data mutasi bank.
               </p>
             </div>
@@ -546,7 +592,7 @@ export function BankReconciliationPage() {
                   </div>
                 </div>
               )}
-              
+
               {/* Settlement Groups - 1 Bank Statement → Many Aggregates */}
               <SettlementGroupList
                 groups={settlementGroups}
@@ -555,7 +601,7 @@ export function BankReconciliationPage() {
                 isLoading={isLoading}
                 total={settlementGroupsTotal}
               />
-              
+
               {/* Multi-Match Groups - 1 Aggregate → Many Statements */}
               <MultiMatchGroupList
                 groups={reconciliationGroups}
@@ -647,4 +693,3 @@ export function BankReconciliationPage() {
     </div>
   );
 }
-
