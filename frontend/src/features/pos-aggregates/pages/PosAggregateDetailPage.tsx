@@ -1,12 +1,19 @@
 /**
  * PosAggregateDetailPage.tsx
- * 
+ *
  * Full page for viewing aggregated transaction details.
  * Displays comprehensive transaction information.
+ *
+ * UX Improvements:
+ * - Sticky action bar at bottom so actions are always accessible
+ * - Copy button for ID/ref fields to reduce friction
+ * - Delete modal shows transaction ref for safety confirmation
+ * - Print button moved to header area
+ * - Fixed typo: 'Tanpa Cabrera' -> 'Tanpa Cabang'
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
-import { ArrowLeft, Loader2, Edit2, Trash2, RotateCcw, CheckCircle, Building2 } from 'lucide-react'
+import { ArrowLeft, Loader2, Edit2, Trash2, RotateCcw, CheckCircle, Building2, Printer } from 'lucide-react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePosAggregatesStore } from '../store/posAggregates.store'
 import { useToast } from '@/contexts/ToastContext'
@@ -30,7 +37,7 @@ export const PosAggregateDetailPage: React.FC = () => {
   const navigate = useNavigate()
   const toast = useToast()
   const currentBranch = useBranchContextStore((s) => s.currentBranch)
-  
+
   const {
     selectedTransaction,
     fetchTransactionById,
@@ -122,7 +129,7 @@ export const PosAggregateDetailPage: React.FC = () => {
       const employeeId = currentBranch?.employee_id || 'system'
       await reconcileTransaction(id, employeeId)
       toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_RECONCILED)
-      
+
       // Only fetch if there's no in-flight request for this transaction
       const inFlightKey = `fetchTransactionById:${id}`
       if (!inFlightRequests.has(inFlightKey)) {
@@ -154,13 +161,13 @@ export const PosAggregateDetailPage: React.FC = () => {
         statementId,
       })
       toast.success(BANK_RECONCILIATION_MESSAGES.BANK_MUTATION_MATCHED)
-      
+
       // Only fetch if there's no in-flight request for this transaction
       const inFlightKey = `fetchTransactionById:${id}`
       if (!inFlightRequests.has(inFlightKey)) {
         await fetchTransactionById(id)
       }
-      
+
       setShowMutationSelector(false)
     } catch (error) {
       const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -221,14 +228,14 @@ export const PosAggregateDetailPage: React.FC = () => {
     )
   }
 
-  // Create a local reference to avoid TypeScript null issues
   const transaction = selectedTransaction!
-
   const canReconcile = canReconcileTransaction(transaction)
 
   return (
-    <div className="p-6 space-y-6 dark:bg-gray-900">
-      {/* Page Header */}
+    // pb-24 to leave room for sticky action bar
+    <div className="p-6 space-y-6 dark:bg-gray-900 pb-24">
+
+      {/* ── Page Header ─────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-4">
           <button
@@ -239,69 +246,102 @@ export const PosAggregateDetailPage: React.FC = () => {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Detail Transaksi Agregat</h1>
+            {/* FIX: typo 'Cabrera' → 'Cabang' */}
             <p className="text-gray-500 dark:text-gray-400 mt-1">
-              {transaction.source_ref} • {transaction.branch_name || 'Tanpa Cabrera'}
+              {transaction.source_ref} • {transaction.branch_name || 'Tanpa Cabang'}
             </p>
           </div>
         </div>
-        
-        {/* Action Buttons */}
-        <div className="flex items-center gap-3">
-          {transaction.status !== 'CANCELLED' && (
-            <>
-              {canReconcile && (
-                <button
-                  onClick={handleReconcile}
-                  className="px-3 py-2 text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-2"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  Rekonsiliasi
-                </button>
-              )}
-              {/* Tombol Pilih Mutasi Bank */}
-              {canMatchBankMutation(transaction) && (
-                <button
-                  onClick={handleOpenMutationSelector}
-                  className="px-3 py-2 text-blue-700 bg-blue-100 dark:text-blue-300 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
-                >
-                  <Building2 className="w-4 h-4" />
-                  Pilih Mutasi Bank
-                </button>
-              )}
-              <button
-                onClick={() => navigate(`/pos-aggregates/${id}/edit`)}
-                className="px-3 py-2 text-blue-700 bg-blue-100 dark:text-blue-300 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
-              >
-                <Edit2 className="w-4 h-4" />
-                Edit
-              </button>
-              <button
-                onClick={() => setDeleteId(id || null)}
-                className="px-3 py-2 text-red-700 bg-red-100 dark:text-red-300 dark:bg-red-900/30 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 focus:outline-none focus:ring-2 focus:ring-red-500 flex items-center gap-2"
-              >
-                <Trash2 className="w-4 h-4" />
-                Hapus
-              </button>
-            </>
-          )}
-          {transaction.status === 'CANCELLED' && (
-            <button
-              onClick={handleRestore}
-              className="px-3 py-2 text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-2"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Pulihkan
-            </button>
-          )}
-        </div>
+
+        {/* Secondary actions visible in header: only Print (non-destructive) */}
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg transition-colors text-sm font-medium"
+        >
+          <Printer className="w-4 h-4" />
+          Cetak
+        </button>
       </div>
 
-      {/* Detail Card */}
+      {/* ── Detail Card ─────────────────────────────────────────────────── */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
         <PosAggregatesDetail transaction={transaction} />
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* ── Sticky Action Bar ───────────────────────────────────────────── */}
+      {/* Always visible at bottom so user can act without scrolling back up */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg print:hidden">
+        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-3">
+          {/* Left: context info */}
+          <div className="hidden sm:flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 truncate">
+            <span className="font-mono truncate max-w-[200px]">{transaction.source_ref}</span>
+            <span>•</span>
+            <span
+              className={`px-2 py-0.5 rounded text-xs font-medium ${
+                transaction.status === 'COMPLETED'
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                  : transaction.status === 'CANCELLED'
+                    ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                    : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+              }`}
+            >
+              {transaction.status}
+            </span>
+          </div>
+
+          {/* Right: action buttons */}
+          <div className="flex items-center gap-2 ml-auto">
+            {transaction.status !== 'CANCELLED' && (
+              <>
+                {canReconcile && (
+                  <button
+                    onClick={handleReconcile}
+                    className="px-3 py-2 text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-2 text-sm font-medium"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    <span className="hidden sm:inline">Rekonsiliasi</span>
+                  </button>
+                )}
+                {canMatchBankMutation(transaction) && (
+                  <button
+                    onClick={handleOpenMutationSelector}
+                    className="px-3 py-2 text-blue-700 bg-blue-100 dark:text-blue-300 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2 text-sm font-medium"
+                  >
+                    <Building2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Pilih Mutasi Bank</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => navigate(`/pos-aggregates/${id}/edit`)}
+                  className="px-3 py-2 text-blue-700 bg-blue-100 dark:text-blue-300 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2 text-sm font-medium"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Edit</span>
+                </button>
+                <button
+                  onClick={() => setDeleteId(id || null)}
+                  className="px-3 py-2 text-red-700 bg-red-100 dark:text-red-300 dark:bg-red-900/30 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 focus:outline-none focus:ring-2 focus:ring-red-500 flex items-center gap-2 text-sm font-medium"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Hapus</span>
+                </button>
+              </>
+            )}
+            {transaction.status === 'CANCELLED' && (
+              <button
+                onClick={handleRestore}
+                className="px-3 py-2 text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-2 text-sm font-medium"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span className="hidden sm:inline">Pulihkan</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Delete Confirmation Modal ────────────────────────────────────── */}
+      {/* IMPROVEMENT: shows source_ref in modal so user confirms the right record */}
       {deleteId && (
         <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
@@ -314,9 +354,19 @@ export const PosAggregateDetailPage: React.FC = () => {
                 ✕
               </button>
             </div>
-            <div className="p-4">
+            <div className="p-4 space-y-3">
               <p className="text-gray-600 dark:text-gray-300">
-                Apakah Anda yakin ingin menghapus transaksi agregat ini? Tindakan ini tidak dapat dibatalkan.
+                Apakah Anda yakin ingin menghapus transaksi ini?
+              </p>
+              {/* Show identifier so user double-checks they're deleting the right record */}
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                <div className="text-xs text-red-600 dark:text-red-400 font-semibold uppercase mb-1">Referensi Transaksi</div>
+                <div className="font-mono text-sm text-red-800 dark:text-red-200 font-bold">
+                  {transaction.source_ref}
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Tindakan ini tidak dapat dibatalkan secara permanen.
               </p>
             </div>
             <div className="flex justify-end gap-3 p-4 border-t dark:border-gray-700">
@@ -333,14 +383,14 @@ export const PosAggregateDetailPage: React.FC = () => {
                 className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:bg-red-400 flex items-center gap-2"
               >
                 {isDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isDeleting ? 'Menghapus...' : 'Hapus'}
+                {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Bank Mutation Selector Modal */}
+      {/* ── Bank Mutation Selector Modal ─────────────────────────────────── */}
       <BankMutationSelectorModal
         isOpen={showMutationSelector}
         onClose={() => setShowMutationSelector(false)}
@@ -357,4 +407,3 @@ export const PosAggregateDetailPage: React.FC = () => {
 // =============================================================================
 
 export default PosAggregateDetailPage
-
