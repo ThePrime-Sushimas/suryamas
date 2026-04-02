@@ -566,7 +566,7 @@ export class BankReconciliationRepository {
     if (error) throw error;
     return data?.length ?? 0;
   }
-  
+
   /**
    * Get unreconciled statements in batches for large datasets
    */
@@ -660,6 +660,7 @@ export class BankReconciliationRepository {
       const updateData: any = {
         is_reconciled: false,
         reconciliation_id: null,
+        reconciliation_group_id: null,  // ← tambah ini
         updated_at: new Date().toISOString(),
       };
 
@@ -936,7 +937,18 @@ export class BankReconciliationRepository {
       );
     }
   }
+  async softDeleteGroup(groupId: string): Promise<void> {
+    const { error } = await supabase
+      .from("bank_reconciliation_groups")
+      .update({
+        deleted_at: new Date().toISOString(),
+        status: "UNDO",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", groupId);
 
+    if (error) throw error;
+  }
   /**
    * Get unreconciled statements by date range for suggestion algorithm
    */

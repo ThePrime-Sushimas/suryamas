@@ -335,6 +335,7 @@ export class BankReconciliationService {
         if (remainingReconciled === 0) {
           await this.feeReconciliationService.resetFeeDiscrepancy(aggregateId);
           await this.orchestratorService.updateReconciliationStatus(aggregateId, "PENDING");
+          await this.repository.softDeleteGroup(statement.reconciliation_group_id!);
         }
       } else {
         // Manual/auto reconcile — langsung reset
