@@ -713,6 +713,169 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({
         )}
       </div>
 
+      {/* SETTLEMENT GROUP INFO - Only shown when part of settlement group */}
+      {transaction.settlement_group_id && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-3">
+            <div className="p-2 bg-violet-100 dark:bg-violet-900/30 rounded-lg">
+              <Building2 className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+            </div>
+            Settlement Group
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-4 border border-violet-200 dark:border-violet-800">
+              <label className="text-xs font-semibold text-violet-700 dark:text-violet-400 uppercase tracking-wider">
+                Nomor Settlement
+              </label>
+              <div className="mt-1 font-mono text-sm font-bold text-violet-800 dark:text-violet-300">
+                {transaction.settlement_number || "-"}
+              </div>
+            </div>
+
+            <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-4 border border-violet-200 dark:border-violet-800">
+              <label className="text-xs font-semibold text-violet-700 dark:text-violet-400 uppercase tracking-wider">
+                Tanggal Settlement
+              </label>
+              <div className="mt-1 text-sm text-violet-800 dark:text-violet-300 flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                {transaction.settlement_date ? formatDate(transaction.settlement_date) : "-"}
+              </div>
+            </div>
+
+            <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-4 border border-violet-200 dark:border-violet-800">
+              <label className="text-xs font-semibold text-violet-700 dark:text-violet-400 uppercase tracking-wider">
+                Status
+              </label>
+              <div className="mt-1">
+                <span className="inline-flex px-2 py-1 rounded text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
+                  {transaction.settlement_status || "RECONCILED"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Bank Statement info dari settlement */}
+          {transaction.settlement_bank_statement_id && (
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                Bank Statement
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs text-gray-500 dark:text-gray-400">ID Mutasi</label>
+                  <div className="mt-1 font-mono text-sm text-gray-900 dark:text-white">
+                    #{transaction.settlement_bank_statement_id}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 dark:text-gray-400">Deskripsi</label>
+                  <div className="mt-1 text-sm text-gray-900 dark:text-white">
+                    {transaction.settlement_bank_statement_description || "-"}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 dark:text-gray-400">Jumlah</label>
+                  <div className="mt-1 text-sm font-bold text-gray-900 dark:text-white">
+                    {transaction.settlement_bank_statement_amount != null
+                      ? formatCurrency(transaction.settlement_bank_statement_amount)
+                      : "-"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MULTI-MATCH INFO */}
+      {transaction.multi_match_group_id && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-3">
+            <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+              <Building2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            Multi-Match Bank
+          </h3>
+
+          {/* Summary */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 border border-amber-200 dark:border-amber-800">
+              <label className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                Status
+              </label>
+              <div className="mt-1">
+                <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${
+                  transaction.multi_match_status === 'RECONCILED'
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                    : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
+                }`}>
+                  {transaction.multi_match_status || '-'}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 border border-amber-200 dark:border-amber-800">
+              <label className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                Total Bank
+              </label>
+              <div className="mt-1 text-sm font-bold text-amber-800 dark:text-amber-300">
+                {transaction.multi_match_total_bank_amount != null
+                  ? formatCurrency(transaction.multi_match_total_bank_amount)
+                  : '-'}
+              </div>
+            </div>
+
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 border border-amber-200 dark:border-amber-800">
+              <label className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                Selisih
+              </label>
+              <div className={`mt-1 text-sm font-bold ${
+                transaction.multi_match_difference === 0
+                  ? 'text-green-600'
+                  : 'text-red-600'
+              }`}>
+                {transaction.multi_match_difference != null
+                  ? formatCurrency(Math.abs(transaction.multi_match_difference))
+                  : '-'}
+              </div>
+            </div>
+          </div>
+
+          {/* Statement list */}
+          {transaction.multi_match_statements && transaction.multi_match_statements.length > 0 && (
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                Bank Statements ({transaction.multi_match_statements.length})
+              </div>
+              <div className="space-y-2">
+                {transaction.multi_match_statements.map((stmt, idx) => (
+                  <div
+                    key={stmt.id ?? idx}
+                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                  >
+                    <div className="flex-1 min-w-0 mr-4">
+                      <div className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                        #{stmt.id}
+                        {stmt.transaction_date && (
+                          <span className="ml-2">{formatDate(stmt.transaction_date)}</span>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-900 dark:text-white truncate mt-0.5">
+                        {stmt.description || '-'}
+                      </div>
+                    </div>
+                    <div className="text-sm font-bold text-gray-900 dark:text-white whitespace-nowrap">
+                      {formatCurrency(stmt.amount)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ========================================
           AUDIT INFO
           ======================================== */}

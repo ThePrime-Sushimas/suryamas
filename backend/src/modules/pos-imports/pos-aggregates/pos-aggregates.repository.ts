@@ -221,7 +221,35 @@ bill_after_discount,
       console.error('Error fetching bank statement:', bankError)
     }
 
-    return this.mapToWithDetails(aggData, bankData || null)
+    // Query settlement group (bulk settlement)
+    const { data: settlementAgg } = await supabase
+      .from('bank_settlement_aggregates')
+      .select(`
+        settlement_group_id,
+        bank_settlement_groups(
+          id, settlement_number, settlement_date, status, bank_name,
+          bank_statements(id, description, credit_amount, debit_amount)
+        )
+      `)
+      .eq('aggregate_id', id)
+      .maybeSingle()
+
+    // Query multi-match group
+    const { data: multiMatchAgg } = await supabase
+      .from('bank_reconciliation_groups')
+      .select(`
+        id, status, difference, total_bank_amount, aggregate_amount,
+        bank_reconciliation_group_details(
+          statement_id,
+          amount,
+          bank_statements(id, description, credit_amount, debit_amount, transaction_date)
+        )
+      `)
+      .eq('aggregate_id', id)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    return this.mapToWithDetails(aggData, bankData || null, settlementAgg || null, multiMatchAgg || null)
   }
 
   /**
@@ -826,13 +854,37 @@ bill_after_discount: Number(row.bill_after_discount || 0),
    * @param aggData - aggregated transaction data from database
    * @param bankData - bank statement data (nullable, jika belum direkonsiliasi)
    */
-  private mapToWithDetails(aggData: Record<string, unknown>, bankData: Record<string, unknown> | null): AggregatedTransactionWithDetails {
+  private mapToWithDetails(
+    aggData: Record<string, unknown>, 
+    bankData: Record<string, unknown> | null,
+    settlementAgg: Record<string, unknown> | null = null,
+    multiMatchAgg: Record<string, unknown> | null = null
+  ): AggregatedTransactionWithDetails {
     const paymentMethod = Array.isArray(aggData.payment_methods) ? aggData.payment_methods[0] : aggData.payment_methods
     const journal = Array.isArray(aggData.journal) ? aggData.journal[0] : aggData.journal
 
     // Extract nested bank data dari bank statement
     const bankAccount = Array.isArray(bankData?.bank_accounts) ? bankData.bank_accounts[0] : bankData?.bank_accounts
     const bank = Array.isArray(bankAccount?.banks) ? bankAccount.banks[0] : bankAccount?.banks
+
+    const settlementGroup = settlementAgg?.bank_settlement_groups as Record<string, unknown> | null
+    const settlementStmt = Array.isArray(settlementGroup?.bank_statements)
+      ? settlementGroup?.bank_statements[0]
+      : settlementGroup?.bank_statements as Record<string, unknown> | null
+
+    // Multi-match
+    const multiMatchDetails = Array.isArray(multiMatchAgg?.bank_reconciliation_group_details)
+      ? multiMatchAgg.bank_reconciliation_group_details
+      : []
+
+    const multiMatchStatements = multiMatchDetails.map((d: any) => ({
+      id: d.bank_statements?.id ?? null,
+      description: d.bank_statements?.description ?? null,
+      credit_amount: Number(d.bank_statements?.credit_amount || 0),
+      debit_amount: Number(d.bank_statements?.debit_amount || 0),
+      transaction_date: d.bank_statements?.transaction_date ?? null,
+      amount: (Number(d.bank_statements?.credit_amount || 0)) - (Number(d.bank_statements?.debit_amount || 0)),
+    }))
 
     return {
       id: aggData.id as string,
@@ -877,6 +929,25 @@ bill_after_discount: Number(row.bill_after_discount || 0),
       bank_account_number: bankAccount?.account_number as string | null,
       reconciled_at: bankData?.is_reconciled ? new Date().toISOString() : null,
       reconciled_by: aggData.reconciled_by as string | null,
+
+      // Settlement group fields
+      settlement_group_id: settlementGroup?.id as string | null ?? null,
+      settlement_number: settlementGroup?.settlement_number as string | null ?? null,
+      settlement_date: settlementGroup?.settlement_date as string | null ?? null,
+      settlement_status: settlementGroup?.status as string | null ?? null,
+      settlement_bank_name: settlementGroup?.bank_name as string | null ?? null,
+      settlement_bank_statement_id: settlementStmt?.id as string | null ?? null,
+      settlement_bank_statement_description: settlementStmt?.description as string | null ?? null,
+      settlement_bank_statement_amount: settlementStmt
+        ? (Number(settlementStmt.credit_amount) || 0) - (Number(settlementStmt.debit_amount) || 0)
+        : null,
+
+      // Multi-match fields
+      multi_match_group_id: multiMatchAgg?.id as string | null ?? null,
+      multi_match_status: multiMatchAgg?.status as string | null ?? null,
+      multi_match_difference: multiMatchAgg?.difference != null ? Number(multiMatchAgg.difference) : null,
+      multi_match_total_bank_amount: multiMatchAgg?.total_bank_amount != null ? Number(multiMatchAgg.total_bank_amount) : null,
+      multi_match_statements: multiMatchStatements.length > 0 ? multiMatchStatements : null,
     }
   }
 }

@@ -100,6 +100,28 @@ export interface AggregatedTransactionWithDetails extends AggregatedTransaction 
   bank_account_number?: string | null;
   reconciled_at?: string | null;
   reconciled_by?: string | null;
+  // Settlement group
+  settlement_group_id?: string | null;
+  settlement_number?: string | null;
+  settlement_date?: string | null;
+  settlement_status?: string | null;
+  settlement_bank_name?: string | null;
+  settlement_bank_statement_id?: string | null;
+  settlement_bank_statement_description?: string | null;
+  settlement_bank_statement_amount?: number | null;
+  // Multi-match group
+  multi_match_group_id?: string | null;
+  multi_match_status?: string | null;
+  multi_match_difference?: number | null;
+  multi_match_total_bank_amount?: number | null;
+  multi_match_statements?: Array<{
+    id: number | null;
+    description: string | null;
+    credit_amount: number;
+    debit_amount: number;
+    transaction_date: string | null;
+    amount: number;
+  }> | null;
 }
 
 /**
