@@ -1,32 +1,30 @@
 /**
  * PosAggregatesPage.tsx
- * 
+ *
  * Main page for listing aggregated transactions.
  * Features: list view, filters, pagination, bulk actions, summary.
  */
 
-import React, { useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Plus, FileText, CheckCircle, Database } from 'lucide-react'
-import { usePosAggregatesStore } from '../store/posAggregates.store'
-import { useToast } from '@/contexts/ToastContext'
-import { useBranchContextStore } from '@/features/branch_context'
-import { PosAggregatesTable } from '../components/PosAggregatesTable'
-import { PosAggregatesFilters } from '../components/PosAggregatesFilters'
-import { PosAggregatesForm } from '../components/PosAggregatesForm'
-import { PosAggregatesSummary } from '../components/PosAggregatesSummary'
-import { GenerateFromImportModal } from '../components/GenerateFromImportModal'
-import { GenerateJournalModal } from '../components/GenerateJournalModal'
-import { BankMutationSelectorModal } from '../components/BankMutationSelectorModal'
-import { bankReconciliationApi } from '@/features/bank-reconciliation/api/bank-reconciliation.api'
-import {
-  POS_AGGREGATES_MESSAGES
-} from '@/utils/messages'
-import type { 
-  CreateAggregatedTransactionDto, 
-  UpdateAggregatedTransactionDto 
-} from '../types'
-import type { AggregatedTransactionListItem } from '../types'
+import React, { useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { Plus, FileText, CheckCircle, Database } from "lucide-react";
+import { usePosAggregatesStore } from "../store/posAggregates.store";
+import { useToast } from "@/contexts/ToastContext";
+import { useBranchContextStore } from "@/features/branch_context";
+import { PosAggregatesTable } from "../components/PosAggregatesTable";
+import { PosAggregatesFilters } from "../components/PosAggregatesFilters";
+import { PosAggregatesForm } from "../components/PosAggregatesForm";
+import { PosAggregatesSummary } from "../components/PosAggregatesSummary";
+import { GenerateFromImportModal } from "../components/GenerateFromImportModal";
+import { GenerateJournalModal } from "../components/GenerateJournalModal";
+import { BankMutationSelectorModal } from "../components/BankMutationSelectorModal";
+import { bankReconciliationApi } from "@/features/bank-reconciliation/api/bank-reconciliation.api";
+import { POS_AGGREGATES_MESSAGES } from "@/utils/messages";
+import type {
+  CreateAggregatedTransactionDto,
+  UpdateAggregatedTransactionDto,
+} from "../types";
+import type { AggregatedTransactionListItem } from "../types";
 
 // =============================================================================
 // PROPS (None for main page)
@@ -41,10 +39,10 @@ import type { AggregatedTransactionListItem } from '../types'
  * Provides list view with filtering, pagination, and bulk actions
  */
 export const PosAggregatesPage: React.FC = () => {
-  const navigate = useNavigate()
-  const toast = useToast()
-  const currentBranch = useBranchContextStore((s) => s.currentBranch)
-  
+  const navigate = useNavigate();
+  const toast = useToast();
+  const currentBranch = useBranchContextStore((s) => s.currentBranch);
+
   // Store
   const {
     transactions,
@@ -66,169 +64,241 @@ export const PosAggregatesPage: React.FC = () => {
     batchReconcile,
     setPage,
     clearSelection,
-  } = usePosAggregatesStore()
+  } = usePosAggregatesStore();
 
   // Local state
-  const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [showGenerateJournalModal, setShowGenerateJournalModal] = useState(false)
-  const [showGenerateFromImportModal, setShowGenerateFromImportModal] = useState(false)
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [showGenerateJournalModal, setShowGenerateJournalModal] =
+    useState(false);
+  const [showGenerateFromImportModal, setShowGenerateFromImportModal] =
+    useState(false);
 
   // Note: No auto-fetch on mount - user must click "Apply Filters" first
 
   // Handle edit
   const handleEdit = useCallback((id: string) => {
-    setEditingId(id)
-    setShowForm(true)
-  }, [])
+    setEditingId(id);
+    setShowForm(true);
+  }, []);
 
   // Handle delete
-  const handleDelete = useCallback(async (id: string, sourceRef: string) => {
-    try {
-      await deleteTransaction(id)
-      toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_DELETED(sourceRef))
-      await fetchSummary() // Refresh summary - await to ensure consistency
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : POS_AGGREGATES_MESSAGES.TRANSACTION_DELETE_FAILED)
-    }
-  }, [deleteTransaction, toast, fetchSummary])
+  const handleDelete = useCallback(
+    async (id: string, sourceRef: string) => {
+      try {
+        await deleteTransaction(id);
+        toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_DELETED(sourceRef));
+        await fetchSummary(); // Refresh summary - await to ensure consistency
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : POS_AGGREGATES_MESSAGES.TRANSACTION_DELETE_FAILED,
+        );
+      }
+    },
+    [deleteTransaction, toast, fetchSummary],
+  );
 
   // Handle restore
   // Note: restoreTransaction already calls fetchTransactions internally
-  const handleRestore = useCallback(async (id: string, sourceRef: string) => {
-    try {
-      await restoreTransaction(id)
-      toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_RESTORED(sourceRef))
-      // restoreTransaction already refreshes transactions, only need to refresh summary
-      await fetchSummary()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : POS_AGGREGATES_MESSAGES.TRANSACTION_RESTORE_FAILED)
-    }
-  }, [restoreTransaction, toast, fetchSummary])
+  const handleRestore = useCallback(
+    async (id: string, sourceRef: string) => {
+      try {
+        await restoreTransaction(id);
+        toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_RESTORED(sourceRef));
+        // restoreTransaction already refreshes transactions, only need to refresh summary
+        await fetchSummary();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : POS_AGGREGATES_MESSAGES.TRANSACTION_RESTORE_FAILED,
+        );
+      }
+    },
+    [restoreTransaction, toast, fetchSummary],
+  );
 
   // Handle reconcile single
-  const handleReconcile = useCallback(async (id: string) => {
-    try {
-      const employeeId = currentBranch?.employee_id || 'system'
-      await reconcileTransaction(id, employeeId)
-      toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_RECONCILED)
-      // Wait for both fetches to complete sequentially for UI consistency
-      await fetchTransactions()
-      await fetchSummary()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : POS_AGGREGATES_MESSAGES.TRANSACTION_RECONCILE_FAILED)
-    }
-  }, [reconcileTransaction, toast, currentBranch, fetchTransactions, fetchSummary])
+  const handleReconcile = useCallback(
+    async (id: string) => {
+      try {
+        const employeeId = currentBranch?.employee_id || "system";
+        await reconcileTransaction(id, employeeId);
+        toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_RECONCILED);
+        // Wait for both fetches to complete sequentially for UI consistency
+        await fetchTransactions();
+        await fetchSummary();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : POS_AGGREGATES_MESSAGES.TRANSACTION_RECONCILE_FAILED,
+        );
+      }
+    },
+    [
+      reconcileTransaction,
+      toast,
+      currentBranch,
+      fetchTransactions,
+      fetchSummary,
+    ],
+  );
 
   // Handle batch reconcile
   // Note: batchReconcile already handles optimistic update, clearSelection, and refresh internally
   // So we don't need to call fetchTransactions/fetchSummary here - it would cause redundant API calls
   const handleBatchReconcile = useCallback(async () => {
     if (selectedIds.size === 0) {
-      toast.warning(POS_AGGREGATES_MESSAGES.SELECT_TRANSACTIONS_TO_RECONCILE)
-      return
+      toast.warning(POS_AGGREGATES_MESSAGES.SELECT_TRANSACTIONS_TO_RECONCILE);
+      return;
     }
 
     try {
-      const employeeId = currentBranch?.employee_id || 'system'
+      const employeeId = currentBranch?.employee_id || "system";
       // batchReconcile already:
       // 1. Updates transactions optimistically (is_reconciled: true)
       // 2. Clears selectedIds
       // 3. Refreshes data via fetchTransactions and fetchSummary internally
-      const count = await batchReconcile(Array.from(selectedIds), employeeId)
-      toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_BATCH_RECONCILED(count))
+      const count = await batchReconcile(Array.from(selectedIds), employeeId);
+      toast.success(
+        POS_AGGREGATES_MESSAGES.TRANSACTION_BATCH_RECONCILED(count),
+      );
       // clearSelection is called internally by batchReconcile, no need to call again
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : POS_AGGREGATES_MESSAGES.TRANSACTION_BATCH_RECONCILE_FAILED)
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : POS_AGGREGATES_MESSAGES.TRANSACTION_BATCH_RECONCILE_FAILED,
+      );
     }
-  }, [selectedIds, batchReconcile, toast, currentBranch])
+  }, [selectedIds, batchReconcile, toast, currentBranch]);
 
-// Handle view detail
-  const handleViewDetail = useCallback((id: string) => {
-    navigate(`/pos-aggregates/${id}`)
-  }, [navigate])
+  // Handle view detail
+  const handleViewDetail = useCallback(
+    (id: string) => {
+      navigate(`/pos-aggregates/${id}`);
+    },
+    [navigate],
+  );
 
   // Handle form submit
-  const handleSubmit = useCallback(async (data: CreateAggregatedTransactionDto | UpdateAggregatedTransactionDto) => {
-    try {
-      if (editingId) {
-        await updateTransaction(editingId, data as UpdateAggregatedTransactionDto)
-        toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_UPDATED)
-      } else {
-        await createTransaction(data as CreateAggregatedTransactionDto)
-        toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_CREATED)
+  const handleSubmit = useCallback(
+    async (
+      data: CreateAggregatedTransactionDto | UpdateAggregatedTransactionDto,
+    ) => {
+      try {
+        if (editingId) {
+          await updateTransaction(
+            editingId,
+            data as UpdateAggregatedTransactionDto,
+          );
+          toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_UPDATED);
+        } else {
+          await createTransaction(data as CreateAggregatedTransactionDto);
+          toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_CREATED);
+        }
+        setShowForm(false);
+        setEditingId(null);
+        // Wait for both fetches to complete sequentially for UI consistency
+        await fetchTransactions();
+        await fetchSummary();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : POS_AGGREGATES_MESSAGES.TRANSACTION_SAVE_FAILED,
+        );
       }
-      setShowForm(false)
-      setEditingId(null)
-      // Wait for both fetches to complete sequentially for UI consistency
-      await fetchTransactions()
-      await fetchSummary()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : POS_AGGREGATES_MESSAGES.TRANSACTION_SAVE_FAILED)
-    }
-  }, [editingId, createTransaction, updateTransaction, toast, fetchTransactions, fetchSummary])
+    },
+    [
+      editingId,
+      createTransaction,
+      updateTransaction,
+      toast,
+      fetchTransactions,
+      fetchSummary,
+    ],
+  );
 
   // Handle form close
   const handleFormClose = useCallback(() => {
-    setShowForm(false)
-    setEditingId(null)
-  }, [])
+    setShowForm(false);
+    setEditingId(null);
+  }, []);
 
   // Selected transaction for edit - use AggregatedTransactionListItem since that's what the store returns
-  const selectedTransaction = editingId 
-    ? transactions.find((tx) => tx.id === editingId) || null 
-    : null
+  const selectedTransaction = editingId
+    ? transactions.find((tx) => tx.id === editingId) || null
+    : null;
 
   // State for Bank Mutation Selector Modal
-  const [selectedTransactionForMatch, setSelectedTransactionForMatch] = useState<AggregatedTransactionListItem | null>(null)
-  const [showMutationSelector, setShowMutationSelector] = useState(false)
-  const [isMatching, setIsMatching] = useState(false)
+  const [selectedTransactionForMatch, setSelectedTransactionForMatch] =
+    useState<AggregatedTransactionListItem | null>(null);
+  const [showMutationSelector, setShowMutationSelector] = useState(false);
+  const [isMatching, setIsMatching] = useState(false);
 
   // Handle select bank mutation
-  const handleSelectBankMutation = useCallback((transaction: AggregatedTransactionListItem) => {
-    setSelectedTransactionForMatch(transaction)
-    setShowMutationSelector(true)
-  }, [])
+  const handleSelectBankMutation = useCallback(
+    (transaction: AggregatedTransactionListItem) => {
+      setSelectedTransactionForMatch(transaction);
+      setShowMutationSelector(true);
+    },
+    [],
+  );
 
   // Handle confirm bank mutation match
-  const handleConfirmMutationMatch = useCallback(async (statementId: string) => {
-    if (!selectedTransactionForMatch) return
+  const handleConfirmMutationMatch = useCallback(
+    async (statementId: string) => {
+      if (!selectedTransactionForMatch) return;
 
-    setIsMatching(true)
-    try {
-      await bankReconciliationApi.manualReconcile({
-        aggregateId: selectedTransactionForMatch.id,
-        statementId,
-      })
-      toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_MATCHED(selectedTransactionForMatch.source_ref))
-      
-      // Wait for both fetches to complete sequentially for UI consistency
-      await fetchTransactions()
-      await fetchSummary()
-      
-      // Close modal
-      setShowMutationSelector(false)
-      setSelectedTransactionForMatch(null)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : POS_AGGREGATES_MESSAGES.TRANSACTION_MATCH_FAILED)
-    } finally {
-      setIsMatching(false)
-    }
-  }, [selectedTransactionForMatch, toast, fetchTransactions, fetchSummary])
+      setIsMatching(true);
+      try {
+        await bankReconciliationApi.manualReconcile({
+          aggregateId: selectedTransactionForMatch.id,
+          statementId,
+        });
+        toast.success(
+          POS_AGGREGATES_MESSAGES.TRANSACTION_MATCHED(
+            selectedTransactionForMatch.source_ref,
+          ),
+        );
 
+        // Wait for both fetches to complete sequentially for UI consistency
+        await fetchTransactions();
+        await fetchSummary();
+
+        // Close modal
+        setShowMutationSelector(false);
+        setSelectedTransactionForMatch(null);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : POS_AGGREGATES_MESSAGES.TRANSACTION_MATCH_FAILED,
+        );
+      } finally {
+        setIsMatching(false);
+      }
+    },
+    [selectedTransactionForMatch, toast, fetchTransactions, fetchSummary],
+  );
 
   return (
     <div className="p-6">
       {/* Page Header */}
       <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Transaksi Agregat POS</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Transaksi Agregat POS
+          </h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
             Kelola transaksi agregat dari import POS dan buat jurnal
           </p>
         </div>
         <div className="flex items-center gap-3">
-
           {/* Generate from POS Import Button */}
           <button
             onClick={() => setShowGenerateFromImportModal(true)}
@@ -259,7 +329,11 @@ export const PosAggregatesPage: React.FC = () => {
       </div>
 
       {/* Summary */}
-      <PosAggregatesSummary summary={summary} isLoading={isDataLoading()} className="mb-6" />
+      <PosAggregatesSummary
+        summary={summary}
+        isLoading={isDataLoading()}
+        className="mb-6"
+      />
 
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
@@ -293,7 +367,9 @@ export const PosAggregatesPage: React.FC = () => {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {editingId ? 'Edit Transaksi Agregat' : 'Transaksi Agregat Baru'}
+                {editingId
+                  ? "Edit Transaksi Agregat"
+                  : "Transaksi Agregat Baru"}
               </h2>
               <button
                 onClick={handleFormClose}
@@ -308,6 +384,7 @@ export const PosAggregatesPage: React.FC = () => {
                 onSubmit={handleSubmit}
                 onCancel={handleFormClose}
                 isLoading={isMutating}
+                mode={editingId ? "edit" : "create"}
               />
             </div>
           </div>
@@ -329,18 +406,24 @@ export const PosAggregatesPage: React.FC = () => {
             total,
             totalPages,
             hasNext: page < totalPages,
-            hasPrev: page > 1
+            hasPrev: page > 1,
           }}
           onPageChange={(newPage) => setPage(newPage)}
-          onLimitChange={(newLimit) => usePosAggregatesStore.getState().setLimit(newLimit)}
+          onLimitChange={(newLimit) =>
+            usePosAggregatesStore.getState().setLimit(newLimit)
+          }
           onEdit={handleEdit}
           onDelete={handleDelete}
           onRestore={handleRestore}
           onReconcile={handleReconcile}
           onViewDetail={handleViewDetail}
           onSelectBankMutation={handleSelectBankMutation}
-          onToggleSelection={(id) => usePosAggregatesStore.getState().toggleSelection(id)}
-          onToggleAllSelection={() => usePosAggregatesStore.getState().toggleAllSelection()}
+          onToggleSelection={(id) =>
+            usePosAggregatesStore.getState().toggleSelection(id)
+          }
+          onToggleAllSelection={() =>
+            usePosAggregatesStore.getState().toggleAllSelection()
+          }
         />
       )}
 
@@ -356,8 +439,8 @@ export const PosAggregatesPage: React.FC = () => {
         onClose={() => setShowGenerateFromImportModal(false)}
         onGenerated={async () => {
           // Wait for both fetches to complete sequentially for UI consistency
-          await fetchTransactions()
-          await fetchSummary()
+          await fetchTransactions();
+          await fetchSummary();
         }}
       />
 
@@ -365,20 +448,19 @@ export const PosAggregatesPage: React.FC = () => {
       <BankMutationSelectorModal
         isOpen={showMutationSelector}
         onClose={() => {
-          setShowMutationSelector(false)
-          setSelectedTransactionForMatch(null)
+          setShowMutationSelector(false);
+          setSelectedTransactionForMatch(null);
         }}
         onConfirm={handleConfirmMutationMatch}
         aggregate={selectedTransactionForMatch}
         isLoading={isMatching}
       />
     </div>
-  )
-}
+  );
+};
 
 // =============================================================================
 // EXPORT DEFAULT
 // =============================================================================
 
-export default PosAggregatesPage
-
+export default PosAggregatesPage;

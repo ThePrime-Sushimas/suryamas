@@ -11,7 +11,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { usePosAggregatesStore } from '../store/posAggregates.store'
 import { useToast } from '@/contexts/ToastContext'
 import { PosAggregatesForm } from '../components/PosAggregatesForm'
-import type { AggregatedTransaction, UpdateAggregatedTransactionDto } from '../types'
+import type { UpdateAggregatedTransactionDto } from '../types'
 
 // =============================================================================
 // COMPONENT
@@ -66,11 +66,10 @@ export const EditPosAggregatePage: React.FC = () => {
   }, [id, fetchTransactionById, toast, navigate])
 
   // Handle form submit
-  const handleSubmit = useCallback(async (data: AggregatedTransaction | UpdateAggregatedTransactionDto) => {
+  const handleSubmit = useCallback(async (data: UpdateAggregatedTransactionDto) => {
     if (!id) return
-
     try {
-      await updateTransaction(id, data as UpdateAggregatedTransactionDto)
+      await updateTransaction(id, data)
       toast.success('Transaksi agregat berhasil diperbarui')
       fetchTransactions()
       fetchSummary()
@@ -160,6 +159,7 @@ export const EditPosAggregatePage: React.FC = () => {
         <div className="p-6">
           {selectedTransaction ? (
             <PosAggregatesForm
+              mode="edit"
               transaction={selectedTransaction}
               onSubmit={handleSubmit}
               onCancel={handleCancel}

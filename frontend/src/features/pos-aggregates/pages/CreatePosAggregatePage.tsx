@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router-dom'
 import { usePosAggregatesStore } from '../store/posAggregates.store'
 import { useToast } from '@/contexts/ToastContext'
 import { PosAggregatesForm } from '../components/PosAggregatesForm'
-import type { CreateAggregatedTransactionDto, UpdateAggregatedTransactionDto } from '../types'
+import type { CreateAggregatedTransactionDto } from '../types'
 
 // =============================================================================
 // COMPONENT
@@ -33,9 +33,9 @@ export const CreatePosAggregatePage: React.FC = () => {
   } = usePosAggregatesStore()
 
   // Handle form submit
-  const handleSubmit = useCallback(async (data: CreateAggregatedTransactionDto | UpdateAggregatedTransactionDto) => {
+  const handleSubmit = useCallback(async (data: CreateAggregatedTransactionDto) => {
     try {
-      await createTransaction(data as CreateAggregatedTransactionDto)
+      await createTransaction(data)
       toast.success('Transaksi agregat berhasil dibuat')
       fetchTransactions()
       fetchSummary()
@@ -72,6 +72,7 @@ export const CreatePosAggregatePage: React.FC = () => {
       <div className="bg-white rounded-lg shadow">
         <div className="p-6">
           <PosAggregatesForm
+            mode="create"
             transaction={null}
             onSubmit={handleSubmit}
             onCancel={handleCancel}

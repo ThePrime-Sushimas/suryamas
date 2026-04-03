@@ -5,7 +5,7 @@
  * Uses React Hook Form with validation.
  */
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { useBranchesStore } from '@/features/branches/store/branches.store'
 import { posAggregatesApi } from '../api/posAggregates.api'
@@ -36,11 +36,39 @@ const parseCurrency = (value: string): number => {
 // PROPS
 // =============================================================================
 
-interface PosAggregatesFormProps {
-  transaction?: AggregatedTransactionListItem | AggregatedTransaction | null
-  onSubmit: (data: CreateAggregatedTransactionDto | UpdateAggregatedTransactionDto) => Promise<void>
-  onCancel: () => void
-  isLoading?: boolean
+type PosAggregatesFormProps =
+  | {
+      mode: 'create'
+      transaction?: AggregatedTransactionListItem | AggregatedTransaction | null
+      onSubmit: (data: CreateAggregatedTransactionDto) => Promise<void>
+      onCancel: () => void
+      isLoading?: boolean
+    }
+  | {
+      mode: 'edit'
+      transaction?: AggregatedTransactionListItem | AggregatedTransaction | null
+      onSubmit: (data: UpdateAggregatedTransactionDto) => Promise<void>
+      onCancel: () => void
+      isLoading?: boolean
+    }
+
+type PosAggregatesFormData = {
+  branch_id: string | null
+  source_type: 'POS'
+  source_id: string
+  source_ref: string
+  transaction_date: string
+  payment_method_id: number | null
+  gross_amount: number
+  discount_amount: number
+  tax_amount: number
+  service_charge_amount: number
+  percentage_fee_amount: number
+  fixed_fee_amount: number
+  total_fee_amount: number
+  nett_amount: number
+  currency: string
+  status: any
 }
 
 // =============================================================================
@@ -48,14 +76,11 @@ interface PosAggregatesFormProps {
 // =============================================================================
 
 /**
- * Form component for creating and editing aggregated transactions
+ * Form component for creating and editing aggregated transactions.
+ * Uses discriminated union props for strict typing on onSubmit based on mode.
  */
-export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
-  transaction,
-  onSubmit,
-  onCancel,
-  isLoading = false,
-}) => {
+export function PosAggregatesForm(props: PosAggregatesFormProps) {
+  const { transaction, onCancel, isLoading = false } = props
   const { branches, fetchBranches, loading: loadingBranches } = useBranchesStore()
   const [showErrors, setShowErrors] = useState(false)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([])
@@ -70,14 +95,14 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
     watch,
     control,
     setValue,
-  } = useForm<CreateAggregatedTransactionDto>({
+  } = useForm<PosAggregatesFormData>({
     defaultValues: {
       branch_id: null,
       source_type: 'POS',
       source_id: '',
       source_ref: '',
       transaction_date: new Date().toISOString().split('T')[0],
-      payment_method_id: 0,
+      payment_method_id: null,
       gross_amount: 0,
       discount_amount: 0,
       tax_amount: 0,
@@ -161,7 +186,7 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
         source_id: '',
         source_ref: '',
         transaction_date: new Date().toISOString().split('T')[0],
-        payment_method_id: 0,
+        payment_method_id: null,
         gross_amount: 0,
         discount_amount: 0,
         tax_amount: 0,
@@ -177,18 +202,28 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
   }, [transaction, reset])
 
   // Form submission handler
-  const handleFormSubmit = useCallback(async (data: CreateAggregatedTransactionDto) => {
+  const handleFormSubmit = useCallback(async (data: PosAggregatesFormData) => {
     setShowErrors(true)
-    
-    const submitData: CreateAggregatedTransactionDto | UpdateAggregatedTransactionDto = {
-      ...data,
-      payment_method_id: typeof data.payment_method_id === 'string' && parseInt(data.payment_method_id) 
-        ? parseInt(data.payment_method_id) 
-        : (data.payment_method_id as number),
-    }
 
-    await onSubmit(submitData)
-  }, [onSubmit])
+    const basePaymentMethodId =
+      typeof data.payment_method_id === 'string'
+        ? parseInt(data.payment_method_id)
+        : data.payment_method_id ?? undefined
+
+    if (props.mode === 'edit') {
+      const payload: UpdateAggregatedTransactionDto = {
+        ...data,
+        payment_method_id: basePaymentMethodId,
+      }
+      await props.onSubmit(payload)
+    } else {
+      const payload: CreateAggregatedTransactionDto = {
+        ...data,
+        payment_method_id: basePaymentMethodId ?? null,
+      } as CreateAggregatedTransactionDto
+      await props.onSubmit(payload)
+    }
+  }, [props.mode, props.onSubmit])
 
   // Handle cancel
   const handleCancel = useCallback(() => {
@@ -336,19 +371,18 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
               control={control}
               rules={{
                 required: 'Metode pembayaran wajib dipilih',
-                min: { value: 1, message: 'Metode pembayaran wajib dipilih' },
               }}
               render={({ field }) => (
                 <select
                   {...field}
-                  value={String(field.value ?? '')}
-                  onChange={(e) => field.onChange(Number(e.target.value) || 0)}
+                  value={field.value === null || field.value === undefined ? '' : String(field.value)}
+                  onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                     errors.payment_method_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                   } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
                   disabled={loadingPaymentMethods}
                 >
-                  <option value={0}>-- Pilih Metode Pembayaran --</option>
+                  <option value="">-- Pilih Metode Pembayaran --</option>
                   {paymentMethods.map((method) => (
                     <option key={method.id} value={method.id}>
                       {method.code} - {method.name}
@@ -606,4 +640,3 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
 // =============================================================================
 
 export default PosAggregatesForm
-
