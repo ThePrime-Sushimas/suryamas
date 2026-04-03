@@ -5,11 +5,30 @@
  * Uses React Hook Form with validation.
  */
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import { useEffect, useState, useCallback } from "react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+
 import { useBranchesStore } from '@/features/branches/store/branches.store'
 import { posAggregatesApi } from '../api/posAggregates.api'
-import type { AggregatedTransactionListItem, AggregatedTransaction, CreateAggregatedTransactionDto, UpdateAggregatedTransactionDto, PaymentMethodOption } from '../types'
+
+import {
+  posAggregatesFormSchema,
+  type PosAggregatesFormData,
+} from "./posAggregatesForm.schema"
+
+import {
+  mapFormToCreateDto,
+  mapFormToUpdateDto,
+} from "./posAggregates.mapper"
+
+import type { 
+  AggregatedTransactionListItem, 
+  AggregatedTransaction, 
+  CreateAggregatedTransactionDto, 
+  UpdateAggregatedTransactionDto,
+  PaymentMethodOption 
+} from '../types'
 
 // =============================================================================
 // UTILITY FUNCTIONS
@@ -28,9 +47,6 @@ const formatRupiah = (value: number): string => {
 /**
  * Parse currency string to number
  */
-const parseCurrency = (value: string): number => {
-  return parseFloat(value.replace(/[^0-9]/g, '')) || 0
-}
 
 // =============================================================================
 // PROPS
@@ -52,24 +68,7 @@ type PosAggregatesFormProps =
       isLoading?: boolean
     }
 
-type PosAggregatesFormData = {
-  branch_id: string | null
-  source_type: 'POS'
-  source_id: string
-  source_ref: string
-  transaction_date: string
-  payment_method_id: number | null
-  gross_amount: number
-  discount_amount: number
-  tax_amount: number
-  service_charge_amount: number
-  percentage_fee_amount: number
-  fixed_fee_amount: number
-  total_fee_amount: number
-  nett_amount: number
-  currency: string
-  status: any
-}
+// Removed duplicate inline type - using imported PosAggregatesFormData from schema
 
 // =============================================================================
 // COMPONENT
@@ -80,61 +79,74 @@ type PosAggregatesFormData = {
  * Uses discriminated union props for strict typing on onSubmit based on mode.
  */
 export function PosAggregatesForm(props: PosAggregatesFormProps) {
-  const { transaction, onCancel, isLoading = false } = props
+  const { mode, transaction, onSubmit, onCancel, isLoading = false } = props
   const { branches, fetchBranches, loading: loadingBranches } = useBranchesStore()
-  const [showErrors, setShowErrors] = useState(false)
+// Removed showErrors state - Zod handles validation display automatically
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([])
-  const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false)
 
   // React Hook Form
   const {
-    register,
     handleSubmit,
-    formState: { errors },
-    reset,
-    watch,
     control,
+    reset,
+    register,
+    watch,
     setValue,
+    formState: { errors },
   } = useForm<PosAggregatesFormData>({
+    resolver: zodResolver(posAggregatesFormSchema) as any,
+    mode: "onChange",
     defaultValues: {
       branch_id: null,
-      source_type: 'POS',
-      source_id: '',
-      source_ref: '',
-      transaction_date: new Date().toISOString().split('T')[0],
-      payment_method_id: null,
+      source_type: "POS",
+      source_id: "",
+      source_ref: "",
+      transaction_date: new Date().toISOString().split("T")[0],
+      payment_method_id: undefined as any as number,
+
       gross_amount: 0,
       discount_amount: 0,
       tax_amount: 0,
       service_charge_amount: 0,
+      bill_after_discount: 0,
       percentage_fee_amount: 0,
       fixed_fee_amount: 0,
       total_fee_amount: 0,
       nett_amount: 0,
-      currency: 'IDR',
-      status: 'READY',
+
+      currency: "IDR",
+      status: "READY",
     },
   })
 
-  // Watch fields for calculations
-  const watchedFields = watch(['gross_amount', 'discount_amount', 'tax_amount', 'service_charge_amount'])
-  const [grossAmount, discountAmount, taxAmount, serviceChargeAmount] = watchedFields.map((v) => parseFloat(String(v)) || 0)
+  // Form values for reactive calculation and display
+  const grossAmount = watch("gross_amount", 0)
+  const discountAmount = watch("discount_amount", 0)
+  const taxAmount = watch("tax_amount", 0)
+  const serviceChargeAmount = watch("service_charge_amount", 0)
 
-  // Fee fields (read-only, from backend)
-  const percentageFeeAmount = transaction?.percentage_fee_amount || 0
-  const fixedFeeAmount = transaction?.fixed_fee_amount || 0
-  const totalFeeAmount = transaction?.total_fee_amount || 0
+// Removed manual watch/parseCurrency - using Controller for number fields handles this
+
+// Fee fields (from form state)
+  const percentageFeeAmount = watch("percentage_fee_amount", 0)
+  const fixedFeeAmount = watch("fixed_fee_amount", 0)
+  const totalFeeAmount = watch("total_fee_amount", 0)
   
   // Calculate percentage for display
-  const percentageFeeDisplay = useMemo(() => {
-    if (grossAmount > 0) {
-      return ((percentageFeeAmount / grossAmount) * 100).toFixed(2)
-    }
-    return '0'
-  }, [grossAmount, percentageFeeAmount])
+  const percentageFeeDisplay = (
+    (percentageFeeAmount / (grossAmount || 1)) * 100
+  ).toFixed(2)
+
+  // Reactive calculation for Bill After Discount and Nett Amount
+  useEffect(() => {
+    const billAfterDiscount = grossAmount + taxAmount + serviceChargeAmount - discountAmount
+    const newNettAmount = billAfterDiscount - totalFeeAmount
+    
+    setValue("nett_amount", newNettAmount)
+    setValue("bill_after_discount", billAfterDiscount)
+  }, [grossAmount, taxAmount, serviceChargeAmount, discountAmount, totalFeeAmount, setValue])
 
   // Net amount from backend (already calculated correctly)
-  const netAmount = transaction?.nett_amount || 0
 
   // Fetch branches on mount
   useEffect(() => {
@@ -144,86 +156,57 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
   // Fetch payment methods on mount
   useEffect(() => {
     const fetchPaymentMethods = async () => {
-      setLoadingPaymentMethods(true)
       try {
         const methods = await posAggregatesApi.getPaymentMethodOptions()
         setPaymentMethods(methods)
       } catch (error) {
         console.error('Failed to fetch payment methods:', error)
-      } finally {
-        setLoadingPaymentMethods(false)
       }
     }
 
     fetchPaymentMethods()
   }, [])
 
-  // Reset form when transaction changes
+  // Reset logic (EDIT MODE normalization - explicit mapping)
   useEffect(() => {
     if (transaction) {
       reset({
-        branch_id: transaction.branch_id,
-        source_type: transaction.source_type,
-        source_id: transaction.source_id,
-        source_ref: transaction.source_ref,
-        transaction_date: transaction.transaction_date.split('T')[0],
-        payment_method_id: transaction.payment_method_id,
-        gross_amount: transaction.gross_amount,
-        discount_amount: transaction.discount_amount,
-        tax_amount: transaction.tax_amount,
-        service_charge_amount: transaction.service_charge_amount,
-        percentage_fee_amount: transaction.percentage_fee_amount,
-        fixed_fee_amount: transaction.fixed_fee_amount,
-        total_fee_amount: transaction.total_fee_amount,
-        nett_amount: transaction.nett_amount,
-        currency: transaction.currency,
-        status: transaction.status,
-      })
-    } else {
-      reset({
-        branch_id: null,
-        source_type: 'POS',
-        source_id: '',
-        source_ref: '',
-        transaction_date: new Date().toISOString().split('T')[0],
-        payment_method_id: null,
-        gross_amount: 0,
-        discount_amount: 0,
-        tax_amount: 0,
-        service_charge_amount: 0,
-        percentage_fee_amount: 0,
-        fixed_fee_amount: 0,
-        total_fee_amount: 0,
-        nett_amount: 0,
-        currency: 'IDR',
-        status: 'READY',
+        branch_id: transaction.branch_id ?? null,
+        source_type: "POS",
+        source_id: transaction.source_id ?? "",
+        source_ref: transaction.source_ref ?? "",
+        transaction_date: transaction.transaction_date?.split("T")[0] ?? "",
+        payment_method_id:
+          typeof transaction.payment_method_id === "string"
+            ? Number(transaction.payment_method_id)
+            : (transaction.payment_method_id ?? undefined) as any as number,
+
+        gross_amount: transaction.gross_amount ?? 0,
+        discount_amount: transaction.discount_amount ?? 0,
+        tax_amount: transaction.tax_amount ?? 0,
+        service_charge_amount: transaction.service_charge_amount ?? 0,
+        bill_after_discount: transaction.bill_after_discount ?? 0,
+        percentage_fee_amount: transaction.percentage_fee_amount ?? 0,
+        fixed_fee_amount: transaction.fixed_fee_amount ?? 0,
+        total_fee_amount: transaction.total_fee_amount ?? 0,
+        nett_amount: transaction.nett_amount ?? 0,
+
+        currency: transaction.currency ?? "IDR",
+        status: transaction.status ?? "READY",
       })
     }
   }, [transaction, reset])
 
-  // Form submission handler
+  // Submit Handler
   const handleFormSubmit = useCallback(async (data: PosAggregatesFormData) => {
-    setShowErrors(true)
-
-    const basePaymentMethodId =
-      typeof data.payment_method_id === 'string'
-        ? parseInt(data.payment_method_id)
-        : data.payment_method_id ?? undefined
-
-    if (props.mode === 'edit') {
-      const payload: UpdateAggregatedTransactionDto = {
-        ...data,
-        payment_method_id: basePaymentMethodId,
+      if (mode === "create") {
+        await (onSubmit as (data: CreateAggregatedTransactionDto) => Promise<void>)(mapFormToCreateDto(data))
+      } else {
+        await (onSubmit as (data: UpdateAggregatedTransactionDto) => Promise<void>)(mapFormToUpdateDto(data))
       }
-      await props.onSubmit(payload)
-    } else {
-      const payload: CreateAggregatedTransactionDto = {
-        ...data,
-        payment_method_id: basePaymentMethodId ?? null,
-      } as CreateAggregatedTransactionDto
-      await props.onSubmit(payload)
-    }
-  }, [props.mode, props.onSubmit])
+    },
+    [mode, onSubmit]
+  )
 
   // Handle cancel
   const handleCancel = useCallback(() => {
@@ -231,8 +214,9 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
     onCancel()
   }, [reset, onCancel])
 
+
   return (
-    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(handleFormSubmit as any)} className="space-y-6">
       {/* Source Information Section */}
       <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Informasi Sumber</h3>
@@ -243,9 +227,7 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
               Tipe Sumber <span className="text-red-500">*</span>
             </label>
             <select
-              {...register('source_type', {
-                required: 'Tipe sumber wajib dipilih',
-              })}
+              {...register('source_type')}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                 errors.source_type ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
               } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
@@ -253,7 +235,7 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
             >
               <option value="POS">POS</option>
             </select>
-            {errors.source_type && showErrors && (
+{errors.source_type && (
               <p className="mt-1 text-sm text-red-500">{errors.source_type.message}</p>
             )}
           </div>
@@ -265,17 +247,14 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
             </label>
             <input
               type="text"
-              {...register('source_id', {
-                required: 'ID sumber wajib diisi',
-                maxLength: { value: 100, message: 'Maksimal 100 karakter' },
-              })}
+              {...register('source_id')}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                 errors.source_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
               } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
               placeholder="ID import POS"
               disabled={!!transaction}
             />
-            {errors.source_id && showErrors && (
+            {errors.source_id && (
               <p className="mt-1 text-sm text-red-500">{errors.source_id.message}</p>
             )}
           </div>
@@ -287,16 +266,13 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
             </label>
             <input
               type="text"
-              {...register('source_ref', {
-                required: 'Referensi sumber wajib diisi',
-                maxLength: { value: 100, message: 'Maksimal 100 karakter' },
-              })}
+              {...register('source_ref')}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                 errors.source_ref ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
               } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
               placeholder="Nomor bill"
             />
-            {errors.source_ref && showErrors && (
+            {errors.source_ref && (
               <p className="mt-1 text-sm text-red-500">{errors.source_ref.message}</p>
             )}
           </div>
@@ -314,14 +290,12 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
             </label>
             <input
               type="date"
-              {...register('transaction_date', {
-                required: 'Tanggal transaksi wajib diisi',
-              })}
+              {...register('transaction_date')}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                 errors.transaction_date ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
               } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
             />
-            {errors.transaction_date && showErrors && (
+            {errors.transaction_date && (
               <p className="mt-1 text-sm text-red-500">{errors.transaction_date.message}</p>
             )}
           </div>
@@ -334,9 +308,6 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
             <Controller
               name="branch_id"
               control={control}
-              rules={{
-                required: 'Nama Cabang wajib dipilih',
-              }}
               render={({ field }) => (
                 <select
                   {...field}
@@ -356,7 +327,7 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
                 </select>
               )}
             />
-            {errors.branch_id && showErrors && (
+            {errors.branch_id && (
               <p className="mt-1 text-sm text-red-500">{errors.branch_id.message}</p>
             )}
           </div>
@@ -369,30 +340,30 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
             <Controller
               name="payment_method_id"
               control={control}
-              rules={{
-                required: 'Metode pembayaran wajib dipilih',
-              }}
               render={({ field }) => (
                 <select
                   {...field}
-                  value={field.value === null || field.value === undefined ? '' : String(field.value)}
-                  onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                    errors.payment_method_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-                  } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
-                  disabled={loadingPaymentMethods}
+                  value={field.value ?? ""}
+                  onChange={(e) =>
+                    field.onChange(
+                      e.target.value === "" ? undefined : Number(e.target.value)
+                    )
+                  }
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
                 >
                   <option value="">-- Pilih Metode Pembayaran --</option>
-                  {paymentMethods.map((method) => (
-                    <option key={method.id} value={method.id}>
-                      {method.code} - {method.name}
+                  {paymentMethods.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.code} - {m.name}
                     </option>
                   ))}
                 </select>
               )}
             />
-            {errors.payment_method_id && showErrors && (
-              <p className="mt-1 text-sm text-red-500">{errors.payment_method_id.message}</p>
+            {errors.payment_method_id && (
+              <p className="text-red-500 text-sm">
+                {errors.payment_method_id.message}
+              </p>
             )}
           </div>
         </div>
@@ -401,7 +372,7 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
       {/* Amount Details Section */}
       <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Detail Jumlah</h3>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {/* Gross Amount */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -409,17 +380,24 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
-              <input
-                type="text"
-                value={formatRupiah(grossAmount)}
-                onChange={(e) => setValue('gross_amount', parseCurrency(e.target.value))}
-                className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                  errors.gross_amount ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-                } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
+              <Controller
+                name="gross_amount"
+                control={control}
+                render={({ field }) => (
+                  <input
+                    type="number"
+                    {...field}
+                    step="0.01"
+                    min="0"
+                    onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                      errors.gross_amount ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                    } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
+                  />
+                )}
               />
             </div>
-            <input type="hidden" {...register('gross_amount', { valueAsNumber: true })} />
-            {errors.gross_amount && showErrors && (
+            {errors.gross_amount && (
               <p className="mt-1 text-sm text-red-500">{errors.gross_amount.message}</p>
             )}
           </div>
@@ -431,14 +409,21 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
-              <input
-                type="text"
-                value={formatRupiah(discountAmount)}
-                onChange={(e) => setValue('discount_amount', parseCurrency(e.target.value))}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              <Controller
+                name="discount_amount"
+                control={control}
+                render={({ field }) => (
+                  <input
+                    type="number"
+                    {...field}
+                    step="0.01"
+                    min="0"
+                    onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                )}
               />
             </div>
-            <input type="hidden" {...register('discount_amount', { valueAsNumber: true })} />
           </div>
 
           {/* Tax Amount */}
@@ -448,14 +433,21 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
-              <input
-                type="text"
-                value={formatRupiah(taxAmount)}
-                onChange={(e) => setValue('tax_amount', parseCurrency(e.target.value))}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              <Controller
+                name="tax_amount"
+                control={control}
+                render={({ field }) => (
+                  <input
+                    type="number"
+                    {...field}
+                    step="0.01"
+                    min="0"
+                    onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                )}
               />
             </div>
-            <input type="hidden" {...register('tax_amount', { valueAsNumber: true })} />
           </div>
 
           {/* Service Charge Amount */}
@@ -465,14 +457,21 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
-              <input
-                type="text"
-                value={formatRupiah(serviceChargeAmount)}
-                onChange={(e) => setValue('service_charge_amount', parseCurrency(e.target.value))}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              <Controller
+                name="service_charge_amount"
+                control={control}
+                render={({ field }) => (
+                  <input
+                    type="number"
+                    {...field}
+                    step="0.01"
+                    min="0"
+                    onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                )}
               />
             </div>
-            <input type="hidden" {...register('service_charge_amount', { valueAsNumber: true })} />
           </div>
 
           {/* Net Amount (Read-only) */}
@@ -482,14 +481,19 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
-              <input
-                type="text"
-                value={formatRupiah(netAmount)}
-                readOnly
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300"
+              <Controller
+                name="nett_amount"
+                control={control}
+                render={({ field }) => (
+                  <input
+                    type="number"
+                    {...field}
+                    readOnly
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300"
+                  />
+                )}
               />
             </div>
-            <input type="hidden" {...register('nett_amount', { valueAsNumber: true })} />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Otomatis dihitung</p>
           </div>
         </div>
@@ -640,3 +644,4 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
 // =============================================================================
 
 export default PosAggregatesForm
+
