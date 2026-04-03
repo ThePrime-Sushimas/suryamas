@@ -341,7 +341,8 @@ export const PosAggregatesForm: React.FC<PosAggregatesFormProps> = ({
               render={({ field }) => (
                 <select
                   {...field}
-                  onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                  value={String(field.value ?? '')}
+                  onChange={(e) => field.onChange(Number(e.target.value) || 0)}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                     errors.payment_method_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                   } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
