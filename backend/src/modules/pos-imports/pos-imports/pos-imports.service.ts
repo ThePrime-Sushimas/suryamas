@@ -13,6 +13,7 @@
 import * as XLSX from "xlsx";
 import { posImportsRepository } from "./pos-imports.repository";
 import { posImportLinesRepository } from "../pos-import-lines/pos-import-lines.repository";
+import { posAggregatesRepository } from "../pos-aggregates/pos-aggregates.repository";
 import { PosImportErrors } from "../shared/pos-import.errors";
 import {
   canTransition,
@@ -24,7 +25,7 @@ import {
   parseToLocalDateTime,
 } from "../shared/excel-date.util";
 import { supabase } from "../../../config/supabase";
-import { logInfo, logError } from "../../../config/logger";
+import { logInfo, logError, logWarn } from "../../../config/logger";
 import { jobsService } from "../../jobs/jobs.service";
 import { AuditService } from "../../monitoring/monitoring.service";
 import type {
@@ -209,20 +210,28 @@ class PosImportsService {
       });
       const dateRange = extractDateRange(parsedRows);
 
-      // Check for duplicates against database - FIXED
-      const duplicateKeys = await this.checkDuplicatesBulk(rows);
-      
-      // Hitung akurat: berapa rows yang DUPLICATE berdasarkan keys
-      const allKeys = (rows as any[])
-        .filter((r: any) => (r as any)["Bill Number"] && (r as any)["Sales Number"] && (r as any)["Sales Date"])
-        .map((r: any) => {
-          const bill_number = String((r as any)["Bill Number"]).trim();
-          const sales_number = String((r as any)["Sales Number"]).trim();
-          return `${bill_number}-${sales_number}-${parseToLocalDate((r as any)["Sales Date"])}`;
-        });
+      // Ganti duplicate check dengan new categorization
+      const { newBillKeys, replaceableBillKeys, blockedBillKeys } =
+        await this.categorizeBills(rows);
 
-      const duplicateCount = allKeys.filter(k => duplicateKeys.has(k)).length;
-      const newRowsCount = rows.length - duplicateCount;
+      const uniqueBillKeys = new Set(
+        rows
+          .filter((r: any) => r["Bill Number"] && r["Sales Date"])
+          .map((r: any) => `${String(r["Bill Number"]).trim()}|${parseToLocalDate(r["Sales Date"])}`)
+      );
+
+      // new + replaceable = akan diproses, blocked = di-skip
+      const willProcessCount = [...uniqueBillKeys].filter(
+        k => newBillKeys.has(k) || replaceableBillKeys.has(k)
+      ).length;
+
+      const allRowBillKeys = rows.map((r: any) =>
+        `${String(r["Bill Number"] || '').trim()}|${parseToLocalDate(r["Sales Date"])}`
+      );
+
+      const newRowsCount = allRowBillKeys.filter(k => newBillKeys.has(k)).length;
+      const replaceableRowsCount = allRowBillKeys.filter(k => replaceableBillKeys.has(k)).length;
+      const blockedRowsCount = allRowBillKeys.filter(k => blockedBillKeys.has(k)).length;
 
       // Calculate financial summary from rows (for preview before import)
       const financialSummary = this.calculateFinancialSummary(rows);
@@ -239,7 +248,7 @@ class PosImportsService {
             dateRange.end || new Date().toISOString().split("T")[0],
           total_rows: rows.length,
           new_rows: newRowsCount,
-          duplicate_rows: duplicateCount,
+          duplicate_rows: blockedRowsCount,
         },
         userId,
       );
@@ -255,9 +264,9 @@ class PosImportsService {
           {
             ...posImport,
             file_name: file.originalname,
-            total_rows: rows.length,
+          total_rows: rows.length,
             new_rows: newRowsCount,
-            duplicate_rows: duplicateCount,
+            duplicate_rows: blockedRowsCount,
           },
         );
       }
@@ -280,8 +289,10 @@ class PosImportsService {
       const analysis: DuplicateAnalysis = {
         total_rows: rows.length,
         new_rows: newRowsCount,
-        duplicate_rows: duplicateCount,
-        duplicates: [], // Simplified - fokus ke count akurat, detail tidak critical untuk preview
+        duplicate_rows: blockedRowsCount,        // blocked = truly duplicate (sudah accounting)
+        replaceable_rows: replaceableRowsCount,   // bisa di-replace
+        blocked_rows: blockedRowsCount,
+        duplicates: [],
       };
 
       logInfo("PosImportsService analyzeFile success", {
@@ -298,44 +309,115 @@ class PosImportsService {
   }
 
   /**
-   * Check for duplicate transactions (FIXED: Bulk query, no N+1)
+   * Check duplicate bills — per bill_number + sales_date
+   * Returns Set of keys yang sudah ada di DB
    */
-  private async checkDuplicatesBulk(rows: any[]): Promise<Set<string>> {
-    // Step 1: Buat semua keys dari rows
-      const allTransactions = (rows as any[])
-      .filter((r: any) => (r as any)["Bill Number"] && (r as any)["Sales Number"] && (r as any)["Sales Date"])
-      .map((r: any) => {
-        const bill_number = String((r as any)["Bill Number"]).trim();
-        const sales_number = String((r as any)["Sales Number"]).trim();
-        const sales_date = parseToLocalDate((r as any)["Sales Date"]);
-        const key = `${bill_number}-${sales_number}-${sales_date}`;
-        return { bill_number, sales_number, sales_date, key };
-      });
+  private async checkDuplicateBills(rows: any[]): Promise<Set<string>> {
+    const allBills = (rows as any[])
+      .filter((r: any) => r["Bill Number"] && r["Sales Date"])
+      .map((r: any) => ({
+        bill_number: String(r["Bill Number"]).trim(),
+        sales_date: parseToLocalDate(r["Sales Date"]),
+      }));
 
-    if (allTransactions.length === 0) return new Set();
+    if (allBills.length === 0) return new Set();
 
-    // Step 2: Unique combinations untuk query DB (efisien)
-    const uniqueTransactions = Array.from(
-      new Map(allTransactions.map(t => [t.key, t])).values()
+    // Deduplicate
+    const uniqueBills = Array.from(
+      new Map(allBills.map(b => [`${b.bill_number}|${b.sales_date}`, b])).values()
     );
 
-    // Step 3: Batch query ke DB
-    const batchSize = 50;
     const duplicateKeys = new Set<string>();
+    const batchSize = 50;
 
-    for (let i = 0; i < uniqueTransactions.length; i += batchSize) {
-      const batch = uniqueTransactions.slice(i, i + batchSize);
+    for (let i = 0; i < uniqueBills.length; i += batchSize) {
+      const batch = uniqueBills.slice(i, i + batchSize);
       try {
-        const results = await posImportLinesRepository.findExistingTransactions(batch);
-        results.forEach((d: any) => {
-          duplicateKeys.add(`${d.bill_number}-${d.sales_number}-${d.sales_date}`);
-        });
+        const found = await posImportLinesRepository.findExistingBills(batch);
+        found.forEach(k => duplicateKeys.add(k));
       } catch (error) {
-        logError('checkDuplicatesBulk batch failed', { batchSize: batch.length, error });
+        logError('checkDuplicateBills batch failed', { error });
       }
     }
 
     return duplicateKeys;
+  }
+
+  /**
+   * Categorize bills dari file upload menjadi 3 bucket:
+   * - newBills: belum ada di DB → insert normal
+   * - replaceableBills: ada di DB tapi belum MAPPED → hapus lama, insert baru
+   * - blockedBills: ada di DB dan sudah MAPPED/POSTED → skip, tampilkan warning
+   */
+  private async categorizeBills(rows: any[]): Promise<{
+    newBillKeys: Set<string>;
+    replaceableBillKeys: Set<string>;
+    blockedBillKeys: Set<string>;
+  }> {
+    // Step 1: Cek duplikat di pos_import_lines (per bill)
+    const existingBillKeys = await this.checkDuplicateBills(rows);
+
+    if (existingBillKeys.size === 0) {
+      return {
+        newBillKeys: new Set(
+          rows
+            .filter((r: any) => r["Bill Number"] && r["Sales Date"])
+            .map((r: any) => `${String(r["Bill Number"]).trim()}|${parseToLocalDate(r["Sales Date"])}`)
+        ),
+        replaceableBillKeys: new Set(),
+        blockedBillKeys: new Set(),
+      };
+    }
+
+    // Step 2: Per-bill tracking — cari import_id per bill, lalu cek mana yang sudah mapped
+    // Note: source_ref di aggregated_transactions bukan bill_number, tapi format: date-branch-payment
+    // Jadi kita check per pos_import_id (source_id), bukan per bill
+    const existingBillNumbers = [...existingBillKeys].map(k => k.split('|')[0]);
+
+    // Fetch bill_number → pos_import_id mapping
+    const billImportMapping = await posImportLinesRepository.findBillImportMapping(existingBillNumbers);
+
+    // Build map: bill_number → Set<import_id>
+    const billToImportIds = new Map<string, Set<string>>();
+    for (const row of billImportMapping) {
+      if (!billToImportIds.has(row.bill_number)) {
+        billToImportIds.set(row.bill_number, new Set());
+      }
+      billToImportIds.get(row.bill_number)!.add(row.pos_import_id);
+    }
+
+    // Cek mapped imports (yang sudah punya aggregated READY/PROCESSING/COMPLETED)
+    const allRelatedImportIds = [...new Set(billImportMapping.map(d => d.pos_import_id))];
+    const mappedImports = await posAggregatesRepository.findMappedImports(allRelatedImportIds);
+
+    const newBillKeys = new Set<string>();
+    const replaceableBillKeys = new Set<string>();
+    const blockedBillKeys = new Set<string>();
+
+    const allBillKeys = new Set(
+      rows
+        .filter((r: any) => r["Bill Number"] && r["Sales Date"])
+        .map((r: any) => `${String(r["Bill Number"]).trim()}|${parseToLocalDate(r["Sales Date"])}`)
+    );
+
+    for (const key of allBillKeys) {
+      const billNumber = key.split('|')[0];
+      if (!existingBillKeys.has(key)) {
+        newBillKeys.add(key);
+      } else {
+        // Cek apakah bill ini spesifik berasal dari import yang sudah mapped
+        const relatedImportIds = billToImportIds.get(billNumber) || new Set();
+        const isBillMapped = [...relatedImportIds].every(iid => mappedImports.has(iid));
+
+        if (isBillMapped) {
+          blockedBillKeys.add(key);
+        } else {
+          replaceableBillKeys.add(key);
+        }
+      }
+    }
+
+    return { newBillKeys, replaceableBillKeys, blockedBillKeys };
   }
 
   /**
@@ -441,6 +523,58 @@ class PosImportsService {
    * Retrieve temporary data from Supabase Storage
    */
   private async retrieveTemporaryData(importId: string): Promise<any[]> {
+    // Step 1: Coba baca chunk_info dari pos_imports untuk tahu berapa chunks
+    const posImport = await posImportsRepository.findByIdOnly(importId);
+    const chunkInfo = posImport?.chunk_info as {
+      total_chunks: number;
+      original_size_mb: number;
+    } | null;
+
+    // Step 2: Multi-chunk
+    if (chunkInfo && chunkInfo.total_chunks > 1) {
+      logInfo("retrieveTemporaryData: reading multi-chunk", {
+        importId,
+        total_chunks: chunkInfo.total_chunks,
+      });
+
+      const allRows: any[] = [];
+
+      for (let i = 1; i <= chunkInfo.total_chunks; i++) {
+        const chunkKey = `${importId}-part${i}.json`;
+        const { data, error } = await supabase.storage
+          .from("pos-imports-temp")
+          .download(chunkKey);
+
+        if (error) {
+          logError("retrieveTemporaryData chunk download failed", {
+            importId,
+            chunk: i,
+            error,
+          });
+          throw new Error(`Chunk ${i} not found. Please re-upload the file.`);
+        }
+
+        const text = await data.text();
+        const chunkRows = JSON.parse(text);
+        allRows.push(...chunkRows);
+
+        logInfo("retrieveTemporaryData chunk loaded", {
+          importId,
+          chunk: i,
+          rows_in_chunk: chunkRows.length,
+          total_so_far: allRows.length,
+        });
+      }
+
+      logInfo("retrieveTemporaryData multi-chunk complete", {
+        importId,
+        total_rows: allRows.length,
+      });
+
+      return allRows;
+    }
+
+    // Step 3: Single file
     try {
       const { data, error } = await supabase.storage
         .from("pos-imports-temp")
@@ -451,10 +585,7 @@ class PosImportsService {
       const text = await data.text();
       return JSON.parse(text);
     } catch (error) {
-      logError("PosImportsService retrieveTemporaryData error", {
-        importId,
-        error,
-      });
+      logError("retrieveTemporaryData single file failed", { importId, error });
       throw new Error("Temporary data not found. Please re-upload the file.");
     }
   }
@@ -534,100 +665,135 @@ class PosImportsService {
     userId: string,
   ): Promise<PosImport> {
     try {
-      // Retrieve stored data
       const rows = await this.retrieveTemporaryData(id);
 
-      // Map Excel rows to database format
-      const lines: CreatePosImportLineDto[] = rows.map(
-        (row: any, index: number) => {
-          const mapped: any = {
-            pos_import_id: id,
-            row_number: index + 1,
-          };
-
-          // Map all columns with type conversion
-          Object.entries(EXCEL_COLUMN_MAP).forEach(([excelCol, dbCol]) => {
-            const value = row[excelCol];
-            if (value !== undefined && value !== null && value !== "") {
-              // Convert Excel dates to ISO timestamps for timestamp fields
-              if (
-                dbCol === "sales_date_in" ||
-                dbCol === "sales_date_out" ||
-                dbCol === "order_time"
-              ) {
-                mapped[dbCol] = parseToLocalDateTime(value);
-              }
-              // Convert Excel dates to date strings for date fields
-              else if (dbCol === "sales_date") {
-                mapped[dbCol] = parseToLocalDate(value);
-              }
-              // All other fields
-              else {
-                mapped[dbCol] = value;
-              }
+      const lines: CreatePosImportLineDto[] = rows.map((row: any, index: number) => {
+        const mapped: any = { pos_import_id: id, row_number: index + 1 };
+        Object.entries(EXCEL_COLUMN_MAP).forEach(([excelCol, dbCol]) => {
+          const value = row[excelCol];
+          if (value !== undefined && value !== null && value !== '') {
+            if (dbCol === 'sales_date_in' || dbCol === 'sales_date_out' || dbCol === 'order_time') {
+              mapped[dbCol] = parseToLocalDateTime(value);
+            } else if (dbCol === 'sales_date') {
+              mapped[dbCol] = parseToLocalDate(value);
+            } else {
+              mapped[dbCol] = value;
             }
+          }
+        });
+        return mapped;
+      });
+
+      // Kategorisasi bills
+      const { newBillKeys, replaceableBillKeys, blockedBillKeys } =
+        await this.categorizeBills(rows);
+
+      logInfo('Bill categorization result', {
+        import_id: id,
+        new: newBillKeys.size,
+        replaceable: replaceableBillKeys.size,
+        blocked: blockedBillKeys.size,
+      });
+
+      // Handle replaceable bills — void aggregated dulu, hapus lines lama
+      if (replaceableBillKeys.size > 0) {
+        const replaceableBills = [...replaceableBillKeys].map(k => ({
+          bill_number: k.split('|')[0],
+          sales_date: k.split('|')[1],
+        }));
+
+        // Cari import_id LAMA yang terkait dengan replaceable bills
+        const oldBillMapping = await posImportLinesRepository.findBillImportMapping(
+          replaceableBills.map(b => b.bill_number)
+        );
+        const oldImportIds = [...new Set(oldBillMapping.map(d => d.pos_import_id))];
+
+        // Void aggregated dari import LAMA (bukan import yang sedang diproses)
+        let totalVoided = 0;
+        for (const oldImportId of oldImportIds) {
+          const voidedCount = await posAggregatesRepository.voidByImportId(oldImportId);
+          totalVoided += voidedCount;
+          logInfo('Voided old aggregated transactions', {
+            new_import_id: id,
+            old_import_id: oldImportId,
+            voided_count: voidedCount,
           });
 
-          return mapped;
-        },
-      );
+          // Hapus pos_import_lines lama dari import LAMA
+          await posImportLinesRepository.deleteByBillNumbers(replaceableBills, oldImportId);
+        }
 
-      // Filter duplicates if requested - FIXED
-      let linesToInsert = lines;
-      if (skipDuplicates) {
-        const duplicateKeys = await this.checkDuplicatesBulk(rows);
-        linesToInsert = lines.filter((line) => {
-          // Pastikan line punya required fields
-          if (!line.bill_number || !line.sales_number || !line.sales_date) {
-            return true; // Insert jika tidak bisa di-key
-          }
-          const key = `${line.bill_number}-${line.sales_number}-${line.sales_date}`;
-          return !duplicateKeys.has(key);
+        logInfo('Replaceable bills cleared', {
+          import_id: id,
+          old_import_ids: oldImportIds,
+          total_voided_aggregated: totalVoided,
+          bill_count: replaceableBills.length,
         });
       }
 
-      // Bulk insert lines
+      // Filter lines yang akan di-insert
+      // new + replaceable → insert, blocked → skip, invalid → reject
+      const invalidLines: any[] = [];
+      const linesToInsert = lines.filter(line => {
+        if (!line.bill_number || !line.sales_date) {
+          invalidLines.push(line);
+          return false;
+        }
+        const key = `${line.bill_number}|${line.sales_date}`;
+        return newBillKeys.has(key) || replaceableBillKeys.has(key);
+      });
+
+      if (invalidLines.length > 0) {
+        logWarn('Lines skipped — missing bill_number or sales_date', {
+          import_id: id,
+          count: invalidLines.length,
+          row_numbers: invalidLines.map(l => l.row_number),
+        });
+      }
+
+      const skippedCount = lines.length - linesToInsert.length;
+
       if (linesToInsert.length > 0) {
         await posImportLinesRepository.bulkInsert(linesToInsert);
       }
 
-      // Update import status
+      // Warning kalau ada yang diblock
+      if (blockedBillKeys.size > 0) {
+        logWarn('Some bills blocked — already in accounting pipeline', {
+          import_id: id,
+          blocked_bills: [...blockedBillKeys],
+        });
+      }
+
       await posImportsRepository.update(
         id,
         companyId,
         {
-          status: "IMPORTED",
+          status: 'IMPORTED',
           new_rows: linesToInsert.length,
-          duplicate_rows: lines.length - linesToInsert.length,
+          duplicate_rows: skippedCount,
         },
         userId,
       );
 
-      // Clean up temporary data
       await this.cleanupTemporaryData(id);
 
-      logInfo("PosImportsService processImportSync success", {
+      logInfo('processImportSync success', {
         id,
         inserted: linesToInsert.length,
+        skipped: skippedCount,
+        replaced: replaceableBillKeys.size,
+        blocked: blockedBillKeys.size,
       });
 
       return this.getById(id, companyId);
     } catch (error) {
-      console.error("PosImportsService processImportSync error:", error);
+      await posImportsRepository.update(id, companyId, {
+        status: 'FAILED',
+        error_message: error instanceof Error ? error.message : 'Unknown error',
+      }, userId);
 
-      // Rollback: Update status to FAILED
-      await posImportsRepository.update(
-        id,
-        companyId,
-        {
-          status: "FAILED",
-          error_message:
-            error instanceof Error ? error.message : "Unknown error",
-        },
-        userId,
-      );
-
-      logError("PosImportsService processImportSync error", { id, error });
+      logError('processImportSync error', { id, error });
       throw error;
     }
   }
@@ -637,15 +803,33 @@ class PosImportsService {
    */
   private async cleanupTemporaryData(importId: string): Promise<void> {
     try {
-      await supabase.storage
-        .from("pos-imports-temp")
-        .remove([`${importId}.json`]);
+      const posImport = await posImportsRepository.findByIdOnly(importId);
+      const chunkInfo = posImport?.chunk_info as { total_chunks: number } | null;
+
+      if (chunkInfo && chunkInfo.total_chunks > 1) {
+        // Hapus semua chunks
+        const filesToRemove = Array.from(
+          { length: chunkInfo.total_chunks },
+          (_, i) => `${importId}-part${i + 1}.json`,
+        );
+
+        await supabase.storage.from("pos-imports-temp").remove(filesToRemove);
+
+        logInfo("cleanupTemporaryData chunks removed", {
+          importId,
+          chunks: filesToRemove.length,
+        });
+      } else {
+        // Single file
+        await supabase.storage
+          .from("pos-imports-temp")
+          .remove([`${importId}.json`]);
+
+        logInfo("cleanupTemporaryData single file removed", { importId });
+      }
     } catch (error) {
-      logError("PosImportsService cleanupTemporaryData error", {
-        importId,
-        error,
-      });
-      // Non-critical error
+      logError("cleanupTemporaryData error", { importId, error });
+      // Non-critical
     }
   }
 

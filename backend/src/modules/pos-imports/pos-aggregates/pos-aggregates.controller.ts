@@ -35,7 +35,7 @@ export class PosAggregatesController {
    */
   create = withValidated(async (req: CreateTransactionReq, res: Response) => {
     try {
-      const transaction = await posAggregatesService.createTransaction(req.validated.body)
+      const transaction = await posAggregatesService.createTransaction(req.validated.body as any)
       sendSuccess(res, transaction, 'Aggregated transaction created successfully', 201)
     } catch (error: any) {
       handleError(res, error)
@@ -158,7 +158,7 @@ export class PosAggregatesController {
   createBatch = withValidated(async (req: CreateBatchReq, res: Response) => {
     try {
       const { transactions } = req.validated.body
-      const result = await posAggregatesService.createBatch(transactions)
+      const result = await posAggregatesService.createBatch(transactions as any)
       sendSuccess(res, result, 'Batch transaction creation completed', 200, {
         total_processed: result.total_processed,
         success_count: result.success.length,

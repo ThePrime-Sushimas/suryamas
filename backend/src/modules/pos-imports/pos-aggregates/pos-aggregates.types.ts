@@ -175,7 +175,7 @@ export interface CreateAggregatedTransactionDto {
   source_id: string; // pos_import_id from pos_import_lines
   source_ref: string; // bill_number from pos_import_lines
   transaction_date: string; // sales_date from pos_import_lines
-  payment_method_id: number | null; // Numeric ID or string name (will be resolved)
+  payment_method_id: number | string | null; // Numeric ID or string name (will be resolved)
   gross_amount: number; // subtotal from pos_import_lines
   discount_amount?: number; // discount + bill_discount from pos_import_lines
   tax_amount?: number; // tax from pos_import_lines

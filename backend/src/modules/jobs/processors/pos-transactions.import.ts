@@ -2,14 +2,6 @@
  * POS Transactions Import Processor - OPTIMIZED VERSION - FIXED
  * Handles background processing of POS imports via jobs system
  * Implements chunked batch processing untuk performa optimal dengan data puluhan ribu baris
- * 
- * Key Improvements:
- * - Chunked batch processing (1000 baris per batch)
- * - Batch duplicate checking (500 per batch)
- * - Granular progress tracking
- * - Memory efficient - tidak semua data di memory sekaligus
- * - Error recovery capability
- * - ✅ ALL TypeScript ERRORS FIXED
  */
 
 import { supabase } from '@/config/supabase'
@@ -24,18 +16,15 @@ import type { PosTransactionsImportMetadata } from '../jobs.types'
 import { isPosTransactionsImportMetadata } from '../jobs.types'
 
 // ==============================
-// CONFIGURATION - TUNABLE
+// CONFIGURATION
 // ==============================
 const CHUNK_SIZE = 2000;
-const DUP_CHECK_BATCH_SIZE = 500;
-const PROGRESS_UPDATE_FREQUENCY = 10;
+const DUP_CHECK_BATCH_SIZE = 50;
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 3000;
-const DELAY_BETWEEN_BATCHES_MS = 500;
-const DB_TIMEOUT_MS = 60000;
 
 // ==============================
-// COLUMN MAPPING (same as pos-imports.service.ts)
+// COLUMN MAPPING
 // ==============================
 const EXCEL_COLUMN_MAP: Record<string, string> = {
   '#': 'row_number',
@@ -97,28 +86,23 @@ function toNumber(value: unknown): number | undefined {
   return isNaN(num) ? undefined : num
 }
 
-function createTransactionKey(line: CreatePosImportLineDto): string {
-  return `${line.bill_number}|${line.sales_number}|${line.sales_date}`
-}
-
 function mapRowToDto(row: any, rowIndex: number, posImportId: string): CreatePosImportLineDto {
-  // ✅ CRITICAL FIX: Force GLOBAL row_number - NO Excel '#' override
   const mapped: CreatePosImportLineDto = {
     pos_import_id: posImportId,
-    row_number: rowIndex  // Global from chunkOffset + local idx
+    row_number: rowIndex  // Global row number, tidak di-override Excel
   }
 
-  // Skip row_number mapping entirely - prevent Excel '#' override
   Object.entries(EXCEL_COLUMN_MAP).forEach(([excelCol, dbCol]) => {
-    if (dbCol === 'row_number') return; // ❌ SKIP Excel row_number override
-    
+    if (dbCol === 'row_number') return; // Skip Excel row_number override
+
     const value = row[excelCol]
     if (value !== undefined && value !== null && value !== '') {
       if (dbCol === 'sales_date_in' || dbCol === 'sales_date_out' || dbCol === 'order_time') {
         mapped[dbCol as keyof CreatePosImportLineDto] = parseToLocalDateTime(value) as any
       } else if (dbCol === 'sales_date') {
         mapped[dbCol as keyof CreatePosImportLineDto] = parseToLocalDate(value) as any
-      } else if (['qty', 'price', 'subtotal', 'discount', 'service_charge', 'tax', 'vat', 'total', 'nett_sales', 'dpp', 'bill_discount', 'total_after_bill_discount'].includes(dbCol)) {
+      } else if (['qty', 'price', 'subtotal', 'discount', 'service_charge', 'tax', 'vat', 
+                  'total', 'nett_sales', 'dpp', 'bill_discount', 'total_after_bill_discount'].includes(dbCol)) {
         mapped[dbCol as keyof CreatePosImportLineDto] = toNumber(value) as any
       } else {
         mapped[dbCol as keyof CreatePosImportLineDto] = value as any
@@ -126,36 +110,30 @@ function mapRowToDto(row: any, rowIndex: number, posImportId: string): CreatePos
     }
   })
 
-  // DEBUG: Log first row row_number
-  if (rowIndex === 1) {
-    logInfo('First row mapping', {
-      pos_import_id: posImportId,
-      global_row_number: mapped.row_number,
-      excel_row_number: row['#']
-    })
-  }
-
   return mapped
 }
 
 async function retrieveTemporaryData_STREAM(chunkFileName: string): Promise<any[]> {
   logInfo('retrieveTemporaryData_STREAM called', { chunk_file: chunkFileName })
-  
+
   try {
     const { data, error } = await supabase.storage
       .from('pos-imports-temp')
       .download(chunkFileName)
-    
+
     if (error) {
       logError('Stream chunk download failed', { chunk_file: chunkFileName, error })
       throw error
     }
-    
+
     const chunkText = await data.text()
     const chunkRows = JSON.parse(chunkText)
-    
-    logInfo('Stream chunk processed', { chunk_file: chunkFileName, rows_in_chunk: chunkRows.length })
-    
+
+    logInfo('Stream chunk processed', { 
+      chunk_file: chunkFileName, 
+      rows_in_chunk: chunkRows.length 
+    })
+
     return chunkRows
   } catch (error) {
     logError('retrieveTemporaryData_STREAM failed', { chunk_file: chunkFileName, error })
@@ -164,22 +142,18 @@ async function retrieveTemporaryData_STREAM(chunkFileName: string): Promise<any[
 }
 
 async function retrieveTemporaryData(importId: string): Promise<any[]> {
-  // ✅ BACKWARD COMPATIBILITY: Support legacy single-file format
   logInfo('Loading legacy single-file format', { import_id: importId })
-  
+
   try {
     const { data, error } = await supabase.storage
       .from('pos-imports-temp')
       .download(`${importId}.json`)
-    
-    if (error) {
-      logError('Single file download failed', { importId, error })
-      throw new Error(`Single file ${importId}.json not found`)
-    }
-    
+
+    if (error) throw error
+
     const text = await data.text()
     const rows = JSON.parse(text)
-    
+
     logInfo('Legacy single file loaded', { importId, row_count: rows.length })
     return rows
   } catch (error) {
@@ -201,14 +175,17 @@ async function cleanupTemporaryData(importId: string): Promise<void> {
 
     await supabase.storage.from('pos-imports-temp').remove([`${importId}.json`])
 
-    logInfo('Temporary data cleaned up successfully', { import_id: importId, part_files_removed: partFiles?.length || 0 })
+    logInfo('Temporary data cleaned up successfully', { 
+      import_id: importId, 
+      part_files_removed: partFiles?.length || 0 
+    })
   } catch (error) {
     logError('Cleanup failed (non-critical)', { import_id: importId, error })
   }
 }
 
 // ==============================
-// CHUNK PROCESSOR - STANDALONE & FIXED
+// CHUNK PROCESSOR
 // ==============================
 
 async function processSingleChunk(
@@ -222,75 +199,107 @@ async function processSingleChunk(
 ): Promise<void> {
   if (chunkRows.length === 0) return
 
-  logInfo('Processing chunk', { rows: chunkRows.length, offset: rowOffset, skip_duplicates: skipDuplicates })
+  logInfo('Processing chunk', { 
+    rows: chunkRows.length, 
+    offset: rowOffset, 
+    skip_duplicates: skipDuplicates 
+  })
 
-  // 1. MAP chunk rows → DTOs
+  // 1. MAP rows → DTOs dengan global row_number
   const chunkLines: CreatePosImportLineDto[] = chunkRows.map((row: any, idx: number) =>
     mapRowToDto(row, rowOffset + idx + 1, posImportId)
   )
 
+  let linesToInsert = chunkLines
   let chunkSkipped = 0
-  let chunkSuccess = 0
-  let chunkFailed = 0
-  const chunkDupKeys = new Set<string>()
 
-  // 2. DUPLICATE CHECK (if enabled)
+  // 2. DUPLICATE CHECK per bill (bukan per baris)
   if (skipDuplicates) {
-    const chunkTransactions = chunkLines
-      .filter(l => l.bill_number && l.sales_number && l.sales_date)
-      .map(l => ({
-        bill_number: String(l.bill_number),
-        sales_number: String(l.sales_number),
-        sales_date: l.sales_date
-      }))
+    try {
+      // Deduplicate bills dalam chunk ini
+      const uniqueChunkBills = [
+        ...new Map(
+          chunkLines
+            .filter(l => l.bill_number && l.sales_date)
+            .map(l => [
+              `${l.bill_number}|${l.sales_date}`,
+              {
+                bill_number: String(l.bill_number),
+                sales_date: String(l.sales_date),
+              }
+            ])
+        ).values()
+      ]
 
-    if (chunkTransactions.length > 0) {
-      try {
-        const chunkDuplicates = await posImportLinesRepository.findExistingTransactions(chunkTransactions)
-        chunkDuplicates.forEach(d => {
-          chunkDupKeys.add(`${d.bill_number}|${d.sales_number}|${d.sales_date}`)
-        })
-        chunkSkipped = chunkDupKeys.size
-      } catch (dupError) {
-        logError('Duplicate check failed', { error: dupError })
-        chunkSkipped = 0
+      logInfo("Sample bill for dup check", {
+        sample: uniqueChunkBills.slice(0, 3),
+      });
+
+      // Batch check ke DB
+      const existingBillKeys = new Set<string>()
+      for (let i = 0; i < uniqueChunkBills.length; i += DUP_CHECK_BATCH_SIZE) {
+        const batch = uniqueChunkBills.slice(i, i + DUP_CHECK_BATCH_SIZE)
+        const found = await posImportLinesRepository.findExistingBills(batch)
+        found.forEach(k => existingBillKeys.add(k))
       }
+
+      // Filter: skip semua baris dari bill yang sudah ada
+      linesToInsert = chunkLines.filter(line => {
+        if (!line.bill_number || !line.sales_date) return false
+        const key = `${line.bill_number}|${line.sales_date}`
+        return !existingBillKeys.has(key)
+      })
+
+      chunkSkipped = chunkLines.length - linesToInsert.length
+
+      if (chunkSkipped > 0) {
+        logInfo('Chunk duplicate check result', {
+          pos_import_id: posImportId,
+          total_lines: chunkLines.length,
+          existing_bills: existingBillKeys.size,
+          skipped_lines: chunkSkipped,
+          will_insert: linesToInsert.length,
+        })
+      }
+    } catch (dupError: any) {
+      logError("Duplicate check failed — inserting all", {
+        import_id: posImportId,
+        error_message: dupError?.message || String(dupError),
+        error_name: dupError?.name,
+        error_code: dupError?.code,
+        is_error: dupError instanceof Error,
+        typeof_error: typeof dupError,
+      });
+      linesToInsert = chunkLines;
+      chunkSkipped = 0;
     }
   }
 
-  // 3. PREPARE lines to insert
-  const linesToInsert = skipDuplicates
-    ? chunkLines.filter(line => {
-        const key = createTransactionKey(line)
-        return !chunkDupKeys.has(key)
-      })
-    : chunkLines
-
-  // 4. BULK INSERT with retry
+  // 3. BULK INSERT dengan retry
+  let chunkSuccess = 0
+  let chunkFailed = 0
   let inserted = false
   let retryCount = 0
+
   while (!inserted && retryCount < MAX_RETRIES) {
     try {
       if (linesToInsert.length > 0) {
         await posImportLinesRepository.bulkInsert(linesToInsert)
         chunkSuccess = linesToInsert.length
-        inserted = true
-      } else {
-        chunkSuccess = 0
-        inserted = true
       }
+      inserted = true
     } catch (error: any) {
       retryCount++
       logWarn(`Chunk insert retry ${retryCount}/${MAX_RETRIES}`, { error: error.message })
       if (retryCount >= MAX_RETRIES) {
-        chunkFailed = chunkLines.length
+        chunkFailed = linesToInsert.length
         results.errors.push(`Chunk offset ${rowOffset}: ${error.message}`)
       }
       await new Promise(r => setTimeout(r, RETRY_DELAY_MS * retryCount))
     }
   }
 
-  // 5. UPDATE global counters
+  // 4. Update global counters
   results.created += chunkSuccess
   results.skipped += chunkSkipped
   results.failed += chunkFailed
@@ -305,7 +314,7 @@ async function processSingleChunk(
 }
 
 // ==============================
-// MAIN PROCESSOR - FIXED & TYPE SAFE
+// MAIN PROCESSOR
 // ==============================
 
 export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMetadata> = async (
@@ -314,7 +323,7 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
   metadata: PosTransactionsImportMetadata
 ) => {
   const results = {
-    total: 0,
+    total: 0,      // ✅ Di-accumulate dari rowCount per chunk, bukan dari bytes
     created: 0,
     skipped: 0,
     failed: 0,
@@ -325,14 +334,13 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
   let importCompanyId: string | null = null
 
   try {
-    logInfo('Starting POS transactions import', { 
-      job_id: jobId, 
+    logInfo('Starting POS transactions import', {
+      job_id: jobId,
       user_id: userId,
       chunk_size: CHUNK_SIZE,
       dup_check_batch_size: DUP_CHECK_BATCH_SIZE
     })
 
-    // PHASE 1: Validation & Setup
     await jobsService.updateProgress(jobId, 5, userId)
 
     if (!isPosTransactionsImportMetadata(metadata)) {
@@ -341,12 +349,12 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
 
     posImportId = metadata.posImportId!
     const skipDuplicates = metadata.skipDuplicates || false
-    const chunkInfo = (metadata as any).chunk_info || { total_chunks: 1, original_file_size: 0 }
+    const chunkInfo = (metadata as any).chunk_info || { total_chunks: 1, original_size_mb: 0 }
 
     logInfo('Job started with chunk info', {
       pos_import_id: posImportId,
       chunks: chunkInfo.total_chunks,
-      original_size_mb: (chunkInfo.original_file_size / (1024*1024)).toFixed(1),
+      original_size_mb: chunkInfo.original_size_mb ?? 'unknown',  // ✅ Fix NaN
       skip_duplicates: skipDuplicates
     })
 
@@ -356,50 +364,68 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
 
     await jobsService.updateProgress(jobId, 10, userId)
 
-    // Get company_id from job
     const job = await jobsRepository.findById(jobId, userId)
     if (!job) throw new Error('Job not found')
     importCompanyId = job.company_id
 
-    // Verify pos_import belongs to company
     const posImport = await posImportsRepository.findById(posImportId, importCompanyId!)
     if (!posImport) throw new Error('POS import not found or does not belong to your company')
 
     // PHASE 2: List chunks
     const { data: chunkFiles } = await supabase.storage
       .from('pos-imports-temp')
-      .list('', { search: `${posImportId}-part`, limit: 100, sortBy: { column: 'name', order: 'asc' } })
+      .list('', { 
+        search: `${posImportId}-part`, 
+        limit: 100, 
+        sortBy: { column: 'name', order: 'asc' } 
+      })
 
     if (!chunkFiles || chunkFiles.length === 0) {
+      // Legacy single file
       logWarn('No chunks found, trying single file', { import_id: posImportId })
       const singleRows = await retrieveTemporaryData(posImportId)
-      results.total = singleRows.length
-      await processSingleChunk(singleRows, posImportId, jobId, userId, skipDuplicates, results, 0)
+      results.total = singleRows.length  // ✅ Akurat
+      await processSingleChunk(
+        singleRows, posImportId, jobId, userId, skipDuplicates, results, 0
+      )
     } else {
-      results.total = chunkFiles.reduce((sum, file) => sum + parseInt(file.metadata?.size || '0'), 0)
-      logInfo('Found storage chunks for STREAM processing', { import_id: posImportId, chunk_count: chunkFiles.length })
-      
+      logInfo('Found storage chunks for STREAM processing', { 
+        import_id: posImportId, 
+        chunk_count: chunkFiles.length 
+      })
+
       let globalRowOffset = 0
+
       for (let i = 0; i < chunkFiles.length; i++) {
-        const storageChunk = chunkFiles[i]
-        const chunkFileName = storageChunk.name
-        logInfo('Processing storage chunk', { chunk_file: chunkFileName, chunk_num: i + 1, total_chunks: chunkFiles.length })
-        
+        const chunkFileName = chunkFiles[i].name
+
+        logInfo('Processing storage chunk', { 
+          chunk_file: chunkFileName, 
+          chunk_num: i + 1, 
+          total_chunks: chunkFiles.length 
+        })
+
         const chunkRows = await retrieveTemporaryData_STREAM(chunkFileName)
-        const rowCount = chunkRows.length  // ✅ CRITICAL FIX: Save BEFORE processing
-        
-        await processSingleChunk(chunkRows, posImportId, jobId, userId, skipDuplicates, results, globalRowOffset)
-        
+        const rowCount = chunkRows.length  // Save sebelum diproses
+
+        await processSingleChunk(
+          chunkRows, posImportId, jobId, userId, skipDuplicates, results, globalRowOffset
+        )
+
         // Memory cleanup
         chunkRows.length = 0
-        globalRowOffset += rowCount  // ✅ Use saved count
-        
-        logInfo('Global offset updated', { 
-          chunk_num: i + 1, 
-          rowCount, 
-          globalRowOffset 
+
+        // ✅ Accumulate total dari rowCount, bukan dari bytes
+        results.total += rowCount
+        globalRowOffset += rowCount
+
+        logInfo('Global offset updated', {
+          chunk_num: i + 1,
+          rowCount,
+          globalRowOffset,
+          total_so_far: results.total,
         })
-        
+
         const chunkProgress = 15 + Math.round(((i + 1) / chunkFiles.length) * 80)
         await jobsService.updateProgress(jobId, Math.min(chunkProgress, 95), userId)
       }
@@ -407,30 +433,17 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
 
     await jobsService.updateProgress(jobId, 95, userId)
 
-    // PHASE 6: Finalization - RECOMMENDED SAFE APPROACH
-    const currentPosImport = await posImportsRepository.findById(posImportId!, importCompanyId!)
-    const analyzeDuplicates = currentPosImport!.total_rows - currentPosImport!.new_rows
-    
-    // VALIDASI: Compare analyze vs actual skipped (allow ±5 tolerance)
-    if (Math.abs(analyzeDuplicates - results.skipped) > 5) {
-      logWarn("Duplicate count mismatch between analyze and import phase", {
-        analyzeDuplicates,
-        importSkipped: results.skipped,
-        difference: Math.abs(analyzeDuplicates - results.skipped),
-        totalRows: results.total,
-        actuallyCreated: results.created
-      })
-    }
-    
+    // PHASE 3: Finalization
     await posImportsRepository.update(posImportId!, importCompanyId!, {
       status: 'IMPORTED',
       new_rows: results.created,
-      duplicate_rows: results.skipped, // Use actual import results
-      error_message: results.errors.length > 0 ? `${results.errors.length} batches had errors` : undefined
+      duplicate_rows: results.skipped,
+      error_message: results.errors.length > 0 
+        ? `${results.errors.length} batches had errors` 
+        : undefined
     }, userId)
 
     await cleanupTemporaryData(posImportId!)
-
     await jobsService.updateProgress(jobId, 100, userId)
 
     logInfo('POS transactions import COMPLETED', {
@@ -440,7 +453,7 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
       created: results.created,
       skipped: results.skipped,
       failed: results.failed,
-      storage_chunks: chunkInfo.total_chunks,
+      storage_chunks: chunkFiles?.length ?? 1,
       errors_count: results.errors.length
     })
 
@@ -449,7 +462,7 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
       fileName: '',
       importResults: {
         ...results,
-        chunksProcessed: 1,
+        chunksProcessed: chunkFiles?.length ?? 1,
         chunkSize: CHUNK_SIZE,
         duplicateCheckBatchSize: DUP_CHECK_BATCH_SIZE,
         errorDetails: results.errors.slice(0, 10)
@@ -458,11 +471,11 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    
-    logError('POS transactions import failed', { 
-      job_id: jobId, 
+
+    logError('POS transactions import failed', {
+      job_id: jobId,
       error_message: errorMessage,
-      user_id: userId 
+      user_id: userId
     })
 
     if (posImportId && importCompanyId) {
@@ -471,8 +484,11 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
           status: 'FAILED',
           error_message: errorMessage
         }, userId)
-      } catch (updateError: unknown) {
-        logError('Failed to update pos_imports status', { pos_import_id: posImportId, error: updateError })
+      } catch (updateError) {
+        logError('Failed to update pos_imports status', { 
+          pos_import_id: posImportId, 
+          error: updateError 
+        })
       }
     }
 

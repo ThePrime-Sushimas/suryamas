@@ -557,7 +557,7 @@ export async function generateJournalsOptimized(
   // ── PHASE 4: Resolve all payment methods in one batch ─────────────────
   onProgress?.({ current: 20, total: 100, phase: 'lookup', message: 'Resolving payment methods...' })
 
-  const uniquePmIds = Array.from(new Set(transactions.map(t => t.payment_method_id)))
+  const uniquePmIds = Array.from(new Set(transactions.map(t => t.payment_method_id).filter((id): id is number => typeof id === 'number')))
   const pmMap = await resolvePaymentMethods(uniquePmIds)
 
   // ── PHASE 5: Process each group ───────────────────────────────────────
@@ -599,7 +599,7 @@ export async function generateJournalsOptimized(
       const validationErrors: string[] = []
 
       for (const tx of groupTxs) {
-        const pm = pmMap.get(tx.payment_method_id)
+        const pm = pmMap.get(tx.payment_method_id as number)
 
         if (!pm) {
           validationErrors.push(`Payment method id ${tx.payment_method_id} tidak ditemukan atau tidak aktif`)
@@ -641,7 +641,7 @@ export async function generateJournalsOptimized(
       const pmAggMap = new Map<number, PmAgg>()
 
       for (const tx of groupTxs) {
-        const pm = pmMap.get(tx.payment_method_id)!
+        const pm = pmMap.get(tx.payment_method_id as number)!
         if (!pmAggMap.has(pm.id)) {
           pmAggMap.set(pm.id, {
             pm,

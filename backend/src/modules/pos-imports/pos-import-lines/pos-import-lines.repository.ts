@@ -450,6 +450,103 @@ export class PosImportLinesRepository {
       throw error
     }
   }
+  /**
+   * Find existing bills (per bill_number + sales_date)
+   * Digunakan untuk duplicate check di level bill, bukan line
+   */
+  async findExistingBills(
+    bills: Array<{ bill_number: string; sales_date: string }>
+  ): Promise<Set<string>> {
+    if (bills.length === 0) return new Set();
+
+    const billNumbers = [...new Set(bills.map(b => b.bill_number))];
+
+    const { data, error } = await supabase
+      .from('pos_import_lines')
+      .select('bill_number, sales_date')
+      .in('bill_number', billNumbers);
+
+      if (error) {
+        logError('PosImportLinesRepository findExistingBills error', { 
+          message: error.message, 
+          code: error.code 
+        });
+        throw new Error(`findExistingBills failed: ${error.message} (code: ${error.code})`);
+      }
+
+    const requestedKeys = new Set(bills.map(b => `${b.bill_number}|${b.sales_date}`));
+    const result = new Set<string>();
+
+    for (const row of data || []) {
+      const key = `${row.bill_number}|${row.sales_date}`;
+      if (requestedKeys.has(key)) {
+        result.add(key);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Delete lines by bill_numbers (untuk upsert/replace scenario)
+   * HANYA dipanggil setelah validasi status di service layer
+   */
+  /**
+   * Delete lines by bill_numbers (untuk upsert/replace scenario)
+   * HANYA dipanggil setelah validasi status di service layer
+   */
+  async deleteByBillNumbers(
+    bills: Array<{ bill_number: string; sales_date: string }>,
+    posImportId: string
+  ): Promise<void> {
+    if (bills.length === 0) return;
+
+    // Delete per kombinasi bill_number + sales_date + pos_import_id
+    // Tidak bisa pakai single .in() untuk composite key di Supabase
+    // Jadi batch delete per bill
+    const errors: string[] = [];
+
+    for (const bill of bills) {
+      const { error } = await supabase
+        .from('pos_import_lines')
+        .delete()
+        .eq('bill_number', bill.bill_number)
+        .eq('sales_date', bill.sales_date)
+        .eq('pos_import_id', posImportId);
+
+      if (error) {
+        errors.push(`${bill.bill_number}: ${error.message}`);
+      }
+    }
+
+    if (errors.length > 0) {
+      logError('deleteByBillNumbers partial failure', { errors });
+      throw new Error(`Failed to delete some bills: ${errors.join('; ')}`);
+    }
+
+    logInfo('deleteByBillNumbers success', { count: bills.length, posImportId });
+  }
+
+  /**
+   * Find bill_number → pos_import_id mapping for given bill numbers
+   * Returns pairs for per-bill import tracking
+   */
+  async findBillImportMapping(billNumbers: string[]): Promise<Array<{ bill_number: string; pos_import_id: string }>> {
+    if (billNumbers.length === 0) return [];
+
+    const { data, error } = await supabase
+      .from('pos_import_lines')
+      .select('bill_number, pos_import_id')
+      .in('bill_number', billNumbers);
+
+    if (error) {
+      logError('PosImportLinesRepository findBillImportMapping error', { error });
+      throw error;
+    }
+
+    return data || [];
+  }
+
 }
 
 export const posImportLinesRepository = new PosImportLinesRepository()

@@ -950,6 +950,51 @@ bill_after_discount: Number(row.bill_after_discount || 0),
       multi_match_statements: multiMatchStatements.length > 0 ? multiMatchStatements : null,
     }
   }
+  /**
+   * Find source_ids (pos_import_id) yang sudah punya aggregated transactions
+   * dengan status READY/PROCESSING/COMPLETED — tidak boleh di-replace
+   */
+  async findMappedImports(posImportIds: string[]): Promise<Set<string>> {
+    if (posImportIds.length === 0) return new Set();
+
+    const { data, error } = await supabase
+      .from('aggregated_transactions')
+      .select('source_id')
+      .in('source_id', posImportIds)
+      .in('status', ['READY', 'PROCESSING', 'COMPLETED'])
+      .is('deleted_at', null);
+
+    if (error) {
+      throw new DatabaseError('Failed to find mapped imports', { cause: error });
+    }
+
+    return new Set((data || []).map(d => d.source_id));
+  }
+
+  /**
+   * Void semua aggregated transactions dari import tertentu
+   * yang masih FAILED atau READY (belum masuk journal)
+   */
+  async voidByImportId(posImportId: string): Promise<number> {
+    const { data, error } = await supabase
+      .from('aggregated_transactions')
+      .update({
+        status: 'CANCELLED',
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('source_id', posImportId)
+      .in('status', ['FAILED', 'READY'])
+      .is('deleted_at', null)
+      .select('id');
+
+    if (error) {
+      throw new DatabaseError('Failed to void aggregated transactions', { cause: error });
+    }
+
+    return (data || []).length;
+  }
+
 }
 
 export const posAggregatesRepository = new PosAggregatesRepository()

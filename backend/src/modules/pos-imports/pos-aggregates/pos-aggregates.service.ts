@@ -363,18 +363,16 @@ export class PosAggregatesService {
 
     // Resolve payment method ID (handles both number ID and string name)
     let resolvedPaymentMethodId: number;
-    if (skipPaymentMethodValidation) {
-      // If skipping validation, still try to resolve the ID
-      if (typeof data.payment_method_id === "number") {
-        resolvedPaymentMethodId = data.payment_method_id;
-      } else {
-        resolvedPaymentMethodId = await this.resolvePaymentMethodId(
-          data.payment_method_id,
-        );
-      }
+    
+    if (data.payment_method_id === null) {
+      throw new Error('payment_method_id required');
+    }
+
+    if (skipPaymentMethodValidation && typeof data.payment_method_id === 'number') {
+      resolvedPaymentMethodId = data.payment_method_id;
     } else {
       resolvedPaymentMethodId = await this.resolvePaymentMethodId(
-        data.payment_method_id,
+        data.payment_method_id
       );
     }
 
