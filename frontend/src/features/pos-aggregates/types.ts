@@ -165,7 +165,7 @@ export interface CreateAggregatedTransactionDto {
   source_id: string;
   source_ref: string;
   transaction_date: string;
-  payment_method_id: number | string;
+  payment_method_id: number | null;
   gross_amount: number;
   discount_amount?: number;
   tax_amount?: number;
@@ -387,30 +387,30 @@ export interface BatchTransactionFormData {
 // =============================================================================
 
 export interface FeeDiscrepancyRecord {
-  aggregateId:        string;
-  transactionDate:    string;
-  paymentMethodId:    number;
-  paymentMethodCode:  string | null;
-  paymentMethodName:  string | null;
-  grossAmount:        number;
-  nettAmount:         number;
-  expectedFee:        number;
-  actualFee:          number | null;
-  feeDiscrepancy:     number | null;
+  aggregateId: string;
+  transactionDate: string;
+  paymentMethodId: number;
+  paymentMethodCode: string | null;
+  paymentMethodName: string | null;
+  grossAmount: number;
+  nettAmount: number;
+  expectedFee: number;
+  actualFee: number | null;
+  feeDiscrepancy: number | null;
   feeDiscrepancyNote: string | null;
 }
 
 export interface FeeDiscrepanciesResponse {
   success: boolean;
-  data:    FeeDiscrepancyRecord[];
+  data: FeeDiscrepancyRecord[];
   summary: {
-    totalRecords:           number;
-    totalGross:             number;
-    totalExpectedFee:       number;
-    totalActualFee:         number;
-    totalFeeDiscrepancy:    number;
+    totalRecords: number;
+    totalGross: number;
+    totalExpectedFee: number;
+    totalActualFee: number;
+    totalFeeDiscrepancy: number;
     recordsWithDiscrepancy: number;
-    recordsPending:         number;
+    recordsPending: number;
   };
 }
 
@@ -469,12 +469,12 @@ export interface JournalOption {
 /**
  * Adapter function to convert AggregatedTransactionWithDetails to AggregatedTransactionListItem
  * This ensures type safety when passing data to components that expect ListItem type
- * 
+ *
  * @param transaction - The source transaction with full details
  * @returns AggregatedTransactionListItem with only the required fields
  */
 export function mapToAggregatedTransactionListItem(
-  transaction: AggregatedTransactionWithDetails
+  transaction: AggregatedTransactionWithDetails,
 ): AggregatedTransactionListItem {
   return {
     id: transaction.id,
@@ -494,8 +494,8 @@ export function mapToAggregatedTransactionListItem(
     total_fee_amount: transaction.total_fee_amount,
     nett_amount: transaction.nett_amount,
     // TAMBAH INI ↓
-    actual_fee_amount:    transaction.actual_fee_amount    ?? null,
-    fee_discrepancy:      transaction.fee_discrepancy      ?? null,
+    actual_fee_amount: transaction.actual_fee_amount ?? null,
+    fee_discrepancy: transaction.fee_discrepancy ?? null,
     fee_discrepancy_note: transaction.fee_discrepancy_note ?? null,
     // ↑ sampai sini
     currency: transaction.currency,
@@ -511,7 +511,7 @@ export function mapToAggregatedTransactionListItem(
     journal_number: transaction.journal_number,
     failed_reason: transaction.failed_reason,
     failed_at: transaction.failed_at,
-  }
+  };
 }
 
 // =============================================================================
@@ -521,36 +521,45 @@ export function mapToAggregatedTransactionListItem(
 /**
  * Check if a transaction can be reconciled
  * Business logic: Transaction must not be deleted, not already reconciled, and must have a journal
- * 
+ *
  * @param transaction - The transaction to check
  * @returns true if the transaction can be reconciled
  */
 export function canReconcileTransaction(
-  transaction: AggregatedTransactionWithDetails | AggregatedTransactionListItem | null | undefined
+  transaction:
+    | AggregatedTransactionWithDetails
+    | AggregatedTransactionListItem
+    | null
+    | undefined,
 ): boolean {
   if (!transaction) return false;
-  
-  const isDeleted = transaction.status === 'CANCELLED';
-  const hasJournal = transaction.journal_id !== null && transaction.journal_id !== undefined;
+
+  const isDeleted = transaction.status === "CANCELLED";
+  const hasJournal =
+    transaction.journal_id !== null && transaction.journal_id !== undefined;
   const isReconciled = transaction.is_reconciled;
-  
+
   return !isDeleted && !isReconciled && hasJournal;
 }
 
 /**
  * Check if a transaction can be manually matched with bank mutation
  * Business logic: Transaction must not be deleted and not already reconciled
- * 
+ *
  * @param transaction - The transaction to check
  * @returns true if the transaction can be matched with bank mutation
  */
 export function canMatchBankMutation(
-  transaction: AggregatedTransactionWithDetails | AggregatedTransactionListItem | null | undefined
+  transaction:
+    | AggregatedTransactionWithDetails
+    | AggregatedTransactionListItem
+    | null
+    | undefined,
 ): boolean {
   if (!transaction) return false;
-  
-  const isDeleted = transaction.status === 'CANCELLED';
+
+  const isDeleted = transaction.status === "CANCELLED";
   const isReconciled = transaction.is_reconciled;
-  
+
   return !isDeleted && !isReconciled;
 }

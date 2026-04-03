@@ -57,12 +57,12 @@ export interface AggregatedTransaction {
   source_id: string; // pos_import_id from pos_import_lines
   source_ref: string; // bill_number from pos_import_lines
   transaction_date: string; // sales_date from pos_import_lines
-  payment_method_id: number; // Lookup from payment_method using payment_method code
+  payment_method_id: number | null; // Lookup from payment_method using payment_method code
   gross_amount: number; // subtotal from pos_import_lines
   discount_amount: number; // discount + bill_discount from pos_import_lines
   tax_amount: number; // tax from pos_import_lines
   service_charge_amount: number; // service_charge from pos_import_lines
-bill_after_discount: number; // subtotal + tax - discount (before fee)
+  bill_after_discount: number; // subtotal + tax - discount (before fee)
   percentage_fee_amount: number; // Fee from percentage (bill_after_discount × fee_percentage / 100)
   fixed_fee_amount: number; // Fixed fee (per transaction or per total)
   total_fee_amount: number; // Total fee (percentage_fee + fixed_fee)
@@ -140,7 +140,7 @@ export interface AggregatedTransactionListItem extends Pick<
   | "discount_amount"
   | "tax_amount"
   | "service_charge_amount"
-| "bill_after_discount"
+  | "bill_after_discount"
   | "percentage_fee_amount"
   | "fixed_fee_amount"
   | "total_fee_amount"
@@ -175,12 +175,12 @@ export interface CreateAggregatedTransactionDto {
   source_id: string; // pos_import_id from pos_import_lines
   source_ref: string; // bill_number from pos_import_lines
   transaction_date: string; // sales_date from pos_import_lines
-  payment_method_id: number | string; // Numeric ID or string name (will be resolved)
+  payment_method_id: number | null; // Numeric ID or string name (will be resolved)
   gross_amount: number; // subtotal from pos_import_lines
   discount_amount?: number; // discount + bill_discount from pos_import_lines
   tax_amount?: number; // tax from pos_import_lines
   service_charge_amount?: number; // service_charge from pos_import_lines
-bill_after_discount?: number; // Calculated: gross + tax - discount
+  bill_after_discount?: number; // Calculated: gross + tax - discount
   percentage_fee_amount?: number; // Calculated from payment method
   fixed_fee_amount?: number; // Calculated from payment method
   total_fee_amount?: number; // Sum of percentage and fixed fees
@@ -205,7 +205,7 @@ export interface UpdateAggregatedTransactionDto {
   discount_amount?: number;
   tax_amount?: number;
   service_charge_amount?: number;
-bill_after_discount?: number;
+  bill_after_discount?: number;
   percentage_fee_amount?: number;
   fixed_fee_amount?: number;
   total_fee_amount?: number;

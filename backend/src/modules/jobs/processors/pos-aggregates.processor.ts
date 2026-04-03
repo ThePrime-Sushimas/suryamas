@@ -175,100 +175,84 @@ async function resolvePaymentMethodsBatch(
 }
 
 /**
- * Group lines by transaction key (date|branch|payment_method)
- * Payment method name is normalized for consistent grouping
+ * Parse split payment string into individual methods with amounts.
+ * Example: "Deposit - PT (200.000),QRIS BCA - M (319.200)"
+ * Returns empty array if no valid splits found.
+ */
+function parseSplitPayment(
+  rawPaymentMethod: string,
+): { name: string; amount: number }[] {
+  const splits: { name: string; amount: number }[] = [];
+
+  if (!rawPaymentMethod.includes("(")) return splits;
+
+  const parts = rawPaymentMethod.includes(",")
+    ? rawPaymentMethod.split(",").map((p) => p.trim())
+    : [rawPaymentMethod.trim()];
+
+  for (const part of parts) {
+    const match = SPLIT_PAYMENT_REGEX.exec(part);
+    if (match) {
+      const name = match[1].trim();
+      const amountStr = match[2].replace(/\./g, "").replace(/,/g, ".");
+      const amount = parseFloat(amountStr);
+      if (!isNaN(amount)) {
+        splits.push({ name, amount });
+      }
+    }
+  }
+
+  return splits;
+}
+
+/**
+ * Group lines by transaction key (date|branch|raw_payment_method_string).
+ *
+ * IMPORTANT: Split payment resolution is intentionally deferred to AFTER
+ * aggregation. This avoids the mismatch where split amounts (e.g. 200k/300k)
+ * are applied as ratios to individual line totals (e.g. 30k-60k each),
+ * causing reconciliation gaps.
+ *
+ * For split payments, the raw payment method string is used as the group key
+ * so all lines from that transaction are aggregated together first. The split
+ * into multiple aggregated_transactions rows happens post-aggregation.
  */
 function groupLinesByTransaction(lines: any[]): Map<string, any[]> {
   const groups = new Map<string, any[]>();
 
   for (const line of lines) {
     const rawPaymentMethod = line.payment_method || "unknown";
-
-    // Check for potential split payment or amount in parenthesis
-    // Example: "Deposit - PT (200.000),QRIS BCA - M (319.200)"
-    if (rawPaymentMethod.includes("(")) {
-      const parts = rawPaymentMethod.includes(",")
-        ? rawPaymentMethod.split(",").map((p: string) => p.trim())
-        : [rawPaymentMethod.trim()];
-
-      const splits: { name: string; amount: number }[] = [];
-      let totalSplitAmount = 0;
-
-      for (const part of parts) {
-        const match = SPLIT_PAYMENT_REGEX.exec(part);
-        if (match) {
-          const name = match[1].trim();
-          // Normalize Indonesian/European number format (dot as thousand separator)
-          const amountStr = match[2].replace(/\./g, "").replace(/,/g, ".");
-          const amount = parseFloat(amountStr);
-          if (!isNaN(amount)) {
-            splits.push({ name, amount });
-            totalSplitAmount += amount;
-          }
-        }
-      }
-
-      // If we found valid splits
-      if (splits.length > 0) {
-        if (splits.length === 1) {
-          // Single payment with parenthesis: "Name (Amount)"
-          // Just use the name part and continue
-          const split = splits[0];
-          const salesDate = line.sales_date || "unknown";
-          const branch = line.branch || "unknown";
-          const paymentMethod = normalizePaymentMethodName(split.name);
-          const key = `${salesDate}|${branch}|${paymentMethod}`;
-
-          if (!groups.has(key)) {
-            groups.set(key, []);
-          }
-          groups.get(key)!.push({ ...line, payment_method: split.name });
-          continue;
-        } else if (totalSplitAmount > 0) {
-          // Multiple payments: "Name A (Amt A), Name B (Amt B)"
-          // Explode into multiple virtual lines allocated by ratio
-          const lineTotal = Number(line.total || 0);
-
-          for (const split of splits) {
-            // Ratio is based on the actual split amount vs the stated total in the line
-            // Fallback to totalSplitAmount if line.total is missing/zero
-            const ratio = totalSplitAmount > 0 ? split.amount / totalSplitAmount : 1 / splits.length;            
-            const salesDate = line.sales_date || "unknown";
-            const branch = line.branch || "unknown";
-            const paymentMethod = normalizePaymentMethodName(split.name);
-            const key = `${salesDate}|${branch}|${paymentMethod}`;
-
-            if (!groups.has(key)) {
-              groups.set(key, []);
-            }
-
-            groups.get(key)!.push({
-              ...line,
-              payment_method: split.name,
-              subtotal: Number(line.subtotal || 0) * ratio,
-              discount: Number(line.discount || 0) * ratio,
-              bill_discount: Number(line.bill_discount || 0) * ratio,
-              tax: Number(line.tax || 0) * ratio,
-              service_charge: Number(line.service_charge || 0) * ratio,
-              // Use the actual split amount as the total for reconciliation accuracy
-              total: split.amount,
-            });
-          }
-          continue;
-        }
-      }
-    }
-
-    // Default: Regular single payment or fallback
     const salesDate = line.sales_date || "unknown";
     const branch = line.branch || "unknown";
-    const paymentMethod = normalizePaymentMethodName(rawPaymentMethod);
 
-    const key = `${salesDate}|${branch}|${paymentMethod}`;
-    if (!groups.has(key)) {
-      groups.set(key, []);
+    // For split payments: parse to get the canonical name for the group key,
+    // but keep all lines grouped under the raw string so we can aggregate first.
+    const splits = parseSplitPayment(rawPaymentMethod);
+
+    let groupKey: string;
+    let lineToStore = line;
+
+    if (splits.length === 1) {
+      // Single payment with parenthesis notation "Name (Amount)" → strip amount
+      const pm = normalizePaymentMethodName(splits[0].name);
+      groupKey = `${salesDate}|${branch}|${pm}`;
+      lineToStore = { ...line, payment_method: splits[0].name };
+    } else if (splits.length > 1) {
+      // TRUE split payment: GROUP ALL LINES UNDER THE RAW STRING.
+      // Post-aggregation logic will handle the actual split.
+      // Use a stable key derived from the raw string (normalized).
+      const pm = normalizePaymentMethodName(rawPaymentMethod);
+      groupKey = `${salesDate}|${branch}|${pm}`;
+    } else {
+      // Regular single payment method
+      const pm = normalizePaymentMethodName(rawPaymentMethod);
+      groupKey = `${salesDate}|${branch}|${pm}`;
     }
-    groups.get(key)!.push(line);
+
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, []);
+    }
+    groups.get(groupKey)!.push(lineToStore);
   }
 
   return groups;
@@ -359,9 +343,13 @@ export async function generateAggregatedTransactionsOptimized(
     // Extract unique payment method names dari groups
     const paymentMethodNames = [
       ...new Set(
-        groupArray.map(([key]) => {
-          const [, , pm] = key.split("|");
-          return pm;
+        groupArray.flatMap(([, groupLines]) => {
+          const rawPm = groupLines[0]?.payment_method || "unknown";
+          const splits = parseSplitPayment(rawPm);
+          if (splits.length > 1) {
+            return splits.map((s) => s.name);
+          }
+          return [rawPm];
         }),
       ),
     ];
@@ -408,13 +396,13 @@ export async function generateAggregatedTransactionsOptimized(
         source_ref: key.replace(/\|/g, "-"),
       };
     });
-       // Batch check existence - split into chunks untuk avoid large queries
+    // Batch check existence - split into chunks untuk avoid large queries
     const existingSources = new Set<string>();
-    const allSourceRefs = sourceRefsToCheck.map(s => s.source_ref);
+    const allSourceRefs = sourceRefsToCheck.map((s) => s.source_ref);
 
     for (let i = 0; i < allSourceRefs.length; i += CHECK_BATCH_SIZE) {
       const batchRefs = allSourceRefs.slice(i, i + CHECK_BATCH_SIZE);
-      
+
       const { data, error } = await supabase
         .from("aggregated_transactions")
         .select("source_ref")
@@ -424,7 +412,9 @@ export async function generateAggregatedTransactionsOptimized(
 
       if (error) {
         logError("Batch duplicate check failed", { error });
-        throw new Error(`Duplicate check failed. Aborting to prevent duplicates. Error: ${error.message}`);
+        throw new Error(
+          `Duplicate check failed. Aborting to prevent duplicates. Error: ${error.message}`,
+        );
       } else if (data) {
         for (const item of data) {
           existingSources.add(item.source_ref);
@@ -476,52 +466,9 @@ export async function generateAggregatedTransactionsOptimized(
 
       try {
         const firstLine = groupLines[0];
-
-        // Get payment method ID dari lookup result
-        // Use normalized key to match with lookup result
-        const pmKey = normalizePaymentMethodName(
-          firstLine.payment_method || "unknown",
-        );
-        const pmResult = pmLookupResult.get(pmKey);
-
-        if (!pmResult || pmResult.id === 0) {
-          // Payment method NOT FOUND - mark as FAILED
-          const errorMsg = `Payment method "${firstLine.payment_method}" tidak ditemukan di database`;
-
-          const failedData = {
-            branch_name: firstLine.branch?.trim() || null,
-            source_type: "POS" as AggregatedTransactionSourceType,
-            source_id: posImportId,
-            source_ref: sourceRef,
-            transaction_date:
-              firstLine.sales_date || new Date().toISOString().split("T")[0],
-            payment_method_id: 20, // Temporary, will be fixed during retry
-            gross_amount: 0,
-            discount_amount: 0,
-            tax_amount: 0,
-            service_charge_amount: 0,
-            bill_after_discount: 0,
-            percentage_fee_amount: 0,
-            fixed_fee_amount: 0,
-            total_fee_amount: 0,
-            nett_amount: 0,
-            currency: "IDR",
-            journal_id: null,
-            is_reconciled: false,
-            status: "FAILED" as AggregatedTransactionStatus,
-            deleted_at: null,
-            deleted_by: null,
-            failed_at: new Date().toISOString(),
-            failed_reason: errorMsg,
-          };
-
-          failedRecords.push({
-            data: failedData,
-            error: errorMsg,
-          });
-
-          continue;
-        }
+        const rawPm = firstLine.payment_method || "unknown";
+        const splitParts = parseSplitPayment(rawPm);
+        const isTrueSplit = splitParts.length > 1;
 
         // Calculate aggregated amounts - OPTIMIZED: Single loop for all components
         let grossAmount = 0;
@@ -551,6 +498,58 @@ export async function generateAggregatedTransactionsOptimized(
         );
         const transactionCount = uniqueBillNumbers.size;
 
+        // Get payment method ID dari lookup result ONLY for non-split payments
+        // We will validate split payment methods later inside the split logic block
+        let pmResult: any = {
+          id: 0,
+          fee_percentage: 0,
+          fee_fixed_amount: 0,
+          fee_fixed_per_transaction: false,
+        };
+
+        if (!isTrueSplit) {
+          const pmKey = normalizePaymentMethodName(rawPm);
+          const lookup = pmLookupResult.get(pmKey);
+
+          if (!lookup || lookup.id === 0) {
+            // Payment method NOT FOUND - mark as FAILED
+            const errorMsg = `Payment method "${firstLine.payment_method}" tidak ditemukan di database`;
+
+            failedRecords.push({
+              data: {
+                branch_name: firstLine.branch?.trim() || null,
+                source_type: "POS" as AggregatedTransactionSourceType,
+                source_id: posImportId,
+                source_ref: sourceRef,
+                transaction_date:
+                  firstLine.sales_date ||
+                  new Date().toISOString().split("T")[0],
+                payment_method_id: null, // Temporary, will be fixed during retry
+                gross_amount: grossAmount,
+                discount_amount: discountAmount + billDiscountAmount,
+                tax_amount: taxAmount,
+                service_charge_amount: serviceChargeAmount,
+                bill_after_discount: billAfterDiscount,
+                percentage_fee_amount: 0,
+                fixed_fee_amount: 0,
+                total_fee_amount: 0,
+                nett_amount: billAfterDiscount,
+                currency: "IDR",
+                journal_id: null,
+                is_reconciled: false,
+                status: "FAILED" as AggregatedTransactionStatus,
+                deleted_at: null,
+                deleted_by: null,
+                failed_at: new Date().toISOString(),
+                failed_reason: errorMsg,
+              },
+              error: errorMsg,
+            });
+            continue;
+          }
+          pmResult = lookup;
+        }
+
         // 🔥 CALCULATE FEE from payment method configuration
         // percentage_fee = bill_after_discount × fee_percentage / 100
         const percentageFeeAmount =
@@ -570,7 +569,7 @@ export async function generateAggregatedTransactionsOptimized(
         // Nett amount = bill after discount - total fee
         const nettAmount = billAfterDiscount - totalFeeAmount;
 
-        if (i % 500 === 0) {
+        if (i % 500 === 0 && !isTrueSplit) {
           logInfo("Fee calculated for transaction - sample", {
             source_ref: sourceRef,
             gross_amount: grossAmount,
@@ -585,8 +584,8 @@ export async function generateAggregatedTransactionsOptimized(
           });
         }
 
-        // Prepare insert data
-        const insertData = {
+        // Base insert data (used for single payment or split fallback)
+        const baseInsertData = {
           branch_name: firstLine.branch?.trim() || null,
           source_type: "POS" as AggregatedTransactionSourceType,
           source_id: posImportId,
@@ -613,7 +612,115 @@ export async function generateAggregatedTransactionsOptimized(
           failed_reason: null,
         };
 
-        insertDataArray.push({ data: insertData, sourceRef });
+        // ─────────────────────────────────────────────────────────────────
+        // POST-AGGREGATION SPLIT PAYMENT HANDLING
+        //
+        // Resolve split only AFTER we have the true billAfterDiscount.
+        // This prevents the mismatch where per-line ratios create systematic
+        // reconciliation gaps (e.g. 200k/500k × 60k = 24k instead of needed
+        // proportional allocation of the 464k aggregate).
+        // ─────────────────────────────────────────────────────────────────
+        const totalSplitPaymentAmount = splitParts.reduce(
+          (sum, s) => sum + s.amount,
+          0,
+        );
+
+        if (splitParts.length > 1 && totalSplitPaymentAmount > 0) {
+          // 🚨 Mismatch Checking Log
+          if (Math.abs(totalSplitPaymentAmount - billAfterDiscount) > 10000) {
+            logInfo(
+              "Split payment amount differs from aggregated sales. FCFS allocation logic applied.",
+              {
+                source_ref: sourceRef,
+                total_split_payment_amount: totalSplitPaymentAmount,
+                bill_after_discount: billAfterDiscount,
+                difference: Math.abs(
+                  totalSplitPaymentAmount - billAfterDiscount,
+                ),
+                raw_payment_method: rawPm,
+              },
+            );
+          }
+
+          // ✅ Apply FCFS (First-Come-First-Served) Split to Aggregated Sales
+          let remaining = billAfterDiscount;
+
+          for (let si = 0; si < splitParts.length; si++) {
+            const split = splitParts[si];
+            const splitPmKey = normalizePaymentMethodName(split.name);
+            const splitPmResult = pmLookupResult.get(splitPmKey);
+
+            const isLastSplit = si === splitParts.length - 1;
+
+            // FCFS: take up to split.amount, or ALL remaining if it's the last payment
+            const allocated = isLastSplit
+              ? remaining
+              : Math.min(split.amount, remaining);
+
+            remaining -= allocated;
+
+            // Ratio derived from the allocated FCFS result vs actual bill
+            // This ensures derived fields are perfectly consistent with the FCFS values
+            const actualRatio =
+              billAfterDiscount > 0 ? allocated / billAfterDiscount : 0;
+
+            // Recalculate fee for this split's allocated amount
+            const splitPmFeePerc = splitPmResult?.fee_percentage || 0;
+            const splitPmFeeFixed = splitPmResult?.fee_fixed_amount || 0;
+            const splitPmFeePerTxn =
+              splitPmResult?.fee_fixed_per_transaction || false;
+            const splitPctFee =
+              splitPmFeePerc > 0 ? allocated * (splitPmFeePerc / 100) : 0;
+            const splitFixedFee = splitPmFeePerTxn
+              ? transactionCount * splitPmFeeFixed
+              : splitPmFeeFixed;
+            const splitTotalFee = splitPctFee + splitFixedFee;
+
+            insertDataArray.push({
+              data: {
+                ...baseInsertData,
+                source_ref: `${sourceRef}-split${si + 1}`,
+                payment_method_id: splitPmResult?.id || null,
+                bill_after_discount: allocated,
+                percentage_fee_amount: splitPctFee,
+                fixed_fee_amount: splitFixedFee,
+                total_fee_amount: splitTotalFee,
+                nett_amount: allocated - splitTotalFee,
+                // For split rows: distribute gross/tax/service_charge using actual FCFS ratio
+                gross_amount: Math.round(grossAmount * actualRatio),
+                tax_amount: Math.round(taxAmount * actualRatio),
+                service_charge_amount: Math.round(
+                  serviceChargeAmount * actualRatio,
+                ),
+                discount_amount: Math.round(
+                  (discountAmount + billDiscountAmount) * actualRatio,
+                ),
+                status:
+                  splitPmResult && splitPmResult.id > 0
+                    ? ("READY" as AggregatedTransactionStatus)
+                    : ("FAILED" as AggregatedTransactionStatus),
+                failed_reason:
+                  splitPmResult && splitPmResult.id > 0
+                    ? null
+                    : `Split payment method "${split.name}" tidak ditemukan`,
+              },
+              sourceRef: `${sourceRef}-split${si + 1}`,
+            });
+          }
+
+          logInfo("Split payment allocated post-aggregation (FCFS)", {
+            source_ref: sourceRef,
+            bill_after_discount: billAfterDiscount,
+            total_split_amount: totalSplitPaymentAmount,
+            splits: splitParts.map((s) => ({
+              name: s.name,
+              amount: s.amount,
+            })),
+          });
+        } else {
+          // Single payment (or no valid split) → use as-is
+          insertDataArray.push({ data: baseInsertData, sourceRef });
+        }
       } catch (error) {
         logError("Failed to prepare transaction", {
           source_ref: sourceRef,
