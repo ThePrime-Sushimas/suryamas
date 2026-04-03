@@ -5,13 +5,13 @@
  */
 
 import { supabase } from '@/config/supabase'
-import { posImportsRepository } from '@/modules/pos-imports/pos-imports/pos-imports.repository'
-import { posImportLinesRepository } from '@/modules/pos-imports/pos-import-lines/pos-import-lines.repository'
+import { posImportsRepository } from '../../../modules/pos-imports/pos-imports/pos-imports.repository'
+import { posImportLinesRepository } from '../../../modules/pos-imports/pos-import-lines/pos-import-lines.repository'
 import { parseToLocalDate, parseToLocalDateTime } from '@/modules/pos-imports/shared/excel-date.util'
 import { logInfo, logError, logWarn } from '@/config/logger'
-import { jobsService, jobsRepository } from '@/modules/jobs'
+import { jobsService, jobsRepository } from '../../../modules/jobs'
 import { JobProcessor } from '../jobs.worker'
-import type { CreatePosImportLineDto } from '@/modules/pos-imports/pos-import-lines/pos-import-lines.types'
+import type { CreatePosImportLineDto } from '../../../modules/pos-imports/pos-import-lines/pos-import-lines.types'
 import type { PosTransactionsImportMetadata } from '../jobs.types'
 import { isPosTransactionsImportMetadata } from '../jobs.types'
 
