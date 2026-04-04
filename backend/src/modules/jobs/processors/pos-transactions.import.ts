@@ -195,7 +195,9 @@ async function processSingleChunk(
   userId: string,
   skipDuplicates: boolean,
   results: { created: number; skipped: number; failed: number; errors: string[] },
-  rowOffset: number
+  rowOffset: number,
+  processedBillKeys: Set<string>,
+  chunkIndex: number
 ): Promise<void> {
   if (chunkRows.length === 0) return
 
@@ -243,14 +245,33 @@ async function processSingleChunk(
         found.forEach(k => existingBillKeys.add(k))
       }
 
-      // Filter: skip semua baris dari bill yang sudah ada
+      // Filter: skip semua baris dari bill yang sudah ada di DB ATAU sudah diproses di chunk sebelumnya
       linesToInsert = chunkLines.filter(line => {
         if (!line.bill_number || !line.sales_date) return false
         const key = `${line.bill_number}|${line.sales_date}`
-        return !existingBillKeys.has(key)
+        
+        const inDb = existingBillKeys.has(key)
+        const inMemory = processedBillKeys.has(key)
+        
+        if (inDb || inMemory) {
+          logInfo('Duplicate source check', {
+            bill: key,
+            found_in_db: inDb,
+            found_in_memory: inMemory,
+            current_chunk: chunkIndex
+          })
+          return false
+        }
+        return true
       })
 
       chunkSkipped = chunkLines.length - linesToInsert.length
+
+      logInfo('FINAL CHECK', {
+        total: chunkLines.length,
+        willInsert: linesToInsert.length,
+        skipped: chunkSkipped,
+      })
 
       if (chunkSkipped > 0) {
         logInfo('Chunk duplicate check result', {
@@ -259,6 +280,21 @@ async function processSingleChunk(
           existing_bills: existingBillKeys.size,
           skipped_lines: chunkSkipped,
           will_insert: linesToInsert.length,
+        })
+
+        const skippedBills = chunkLines
+          .filter(line => {
+            if (!line.bill_number || !line.sales_date) return false
+            const key = `${line.bill_number}|${line.sales_date}`
+            return existingBillKeys.has(key)
+          })
+          .map(line => ({ bill_number: line.bill_number, sales_date: line.sales_date }))
+
+        const uniqueSkipped = [...new Map(skippedBills.map(b => [`${b.bill_number}|${b.sales_date}`, b])).values()]
+
+        logInfo('Skipped bills detail', {
+          pos_import_id: posImportId,
+          skipped_bills: uniqueSkipped
         })
       }
     } catch (dupError: any) {
@@ -286,6 +322,13 @@ async function processSingleChunk(
       if (linesToInsert.length > 0) {
         await posImportLinesRepository.bulkInsert(linesToInsert)
         chunkSuccess = linesToInsert.length
+        
+        // Track bills yang baru saja di-insert agar tidak dianggap duplikat di chunk berikutnya
+        linesToInsert.forEach(l => {
+          if (l.bill_number && l.sales_date) {
+            processedBillKeys.add(`${l.bill_number}|${l.sales_date}`)
+          }
+        })
       }
       inserted = true
     } catch (error: any) {
@@ -329,6 +372,9 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
     failed: 0,
     errors: [] as string[]
   }
+
+  // Track bills yang sudah diproses agar tidak duplikat antar chunk (Solusi 1)
+  const processedBillKeys = new Set<string>()
 
   let posImportId: string | null = null
   let importCompanyId: string | null = null
@@ -386,7 +432,7 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
       const singleRows = await retrieveTemporaryData(posImportId)
       results.total = singleRows.length  // ✅ Akurat
       await processSingleChunk(
-        singleRows, posImportId, jobId, userId, skipDuplicates, results, 0
+        singleRows, posImportId, jobId, userId, skipDuplicates, results, 0, processedBillKeys, 0
       )
     } else {
       logInfo('Found storage chunks for STREAM processing', { 
@@ -409,7 +455,7 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
         const rowCount = chunkRows.length  // Save sebelum diproses
 
         await processSingleChunk(
-          chunkRows, posImportId, jobId, userId, skipDuplicates, results, globalRowOffset
+          chunkRows, posImportId, jobId, userId, skipDuplicates, results, globalRowOffset, processedBillKeys, i
         )
 
         // Memory cleanup

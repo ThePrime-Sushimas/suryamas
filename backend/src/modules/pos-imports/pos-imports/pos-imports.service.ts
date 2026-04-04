@@ -479,14 +479,39 @@ class PosImportsService {
       return { total_chunks: 1, original_size_mb: parseFloat(originalSizeMB) }
     }
 
-    // CHUNK large files - ROWS based (safe JSON arrays)
+    // CHUNK large files - ROWS based (safe JSON arrays + RESPECT BILL BOUNDARIES)
     const ROWS_PER_CHUNK = 5000
-    const chunks: any[] = []
-    
-    for (let i = 0; i < rows.length; i += ROWS_PER_CHUNK) {
-      const chunkRows = rows.slice(i, i + ROWS_PER_CHUNK)
-      chunks.push(JSON.stringify(chunkRows))
+    const chunksRows: any[][] = []
+    let currentChunk: any[] = []
+
+    // Grouping by Bill Number + Sales Date
+    const groupedByBill = rows.reduce((acc, row) => {
+      const billNumber = String(row["Bill Number"] || '').trim()
+      const salesDate = parseToLocalDate(row["Sales Date"])
+      const key = `${billNumber}|${salesDate}`
+      
+      if (!acc[key]) acc[key] = []
+      acc[key].push(row)
+      return acc
+    }, {} as Record<string, any[]>)
+
+    // Build chunks respecting bill boundaries
+    Object.values(groupedByBill).forEach((billRows: any) => {
+      // Jika chunk sudah penuh, pindah ke chunk baru
+      // Terkecuali jika billRows sendiri lebih besar dari ROWS_PER_CHUNK, 
+      // maka dia akan masuk ke chunk sendiri
+      if (currentChunk.length > 0 && currentChunk.length + (billRows as any[]).length > ROWS_PER_CHUNK) {
+        chunksRows.push(currentChunk)
+        currentChunk = []
+      }
+      currentChunk.push(...(billRows as any[]))
+    })
+
+    if (currentChunk.length > 0) {
+      chunksRows.push(currentChunk)
     }
+
+    const chunks = chunksRows.map(c => JSON.stringify(c))
 
     // Upload each chunk
     let chunkIndex = 1
