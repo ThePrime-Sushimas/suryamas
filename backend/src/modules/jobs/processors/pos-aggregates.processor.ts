@@ -626,7 +626,14 @@ export async function generateAggregatedTransactionsOptimized(
         );
 
         if (splitParts.length > 1 && totalSplitPaymentAmount > 0) {
-          // 🚨 Mismatch Checking Log
+          // ✅ FIX: Scale split amounts by number of unique bills in this group
+          // Each bill has the same split string (e.g. "Deposit (100k), Cash (100k)")
+          // so the actual total payment = amount × bill count
+          const scaledSplitParts = splitParts.map(s => ({
+            ...s,
+            amount: s.amount * transactionCount  // transactionCount = uniqueBillNumbers.size (sudah dihitung di atas)
+          }))
+          const scaledTotalSplitAmount = scaledSplitParts.reduce((sum, s) => sum + s.amount, 0)
           if (Math.abs(totalSplitPaymentAmount - billAfterDiscount) > 10000) {
             logInfo(
               "Split payment amount differs from aggregated sales. FCFS allocation logic applied.",
@@ -645,9 +652,9 @@ export async function generateAggregatedTransactionsOptimized(
           // ✅ Apply FCFS (First-Come-First-Served) Split to Aggregated Sales
           let remaining = billAfterDiscount;
 
-          for (let si = 0; si < splitParts.length; si++) {
-            const split = splitParts[si];
-            const splitPmKey = normalizePaymentMethodName(split.name);
+          for (let si = 0; si < scaledSplitParts.length; si++) { 
+            const split = scaledSplitParts[si];                  
+                    const splitPmKey = normalizePaymentMethodName(split.name);
             const splitPmResult = pmLookupResult.get(splitPmKey);
 
             const isLastSplit = si === splitParts.length - 1;
@@ -711,8 +718,9 @@ export async function generateAggregatedTransactionsOptimized(
           logInfo("Split payment allocated post-aggregation (FCFS)", {
             source_ref: sourceRef,
             bill_after_discount: billAfterDiscount,
-            total_split_amount: totalSplitPaymentAmount,
-            splits: splitParts.map((s) => ({
+            bill_count: transactionCount,                    // ← tambah ini
+            total_split_amount: scaledTotalSplitAmount,      // ← ganti dari totalSplitPaymentAmount
+            splits: scaledSplitParts.map((s) => ({           // ← ganti dari splitParts
               name: s.name,
               amount: s.amount,
             })),
