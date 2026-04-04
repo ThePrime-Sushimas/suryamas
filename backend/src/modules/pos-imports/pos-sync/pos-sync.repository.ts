@@ -8,7 +8,7 @@ export const salesRepository = {
 
     const { error } = await supabase
       .from("tr_saleshead") // ✅ FIXED
-      .upsert(payload, { onConflict: "salesNum" }); // ✅ FIXED — PK di DDL adalah salesNum
+      .upsert(payload, { onConflict: "sales_num" }); // ✅ FIXED: camelCase → snake_case
 
     if (error) {
       console.error("❌ SUPABASE SALES ERROR:", error);
