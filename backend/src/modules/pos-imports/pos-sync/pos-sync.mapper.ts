@@ -1,4 +1,8 @@
-import { SaleInput, SaleItemInput, SalePaymentInput } from '../pos-sync/pos-sync.types'
+import {
+  SaleInput,
+  SaleItemInput,
+  SalePaymentInput,
+} from "../pos-sync/pos-sync.types";
 
 export const toSaleRow = (s: SaleInput) => ({
   sales_num: s.salesNum,
@@ -39,12 +43,12 @@ export const toSaleRow = (s: SaleInput) => ({
   remarks: s.remarks,
   promotion_id: s.promotionID,
   promotion_voucher_code: s.promotionVoucherCode,
-  flag_inclusive: Boolean(s.flagInclusive),
-  lock_table: Boolean(s.lockTable),
+  flag_inclusive: s.flagInclusive ? 1 : 0,
+  lock_table: s.lockTable ? 1 : 0,
   transaction_mode_id: s.transactionModeID,
   delivery_time: s.deliveryTime,
   external_membership_type_id: s.externalMembershipTypeID,
-  flag_external_api: Boolean(s.flagExternalAPI),
+  flag_external_api: s.flagExternalAPI ? 1 : 0,
   flag_external_member_id: s.flagExternalMemberID,
   flag_external_member_phone: s.flagExternalMemberPhone,
   flag_external_card_id: s.flagExternalCardID,
@@ -62,6 +66,7 @@ export const toSaleRow = (s: SaleInput) => ({
 
 export const toSaleItemRow = (i: SaleItemInput) => ({
   external_id: Number(i.ID),
+  local_id: i.localID ?? null, // ✅ ADDED
   sales_num: i.salesNum,
   batch_id: i.batchID,
   menu_ref_id: i.menuRefID,
@@ -90,7 +95,7 @@ export const toSaleItemRow = (i: SaleItemInput) => ({
   promotion_voucher_code: i.promotionVoucherCode,
   cancel_notes: i.cancelNotes,
   sales_type: i.salesType,
-  flag_pending: Boolean(i.flagPending),
+  flag_pending: Number(i.flagPending),
   created_by: i.createdBy,
   created_date: i.createdDate,
   edited_by: i.editedBy,
@@ -114,7 +119,7 @@ export const toSalePaymentRow = (p: SalePaymentInput) => ({
   edc_terminal_id: p.edcTerminalID,
   trace_number: p.traceNumber,
   canceled_verification_code: p.canceledVerificationCode,
-  flag_external_voucher_api: Boolean(p.flagExternalVoucherAPI),
+  flag_external_voucher_api: p.flagExternalVoucherAPI ? 1 : 0,
   external_voucher_code: p.externalVoucherCode,
   external_transaction_id: p.externalTransactionId,
   external_batch_number: p.externalBatchNumber,
