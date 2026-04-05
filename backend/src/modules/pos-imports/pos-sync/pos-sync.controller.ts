@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import { salesService } from "./pos-sync.service";
-import { ImportSalesPayload } from "./pos-sync.types";
+import { salesService, masterService } from "./pos-sync.service";
+import { ImportSalesPayload, ImportMasterPayload } from "./pos-sync.types";
 import { logWarn } from "../../../config/logger";
 
 export const salesController = {
@@ -28,6 +28,37 @@ export const salesController = {
         success: false,
         message: err?.message || "Internal Server Error",
       });
+    }
+  },
+};
+
+export const masterController = {
+  sync: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const payload = req.body as ImportMasterPayload
+
+      console.log(`📥 POS Master sync received:`, {
+        branches: payload.branches?.length ?? 0,
+        payment_methods: payload.payment_methods?.length ?? 0,
+        menu_categories: payload.menu_categories?.length ?? 0,
+        menu_groups: payload.menu_groups?.length ?? 0,
+        menus: payload.menus?.length ?? 0,
+      })
+
+      const result = await masterService.sync(payload)
+
+      res.json({
+        success: true,
+        data: result,
+      })
+    } catch (err: any) {
+      console.error('❌ POS Master sync error:', err)
+      logWarn('POS master sync failed', { error: err?.message, stack: err?.stack })
+
+      res.status(500).json({
+        success: false,
+        message: err?.message || 'Internal Server Error',
+      })
     }
   },
 };
