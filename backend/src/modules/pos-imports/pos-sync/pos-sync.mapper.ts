@@ -4,12 +4,17 @@ import {
   SalePaymentInput,
 } from "../pos-sync/pos-sync.types";
 
+const toDateString = (dateVal: string | null | undefined): string | null => {
+  if (!dateVal) return null;
+  return dateVal.split(" ")[0]; // ambil "2026-04-05" dari "2026-04-05 14:30:00"
+};
+
 export const toSaleRow = (s: SaleInput) => ({
   sales_num: s.salesNum,
   bill_num: s.billNum,
   book_num: s.bookNum,
   queue_num: s.queueNum,
-  sales_date: s.salesDate,
+  sales_date: toDateString(s.salesDateIn) ?? s.salesDate, // ← fix: pakai salesDateIn
   sales_date_in: s.salesDateIn,
   order_time_out: s.orderTimeOut,
   sales_date_out: s.salesDateOut,
@@ -23,20 +28,20 @@ export const toSaleRow = (s: SaleInput) => ({
   visit_purpose_id: s.visitPurposeID,
   visitor_type_id: s.visitorTypeID,
   pax_total: Number(s.paxTotal),
-  subtotal: Number(s.subtotal),
-  discount_total: Number(s.discountTotal),
-  menu_discount_total: Number(s.menuDiscountTotal),
-  promotion_discount: Number(s.promotionDiscount),
-  voucher_discount_total: Number(s.voucherDiscountTotal),
-  other_tax_total: Number(s.otherTaxTotal),
-  vat_total: Number(s.vatTotal),
-  other_vat_total: Number(s.otherVatTotal),
-  delivery_cost: Number(s.deliveryCost),
-  order_fee: Number(s.orderFee),
-  grand_total: Number(s.grandTotal),
-  voucher_total: Number(s.voucherTotal),
-  rounding_total: Number(s.roundingTotal),
-  payment_total: Number(s.paymentTotal),
+  subtotal: Math.round(Number(s.subtotal ?? 0)), // ← fix
+  discount_total: Math.round(Number(s.discountTotal ?? 0)), // ← fix
+  menu_discount_total: Math.round(Number(s.menuDiscountTotal ?? 0)),
+  promotion_discount: Math.round(Number(s.promotionDiscount ?? 0)),
+  voucher_discount_total: Math.round(Number(s.voucherDiscountTotal ?? 0)),
+  other_tax_total: Math.round(Number(s.otherTaxTotal ?? 0)), // ← fix
+  vat_total: Math.round(Number(s.vatTotal ?? 0)), // ← fix
+  other_vat_total: Math.round(Number(s.otherVatTotal ?? 0)),
+  delivery_cost: Math.round(Number(s.deliveryCost ?? 0)),
+  order_fee: Math.round(Number(s.orderFee ?? 0)),
+  grand_total: Math.round(Number(s.grandTotal ?? 0)), // ← fix
+  voucher_total: Math.round(Number(s.voucherTotal ?? 0)),
+  rounding_total: Math.round(Number(s.roundingTotal ?? 0)),
+  payment_total: Math.round(Number(s.paymentTotal ?? 0)),
   billing_print_count: Number(s.billingPrintCount),
   payment_print_count: Number(s.paymentPrintCount),
   additional_info: s.additionalInfo,
@@ -65,8 +70,9 @@ export const toSaleRow = (s: SaleInput) => ({
 });
 
 export const toSaleItemRow = (i: SaleItemInput) => ({
+  // item amounts tidak pecahan, biarkan as-is
   external_id: Number(i.ID),
-  local_id: i.localID ?? null, // ✅ ADDED
+  local_id: i.localID ?? null,
   sales_num: i.salesNum,
   batch_id: i.batchID,
   menu_ref_id: i.menuRefID,
@@ -126,7 +132,7 @@ export const toSalePaymentRow = (p: SalePaymentInput) => ({
   external_canceled_transaction_id: p.externalCanceledTransactionId,
   external_canceled_batch_number: p.externalCanceledBatchNumber,
   coa_no: p.coaNo,
-  payment_amount: Number(p.paymentAmount),
-  full_payment_amount: Number(p.fullPaymentAmount),
+  payment_amount: Math.round(Number(p.paymentAmount ?? 0)), // ← fix
+  full_payment_amount: Math.round(Number(p.fullPaymentAmount ?? 0)), // ← fix
   sync_date: p.syncDate,
 });

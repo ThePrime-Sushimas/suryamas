@@ -206,13 +206,20 @@ export async function processPosSyncAggregates(
     const { data: existingRows } = await supabase
       .from("pos_sync_aggregates")
       .select(
-        "id, status, recalculated_count, sales_date, branch_pos_id, payment_pos_id",
+        "id, status, recalculated_count, sales_date, branch_pos_id, payment_pos_id, grand_total, transaction_count, payment_method_id",
       )
       .in("sales_date", allDates);
 
     const existingMap = new Map<
       string,
-      { id: string; status: string; recalculated_count: number }
+      {
+        id: string;
+        status: string;
+        recalculated_count: number;
+        grand_total: number;
+        transaction_count: number;
+        payment_method_id: number | null;
+      }
     >();
     for (const row of existingRows ?? []) {
       const key = `${row.sales_date}|${row.branch_pos_id}|${row.payment_pos_id}`;
@@ -220,6 +227,9 @@ export async function processPosSyncAggregates(
         id: row.id,
         status: row.status,
         recalculated_count: row.recalculated_count ?? 0,
+        grand_total: Number(row.grand_total),
+        transaction_count: row.transaction_count,
+        payment_method_id: row.payment_method_id,
       });
     }
 
@@ -342,6 +352,16 @@ export async function processPosSyncAggregates(
           result.skipped++;
           logWarn("PosSyncAggregates: skip JOURNALED", { key });
         } else {
+          const dataChanged =
+            Math.abs(existing.grand_total - grand_total) > 0.5 ||
+            existing.transaction_count !== transaction_count ||
+            existing.payment_method_id !== payment_method_id;
+
+          if (!dataChanged) {
+            result.skipped++;
+            continue;
+          }
+
           toUpdate.push({
             id: existing.id,
             key, // ← key disimpan di sini
