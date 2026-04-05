@@ -20,15 +20,21 @@ export const salesRepository = {
 
   async upsertItems(items: SaleItemInput[]): Promise<void> {
     const payload = items.map(toSaleItemRow);
+    console.log(`📤 Upserting ${payload.length} items...`)
+    
+    // ✅ Log sample payload untuk cek field
+    console.log('📦 Sample item payload:', JSON.stringify(payload[0]))
 
-    const { error } = await supabase
-      .from("tr_salesmenu") // ✅ FIXED
-      .upsert(payload, { onConflict: "external_id" }); // ✅ external_id = ID dari MySQL
+    const { data, error } = await supabase
+      .from("tr_salesmenu")
+      .upsert(payload, { onConflict: "external_id" })
+      .select() // ✅ tambah .select() agar error lebih verbose
 
     if (error) {
-      console.error("❌ SUPABASE ITEMS ERROR:", error);
-      throw error;
+      console.error("❌ SUPABASE ITEMS ERROR:", JSON.stringify(error))
+      throw new Error(JSON.stringify(error)) // ✅ throw dengan detail
     }
+    console.log(`✅ Items upsert done: ${data?.length} rows`)
   },
 
   async upsertPayments(payments: SalePaymentInput[]): Promise<void> {
