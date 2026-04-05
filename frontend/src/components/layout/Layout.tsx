@@ -350,6 +350,13 @@ export default function Layout() {
                 module: "pos_imports",
               },
               {
+                id: "pos-sync-aggregates",
+                name: "POS Sync Aggregates",
+                href: "/pos-sync-aggregates",
+                icon: <FileSpreadsheet size={16} />,
+                module: "pos_imports",
+              },
+              {
                 id: "pos-aggregates",
                 name: "POS Aggregates",
                 href: "/pos-aggregates",

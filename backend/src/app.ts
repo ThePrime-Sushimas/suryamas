@@ -41,8 +41,9 @@ import { errorHandler } from "./middleware/error.middleware";
 import { requestLogger } from "./middleware/request-logger.middleware";
 import { generateOpenApiDocument } from "./config/openapi";
 import posSyncRoutes from "./modules/pos-imports/pos-sync/pos-sync.routes";
-const app = express();
+import posSyncAggregatesRoutes from "./modules/pos-imports/pos-sync-aggregates/pos-sync-aggregates.routes";
 
+const app = express();
 
 // Middleware
 app.use(helmet());
@@ -55,6 +56,8 @@ app.use(
 app.use(express.json());
 app.use(requestLogger);
 app.use("/api/v1/pos-sync", posSyncRoutes);
+app.use("/api/v1/pos-sync-aggregates", posSyncAggregatesRoutes);
+
 // Health check
 app.get("/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });

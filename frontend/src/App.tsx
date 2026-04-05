@@ -367,6 +367,13 @@ const MonitoringPage = lazy(() =>
   import("./features/monitoring").then((m) => ({ default: m.MonitoringPage })),
 );
 
+const PosSyncAggregatesPage = lazy(() =>
+  import('./features/pos-sync-aggregates').then(m => ({ default: m.PosSyncAggregatesPage }))
+)
+const PosSyncAggregateDetailPage = lazy(() =>
+  import('./features/pos-sync-aggregates').then(m => ({ default: m.PosSyncAggregateDetailPage }))
+)
+
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -1178,6 +1185,12 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
+                  <Route path="pos-sync-aggregates" element={
+                    <ProtectedRoute><Suspense fallback={<LoadingFallback />}><PosSyncAggregatesPage /></Suspense></ProtectedRoute>
+                  } />
+                  <Route path="pos-sync-aggregates/:id" element={
+                    <ProtectedRoute><Suspense fallback={<LoadingFallback />}><PosSyncAggregateDetailPage /></Suspense></ProtectedRoute>
+                  } />
                   <Route
                     path="pos-aggregates/create"
                     element={
