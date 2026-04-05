@@ -1,5 +1,5 @@
-import { salesRepository, masterRepository } from './pos-sync.repository'
-import { ImportSalesPayload, ImportSalesResult, ImportMasterPayload, ImportMasterResult } from './pos-sync.types'
+import { salesRepository, masterRepository, stagingRepository } from './pos-sync.repository'
+import { ImportSalesPayload, ImportSalesResult, ImportMasterPayload, ImportMasterResult, StagingTable, StagingListParams, StagingUpdatePayload } from './pos-sync.types'
 
 export const salesService = {
   import: async (payload: ImportSalesPayload): Promise<ImportSalesResult> => {
@@ -26,6 +26,16 @@ export const salesService = {
     }
   },
 };
+
+export const stagingService = {
+  list: (table: StagingTable, params: StagingListParams) => {
+    return stagingRepository.list(table, params)
+  },
+
+  update: (table: StagingTable, posId: number, payload: StagingUpdatePayload) => {
+    return stagingRepository.update(table, posId, payload)
+  },
+}
 
 export const masterService = {
   sync: async (payload: ImportMasterPayload): Promise<ImportMasterResult> => {

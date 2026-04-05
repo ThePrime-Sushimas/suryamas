@@ -1,6 +1,6 @@
 import { supabase } from "@/config/supabase";
 import { toSaleRow, toSaleItemRow, toSalePaymentRow } from "./pos-sync.mapper";
-import { SaleInput, SaleItemInput, SalePaymentInput, MasterBranchInput, MasterPaymentMethodInput, MasterMenuCategoryInput, MasterMenuGroupInput, MasterMenuInput } from "./pos-sync.types";
+import { SaleInput, SaleItemInput, SalePaymentInput, MasterBranchInput, MasterPaymentMethodInput, MasterMenuCategoryInput, MasterMenuGroupInput, MasterMenuInput, StagingTable, StagingListParams, StagingUpdatePayload } from "./pos-sync.types";
 
 export const salesRepository = {
   async upsertSales(sales: SaleInput[]): Promise<void> {
@@ -114,4 +114,50 @@ export const masterRepository = {
     console.log(`✅ Staging menus upsert done`)
   },
 };
+
+export const stagingRepository = {
+  async list(table: StagingTable, params: StagingListParams) {
+    const tableName = `pos_staging_${table}`
+    let query = supabase
+      .from(tableName)
+      .select('*', { count: 'exact' })
+
+    if (params.status) {
+      query = query.eq('status', params.status)
+    }
+
+    const { data, count, error } = await query
+      .order('created_at', { ascending: false })
+      .range((params.page! - 1) * params.limit!, params.page! * params.limit! - 1)
+
+    if (error) throw error
+    return { data, total: count || 0, page: params.page, limit: params.limit }
+  },
+
+  async update(table: StagingTable, posId: number, payload: StagingUpdatePayload) {
+    const tableName = `pos_staging_${table}`
+
+    // Build updateData — hanya field yang relevan per tabel
+    const updateData: Record<string, any> = { status: payload.status }
+
+    if (table === 'menus' && payload.mapped_product_id !== undefined) {
+      updateData.mapped_product_id = payload.mapped_product_id
+    } else if (
+      (table === 'branches' || table === 'payment_methods') &&
+      payload.mapped_id !== undefined
+    ) {
+      updateData.mapped_id = payload.mapped_id
+    }
+
+    const { data, error } = await supabase
+      .from(tableName)
+      .update(updateData)
+      .eq('pos_id', posId)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+}
 

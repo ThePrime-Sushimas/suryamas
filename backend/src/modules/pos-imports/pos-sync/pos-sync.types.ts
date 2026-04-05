@@ -208,3 +208,26 @@ export interface ImportMasterResult {
   menu_groups: number;
   menus: number;
 }
+
+// ===== STAGING TYPES =====
+
+export type StagingTable =
+  | 'branches'
+  | 'payment_methods'
+  | 'menu_categories'
+  | 'menu_groups'
+  | 'menus'
+
+export type StagingStatus = 'pending' | 'approved' | 'ignored'
+
+export interface StagingUpdatePayload {
+  status: StagingStatus
+  mapped_id?: string | number | null
+  mapped_product_id?: string | null
+}
+
+export interface StagingListParams {
+  status?: StagingStatus
+  page?: number
+  limit?: number
+}

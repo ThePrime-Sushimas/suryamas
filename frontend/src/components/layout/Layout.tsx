@@ -336,6 +336,13 @@ export default function Layout() {
                 module: "pos_imports",
               },
               {
+                id: "pos-staging",
+                name: "POS Staging",
+                href: "/pos-staging",
+                icon: <FileSpreadsheet size={16} />,
+                module: "pos_imports",
+              },
+              {
                 id: "pos-transactions",
                 name: "POS Transactions",
                 href: "/pos-transactions",

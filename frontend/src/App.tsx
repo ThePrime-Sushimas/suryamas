@@ -199,6 +199,9 @@ const PosTransactionsPage = lazy(() =>
     default: m.PosTransactionsPage,
   })),
 );
+const PosStagingPage = lazy(() =>
+  import("./features/pos-staging").then((m) => ({ default: m.PosStagingPage })),
+);
 const SuppliersPage = lazy(() =>
   import("./features/suppliers").then((m) => ({ default: m.SuppliersPage })),
 );
@@ -871,6 +874,16 @@ function App() {
                       <ProtectedRoute>
                         <Suspense fallback={<LoadingFallback />}>
                           <PosImportDetailPage />
+                        </Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="pos-staging"
+                    element={
+                      <ProtectedRoute>
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PosStagingPage />
                         </Suspense>
                       </ProtectedRoute>
                     }
