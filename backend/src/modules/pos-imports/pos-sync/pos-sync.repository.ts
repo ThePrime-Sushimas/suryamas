@@ -5,15 +5,17 @@ import { SaleInput, SaleItemInput, SalePaymentInput } from "./pos-sync.types";
 export const salesRepository = {
   async upsertSales(sales: SaleInput[]): Promise<void> {
     const payload = sales.map(toSaleRow);
+    console.log(`📤 Upserting ${payload.length} sales...`); // ✅
 
     const { error } = await supabase
       .from("tr_saleshead") // ✅ FIXED
       .upsert(payload, { onConflict: "sales_num" }); // ✅ FIXED: camelCase → snake_case
 
     if (error) {
-      console.error("❌ SUPABASE SALES ERROR:", error);
+      console.error("❌ SUPABASE SALES ERROR:", JSON.stringify(error)); // ✅ stringify
       throw error;
     }
+    console.log(`✅ Sales upsert done`); // ✅
   },
 
   async upsertItems(items: SaleItemInput[]): Promise<void> {
@@ -31,14 +33,16 @@ export const salesRepository = {
 
   async upsertPayments(payments: SalePaymentInput[]): Promise<void> {
     const payload = payments.map(toSalePaymentRow);
+    console.log(`📤 Upserting ${payload.length} payments...`); // ✅
 
     const { error } = await supabase
-      .from("tr_salespayment") // ✅ FIXED
-      .upsert(payload, { onConflict: "external_id" }); // ✅ external_id = ID dari MySQL
+      .from("tr_salespayment")
+      .upsert(payload, { onConflict: "external_id" });
 
     if (error) {
-      console.error("❌ SUPABASE PAYMENTS ERROR:", error);
+      console.error("❌ SUPABASE PAYMENTS ERROR:", JSON.stringify(error)); // ✅
       throw error;
     }
+    console.log(`✅ Payments upsert done`); // ✅
   },
 };
