@@ -320,40 +320,52 @@ export class BankReconciliationRepository {
    */
   async getAllBankAccounts(): Promise<any[]> {
     try {
-    const { data: activeIds, error: activeError } = await supabase
-      .from("bank_statements")
+      const { data: activeIds, error: activeError } = await supabase
+        .from("bank_statements")
         .select("bank_account_id")
-        .is("deleted_at", null)
-        
-      if (activeError) throw activeError
-      
-      const uniqueIds = [... new Set(
-      (activeIds || []).map(s => s.bank_account_id)
-      )]
+        .is("deleted_at", null);
+
+      if (activeError) throw activeError;
+
+      const uniqueIds = [
+        ...new Set((activeIds || []).map((s) => s.bank_account_id)),
+      ];
       if (uniqueIds.length === 0) {
         // Fallback: return semua akun jika belum ada statements sama sekali
         const { data } = await supabase
           .from("bank_accounts")
-          .select(`id, account_name, account_number, banks(bank_name, bank_code)`)
+          .select(
+            `id, account_name, account_number, banks(bank_name, bank_code)`,
+          )
           .is("deleted_at", null)
-          .order("account_name", { ascending: true })
-        
-        return (data || []).map(acc => ({ ...acc, stats: { total: 0, unreconciled: 0 } }))
-      }const { data, error } = await supabase
-      .from("bank_accounts")
-      .select(`id, account_name, account_number, banks(bank_name, bank_code)`)
-      .in("id", uniqueIds)           // ← filter hanya yang punya data
-      .is("deleted_at", null)
-      .order("account_name", { ascending: true })
+          .order("account_name", { ascending: true });
 
-    if (error) throw error
+        return (data || []).map((acc) => ({
+          ...acc,
+          stats: { total: 0, unreconciled: 0 },
+        }));
+      }
+      const { data, error } = await supabase
+        .from("bank_accounts")
+        .select(`id, account_name, account_number, banks(bank_name, bank_code)`)
+        .in("id", uniqueIds) // ← filter hanya yang punya data
+        .is("deleted_at", null)
+        .order("account_name", { ascending: true });
 
-    return (data || []).map(acc => ({ ...acc, stats: { total: 0, unreconciled: 0 } }))
-  } catch (error: any) {
-    logError("Error fetching all bank accounts", { error: error.message })
-    throw new DatabaseConnectionError("fetching all bank accounts", error.message)
+      if (error) throw error;
+
+      return (data || []).map((acc) => ({
+        ...acc,
+        stats: { total: 0, unreconciled: 0 },
+      }));
+    } catch (error: any) {
+      logError("Error fetching all bank accounts", { error: error.message });
+      throw new DatabaseConnectionError(
+        "fetching all bank accounts",
+        error.message,
+      );
+    }
   }
-}
 
   /**
    * Get list of bank accounts with reconciliation summaries for a period
@@ -562,7 +574,7 @@ export class BankReconciliationRepository {
       .select("bank_statements!inner(is_reconciled)")
       .eq("group_id", groupId)
       .eq("bank_statements.is_reconciled", true);
-  
+
     if (error) throw error;
     return data?.length ?? 0;
   }
@@ -660,21 +672,40 @@ export class BankReconciliationRepository {
       const updateData: any = {
         is_reconciled: false,
         reconciliation_id: null,
-        reconciliation_group_id: null,  // ← tambah ini
+        reconciliation_group_id: null,
+        pos_sync_aggregate_id: null,
         updated_at: new Date().toISOString(),
       };
 
-      if (userId) {
-        updateData.updated_by = userId;
-      }
+      if (userId) updateData.updated_by = userId;
 
       const { error } = await supabase
         .from("bank_statements")
         .update(updateData)
         .eq("id", statementId);
 
-      if (error) {
-        throw error;
+      if (error) throw error;
+
+      // ← TAMBAH INI: reset pos_sync_aggregates juga
+      const { error: posErr } = await supabase
+        .from("pos_sync_aggregates")
+        .update({
+          is_reconciled: false,
+          bank_statement_id: null,
+          actual_fee_amount: null,
+          fee_discrepancy: null,
+          fee_discrepancy_note: null,
+          reconciled_at: null,
+          reconciled_by: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("bank_statement_id", Number(statementId));
+
+      if (posErr) {
+        logError("Failed to reset pos_sync_aggregate", {
+          statementId,
+          error: posErr.message,
+        });
       }
     } catch (error: any) {
       logError("Error undoing reconciliation", {
@@ -869,6 +900,7 @@ export class BankReconciliationRepository {
         const updateData: any = {
           is_reconciled: false,
           reconciliation_group_id: null,
+          pos_sync_aggregate_id: null, // ← TAMBAH INI
           updated_at: new Date().toISOString(),
         };
 

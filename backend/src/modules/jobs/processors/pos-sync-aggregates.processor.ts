@@ -442,18 +442,27 @@ export async function processPosSyncAggregates(
         key: item.key,
       });
 
-      // Re-upsert lines — key sudah ada di item
+      // ← GANTI: delete dulu, baru insert fresh
       const lines = linesByKey.get(item.key) ?? [];
       if (lines.length > 0) {
+        // Hapus semua lines lama untuk aggregate ini
+        const { error: deleteErr } = await supabase
+          .from("pos_sync_aggregate_lines")
+          .delete()
+          .eq("aggregate_id", item.id);
+
+        if (deleteErr) {
+          logError("PosSyncAggregates: lines delete error", { deleteErr });
+          continue;
+        }
+
+        // Insert fresh
         const { error: lineErr } = await supabase
           .from("pos_sync_aggregate_lines")
-          .upsert(
-            lines.map((l) => ({ ...l, aggregate_id: item.id })),
-            { onConflict: "sales_num,payment_pos_id" },
-          );
+          .insert(lines.map((l) => ({ ...l, aggregate_id: item.id })));
 
         if (lineErr)
-          logError("PosSyncAggregates: lines update error", { lineErr });
+          logError("PosSyncAggregates: lines insert error", { lineErr });
       }
     }
 
