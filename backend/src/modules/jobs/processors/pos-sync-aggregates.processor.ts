@@ -9,6 +9,7 @@ export interface PosSyncAggregateResult {
   created: number;
   updated: number;
   skipped: number;
+  invalid: number;
   pending: number;
   failed: number;
   errors: Array<{ key: string; error: string }>;
@@ -83,6 +84,7 @@ export async function processPosSyncAggregates(
     updated: 0,
     skipped: 0,
     pending: 0,
+    invalid: 0,
     failed: 0,
     errors: [],
   };
@@ -254,8 +256,8 @@ export async function processPosSyncAggregates(
 
         // Status
         const mappingIncomplete = !branch_id || !payment_method_id;
-        const status = mappingIncomplete ? "PENDING" : "READY";
-        const skip_reason = mappingIncomplete
+        let status = mappingIncomplete ? "PENDING_MAPPING" : "READY";
+        let skip_reason = mappingIncomplete
           ? [
               !branch_id
                 ? `branch pos_id ${branch_pos_id} belum di-mapping`
@@ -278,7 +280,23 @@ export async function processPosSyncAggregates(
         );
         const grand_total = lines.reduce((s, l) => s + l.grand_total, 0);
         const payment_amount = lines.reduce((s, l) => s + l.payment_amount, 0);
-        const transaction_count = lines.length;
+
+        const uniqueSales = new Set(lines.map((l) => l.sales_num));
+        const transaction_count = uniqueSales.size;
+
+        const diff = Math.abs(grand_total - payment_amount);
+        if (diff > 1) {
+          logWarn("PosSyncAggregates: imbalance detected", {
+            key,
+            grand_total,
+            payment_amount,
+            diff,
+          });
+          status = "INVALID";
+          skip_reason = skip_reason
+            ? `${skip_reason}; imbalance detected (diff: ${diff})`
+            : `imbalance detected (diff: ${diff})`;
+        }
 
         // Fee calculation
         let fee_percentage = 0;
@@ -352,22 +370,28 @@ export async function processPosSyncAggregates(
           result.skipped++;
           logWarn("PosSyncAggregates: skip JOURNALED", { key });
         } else {
-          const dataChanged =
-            Math.abs(existing.grand_total - grand_total) > 0.5 ||
-            existing.transaction_count !== transaction_count ||
+          const amountChanged =
+            Math.abs(existing.grand_total - grand_total) > 0.01;
+          const countChanged = existing.transaction_count !== transaction_count;
+          const methodChanged =
             existing.payment_method_id !== payment_method_id;
+          const dataChanged = amountChanged || countChanged || methodChanged;
 
           if (!dataChanged) {
             result.skipped++;
             continue;
           }
 
+          const isStatusRecalculated = status === "READY";
+          const finalStatus = isStatusRecalculated ? "RECALCULATED" : status;
+
           toUpdate.push({
             id: existing.id,
-            key, // ← key disimpan di sini
+            key,
             recalculated_count: existing.recalculated_count,
             data: {
               ...aggregateData,
+              status: finalStatus,
               recalculated: true,
               recalculated_at: now,
               recalculated_count: existing.recalculated_count + 1,
@@ -375,7 +399,8 @@ export async function processPosSyncAggregates(
           });
         }
 
-        if (status === "PENDING") result.pending++;
+        if (status === "PENDING_MAPPING") result.pending++;
+        if (status === "INVALID") result.invalid++;
       } catch (err) {
         result.failed++;
         result.errors.push({
@@ -392,7 +417,9 @@ export async function processPosSyncAggregates(
 
       const { data: inserted, error } = await supabase
         .from("pos_sync_aggregates")
-        .insert(batch)
+        .upsert(batch, {
+          onConflict: "sales_date,branch_pos_id,payment_pos_id",
+        })
         .select("id, sales_date, branch_pos_id, payment_pos_id");
 
       if (error) {
@@ -415,7 +442,9 @@ export async function processPosSyncAggregates(
       if (linesBatch.length > 0) {
         const { error: lineErr } = await supabase
           .from("pos_sync_aggregate_lines")
-          .upsert(linesBatch, { onConflict: "sales_num,payment_pos_id" });
+          .upsert(linesBatch, {
+            onConflict: "aggregate_id,sales_num,payment_pos_id",
+          });
 
         if (lineErr)
           logError("PosSyncAggregates: lines insert error", { lineErr });
@@ -445,21 +474,38 @@ export async function processPosSyncAggregates(
       // ← GANTI: delete dulu, baru insert fresh
       const lines = linesByKey.get(item.key) ?? [];
       if (lines.length > 0) {
-        // Hapus semua lines lama untuk aggregate ini
-        const { error: deleteErr } = await supabase
+        // Hapus hanya lines yang tidak ada di data baru
+        const newSalesNums = lines.map((l) => l.sales_num);
+        const { data: existingLines, error: fetchErr } = await supabase
           .from("pos_sync_aggregate_lines")
-          .delete()
+          .select("sales_num")
           .eq("aggregate_id", item.id);
-
-        if (deleteErr) {
-          logError("PosSyncAggregates: lines delete error", { deleteErr });
+        if (fetchErr) {
+          logError("PosSyncAggregates: lines fetch error", { fetchErr });
           continue;
         }
+        const toDelete = (existingLines ?? [])
+          .map((l) => l.sales_num)
+          .filter((sn) => !newSalesNums.includes(sn));
+        if (toDelete.length > 0) {
+          const { error: deleteErr } = await supabase
+            .from("pos_sync_aggregate_lines")
+            .delete()
+            .eq("aggregate_id", item.id)
+            .in("sales_num", toDelete);
+          if (deleteErr) {
+            logError("PosSyncAggregates: lines delete error", { deleteErr });
+            continue;
+          }
+        }
 
-        // Insert fresh
+        // Upsert lines baru/berubah
         const { error: lineErr } = await supabase
           .from("pos_sync_aggregate_lines")
-          .insert(lines.map((l) => ({ ...l, aggregate_id: item.id })));
+          .upsert(
+            lines.map((l) => ({ ...l, aggregate_id: item.id })),
+            { onConflict: "aggregate_id,sales_num,payment_pos_id" },
+          );
 
         if (lineErr)
           logError("PosSyncAggregates: lines insert error", { lineErr });
