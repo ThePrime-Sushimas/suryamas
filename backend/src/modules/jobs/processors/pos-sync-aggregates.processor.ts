@@ -172,9 +172,34 @@ export async function processPosSyncAggregates(
     const groups = new Map<string, AggregateGroup>();
 
     for (const sale of salesRows as RawSaleRow[]) {
-      const payments = paymentIndex.get(sale.sales_num) ?? [];
+      const rawPayments = paymentIndex.get(sale.sales_num) ?? [];
 
-      for (const pay of payments) {
+      // Urutkan payment: pastikan CASH ada di akhir supaya bisa menyerap "kembalian"
+      const payments = [...rawPayments].sort((a, b) => {
+        const nameA = paymentStagingMap.get(a.payment_method_id)?.name?.toLowerCase() || '';
+        const nameB = paymentStagingMap.get(b.payment_method_id)?.name?.toLowerCase() || '';
+        const isCashA = nameA.includes('cash');
+        const isCashB = nameB.includes('cash');
+        return isCashA === isCashB ? 0 : isCashA ? 1 : -1;
+      });
+
+      let remainingGrandTotal = Number(sale.grand_total ?? 0);
+      const saleSubtotal = Number(sale.subtotal ?? 0);
+      const saleVat = Number(sale.vat_total ?? 0);
+      const saleDiscount = Number(sale.discount_total ?? 0);
+      const saleOtherTax = Number(sale.other_tax_total ?? 0);
+      const saleGrandTotal = Number(sale.grand_total ?? 0);
+
+      for (let i = 0; i < payments.length; i++) {
+        const pay = payments[i];
+        const isLast = i === payments.length - 1;
+
+        // FCFS allocation: kalau terakhir, sedot sisa tagihan. Kalau bukan, ambil sesuai payment (maks sisa tagihan)
+        const allocated = isLast ? remainingGrandTotal : Math.min(Number(pay.payment_amount ?? 0), remainingGrandTotal);
+        remainingGrandTotal -= allocated;
+
+        const ratio = saleGrandTotal > 0 ? allocated / saleGrandTotal : 0;
+
         const key = `${sale.sales_date}|${sale.branch_id}|${pay.payment_method_id}`;
 
         if (!groups.has(key)) {
@@ -188,12 +213,12 @@ export async function processPosSyncAggregates(
 
         groups.get(key)!.lines.push({
           sales_num: sale.sales_num,
-          subtotal: Number(sale.subtotal ?? 0),
-          discount_total: Number(sale.discount_total ?? 0),
-          other_tax_total: Number(sale.other_tax_total ?? 0),
-          vat_total: Number(sale.vat_total ?? 0),
-          grand_total: Number(sale.grand_total ?? 0),
-          payment_amount: Number(pay.payment_amount ?? 0),
+          subtotal: Math.round(saleSubtotal * ratio),
+          discount_total: Math.round(saleDiscount * ratio),
+          other_tax_total: Math.round(saleOtherTax * ratio),
+          vat_total: Math.round(saleVat * ratio),
+          grand_total: allocated,
+          payment_amount: allocated, // Simpan nilai payment efektif
         });
       }
     }
@@ -280,14 +305,7 @@ export async function processPosSyncAggregates(
           0,
         );
         const grand_total = lines.reduce((s, l) => s + l.grand_total, 0);
-        
-        // Untuk CASH, payment_amount seringkali lebih besar dari grand_total (karena kembalian).
-        // Kita hitung effective payment (jumlah yang masuk ke kas/bank) sebaga min(payment, grand_total)
-        // khusus untuk bill yang bersangkutan.
-        const payment_amount = lines.reduce((s, l) => {
-          const effective = isCash ? Math.min(l.payment_amount, l.grand_total) : l.payment_amount;
-          return s + effective;
-        }, 0);
+        const payment_amount = lines.reduce((s, l) => s + l.payment_amount, 0);
 
         const uniqueSales = new Set(lines.map((l) => l.sales_num));
         const transaction_count = uniqueSales.size;
@@ -365,7 +383,7 @@ export async function processPosSyncAggregates(
           other_tax_total: l.other_tax_total,
           vat_total: l.vat_total,
           grand_total: l.grand_total,
-          payment_amount: isCash ? Math.min(l.payment_amount, l.grand_total) : l.payment_amount,
+          payment_amount: l.payment_amount,
           created_at: now,
         }));
         linesByKey.set(key, preparedLines);
