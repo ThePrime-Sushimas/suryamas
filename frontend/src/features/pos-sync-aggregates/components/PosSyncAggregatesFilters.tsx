@@ -31,10 +31,10 @@ export const PosSyncAggregatesFilters: React.FC = () => {
   const { branches, fetchBranches } = useBranchesStore();
   const { paymentMethods, fetchPaymentMethods } = usePaymentMethodsStore();
 
-  const [selectedBranches, setSelectedBranches] = useState<string[]>(
-    Array.isArray(filter.branch_names) 
-      ? filter.branch_names 
-      : filter.branch_names ? (filter.branch_names as string).split(",") : []
+  const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>(
+    Array.isArray(filter.branch_ids) 
+      ? filter.branch_ids 
+      : filter.branch_ids ? (filter.branch_ids as string).split(",") : []
   );
   const [selectedPayments, setSelectedPayments] = useState<string[]>([]);
   const [showBranchDropdown, setShowBranchDropdown] = useState(false);
@@ -94,7 +94,7 @@ export const PosSyncAggregatesFilters: React.FC = () => {
         .map(String);
 
       setFilter({
-        branch_names: selectedBranches.length > 0 ? selectedBranches : undefined,
+        branch_ids: selectedBranchIds.length > 0 ? selectedBranchIds : undefined,
         payment_method_ids:
           selectedPaymentIds.length > 0 ? selectedPaymentIds : undefined,
       });
@@ -106,7 +106,7 @@ export const PosSyncAggregatesFilters: React.FC = () => {
   };
 
   const handleClearFilters = () => {
-    setSelectedBranches([]);
+    setSelectedBranchIds([]);
     setSelectedPayments([]);
     clearFilter();
   };
@@ -118,7 +118,7 @@ export const PosSyncAggregatesFilters: React.FC = () => {
     filter.has_journal !== undefined ||
     filter.date_from ||
     filter.date_to ||
-    selectedBranches.length > 0 ||
+    selectedBranchIds.length > 0 ||
     selectedPayments.length > 0;
 
   return (
@@ -207,9 +207,9 @@ export const PosSyncAggregatesFilters: React.FC = () => {
               className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-sm text-left flex items-center justify-between bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <span className="truncate">
-                {selectedBranches.length === 0
+                {selectedBranchIds.length === 0
                   ? "Semua Cabang"
-                  : `${selectedBranches.length} dipilih`}
+                  : `${selectedBranchIds.length} dipilih`}
               </span>
               <ChevronDown size={14} />
             </button>
@@ -222,12 +222,12 @@ export const PosSyncAggregatesFilters: React.FC = () => {
                   >
                     <input
                       type="checkbox"
-                      checked={selectedBranches.includes(b.branch_name)}
+                      checked={selectedBranchIds.includes(b.id)}
                       onChange={() => {
-                        setSelectedBranches((prev) =>
-                          prev.includes(b.branch_name)
-                            ? prev.filter((br) => br !== b.branch_name)
-                            : [...prev, b.branch_name]
+                        setSelectedBranchIds((prev) =>
+                          prev.includes(b.id)
+                            ? prev.filter((br) => br !== b.id)
+                            : [...prev, b.id]
                         );
                       }}
                       className="mr-2"

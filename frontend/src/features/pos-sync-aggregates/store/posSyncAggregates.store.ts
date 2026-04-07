@@ -10,10 +10,10 @@ const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
 const today = new Date().toISOString().split("T")[0];
 
 const initialFilter: ListAggregatesParams = {
-  date_from: weekAgo,
-  date_to: today,
+  date_from: undefined,
+  date_to: undefined,
   status: "",
-  branch_names: undefined,
+  branch_ids: undefined,
   payment_method_ids: undefined,
   is_reconciled: undefined,
   has_journal: undefined,

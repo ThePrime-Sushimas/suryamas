@@ -32,7 +32,7 @@ export default function PosSyncAggregatesPage() {
   } = usePosSyncAggregatesStore();
 
   useEffect(() => {
-    fetchTransactions(page, limit);
+    // User requested to not auto-trigger fetch on initial load
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -58,7 +58,7 @@ export interface ListAggregatesParams {
   date_from?: string;
   date_to?: string;
   branch_id?: string;
-  branch_names?: string;
+  branch_ids?: string;
   payment_method_id?: string;
   payment_method_ids?: string;
   status?: string;

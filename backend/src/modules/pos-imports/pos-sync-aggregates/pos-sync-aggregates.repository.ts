@@ -7,7 +7,7 @@ export const posSyncAggregatesRepository = {
       date_from,
       date_to,
       branch_id,
-      branch_names,
+      branch_ids,
       payment_method_id,
       payment_method_ids,
       status,
@@ -37,9 +37,9 @@ export const posSyncAggregatesRepository = {
     if (date_to) query = query.lte("sales_date", date_to);
     if (branch_id) query = query.eq("branch_id", branch_id);
     
-    if (branch_names) {
-      const names = branch_names.split(",");
-      query = query.in("branch_name", names);
+    if (branch_ids) {
+      const ids = branch_ids.split(",");
+      query = query.in("branch_id", ids);
     }
     
     if (payment_method_id) {

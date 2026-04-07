@@ -15,7 +15,7 @@ export const posSyncAggregatesController = {
         date_from: req.query.date_from as string,
         date_to: req.query.date_to as string,
         branch_id: req.query.branch_id as string,
-        branch_names: req.query.branch_names as string,
+        branch_ids: req.query.branch_ids as string,
         payment_method_id: req.query.payment_method_id as string,
         payment_method_ids: req.query.payment_method_ids as string,
         status: req.query.status as string,
