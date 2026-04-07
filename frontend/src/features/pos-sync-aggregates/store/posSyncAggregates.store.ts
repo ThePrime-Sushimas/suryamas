@@ -6,9 +6,6 @@ import type {
   ListAggregatesParams,
 } from "../types/pos-sync-aggregates.types";
 
-const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
-const today = new Date().toISOString().split("T")[0];
-
 const initialFilter: ListAggregatesParams = {
   date_from: undefined,
   date_to: undefined,
