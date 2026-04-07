@@ -1,18 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   RefreshCw,
   ChevronRight,
-  Filter,
-  X,
 } from "lucide-react";
-import { posSyncAggregatesApi } from "../api/pos-sync-aggregates.api";
-import type {
-  PosSyncAggregate,
-  AggregateStatus,
-  ListAggregatesParams,
-} from "../types/pos-sync-aggregates.types";
+import { usePosSyncAggregatesStore } from "../store/posSyncAggregates.store";
+import { PosSyncAggregatesFilters } from "../components/PosSyncAggregatesFilters";
+import type { AggregateStatus } from "../types/pos-sync-aggregates.types";
 
 const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(Number(n));
 
@@ -24,50 +19,24 @@ const STATUS_BADGE: Record<AggregateStatus, string> = {
   JOURNALED: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
 };
 
-const today = new Date().toISOString().split("T")[0];
-const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
-
 export default function PosSyncAggregatesPage() {
   const navigate = useNavigate();
-  const [rows, setRows] = useState<PosSyncAggregate[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [showFilters, setShowFilters] = useState(true);
-  const LIMIT = 50;
-
-  const [filters, setFilters] = useState<ListAggregatesParams>({
-    date_from: weekAgo,
-    date_to: today,
-    status: "",
-  });
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await posSyncAggregatesApi.list({
-        ...filters,
-        status: filters.status || undefined,
-        page,
-        limit: LIMIT,
-      });
-      setRows(res.data);
-      setTotal(res.total);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters, page]);
+  const {
+    transactions: rows,
+    total,
+    page,
+    limit,
+    isLoading: loading,
+    fetchTransactions,
+    setPage,
+  } = usePosSyncAggregatesStore();
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-  useEffect(() => {
-    setPage(1);
-  }, [filters]);
+    fetchTransactions(page, limit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const totalPages = Math.ceil(total / LIMIT);
+  const totalPages = Math.ceil(total / limit);
 
   // Summary dari rows yang ter-load
   const summary = rows.reduce(
@@ -95,7 +64,7 @@ export default function PosSyncAggregatesPage() {
           </p>
         </div>
         <button
-          onClick={fetchData}
+          onClick={() => fetchTransactions(page, limit)}
           className="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-300"
         >
           <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
@@ -147,73 +116,7 @@ export default function PosSyncAggregatesPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-4">
-        <div className="flex items-center justify-between mb-3">
-          <button
-            onClick={() => setShowFilters((f) => !f)}
-            className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-          >
-            <Filter size={15} />
-            {showFilters ? "Sembunyikan" : "Tampilkan"} Filter
-          </button>
-          {(filters.status ||
-            filters.date_from !== weekAgo ||
-            filters.date_to !== today) && (
-            <button
-              onClick={() =>
-                setFilters({ date_from: weekAgo, date_to: today, status: "" })
-              }
-              className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700"
-            >
-              <X size={12} /> Reset Filter
-            </button>
-          )}
-        </div>
-
-        {showFilters && (
-          <div className="flex flex-wrap gap-3">
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-gray-500 dark:text-gray-400">
-                Dari
-              </label>
-              <input
-                type="date"
-                value={filters.date_from}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, date_from: e.target.value }))
-                }
-                className="text-sm border dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-gray-500 dark:text-gray-400">
-                Sampai
-              </label>
-              <input
-                type="date"
-                value={filters.date_to}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, date_to: e.target.value }))
-                }
-                className="text-sm border dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white"
-              />
-            </div>
-            <select
-              value={filters.status}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, status: e.target.value }))
-              }
-              className="text-sm border dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white"
-            >
-              <option value="">Semua Status</option>
-              <option value="PENDING">Pending</option>
-              <option value="READY">Ready</option>
-              <option value="FAILED">Failed</option>
-              <option value="JOURNALED">Journaled</option>
-            </select>
-          </div>
-        )}
-      </div>
+      <PosSyncAggregatesFilters />
 
       {/* Table */}
       <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg overflow-hidden">
@@ -383,14 +286,14 @@ export default function PosSyncAggregatesPage() {
             </span>
             <div className="flex gap-2">
               <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() => setPage(Math.max(1, page - 1))}
                 disabled={page === 1}
                 className="px-3 py-1 text-sm border dark:border-gray-600 rounded disabled:opacity-40 dark:text-gray-300"
               >
                 ← Prev
               </button>
               <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
                 disabled={page === totalPages}
                 className="px-3 py-1 text-sm border dark:border-gray-600 rounded disabled:opacity-40 dark:text-gray-300"
               >

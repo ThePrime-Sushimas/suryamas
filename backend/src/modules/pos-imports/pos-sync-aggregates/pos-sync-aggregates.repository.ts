@@ -7,7 +7,13 @@ export const posSyncAggregatesRepository = {
       date_from,
       date_to,
       branch_id,
+      branch_names,
+      payment_method_id,
+      payment_method_ids,
       status,
+      is_reconciled,
+      has_journal,
+      search,
       page = 1,
       limit = 50,
     } = params;
@@ -30,7 +36,41 @@ export const posSyncAggregatesRepository = {
     if (date_from) query = query.gte("sales_date", date_from);
     if (date_to) query = query.lte("sales_date", date_to);
     if (branch_id) query = query.eq("branch_id", branch_id);
+    
+    if (branch_names) {
+      const names = branch_names.split(",");
+      query = query.in("branch_name", names);
+    }
+    
+    if (payment_method_id) {
+      query = query.eq("payment_method_id", payment_method_id);
+    }
+
+    if (payment_method_ids) {
+      const ids = payment_method_ids.split(",").map(Number);
+      query = query.in("payment_method_id", ids);
+    }
+
     if (status) query = query.eq("status", status);
+
+    if (is_reconciled !== undefined && is_reconciled !== "") {
+      const boolVal = is_reconciled === "true" || is_reconciled === true;
+      query = query.eq("is_reconciled", boolVal);
+    }
+
+    if (has_journal !== undefined && has_journal !== "") {
+      const boolVal = has_journal === "true" || has_journal === true;
+      if (boolVal) {
+        query = query.not("journal_id", "is", null);
+      } else {
+        query = query.is("journal_id", null);
+      }
+    }
+
+    if (search) {
+      // Basic search on branch name, or other fields if needed. Note: ilike is case insensitive
+      query = query.or(`branch_name.ilike.%${search}%,id.eq.${search}`);
+    }
 
     const { data, error, count } = await query;
     if (error) throw error;

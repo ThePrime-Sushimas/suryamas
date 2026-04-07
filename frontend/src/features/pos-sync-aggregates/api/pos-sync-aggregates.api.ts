@@ -15,7 +15,15 @@ interface ListResponse {
 
 export const posSyncAggregatesApi = {
   list: async (params?: ListAggregatesParams): Promise<ListResponse> => {
-    const res = await api.get("/pos-sync-aggregates", { params });
+    const formattedParams: Record<string, any> = { ...params };
+    if (params?.branch_names && Array.isArray(params.branch_names)) {
+      formattedParams.branch_names = params.branch_names.join(",");
+    }
+    if (params?.payment_method_ids && Array.isArray(params.payment_method_ids)) {
+      formattedParams.payment_method_ids = params.payment_method_ids.join(",");
+    }
+
+    const res = await api.get("/pos-sync-aggregates", { params: formattedParams });
     return res.data;
   },
 

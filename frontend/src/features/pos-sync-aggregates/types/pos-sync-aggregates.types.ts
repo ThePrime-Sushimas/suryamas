@@ -67,7 +67,13 @@ export interface ListAggregatesParams {
   date_from?: string;
   date_to?: string;
   branch_id?: string;
+  branch_names?: string | string[];
+  payment_method_id?: string;
+  payment_method_ids?: string | string[];
   status?: string;
+  is_reconciled?: boolean | string;
+  has_journal?: boolean | string;
+  search?: string;
   page?: number;
   limit?: number;
 }
