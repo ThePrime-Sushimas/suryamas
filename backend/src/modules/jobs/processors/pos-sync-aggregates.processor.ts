@@ -253,6 +253,7 @@ export async function processPosSyncAggregates(
         // Resolve payment method
         const stagingPm = paymentStagingMap.get(payment_pos_id);
         const payment_method_id = stagingPm?.mapped_id ?? null;
+        const isCash = stagingPm?.name?.toLowerCase().includes("cash") || false;
 
         // Status
         const mappingIncomplete = !branch_id || !payment_method_id;
@@ -279,7 +280,14 @@ export async function processPosSyncAggregates(
           0,
         );
         const grand_total = lines.reduce((s, l) => s + l.grand_total, 0);
-        const payment_amount = lines.reduce((s, l) => s + l.payment_amount, 0);
+        
+        // Untuk CASH, payment_amount seringkali lebih besar dari grand_total (karena kembalian).
+        // Kita hitung effective payment (jumlah yang masuk ke kas/bank) sebaga min(payment, grand_total)
+        // khusus untuk bill yang bersangkutan.
+        const payment_amount = lines.reduce((s, l) => {
+          const effective = isCash ? Math.min(l.payment_amount, l.grand_total) : l.payment_amount;
+          return s + effective;
+        }, 0);
 
         const uniqueSales = new Set(lines.map((l) => l.sales_num));
         const transaction_count = uniqueSales.size;
@@ -357,7 +365,7 @@ export async function processPosSyncAggregates(
           other_tax_total: l.other_tax_total,
           vat_total: l.vat_total,
           grand_total: l.grand_total,
-          payment_amount: l.payment_amount,
+          payment_amount: isCash ? Math.min(l.payment_amount, l.grand_total) : l.payment_amount,
           created_at: now,
         }));
         linesByKey.set(key, preparedLines);
@@ -415,15 +423,28 @@ export async function processPosSyncAggregates(
     for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
       const batch = toInsert.slice(i, i + BATCH_SIZE);
 
-      const { data: inserted, error } = await supabase
+      const { error } = await supabase
         .from("pos_sync_aggregates")
         .upsert(batch, {
           onConflict: "sales_date,branch_pos_id,payment_pos_id",
-        })
-        .select("id, sales_date, branch_pos_id, payment_pos_id");
+        });
 
       if (error) {
         logError("PosSyncAggregates: insert error", { error });
+        result.failed += batch.length;
+        continue;
+      }
+
+      // ← GANTI: fetch ulang setelah upsert untuk dapat id yang pasti
+      const { data: inserted, error: fetchErr } = await supabase
+        .from("pos_sync_aggregates")
+        .select("id, sales_date, branch_pos_id, payment_pos_id")
+        .in("sales_date", [...new Set(batch.map((b) => b.sales_date))])
+        .in("branch_pos_id", [...new Set(batch.map((b) => b.branch_pos_id))])
+        .in("payment_pos_id", [...new Set(batch.map((b) => b.payment_pos_id))]);
+
+      if (fetchErr) {
+        logError("PosSyncAggregates: fetch after upsert error", { fetchErr });
         result.failed += batch.length;
         continue;
       }
@@ -440,11 +461,17 @@ export async function processPosSyncAggregates(
       }
 
       if (linesBatch.length > 0) {
+        // Hapus lines lama dulu berdasarkan aggregate_id
+        const aggregateIds = [...new Set(linesBatch.map((l) => l.aggregate_id))];
+        await supabase
+          .from("pos_sync_aggregate_lines")
+          .delete()
+          .in("aggregate_id", aggregateIds);
+
+        // Insert fresh
         const { error: lineErr } = await supabase
           .from("pos_sync_aggregate_lines")
-          .upsert(linesBatch, {
-            onConflict: "aggregate_id,sales_num,payment_pos_id",
-          });
+          .insert(linesBatch);  // ← pakai insert biasa, bukan upsert
 
         if (lineErr)
           logError("PosSyncAggregates: lines insert error", { lineErr });
@@ -471,40 +498,20 @@ export async function processPosSyncAggregates(
         key: item.key,
       });
 
-      // ← GANTI: delete dulu, baru insert fresh
+      // ← GANTI: delete dulu, baru insert fresh (sama seperti Phase 7)
       const lines = linesByKey.get(item.key) ?? [];
       if (lines.length > 0) {
-        // Hapus hanya lines yang tidak ada di data baru
-        const newSalesNums = lines.map((l) => l.sales_num);
-        const { data: existingLines, error: fetchErr } = await supabase
+        // Hapus semua lines lama untuk aggregate ini
+        await supabase
           .from("pos_sync_aggregate_lines")
-          .select("sales_num")
+          .delete()
           .eq("aggregate_id", item.id);
-        if (fetchErr) {
-          logError("PosSyncAggregates: lines fetch error", { fetchErr });
-          continue;
-        }
-        const toDelete = (existingLines ?? [])
-          .map((l) => l.sales_num)
-          .filter((sn) => !newSalesNums.includes(sn));
-        if (toDelete.length > 0) {
-          const { error: deleteErr } = await supabase
-            .from("pos_sync_aggregate_lines")
-            .delete()
-            .eq("aggregate_id", item.id)
-            .in("sales_num", toDelete);
-          if (deleteErr) {
-            logError("PosSyncAggregates: lines delete error", { deleteErr });
-            continue;
-          }
-        }
 
-        // Upsert lines baru/berubah
+        // Insert fresh
         const { error: lineErr } = await supabase
           .from("pos_sync_aggregate_lines")
-          .upsert(
+          .insert(
             lines.map((l) => ({ ...l, aggregate_id: item.id })),
-            { onConflict: "aggregate_id,sales_num,payment_pos_id" },
           );
 
         if (lineErr)

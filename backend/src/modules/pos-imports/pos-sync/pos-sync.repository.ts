@@ -159,5 +159,20 @@ export const stagingRepository = {
     if (error) throw error
     return data
   }
-}
+};
+
+export const aggregateRepository = {
+  async getSalesNumsByDate(salesDate: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from("tr_saleshead")
+      .select("sales_num")
+      .eq("sales_date", salesDate);
+
+    if (error) throw error;
+    if (!data || data.length === 0) throw new Error(`No sales found for date ${salesDate}`);
+
+    return data.map((r) => r.sales_num);
+  },
+};
+
 

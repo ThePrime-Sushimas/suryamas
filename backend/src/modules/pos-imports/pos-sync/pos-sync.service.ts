@@ -2,6 +2,7 @@ import {
   salesRepository,
   masterRepository,
   stagingRepository,
+  aggregateRepository,
 } from "./pos-sync.repository";
 import {
   ImportSalesPayload,
@@ -14,6 +15,7 @@ import {
 } from "./pos-sync.types";
 import { processPosSyncAggregates } from "../../jobs/processors/pos-sync-aggregates.processor";
 import { logError } from "../../../config/logger";
+import { PosSyncAggregateResult } from "../../jobs/processors/pos-sync-aggregates.processor";
 
 export const salesService = {
   import: async (payload: ImportSalesPayload): Promise<ImportSalesResult> => {
@@ -107,3 +109,12 @@ export const masterService = {
     };
   },
 };
+
+export const aggregateService = {
+  recalculateByDate: async (salesDate: string): Promise<PosSyncAggregateResult> => {
+    const salesNums = await aggregateRepository.getSalesNumsByDate(salesDate);
+    console.log(`🔄 Recalculating ${salesDate}: ${salesNums.length} sales`);
+    return processPosSyncAggregates(salesNums);
+  },
+};
+

@@ -5,6 +5,7 @@ import {
   salesController,
   masterController,
   stagingController,
+  aggregateController,
 } from "./pos-sync.controller";
 import { processPosSyncAggregates } from "@/modules/jobs/processors/pos-sync-aggregates.processor";
 import { logError } from "../../../config/logger";
@@ -36,5 +37,7 @@ router.post("/reprocess-aggregates", authenticate, async (req, res) => {
     res.status(500).json({ success: false, message: err?.message });
   }
 });
+
+router.post("/recalculate", authenticate, aggregateController.recalculateByDate);
 
 export default router;

@@ -1,22 +1,22 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  AlertTriangle,
-  RefreshCw,
-  ChevronRight,
-} from "lucide-react";
+import { AlertTriangle, RefreshCw, ChevronRight } from "lucide-react";
 import { usePosSyncAggregatesStore } from "../store/posSyncAggregates.store";
 import { PosSyncAggregatesFilters } from "../components/PosSyncAggregatesFilters";
 import type { AggregateStatus } from "../types/pos-sync-aggregates.types";
-
+import { useState } from "react";
+import { posSyncAggregatesApi } from "../api/pos-sync-aggregates.api";
+import { Calculator } from "lucide-react"; // tambah import icon
 const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(Number(n));
 
 const STATUS_BADGE: Record<AggregateStatus, string> = {
-  PENDING:
-    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
+  PENDING: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
   READY: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
   FAILED: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
   JOURNALED: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  RECALCULATED: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  PENDING_MAPPING: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
+  INVALID: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",  // ← tambah
 };
 
 export default function PosSyncAggregatesPage() {
@@ -50,7 +50,24 @@ export default function PosSyncAggregatesPage() {
     },
     {} as Record<string, number>,
   );
+  const [recalcDate, setRecalcDate] = useState(
+    new Date().toISOString().split("T")[0], // default hari ini
+  );
+  const [isRecalculating, setIsRecalculating] = useState(false);
 
+  const handleRecalculate = async () => {
+    if (!recalcDate) return;
+    setIsRecalculating(true);
+    try {
+      await posSyncAggregatesApi.recalculateByDate(recalcDate);
+      alert(`✅ Recalculate ${recalcDate} selesai`);
+      fetchTransactions(page, limit); // refresh table
+    } catch (err: any) {
+      alert(`❌ Gagal: ${err?.response?.data?.message ?? err.message}`);
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
   return (
     <div className="p-6 space-y-4">
       {/* Header */}
@@ -63,13 +80,34 @@ export default function PosSyncAggregatesPage() {
             {total} records
           </p>
         </div>
-        <button
-          onClick={() => fetchTransactions(page, limit)}
-          className="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-300"
-        >
-          <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Recalculate */}
+          <input
+            type="date"
+            value={recalcDate}
+            onChange={(e) => setRecalcDate(e.target.value)}
+            className="px-2 py-2 text-sm border rounded-lg dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300"
+          />
+          <button
+            onClick={handleRecalculate}
+            disabled={isRecalculating}
+            className="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 dark:border-blue-700 dark:text-blue-300 disabled:opacity-50"
+          >
+            <Calculator
+              size={15}
+              className={isRecalculating ? "animate-spin" : ""}
+            />
+            {isRecalculating ? "Menghitung..." : "Recalculate"}
+          </button>
+          {/* Refresh */}
+          <button
+            onClick={() => fetchTransactions(page, limit)}
+            className="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-300"
+          >
+            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}

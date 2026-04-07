@@ -1,4 +1,11 @@
-export type AggregateStatus = "PENDING" | "READY" | "FAILED" | "JOURNALED";
+export type AggregateStatus = 
+  | "PENDING" 
+  | "READY" 
+  | "FAILED" 
+  | "JOURNALED" 
+  | "RECALCULATED" 
+  | "PENDING_MAPPING" 
+  | "INVALID";  // ← tambah
 
 export interface PaymentMethodInfo {
   id: number;

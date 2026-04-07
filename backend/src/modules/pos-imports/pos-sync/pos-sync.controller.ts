@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { salesService, masterService, stagingService } from "./pos-sync.service";
+import { salesService, masterService, stagingService, aggregateService } from "./pos-sync.service";
 import { ImportSalesPayload, ImportMasterPayload, StagingTable, StagingUpdatePayload } from "./pos-sync.types";
 import { logWarn } from "../../../config/logger";
 
@@ -119,4 +119,30 @@ export const stagingController = {
       res.status(500).json({ success: false, message: err?.message || 'Internal Server Error' })
     }
   },
-}
+};
+
+export const aggregateController = {
+  recalculateByDate: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { sales_date } = req.body;
+
+      if (!sales_date) {
+        res.status(400).json({ success: false, message: "sales_date required" });
+        return;
+      }
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(sales_date)) {
+        res.status(400).json({ success: false, message: "Format sales_date harus YYYY-MM-DD" });
+        return;
+      }
+
+      console.log(`🔄 Recalculate triggered for date: ${sales_date}`);
+      const result = await aggregateService.recalculateByDate(sales_date);
+      res.json({ success: true, data: result });
+    } catch (err: any) {
+      console.error("❌ Recalculate error:", err);
+      res.status(500).json({ success: false, message: err?.message || "Internal Server Error" });
+    }
+  },
+};
+
