@@ -33,12 +33,20 @@ export const salesService = {
     if (payments.length > 0) {
       await salesRepository.upsertPayments(payments);
     }
-    const salesNums = payload.sales?.map((s) => s.salesNum) ?? [];
-    if (salesNums.length > 0) {
-      processPosSyncAggregates(salesNums).catch((err) =>
-        logError("PosSyncAggregates trigger failed", { err }),
-      );
+
+    // ✅ Trigger per tanggal, bukan per salesNums batch
+    // Supaya kalkulasi selalu pakai semua transaksi di tanggal itu
+    if (sales.length > 0) {
+      const dates = [...new Set(sales.map((s) => s.salesDate))];
+      for (const date of dates) {
+        aggregateService
+          .recalculateByDate(date)
+          .catch((err) =>
+            logError("PosSyncAggregates trigger failed", { err, date }),
+          );
+      }
     }
+
     return {
       success: true,
       sales: sales.length,
@@ -111,10 +119,11 @@ export const masterService = {
 };
 
 export const aggregateService = {
-  recalculateByDate: async (salesDate: string): Promise<PosSyncAggregateResult> => {
+  recalculateByDate: async (
+    salesDate: string,
+  ): Promise<PosSyncAggregateResult> => {
     const salesNums = await aggregateRepository.getSalesNumsByDate(salesDate);
     console.log(`🔄 Recalculating ${salesDate}: ${salesNums.length} sales`);
     return processPosSyncAggregates(salesNums);
   },
 };
-
