@@ -1,21 +1,28 @@
 import { Router } from "express";
 import { authenticate } from "../../../middleware/auth.middleware";
+import { canView, canUpdate } from "../../../middleware/permission.middleware";
 import { posSyncAggregatesController } from "./pos-sync-aggregates.controller";
 
 const router = Router();
 
-router.get("/", authenticate, posSyncAggregatesController.list);
-router.get("/:id", authenticate, posSyncAggregatesController.getById);
-router.get("/:id/lines", authenticate, posSyncAggregatesController.getLines);
+// POS Sync Aggregates routes protected by pos_imports module permissions
+router.get("/", authenticate, canView('pos_imports'), posSyncAggregatesController.list);
+router.get("/:id", authenticate, canView('pos_imports'), posSyncAggregatesController.getById);
+router.get("/:id/lines", authenticate, canView('pos_imports'), posSyncAggregatesController.getLines);
+
 router.post(
   "/:id/reconcile",
   authenticate,
+  canUpdate('pos_imports'),
   posSyncAggregatesController.reconcile,
 );
+
 router.post(
   "/:id/undo-reconcile",
   authenticate,
+  canUpdate('pos_imports'),
   posSyncAggregatesController.undoReconcile,
 );
 
 export default router;
+
