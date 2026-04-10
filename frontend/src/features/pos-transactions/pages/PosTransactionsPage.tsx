@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
-import { Filter, X, Download, ChevronDown } from 'lucide-react'
+import { Filter, X, Download, ChevronDown, AlertCircle } from 'lucide-react'
 import { posTransactionsApi, type PosTransactionFilters } from '../api/pos-transactions.api'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useBranchesStore } from '@/features/branches/store/branches.store'
 import { usePaymentMethodsStore } from '@/features/payment-methods/store/paymentMethods.store'
+import { usePermission } from '@/features/branch_context/hooks/usePermission'
 import { useJobsStore } from '@/features/jobs'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { handleError } from '@/lib/errorParser'
@@ -47,6 +48,7 @@ const ErrorFallback = () => (
       <h2 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2">{MESSAGE_CONFIG.ERROR_TITLE}</h2>
       <p className="text-gray-600 dark:text-gray-400 mb-4">{MESSAGE_CONFIG.ERROR_MESSAGE}</p>
       <button
+        id="reload-page"
         onClick={() => window.location.reload()}
         className="px-4 py-2 bg-red-600 dark:bg-red-600 text-white rounded hover:bg-red-700 dark:hover:bg-red-700"
       >
@@ -103,6 +105,8 @@ export function PosTransactionsPage() {
 }
 
 function PosTransactionsContent() {
+  const { hasPermission, isLoaded } = usePermission('pos_imports', 'view')
+  
   const currentBranch = useBranchContextStore(s => s.currentBranch)
   const { branches, fetchBranches } = useBranchesStore()
   const { paymentMethods, fetchPaymentMethods } = usePaymentMethodsStore()
@@ -133,10 +137,10 @@ function PosTransactionsContent() {
 
   // Effect to fetch data when limit changes (without requiring Apply Filters)
   useEffect(() => {
-    if (hasAppliedFilters && currentBranch?.company_id) {
+    if (hasAppliedFilters && currentBranch?.company_id && hasPermission) {
       fetchTransactions(1)
     }
-  }, [pagination.limit])
+  }, [pagination.limit, hasPermission])
 
   // Click outside handler
   useEffect(() => {
@@ -153,15 +157,15 @@ function PosTransactionsContent() {
   }, [])
 
   useEffect(() => {
-    if (currentBranch?.company_id) {
+    if (currentBranch?.company_id && hasPermission) {
       fetchBranches(1, PAGINATION_CONFIG.BRANCHES_PAGE_SIZE)
       fetchPaymentMethods(1, PAGINATION_CONFIG.PAYMENT_METHODS_PAGE_SIZE)
       // Don't set default date - let user choose
     }
-  }, [currentBranch?.company_id, fetchBranches, fetchPaymentMethods])
+  }, [currentBranch?.company_id, fetchBranches, fetchPaymentMethods, hasPermission])
 
   const fetchTransactions = useCallback(async (pageOverride?: number) => {
-    if (!currentBranch?.company_id) return
+    if (!currentBranch?.company_id || !hasPermission) return
     
     const abortController = new AbortController()
     setLoading(true)
@@ -212,7 +216,7 @@ function PosTransactionsContent() {
     }
     
     return () => abortController.abort()
-  }, [currentBranch?.company_id, pagination.limit, filters, selectedBranches, selectedPayments])
+  }, [currentBranch?.company_id, pagination.limit, filters, selectedBranches, selectedPayments, hasPermission])
 
   const handleFilterChange = (key: keyof PosTransactionFilters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value || undefined }))
@@ -324,6 +328,20 @@ function PosTransactionsContent() {
     fetchTransactions(1)
   }
 
+  if (isLoaded && !hasPermission) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg flex items-center gap-3">
+          <AlertCircle size={20} />
+          <div>
+            <h3 className="font-semibold">Access Denied</h3>
+            <p className="text-sm">You do not have permission to view POS transaction data.</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (!currentBranch?.company_id) {
     return (
       <div className="p-6">
@@ -343,6 +361,7 @@ function PosTransactionsContent() {
         </div>
         <div className="flex gap-2">
           <button
+            id="export-transactions"
             onClick={handleExport}
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
             disabled={transactions.length === 0}
@@ -351,6 +370,7 @@ function PosTransactionsContent() {
             Export
           </button>
           <button
+            id="toggle-filters"
             onClick={() => setShowFilters(!showFilters)}
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
           >
@@ -409,16 +429,17 @@ function PosTransactionsContent() {
       {showFilters && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-700/50 p-4 space-y-4">
           <div className="flex gap-2">
-            <button onClick={() => setDatePreset(DATE_PRESETS.TODAY)} className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Today</button>
-            <button onClick={() => setDatePreset(DATE_PRESETS.WEEK)} className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">This Week</button>
-            <button onClick={() => setDatePreset(DATE_PRESETS.MONTH)} className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">This Month</button>
-            <button onClick={() => setDatePreset(DATE_PRESETS.LAST_MONTH)} className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Last Month</button>
+            <button id="preset-today" onClick={() => setDatePreset(DATE_PRESETS.TODAY)} className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Today</button>
+            <button id="preset-week" onClick={() => setDatePreset(DATE_PRESETS.WEEK)} className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">This Week</button>
+            <button id="preset-month" onClick={() => setDatePreset(DATE_PRESETS.MONTH)} className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">This Month</button>
+            <button id="preset-last-month" onClick={() => setDatePreset(DATE_PRESETS.LAST_MONTH)} className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Last Month</button>
           </div>
 
           <div className="grid grid-cols-4 gap-4">
             <div>
               <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Date From</label>
               <input
+                id="filter-date-from"
                 type="date"
                 value={filters.dateFrom || ''}
                 onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
@@ -428,6 +449,7 @@ function PosTransactionsContent() {
             <div>
               <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Date To</label>
               <input
+                id="filter-date-to"
                 type="date"
                 value={filters.dateTo || ''}
                 onChange={(e) => handleFilterChange('dateTo', e.target.value)}
@@ -438,6 +460,7 @@ function PosTransactionsContent() {
             {/* Branch Dropdown */}
             <div className="relative" ref={branchDropdownRef}>
               <button
+                id="toggle-branch-filter"
                 onClick={() => setShowBranchDropdown(!showBranchDropdown)}
                 className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
@@ -464,6 +487,7 @@ function PosTransactionsContent() {
             {/* Payment Method Dropdown */}
             <div className="relative" ref={paymentDropdownRef}>
               <button
+                id="toggle-payment-filter"
                 onClick={() => setShowPaymentDropdown(!showPaymentDropdown)}
                 className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
@@ -490,6 +514,7 @@ function PosTransactionsContent() {
 
           <div className="grid grid-cols-4 gap-4">
             <input
+              id="filter-sales-num"
               type="text"
               value={filters.salesNumber || ''}
               onChange={(e) => handleFilterChange('salesNumber', e.target.value)}
@@ -497,6 +522,7 @@ function PosTransactionsContent() {
               className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
             <input
+              id="filter-bill-num"
               type="text"
               value={filters.billNumber || ''}
               onChange={(e) => handleFilterChange('billNumber', e.target.value)}
@@ -504,6 +530,7 @@ function PosTransactionsContent() {
               className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
             <input
+              id="filter-menu-name"
               type="text"
               value={filters.menuName || ''}
               onChange={(e) => handleFilterChange('menuName', e.target.value)}
@@ -511,6 +538,7 @@ function PosTransactionsContent() {
               className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
             <input
+              id="filter-menu-category"
               type="text"
               value={filters.menuCategory || ''}
               onChange={(e) => handleFilterChange('menuCategory', e.target.value)}
@@ -521,6 +549,7 @@ function PosTransactionsContent() {
 
           <div className="flex gap-2 items-center">
             <button
+              id="apply-filters"
               onClick={handleApplyFilters}
               disabled={!isDateFilterValid}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
@@ -532,6 +561,7 @@ function PosTransactionsContent() {
               <span className="text-xs text-amber-600 dark:text-amber-500">* Select date range to apply filters</span>
             )}
             <button
+              id="clear-filters"
               onClick={handleClearFilters}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
             >
@@ -615,3 +645,4 @@ function PosTransactionsContent() {
     </div>
   )
 }
+

@@ -1,12 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, RefreshCw, ChevronRight } from "lucide-react";
+import { AlertTriangle, RefreshCw, ChevronRight, Calculator, AlertCircle } from "lucide-react";
 import { usePosSyncAggregatesStore } from "../store/posSyncAggregates.store";
 import { PosSyncAggregatesFilters } from "../components/PosSyncAggregatesFilters";
-import type { AggregateStatus } from "../types/pos-sync-aggregates.types";
-import { useState } from "react";
+import { usePermission } from "@/features/branch_context/hooks/usePermission";
 import { posSyncAggregatesApi } from "../api/pos-sync-aggregates.api";
-import { Calculator } from "lucide-react"; // tambah import icon
+import type { AggregateStatus } from "../types/pos-sync-aggregates.types";
+
 const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(Number(n));
 
 const STATUS_BADGE: Record<AggregateStatus, string> = {
@@ -16,10 +16,11 @@ const STATUS_BADGE: Record<AggregateStatus, string> = {
   JOURNALED: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   RECALCULATED: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
   PENDING_MAPPING: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
-  INVALID: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",  // ← tambah
+  INVALID: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
 export default function PosSyncAggregatesPage() {
+  const { hasPermission, isLoaded } = usePermission('pos_imports', 'view');
   const navigate = useNavigate();
   const {
     transactions: rows,
@@ -32,9 +33,11 @@ export default function PosSyncAggregatesPage() {
   } = usePosSyncAggregatesStore();
 
   useEffect(() => {
-    // User requested to not auto-trigger fetch on initial load
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // Initial fetch if permitted
+    if (isLoaded && hasPermission && rows.length === 0 && !loading) {
+      fetchTransactions(page, limit);
+    }
+  }, [isLoaded, hasPermission, fetchTransactions, page, limit]);
 
   const totalPages = Math.ceil(total / limit);
 
@@ -50,8 +53,9 @@ export default function PosSyncAggregatesPage() {
     },
     {} as Record<string, number>,
   );
+
   const [recalcDate, setRecalcDate] = useState(
-    new Date().toISOString().split("T")[0], // default hari ini
+    new Date().toISOString().split("T")[0],
   );
   const [isRecalculating, setIsRecalculating] = useState(false);
 
@@ -61,13 +65,28 @@ export default function PosSyncAggregatesPage() {
     try {
       await posSyncAggregatesApi.recalculateByDate(recalcDate);
       alert(`✅ Recalculate ${recalcDate} selesai`);
-      fetchTransactions(page, limit); // refresh table
+      fetchTransactions(page, limit);
     } catch (err: any) {
       alert(`❌ Gagal: ${err?.response?.data?.message ?? err.message}`);
     } finally {
       setIsRecalculating(false);
     }
   };
+
+  if (isLoaded && !hasPermission) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg flex items-center gap-3">
+          <AlertCircle size={20} />
+          <div>
+            <h3 className="font-semibold">Access Denied</h3>
+            <p className="text-sm">You do not have permission to view POS sync aggregates.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-4">
       {/* Header */}
@@ -83,12 +102,14 @@ export default function PosSyncAggregatesPage() {
         <div className="flex items-center gap-2">
           {/* Recalculate */}
           <input
+            id="recalc-date-input"
             type="date"
             value={recalcDate}
             onChange={(e) => setRecalcDate(e.target.value)}
             className="px-2 py-2 text-sm border rounded-lg dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300"
           />
           <button
+            id="btn-recalculate"
             onClick={handleRecalculate}
             disabled={isRecalculating}
             className="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 dark:border-blue-700 dark:text-blue-300 disabled:opacity-50"
@@ -101,6 +122,7 @@ export default function PosSyncAggregatesPage() {
           </button>
           {/* Refresh */}
           <button
+            id="btn-refresh-aggregates"
             onClick={() => fetchTransactions(page, limit)}
             className="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-300"
           >
@@ -114,34 +136,40 @@ export default function PosSyncAggregatesPage() {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
           {
+            id: "card-grand-total",
             label: "Grand Total",
             value: `Rp ${fmt(summary._grand_total ?? 0)}`,
             color: "text-gray-900 dark:text-white",
           },
           {
+            id: "card-total-fee",
             label: "Total Fee",
             value: `Rp ${fmt(summary._fee ?? 0)}`,
             color: "text-red-600 dark:text-red-400",
           },
           {
+            id: "card-nett-amount",
             label: "Nett Amount",
             value: `Rp ${fmt(summary._nett ?? 0)}`,
             color: "text-green-600 dark:text-green-400",
           },
           {
+            id: "card-pending",
             label: "Pending",
             value: `${summary.PENDING ?? 0} records`,
             color: "text-yellow-600 dark:text-yellow-400",
           },
           {
+            id: "card-reconciled",
             label: "Reconciled",
             value: `${summary._reconciled ?? 0} records`,
             color: "text-blue-600 dark:text-blue-400",
           },
         ].map((card) => (
           <div
+            id={card.id}
             key={card.label}
-            className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-3"
+            className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-3 transition-all hover:shadow-sm"
           >
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {card.label}
@@ -208,6 +236,7 @@ export default function PosSyncAggregatesPage() {
               ) : (
                 rows.map((row) => (
                   <tr
+                    id={`row-${row.id}`}
                     key={row.id}
                     onClick={() => navigate(`/pos-sync-aggregates/${row.id}`)}
                     className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
@@ -243,7 +272,6 @@ export default function PosSyncAggregatesPage() {
                     <td className="px-3 py-2.5 text-sm text-right text-green-600 dark:text-green-400 whitespace-nowrap font-medium">
                       Rp {fmt(row.nett_amount)}
                     </td>
-                    {/* Aktual Fee */}
                     <td className="px-3 py-2.5 text-sm text-right whitespace-nowrap">
                       {row.is_reconciled && row.actual_fee_amount != null ? (
                         <span className="text-gray-700 dark:text-gray-300">
@@ -255,7 +283,6 @@ export default function PosSyncAggregatesPage() {
                         </span>
                       )}
                     </td>
-                    {/* Selisih Fee */}
                     <td className="px-3 py-2.5 text-sm text-right whitespace-nowrap">
                       {row.is_reconciled && row.fee_discrepancy != null ? (
                         <span
@@ -294,7 +321,6 @@ export default function PosSyncAggregatesPage() {
                         </span>
                       )}
                     </td>
-                    {/* Rekon badge */}
                     <td className="px-3 py-2.5">
                       {row.is_reconciled ? (
                         <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
@@ -324,14 +350,16 @@ export default function PosSyncAggregatesPage() {
             </span>
             <div className="flex gap-2">
               <button
-                onClick={() => setPage(Math.max(1, page - 1))}
+                id="pagination-prev-aggregates"
+                onClick={(e) => { e.stopPropagation(); setPage(Math.max(1, page - 1)); }}
                 disabled={page === 1}
                 className="px-3 py-1 text-sm border dark:border-gray-600 rounded disabled:opacity-40 dark:text-gray-300"
               >
                 ← Prev
               </button>
               <button
-                onClick={() => setPage(Math.min(totalPages, page + 1))}
+                id="pagination-next-aggregates"
+                onClick={(e) => { e.stopPropagation(); setPage(Math.min(totalPages, page + 1)); }}
                 disabled={page === totalPages}
                 className="px-3 py-1 text-sm border dark:border-gray-600 rounded disabled:opacity-40 dark:text-gray-300"
               >
@@ -344,3 +372,4 @@ export default function PosSyncAggregatesPage() {
     </div>
   );
 }
+

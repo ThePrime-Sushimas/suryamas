@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { posStagingApi } from '../api/pos-staging.api'
 import { branchesApi } from '@/features/branches/api/branches.api'
 import { paymentMethodsApi } from '@/features/payment-methods/api/paymentMethods.api'
+import { usePermission } from '@/features/branch_context/hooks/usePermission'
+import { AlertCircle } from 'lucide-react'
 import type {
   StagingTable,
   StagingStatus,
@@ -53,6 +55,8 @@ function getRowName(table: StagingTable, row: StagingRow): string {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function PosStagingPage() {
+  const { hasPermission, isLoaded } = usePermission('pos_imports', 'view')
+  
   const [activeTable, setActiveTable] = useState<StagingTable>('branches')
   const [statusFilter, setStatusFilter] = useState<StagingStatus | ''>('pending')
   const [rows, setRows] = useState<StagingRow[]>([])
@@ -70,6 +74,7 @@ export default function PosStagingPage() {
 
   // ── Fetch staging rows ──────────────────────────────────────────────────
   const fetchRows = useCallback(async () => {
+    if (!hasPermission) return
     setLoading(true)
     try {
       const res = await posStagingApi.list(activeTable, {
@@ -84,11 +89,13 @@ export default function PosStagingPage() {
     } finally {
       setLoading(false)
     }
-  }, [activeTable, statusFilter, page])
+  }, [activeTable, statusFilter, page, hasPermission])
 
   useEffect(() => {
-    fetchRows()
-  }, [fetchRows])
+    if (isLoaded && hasPermission) {
+      fetchRows()
+    }
+  }, [fetchRows, isLoaded, hasPermission])
 
   // Reset page and mappingId on tab/filter change
   useEffect(() => {
@@ -98,17 +105,17 @@ export default function PosStagingPage() {
 
   // ── Fetch branches for mapping dropdown ────────────────────────────────
   useEffect(() => {
-    if (activeTable !== 'branches') return
+    if (!hasPermission || activeTable !== 'branches') return
     branchesApi.list(1, 200).then(res => setBranches(res.data)).catch(console.error)
-  }, [activeTable])
+  }, [activeTable, hasPermission])
 
   // ── Fetch payment methods for mapping dropdown ──────────────────────────
   useEffect(() => {
-    if (activeTable !== 'payment_methods') return
+    if (!hasPermission || activeTable !== 'payment_methods') return
     paymentMethodsApi.getOptions()
       .then(setPaymentMethodOptions)
       .catch(console.error)
-  }, [activeTable])
+  }, [activeTable, hasPermission])
 
   // ── Actions ────────────────────────────────────────────────────────────
   const handleAction = async (
@@ -150,6 +157,20 @@ export default function PosStagingPage() {
 
   const handleResetToPending = (row: StagingRow) => {
     handleAction(row.pos_id, 'pending')
+  }
+
+  if (isLoaded && !hasPermission) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg flex items-center gap-3">
+          <AlertCircle size={20} />
+          <div>
+            <h3 className="font-semibold">Access Denied</h3>
+            <p className="text-sm">You do not have permission to view POS staging data.</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // ── Columns per table ──────────────────────────────────────────────────
@@ -195,6 +216,7 @@ export default function PosStagingPage() {
         {isPending ? (
           <div className="flex gap-2">
             <button
+              id={`approve-${activeTable}-${posId}`}
               onClick={() => handleApprove(row)}
               disabled={isLoading}
               className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
@@ -202,6 +224,7 @@ export default function PosStagingPage() {
               Approve
             </button>
             <button
+              id={`ignore-${activeTable}-${posId}`}
               onClick={() => handleIgnore(row)}
               disabled={isLoading}
               className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500 disabled:opacity-50"
@@ -211,6 +234,7 @@ export default function PosStagingPage() {
           </div>
         ) : (
           <button
+            id={`reset-${activeTable}-${posId}`}
             onClick={() => handleResetToPending(row)}
             disabled={isLoading}
             className="px-2 py-1 text-xs border border-gray-300 text-gray-600 rounded hover:bg-gray-50 disabled:opacity-50"
@@ -230,6 +254,7 @@ export default function PosStagingPage() {
           <td className="px-3 py-2">
             {isPending ? (
               <select
+                id={`mapping-${activeTable}-${posId}`}
                 value={mappingId[posId] ?? ''}
                 onChange={e => setMappingId(prev => ({ ...prev, [posId]: e.target.value }))}
                 className="text-sm border rounded px-2 py-1 w-40"
@@ -258,6 +283,7 @@ export default function PosStagingPage() {
           <td className="px-3 py-2">
             {isPending ? (
               <select
+                id={`mapping-${activeTable}-${posId}`}
                 value={mappingId[posId] ?? ''}
                 onChange={e => setMappingId(prev => ({ ...prev, [posId]: e.target.value }))}
                 className="text-sm border rounded px-2 py-1 w-56"
@@ -327,6 +353,7 @@ export default function PosStagingPage() {
       <div className="flex gap-1 border-b mb-4">
         {TABLES.map(t => (
           <button
+            id={`tab-${t.key}`}
             key={t.key}
             onClick={() => setActiveTable(t.key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -345,6 +372,7 @@ export default function PosStagingPage() {
         <span className="text-sm text-gray-500">Status:</span>
         {STATUS_OPTIONS.map(s => (
           <button
+            id={`filter-status-${s.value || 'all'}`}
             key={s.value}
             onClick={() => setStatusFilter(s.value as StagingStatus | '')}
             className={`px-3 py-1 text-xs rounded-full border transition-colors ${
@@ -389,6 +417,7 @@ export default function PosStagingPage() {
       {totalPages > 1 && (
         <div className="flex items-center gap-3 mt-4">
           <button
+            id="pagination-prev"
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
             className="px-3 py-1 text-sm border rounded disabled:opacity-40"
@@ -399,6 +428,7 @@ export default function PosStagingPage() {
             Halaman {page} / {totalPages}
           </span>
           <button
+            id="pagination-next"
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
             className="px-3 py-1 text-sm border rounded disabled:opacity-40"
@@ -410,3 +440,4 @@ export default function PosStagingPage() {
     </div>
   )
 }
+

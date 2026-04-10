@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireApiKey } from "../../../middleware/api-key.middleware";
 import { authenticate } from "../../../middleware/auth.middleware";
+import { canView, canUpdate, canInsert } from "../../../middleware/permission.middleware";
 import {
   salesController,
   masterController,
@@ -14,11 +15,13 @@ const router = Router();
 
 router.post("/import", requireApiKey, salesController.import);
 router.post("/master", requireApiKey, masterController.sync);
-router.get("/staging/:table", authenticate, stagingController.list);
-router.patch("/staging/:table/:id", authenticate, stagingController.update);
+
+// Staging routes protected by pos_imports module permissions
+router.get("/staging/:table", authenticate, canView('pos_imports'), stagingController.list);
+router.patch("/staging/:table/:id", authenticate, canUpdate('pos_imports'), stagingController.update);
 
 // Manual reprocess — proses semua data di tr_saleshead
-router.post("/reprocess-aggregates", authenticate, async (req, res) => {
+router.post("/reprocess-aggregates", authenticate, canInsert('pos_imports'), async (req, res) => {
   try {
     console.log("🔄 Manual reprocess aggregates triggered");
     // Fire and forget — tidak block response
@@ -38,6 +41,7 @@ router.post("/reprocess-aggregates", authenticate, async (req, res) => {
   }
 });
 
-router.post("/recalculate", authenticate, aggregateController.recalculateByDate);
+router.post("/recalculate", authenticate, canUpdate('pos_imports'), aggregateController.recalculateByDate);
 
 export default router;
+
