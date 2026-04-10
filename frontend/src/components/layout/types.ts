@@ -10,3 +10,14 @@ export interface MenuItem {
   badge?: number;
   module?: string;
 }
+
+export type PermissionMap = Record<
+  string,
+  {
+    view?: boolean;
+    create?: boolean;
+    update?: boolean;
+    delete?: boolean;
+  }
+>;
+
