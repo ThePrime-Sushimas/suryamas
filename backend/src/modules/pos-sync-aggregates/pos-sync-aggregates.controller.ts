@@ -5,8 +5,8 @@ import {
   ReconcilePosSyncAggregateDto,
 } from "./pos-sync-aggregates.types";
 import { supabase } from "@/config/supabase";
-import { marketingFeeService } from "../../reconciliation/fee-reconciliation/marketing-fee.service";
-import { logError, logInfo } from "../../../config/logger";
+import { marketingFeeService } from "../reconciliation/fee-reconciliation/marketing-fee.service";
+import { logError, logInfo } from "../../config/logger";
 
 export const posSyncAggregatesController = {
   list: async (req: Request, res: Response): Promise<void> => {

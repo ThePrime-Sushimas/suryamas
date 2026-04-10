@@ -41,7 +41,7 @@ import { errorHandler } from "./middleware/error.middleware";
 import { requestLogger } from "./middleware/request-logger.middleware";
 import { generateOpenApiDocument } from "./config/openapi";
 import posSyncRoutes from "./modules/pos-imports/pos-sync/pos-sync.routes";
-import posSyncAggregatesRoutes from "./modules/pos-imports/pos-sync-aggregates/pos-sync-aggregates.routes";
+import posSyncAggregatesRoutes from "./modules/pos-sync-aggregates/pos-sync-aggregates.routes";
 
 const app = express();
 
@@ -149,6 +149,7 @@ const registerModules = async () => {
     await PermissionService.registerModule("accounting_purposes", "Accounting Purposes");
     await PermissionService.registerModule("accounting_purpose_accounts", "Accounting Purpose Mappings");
     await PermissionService.registerModule("pos_imports", "POS Imports & Staging Management");
+    await PermissionService.registerModule("pos_sync_aggregates", "POS Sync Aggregates Management");
     await PermissionService.registerModule("pos_aggregates", "POS Aggregates Management");
     
     // Register reconciliation & monitoring
