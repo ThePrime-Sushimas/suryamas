@@ -75,7 +75,7 @@ router.get('/search', canView('products'), queryMiddleware({
 router.get('/filter-options', canView('products'), (req, res) => 
   productsController.getFilterOptions(req as AuthenticatedQueryRequest, res))
 
-router.get('/minimal/active', authenticate, (req, res) => 
+router.get('/minimal/active', authenticate, canView('products'), (req, res) => 
   productsController.minimalActive(req as AuthenticatedQueryRequest, res))
 
 router.get('/check/name', canView('products'), validateSchema(checkProductNameSchema), (req, res) => 

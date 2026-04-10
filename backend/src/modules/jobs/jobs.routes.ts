@@ -33,14 +33,19 @@ const createJobRateLimiter = rateLimit({
 })
 
 // All routes require authentication and branch context
-router.use(authenticate)
-router.use(resolveBranchContext)
+router.use(authenticate, resolveBranchContext)
 
 // Get recent jobs (last 10)
-router.get('/recent', jobsController.getRecentJobs.bind(jobsController))
+router.get('/recent', 
+  canView('jobs'),
+  jobsController.getRecentJobs.bind(jobsController)
+)
 
 // Get available modules for a job type
-router.get('/modules', jobsController.getAvailableModules.bind(jobsController))
+router.get('/modules', 
+  canView('jobs'),
+  jobsController.getAvailableModules.bind(jobsController)
+)
 
 // Get job by ID (requires jobs view permission)
 router.get('/:id', 
@@ -50,7 +55,6 @@ router.get('/:id',
 )
 
 // Create a new job (requires insert permission)
-// Use createJobFullSchema to accept optional user_id/company_id from frontend
 router.post('/',
   canInsert('jobs'),
   validateSchema(createJobFullSchema),
@@ -66,16 +70,19 @@ router.post('/:id/upload',
   jobsController.uploadJobFile.bind(jobsController)
 )
 
-// Cancel job
+// Cancel job (requires update permission)
 router.post('/:id/cancel',
+  canUpdate('jobs'),
   validateSchema(cancelJobSchema),
   jobsController.cancelJob.bind(jobsController)
 )
 
-// Clear all completed jobs
+// Clear all completed jobs (requires delete permission)
 router.post('/clear-all',
+  canDelete('jobs'),
   jobsController.clearAllJobs.bind(jobsController)
 )
+
 
 export default router
 

@@ -2,12 +2,12 @@ import { Router } from 'express'
 import { journalLinesController } from './journal-lines.controller'
 import { authenticate } from '../../../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../../../middleware/branch-context.middleware'
+import { canView } from '../../../../middleware/permission.middleware'
 
 const router = Router()
 
 // Semua route butuh authentication + branch context
-router.use(authenticate)
-router.use(resolveBranchContext)
+router.use(authenticate, resolveBranchContext)
 
 /**
  * GET /api/v1/accounting/journals/:journalId/lines
@@ -15,6 +15,7 @@ router.use(resolveBranchContext)
  */
 router.get(
   '/journals/:journalId/lines',
+  canView('journals'),
   (req, res) => journalLinesController.listByJournal(req as any, res)
 )
 
@@ -24,6 +25,7 @@ router.get(
  */
 router.get(
   '/journals/:journalId/lines/:id',
+  canView('journals'),
   (req, res) => journalLinesController.getById(req as any, res)
 )
 
@@ -33,6 +35,7 @@ router.get(
  */
 router.get(
   '/by-account/:accountId',
+  canView('journals'),
   (req, res) => journalLinesController.getByAccount(req as any, res)
 )
 
@@ -42,7 +45,9 @@ router.get(
  */
 router.get(
   '/',
+  canView('journals'),
   (req, res) => journalLinesController.list(req as any, res)
 )
 
 export default router
+

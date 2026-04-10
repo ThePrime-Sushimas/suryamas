@@ -23,7 +23,7 @@ router.get('/', canView('payment_terms'), queryMiddleware({
 }), (req, res) =>
   paymentTermsController.list(req as AuthenticatedQueryRequest, res))
 
-router.get('/minimal/active', authenticate, (req, res) =>
+router.get('/minimal/active', authenticate, canView('payment_terms'), (req, res) =>
   paymentTermsController.minimalActive(req as AuthenticatedRequest, res))
 
 router.get('/:id', canView('payment_terms'), validateSchema(paymentTermIdSchema), (req, res) =>
