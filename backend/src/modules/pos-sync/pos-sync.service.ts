@@ -13,9 +13,9 @@ import {
   StagingListParams,
   StagingUpdatePayload,
 } from "./pos-sync.types";
-import { processPosSyncAggregates } from "../../jobs/processors/pos-sync-aggregates.processor";
-import { logError } from "../../../config/logger";
-import { PosSyncAggregateResult } from "../../jobs/processors/pos-sync-aggregates.processor";
+import { processPosSyncAggregates } from "../jobs/processors/pos-sync-aggregates.processor";
+import { logError } from "../../config/logger";
+import { PosSyncAggregateResult } from "../jobs/processors/pos-sync-aggregates.processor";
 
 export const salesService = {
   import: async (payload: ImportSalesPayload): Promise<ImportSalesResult> => {

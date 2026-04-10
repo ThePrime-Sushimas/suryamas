@@ -40,7 +40,7 @@ import { setupSettlementGroupModule } from "./modules/reconciliation/bank-settle
 import { errorHandler } from "./middleware/error.middleware";
 import { requestLogger } from "./middleware/request-logger.middleware";
 import { generateOpenApiDocument } from "./config/openapi";
-import posSyncRoutes from "./modules/pos-imports/pos-sync/pos-sync.routes";
+import posSyncRoutes from "./modules/pos-sync/pos-sync.routes";
 import posSyncAggregatesRoutes from "./modules/pos-sync-aggregates/pos-sync-aggregates.routes";
 
 const app = express();
@@ -55,8 +55,6 @@ app.use(
 );
 app.use(express.json());
 app.use(requestLogger);
-app.use("/api/v1/pos-sync", posSyncRoutes);
-app.use("/api/v1/pos-sync-aggregates", posSyncAggregatesRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
@@ -103,6 +101,8 @@ app.use("/api/v1/accounting-purpose-accounts", accountingPurposeAccountsRoutes);
 app.use("/api/v1/accounting/fiscal-periods", fiscalPeriodsRoutes);
 app.use("/api/v1/accounting/journals", journalHeadersRoutes);
 app.use("/api/v1/accounting/journal-lines", journalLinesRoutes);
+app.use("/api/v1/pos-sync", posSyncRoutes);
+app.use("/api/v1/pos-sync-aggregates", posSyncAggregatesRoutes);
 app.use("/api/v1/pos-imports", posImportsRoutes);
 app.use("/api/v1/aggregated-transactions", posAggregatesRoutes);
 app.use("/api/v1/pos-transactions", posTransactionsRoutes);
@@ -148,9 +148,11 @@ const registerModules = async () => {
     await PermissionService.registerModule("fiscal_periods", "Fiscal Periods Management");
     await PermissionService.registerModule("accounting_purposes", "Accounting Purposes");
     await PermissionService.registerModule("accounting_purpose_accounts", "Accounting Purpose Mappings");
-    await PermissionService.registerModule("pos_imports", "POS Imports & Staging Management");
+    await PermissionService.registerModule("pos_sync", "POS Sync & Staging Management");
     await PermissionService.registerModule("pos_sync_aggregates", "POS Sync Aggregates Management");
+    await PermissionService.registerModule("pos_imports", "POS Imports");
     await PermissionService.registerModule("pos_aggregates", "POS Aggregates Management");
+
     
     // Register reconciliation & monitoring
     await PermissionService.registerModule("bank_reconciliation", "Bank Reconciliation");

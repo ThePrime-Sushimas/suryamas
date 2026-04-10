@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { salesService, masterService, stagingService, aggregateService } from "./pos-sync.service";
 import { ImportSalesPayload, ImportMasterPayload, StagingTable, StagingUpdatePayload } from "./pos-sync.types";
-import { logWarn } from "../../../config/logger";
+import { logWarn } from "../../config/logger";
 
 export const salesController = {
   import: async (req: Request, res: Response): Promise<void> => {

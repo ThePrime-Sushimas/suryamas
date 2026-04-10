@@ -2,7 +2,7 @@ import {
   SaleInput,
   SaleItemInput,
   SalePaymentInput,
-} from "../pos-sync/pos-sync.types";
+} from "./pos-sync.types";
 
 const toDateString = (dateVal: string | null | undefined): string | null => {
   if (!dateVal) return null;

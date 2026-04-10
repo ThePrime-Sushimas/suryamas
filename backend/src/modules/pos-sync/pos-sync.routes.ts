@@ -1,12 +1,12 @@
 import { Router } from "express";
-import { requireApiKey } from "../../../middleware/api-key.middleware";
-import { authenticate } from "../../../middleware/auth.middleware";
+import { requireApiKey } from "../../middleware/api-key.middleware";
+import { authenticate } from "../../middleware/auth.middleware";
 import {
   canView,
   canUpdate,
   canInsert,
-} from "../../../middleware/permission.middleware";
-import { PermissionService } from "../../../services/permission.service";
+} from "../../middleware/permission.middleware";
+import { PermissionService } from "../../services/permission.service";
 import {
   salesController,
   masterController,
@@ -14,35 +14,35 @@ import {
   aggregateController,
 } from "./pos-sync.controller";
 import { processPosSyncAggregates } from "@/modules/jobs/processors/pos-sync-aggregates.processor";
-import { logError } from "../../../config/logger";
+import { logError } from "../../config/logger";
 import { resolveBranchContext } from "@/middleware/branch-context.middleware";
 
 const router = Router();
 
 // Register module permissions
 PermissionService.registerModule(
-  "pos_imports",
-  "POS Imports & Staging Management",
+  "pos_sync",
+  "POS Sync & Staging Management",
 ).catch((error) => {
-  console.error("Failed to register pos_imports module:", error.message);
+  console.error("Failed to register pos_sync module:", error.message);
 });
 
 router.post("/import", requireApiKey, salesController.import);
 router.post("/master", requireApiKey, masterController.sync);
 
-// Staging routes protected by pos_imports module permissions
+// Staging routes protected by pos_sync module permissions
 router.get(
   "/staging/:table",
   authenticate,
   resolveBranchContext,
-  canView("pos_imports"),
+  canView("pos_sync"),
   stagingController.list,
 );
 router.patch(
   "/staging/:table/:id",
   authenticate,
   resolveBranchContext,
-  canUpdate("pos_imports"),
+  canUpdate("pos_sync"),
   stagingController.update,
 );
 
@@ -51,7 +51,7 @@ router.post(
   "/reprocess-aggregates",
   authenticate,
   resolveBranchContext,
-  canInsert("pos_imports"),
+  canInsert("pos_sync"),
   async (req, res) => {
     try {
       console.log("🔄 Manual reprocess aggregates triggered");
@@ -77,7 +77,7 @@ router.post(
   "/recalculate",
   authenticate,
   resolveBranchContext,
-  canUpdate("pos_imports"),
+  canUpdate("pos_sync"),
   aggregateController.recalculateByDate,
 );
 
