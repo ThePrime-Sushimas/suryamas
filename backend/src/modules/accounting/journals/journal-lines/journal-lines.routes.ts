@@ -4,7 +4,15 @@ import { authenticate } from '../../../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../../../middleware/branch-context.middleware'
 import { canView } from '../../../../middleware/permission.middleware'
 
+import { PermissionService } from '../../../../services/permission.service'
+
 const router = Router()
+
+// Register module permissions
+PermissionService.registerModule('journals', 'Journal Entries Management').catch((error) => {
+  console.error('Failed to register journals module:', error.message)
+})
+
 
 // Semua route butuh authentication + branch context
 router.use(authenticate, resolveBranchContext)

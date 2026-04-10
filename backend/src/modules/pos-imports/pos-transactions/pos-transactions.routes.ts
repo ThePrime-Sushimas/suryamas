@@ -8,7 +8,15 @@ import { resolveBranchContext } from '../../../middleware/branch-context.middlew
 import { canView } from '../../../middleware/permission.middleware'
 import * as controller from './pos-transactions.controller'
 
+import { PermissionService } from '../../../services/permission.service'
+
 const router = Router()
+
+// Register module permissions
+PermissionService.registerModule('pos_imports', 'POS Imports & Staging Management').catch((error) => {
+  console.error('Failed to register pos_imports module:', error.message)
+})
+
 
 router.get(
   '/',

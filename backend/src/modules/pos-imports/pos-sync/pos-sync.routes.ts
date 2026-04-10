@@ -2,6 +2,7 @@ import { Router } from "express";
 import { requireApiKey } from "../../../middleware/api-key.middleware";
 import { authenticate } from "../../../middleware/auth.middleware";
 import { canView, canUpdate, canInsert } from "../../../middleware/permission.middleware";
+import { PermissionService } from "../../../services/permission.service";
 import {
   salesController,
   masterController,
@@ -12,6 +13,12 @@ import { processPosSyncAggregates } from "@/modules/jobs/processors/pos-sync-agg
 import { logError } from "../../../config/logger";
 
 const router = Router();
+
+// Register module permissions
+PermissionService.registerModule('pos_imports', 'POS Imports & Staging Management').catch((error) => {
+  console.error('Failed to register pos_imports module:', error.message)
+})
+
 
 router.post("/import", requireApiKey, salesController.import);
 router.post("/master", requireApiKey, masterController.sync);
