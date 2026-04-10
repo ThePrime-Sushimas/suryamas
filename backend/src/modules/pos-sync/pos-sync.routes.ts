@@ -16,6 +16,7 @@ import {
 import { processPosSyncAggregates } from "@/modules/jobs/processors/pos-sync-aggregates.processor";
 import { logError } from "../../config/logger";
 import { resolveBranchContext } from "@/middleware/branch-context.middleware";
+import { AuditService } from "../monitoring/monitoring.service";
 
 const router = Router();
 
@@ -57,8 +58,20 @@ router.post(
       console.log("🔄 Manual reprocess aggregates triggered");
       // Fire and forget — tidak block response
       processPosSyncAggregates()
-        .then((result: any) => {
+        .then(async (result: any) => {
           console.log("✅ Reprocess complete:", result);
+          // Audit Log - Success
+          const userId = (req as any).user?.id;
+          await AuditService.log(
+            "MANUAL_REPROCESS",
+            "pos_sync_aggregates",
+            "system",
+            userId,
+            null,
+            result,
+            req.ip,
+            req.get("user-agent")
+          );
         })
         .catch((err: any) => {
           logError("Reprocess failed", { err });

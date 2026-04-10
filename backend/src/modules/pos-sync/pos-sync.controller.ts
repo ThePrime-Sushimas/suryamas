@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { salesService, masterService, stagingService, aggregateService } from "./pos-sync.service";
 import { ImportSalesPayload, ImportMasterPayload, StagingTable, StagingUpdatePayload } from "./pos-sync.types";
 import { logWarn } from "../../config/logger";
+import { AuditService } from "../monitoring/monitoring.service";
+import { supabase } from "@/config/supabase";
 
 export const salesController = {
   import: async (req: Request, res: Response): Promise<void> => {
@@ -112,7 +114,28 @@ export const stagingController = {
         return
       }
 
+      // Get OLD data for audit
+      const { data: oldData } = await supabase
+        .from(`pos_staging_${table}`)
+        .select("*")
+        .eq("pos_id", posId)
+        .single();
+
       const data = await stagingService.update(table, posId, payload)
+
+      // Audit Log
+      const userId = (req as any).user?.id;
+      await AuditService.log(
+        "UPDATE",
+        `pos_staging_${table}`,
+        posId.toString(),
+        userId,
+        oldData,
+        data,
+        req.ip,
+        req.get("user-agent")
+      );
+
       res.json({ success: true, data })
     } catch (err: any) {
       console.error('❌ Staging update error:', err)
@@ -138,6 +161,20 @@ export const aggregateController = {
 
       console.log(`🔄 Recalculate triggered for date: ${sales_date}`);
       const result = await aggregateService.recalculateByDate(sales_date);
+
+      // Audit Log
+      const userId = (req as any).user?.id;
+      await AuditService.log(
+        "RECALCULATE",
+        "pos_sync_aggregates",
+        sales_date,
+        userId,
+        null,
+        result,
+        req.ip,
+        req.get("user-agent")
+      );
+
       res.json({ success: true, data: result });
     } catch (err: any) {
       console.error("❌ Recalculate error:", err);

@@ -7,6 +7,7 @@ import {
 import { supabase } from "@/config/supabase";
 import { marketingFeeService } from "../reconciliation/fee-reconciliation/marketing-fee.service";
 import { logError, logInfo } from "../../config/logger";
+import { AuditService } from "../monitoring/monitoring.service";
 
 export const posSyncAggregatesController = {
   list: async (req: Request, res: Response): Promise<void> => {
@@ -184,6 +185,22 @@ export const posSyncAggregatesController = {
         feeDiscrepancy,
       });
 
+      // Audit Log
+      await AuditService.log(
+        "RECONCILE",
+        "pos_sync_aggregate",
+        id,
+        userId,
+        { is_reconciled: false },
+        { 
+          is_reconciled: true, 
+          bank_statement_id: statementId,
+          fee_discrepancy: feeDiscrepancy 
+        },
+        req.ip,
+        req.get("user-agent")
+      );
+
       res.json({
         success: true,
         data: { id, statementId, feeDiscrepancy, actualFeeAmount },
@@ -260,6 +277,20 @@ export const posSyncAggregatesController = {
       }
 
       logInfo("pos_sync_aggregate reconciliation undone", { id, statementId });
+
+      // Audit Log
+      const userId = (req as any).user?.id;
+      await AuditService.log(
+        "UNDO_RECONCILE",
+        "pos_sync_aggregate",
+        id,
+        userId,
+        { is_reconciled: true, bank_statement_id: statementId },
+        { is_reconciled: false, bank_statement_id: null },
+        req.ip,
+        req.get("user-agent")
+      );
+
       res.json({ success: true });
     } catch (err: any) {
       logError("undoReconcile pos_sync_aggregate failed", { id, err });
