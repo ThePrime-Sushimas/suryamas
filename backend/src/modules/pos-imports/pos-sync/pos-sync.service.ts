@@ -37,7 +37,11 @@ export const salesService = {
     // ✅ Trigger per tanggal, bukan per salesNums batch
     // Supaya kalkulasi selalu pakai semua transaksi di tanggal itu
     if (sales.length > 0) {
-      const dates = [...new Set(sales.map((s) => s.salesDate))];
+      const dates = [
+        ...new Set(
+          sales.map((s) => (s.salesDateIn ?? s.salesDate).split(" ")[0]),
+        ),
+      ];
       for (const date of dates) {
         aggregateService
           .recalculateByDate(date)
