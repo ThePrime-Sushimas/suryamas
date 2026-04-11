@@ -662,18 +662,28 @@ export class BankReconciliationRepository {
   }
 
   /**
-   * Undo reconciliation for a specific statement
+   * Undo reconciliation for a specific statement.
+   * Cascades reset to aggregated_transactions and pos_sync_aggregates if applicable.
    */
   async undoReconciliation(
     statementId: string,
     userId?: string,
   ): Promise<void> {
     try {
+      // 1. Capture reconciliation_id before resetting
+      const { data: stmt } = await supabase
+        .from("bank_statements")
+        .select("reconciliation_id")
+        .eq("id", statementId)
+        .single();
+
+      const reconciliationId = stmt?.reconciliation_id;
+
+      // 2. Reset bank_statements
       const updateData: any = {
         is_reconciled: false,
         reconciliation_id: null,
         reconciliation_group_id: null,
-        pos_sync_aggregate_id: null,
         updated_at: new Date().toISOString(),
       };
 
@@ -686,26 +696,44 @@ export class BankReconciliationRepository {
 
       if (error) throw error;
 
-      // ← TAMBAH INI: reset pos_sync_aggregates juga
-      const { error: posErr } = await supabase
-        .from("pos_sync_aggregates")
-        .update({
-          is_reconciled: false,
-          bank_statement_id: null,
-          actual_fee_amount: null,
-          fee_discrepancy: null,
-          fee_discrepancy_note: null,
-          reconciled_at: null,
-          reconciled_by: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("bank_statement_id", Number(statementId));
+      // 3. Reset aggregated_transactions + pos_sync_aggregates if linked
+      if (reconciliationId) {
+        const { data: aggTx } = await supabase
+          .from("aggregated_transactions")
+          .select("id, pos_sync_aggregate_id, source_type")
+          .eq("id", reconciliationId)
+          .single();
 
-      if (posErr) {
-        logError("Failed to reset pos_sync_aggregate", {
-          statementId,
-          error: posErr.message,
-        });
+        if (aggTx) {
+          await supabase
+            .from("aggregated_transactions")
+            .update({
+              is_reconciled: false,
+              // Reset to schema defaults (NOT NULL default 0)
+              actual_fee_amount: 0,
+              fee_discrepancy: 0,
+              fee_discrepancy_note: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", reconciliationId);
+
+          // If source is POS_SYNC, also reset pos_sync_aggregates
+          if (aggTx.source_type === "POS_SYNC" && aggTx.pos_sync_aggregate_id) {
+            await supabase
+              .from("pos_sync_aggregates")
+              .update({
+                is_reconciled: false,
+                bank_statement_id: null,
+                actual_fee_amount: null,
+                fee_discrepancy: null,
+                fee_discrepancy_note: null,
+                reconciled_at: null,
+                reconciled_by: null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", aggTx.pos_sync_aggregate_id);
+          }
+        }
       }
     } catch (error: any) {
       logError("Error undoing reconciliation", {
@@ -882,7 +910,7 @@ export class BankReconciliationRepository {
   }
 
   /**
-   * Undo reconciliation - reset statements and soft delete group
+   * Undo reconciliation - reset statements, cascade to aggregated_tx/pos_sync, soft delete group
    */
   async undoReconciliationGroup(
     groupId: string,
@@ -896,11 +924,11 @@ export class BankReconciliationRepository {
         (d: any) => d.statement_id,
       );
 
+      // 1. Reset bank_statements
       if (statementIds.length > 0) {
         const updateData: any = {
           is_reconciled: false,
           reconciliation_group_id: null,
-          pos_sync_aggregate_id: null, // ← TAMBAH INI
           updated_at: new Date().toISOString(),
         };
 
@@ -913,11 +941,50 @@ export class BankReconciliationRepository {
           .update(updateData)
           .in("id", statementIds);
 
-        if (error) {
-          throw error;
+        if (error) throw error;
+      }
+
+      // 2. Reset aggregated_transactions + pos_sync_aggregates if linked
+      if (group.aggregate_id) {
+        const { data: aggTx } = await supabase
+          .from("aggregated_transactions")
+          .select("id, pos_sync_aggregate_id, source_type")
+          .eq("id", group.aggregate_id)
+          .single();
+
+        if (aggTx) {
+          await supabase
+            .from("aggregated_transactions")
+            .update({
+              is_reconciled: false,
+              // Reset to schema defaults (NOT NULL default 0)
+              actual_fee_amount: 0,
+              fee_discrepancy: 0,
+              fee_discrepancy_note: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", group.aggregate_id);
+
+          // If POS_SYNC, cascade to pos_sync_aggregates
+          if (aggTx.source_type === "POS_SYNC" && aggTx.pos_sync_aggregate_id) {
+            await supabase
+              .from("pos_sync_aggregates")
+              .update({
+                is_reconciled: false,
+                bank_statement_id: null,
+                actual_fee_amount: null,
+                fee_discrepancy: null,
+                fee_discrepancy_note: null,
+                reconciled_at: null,
+                reconciled_by: null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", aggTx.pos_sync_aggregate_id);
+          }
         }
       }
 
+      // 3. Soft delete group
       const { error } = await supabase
         .from("bank_reconciliation_groups")
         .update({
@@ -927,9 +994,7 @@ export class BankReconciliationRepository {
         })
         .eq("id", groupId);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
     } catch (error: any) {
       logError("Error undoing reconciliation group", {
         groupId,

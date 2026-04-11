@@ -117,4 +117,203 @@ export const posSyncAggregatesRepository = {
     if (error) throw error;
     return data ?? [];
   },
+
+  async getReadyBySalesDate(salesDate: string) {
+    const { data, error } = await supabase
+      .from("pos_sync_aggregates")
+      .select("*")
+      .eq("sales_date", salesDate)
+      .in("status", ["READY", "RECALCULATED"]);
+
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  async upsertToAggregatedTransactions(row: {
+    source_type: string;
+    source_id: string;
+    source_ref: string;
+    transaction_date: string;
+    payment_method_id: number | null;
+    branch_id: string | null;
+    branch_name: string | null;
+    gross_amount: number;
+    discount_amount: number;
+    tax_amount: number;
+    nett_amount: number;
+    total_fee_amount: number;
+    percentage_fee_amount: number;
+    fixed_fee_amount: number;
+    bill_after_discount: number;
+    pos_sync_aggregate_id: string;
+    status: string;
+  }) {
+    const { data, error } = await supabase
+      .from("aggregated_transactions")
+      .upsert(
+        { ...row, updated_at: new Date().toISOString() },
+        { onConflict: "source_type,source_id,source_ref" },
+      )
+      .select("id")
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async supersedeManualEntries(params: {
+    supersededById: string;
+    transactionDate: string;
+    paymentMethodId: number;
+    branchId: string;
+  }) {
+    const { data, error } = await supabase
+      .from("aggregated_transactions")
+      .update({
+        superseded_by: params.supersededById,
+        status: "SUPERSEDED",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("source_type", "POS")
+      .eq("transaction_date", params.transactionDate)
+      .eq("payment_method_id", params.paymentMethodId)
+      .eq("branch_id", params.branchId)
+      .eq("is_reconciled", false)
+      .is("superseded_by", null)
+      .is("deleted_at", null)
+      .select("id");
+
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  /**
+   * Find aggregated_transactions record linked to a pos_sync_aggregate.
+   * Returns null if not yet synced.
+   */
+  async findAggregatedTxByPosSyncId(posSyncAggregateId: string) {
+    const { data, error } = await supabase
+      .from("aggregated_transactions")
+      .select("id")
+      .eq("pos_sync_aggregate_id", posSyncAggregateId)
+      .eq("source_type", "POS_SYNC")
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getBankStatementById(statementId: number) {
+    const { data, error } = await supabase
+      .from("bank_statements")
+      .select("id, credit_amount, debit_amount, is_reconciled")
+      .eq("id", statementId)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async markPosSyncReconciled(id: string, update: {
+    bank_statement_id: number;
+    actual_fee_amount: number;
+    fee_discrepancy: number;
+    fee_discrepancy_note: string | null;
+    reconciled_by: string | null;
+  }) {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("pos_sync_aggregates")
+      .update({
+        is_reconciled: true,
+        bank_statement_id: update.bank_statement_id,
+        actual_fee_amount: update.actual_fee_amount,
+        fee_discrepancy: update.fee_discrepancy,
+        fee_discrepancy_note: update.fee_discrepancy_note,
+        reconciled_at: now,
+        reconciled_by: update.reconciled_by,
+        updated_at: now,
+      })
+      .eq("id", id);
+
+    if (error) throw error;
+  },
+
+  async resetPosSyncReconciliation(id: string) {
+    const { error } = await supabase
+      .from("pos_sync_aggregates")
+      .update({
+        is_reconciled: false,
+        bank_statement_id: null,
+        actual_fee_amount: null,
+        fee_discrepancy: null,
+        fee_discrepancy_note: null,
+        reconciled_at: null,
+        reconciled_by: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+
+    if (error) throw error;
+  },
+
+  async markBankStatementReconciled(statementId: number, reconciliationId: string) {
+    const { error } = await supabase
+      .from("bank_statements")
+      .update({
+        is_reconciled: true,
+        reconciliation_id: reconciliationId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", statementId);
+
+    if (error) throw error;
+  },
+
+  async resetBankStatementReconciliation(statementId: number) {
+    const { error } = await supabase
+      .from("bank_statements")
+      .update({
+        is_reconciled: false,
+        reconciliation_id: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", statementId);
+
+    if (error) throw error;
+  },
+
+  async markAggregatedTxReconciled(aggTxId: string, feeData: {
+    actual_fee_amount: number;
+    fee_discrepancy: number;
+    fee_discrepancy_note: string | null;
+  }) {
+    const { error } = await supabase
+      .from("aggregated_transactions")
+      .update({
+        is_reconciled: true,
+        ...feeData,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", aggTxId);
+
+    if (error) throw error;
+  },
+
+  async resetAggregatedTxReconciliation(posSyncAggregateId: string) {
+    const { error } = await supabase
+      .from("aggregated_transactions")
+      .update({
+        is_reconciled: false,
+        actual_fee_amount: null,
+        fee_discrepancy: null,
+        fee_discrepancy_note: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("pos_sync_aggregate_id", posSyncAggregateId)
+      .eq("source_type", "POS_SYNC");
+
+    if (error) throw error;
+  },
 };

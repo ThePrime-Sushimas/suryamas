@@ -31,6 +31,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
         )
         .eq("transaction_date", dateStr)
         .is("deleted_at", null)
+        .is("superseded_by", null)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -87,6 +88,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
         .gte("transaction_date", startDateStr)
         .lte("transaction_date", endDateStr)
         .is("deleted_at", null)
+        .is("superseded_by", null)
         .order("transaction_date", { ascending: false })
         .order("created_at", { ascending: false });
 
@@ -235,7 +237,8 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
         .select("is_reconciled, nett_amount")
         .gte("transaction_date", startDate)
         .lte("transaction_date", endDate)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .is("superseded_by", null);
 
       if (aggError) throw aggError;
 
@@ -396,6 +399,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
         .gte("transaction_date", minDateStr)
         .lte("transaction_date", maxDateStr)
         .is("deleted_at", null)
+        .is("superseded_by", null)
         .eq("is_reconciled", false)
         .gte("nett_amount", statementAmount - tolerance)
         .lte("nett_amount", statementAmount + tolerance)

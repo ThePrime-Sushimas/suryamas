@@ -18,7 +18,7 @@ export interface AggregatedTransaction {
   currency: string;
   journal_id?: string;
   is_reconciled: boolean;
-  status: 'READY' | 'FAILED' | 'RECONCILED' | 'PENDING' | 'DISCREPANCY';
+  status: 'READY' | 'FAILED' | 'RECONCILED' | 'PENDING' | 'DISCREPANCY' | 'SUPERSEDED';
   created_at: string;
   updated_at: string;
   deleted_at?: string;

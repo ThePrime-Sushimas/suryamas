@@ -16,6 +16,7 @@ import {
 import { processPosSyncAggregates } from "../jobs/processors/pos-sync-aggregates.processor";
 import { logError } from "../../config/logger";
 import { PosSyncAggregateResult } from "../jobs/processors/pos-sync-aggregates.processor";
+import { syncPosSyncToAggregated } from "../pos-sync-aggregates/pos-sync-aggregates.service";
 
 export const salesService = {
   import: async (payload: ImportSalesPayload): Promise<ImportSalesResult> => {
@@ -128,6 +129,13 @@ export const aggregateService = {
   ): Promise<PosSyncAggregateResult> => {
     const salesNums = await aggregateRepository.getSalesNumsByDate(salesDate);
     console.log(`🔄 Recalculating ${salesDate}: ${salesNums.length} sales`);
-    return processPosSyncAggregates(salesNums);
+    const result = await processPosSyncAggregates(salesNums);
+
+    // Push to aggregated_transactions for unified reconciliation
+    await syncPosSyncToAggregated(salesDate).catch((err) =>
+      logError("syncPosSyncToAggregated failed", { err, salesDate }),
+    );
+
+    return result;
   },
 };

@@ -1,12 +1,12 @@
 import { Request, Response } from "express";
 import { posSyncAggregatesRepository } from "./pos-sync-aggregates.repository";
+import { syncPosSyncToAggregated } from "./pos-sync-aggregates.service";
 import {
   ListAggregatesParams,
   ReconcilePosSyncAggregateDto,
 } from "./pos-sync-aggregates.types";
-import { supabase } from "@/config/supabase";
 import { marketingFeeService } from "../reconciliation/fee-reconciliation/marketing-fee.service";
-import { logError, logInfo } from "../../config/logger";
+import { logError, logInfo, logWarn } from "../../config/logger";
 import { AuditService } from "../monitoring/monitoring.service";
 
 export const posSyncAggregatesController = {
@@ -61,52 +61,55 @@ export const posSyncAggregatesController = {
     const userId = (req as any).user?.id;
 
     try {
-      // 1. Get aggregate
+      // 1. Validate aggregate
       const aggregate = await posSyncAggregatesRepository.getById(id);
       if (!aggregate) {
-        res
-          .status(404)
-          .json({ success: false, message: "Aggregate not found" });
+        res.status(404).json({ success: false, message: "Aggregate not found" });
         return;
       }
       if (aggregate.is_reconciled) {
-        res
-          .status(400)
-          .json({ success: false, message: "Aggregate sudah direkonsiliasi" });
+        res.status(400).json({ success: false, message: "Aggregate sudah direkonsiliasi" });
         return;
       }
       if (aggregate.status === "PENDING") {
-        res.status(400).json({
-          success: false,
-          message: "Aggregate masih PENDING, mapping belum lengkap",
-        });
+        res.status(400).json({ success: false, message: "Aggregate masih PENDING, mapping belum lengkap" });
         return;
       }
 
-      // 2. Get bank statement
-      const { data: stmt, error: stmtErr } = await supabase
-        .from("bank_statements")
-        .select("id, credit_amount, debit_amount, is_reconciled")
-        .eq("id", statementId)
-        .single();
-
-      if (stmtErr || !stmt) {
-        res
-          .status(404)
-          .json({ success: false, message: "Bank statement not found" });
+      // 2. Validate bank statement
+      let stmt: any;
+      try {
+        stmt = await posSyncAggregatesRepository.getBankStatementById(statementId);
+      } catch {
+        res.status(404).json({ success: false, message: "Bank statement not found" });
         return;
       }
       if (stmt.is_reconciled) {
+        res.status(400).json({ success: false, message: "Bank statement sudah direkonsiliasi" });
+        return;
+      }
+
+      // 3. Find aggregated_transactions record — auto-sync if missing (fixes race condition)
+      let aggTx = await posSyncAggregatesRepository.findAggregatedTxByPosSyncId(id);
+      if (!aggTx) {
+        logInfo("reconcile: aggregated_tx missing, triggering inline sync", { id, salesDate: aggregate.sales_date });
+        const syncResult = await syncPosSyncToAggregated(aggregate.sales_date);
+        logInfo("reconcile: inline sync result", { id, ...syncResult });
+        if (syncResult.synced === 0) {
+          logWarn("reconcile: inline sync produced 0 records", { id, salesDate: aggregate.sales_date, aggregateStatus: aggregate.status });
+        }
+        aggTx = await posSyncAggregatesRepository.findAggregatedTxByPosSyncId(id);
+      }
+      if (!aggTx) {
         res.status(400).json({
           success: false,
-          message: "Bank statement sudah direkonsiliasi",
+          message: `Aggregated transaction tidak ditemukan untuk aggregate ${id}. Sync dipicu tapi record tetap tidak ada — periksa log dan pastikan status aggregate adalah READY atau RECALCULATED.`,
         });
         return;
       }
 
-      // 3. Calculate fee discrepancy — reuse marketingFeeService logic
-      const actualFromBank =
-        (stmt.credit_amount || 0) - (stmt.debit_amount || 0);
+      // 4. Calculate fee discrepancy
+      const actualFromBank = (stmt.credit_amount || 0) - (stmt.debit_amount || 0);
       const expectedNet = Number(aggregate.nett_amount);
       const expectedFee = Number(aggregate.total_fee_amount);
 
@@ -128,77 +131,68 @@ export const posSyncAggregatesController = {
             : `Bank bayar lebih Rp ${Math.abs(feeDiscrepancy).toLocaleString("id-ID")} dari expected`;
       }
 
-      const now = new Date().toISOString();
+      // 5. Update pos_sync_aggregates
+      await posSyncAggregatesRepository.markPosSyncReconciled(id, {
+        bank_statement_id: statementId,
+        actual_fee_amount: actualFeeAmount,
+        fee_discrepancy: feeDiscrepancy,
+        fee_discrepancy_note: feeDiscrepancyNote,
+        reconciled_by: userId ?? null,
+      });
 
-      // 4. Update pos_sync_aggregates
-      const { error: aggErr } = await supabase
-        .from("pos_sync_aggregates")
-        .update({
-          is_reconciled: true,
-          bank_statement_id: statementId,
-          actual_fee_amount: actualFeeAmount,
-          fee_discrepancy: feeDiscrepancy,
-          fee_discrepancy_note: feeDiscrepancyNote,
-          reconciled_at: now,
-          reconciled_by: userId ?? null,
-          updated_at: now,
-        })
-        .eq("id", id);
-
-      if (aggErr) throw aggErr;
-
-      // 5. Mark bank statement as reconciled
-      // Jadi ini:
-      const { error: stmtUpdateErr } = await supabase
-        .from("bank_statements")
-        .update({
-          is_reconciled: true,
-          pos_sync_aggregate_id: id, // ← kolom baru
-          updated_at: now,
-        })
-        .eq("id", statementId);
-      if (stmtUpdateErr) {
+      // 6. Mark bank statement reconciled via unified path
+      try {
+        await posSyncAggregatesRepository.markBankStatementReconciled(statementId, aggTx.id);
+      } catch (stmtUpdateErr: any) {
         logError("Failed to mark bank statement as reconciled", {
           statementId,
           error: stmtUpdateErr.message,
         });
-        // Rollback aggregate update
-        await supabase
-          .from("pos_sync_aggregates")
-          .update({
-            is_reconciled: false,
-            bank_statement_id: null,
-            reconciled_at: null,
-            reconciled_by: null,
-            actual_fee_amount: null,
-            fee_discrepancy: null,
-            fee_discrepancy_note: null,
-            updated_at: now,
-          })
-          .eq("id", id);
+        // Rollback pos_sync_aggregates
+        await posSyncAggregatesRepository.resetPosSyncReconciliation(id);
         throw stmtUpdateErr;
       }
 
-      logInfo("pos_sync_aggregate reconciled", {
+      // 7. Update aggregated_transactions
+      try {
+        await posSyncAggregatesRepository.markAggregatedTxReconciled(aggTx.id, {
+          actual_fee_amount: actualFeeAmount,
+          fee_discrepancy: feeDiscrepancy,
+          fee_discrepancy_note: feeDiscrepancyNote,
+        });
+      } catch (aggTxUpdateErr: any) {
+        logError("Failed to update aggregated_transaction", {
+          aggTxId: aggTx.id,
+          error: aggTxUpdateErr.message,
+        });
+        // Rollback all three tables
+        await posSyncAggregatesRepository.resetAggregatedTxReconciliation(id);
+        await posSyncAggregatesRepository.resetBankStatementReconciliation(statementId);
+        await posSyncAggregatesRepository.resetPosSyncReconciliation(id);
+        throw aggTxUpdateErr;
+      }
+
+      logInfo("pos_sync_aggregate reconciled (unified)", {
         id,
         statementId,
+        aggTxId: aggTx.id,
         feeDiscrepancy,
       });
 
-      // Audit Log
       await AuditService.log(
         "RECONCILE",
         "pos_sync_aggregate",
         id,
         userId,
         { is_reconciled: false },
-        { 
-          is_reconciled: true, 
+        {
+          is_reconciled: true,
           bank_statement_id: statementId,
-          fee_discrepancy: feeDiscrepancy 
+          aggregated_transaction_id: aggTx.id,
+          fee_discrepancy: feeDiscrepancy,
         },
         req.ip,
-        req.get("user-agent")
+        req.get("user-agent"),
       );
 
       res.json({
@@ -215,70 +209,49 @@ export const posSyncAggregatesController = {
     const id = req.params.id as string;
 
     try {
-      // 1. Get aggregate
+      // 1. Validate aggregate
       const aggregate = await posSyncAggregatesRepository.getById(id);
       if (!aggregate) {
-        res
-          .status(404)
-          .json({ success: false, message: "Aggregate not found" });
+        res.status(404).json({ success: false, message: "Aggregate not found" });
         return;
       }
       if (!aggregate.is_reconciled) {
-        res
-          .status(400)
-          .json({ success: false, message: "Aggregate belum direkonsiliasi" });
+        res.status(400).json({ success: false, message: "Aggregate belum direkonsiliasi" });
         return;
       }
       if (aggregate.status === "JOURNALED") {
-        res.status(400).json({
-          success: false,
-          message: "Tidak bisa undo — jurnal sudah dibuat",
-        });
+        res.status(400).json({ success: false, message: "Tidak bisa undo — jurnal sudah dibuat" });
         return;
       }
 
       const statementId = aggregate.bank_statement_id;
-      const now = new Date().toISOString();
 
-      // 2. Reset aggregate
-      const { error: aggErr } = await supabase
-        .from("pos_sync_aggregates")
-        .update({
-          is_reconciled: false,
-          bank_statement_id: null,
-          actual_fee_amount: null,
-          fee_discrepancy: null,
-          fee_discrepancy_note: null,
-          reconciled_at: null,
-          reconciled_by: null,
-          updated_at: now,
-        })
-        .eq("id", id);
+      // Best-effort reset all three tables — collect errors instead of throwing sequentially
+      const undoErrors: string[] = [];
 
-      if (aggErr) throw aggErr;
+      await posSyncAggregatesRepository.resetPosSyncReconciliation(id)
+        .catch((e: any) => undoErrors.push(`pos_sync_aggregates: ${e.message}`));
 
-      // 3. Reset bank statement
       if (statementId) {
-        const { error: stmtErr } = await supabase
-          .from("bank_statements")
-          .update({
-            is_reconciled: false,
-            pos_sync_aggregate_id: null,
-            updated_at: now,
-          })
-          .eq("id", statementId);
-
-        if (stmtErr) {
-          logError("Failed to reset bank statement", {
-            statementId,
-            error: stmtErr.message,
-          });
-        }
+        await posSyncAggregatesRepository.resetBankStatementReconciliation(statementId)
+          .catch((e: any) => undoErrors.push(`bank_statements: ${e.message}`));
       }
 
-      logInfo("pos_sync_aggregate reconciliation undone", { id, statementId });
+      await posSyncAggregatesRepository.resetAggregatedTxReconciliation(id)
+        .catch((e: any) => undoErrors.push(`aggregated_transactions: ${e.message}`));
 
-      // Audit Log
+      if (undoErrors.length > 0) {
+        logError("undoReconcile partial failure", { id, statementId, errors: undoErrors });
+        // Partial undo — some tables may still be reconciled
+        res.status(500).json({
+          success: false,
+          message: `Undo sebagian gagal: ${undoErrors.join("; ")}. Periksa data secara manual.`,
+        });
+        return;
+      }
+
+      logInfo("pos_sync_aggregate reconciliation undone (unified)", { id, statementId });
+
       const userId = (req as any).user?.id;
       await AuditService.log(
         "UNDO_RECONCILE",
@@ -288,7 +261,7 @@ export const posSyncAggregatesController = {
         { is_reconciled: true, bank_statement_id: statementId },
         { is_reconciled: false, bank_statement_id: null },
         req.ip,
-        req.get("user-agent")
+        req.get("user-agent"),
       );
 
       res.json({ success: true });
