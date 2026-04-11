@@ -7,6 +7,7 @@ const statusValues = [
   "COMPLETED",
   "CANCELLED",
   "FAILED",
+  "SUPERSEDED",
 ] as const
 
 export const posAggregatesFormSchema = z.object({

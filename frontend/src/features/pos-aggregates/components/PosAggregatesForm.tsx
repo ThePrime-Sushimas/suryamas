@@ -583,17 +583,24 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Status Transaksi
               </label>
-              <select
-                {...register('status')}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="READY">READY</option>
-                <option value="PENDING">PENDING</option>
-                <option value="PROCESSING">PROCESSING</option>
-                <option value="COMPLETED">COMPLETED</option>
-                <option value="CANCELLED">CANCELLED</option>
-                <option value="FAILED">FAILED</option>
-              </select>
+              {watch('status') === 'SUPERSEDED' ? (
+                <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-widest">SUPERSEDED</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">— dikelola sistem</span>
+                </div>
+              ) : (
+                <select
+                  {...register('status')}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <option value="READY">READY</option>
+                  <option value="PENDING">PENDING</option>
+                  <option value="PROCESSING">PROCESSING</option>
+                  <option value="COMPLETED">COMPLETED</option>
+                  <option value="CANCELLED">CANCELLED</option>
+                  <option value="FAILED">FAILED</option>
+                </select>
+              )}
             </div>
 
             <div>

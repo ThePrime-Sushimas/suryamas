@@ -27,7 +27,7 @@ import {
   Calendar,
   ArrowLeft,
   ChevronDown,
-  ChevronUp, 
+  ChevronUp,
 } from "lucide-react";
 
 import { DEFAULT_MATCHING_CRITERIA } from "../../constants/reconciliation.config";

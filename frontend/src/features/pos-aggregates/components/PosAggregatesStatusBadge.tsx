@@ -43,6 +43,11 @@ const STATUS_CONFIG: Record<AggregatedTransactionStatus, { label: string; colorC
     colorClass: 'text-gray-700 dark:text-gray-400',
     bgClass: 'bg-gray-100 dark:bg-gray-700',
   },
+  SUPERSEDED: {
+    label: 'SUPERSEDED',
+    colorClass: 'text-slate-600 dark:text-slate-400',
+    bgClass: 'bg-slate-100 dark:bg-slate-800',
+  },
 }
 
 // =============================================================================

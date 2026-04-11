@@ -78,6 +78,7 @@ export function BankReconciliationPage() {
     reconciliationGroups,
     fetchReconciliationGroups,
     createMultiMatch,
+    undoMultiMatch,
     pagination,
     setPage,
     setPageSize,
@@ -237,6 +238,14 @@ export function BankReconciliationPage() {
       refreshData();
     },
     [createMultiMatch, refreshData]
+  );
+
+  const handleUndoMultiMatch = useCallback(
+    async (groupId: string) => {
+      await undoMultiMatch(groupId);
+      refreshData();
+    },
+    [undoMultiMatch, refreshData]
   );
 
   const handleFindAggregateForMultiMatch = useCallback(
@@ -405,6 +414,7 @@ export function BankReconciliationPage() {
                   onPageChange={setPage}
                   onLimitChange={setPageSize}
                   onOpenWizard={() => handleOpenWizard()}
+                  onUndoGroup={handleUndoMultiMatch}
                 />
               </ErrorBoundary>
             </div>

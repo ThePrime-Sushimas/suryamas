@@ -15,6 +15,7 @@ import {
   Info,
   Calendar,
   Check,
+  Unlink2,
 } from "lucide-react";
 import type {
   BankStatementWithMatch,
@@ -127,6 +128,7 @@ interface BankMutationTableProps {
   onPageChange: (page: number) => void;
   onLimitChange?: (limit: number) => void;
   onOpenWizard?: () => void;
+  onUndoGroup?: (groupId: string) => Promise<void>;
 }
 
 // =============================================================================
@@ -149,6 +151,7 @@ export function BankMutationTable({
   onPageChange,
   onLimitChange,
   onOpenWizard,
+  onUndoGroup,
 }: BankMutationTableProps) {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedStatementIds, setSelectedStatementIds] = useState<string[]>([]);
@@ -508,19 +511,35 @@ export function BankMutationTable({
                           )}
 
                           {isInGroup && (
-                            <button
-                              onClick={() => setExpandedGroupId(isGroupExpanded ? null : groupInfo.id)}
-                              className={`
-                                flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm
-                                ${isGroupExpanded 
-                                  ? "bg-blue-600 text-white" 
-                                  : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-950"}
-                              `}
-                              aria-expanded={isGroupExpanded}
-                            >
-                              {isGroupExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                              Group Detail
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setExpandedGroupId(isGroupExpanded ? null : groupInfo.id)}
+                                className={`
+                                  flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm
+                                  ${isGroupExpanded 
+                                    ? "bg-blue-600 text-white" 
+                                    : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-950"}
+                                `}
+                                aria-expanded={isGroupExpanded}
+                              >
+                                {isGroupExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                Group
+                              </button>
+                              {onUndoGroup && (
+                                <button
+                                  onClick={() => {
+                                    if (confirm('Batalkan seluruh multi-match group ini?')) {
+                                      onUndoGroup(groupInfo.id);
+                                    }
+                                  }}
+                                  className="flex items-center gap-1.5 px-4 py-2.5 bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-50 dark:hover:bg-red-950 hover:border-red-400 transition-all"
+                                  aria-label="Revert group match"
+                                >
+                                  <Unlink2 className="w-3.5 h-3.5" />
+                                  Revert
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </td>
