@@ -18,6 +18,7 @@ import type {
   AutoMatchPreviewMatch,
   MatchingCriteria,
 } from "../../types/bank-reconciliation.types";
+import { tailwindTheme } from "@/lib/tailwind-theme";
 
 interface AutoMatchDialogProps {
   isOpen: boolean;
@@ -134,22 +135,22 @@ export function AutoMatchDialog({
   const getMatchCriteriaLabel = (criteria: string) => {
     switch (criteria) {
       case "EXACT_REF":
-        return { text: "Ref Sama", color: "text-green-600 bg-green-50" };
+        return { text: "Ref Sama", theme: tailwindTheme.components.statusBadge.matched.container };
       case "EXACT_AMOUNT_DATE":
-        return { text: "Amount + Tanggal", color: "text-blue-600 bg-blue-50" };
+        return { text: "Amount + Tanggal", theme: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full" };
       case "KEYWORD_DESC":
-        return { text: "Keyword", color: "text-purple-600 bg-purple-50" };
+        return { text: "Keyword", theme: "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 rounded-full" };
       case "FUZZY_AMOUNT_DATE":
-        return { text: "Fuzzy", color: "text-amber-600 bg-amber-50" };
+        return { text: "Fuzzy", theme: tailwindTheme.components.statusBadge.pending.container };
       default:
-        return { text: criteria, color: "text-gray-600 bg-gray-50" };
+        return { text: criteria, theme: "text-gray-600 bg-gray-50 px-2 py-0.5 rounded-full" };
     }
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 90) return "text-green-600";
-    if (score >= 80) return "text-blue-600";
-    return "text-amber-600";
+    if (score >= 90) return "text-green-600 dark:text-green-400";
+    if (score >= 80) return "text-blue-600 dark:text-blue-400";
+    return "text-amber-600 dark:text-amber-400";
   };
 
   const tabCounts = {
@@ -194,51 +195,54 @@ export function AutoMatchDialog({
 
   return ReactDOM.createPortal(
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
-        {/* Header - Simplified */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Sparkles className="w-5 h-5 text-blue-600" />
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/40 rounded-xl">
+              <Sparkles className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Auto-Match Preview</h2>
-              <p className="text-sm text-gray-500 mt-0.5">
-                {dateRange.startDate} - {dateRange.endDate}
-              </p>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Auto-Match Preview</h2>
+              <div className="flex items-center gap-2 mt-1">
+                 <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                 <p className="text-sm font-medium text-gray-500">
+                  {dateRange.startDate} - {dateRange.endDate}
+                 </p>
+              </div>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors"
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="w-5 h-5 text-gray-400" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          {/* Settings Toggle - Simplified */}
-          <div className="p-6 pb-0">
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
+          {/* Settings Toggle */}
+          <div className="px-6 pt-6">
             <button
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
+              className="group flex items-center gap-2 text-sm font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700"
             >
-              <Settings2 className="w-4 h-4" />
+              <Settings2 className="w-4 h-4 transition-transform group-hover:rotate-45" />
               {showAdvanced ? "Sembunyikan Pengaturan" : "Ubah Pengaturan Pencocokan"}
             </button>
 
-            {/* Advanced Settings - Simplified */}
+            {/* Advanced Settings */}
             {showAdvanced && (
-              <div className="mt-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="mt-4 p-5 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-800 animate-in slide-in-from-top-2 duration-300">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-2">
                       Toleransi Nominal (IDR)
                     </label>
                     <input
@@ -250,11 +254,11 @@ export function AutoMatchDialog({
                           amountTolerance: Number(e.target.value),
                         })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      className={tailwindTheme.components.input}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-2">
                       Buffer Hari
                     </label>
                     <input
@@ -266,11 +270,11 @@ export function AutoMatchDialog({
                           dateBufferDays: Number(e.target.value),
                         })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      className={tailwindTheme.components.input}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-2">
                       Threshold Selisih
                     </label>
                     <input
@@ -282,147 +286,163 @@ export function AutoMatchDialog({
                           differenceThreshold: Number(e.target.value),
                         })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      className={tailwindTheme.components.input}
                     />
                   </div>
                 </div>
                 <button
                   onClick={handlePreview}
                   disabled={isPreviewLoading}
-                  className="mt-3 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="mt-6 flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/20 active:scale-95 disabled:opacity-50 transition-all"
                 >
                   {isPreviewLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <RefreshCw className="w-4 h-4" />
                   )}
-                  Terapkan
+                  Terapkan Perubahan
                 </button>
               </div>
             )}
           </div>
 
-          {/* Summary - Simplified */}
+          {/* Aggregated Stats */}
           {previewData && (
-            <div className="mx-6 mt-4 p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-600">
-                    <span className="font-semibold">{previewData.summary.totalStatements}</span> statements
-                  </span>
+            <div className="px-6 mt-6">
+              <div className="flex flex-wrap items-center gap-4 bg-gray-50 dark:bg-gray-800/40 p-4 rounded-2xl border border-gray-100 dark:border-gray-800/50">
+                <div className="flex items-center gap-3 pr-6 border-r border-gray-200 dark:border-gray-700">
+                  <div className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                    <Calendar className="w-4 h-4 text-gray-400" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase">Total</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">
+                      {previewData.summary.totalStatements} statements
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                  <span className="text-sm text-gray-600">
-                    <span className="font-semibold text-green-600">{previewData.summary.matchedStatements}</span> match
-                  </span>
+                <div className="flex items-center gap-3 pr-6 border-r border-gray-200 dark:border-gray-700">
+                  <div className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-green-600 uppercase">Matched</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">
+                      {previewData.summary.matchedStatements} found
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-500" />
-                  <span className="text-sm text-gray-600">
-                    <span className="font-semibold text-amber-600">{previewData.summary.unmatchedStatements}</span> unmatched
-                  </span>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                    <AlertCircle className="w-4 h-4 text-amber-500" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-amber-600 uppercase">Unmatched</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">
+                      {previewData.summary.unmatchedStatements} missing
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Tab Bar - Simplified */}
+          {/* Tab Bar */}
           {previewData && (
-            <div className="border-b border-gray-200 mt-4">
-              <div className="flex gap-1 px-6">
+            <div className="mt-8 px-6 border-b border-gray-100 dark:border-gray-800 space-y-4">
+              <div className="flex flex-wrap gap-2">
                 {[
                   { key: 'all', label: 'Semua', count: tabCounts.all },
                   { key: 'exact_ref', label: 'Ref Sama', count: tabCounts.exact_ref },
-                  { key: 'exact_amount', label: 'Amount + Tanggal', count: tabCounts.exact_amount },
+                  { key: 'exact_amount', label: 'Amount + Date', count: tabCounts.exact_amount },
                   { key: 'keyword', label: 'Keyword', count: tabCounts.keyword },
                   { key: 'fuzzy', label: 'Fuzzy', count: tabCounts.fuzzy },
                 ].map(tab => (
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-all ${
-                      activeTab === tab.key
-                        ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
+                    className={`
+                      px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2
+                      ${activeTab === tab.key
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                        : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }
+                    `}
                   >
                     {tab.label}
-                    <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                    <span className={`
+                      px-1.5 py-0.5 rounded-md text-[10px] font-black
+                      ${activeTab === tab.key ? 'bg-white/20 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500'}
+                    `}>
                       {tab.count}
                     </span>
                   </button>
                 ))}
               </div>
+
+              {/* Selection Controls */}
+              {filteredMatches.length > 0 && (
+                <div className="flex items-center justify-between py-2 border-t border-gray-50 dark:border-gray-800/50">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-tight">
+                    {filteredMatches.filter(m => selectedIds.has(m.statementId)).length} dari {filteredMatches.length} dipilih
+                  </p>
+                  <div className="flex gap-4">
+                    <button
+                      onClick={handleSelectTab}
+                      className="text-[10px] font-black text-blue-600 dark:text-blue-400 hover:underline uppercase"
+                    >
+                      {allTabSelected ? 'Deselect Tab' : 'Select Tab Only'}
+                    </button>
+                    <button
+                      onClick={handleSelectAll}
+                      className="text-[10px] font-black text-blue-600 dark:text-blue-400 hover:underline uppercase"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      onClick={handleDeselectAll}
+                      className="text-[10px] font-black text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:underline uppercase"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Selection Controls - Simplified */}
-          {previewData && filteredMatches.length > 0 && (
-            <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
-              <span className="text-sm text-gray-600">
-                {filteredMatches.filter(m => selectedIds.has(m.statementId)).length} dari {filteredMatches.length} dipilih
-              </span>
-              <div className="flex gap-3">
-                <button
-                  onClick={handleSelectTab}
-                  className="text-sm text-blue-600 hover:text-blue-700"
-                >
-                  {allTabSelected ? 'Hapus Pilihan Tab Ini' : 'Pilih Semua di Tab Ini'}
-                </button>
-                <span className="text-gray-300">|</span>
-                <button
-                  onClick={handleSelectAll}
-                  className="text-sm text-blue-600 hover:text-blue-700"
-                >
-                  Pilih Semua
-                </button>
-                <span className="text-gray-300">|</span>
-                <button
-                  onClick={handleDeselectAll}
-                  className="text-sm text-gray-500 hover:text-gray-700"
-                >
-                  Hapus Semua
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Match List - Simplified */}
+          {/* Match List */}
           <div className="p-6">
             {isPreviewLoading ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-3" />
-                <p className="text-gray-500">Mencari kecocokan...</p>
+              <div className="flex flex-col items-center justify-center py-20 grayscale opacity-50">
+                <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+                <p className="text-sm font-bold text-gray-400 italic">Menganalisis transaksi...</p>
               </div>
             ) : error ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                <AlertCircle className="w-8 h-8 text-red-500 mb-3" />
-                <p className="text-red-500 text-center">{error}</p>
+              <div className="flex flex-col items-center justify-center py-20">
+                <div className="p-4 bg-red-50 dark:bg-red-900/10 rounded-full mb-4">
+                  <AlertCircle className="w-8 h-8 text-red-500" />
+                </div>
+                <p className="text-red-500 font-bold text-center max-w-md">{error}</p>
                 <button
                   onClick={handlePreview}
-                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                  className="mt-6 px-6 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-all"
                 >
                   Coba Lagi
                 </button>
               </div>
             ) : filteredMatches.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                <AlertCircle className="w-8 h-8 text-amber-500 mb-3" />
-                <p className="text-gray-700 font-medium text-center">
+              <div className="flex flex-col items-center justify-center py-20 grayscale opacity-30">
+                <AlertCircle className="w-12 h-12 text-gray-300 mb-4" />
+                <p className="text-gray-500 font-bold text-center">
                   {activeTab === 'all' 
                     ? 'Tidak ada kecocokan ditemukan' 
-                    : 'Tidak ada transaksi dengan kriteria ini'}
+                    : 'Tidak ada transaksi untuk kriteria ini'}
                 </p>
-                <p className="text-gray-500 text-sm text-center mt-1">
-                  {activeTab === 'all' 
-                    ? 'Coba ubah kriteria pencocokan'
-                    : 'Coba lihat tab lain atau ubah kriteria pencocokan'}
-                </p>
+                <p className="text-gray-400 text-xs mt-2">Coba ubah kriteria atau pilih tab lain</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {filteredMatches.map((match) => (
                   <MatchItem
                     key={match.statementId}
@@ -439,29 +459,34 @@ export function AutoMatchDialog({
           </div>
         </div>
 
-        {/* Footer - Simplified */}
-        <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
-          <p className="text-sm text-amber-600">
-            {selectedCount} transaksi akan dicocokkan
-          </p>
-          <div className="flex gap-3">
+        {/* Footer */}
+        <div className="flex items-center justify-between p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/40">
+          <div className="flex items-center gap-3">
+             <div className={`p-2 rounded-lg ${selectedCount > 0 ? 'bg-blue-600' : 'bg-gray-300'} transition-colors`}>
+                <Sparkles className="w-4 h-4 text-white" />
+             </div>
+             <p className={`text-sm font-bold ${selectedCount > 0 ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
+                {selectedCount} transaksi siap dicocokkan
+             </p>
+          </div>
+          <div className="flex gap-4">
             <button
               onClick={onClose}
-              className="px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+              className={tailwindTheme.components.secondaryButton}
             >
               Batal
             </button>
             <button
               disabled={confirmLoading || selectedCount === 0}
               onClick={handleConfirm}
-              className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              className={`${tailwindTheme.components.primaryButton} flex items-center gap-2 px-8 min-w-[180px]`}
             >
               {confirmLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Sparkles className="w-4 h-4" />
               )}
-              Cocokkan ({selectedCount})
+              Confirm ({selectedCount})
             </button>
           </div>
         </div>
@@ -471,12 +496,12 @@ export function AutoMatchDialog({
   );
 }
 
-// Match Item Component - Simplified
+// Match Item Component
 interface MatchItemProps {
   match: AutoMatchPreviewMatch;
   isSelected: boolean;
   onToggle: () => void;
-  getMatchCriteriaLabel: (criteria: string) => { text: string; color: string };
+  getMatchCriteriaLabel: (criteria: string) => { text: string; theme: string };
   getScoreColor: (score: number) => string;
   formatCurrency: (amount: number) => string;
 }
@@ -489,83 +514,100 @@ function MatchItem({
   getScoreColor,
   formatCurrency,
 }: MatchItemProps) {
-  const criteriaLabel = getMatchCriteriaLabel(match.matchCriteria);
+  const criteria = getMatchCriteriaLabel(match.matchCriteria);
   const scoreColor = getScoreColor(match.matchScore);
 
   return (
     <div
+      onClick={onToggle}
       className={`
-        flex items-center gap-4 p-4 rounded-lg border cursor-pointer transition-all
+        group flex items-center gap-6 p-5 rounded-3xl border cursor-pointer transition-all duration-300
         ${isSelected 
-          ? "border-blue-400 bg-blue-50" 
-          : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+          ? "border-blue-500 bg-blue-50/50 dark:bg-blue-900/10 shadow-lg shadow-blue-500/5 ring-1 ring-blue-500" 
+          : "border-gray-100 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-gray-50 dark:hover:bg-gray-800"
         }
       `}
-      onClick={onToggle}
     >
-      {/* Checkbox */}
+      {/* Checkbox Icon */}
       <div
         className={`
-          w-5 h-5 rounded border-2 flex items-center justify-center transition-all shrink-0
+          w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shrink-0
           ${isSelected
-            ? "bg-blue-600 border-blue-600"
-            : "border-gray-300"
+            ? "bg-blue-600 border-blue-600 scale-110 shadow-md shadow-blue-500/30"
+            : "border-gray-200 dark:border-gray-700"
           }
         `}
       >
-        {isSelected && <Check className="w-3 h-3 text-white" />}
+        {isSelected && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
       </div>
 
-      {/* Left Side - Statement */}
-      <div className="flex-3 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap mb-1">
-          <span className="text-xs text-gray-500">
-            {new Date(match.statement.transaction_date).toLocaleDateString("id-ID")}
-          </span>
-          {match.statement.reference_number && (
-            <span className="text-xs font-mono text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
-              {match.statement.reference_number}
+      {/* Main Info - Side by Side Comparison */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr,auto,1fr] gap-4 items-center min-w-0">
+        
+        {/* Statement Side */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 mb-1">
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-tight">Statement</span>
+            {match.statement.reference_number && (
+              <span className="text-[9px] font-mono text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded leading-none truncate">
+                {match.statement.reference_number}
+              </span>
+            )}
+          </div>
+          <p className="text-xs font-bold text-gray-900 dark:text-white truncate group-hover:text-blue-600 transition-colors">
+            {match.statement.description}
+          </p>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-xs font-black text-gray-900 dark:text-white">
+              {formatCurrency(match.statement.amount)}
             </span>
-          )}
-        </div>
-        <p className="text-xs text-gray-800 line-clamp-2">
-          {match.statement.description}
-        </p>
-        <p className="text-base font-semibold text-gray-900 mt-1">
-          {formatCurrency(match.statement.amount)}
-        </p>
-      </div>
-
-      {/* Arrow */}
-      <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
-
-      {/* Right Side - Aggregate */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-end gap-2 flex-wrap mb-1">
-          <span className="text-xs text-gray-500">
-            {new Date(match.aggregate.transaction_date).toLocaleDateString("id-ID")}
-          </span>
-          {match.aggregate.payment_method_name && (
-            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-              {match.aggregate.payment_method_name}
+            <span className="text-[10px] text-gray-400 font-bold">
+              • {new Date(match.statement.transaction_date).toLocaleDateString("id-ID", { day: '2-digit', month: 'short' })}
             </span>
-          )}
+          </div>
         </div>
-        <p className="text-sm text-gray-800 text-right">
-          POS Aggregate
-        </p>
-        <p className="text-base font-semibold text-gray-900 text-right mt-1">
-          {formatCurrency(match.aggregate.nett_amount)}
-        </p>
+
+        {/* Dynamic Connector */}
+        <div className="hidden lg:flex flex-col items-center justify-center px-4">
+           <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'border-blue-200 bg-white' : 'border-gray-100 bg-gray-50'}`}>
+              <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-blue-600' : 'text-gray-300'}`} />
+           </div>
+        </div>
+
+        {/* Aggregate Side */}
+        <div className="min-w-0 lg:text-right">
+          <div className="flex items-center lg:justify-end gap-3 mb-1">
+             <span className="text-[10px] font-black text-gray-400 uppercase tracking-tight">POS Aggregate</span>
+             {match.aggregate.payment_method_name && (
+               <span className="text-[9px] font-black text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-1.5 py-0.5 rounded leading-none">
+                 {match.aggregate.payment_method_name}
+               </span>
+             )}
+          </div>
+          <p className="text-xs font-bold text-gray-500 dark:text-gray-400 truncate italic">
+            {match.aggregate.reference_number || "System Aggregate"}
+          </p>
+          <div className="flex items-center lg:justify-end gap-2 mt-2">
+            <span className="text-xs font-black text-gray-900 dark:text-white">
+              {formatCurrency(match.aggregate.nett_amount)}
+            </span>
+            <span className="text-[10px] text-gray-400 font-bold">
+              • {new Date(match.aggregate.transaction_date).toLocaleDateString("id-ID", { day: '2-digit', month: 'short' })}
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Match Score */}
-      <div className="flex flex-col items-end gap-1 shrink-0">
-        <span className={`text-lg font-bold ${scoreColor}`}>
-          {match.matchScore}%
-        </span>
-        <span className={`text-xs px-2 py-0.5 rounded-full ${criteriaLabel.color}`}>
-          {criteriaLabel.text}
+      {/* Match Quality */}
+      <div className="flex flex-col items-end gap-1.5 shrink-0 pl-6 border-l border-gray-100 dark:border-gray-800">
+        <div className="flex flex-col items-end">
+           <span className="text-[9px] font-black text-gray-400 uppercase leading-none mb-1">Score</span>
+           <span className={`text-xl font-black ${scoreColor} leading-none`}>
+             {match.matchScore}%
+           </span>
+        </div>
+        <span className={`text-[10px] font-black uppercase tracking-tight py-1 px-2.5 rounded-lg whitespace-nowrap shadow-sm ${criteria.theme}`}>
+          {criteria.text}
         </span>
       </div>
     </div>

@@ -1,16 +1,17 @@
 /**
  * BankReconciliationFilters.tsx
- * 
+ *
  * Filter controls component for bank statements.
  * Provides search, status, date range, and bank account filters.
  * Uses "Apply Filters" pattern - data only fetches when user clicks Apply.
- * 
- * This is a controlled component - all state is managed by the parent/hook.
+ * Includes quick date presets, inline validation, and localStorage persistence.
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Search, X, ChevronDown, Filter, Calendar, RefreshCw } from 'lucide-react'
 import type { BankAccountStatus } from '../types/bank-reconciliation.types'
+import { STORAGE_KEYS } from '../constants/reconciliation.config'
+import { tailwindTheme } from '@/lib/tailwind-theme'
 
 // =============================================================================
 // TYPES
@@ -35,20 +36,37 @@ export interface BankStatementFilter {
 // CONFIGURATION
 // =============================================================================
 
-// Status options - sesuai dengan BankReconciliationStatus di types
 const STATUS_OPTIONS: { value: BankStatementFilterStatus; label: string; description: string }[] = [
-  { value: '', label: 'ALL STATUS', description: 'Semua data' },
-  { value: 'RECONCILED', label: 'RECONCILED', description: 'Sudah dicocokkan' },
-  { value: 'UNRECONCILED', label: 'UNRECONCILED', description: 'Belum dicocokkan' },
-  { value: 'DISCREPANCY', label: 'DISCREPANCY', description: 'Ada perbedaan nominal' },
+  { value: '', label: 'Semua Status', description: 'Tampilkan semua transaksi' },
+  { value: 'RECONCILED', label: '✓ Sudah Cocok', description: 'Berhasil dicocokkan' },
+  { value: 'UNRECONCILED', label: '○ Belum Cocok', description: 'Perlu dicocokkan' },
+  { value: 'DISCREPANCY', label: '⚠ Ada Selisih', description: 'Cocok tapi nominal berbeda' },
 ]
+
+// =============================================================================
+// HELPERS
+// =============================================================================
+
+function getToday(): string {
+  return new Date().toISOString().split('T')[0]
+}
+
+function getWeekStart(): string {
+  const d = new Date()
+  d.setDate(d.getDate() - d.getDay() + 1)
+  return d.toISOString().split('T')[0]
+}
+
+function getMonthStart(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+}
 
 // =============================================================================
 // COMPONENT
 // =============================================================================
 
 interface BankReconciliationFiltersProps {
-  // Controlled state from hook
   filters: BankStatementFilter
   onFiltersChange: (updates: Partial<BankStatementFilter>) => void
   onApplyFilters: (filters: BankStatementFilter) => void
@@ -67,28 +85,63 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
 }) => {
   const [showAccountDropdown, setShowAccountDropdown] = useState(false)
   const [showFilters, setShowFilters] = useState(true)
+  const [dateError, setDateError] = useState<string | null>(null)
+
+  // Restore filters from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.LAST_FILTER)
+      if (saved) {
+        const parsed = JSON.parse(saved) as BankStatementFilter
+        if (parsed.startDate || parsed.endDate || parsed.status || parsed.search) {
+          onFiltersChange(parsed)
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Persist filters to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.LAST_FILTER, JSON.stringify(filters))
+    } catch {
+      // ignore storage errors
+    }
+  }, [filters])
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onFiltersChange({ search: e.target.value || undefined })
   }
 
-  // Handle status change
   const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value as BankStatementFilterStatus
     onFiltersChange({ status: value || undefined })
   }
 
-  // Handle date from change
   const handleDateFromChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onFiltersChange({ startDate: e.target.value || undefined })
+    const value = e.target.value
+    onFiltersChange({ startDate: value || undefined })
+    if (value) setDateError(null)
   }
 
-  // Handle date to change
   const handleDateToChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onFiltersChange({ endDate: e.target.value || undefined })
   }
 
-  // Handle account toggle
+  const handleDateBlur = () => {
+    if (!filters.startDate && !filters.endDate) return
+    if (!filters.startDate) {
+      setDateError('Tanggal awal wajib diisi')
+    } else if (!filters.endDate) {
+      setDateError('Tanggal akhir wajib diisi')
+    } else {
+      setDateError(null)
+    }
+  }
+
   const handleAccountToggle = (accountId: number) => {
     const current = filters.bankAccountIds || []
     const updated = current.includes(accountId)
@@ -97,41 +150,41 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
     onFiltersChange({ bankAccountIds: updated.length > 0 ? updated : undefined })
   }
 
-  // Apply filters
   const handleApplyFilters = () => {
+    if (!filters.startDate || !filters.endDate) {
+      setDateError('Silakan pilih rentang tanggal terlebih dahulu')
+      return
+    }
+    setDateError(null)
     onApplyFilters(filters)
   }
 
-  // Clear all filters
   const handleClearFilters = () => {
+    setDateError(null)
     onClearFilters()
+    try { localStorage.removeItem(STORAGE_KEYS.LAST_FILTER) } catch { /* ignore */ }
   }
 
-  // Clear individual filter
+  const handleQuickDate = (startDate: string, endDate: string) => {
+    setDateError(null)
+    const updated = { ...filters, startDate, endDate }
+    onFiltersChange({ startDate, endDate })
+    onApplyFilters(updated)
+  }
+
   const handleClearFilter = (key: keyof BankStatementFilter) => {
     const updates: Partial<BankStatementFilter> = {}
     switch (key) {
-      case 'search':
-        updates.search = undefined
-        break
-      case 'startDate':
-        updates.startDate = undefined
-        break
-      case 'endDate':
-        updates.endDate = undefined
-        break
-      case 'status':
-        updates.status = undefined
-        break
-      case 'bankAccountIds':
-        updates.bankAccountIds = undefined
-        break
+      case 'search': updates.search = undefined; break
+      case 'startDate': updates.startDate = undefined; break
+      case 'endDate': updates.endDate = undefined; break
+      case 'status': updates.status = undefined; break
+      case 'bankAccountIds': updates.bankAccountIds = undefined; break
     }
     onFiltersChange(updates)
   }
 
-  // Check if any filters are active
-  const hasActiveFilters = 
+  const hasActiveFilters =
     filters.search ||
     filters.startDate ||
     filters.endDate ||
@@ -139,12 +192,13 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
     (filters.bankAccountIds && filters.bankAccountIds.length > 0)
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-4 mb-4">
+    <div className={`${tailwindTheme.components.card} p-4 mb-4`}>
       {/* Toggle Filters */}
       <div className="flex justify-between items-center mb-4">
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white transition-colors"
+          className={`flex items-center gap-2 ${tailwindTheme.typography.body} text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white transition-colors`}
+          aria-label={showFilters ? 'Sembunyikan filter' : 'Tampilkan filter'}
         >
           <Filter size={16} />
           {showFilters ? 'Sembunyikan' : 'Tampilkan'} Filter
@@ -161,7 +215,7 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
           <button
             onClick={handleApplyFilters}
             disabled={isLoading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 transition-colors"
+            className={tailwindTheme.components.primaryButton}
           >
             {isLoading ? (
               <>
@@ -180,45 +234,63 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
 
       {showFilters && (
         <>
+          {/* Quick Date Presets */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            <span className={`${tailwindTheme.typography.caption} self-center mr-1`}>Cepat:</span>
+            {[
+              { label: 'Hari Ini', start: getToday(), end: getToday() },
+              { label: 'Minggu Ini', start: getWeekStart(), end: getToday() },
+              { label: 'Bulan Ini', start: getMonthStart(), end: getToday() },
+            ].map(preset => (
+              <button
+                key={preset.label}
+                onClick={() => handleQuickDate(preset.start, preset.end)}
+                className={`${tailwindTheme.components.secondaryButton} px-3 py-1.5 text-xs h-auto cursor-pointer`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
           {/* Active Filters Tags */}
           {hasActiveFilters && (
             <div className="flex flex-wrap gap-2 mb-4">
               {filters.search && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs">
+                <span className={`inline-flex items-center gap-1 ${tailwindTheme.spacing.badgePadding} ${tailwindTheme.colors.info.bg} ${tailwindTheme.colors.info.text} rounded-full text-xs`}>
                   Pencarian: {filters.search}
-                  <button onClick={() => handleClearFilter('search')} className="hover:text-blue-900">
+                  <button onClick={() => handleClearFilter('search')} className="hover:text-blue-900" aria-label="Hapus pencarian">
                     <X size={12} />
                   </button>
                 </span>
               )}
               {filters.startDate && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs">
+                <span className={`inline-flex items-center gap-1 ${tailwindTheme.spacing.badgePadding} ${tailwindTheme.colors.success.bg} ${tailwindTheme.colors.success.text} rounded-full text-xs`}>
                   Dari: {filters.startDate}
-                  <button onClick={() => handleClearFilter('startDate')} className="hover:text-green-900">
+                  <button onClick={() => handleClearFilter('startDate')} className="hover:text-green-900" aria-label="Hapus tanggal awal">
                     <X size={12} />
                   </button>
                 </span>
               )}
               {filters.endDate && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-full text-xs">
+                <span className={`inline-flex items-center gap-1 ${tailwindTheme.spacing.badgePadding} ${tailwindTheme.colors.danger.bg} ${tailwindTheme.colors.danger.text} rounded-full text-xs`}>
                   Sampai: {filters.endDate}
-                  <button onClick={() => handleClearFilter('endDate')} className="hover:text-red-900">
+                  <button onClick={() => handleClearFilter('endDate')} className="hover:text-red-900" aria-label="Hapus tanggal akhir">
                     <X size={12} />
                   </button>
                 </span>
               )}
               {filters.status && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs">
+                <span className={`inline-flex items-center gap-1 ${tailwindTheme.spacing.badgePadding} bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs`}>
                   Status: {STATUS_OPTIONS.find(o => o.value === filters.status)?.label || filters.status}
-                  <button onClick={() => handleClearFilter('status')} className="hover:text-purple-900">
+                  <button onClick={() => handleClearFilter('status')} className="hover:text-purple-900" aria-label="Hapus status">
                     <X size={12} />
                   </button>
                 </span>
               )}
               {filters.bankAccountIds && filters.bankAccountIds.length > 0 && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-xs">
+                <span className={`inline-flex items-center gap-1 ${tailwindTheme.spacing.badgePadding} bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-xs`}>
                   {filters.bankAccountIds.length} Akun dipilih
-                  <button onClick={() => handleClearFilter('bankAccountIds')} className="hover:text-indigo-900">
+                  <button onClick={() => handleClearFilter('bankAccountIds')} className="hover:text-indigo-900" aria-label="Hapus akun bank">
                     <X size={12} />
                   </button>
                 </span>
@@ -230,22 +302,24 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
           <div className="flex flex-wrap gap-4 items-end">
             {/* Search */}
             <div className="flex-1 min-w-[200px]">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label htmlFor="filter-search" className={`block ${tailwindTheme.typography.body} text-gray-700 dark:text-gray-300 mb-1`}>
                 Pencarian
               </label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                 <input
+                  id="filter-search"
                   type="text"
                   placeholder="Cari deskripsi atau referensi..."
                   value={filters.search || ''}
                   onChange={handleSearchChange}
-                  className="w-full pl-9 pr-9 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className={`${tailwindTheme.components.input} pl-9 pr-9`}
                 />
                 {filters.search && (
                   <button
                     onClick={() => handleClearFilter('search')}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    aria-label="Hapus pencarian"
                   >
                     <X size={16} />
                   </button>
@@ -255,43 +329,53 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
 
             {/* Date Range - From */}
             <div className="w-40">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Dari Tanggal
+              <label htmlFor="filter-date-from" className={`block ${tailwindTheme.typography.body} text-gray-700 dark:text-gray-300 mb-1`}>
+                Dari Tanggal <span className="text-red-500">*</span>
               </label>
               <input
+                id="filter-date-from"
                 type="date"
                 value={filters.startDate || ''}
                 onChange={handleDateFromChange}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                onBlur={handleDateBlur}
+                className={`${tailwindTheme.components.input} ${
+                  dateError && !filters.startDate ? 'border-red-400 dark:border-red-600' : ''
+                }`}
               />
             </div>
 
             {/* Date Range - To */}
             <div className="w-40">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Sampai Tanggal
+              <label htmlFor="filter-date-to" className={`block ${tailwindTheme.typography.body} text-gray-700 dark:text-gray-300 mb-1`}>
+                Sampai Tanggal <span className="text-red-500">*</span>
               </label>
               <input
+                id="filter-date-to"
                 type="date"
                 value={filters.endDate || ''}
                 onChange={handleDateToChange}
+                onBlur={handleDateBlur}
                 min={filters.startDate}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className={`${tailwindTheme.components.input} ${
+                  dateError && !filters.endDate ? 'border-red-400 dark:border-red-600' : ''
+                }`}
               />
             </div>
 
             {/* Bank Account Dropdown */}
             <div className="relative w-56">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label htmlFor="filter-bank-account" className={`block ${tailwindTheme.typography.body} text-gray-700 dark:text-gray-300 mb-1`}>
                 Akun Bank
               </label>
               <button
+                id="filter-bank-account"
                 onClick={() => setShowAccountDropdown(!showAccountDropdown)}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className={`${tailwindTheme.components.input} text-left flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700`}
+                aria-expanded={showAccountDropdown}
               >
                 <span className="truncate">
-                  {(!filters.bankAccountIds || filters.bankAccountIds.length === 0) 
-                    ? 'Semua Akun' 
+                  {(!filters.bankAccountIds || filters.bankAccountIds.length === 0)
+                    ? 'Semua Akun'
                     : `${filters.bankAccountIds.length} dipilih`}
                 </span>
                 <ChevronDown size={16} className="text-gray-400" />
@@ -318,33 +402,36 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
               )}
             </div>
 
-            {/* Status Filter - Sederhana dan Jelas */}
+            {/* Status Filter */}
             <div className="w-48">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label htmlFor="filter-status" className={`block ${tailwindTheme.typography.body} text-gray-700 dark:text-gray-300 mb-1`}>
                 Status Transaksi
               </label>
               <select
+                id="filter-status"
                 value={filters.status || ''}
                 onChange={handleStatusChange}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className={tailwindTheme.components.input}
               >
                 {STATUS_OPTIONS.map((option) => (
-                  <option key={option.value || 'all'} value={option.value}>
+                  <option key={option.value || 'all'} value={option.value} title={option.description}>
                     {option.label}
                   </option>
                 ))}
               </select>
             </div>
           </div>
+
+          {/* Inline date validation error */}
+          {dateError && (
+            <p className="mt-2 text-xs text-red-600 dark:text-red-400 font-medium">
+              {dateError}
+            </p>
+          )}
         </>
       )}
     </div>
   )
 }
 
-// =============================================================================
-// EXPORT
-// =============================================================================
-
 export default BankReconciliationFilters
-

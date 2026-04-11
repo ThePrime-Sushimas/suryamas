@@ -1,25 +1,28 @@
+/**
+ * BankReconciliationPage — updated to use ReconciliationWizard
+ *
+ * Changes from original:
+ * - Removed: ManualMatchModal, AutoMatchDialog, MultiMatchModal imports
+ * - Added: ReconciliationWizard (single entry/exit point)
+ * - Added: "Rekonsiliasi" button in BankMutationTable toolbar
+ * - Simplified modal state (3 states → 1)
+ */
+
 import type {
   AggregatedTransactionListItem,
   AggregatedTransactionFilterParams,
 } from "@/features/pos-aggregates/types";
 import { posAggregatesApi } from "@/features/pos-aggregates/api/posAggregates.api";
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import {
-  Sparkles,
   RefreshCw,
   ShieldCheck,
-  LayoutGrid,
   X,
-  Filter,
   FileText,
-  AlertTriangle,
+  Calendar,
+  SlidersHorizontal,
 } from "lucide-react";
 import { BankMutationTable } from "../components/reconciliation/BankMutationTable";
-import { ManualMatchModal } from "../components/reconciliation/ManualMatchModal";
-import { AutoMatchDialog } from "../components/reconciliation/AutoMatchDialog";
-import { MultiMatchModal } from "../components/reconciliation/MultiMatchModal";
-import { MultiMatchGroupList } from "../components/reconciliation/MultiMatchGroupList";
 import {
   BankReconciliationFilters,
   type BankStatementFilter,
@@ -28,29 +31,25 @@ import { useBankReconciliation } from "../hooks/useBankReconciliation";
 import type {
   BankStatementWithMatch,
   MatchingCriteria,
+  ReconciliationSummary,
 } from "../types/bank-reconciliation.types";
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { SettlementGroupList } from "../components/reconciliation/SettlementGroupList";
+import { ReconciliationSummaryCards } from "../components/reconciliation/ReconciliationSummary";
 
-// Type definitions for better type safety
+// ← NEW: unified wizard
+import { ReconciliationWizard } from "../components/reconciliation/ReconciliationWizard";
+
 type DateRange = {
   startDate: string;
   endDate: string;
 };
 
 export function BankReconciliationPage() {
-  const navigate = useNavigate();
-  const [selectedAccountId] = useState<number | null>(null);
-  const [isAutoMatchOpen, setIsAutoMatchOpen] = useState(false);
-  const [selectedStatement, setSelectedStatement] =
-    useState<BankStatementWithMatch | null>(null);
-  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
-  const [isMultiMatchModalOpen, setIsMultiMatchModalOpen] = useState(false);
-  const [multiMatchSelectedStatements, setMultiMatchSelectedStatements] =
-    useState<BankStatementWithMatch[]>([]);
-  const [selectedAggregateForMultiMatch, setSelectedAggregateForMultiMatch] =
-    useState<AggregatedTransactionListItem | null>(null);
-  const [showGroupList, setShowGroupList] = useState(true);
+  // ─── Wizard state (replaces 3 separate modal states) ───
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [wizardInitialStatements, setWizardInitialStatements] = useState<BankStatementWithMatch[]>([]);
+
+  // ─── Filter/page state ───
   const [filtersApplied, setFiltersApplied] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>({
     startDate: "",
@@ -58,6 +57,7 @@ export function BankReconciliationPage() {
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedAccountId] = useState<number | null>(null);
 
   const {
     statements,
@@ -76,30 +76,17 @@ export function BankReconciliationPage() {
     setFilter,
     clearFilter,
     reconciliationGroups,
-    reconciliationGroupsError,
     fetchReconciliationGroups,
     createMultiMatch,
-    undoMultiMatch,
     pagination,
     setPage,
     setPageSize,
-    // Settlement Groups
-    settlementGroups,
-    settlementGroupsTotal,
     fetchSettlementGroups,
-    deleteSettlementGroup,
   } = useBankReconciliation();
 
-  // Fetch all bank accounts on mount
   useEffect(() => {
     fetchAllBankAccounts();
   }, [fetchAllBankAccounts]);
-
-  // Set initial selected account (without auto-apply filters)
-  useEffect(() => {
-    // Hapus auto-select, tidak perlu default account
-    // User harus pilih dari BankReconciliationFilters
-  }, [bankAccounts]);
 
   const handleApplyFilters = useCallback(
     (filters: BankStatementFilter) => {
@@ -110,12 +97,10 @@ export function BankReconciliationPage() {
       setFilter(filters);
       setFiltersApplied(true);
       setError(null);
-
       setDateRange({
         startDate: filters.startDate || "",
         endDate: filters.endDate || "",
       });
-
       fetchStatementsWithFilters(filters);
       fetchReconciliationGroups(filters.startDate, filters.endDate);
       fetchSettlementGroups({
@@ -125,12 +110,7 @@ export function BankReconciliationPage() {
         offset: 0,
       });
     },
-    [
-      setFilter,
-      fetchStatementsWithFilters,
-      fetchReconciliationGroups,
-      fetchSettlementGroups,
-    ],
+    [setFilter, fetchStatementsWithFilters, fetchReconciliationGroups, fetchSettlementGroups]
   );
 
   const handleClearFilters = useCallback(() => {
@@ -150,12 +130,9 @@ export function BankReconciliationPage() {
         endDate: dateRange.endDate,
         bankAccountIds: selectedAccountId ? [selectedAccountId] : undefined,
       };
-
       await fetchStatementsWithFilters(currentFilter);
-
       if (dateRange.startDate && dateRange.endDate) {
         await fetchReconciliationGroups(dateRange.startDate, dateRange.endDate);
-        // Refresh Settlement Groups
         await fetchSettlementGroups({
           startDate: dateRange.startDate,
           endDate: dateRange.endDate,
@@ -179,127 +156,126 @@ export function BankReconciliationPage() {
     fetchSettlementGroups,
   ]);
 
-  // Memoize unreconciled statements to avoid unnecessary re-computation
-  const unreconciledStatements = useMemo(() => {
-    return statements.filter((s) => !s.is_reconciled);
-  }, [statements]);
+  const unreconciledStatements = useMemo(
+    () => statements.filter((s) => !s.is_reconciled),
+    [statements]
+  );
 
-  const handleAutoMatchPreview = async () => {
-    setIsLoadingPreview(true);
-    setError(null);
+  // Calculate summary data
+  const summary: ReconciliationSummary | null = useMemo(() => {
+    if (!statements.length && !filtersApplied) return null;
+    const totalStatements = pagination.total || statements.length;
+    const reconciledCount = statements.filter(s => s.is_reconciled).length;
+    
+    return {
+      period: {
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+      },
+      totalAggregates: 0, // Would need API support for real value
+      totalStatements,
+      autoMatched: 0, // Would need API support for real value
+      manuallyMatched: 0, // Would need API support for real value
+      discrepancies: statements.filter(s => s.status === 'DISCREPANCY').length,
+      unreconciled: totalStatements - reconciledCount,
+      totalDifference: reconciliationGroups.reduce((sum, g) => sum + (g.difference || 0), 0),
+      percentageReconciled: totalStatements > 0 ? (reconciledCount / totalStatements) * 100 : 0,
+    };
+  }, [statements, reconciliationGroups, pagination.total, filtersApplied, dateRange.startDate, dateRange.endDate]);
 
-    if (!dateRange.startDate || !dateRange.endDate) {
+  // ─── Wizard handlers ───────────────────────────────────
+
+  /** Open wizard — optionally with pre-selected statements (multi-match flow) */
+  const handleOpenWizard = useCallback((initial: BankStatementWithMatch[] = []) => {
+    if (!filtersApplied) {
       setError("Silakan pilih rentang tanggal terlebih dahulu");
-      setIsLoadingPreview(false);
       return;
     }
+    setWizardInitialStatements(initial);
+    setIsWizardOpen(true);
+  }, [filtersApplied]);
 
-    setIsAutoMatchOpen(true);
-    setIsLoadingPreview(false);
-  };
-
-  const handleAutoMatchPreviewApi = async (
-    criteria?: Partial<MatchingCriteria>,
-  ) => {
-    if (!dateRange.startDate || !dateRange.endDate) {
-      throw new Error("Silakan pilih rentang tanggal terlebih dahulu");
-    }
-    const activeBankAccountId = filter?.bankAccountIds?.[0] ?? undefined;
-
-    return previewAutoMatch({
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate,
-      bankAccountId: activeBankAccountId, // ← dari filter, bukan selectedAccountId
-      matchingCriteria: criteria,
-    });
-  };
-
-  const handleAutoMatch = async (
-    statementIds: string[],
-    criteria?: Partial<MatchingCriteria>,
-  ) => {
-    try {
-      await confirmAutoMatch({
-        statementIds,
+  const handleAutoMatchPreviewApi = useCallback(
+    async (criteria?: Partial<MatchingCriteria>) => {
+      if (!dateRange.startDate || !dateRange.endDate) {
+        throw new Error("Silakan pilih rentang tanggal terlebih dahulu");
+      }
+      const activeBankAccountId = filter?.bankAccountIds?.[0] ?? undefined;
+      return previewAutoMatch({
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        bankAccountId: activeBankAccountId,
         matchingCriteria: criteria,
       });
-      refreshData();
-    } catch (err) {
-      console.error("Auto-match error:", err);
-      throw err;
-    }
-  };
+    },
+    [dateRange, filter, previewAutoMatch]
+  );
 
-  const handleManualMatchConfirm = async (
-    aggregateId: string,
-    overrideDifference: boolean,
-  ) => {
-    if (!selectedStatement) return;
-    try {
-      await manualReconcile({
-        aggregateId,
-        statementId: selectedStatement.id,
+  const handleAutoMatchConfirm = useCallback(
+    async (statementIds: string[], criteria?: Partial<MatchingCriteria>) => {
+      await confirmAutoMatch({ statementIds, matchingCriteria: criteria });
+      refreshData();
+    },
+    [confirmAutoMatch, refreshData]
+  );
+
+  const handleManualMatchConfirm = useCallback(
+    async (aggregateId: string, statementId: string, overrideDifference: boolean) => {
+      await manualReconcile({ aggregateId, statementId, overrideDifference });
+      refreshData();
+    },
+    [manualReconcile, refreshData]
+  );
+
+  const handleMultiMatchConfirm = useCallback(
+    async (aggregateId: string, statementIds: string[], overrideDifference: boolean) => {
+      await createMultiMatch({
+        aggregateId: String(aggregateId),
+        statementIds: statementIds.map(String),
         overrideDifference,
       });
-      setSelectedStatement(null);
       refreshData();
-    } catch (err) {
-      console.error("Manual match error:", err);
-    }
-  };
+    },
+    [createMultiMatch, refreshData]
+  );
 
-  const handleManualMatchClick = (item: BankStatementWithMatch) => {
-    setSelectedStatement(item);
-  };
-
-  const handleQuickMatch = async (
-    item: BankStatementWithMatch,
-    aggregateId: string,
-  ) => {
-    const potentialMatch = potentialMatchesMap[item.id]?.[0];
-    const paymentMethodName =
-      potentialMatch?.payment_method_name || "Payment Gateway";
-    const branchName = potentialMatch?.branch_name || "";
-    const amount = potentialMatch?.nett_amount || 0;
-
-    const message = branchName
-      ? `Cocokkan transaksi ini dengan ${paymentMethodName} (${branchName}) senilai ${amount.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}?`
-      : `Cocokkan transaksi ini dengan ${paymentMethodName} senilai ${amount.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}?`;
-
-    if (confirm(message)) {
+  const handleFindAggregateForMultiMatch = useCallback(
+    async (statementIds: string[]): Promise<AggregatedTransactionListItem | null> => {
       try {
-        await manualReconcile({
-          aggregateId,
-          statementId: item.id,
-          overrideDifference: false,
-        });
-        refreshData();
-      } catch (err) {
-        const axiosErr = err as {
-          response?: {
-            data?: { code?: string; message?: string };
-            status?: number;
-          };
-          message?: string;
-        };
-        if (
-          axiosErr.response?.data?.code === "ALREADY_RECONCILED" ||
-          axiosErr.response?.status === 409
-        ) {
-          alert(
-            "Transaksi ini sudah pernah dicocokkan sebelumnya. Data akan diperbarui.",
-          );
-          refreshData();
-        } else {
-          console.error("Quick match error:", err);
-          alert(
-            `Gagal melakukan match: ${axiosErr.response?.data?.message || axiosErr.message || "Terjadi kesalahan"}`,
-          );
-        }
-      }
-    }
-  };
+        const normalizedIds = statementIds.map(String);
+        const totalAmount = statements
+          .filter((s) => normalizedIds.includes(String(s.id)))
+          .reduce((sum, s) => sum + (s.credit_amount || 0) - (s.debit_amount || 0), 0);
 
+        const result = await posAggregatesApi.list(1, 100, null, {
+          is_reconciled: false,
+        } as AggregatedTransactionFilterParams);
+
+        return (
+          result.data.find((agg) => {
+            const diff = Math.abs(agg.nett_amount - totalAmount);
+            return agg.nett_amount > 0 ? diff / agg.nett_amount <= 0.05 : false;
+          }) || null
+        );
+      } catch {
+        return null;
+      }
+    },
+    [statements]
+  );
+
+  const handleLoadAggregates = useCallback(async (): Promise<AggregatedTransactionListItem[]> => {
+    try {
+      const result = await posAggregatesApi.list(1, 100, null, {
+        is_reconciled: false,
+      } as AggregatedTransactionFilterParams);
+      return result.data;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  // Undo remains outside wizard (row-level action)
   const handleUndo = async (statementId: string) => {
     if (confirm("Apakah Anda yakin ingin membatalkan rekonsiliasi ini?")) {
       await undoReconciliation(statementId);
@@ -307,389 +283,184 @@ export function BankReconciliationPage() {
     }
   };
 
-  const handleMultiMatchFromTable = (items: BankStatementWithMatch[]) => {
-    setMultiMatchSelectedStatements(items);
-    setSelectedAggregateForMultiMatch(null);
-    setIsMultiMatchModalOpen(true);
-  };
-
-  const handleFindAggregateForMultiMatch = async (
-    statementIds: string[],
-  ): Promise<AggregatedTransactionListItem | null> => {
-    try {
-      const normalizedStatementIds = statementIds.map((id) => String(id));
-      const totalAmount = statements
-        .filter((s) => normalizedStatementIds.includes(String(s.id)))
-        .reduce(
-          (sum, s) => sum + (s.credit_amount || 0) - (s.debit_amount || 0),
-          0,
-        );
-
-      const filter: AggregatedTransactionFilterParams = {
-        is_reconciled: false,
-      };
-
-      const result = await posAggregatesApi.list(1, 100, null, filter);
-
-      const found = result.data.find((agg) => {
-        const diff = Math.abs(agg.nett_amount - totalAmount);
-        const percentDiff = agg.nett_amount > 0 ? diff / agg.nett_amount : 0;
-        return percentDiff <= 0.05;
-      });
-
-      if (found) {
-        setSelectedAggregateForMultiMatch(found);
-        return found;
-      }
-      return null;
-    } catch (err) {
-      console.error("Error finding aggregate:", err);
-      return null;
-    }
-  };
-
-  // Load available aggregates untuk pemilihan manual
-  const handleLoadAggregatesForMultiMatch = async (): Promise<
-    AggregatedTransactionListItem[]
-  > => {
-    try {
-      const filter: AggregatedTransactionFilterParams = {
-        is_reconciled: false,
-      };
-      const result = await posAggregatesApi.list(1, 100, null, filter);
-      return result.data;
-    } catch (err) {
-      console.error("Error loading aggregates:", err);
-      return [];
-    }
-  };
-
-  const handleMultiMatchConfirm = async (
-    aggregateId: string,
-    statementIds: string[],
-    overrideDifference: boolean,
-  ) => {
-    try {
-      const normalizedStatementIds = statementIds.map((id) => String(id));
-      await createMultiMatch({
-        aggregateId: String(aggregateId),
-        statementIds: normalizedStatementIds,
-        overrideDifference,
-      });
-      setIsMultiMatchModalOpen(false);
-      setMultiMatchSelectedStatements([]);
-      setSelectedAggregateForMultiMatch(null);
-      refreshData();
-    } catch (err) {
-      console.error("Multi-match error:", err);
-    }
-  };
-
-  const handleUndoMultiMatch = async (groupId: string) => {
-    if (confirm("Apakah Anda yakin ingin membatalkan multi-match ini?")) {
-      try {
-        await undoMultiMatch(groupId);
-        refreshData();
-      } catch (err) {
-        console.error("Undo multi-match error:", err);
-      }
-    }
-  };
-
-  const handleViewSettlementGroupDetails = (groupId: string) => {
-    navigate(`/bank-reconciliation/settlement-groups/${groupId}`);
-  };
-
-  const handleDeleteSettlementGroup = async (groupId: string) => {
-    try {
-      await deleteSettlementGroup(groupId);
-      // Refresh data after deletion
-      if (dateRange.startDate && dateRange.endDate) {
-        await fetchSettlementGroups({
-          startDate: dateRange.startDate,
-          endDate: dateRange.endDate,
-          limit: 50,
-          offset: 0,
-        });
-      }
-    } catch (err) {
-      console.error("Delete settlement group error:", err);
-    }
-  };
-
   return (
-    <div className="max-w-[1600px] mx-auto p-6 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
-            <ShieldCheck className="w-8 h-8 text-blue-600" />
-            Bank Reconciliation
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-2 font-medium">
-            Pantau dan cocokkan transaksi bank dengan catatan POS secara
-            otomatis dan akurat.
-          </p>
+    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950 p-6 lg:p-10 space-y-10 animate-in fade-in duration-700">
+      
+      {/* Premium Header Container */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+        <div className="space-y-3">
+           <div className="flex items-center gap-3">
+              <div className="p-3 bg-blue-600 rounded-2xl shadow-xl shadow-blue-500/20">
+                 <ShieldCheck className="w-8 h-8 text-white" />
+              </div>
+              <h1 className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">
+                Bank Reconciliation
+              </h1>
+           </div>
+           <p className="text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest text-[11px] ml-20 leading-none">
+             Engineered for Precise Financial Accuracy
+           </p>
         </div>
 
-        <div className="flex items-center gap-3 self-end md:self-auto">
-          <button
-            onClick={refreshData}
-            disabled={isRefreshing || isLoading}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw
-              className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
-            />
-            {isRefreshing ? "Memuat..." : "Refresh"}
-          </button>
+        <div className="flex items-center gap-4">
+           <button
+             onClick={refreshData}
+             disabled={isRefreshing || isLoading}
+             className="group flex items-center gap-2.5 px-6 py-3 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 rounded-2xl text-sm font-black uppercase tracking-widest hover:shadow-lg transition-all active:scale-95 border border-gray-100 dark:border-gray-800"
+           >
+             <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-blue-600" : "group-hover:text-blue-600"}`} />
+             Sync Data
+           </button>
 
-          <button
-            onClick={handleAutoMatchPreview}
-            disabled={isLoading || isLoadingPreview}
-            className="group relative flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl text-sm font-bold hover:bg-blue-700 shadow-xl shadow-blue-500/20 active:scale-95 transition-all overflow-hidden disabled:opacity-50"
-          >
-            <div className="absolute inset-0 bg-linear-to-r from-blue-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-            {isLoadingPreview ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <Sparkles className="w-4 h-4" />
-            )}
-            Auto-Match
-          </button>
+           <button
+             onClick={() => handleOpenWizard()}
+             disabled={isLoading || !filtersApplied}
+             className="group relative flex items-center gap-2.5 px-8 py-3 bg-blue-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest shadow-2xl shadow-blue-500/40 hover:bg-blue-700 transition-all active:scale-95 disabled:grayscale disabled:opacity-50 overflow-hidden"
+           >
+             <div className="absolute inset-0 bg-linear-to-r from-blue-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+             <SlidersHorizontal className="w-4 h-4 group-hover:scale-125 transition-transform" />
+             Execute Reconciliation
+           </button>
         </div>
       </div>
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-800 p-4 rounded-2xl flex items-center justify-between">
-          <p className="text-sm text-red-600 dark:text-red-400 font-medium">
-            {error}
-          </p>
-          <button
-            onClick={() => setError(null)}
-            className="p-1 hover:bg-red-100 dark:hover:bg-red-800 rounded-lg transition-colors"
-          >
-            <X className="w-4 h-4 text-red-500" />
-          </button>
-        </div>
-      )}
-
-      {/* Bank Account Tabs
-      <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 overflow-x-auto scrollbar-none pb-px">
-        {bankAccounts.map((account) => (
-          <button
-            key={account.id}
-            onClick={() => {
-              setSelectedAccountId(account.id);
-              if (filtersApplied) {
-                fetchStatementsWithFilters({
-                  ...filter,
-                  bankAccountIds: [account.id],
-                });
-              }
-            }}
-            className={`px-6 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap flex items-center gap-3 ${
-              selectedAccountId === account.id
-                ? "border-blue-600 text-blue-600 bg-blue-50/30 dark:bg-blue-900/10"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-800/50"
-            }`}
-          >
-            <div className="flex flex-col items-start translate-y-0.5">
-              <span className="leading-tight">{account.account_name}</span>
-              <span className="text-[10px] opacity-60 font-medium">
-                {account.banks.bank_name} • {account.account_number}
-              </span>
-            </div>
-            {account.stats.unreconciled > 0 && (
-              <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full min-w-5 h-5 flex items-center justify-center shadow-lg shadow-rose-500/20">
-                {account.stats.unreconciled}
-              </span>
-            )}
-          </button>
-        ))}
-      </div> */}
-
-      {/* Filters */}
-      <BankReconciliationFilters
-        filters={filter}
-        onFiltersChange={setFilter}
-        onApplyFilters={handleApplyFilters}
-        onClearFilters={handleClearFilters}
-        bankAccounts={bankAccounts}
-        isLoading={isLoading}
-      />
-
-      {/* Tab Navigation */}
-      {filtersApplied && (
-        <div className="flex items-center gap-4 border-b border-gray-100 dark:border-gray-800">
-          <button className="flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 border-blue-600 text-blue-600">
-            <FileText className="w-4 h-4" />
-            Semua Transaksi
-            <span className="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full text-xs">
-              {pagination.total}
-            </span>
-          </button>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <div className="flex flex-col lg:flex-row gap-6">
-        <div className="flex-1">
-          {!filtersApplied ? (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-12 text-center">
-              <Filter className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-gray-700 dark:text-gray-300 mb-2">
-                Pilih Filter untuk Melihat Data
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-                Silakan pilih rentang tanggal dan filter lainnya, kemudian klik
-                "Terapkan Filter" untuk menampilkan data mutasi bank.
-              </p>
-            </div>
-          ) : (
-            <ErrorBoundary>
-              <BankMutationTable
-                items={statements}
-                potentialMatchesMap={potentialMatchesMap}
-                isLoadingMatches={isLoadingMatches}
-                onManualMatch={handleManualMatchClick}
-                onQuickMatch={handleQuickMatch}
-                onCheckMatches={fetchPotentialMatches}
-                onUndo={handleUndo}
-                onMultiMatch={handleMultiMatchFromTable}
-                reconciliationGroups={reconciliationGroups}
-                showMultiMatch={true}
-                pagination={pagination}
-                onPageChange={setPage}
-                onLimitChange={setPageSize}
-              />
-            </ErrorBoundary>
-          )}
-        </div>
-
-        {/* Sidebar */}
-        {showGroupList && filtersApplied && (
-          <div className="w-full lg:w-96 shrink-0">
-            <div className="sticky top-6 space-y-4">
-              {/* Error Display for Groups */}
-              {reconciliationGroupsError && (
-                <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-800 p-4 rounded-2xl flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-sm text-red-600 dark:text-red-400 font-medium">
-                      Gagal memuat Multi-Match Groups
-                    </p>
-                    <p className="text-xs text-red-500 dark:text-red-500 mt-1">
-                      {reconciliationGroupsError}
-                    </p>
-                    <button
-                      onClick={refreshData}
-                      className="text-xs text-red-600 dark:text-red-400 font-semibold mt-2 hover:underline"
-                    >
-                      Coba lagi
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Settlement Groups - 1 Bank Statement → Many Aggregates */}
-              <SettlementGroupList
-                groups={settlementGroups}
-                onViewDetails={handleViewSettlementGroupDetails}
-                onDelete={handleDeleteSettlementGroup}
-                isLoading={isLoading}
-                total={settlementGroupsTotal}
-              />
-
-              {/* Multi-Match Groups - 1 Aggregate → Many Statements */}
-              <MultiMatchGroupList
-                groups={reconciliationGroups}
-                onUndoGroup={handleUndoMultiMatch}
-                isLoading={isLoading}
-              />
-            </div>
+        <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-2xl flex items-center justify-between animate-in slide-in-from-top duration-300 shadow-sm" role="alert">
+          <div className="flex items-center gap-3">
+            <X className="w-5 h-5 text-red-500" />
+            <p className="text-sm text-red-700 dark:text-red-400 font-black uppercase tracking-tight">{error}</p>
           </div>
-        )}
-      </div>
-
-      {/* Toggle Sidebar Button */}
-      {showGroupList && filtersApplied && (
-        <button
-          onClick={() => setShowGroupList(false)}
-          className="fixed bottom-6 right-6 p-4 bg-indigo-600 text-white rounded-full shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 transition-all z-40"
-          title="Sembunyikan Multi-Match Groups"
-        >
-          <X className="w-6 h-6" />
-        </button>
+          <button onClick={() => setError(null)} className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition-colors">
+            <X className="w-4 h-4 text-red-400" />
+          </button>
+        </div>
       )}
 
-      {/* Modals */}
-      <AutoMatchDialog
-        isOpen={isAutoMatchOpen}
-        onClose={() => setIsAutoMatchOpen(false)}
-        onConfirm={handleAutoMatch}
-        onPreview={handleAutoMatchPreviewApi}
-        isLoading={isLoading}
-        dateRange={dateRange}
-      />
+      {/* Main Dashboard Layout */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr,360px] gap-10">
+        
+        {/* Left Column: Stats & Primary Actions */}
+        <div className="space-y-10">
+          
+          {/* Summary Widgets */}
+          <ReconciliationSummaryCards summary={summary} />
 
-      <ManualMatchModal
-        item={selectedStatement}
-        isOpen={!!selectedStatement}
-        onClose={() => setSelectedStatement(null)}
-        onConfirm={handleManualMatchConfirm}
-        isLoading={isLoading}
-      />
+          {/* Filters Pad */}
+          <div className="bg-white dark:bg-gray-900 p-2 rounded-4xl border border-gray-100 dark:border-gray-800 shadow-xs">
+            <BankReconciliationFilters
+              filters={filter}
+              onFiltersChange={setFilter}
+              onApplyFilters={handleApplyFilters}
+              onClearFilters={handleClearFilters}
+              bankAccounts={bankAccounts}
+              isLoading={isLoading}
+            />
+          </div>
 
-      <MultiMatchModal
-        aggregate={selectedAggregateForMultiMatch}
-        statements={unreconciledStatements}
-        isOpen={isMultiMatchModalOpen}
-        onClose={() => {
-          setIsMultiMatchModalOpen(false);
-          setMultiMatchSelectedStatements([]);
-          setSelectedAggregateForMultiMatch(null);
-        }}
-        onConfirm={handleMultiMatchConfirm}
-        isLoading={isLoading}
-        initialStatements={multiMatchSelectedStatements}
-        onFindAggregate={handleFindAggregateForMultiMatch}
-        onLoadAggregates={handleLoadAggregatesForMultiMatch}
-      />
+          {/* Table Control & Navigation */}
+          {filtersApplied && (
+            <div className="space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-6 px-2">
+                <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 p-1.5 rounded-2xl shadow-inner">
+                  <button className="flex items-center gap-2.5 px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest bg-white dark:bg-gray-900 text-blue-600 shadow-md">
+                    <FileText className="w-3.5 h-3.5" />
+                    Activity Log
+                    <span className="bg-blue-600 text-white px-1.5 py-0.5 rounded-md text-[9px]">
+                      {pagination.total}
+                    </span>
+                  </button>
+                </div>
+              </div>
 
-      {/* Tips */}
-      <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/50 rounded-2xl p-6 flex flex-col md:flex-row items-center gap-6">
-        <div className="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-2xl">
-          <Sparkles className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-        </div>
-        <div>
-          <h4 className="text-blue-900 dark:text-blue-100 font-bold mb-1 text-lg">
-            Pro-Tip: Multi-Matching
-          </h4>
-          <p className="text-blue-700/80 dark:text-blue-200/60 text-sm leading-relaxed max-w-2xl">
-            Ketika satu transaksi POS dipecah menjadi beberapa statement bank,
-            gunakan fitur Multi-Match untuk mencocokkan 1 POS dengan multiple
-            statements sekaligus.
-          </p>
-        </div>
-        <button
-          onClick={() => setShowGroupList(!showGroupList)}
-          className="md:ml-auto flex items-center gap-2 px-6 py-3 bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 font-bold text-sm rounded-xl border border-blue-100 dark:border-blue-800 hover:shadow-lg transition-all"
-        >
-          {showGroupList ? (
-            <>
-              <X className="w-4 h-4" />
-              Sembunyikan Groups
-            </>
-          ) : (
-            <>
-              <LayoutGrid className="w-4 h-4" />
-              Tampilkan Groups
-            </>
+              <ErrorBoundary>
+                <BankMutationTable
+                  items={statements}
+                  potentialMatchesMap={potentialMatchesMap}
+                  isLoadingMatches={isLoadingMatches}
+                  onManualMatch={(item) => handleOpenWizard([item])}
+                  onQuickMatch={async (item, aggregateId) => {
+                    const msg = `Cocokkan transaksi ini?`;
+                    if (confirm(msg)) {
+                      try {
+                        await manualReconcile({ aggregateId, statementId: item.id, overrideDifference: false });
+                        refreshData();
+                      } catch (err) {
+                        const axiosErr = err as { response?: { data?: { code?: string; message?: string }; status?: number }; message?: string };
+                        if (axiosErr.response?.data?.code === "ALREADY_RECONCILED" || axiosErr.response?.status === 409) {
+                          refreshData();
+                        } else {
+                          setError(`Gagal: ${axiosErr.response?.data?.message || axiosErr.message || "Terjadi kesalahan"}`);
+                        }
+                      }
+                    }
+                  }}
+                  onCheckMatches={fetchPotentialMatches}
+                  onUndo={handleUndo}
+                  onMultiMatch={(items) => handleOpenWizard(items)}
+                  reconciliationGroups={reconciliationGroups}
+                  showMultiMatch={true}
+                  isTableLoading={isLoading}
+                  pagination={pagination}
+                  onPageChange={setPage}
+                  onLimitChange={setPageSize}
+                  onOpenWizard={() => handleOpenWizard()}
+                />
+              </ErrorBoundary>
+            </div>
           )}
-        </button>
+
+          {/* Empty State Overlay */}
+          {!filtersApplied && (
+            <div className="relative py-20 px-10 bg-white dark:bg-gray-900 rounded-[3rem] border border-gray-100 dark:border-gray-800 text-center overflow-hidden group">
+               <div className="absolute inset-0 bg-linear-to-br from-blue-50/0 to-blue-50/50 dark:to-blue-900/5 pointer-events-none" />
+               <div className="relative z-10 space-y-8">
+                  <div className="w-24 h-24 bg-blue-50 dark:bg-blue-900/20 rounded-3xl flex items-center justify-center mx-auto transition-transform group-hover:rotate-12 duration-500 shadow-xl shadow-blue-500/10">
+                     <Calendar className="w-10 h-10 text-blue-600" strokeWidth={2.5} />
+                  </div>
+                  <div className="space-y-2">
+                     <h3 className="text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tight leading-none">Ready to Audit?</h3>
+                     <p className="text-gray-500 font-bold uppercase tracking-widest text-[11px]">Select parameters above to initialize synchronization</p>
+                  </div>
+               </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Column: Mini Info / Guide / Legend */}
+        <div className="space-y-10">
+           <div className="bg-linear-to-br from-gray-900 to-indigo-950 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-40 h-40 bg-blue-500/20 rounded-full blur-3xl -mr-20 -mt-20 group-hover:scale-150 transition-transform duration-700" />
+              <div className="relative z-10 space-y-6">
+                 <h4 className="text-lg font-black uppercase tracking-widest flex items-center gap-2">
+                    Pro Tip
+                 </h4>
+                 <p className="text-blue-100 text-sm font-semibold leading-relaxed">
+                   Use the <strong className="text-white">Rekonsiliasi</strong> wizard to resolve transactions based on reference numbers and fuzzy amount matching.
+                 </p>
+              </div>
+           </div>
+        </div>
       </div>
+
+      {/* ─── Unified Wizard (replaces 3 modals) ─── */}
+      <ReconciliationWizard
+        isOpen={isWizardOpen}
+        onClose={() => {
+          setIsWizardOpen(false);
+          setWizardInitialStatements([]);
+        }}
+        statements={unreconciledStatements}
+        dateRange={dateRange}
+        isLoading={isLoading}
+        initialStatements={wizardInitialStatements}
+        onAutoMatchPreview={handleAutoMatchPreviewApi}
+        onAutoMatchConfirm={handleAutoMatchConfirm}
+        onManualMatchConfirm={handleManualMatchConfirm}
+        onMultiMatchConfirm={handleMultiMatchConfirm}
+        onFindAggregate={handleFindAggregateForMultiMatch}
+        onLoadAggregates={handleLoadAggregates}
+      />
     </div>
   );
 }

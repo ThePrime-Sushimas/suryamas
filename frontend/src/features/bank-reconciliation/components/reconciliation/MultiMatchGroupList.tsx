@@ -9,8 +9,12 @@ import {
   CheckCircle,
   Clock,
   XCircle,
+  Calendar,
+  Wallet,
+  User,
 } from "lucide-react";
 import type { ReconciliationGroup, ReconciliationGroupStatus } from "../../types/bank-reconciliation.types";
+import { tailwindTheme } from "@/lib/tailwind-theme";
 
 interface MultiMatchGroupListProps {
   groups: ReconciliationGroup[];
@@ -18,30 +22,21 @@ interface MultiMatchGroupListProps {
   isLoading?: boolean;
 }
 
-const statusConfig: Record<ReconciliationGroupStatus, { color: string; bg: string; icon: typeof CheckCircle }> = {
-  PENDING: {
-    color: "text-amber-700 dark:text-amber-400",
-    bg: "bg-amber-100 dark:bg-amber-900/30",
-    icon: Clock,
-  },
-  RECONCILED: {
-    color: "text-green-700 dark:text-green-400",
-    bg: "bg-green-100 dark:bg-green-900/30",
-    icon: CheckCircle,
-  },
-  DISCREPANCY: {
-    color: "text-red-700 dark:text-red-400",
-    bg: "bg-red-100 dark:bg-red-900/30",
-    icon: AlertTriangle,
-  },
-  UNDO: {
-    color: "text-gray-700 dark:text-gray-400",
-    bg: "bg-gray-100 dark:bg-gray-800",
-    icon: XCircle,
-  },
+const getStatusPattern = (status: ReconciliationGroupStatus) => {
+  switch (status) {
+    case "PENDING":
+      return { pattern: tailwindTheme.components.statusBadge.pending.container, icon: Clock };
+    case "RECONCILED":
+      return { pattern: tailwindTheme.components.statusBadge.matched.container, icon: CheckCircle };
+    case "DISCREPANCY":
+      return { pattern: tailwindTheme.components.statusBadge.discrepancy.container, icon: AlertTriangle };
+    case "UNDO":
+      return { pattern: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700", icon: XCircle };
+    default:
+      return { pattern: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700", icon: CheckCircle };
+  }
 };
 
-// Utility function untuk formatting konsisten
 const formatCurrency = (amount: number): string => {
   return amount.toLocaleString("id-ID", {
     style: "currency",
@@ -88,10 +83,12 @@ export function MultiMatchGroupList({
 
   const toggleExpand = useCallback((groupId: string) => {
     setExpandedGroupId((prev) => (prev === groupId ? null : groupId));
-    setError(null); // Clear error ketika expand/collapse
+    setError(null);
   }, []);
 
   const handleUndo = useCallback(async (groupId: string) => {
+    if (!confirm("Apakah Anda yakin ingin membatalkan multi-match ini?")) return;
+    
     setUndoingGroupId(groupId);
     setError(null);
     try {
@@ -105,29 +102,28 @@ export function MultiMatchGroupList({
     }
   }, [onUndoGroup]);
 
-  // Loading state yang konsisten dengan struktur component
   if (isLoading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4 animate-pulse" />
-          <div className="h-6 w-6 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
+      <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-sm">
+        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+          <div className="h-5 bg-gray-100 dark:bg-gray-800 rounded-lg w-1/3 animate-pulse" />
+          <div className="h-8 w-8 bg-gray-100 dark:bg-gray-800 rounded-full animate-pulse" />
         </div>
         <div className="divide-y divide-gray-100 dark:divide-gray-800">
           {[1, 2, 3].map((i) => (
-            <div key={`loading-${i}`} className="px-5 py-4 animate-pulse">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded-full" />
-                <div className="h-3 w-24 bg-gray-200 dark:bg-gray-700 rounded" />
+            <div key={`loading-${i}`} className="px-6 py-6 animate-pulse">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="h-5 w-24 bg-gray-100 dark:bg-gray-800 rounded-full" />
+                <div className="h-3 w-40 bg-gray-50 dark:bg-gray-800/50 rounded" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="h-3 w-12 bg-gray-200 dark:bg-gray-700 rounded mb-1" />
-                  <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded" />
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <div className="h-2 w-16 bg-gray-50 dark:bg-gray-800/50 rounded" />
+                  <div className="h-4 w-32 bg-gray-100 dark:bg-gray-800 rounded" />
                 </div>
-                <div>
-                  <div className="h-3 w-12 bg-gray-200 dark:bg-gray-700 rounded mb-1" />
-                  <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded" />
+                <div className="space-y-2">
+                  <div className="h-2 w-16 bg-gray-50 dark:bg-gray-800/50 rounded" />
+                  <div className="h-4 w-32 bg-gray-100 dark:bg-gray-800 rounded" />
                 </div>
               </div>
             </div>
@@ -139,35 +135,38 @@ export function MultiMatchGroupList({
 
   if (groups.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 p-6 text-center">
-        <Link2 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          Belum ada Multi-Match Groups
-        </p>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-          Pilih statement dan buat multi-match pertama Anda
+      <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 p-12 text-center shadow-xs">
+        <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
+          <Link2 className="w-8 h-8 text-indigo-300 dark:text-indigo-400" />
+        </div>
+        <h4 className="text-lg font-bold text-gray-900 dark:text-white">Belum ada Multi-Match Groups</h4>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-xs mx-auto leading-relaxed">
+          Pilih beberapa statement dan cocokkan dengan satu aggregate untuk melihatnya di sini.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+    <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-sm">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-        <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-          <Link2 className="w-4 h-4 text-indigo-500" />
-          Multi-Match Groups
+      <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/20 dark:bg-gray-800/20">
+        <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-widest flex items-center gap-3">
+          <div className="p-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+            <Link2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+          </div>
+          Multi-Match History
         </h3>
-        <span className="text-xs font-medium px-2 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-full">
+        <span className="text-[11px] font-black px-3 py-1 bg-indigo-600 text-white rounded-full shadow-sm">
           {groups.length}
         </span>
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="mx-5 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+        <div className="mx-6 mt-6 p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-2xl flex items-center gap-3 animate-in fade-in duration-300">
+          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+          <p className="text-sm font-bold text-red-700 dark:text-red-400">{error}</p>
         </div>
       )}
 
@@ -176,75 +175,63 @@ export function MultiMatchGroupList({
         {groups.map((group) => {
           const isExpanded = expandedGroupId === group.id;
           const isUndoing = undoingGroupId === group.id;
-          const status = statusConfig[group.status];
-          const StatusIcon = status.icon;
+          const { pattern, icon: StatusIcon } = getStatusPattern(group.status);
           const difference = group.total_bank_amount - group.aggregate_amount;
           const isWithinTolerance = Math.abs(difference) < 10000;
 
           return (
-            <div key={group.id}>
+            <div key={group.id} className="group/item transition-all duration-200">
               {/* Group Header */}
               <button
                 onClick={() => toggleExpand(group.id)}
                 aria-expanded={isExpanded}
                 aria-controls={`group-content-${group.id}`}
-                className="w-full px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                className={`w-full px-6 py-6 text-left transition-all ${isExpanded ? 'bg-indigo-50/30 dark:bg-indigo-900/5' : 'hover:bg-gray-50/50 dark:hover:bg-gray-800/30'}`}
               >
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start justify-between gap-6">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${status.bg} ${status.color}`}
-                      >
-                        <StatusIcon className="w-3 h-3" />
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-sm ${pattern}`}>
+                        <StatusIcon className="w-3 h-3" strokeWidth={3} />
                         {group.status}
                       </span>
-                      <span className="text-xs text-gray-400">
-                        {formatDateTime(group.created_at)}
-                      </span>
+                      <div className="flex items-center gap-1.5 text-gray-400">
+                        <Clock className="w-3 h-3" />
+                        <span className="text-[10px] font-bold uppercase">{formatDateTime(group.created_at)}</span>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wider">
-                          Total Bank
-                        </p>
-                        <p className="text-sm font-bold text-gray-900 dark:text-white">
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Consolidated Bank Amount</p>
+                        <p className="text-sm font-black text-gray-900 dark:text-white group-hover/item:text-indigo-600 transition-colors">
                           {formatCurrency(group.total_bank_amount)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wider">
-                          POS Aggregate
-                        </p>
-                        <p className="text-sm font-bold text-gray-900 dark:text-white">
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">POS Aggregate Applied</p>
+                        <p className="text-sm font-black text-gray-900 dark:text-white">
                           {formatCurrency(group.aggregate_amount)}
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-6">
                     <div className="text-right">
-                      <p className="text-[10px] text-gray-500 uppercase tracking-wider">
-                        Selisih
-                      </p>
-                      <p
-                        className={`text-sm font-bold ${
-                          isWithinTolerance
-                            ? "text-green-600 dark:text-green-400"
-                            : "text-amber-600 dark:text-amber-400"
-                        }`}
-                      >
-                        {difference >= 0 ? "+" : ""}
-                        {formatCurrency(difference)}
-                      </p>
+                       <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 leading-none">Net Difference</p>
+                       <span className={`text-base font-black leading-none ${isWithinTolerance ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                         {difference >= 0 ? "+" : ""}
+                         {formatCurrency(difference)}
+                       </span>
                     </div>
-                    {isExpanded ? (
-                      <ChevronUp className="w-5 h-5 text-gray-400 shrink-0" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-400 shrink-0" />
-                    )}
+                    <div className={`p-2 rounded-xl border border-gray-100 dark:border-gray-800 transition-all ${isExpanded ? 'bg-indigo-600 border-indigo-600' : 'bg-white dark:bg-gray-800'}`}>
+                      {isExpanded ? (
+                        <ChevronUp className="w-5 h-5 text-white" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-gray-400" />
+                      )}
+                    </div>
                   </div>
                 </div>
               </button>
@@ -253,131 +240,131 @@ export function MultiMatchGroupList({
               {isExpanded && (
                 <div
                   id={`group-content-${group.id}`}
-                  className="px-5 py-4 bg-gray-50/50 dark:bg-gray-900/20 border-t border-gray-100 dark:border-gray-800"
+                  className="px-6 pb-6 bg-linear-to-b from-indigo-50/20 to-white dark:from-indigo-900/5 dark:to-gray-900 animate-in slide-in-from-top-4 duration-300"
                 >
-                  {/* Aggregate Info */}
-                  {group.aggregate && (
-                    <div className="mb-4 p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-2 h-2 rounded-full bg-blue-500" />
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                          POS Aggregate
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                          <p className="text-gray-500">Tanggal</p>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {formatDate(group.aggregate.transaction_date)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Nett Amount</p>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {formatCurrency(group.aggregate.nett_amount)}
-                          </p>
-                        </div>
-                        <div className="col-span-2">
-                          <p className="text-gray-500">Payment Method</p>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {group.aggregate.payment_method_name}
-                          </p>
+                  <div className="space-y-6 pt-2">
+                    {/* Aggregate Info Card */}
+                    {group.aggregate && (
+                      <div className="p-5 bg-white dark:bg-gray-800 rounded-3xl border border-indigo-100 dark:border-indigo-900/40 shadow-sm relative overflow-hidden group/agg">
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 dark:bg-indigo-900/20 rounded-full blur-2xl -mr-12 -mt-12 transition-all group-hover/agg:scale-150 duration-500" />
+                        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
+                           <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                                 <Wallet className="w-5 h-5 text-white" />
+                              </div>
+                              <div>
+                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Applied Aggregate</p>
+                                 <p className="text-sm font-black text-gray-900 dark:text-white">
+                                   {group.aggregate.payment_method_name} — {formatDate(group.aggregate.transaction_date)}
+                                 </p>
+                              </div>
+                           </div>
+                           <div className="text-left md:text-right">
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Allocated POS Amount</p>
+                              <p className="text-lg font-black text-gray-900 dark:text-white">
+                                {formatCurrency(group.aggregate.nett_amount)}
+                              </p>
+                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Statements List */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                        Bank Statements ({group.details?.length || 0})
-                      </span>
-                    </div>
-                    {group.details?.map((detail) => {
-                      // FIXED BUG: Perhitungan yang benar
-                      const credit = detail.statement?.credit_amount ?? 0;
-                      const debit = detail.statement?.debit_amount ?? 0;
-                      const statementAmount = credit - debit;
+                    {/* Consolidated Statements List */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 px-2">
+                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                           Consolidated Statements ({group.details?.length || 0})
+                         </span>
+                      </div>
+                      <div className="space-y-2 max-h-80 overflow-y-auto pr-2 scrollbar-thin">
+                        {group.details?.map((detail) => {
+                          const credit = detail.statement?.credit_amount ?? 0;
+                          const debit = detail.statement?.debit_amount ?? 0;
+                          const statementAmount = credit - debit;
 
-                      return (
-                        <div
-                          key={detail.id}
-                          className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {detail.statement?.description || "-"}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {formatDate(detail.statement?.transaction_date)}
+                          return (
+                            <div
+                              key={detail.id}
+                              className="group/dt flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all hover:shadow-md"
+                            >
+                              <div className="min-w-0 flex-1 flex items-center gap-4">
+                                <div className="w-1.5 h-10 bg-gray-100 dark:bg-gray-700 group-hover/dt:bg-indigo-500 rounded-full transition-colors" />
+                                <div className="min-w-0">
+                                  <p className="text-sm font-black text-gray-800 dark:text-gray-200 truncate pr-4">
+                                    {detail.statement?.description || "Historical Record"}
+                                  </p>
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                     <Calendar className="w-3 h-3 text-gray-400" />
+                                     <span className="text-[10px] font-bold text-gray-400 uppercase">
+                                       {formatDate(detail.statement?.transaction_date)}
+                                     </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <p
+                                className={`text-sm font-black whitespace-nowrap ${
+                                  statementAmount >= 0
+                                    ? "text-green-600 dark:text-green-400"
+                                    : "text-red-500 dark:text-red-400"
+                                }`}
+                              >
+                                {statementAmount >= 0 ? "+" : ""}
+                                {formatCurrency(statementAmount)}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Footer Info & Actions */}
+                    <div className="mt-4 pt-6 flex flex-col md:flex-row md:items-center justify-between gap-6 border-t border-gray-100 dark:border-gray-800">
+                      <div className="space-y-4 flex-1">
+                        {group.notes && (
+                          <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/50 rounded-2xl">
+                            <p className="text-[10px] font-black text-amber-800 dark:text-amber-400 uppercase tracking-widest mb-1.5">Catatan Match</p>
+                            <p className="text-sm font-medium text-amber-700 dark:text-amber-300 italic">
+                               "{group.notes}"
                             </p>
                           </div>
-                          <p
-                            className={`text-sm font-bold ${
-                              statementAmount >= 0
-                                ? "text-green-600 dark:text-green-400"
-                                : "text-rose-600 dark:text-rose-400"
-                            }`}
-                          >
-                            {formatCurrency(statementAmount)}
-                          </p>
+                        )}
+                        <div className="flex flex-wrap items-center gap-6">
+                           <div className="flex items-center gap-2">
+                              <User className="w-3.5 h-3.5 text-gray-400" />
+                              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tight">
+                                {group.reconciled_by || 'System Auto'}
+                              </span>
+                           </div>
+                           <div className="flex items-center gap-2">
+                              <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tight">
+                                {group.reconciled_at ? formatDateTime(group.reconciled_at) : '-'}
+                              </span>
+                           </div>
                         </div>
-                      );
-                    })}
+                      </div>
+
+                      {group.status !== "UNDO" && (
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUndo(group.id);
+                            }}
+                            disabled={isUndoing}
+                            className="px-6 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-black uppercase tracking-widest hover:border-red-500 hover:text-red-600 dark:hover:border-red-500 dark:hover:text-red-400 transition-all flex items-center gap-2 active:scale-95 shadow-xs"
+                          >
+                            {isUndoing ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Unlink2 className="w-4 h-4" />
+                            )}
+                            Undo Group Match
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-
-                  {/* Notes */}
-                  {group.notes && (
-                    <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl">
-                      <p className="text-xs font-bold text-amber-800 dark:text-amber-300 mb-1">
-                        Catatan
-                      </p>
-                      <p className="text-sm text-amber-700 dark:text-amber-400">
-                        {group.notes}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Audit Trail */}
-                  {(group.reconciled_by || group.reconciled_at) && (
-                    <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
-                      <span>
-                        {group.reconciled_by && (
-                          <>Dibuat oleh: {group.reconciled_by}</>
-                        )}
-                      </span>
-                      <span>
-                        {group.reconciled_at && formatDateTime(group.reconciled_at)}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  {group.status !== "UNDO" && (
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleUndo(group.id);
-                        }}
-                        disabled={isUndoing}
-                        className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
-                      >
-                        {isUndoing ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Membatalkan...
-                          </>
-                        ) : (
-                          <>
-                            <Unlink2 className="w-4 h-4" />
-                            Batalkan Multi-Match
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -387,4 +374,3 @@ export function MultiMatchGroupList({
     </div>
   );
 }
-

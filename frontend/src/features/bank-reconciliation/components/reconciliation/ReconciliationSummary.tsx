@@ -1,3 +1,4 @@
+import React from "react";
 import {
   FileText,
   CheckCircle,
@@ -8,13 +9,13 @@ import {
   DollarSign,
 } from "lucide-react";
 import type { ReconciliationSummary } from "../../types/bank-reconciliation.types";
+import { tailwindTheme } from "@/lib/tailwind-theme";
 
 interface StatCardProps {
   title: string;
   value: number | string;
   icon: React.ComponentType<{ className?: string }>;
-  iconColor: string;
-  iconBgColor: string;
+  themeVariant: "success" | "warning" | "danger" | "info" | "accent";
   trend?: {
     value: number;
     isPositive: boolean;
@@ -26,50 +27,43 @@ function StatCard({
   title,
   value,
   icon: Icon,
-  iconColor,
-  iconBgColor,
+  themeVariant,
   trend,
   suffix,
 }: StatCardProps) {
   const TrendIcon = trend?.isPositive ? TrendingUp : TrendingDown;
-  const trendColor = trend?.isPositive ? "text-emerald-600" : "text-rose-600";
-  const trendBg = trend?.isPositive
-    ? "bg-emerald-50 dark:bg-emerald-900/20"
-    : "bg-rose-50 dark:bg-rose-900/20";
+  const colorConfig = tailwindTheme.colors[themeVariant];
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-lg transition-all duration-300 group">
-      <div className="flex items-center justify-between mb-4">
-        <div
-          className={`p-2.5 rounded-xl ${iconBgColor} transition-transform group-hover:scale-110 duration-300`}
-        >
-          <Icon className={`w-5 h-5 ${iconColor}`} />
-        </div>
-        {trend !== undefined ? (
-          <div
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-full ${trendBg}`}
-          >
-            <TrendIcon className={`w-3.5 h-3.5 ${trendColor}`} />
-            <span className={`text-xs font-semibold ${trendColor}`}>
-              {trend.value}%
-            </span>
-          </div>
-        ) : (
-          <div className="w-8 h-1 bg-gray-50 dark:bg-gray-700/50 rounded-full" />
-        )}
+    <div className="bg-white dark:bg-gray-900 rounded-xl px-4 py-3 border border-gray-100 dark:border-gray-800 shadow-xs hover:shadow-md transition-all duration-300 group flex items-center gap-3">
+      <div
+        className={`p-2 rounded-lg ${colorConfig.bg} transition-transform group-hover:scale-105 duration-300 shrink-0`}
+      >
+        <Icon className={`w-4 h-4 ${colorConfig.icon}`} />
       </div>
-      <div>
-        <p className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
-          {typeof value === "number" ? value.toLocaleString() : value}
+      
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-black text-gray-500 dark:text-gray-500 uppercase tracking-widest leading-none mb-1">
+          {title}
+        </p>
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-sm font-black text-gray-900 dark:text-white truncate">
+            {typeof value === "number" ? value.toLocaleString() : value}
+          </span>
           {suffix && (
-            <span className="text-sm font-medium text-gray-500 ml-1.5">
+            <span className="text-[10px] font-bold text-gray-400">
               {suffix}
             </span>
           )}
-        </p>
-        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mt-1">
-          {title}
-        </p>
+          {trend && (
+            <div className="flex items-center gap-0.5 ml-auto">
+              <TrendIcon className={`w-2.5 h-2.5 ${trend.isPositive ? 'text-green-500' : 'text-red-500'}`} />
+              <span className={`text-[9px] font-black ${trend.isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                {trend.value}%
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -82,21 +76,16 @@ interface ReconciliationSummaryProps {
 export function ReconciliationSummaryCards({
   summary,
 }: ReconciliationSummaryProps) {
-  // Handle null summary
   if (!summary) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm animate-pulse">
-            <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3" />
-          </div>
+          <div key={i} className="h-14 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 animate-pulse" />
         ))}
       </div>
     );
   }
 
-  // Provide default values to prevent undefined errors
   const safeSummary = {
     totalStatements: summary.totalStatements ?? 0,
     percentageReconciled: summary.percentageReconciled ?? 0,
@@ -106,49 +95,45 @@ export function ReconciliationSummaryCards({
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
       <StatCard
-        title="Total Transaksi"
+        title="Total Items"
         value={safeSummary.totalStatements}
         icon={FileText}
-        iconColor="text-blue-600"
-        iconBgColor="bg-blue-100 dark:bg-blue-900/30"
-        suffix="item"
+        themeVariant="info"
+        suffix="pcs"
       />
       <StatCard
-        title="Terekonsiliasi"
+        title="Reconciled"
         value={safeSummary.percentageReconciled.toFixed(1)}
         icon={CheckCircle}
-        iconColor="text-green-600"
-        iconBgColor="bg-green-100 dark:bg-green-900/30"
+        themeVariant="success"
         suffix="%"
-        trend={{ value: 5.2, isPositive: true }} // Mock trend
+        trend={{ value: 5, isPositive: true }}
       />
       <StatCard
-        title="Discrepancies"
+        title="Discrepant"
         value={safeSummary.discrepancies}
         icon={AlertCircle}
-        iconColor="text-rose-600"
-        iconBgColor="bg-rose-100 dark:bg-rose-900/30"
-        suffix="item"
+        themeVariant="danger"
+        suffix="pcs"
       />
       <StatCard
-        title="Belum Cocok"
+        title="Pending"
         value={safeSummary.unreconciled}
         icon={HelpCircle}
-        iconColor="text-amber-600"
-        iconBgColor="bg-amber-100 dark:bg-amber-900/30"
-        suffix="item"
+        themeVariant="warning"
+        suffix="pcs"
       />
       <StatCard
-        title="Selisih Total"
+        title="Net Diff"
         value={safeSummary.totalDifference.toLocaleString("id-ID", {
           style: "currency",
           currency: "IDR",
+          maximumFractionDigits: 0
         })}
         icon={DollarSign}
-        iconColor="text-purple-600"
-        iconBgColor="bg-purple-100 dark:bg-purple-900/30"
+        themeVariant="accent"
       />
     </div>
   );
