@@ -13,7 +13,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
-import { ArrowLeft, Loader2, Edit2, Trash2, RotateCcw, CheckCircle, Building2, Printer } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Loader2, Edit2, Trash2, RotateCcw, CheckCircle, Building2, Printer, Zap } from 'lucide-react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePosAggregatesStore } from '../store/posAggregates.store'
 import { useToast } from '@/contexts/ToastContext'
@@ -23,6 +23,8 @@ import { BankMutationSelectorModal } from '../components/BankMutationSelectorMod
 import { bankReconciliationApi } from '../../bank-reconciliation/api/bank-reconciliation.api'
 import { POS_AGGREGATES_MESSAGES, BANK_RECONCILIATION_MESSAGES } from '@/utils/messages'
 import { mapToAggregatedTransactionListItem, canReconcileTransaction, canMatchBankMutation } from '../types'
+import { posSyncAggregatesApi } from '@/features/pos-sync-aggregates/api/pos-sync-aggregates.api'
+import type { PosSyncAggregateLine } from '@/features/pos-sync-aggregates/types/pos-sync-aggregates.types'
 
 // =============================================================================
 // COMPONENT
@@ -55,6 +57,8 @@ export const PosAggregateDetailPage: React.FC = () => {
   const [showMutationSelector, setShowMutationSelector] = useState(false)
   const [isMatching, setIsMatching] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [posSyncLines, setPosSyncLines] = useState<PosSyncAggregateLine[]>([])
+  const [isLoadingLines, setIsLoadingLines] = useState(false)
 
   // Fetch transaction on mount - only if not already loaded
   useEffect(() => {
@@ -87,6 +91,24 @@ export const PosAggregateDetailPage: React.FC = () => {
 
     loadTransaction()
   }, [id, fetchTransactionById, toast, navigate, selectedTransaction])
+
+  // Fetch POS Sync lines jika source_type === 'POS_SYNC'
+  useEffect(() => {
+    if (!selectedTransaction) return
+    if (selectedTransaction.source_type !== 'POS_SYNC') {
+      setPosSyncLines([])
+      return
+    }
+    const posSyncId = selectedTransaction.source_id
+    if (!posSyncId) return
+
+    setIsLoadingLines(true)
+    posSyncAggregatesApi
+      .getLines(posSyncId)
+      .then(setPosSyncLines)
+      .catch((err) => console.error('Failed to fetch pos sync lines:', err))
+      .finally(() => setIsLoadingLines(false))
+  }, [selectedTransaction?.id, selectedTransaction?.source_type, selectedTransaction?.source_id])
 
   // Handle delete
   const handleDelete = useCallback(async () => {
@@ -249,6 +271,17 @@ export const PosAggregateDetailPage: React.FC = () => {
             {/* FIX: typo 'Cabrera' → 'Cabang' */}
             <p className="text-gray-500 dark:text-gray-400 mt-1">
               {transaction.source_ref} • {transaction.branch_name || 'Tanpa Cabang'}
+              {transaction.source_type === 'POS_SYNC' && (
+                <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-semibold">
+                  <Zap className="w-3 h-3" />
+                  Auto Sync
+                </span>
+              )}
+              {transaction.source_type === 'POS' && (
+                <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full text-xs font-semibold">
+                  Manual Import
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -267,6 +300,112 @@ export const PosAggregateDetailPage: React.FC = () => {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
         <PosAggregatesDetail transaction={transaction} />
       </div>
+
+      {/* ── POS Sync Lines (hanya jika source_type = POS_SYNC) ─────── */}
+      {transaction.source_type === 'POS_SYNC' && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          {/* Link ke POS Sync detail page */}
+          <div className="px-6 py-3 bg-blue-50 dark:bg-blue-900/10 border-b dark:border-gray-700 flex items-center justify-between">
+            <p className="text-xs text-blue-600 dark:text-blue-400">
+              Transaksi ini berasal dari POS Auto Sync
+            </p>
+            <button
+              onClick={() => navigate(`/pos-sync-aggregates/${transaction.source_id}`)}
+              className="text-xs text-blue-700 dark:text-blue-300 font-semibold hover:underline flex items-center gap-1"
+            >
+              Lihat Detail POS Sync
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+
+          <div className="px-6 py-4 border-b dark:border-gray-700 flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                Detail Transaksi POS
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                Data langsung dari sistem POS ·{' '}
+                {isLoadingLines ? '...' : `${posSyncLines.length} bills`}
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-full text-xs font-semibold">
+              <Zap className="w-3 h-3" />
+              Auto Sync
+            </span>
+          </div>
+
+          {isLoadingLines ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+              <span className="ml-3 text-sm text-gray-500">Memuat detail transaksi...</span>
+            </div>
+          ) : posSyncLines.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+              <p className="text-sm">Tidak ada detail transaksi ditemukan</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-700 text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-900/50">
+                  <tr>
+                    {['No. Sales', 'Subtotal', 'Diskon', 'Tax (PPN)', 'Grand Total', 'Pembayaran'].map((h) => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {posSyncLines.map((line) => (
+                    <tr key={line.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                      <td className="px-4 py-3 font-mono text-xs text-gray-900 dark:text-white">
+                        {line.sales_num}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
+                        {Number(line.subtotal).toLocaleString('id-ID')}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
+                        {Number(line.discount_total) > 0 ? Number(line.discount_total).toLocaleString('id-ID') : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
+                        {Number(line.vat_total).toLocaleString('id-ID')}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">
+                        {Number(line.grand_total).toLocaleString('id-ID')}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400">
+                        {Number(line.payment_amount).toLocaleString('id-ID')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-gray-50 dark:bg-gray-900/50 border-t-2 border-gray-200 dark:border-gray-600">
+                  <tr>
+                    <td className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">
+                      Total ({posSyncLines.length} bills)
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
+                      {posSyncLines.reduce((s, l) => s + Number(l.subtotal), 0).toLocaleString('id-ID')}
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
+                      {posSyncLines.reduce((s, l) => s + Number(l.discount_total), 0).toLocaleString('id-ID')}
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
+                      {posSyncLines.reduce((s, l) => s + Number(l.vat_total), 0).toLocaleString('id-ID')}
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
+                      {posSyncLines.reduce((s, l) => s + Number(l.grand_total), 0).toLocaleString('id-ID')}
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-green-600 dark:text-green-400">
+                      {posSyncLines.reduce((s, l) => s + Number(l.payment_amount), 0).toLocaleString('id-ID')}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Sticky Action Bar ───────────────────────────────────────────── */}
       {/* Always visible at bottom so user can act without scrolling back up */}
@@ -311,20 +450,24 @@ export const PosAggregateDetailPage: React.FC = () => {
                     <span className="hidden sm:inline">Pilih Mutasi Bank</span>
                   </button>
                 )}
-                <button
-                  onClick={() => navigate(`/pos-aggregates/${id}/edit`)}
-                  className="px-3 py-2 text-blue-700 bg-blue-100 dark:text-blue-300 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2 text-sm font-medium"
-                >
-                  <Edit2 className="w-4 h-4" />
-                  <span className="hidden sm:inline">Edit</span>
-                </button>
-                <button
-                  onClick={() => setDeleteId(id || null)}
-                  className="px-3 py-2 text-red-700 bg-red-100 dark:text-red-300 dark:bg-red-900/30 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 focus:outline-none focus:ring-2 focus:ring-red-500 flex items-center gap-2 text-sm font-medium"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span className="hidden sm:inline">Hapus</span>
-                </button>
+                {transaction.source_type !== 'POS_SYNC' && (
+                  <button
+                    onClick={() => navigate(`/pos-aggregates/${id}/edit`)}
+                    className="px-3 py-2 text-blue-700 bg-blue-100 dark:text-blue-300 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2 text-sm font-medium"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Edit</span>
+                  </button>
+                )}
+                {transaction.source_type !== 'POS_SYNC' && (
+                  <button
+                    onClick={() => setDeleteId(id || null)}
+                    className="px-3 py-2 text-red-700 bg-red-100 dark:text-red-300 dark:bg-red-900/30 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 focus:outline-none focus:ring-2 focus:ring-red-500 flex items-center gap-2 text-sm font-medium"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Hapus</span>
+                  </button>
+                )}
               </>
             )}
             {transaction.status === 'CANCELLED' && (

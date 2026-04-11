@@ -20,13 +20,14 @@ export type AggregatedTransactionStatus =
   | "PROCESSING"
   | "COMPLETED"
   | "CANCELLED"
-  | "FAILED";
+  | "FAILED"
+  | "SUPERSEDED";
 
 /**
  * Source types for aggregated transactions
  * Maps to: source_type character varying(30) default 'POS'
  */
-export type AggregatedTransactionSourceType = "POS";
+export type AggregatedTransactionSourceType = "POS" | "POS_SYNC";
 
 /**
  * Main aggregated transaction interface
@@ -86,6 +87,7 @@ export interface AggregatedTransactionWithDetails extends AggregatedTransaction 
   actual_fee_amount?: number | null;
   fee_discrepancy?: number | null;
   fee_discrepancy_note?: string | null;
+  pos_sync_aggregate_id?: string | null;
   // Settlement group
   settlement_group_id?: string | null;
   settlement_number?: string | null;
@@ -135,6 +137,7 @@ export interface AggregatedTransactionListItem {
   actual_fee_amount?: number | null;
   fee_discrepancy?: number | null;
   fee_discrepancy_note?: string | null;
+  pos_sync_aggregate_id?: string | null;
   currency: string;
   journal_id: string | null;
   is_reconciled: boolean;
@@ -497,7 +500,7 @@ export function mapToAggregatedTransactionListItem(
     actual_fee_amount: transaction.actual_fee_amount ?? null,
     fee_discrepancy: transaction.fee_discrepancy ?? null,
     fee_discrepancy_note: transaction.fee_discrepancy_note ?? null,
-    // ↑ sampai sini
+    pos_sync_aggregate_id: transaction.pos_sync_aggregate_id ?? null,
     currency: transaction.currency,
     journal_id: transaction.journal_id,
     is_reconciled: transaction.is_reconciled,

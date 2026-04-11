@@ -25,7 +25,7 @@ function toModalAggregate(
   return {
     id: agg.id,
     branch_name: agg.branch_name,
-    source_type: "POS",
+    source_type: "POS_SYNC",
     source_id: agg.id,
     source_ref: `${agg.sales_date} · ${agg.branch_name} · ${agg.payment_methods?.name ?? ""}`,
     transaction_date: agg.sales_date,
