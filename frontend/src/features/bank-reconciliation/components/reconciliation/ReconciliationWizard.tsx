@@ -519,7 +519,7 @@ function StepAutoMatch({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-gray-500">{match.statement.transaction_date}</p>
-                    <p className="text-sm text-gray-800 dark:text-gray-200 truncate">{match.statement.description}</p>
+                    <p className="text-sm text-gray-800 dark:text-gray-200">{match.statement.description}</p>
                     <p className="text-sm font-bold text-gray-900 dark:text-white">{fmt(match.statement.amount)}</p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
@@ -662,7 +662,7 @@ function StepManualMatch({
                 <div className="flex justify-between items-start">
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] text-gray-400">{s.transaction_date}</p>
-                    <p className="text-xs text-gray-700 dark:text-gray-300 truncate mt-0.5">
+                    <p className="text-xs text-gray-700 dark:text-gray-300 mt-0.5">
                       {s.description}
                     </p>
                   </div>
@@ -955,7 +955,7 @@ function StepMultiMatch({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] text-gray-400">{s.transaction_date}</p>
-                    <p className="text-xs text-gray-700 dark:text-gray-300 truncate">{s.description}</p>
+                    <p className="text-xs text-gray-700 dark:text-gray-300">{s.description}</p>
                     <p className="text-xs font-bold text-gray-900 dark:text-white mt-0.5">{fmt(amt)}</p>
                   </div>
                 </div>
@@ -1204,7 +1204,7 @@ function StepReview({
                   <div key={id} className="flex items-center justify-between py-1.5 border-b border-blue-100 dark:border-blue-800 last:border-0">
                     <div>
                       <p className="text-xs font-medium text-blue-800 dark:text-blue-300">{s.transaction_date}</p>
-                      <p className="text-xs text-blue-600 dark:text-blue-400 truncate max-w-xs">{s.description}</p>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 max-w-lg">{s.description}</p>
                     </div>
                     <p className="text-sm font-bold text-blue-700 dark:text-blue-300">{fmt(amt)}</p>
                   </div>
@@ -1228,7 +1228,7 @@ function StepReview({
                 {s ? (
                   <>
                     <p className="text-xs text-gray-600 dark:text-gray-400">{s.transaction_date}</p>
-                    <p className="text-xs text-gray-700 dark:text-gray-300 truncate">{s.description}</p>
+                    <p className="text-xs text-gray-700 dark:text-gray-300">{s.description}</p>
                     <p className="text-sm font-bold text-gray-900 dark:text-white mt-1">{fmt(amt)}</p>
                   </>
                 ) : (
@@ -1281,7 +1281,7 @@ function StepReview({
                 const amt = (s.credit_amount || 0) - (s.debit_amount || 0);
                 return (
                   <div key={s.id} className="flex justify-between items-center py-1 border-b border-violet-100 dark:border-violet-800 last:border-0 text-xs">
-                    <span className="text-gray-600 dark:text-gray-400 truncate max-w-xs">{s.description || s.transaction_date}</span>
+                    <span className="text-gray-600 dark:text-gray-400 max-w-md">{s.description || s.transaction_date}</span>
                     <span className="font-medium text-gray-900 dark:text-white">{fmt(amt)}</span>
                   </div>
                 );

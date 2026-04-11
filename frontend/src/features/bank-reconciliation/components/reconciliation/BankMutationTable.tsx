@@ -402,7 +402,7 @@ export function BankMutationTable({
                               </span>
                             )}
                           </div>
-                          <p className="text-sm font-black text-gray-900 dark:text-white max-w-[320px] truncate leading-tight group-hover/row:text-blue-600 transition-colors" title={item.description}>
+                          <p className="text-sm font-black text-gray-900 dark:text-white max-w-[500px] leading-tight group-hover/row:text-blue-600 transition-colors" title={item.description}>
                             {item.description ?? "Untitled Transaction"}
                           </p>
                           <StatusBadge status={item.status} />
@@ -595,7 +595,7 @@ export function BankMutationTable({
                                             <span className="text-[10px] font-black text-gray-400 uppercase mb-0.5 block">
                                               {formatDate(detail.statement?.transaction_date)}
                                             </span>
-                                            <span className="text-sm font-semibold text-gray-900 dark:text-white truncate lg:max-w-md block">
+                                            <span className="text-sm font-semibold text-gray-900 dark:text-white lg:max-w-xl block">
                                               {detail.statement?.description || "Historical Statement Record"}
                                             </span>
                                           </div>
