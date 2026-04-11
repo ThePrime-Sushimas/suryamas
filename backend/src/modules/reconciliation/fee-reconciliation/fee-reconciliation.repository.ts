@@ -350,9 +350,9 @@ export class FeeReconciliationRepository implements IFeeReconciliationRepository
     const { error } = await supabase
       .from('aggregated_transactions')
       .update({
-        actual_fee_amount:    0,        // NOT NULL constraint — reset ke 0, bukan null
-        fee_discrepancy:      null,
-        fee_discrepancy_note: null,
+        actual_fee_amount:    0,   // NOT NULL — reset ke 0
+        fee_discrepancy:      0,   // NOT NULL — reset ke 0
+        fee_discrepancy_note: '',  // set ke empty string agar aman dari NOT NULL
         updated_at:           new Date().toISOString(),
       })
       .eq('id', aggregateId)
