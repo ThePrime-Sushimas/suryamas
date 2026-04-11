@@ -197,9 +197,9 @@ bill_after_discount,
     if (aggError) throw new DatabaseError('Failed to fetch aggregated transaction', { cause: aggError })
     if (!aggData) return null
 
-    // Then get the bank statement via reconciliation_id (ada di bank_statements)
-    // Note: bank_statements tidak memiliki kolom reconciled_at, hanya is_reconciled
-    const { data: bankData, error: bankError } = await supabase
+    // Then get the bank statement(s) via reconciliation_id
+    // Note: multiple bank_statements may share the same reconciliation_id
+    const { data: bankRows, error: bankError } = await supabase
       .from('bank_statements')
       .select(`
         id,
@@ -219,11 +219,13 @@ bill_after_discount,
       `)
       .eq('reconciliation_id', id)
       .is('deleted_at', null)
-      .maybeSingle()
+      .limit(1)
 
     if (bankError) {
       console.error('Error fetching bank statement:', bankError)
     }
+
+    const bankData = bankRows?.[0] ?? null
 
     // Query settlement group (bulk settlement)
     const { data: settlementAgg } = await supabase
