@@ -4,7 +4,7 @@
  * State management for settlement groups feature using TanStack Query + Zustand
  */
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 import { useState, useEffect } from "react";
 import { settlementGroupsApi } from "../api/settlement-groups.api";
@@ -15,6 +15,7 @@ import type {
   GetSuggestionsRequest,
   SettlementWizardStep,
   GetAvailableBankStatementsRequest,
+  AvailableBankStatementsResponse,
 } from "../types/settlement-groups.types";
 
 // ==================== ZUSTAND STORE ====================
@@ -285,13 +286,41 @@ export const useDeleteSettlementGroup = () => {
 
 /**
  * Hook for fetching available bank statements for settlement
+ * Uses infinite query for "Load More" pagination
  */
-export const useAvailableBankStatements = (params?: GetAvailableBankStatementsRequest) => {
-  return useQuery({
-    queryKey: ['available-bank-statements', params],
-    queryFn: () => settlementGroupsApi.getAvailableBankStatements(params),
-    staleTime: 2 * 60 * 1000, // 2 minutes - data changes when statements get reconciled
+export const useAvailableBankStatements = (params?: Omit<GetAvailableBankStatementsRequest, 'offset' | 'limit'> & { limit?: number }) => {
+  const pageSize = params?.limit || 50;
+
+  const query = useInfiniteQuery({
+    queryKey: ['available-bank-statements', params?.search, params?.bankAccountId],
+    queryFn: ({ pageParam = 0 }) =>
+      settlementGroupsApi.getAvailableBankStatements({
+        ...params,
+        limit: pageSize,
+        offset: pageParam as number,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, _allPages, lastPageParam) => {
+      // If last page returned fewer items than pageSize, no more pages
+      if (lastPage.data.length < pageSize) return undefined;
+      // Next offset = current offset + items received
+      return (lastPageParam as number) + lastPage.data.length;
+    },
+    staleTime: 2 * 60 * 1000,
   });
+
+  // Flatten pages into single array for backward compatibility
+  const flatData = query.data?.pages.flatMap((p) => p.data) || [];
+  // Total from backend (first page has the full count since it's computed before slice)
+  const total = query.data?.pages[0]?.total || flatData.length;
+
+  return {
+    data: { data: flatData, total } as AvailableBankStatementsResponse,
+    isLoading: query.isLoading,
+    isFetchingNextPage: query.isFetchingNextPage,
+    hasNextPage: query.hasNextPage,
+    fetchNextPage: query.fetchNextPage,
+  };
 };
 
 /**

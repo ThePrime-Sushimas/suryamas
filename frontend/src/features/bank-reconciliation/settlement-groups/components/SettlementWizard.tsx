@@ -3,7 +3,7 @@
  * 3-step wizard for creating bulk settlement groups
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { CheckCircle, Circle, ArrowLeft, ArrowRight, Loader2, Search, Building, Calendar, FileText, CreditCard, AlertTriangle } from 'lucide-react';
 import { useSettlementGroupsStore } from '../hooks/useSettlementGroups';
 import { useAvailableBankStatements, useAvailableAggregatesForSettlement, useCreateSettlementGroup } from '../hooks/useSettlementGroups';
@@ -274,12 +274,31 @@ const SelectBankStatementStep: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
   
-  const { data: bankStatementsData, isLoading } = useAvailableBankStatements({
+  const { data: bankStatementsData, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useAvailableBankStatements({
     search: debouncedSearch || undefined,
     limit: 50,
   });
 
   const bankStatements = bankStatementsData?.data || [];
+
+  // Infinite scroll: observe sentinel element at bottom of scrollable table
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLTableRowElement>(null);
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const root = scrollContainerRef.current;
+    if (!sentinel || !root || !hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { root, rootMargin: '200px' },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, bankStatements.length]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -338,7 +357,7 @@ const SelectBankStatementStep: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto max-h-96 overflow-y-auto">
+          <div ref={scrollContainerRef} className="overflow-x-auto max-h-96 overflow-y-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50 sticky top-0">
                 <tr>
@@ -406,11 +425,30 @@ const SelectBankStatementStep: React.FC = () => {
                     </td>
                   </tr>
                 ))}
+                {/* Sentinel row for infinite scroll */}
+                <tr ref={sentinelRef}>
+                  <td colSpan={5}>
+                    {isFetchingNextPage && (
+                      <div className="flex items-center justify-center py-3">
+                        <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                        <span className="ml-2 text-xs text-gray-500">Memuat lebih banyak...</span>
+                      </div>
+                    )}
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {/* Total count indicator */}
+      {bankStatements.length > 0 && (
+        <p className="text-xs text-gray-400">
+          Menampilkan {bankStatements.length} dari {bankStatementsData?.total || bankStatements.length} mutasi
+          {hasNextPage && ' — scroll ke bawah untuk memuat lebih banyak'}
+        </p>
+      )}
 
       {/* Selection Summary */}
       {selectedBankStatement && (

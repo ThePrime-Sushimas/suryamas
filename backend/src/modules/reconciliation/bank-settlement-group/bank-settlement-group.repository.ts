@@ -523,6 +523,7 @@ export class SettlementGroupRepository {
 
   /**
    * Mark aggregates as reconciled
+   * Also cascades to pos_sync_aggregates for POS_SYNC source types
    */
   async markAggregatesAsReconciled(aggregateIds: string[]): Promise<void> {
     const { error } = await supabase
@@ -537,6 +538,9 @@ export class SettlementGroupRepository {
       logError('Mark aggregates as reconciled error', { aggregateIds, error: error.message });
       throw new Error(`Failed to mark aggregates as reconciled: ${error.message}`);
     }
+
+    // Cascade to pos_sync_aggregates for POS_SYNC source types
+    await this.cascadeReconciliationToPosSyncAggregates(aggregateIds, true);
   }
 
   /**
@@ -575,6 +579,7 @@ export class SettlementGroupRepository {
 
   /**
    * Mark aggregates as unreconciled
+   * Also cascades reset to pos_sync_aggregates for POS_SYNC source types
    */
   async markAggregatesAsUnreconciled(aggregateIds: string[]): Promise<void> {
     const { error } = await supabase
@@ -588,6 +593,79 @@ export class SettlementGroupRepository {
     if (error) {
       logError('Mark aggregates as unreconciled error', { aggregateIds, error: error.message });
       throw new Error(`Failed to mark aggregates as unreconciled: ${error.message}`);
+    }
+
+    // Cascade reset to pos_sync_aggregates for POS_SYNC source types
+    await this.cascadeReconciliationToPosSyncAggregates(aggregateIds, false);
+  }
+
+  /**
+   * Cascade reconciliation status to pos_sync_aggregates
+   * When aggregated_transactions with source_type=POS_SYNC are reconciled/unreconciled,
+   * the linked pos_sync_aggregates record must be updated too.
+   */
+  private async cascadeReconciliationToPosSyncAggregates(
+    aggregateIds: string[],
+    isReconciled: boolean,
+  ): Promise<void> {
+    try {
+      const { data: aggRows, error: fetchErr } = await supabase
+        .from('aggregated_transactions')
+        .select('id, source_type, pos_sync_aggregate_id')
+        .in('id', aggregateIds)
+        .eq('source_type', 'POS_SYNC')
+        .not('pos_sync_aggregate_id', 'is', null);
+
+      if (fetchErr || !aggRows || aggRows.length === 0) return;
+
+      const posSyncIds = aggRows.map((r: any) => r.pos_sync_aggregate_id);
+
+      if (isReconciled) {
+        // When reconciling via settlement, we only set is_reconciled
+        // (bank_statement_id/actual_fee etc. are set by the specific reconciliation flow)
+        const { error } = await supabase
+          .from('pos_sync_aggregates')
+          .update({
+            is_reconciled: true,
+            updated_at: new Date().toISOString(),
+          })
+          .in('id', posSyncIds);
+
+        if (error) {
+          logError('Cascade reconcile to pos_sync_aggregates error', { posSyncIds, error: error.message });
+        }
+      } else {
+        // Undo: reset all reconciliation fields
+        const { error } = await supabase
+          .from('pos_sync_aggregates')
+          .update({
+            is_reconciled: false,
+            bank_statement_id: null,
+            reconciled_at: null,
+            actual_fee_amount: null,
+            fee_discrepancy: null,
+            fee_discrepancy_note: null,
+            updated_at: new Date().toISOString(),
+          })
+          .in('id', posSyncIds);
+
+        if (error) {
+          logError('Cascade undo reconcile to pos_sync_aggregates error', { posSyncIds, error: error.message });
+        }
+      }
+
+      logInfo('Cascaded reconciliation to pos_sync_aggregates', {
+        posSyncIds,
+        isReconciled,
+        count: posSyncIds.length,
+      });
+    } catch (err) {
+      // Non-blocking: log but don't throw
+      logError('cascadeReconciliationToPosSyncAggregates failed', {
+        aggregateIds,
+        isReconciled,
+        error: err instanceof Error ? err.message : 'Unknown',
+      });
     }
   }
 
@@ -1048,7 +1126,9 @@ export class SettlementGroupRepository {
         `,
           { count: 'exact' }
         )
-        .eq("is_reconciled", false);
+        .eq("is_reconciled", false)
+        .is("deleted_at", null)
+        .is("superseded_by", null);
 
       // Apply date range filter
       if (options?.startDate) {

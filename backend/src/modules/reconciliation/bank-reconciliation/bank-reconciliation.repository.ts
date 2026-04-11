@@ -624,6 +624,40 @@ export class BankReconciliationRepository {
   }
 
   /**
+   * Count total unreconciled bank statements (for pagination)
+   */
+  async countUnreconciled(
+    startDate: Date,
+    endDate: Date,
+    bankAccountId?: number,
+  ): Promise<number> {
+    try {
+      let query = supabase
+        .from("bank_statements")
+        .select("*", { count: "exact", head: true })
+        .gte("transaction_date", startDate.toISOString().split("T")[0])
+        .lte("transaction_date", endDate.toISOString().split("T")[0])
+        .eq("is_reconciled", false)
+        .is("deleted_at", null);
+
+      if (bankAccountId) {
+        query = query.eq("bank_account_id", bankAccountId);
+      }
+
+      const { count, error } = await query;
+
+      if (error) {
+        logError("Error counting unreconciled statements", { error: error.message });
+        return 0;
+      }
+      return count || 0;
+    } catch (error: any) {
+      logError("Error counting unreconciled statements", { error: error.message });
+      return 0;
+    }
+  }
+
+  /**
    * Log reconciliation action to audit trail
    */
   async logAction(data: {

@@ -627,7 +627,7 @@ export class BankReconciliationController {
       const { bankAccountId, search, limit, offset, startDate, endDate } = req.query;
 
       // Get unreconciled statements - either for specific account or all accounts
-      const statements = await this.service.getUnreconciledStatements(
+      const result = await this.service.getUnreconciledStatements(
         bankAccountId ? parseInt(bankAccountId as string) : undefined,
         search as string | undefined,
         limit ? parseInt(limit as string) : 50,
@@ -638,7 +638,8 @@ export class BankReconciliationController {
 
       res.status(200).json({
         success: true,
-        data: statements,
+        data: result.data,
+        total: result.total,
       });
     } catch (error: any) {
       logError("Get unreconciled statements error", { 

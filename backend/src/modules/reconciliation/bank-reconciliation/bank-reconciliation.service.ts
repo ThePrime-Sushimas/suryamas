@@ -1105,7 +1105,7 @@ export class BankReconciliationService {
     offset: number = 0,
     startDate?: Date,  // ← tambah
     endDate?: Date,    // ← tambah
-  ): Promise<any[]> {
+  ): Promise<{ data: any[]; total: number }> {
     try {
       // Get today's date as default
       const today = new Date()
@@ -1115,24 +1115,32 @@ export class BankReconciliationService {
 
       let statements: any[];
 
+      // Get accurate total count from DB first
+      const dbTotal = await this.repository.countUnreconciled(
+        effectiveStart,
+        effectiveEnd,
+        bankAccountId || undefined,
+      );
+
       if (bankAccountId) {
+        // When searching, fetch all from DB so in-memory filter is complete
+        // When not searching, let DB handle offset/limit
         statements = await this.repository.getUnreconciledBatch(
           effectiveStart,
           effectiveEnd,
-          limit,
-          offset,          
+          search ? dbTotal || 10000 : limit,
+          search ? 0 : offset,
           bankAccountId,
         );
       } else {
-        // Multi-account - fetch EXTRA records per account (Promise.all for parallel)
         const accounts = await this.repository.getAllBankAccounts();
         const accountStatements = await Promise.all(
           accounts.map(account =>
             this.repository.getUnreconciledBatch(
               effectiveStart,
               effectiveEnd,
-              limit + offset, // ← ambil lebih untuk bisa di-offset setelah merge
-              0,              // ← selalu 0 per account
+              search ? 10000 : limit + offset,
+              0,
               account.id,
             )
           )
@@ -1150,11 +1158,17 @@ export class BankReconciliationService {
         );
       }
 
-      // Apply offset and limit after filtering
-      const paginatedStatements = statements.slice(offset, offset + limit);
+      // Total: DB count for non-search, filtered count for search
+      const total = search ? statements.length : dbTotal;
 
-      // Transform to include computed fields
-      return paginatedStatements.map((s) => {
+      // Apply offset and limit
+      // - Single-account without search: DB already applied offset/limit
+      // - Otherwise: slice in-memory
+      const paginatedStatements = (bankAccountId && !search)
+        ? statements
+        : statements.slice(offset, offset + limit);
+
+      const data = paginatedStatements.map((s) => {
         const bankAmount = (s.credit_amount || 0) - (s.debit_amount || 0);
         return {
           ...s,
@@ -1165,6 +1179,8 @@ export class BankReconciliationService {
           potentialMatches: [],
         };
       });
+
+      return { data, total };
     } catch (error: any) {
       logError("Error getting unreconciled statements for reverse matching", {
         bankAccountId,

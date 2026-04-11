@@ -135,7 +135,7 @@ export const settlementGroupsApi = {
     });
     return {
       data: response.data.data,
-      total: response.data.data.length,
+      total: response.data.total ?? response.data.data.length,
     };
   },
 };
