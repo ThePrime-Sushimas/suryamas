@@ -414,6 +414,46 @@ if (exists) {
     
     const created = await posAggregatesRepository.create(insertData);
 
+    // Auto-supersede: if POS_SYNC already exists for same (date, branch, payment_method),
+    // mark this manual entry as SUPERSEDED immediately
+    if (insertData.source_type === 'POS' && (insertData.branch_id || insertData.branch_name) && resolvedPaymentMethodId) {
+      let posSyncQuery = supabase
+        .from('aggregated_transactions')
+        .select('id')
+        .eq('source_type', 'POS_SYNC')
+        .eq('transaction_date', insertData.transaction_date)
+        .eq('payment_method_id', resolvedPaymentMethodId)
+        .is('deleted_at', null)
+        .is('superseded_by', null);
+
+      if (insertData.branch_id) {
+        posSyncQuery = posSyncQuery.eq('branch_id', insertData.branch_id);
+      } else {
+        posSyncQuery = posSyncQuery.eq('branch_name', insertData.branch_name);
+      }
+
+      const { data: existingPosSync } = await posSyncQuery.maybeSingle();
+
+      if (existingPosSync) {
+        await supabase
+          .from('aggregated_transactions')
+          .update({
+            superseded_by: existingPosSync.id,
+            status: 'SUPERSEDED',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', created.id);
+
+        logInfo('Manual CSV auto-superseded by existing POS_SYNC', {
+          manual_id: created.id,
+          pos_sync_id: existingPosSync.id,
+          date: insertData.transaction_date,
+          branch_id: insertData.branch_id,
+          payment_method_id: resolvedPaymentMethodId,
+        });
+      }
+    }
+
     // Audit log for CREATE
     const userId = (data as any).userId;
     if (userId) {

@@ -154,6 +154,9 @@ bill_after_discount,
       dbQuery = dbQuery.is('deleted_at', null)
     }
 
+    // Exclude superseded entries
+    dbQuery = dbQuery.is('superseded_by', null)
+
     // Apply sorting
     if (sort) {
       dbQuery = dbQuery.order(sort.field, { ascending: sort.order === 'asc' })
@@ -188,6 +191,7 @@ bill_after_discount,
       `)
       .eq('id', id)
       .is('deleted_at', null)
+      .is('superseded_by', null)
       .maybeSingle()
 
     if (aggError) throw new DatabaseError('Failed to fetch aggregated transaction', { cause: aggError })
@@ -623,6 +627,7 @@ if (error) {
       .select('*')
       .eq('is_reconciled', false)
       .is('deleted_at', null)
+      .is('superseded_by', null)
 
     if (dateFrom) {
       dbQuery = dbQuery.gte('transaction_date', dateFrom)
@@ -666,6 +671,7 @@ if (error) {
       .from('aggregated_transactions')
       .select('*', { count: 'exact', head: true })
       .is('deleted_at', null)
+      .is('superseded_by', null)
 
     if (dateFrom) dbQuery = dbQuery.gte('transaction_date', dateFrom)
     if (dateTo) dbQuery = dbQuery.lte('transaction_date', dateTo)
@@ -694,6 +700,7 @@ if (error) {
       .from('aggregated_transactions')
       .select('gross_amount, discount_amount, tax_amount, service_charge_amount, bill_after_discount, percentage_fee_amount, fixed_fee_amount, total_fee_amount, nett_amount')
       .is('deleted_at', null)
+      .is('superseded_by', null)
 
     if (dateFrom) allDataQuery = allDataQuery.gte('transaction_date', dateFrom)
     if (dateTo) allDataQuery = allDataQuery.lte('transaction_date', dateTo)
@@ -780,6 +787,7 @@ if (error) {
         .select('id', { count: 'exact', head: true })
         .eq('status', status)
         .is('deleted_at', null)
+        .is('superseded_by', null)
 
       // Apply filters
       if (dateFrom) {

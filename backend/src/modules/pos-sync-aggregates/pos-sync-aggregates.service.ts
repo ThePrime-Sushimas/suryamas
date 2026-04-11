@@ -48,13 +48,14 @@ export async function syncPosSyncToAggregated(
       result.synced++;
 
       // Supersede unreconciled manual CSV for same (date, branch, payment_method)
-      if (p.branch_id && p.payment_method_id) {
+      if ((p.branch_id || p.branch_name) && p.payment_method_id) {
         try {
           const superseded = await posSyncAggregatesRepository.supersedeManualEntries({
             supersededById: upserted.id,
             transactionDate: p.sales_date,
             paymentMethodId: p.payment_method_id,
             branchId: p.branch_id,
+            branchName: p.branch_name,
           });
           result.superseded += superseded.length;
         } catch (supErr: any) {

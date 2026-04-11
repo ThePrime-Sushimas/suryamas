@@ -17,6 +17,7 @@ import type {
   AggregatedTransactionStatus,
 } from "../../pos-imports/pos-aggregates/pos-aggregates.types";
 import { logInfo, logError, logWarn } from "@/config/logger";
+import { posSyncAggregatesRepository } from "../../pos-sync-aggregates/pos-sync-aggregates.repository";
 
 // ==============================
 // CONFIGURATION
@@ -836,7 +837,48 @@ export async function generateAggregatedTransactionsOptimized(
       });
     }
 
-    // PHASE 6b: Store failed transactions
+    // PHASE 6b: Auto-supersede manual entries where POS_SYNC already exists
+    if (createdCount > 0) {
+      try {
+        // Collect source_refs of created entries, then batch-fetch their IDs
+        const createdRefs = insertDataArray.map((b) => b.data.source_ref);
+        logInfo("Phase 6b: starting supersede check", { createdCount, refsCount: createdRefs.length });
+        const LOOKUP_BATCH = 200;
+        const manualIds: string[] = [];
+
+        for (let i = 0; i < createdRefs.length; i += LOOKUP_BATCH) {
+          const refBatch = createdRefs.slice(i, i + LOOKUP_BATCH);
+          const { data: found, error: lookupErr } = await supabase
+            .from("aggregated_transactions")
+            .select("id")
+            .eq("source_type", "POS")
+            .in("source_ref", refBatch)
+            .is("deleted_at", null)
+            .is("superseded_by", null);
+          if (lookupErr) {
+            logWarn("Phase 6b: lookup error", { error: lookupErr.message });
+          }
+          if (found) manualIds.push(...found.map((r: any) => r.id));
+        }
+
+        logInfo("Phase 6b: manual IDs collected", { manualIdsCount: manualIds.length });
+
+        if (manualIds.length > 0) {
+          const supersededCount = await posSyncAggregatesRepository.supersedeManualIfPosSyncExists(manualIds);
+          logInfo("Manual CSV entries auto-superseded by POS_SYNC", {
+            superseded: supersededCount,
+            total_manual: manualIds.length,
+            total_created: createdCount,
+          });
+        } else {
+          logInfo("Phase 6b: no manual IDs found to supersede");
+        }
+      } catch (supErr: any) {
+        logWarn("Auto-supersede after CSV import failed (non-blocking)", { error: supErr.message, stack: supErr.stack });
+      }
+    }
+
+    // PHASE 6c: Store failed transactions
     let failedStoredCount = 0;
     if (failedRecords.length > 0) {
       onProgress?.({
