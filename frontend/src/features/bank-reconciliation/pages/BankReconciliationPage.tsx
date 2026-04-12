@@ -18,9 +18,8 @@ import {
   RefreshCw,
   ShieldCheck,
   X,
-  FileText,
   Calendar,
-  SlidersHorizontal,
+  Play,
 } from "lucide-react";
 import { BankMutationTable } from "../components/reconciliation/BankMutationTable";
 import {
@@ -28,14 +27,13 @@ import {
   type BankStatementFilter,
 } from "../components/BankReconciliationFilters";
 import { useBankReconciliation } from "../hooks/useBankReconciliation";
+
+import { ErrorBoundary } from "../components/ErrorBoundary";
+import { SettlementGroupList } from "../components/reconciliation/SettlementGroupList";
 import type {
   BankStatementWithMatch,
   MatchingCriteria,
-  ReconciliationSummary,
 } from "../types/bank-reconciliation.types";
-import { ErrorBoundary } from "../components/ErrorBoundary";
-import { ReconciliationSummaryCards } from "../components/reconciliation/ReconciliationSummary";
-import { SettlementGroupList } from "../components/reconciliation/SettlementGroupList";
 
 // ← NEW: unified wizard
 import { ReconciliationWizard } from "../components/reconciliation/ReconciliationWizard";
@@ -90,6 +88,11 @@ export function BankReconciliationPage() {
     settlementGroupsTotal,
     deleteSettlementGroup,
   } = useBankReconciliation();
+
+  const unreconciledStatements = useMemo(
+    () => statements.filter((s) => !s.is_reconciled),
+    [statements]
+  );
 
   useEffect(() => {
     fetchAllBankAccounts();
@@ -163,32 +166,7 @@ export function BankReconciliationPage() {
     fetchSettlementGroups,
   ]);
 
-  const unreconciledStatements = useMemo(
-    () => statements.filter((s) => !s.is_reconciled),
-    [statements]
-  );
 
-  // Calculate summary data
-  const summary: ReconciliationSummary | null = useMemo(() => {
-    if (!statements.length && !filtersApplied) return null;
-    const totalStatements = pagination.total || statements.length;
-    const reconciledCount = statements.filter(s => s.is_reconciled).length;
-    
-    return {
-      period: {
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-      },
-      totalAggregates: 0, // Would need API support for real value
-      totalStatements,
-      autoMatched: 0, // Would need API support for real value
-      manuallyMatched: 0, // Would need API support for real value
-      discrepancies: statements.filter(s => s.status === 'DISCREPANCY').length,
-      unreconciled: totalStatements - reconciledCount,
-      totalDifference: reconciliationGroups.reduce((sum, g) => sum + (g.difference || 0), 0),
-      percentageReconciled: totalStatements > 0 ? (reconciledCount / totalStatements) * 100 : 0,
-    };
-  }, [statements, reconciliationGroups, pagination.total, filtersApplied, dateRange.startDate, dateRange.endDate]);
 
   // ─── Wizard handlers ───────────────────────────────────
 
@@ -326,70 +304,54 @@ export function BankReconciliationPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950 p-6 lg:p-10 space-y-10 animate-in fade-in duration-700">
+    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950 p-4 lg:p-6 space-y-4 animate-in fade-in duration-500">
       
-      {/* Premium Header Container */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
-        <div className="space-y-3">
-           <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-600 rounded-2xl shadow-xl shadow-blue-500/20">
-                 <ShieldCheck className="w-8 h-8 text-white" />
-              </div>
-              <h1 className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">
-                Bank Reconciliation
-              </h1>
-           </div>
-           <p className="text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest text-[11px] ml-20 leading-none">
-             Engineered for Precise Financial Accuracy
-           </p>
+      {/* Header — compact */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 bg-blue-600 rounded-xl">
+            <ShieldCheck className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Bank Reconciliation</h1>
+            <p className="text-[11px] text-gray-400 dark:text-gray-500">Cocokkan mutasi bank dengan transaksi POS</p>
+          </div>
         </div>
-
-        <div className="flex items-center gap-4">
-           <button
-             onClick={refreshData}
-             disabled={isRefreshing || isLoading}
-             className="group flex items-center gap-2.5 px-6 py-3 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 rounded-2xl text-sm font-black uppercase tracking-widest hover:shadow-lg transition-all active:scale-95 border border-gray-100 dark:border-gray-800"
-           >
-             <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-blue-600" : "group-hover:text-blue-600"}`} />
-             Sync Data
-           </button>
-
-           <button
-             onClick={() => handleOpenWizard()}
-             disabled={isLoading || !filtersApplied}
-             className="group relative flex items-center gap-2.5 px-8 py-3 bg-blue-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest shadow-2xl shadow-blue-500/40 hover:bg-blue-700 transition-all active:scale-95 disabled:grayscale disabled:opacity-50 overflow-hidden"
-           >
-             <div className="absolute inset-0 bg-linear-to-r from-blue-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-             <SlidersHorizontal className="w-4 h-4 group-hover:scale-125 transition-transform" />
-             Execute Reconciliation
-           </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={refreshData}
+            disabled={isRefreshing || isLoading}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-all border border-gray-200 dark:border-gray-700"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+          <button
+            onClick={() => handleOpenWizard()}
+            disabled={isLoading || !filtersApplied}
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-all disabled:opacity-40"
+          >
+            <Play className="w-3.5 h-3.5" />
+            Rekonsiliasi
+          </button>
         </div>
       </div>
 
-      {/* Error Display */}
+      {/* Error */}
       {error && (
-        <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-2xl flex items-center justify-between animate-in slide-in-from-top duration-300 shadow-sm" role="alert">
-          <div className="flex items-center gap-3">
-            <X className="w-5 h-5 text-red-500" />
-            <p className="text-sm text-red-700 dark:text-red-400 font-black uppercase tracking-tight">{error}</p>
-          </div>
-          <button onClick={() => setError(null)} className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition-colors">
-            <X className="w-4 h-4 text-red-400" />
+        <div className="px-3 py-2.5 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg flex items-center justify-between" role="alert">
+          <p className="text-xs text-red-700 dark:text-red-400 font-medium">{error}</p>
+          <button onClick={() => setError(null)} className="p-1 hover:bg-red-100 dark:hover:bg-red-900/40 rounded">
+            <X className="w-3.5 h-3.5 text-red-400" />
           </button>
         </div>
       )}
 
-      {/* Main Dashboard Layout */}
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr,360px] gap-10">
-        
-        {/* Left Column: Stats & Primary Actions */}
-        <div className="space-y-10">
-          
-          {/* Summary Widgets */}
-          <ReconciliationSummaryCards summary={summary} />
-
-          {/* Filters Pad */}
-          <div className="bg-white dark:bg-gray-900 p-2 rounded-4xl border border-gray-100 dark:border-gray-800 shadow-xs">
+      {/* Main Layout */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr,340px] gap-4">
+        <div className="space-y-4">
+          {/* Filters */}
+          <div className="bg-white dark:bg-gray-900 p-2 rounded-xl border border-gray-200 dark:border-gray-800">
             <BankReconciliationFilters
               filters={filter}
               onFiltersChange={setFilter}
@@ -400,22 +362,9 @@ export function BankReconciliationPage() {
             />
           </div>
 
-          {/* Table Control & Navigation */}
+          {/* Table */}
           {filtersApplied && (
-            <div className="space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-6 px-2">
-                <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 p-1.5 rounded-2xl shadow-inner">
-                  <button className="flex items-center gap-2.5 px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest bg-white dark:bg-gray-900 text-blue-600 shadow-md">
-                    <FileText className="w-3.5 h-3.5" />
-                    Activity Log
-                    <span className="bg-blue-600 text-white px-1.5 py-0.5 rounded-md text-[9px]">
-                      {pagination.total}
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              <ErrorBoundary>
+            <ErrorBoundary>
                 <BankMutationTable
                   items={statements}
                   potentialMatchesMap={potentialMatchesMap}
@@ -439,40 +388,27 @@ export function BankReconciliationPage() {
                   }}
                   onCheckMatches={fetchPotentialMatches}
                   onUndo={handleUndo}
-                  onMultiMatch={(items) => handleOpenWizard(items)}
                   reconciliationGroups={reconciliationGroups}
-                  showMultiMatch={true}
                   isTableLoading={isLoading}
                   pagination={pagination}
                   onPageChange={setPage}
                   onLimitChange={setPageSize}
-                  onOpenWizard={() => handleOpenWizard()}
                   onUndoGroup={handleUndoMultiMatch}
                 />
-              </ErrorBoundary>
-            </div>
+            </ErrorBoundary>
           )}
 
-          {/* Empty State Overlay */}
+          {/* Empty State */}
           {!filtersApplied && (
-            <div className="relative py-20 px-10 bg-white dark:bg-gray-900 rounded-[3rem] border border-gray-100 dark:border-gray-800 text-center overflow-hidden group">
-               <div className="absolute inset-0 bg-linear-to-br from-blue-50/0 to-blue-50/50 dark:to-blue-900/5 pointer-events-none" />
-               <div className="relative z-10 space-y-8">
-                  <div className="w-24 h-24 bg-blue-50 dark:bg-blue-900/20 rounded-3xl flex items-center justify-center mx-auto transition-transform group-hover:rotate-12 duration-500 shadow-xl shadow-blue-500/10">
-                     <Calendar className="w-10 h-10 text-blue-600" strokeWidth={2.5} />
-                  </div>
-                  <div className="space-y-2">
-                     <h3 className="text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tight leading-none">Ready to Audit?</h3>
-                     <p className="text-gray-500 font-bold uppercase tracking-widest text-[11px]">Select parameters above to initialize synchronization</p>
-                  </div>
-               </div>
+            <div className="py-16 px-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 text-center">
+              <Calendar className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Pilih rentang tanggal untuk memulai rekonsiliasi</p>
             </div>
           )}
         </div>
 
-        {/* Right Column: Settlement Groups + Info */}
-        <div className="space-y-10">
-           {/* Settlement Groups List with Undo/Delete */}
+        {/* Right Column: Settlement Groups */}
+        <div className="space-y-4">
            {filtersApplied && settlementGroups.length > 0 && (
              <ErrorBoundary>
                <SettlementGroupList
@@ -482,18 +418,6 @@ export function BankReconciliationPage() {
                />
              </ErrorBoundary>
            )}
-
-           <div className="bg-linear-to-br from-gray-900 to-indigo-950 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-40 h-40 bg-blue-500/20 rounded-full blur-3xl -mr-20 -mt-20 group-hover:scale-150 transition-transform duration-700" />
-              <div className="relative z-10 space-y-6">
-                 <h4 className="text-lg font-black uppercase tracking-widest flex items-center gap-2">
-                    Pro Tip
-                 </h4>
-                 <p className="text-blue-100 text-sm font-semibold leading-relaxed">
-                   Use the <strong className="text-white">Rekonsiliasi</strong> wizard to resolve transactions based on reference numbers and fuzzy amount matching.
-                 </p>
-              </div>
-           </div>
         </div>
       </div>
 

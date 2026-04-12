@@ -2,11 +2,9 @@
 export { BankReconciliationPage } from "./pages/BankReconciliationPage";
 
 // Components
-export { ManualMatchModal } from "./components/reconciliation/ManualMatchModal";
-export { AutoMatchDialog } from "./components/reconciliation/AutoMatchDialog";
 export { BankMutationTable } from "./components/reconciliation/BankMutationTable";
-export { MultiMatchModal } from "./components/reconciliation/MultiMatchModal";
 export { MultiMatchGroupList } from "./components/reconciliation/MultiMatchGroupList";
+export { ReconciliationWizard } from "./components/reconciliation/ReconciliationWizard";
 export { ReconciliationSummaryCards } from "./components/reconciliation/ReconciliationSummary";
 export { BankReconciliationFilters } from "./components/BankReconciliationFilters";
 export { ErrorBoundary, withErrorBoundary } from "./components/ErrorBoundary";

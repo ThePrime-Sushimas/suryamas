@@ -546,12 +546,18 @@ function StepAutoMatch({
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-gray-500">{match.statement.transaction_date}</p>
                     <p className="text-sm text-gray-800 dark:text-gray-200">{match.statement.description}</p>
+                    {match.statement.reference_number && (
+                      <p className="text-[10px] text-blue-600 dark:text-blue-400 font-mono truncate">Ref: {match.statement.reference_number}</p>
+                    )}
                     <p className="text-sm font-bold text-gray-900 dark:text-white">{fmt(match.statement.amount)}</p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
                   <div className="flex-1 min-w-0 text-right">
                     <p className="text-xs text-gray-500">{match.aggregate.transaction_date}</p>
                     <p className="text-xs text-gray-500">{match.aggregate.payment_method_name}</p>
+                    {match.aggregate.reference_number && (
+                      <p className="text-[10px] text-purple-600 dark:text-purple-400 font-mono truncate">{match.aggregate.reference_number}</p>
+                    )}
                     <p className="text-sm font-bold text-gray-900 dark:text-white">{fmt(match.aggregate.nett_amount)}</p>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0 ml-2">
@@ -771,9 +777,41 @@ function StepManualMatch({
           )}
         </div>
 
-        {/* Diff analysis + CTA */}
+        {/* Fee Breakdown + Diff analysis + CTA */}
         {selectedStatement && selectedAggId && (
           <div className="p-4 border-t border-gray-100 dark:border-gray-800 space-y-3">
+            {/* Fee Breakdown */}
+            {selectedAgg && (selectedAgg.gross_amount || selectedAgg.total_fee_amount) && (
+              <div className="p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 rounded-xl space-y-1.5 text-xs">
+                <p className="text-[10px] font-bold text-purple-600 uppercase tracking-widest mb-1">Breakdown Fee</p>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Gross:</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">{fmt(selectedAgg.gross_amount || 0)}</span>
+                </div>
+                {(selectedAgg.percentage_fee_amount ?? 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">% Fee:</span>
+                    <span className="font-semibold text-purple-600">- {fmt(selectedAgg.percentage_fee_amount || 0)}</span>
+                  </div>
+                )}
+                {(selectedAgg.fixed_fee_amount ?? 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Fixed Fee:</span>
+                    <span className="font-semibold text-purple-600">- {fmt(selectedAgg.fixed_fee_amount || 0)}</span>
+                  </div>
+                )}
+                {(selectedAgg.total_fee_amount ?? 0) > 0 && (
+                  <div className="flex justify-between border-t border-purple-200 dark:border-purple-700 pt-1">
+                    <span className="text-gray-500 font-bold">Total Fee:</span>
+                    <span className="font-bold text-purple-600">- {fmt(selectedAgg.total_fee_amount || 0)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between border-t border-purple-200 dark:border-purple-700 pt-1">
+                  <span className="font-bold text-gray-700 dark:text-gray-300">Nett:</span>
+                  <span className="font-bold text-purple-700 dark:text-purple-300">{fmt(selectedAgg.nett_amount)}</span>
+                </div>
+              </div>
+            )}
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-500">Selisih:</span>
               <span
@@ -1777,6 +1815,16 @@ export function ReconciliationWizard({
       setReviewData(null);
     }
   }, [isOpen]);
+
+  // Escape key to close
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   const handleSelectMode = (m: ReconciliationMode) => {
     setMode(m);

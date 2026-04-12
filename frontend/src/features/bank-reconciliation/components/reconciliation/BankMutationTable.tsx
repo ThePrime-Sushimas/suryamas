@@ -7,14 +7,10 @@ import {
   Sparkles,
   RefreshCw,
   Link2,
-  Link2Off,
-  CheckSquare,
-  X,
   ChevronDown,
   ChevronUp,
   Info,
   Calendar,
-  Check,
   Unlink2,
 } from "lucide-react";
 import type {
@@ -27,7 +23,6 @@ import {
   formatDate,
   formatCurrency,
   formatNumber,
-  calculateSelectedTotal,
   getNetAmount,
 } from "../../utils/reconciliation.utils";
 import { STATUS_CONFIG } from "../../constants/reconciliation.config";
@@ -113,9 +108,7 @@ interface BankMutationTableProps {
   onQuickMatch: (item: BankStatementWithMatch, aggregateId: string) => void;
   onCheckMatches?: (statementId: string) => void;
   onUndo: (statementId: string) => void;
-  onMultiMatch?: (items: BankStatementWithMatch[]) => void;
   reconciliationGroups?: ReconciliationGroup[];
-  showMultiMatch?: boolean;
   isTableLoading?: boolean;
   pagination?: {
     page: number;
@@ -127,7 +120,6 @@ interface BankMutationTableProps {
   };
   onPageChange: (page: number) => void;
   onLimitChange?: (limit: number) => void;
-  onOpenWizard?: () => void;
   onUndoGroup?: (groupId: string) => Promise<void>;
 }
 
@@ -143,19 +135,13 @@ export function BankMutationTable({
   onQuickMatch,
   onCheckMatches,
   onUndo,
-  onMultiMatch,
   reconciliationGroups = [],
-  showMultiMatch = true,
   isTableLoading = false,
   pagination,
   onPageChange,
   onLimitChange,
-  onOpenWizard,
   onUndoGroup,
 }: BankMutationTableProps) {
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedStatementIds, setSelectedStatementIds] = useState<string[]>([]);
-  const [showEmptySelectionWarning, setShowEmptySelectionWarning] = useState(false);
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
 
   // Map statement ID → group for O(1) lookup
@@ -169,118 +155,16 @@ export function BankMutationTable({
     return map;
   }, [reconciliationGroups]);
 
-  const selectedTotal = useMemo(() => {
-    return calculateSelectedTotal(items, selectedStatementIds);
-  }, [items, selectedStatementIds]);
-
   const calculateDifference = useCallback((item: BankStatementWithMatch) => {
     if (!item.is_reconciled || !item.matched_aggregate) return 0;
     const bankAmount = getNetAmount(item.credit_amount, item.debit_amount);
     return Math.abs(bankAmount - item.matched_aggregate.nett_amount);
   }, []);
 
-  const toggleSelectionMode = useCallback(() => {
-    setSelectionMode((prev) => {
-      if (!prev) setSelectedStatementIds([]);
-      return !prev;
-    });
-  }, []);
-
-  const handleRowSelect = useCallback((statementId: string, checked: boolean) => {
-    setSelectedStatementIds((prev) =>
-      checked ? [...prev, statementId] : prev.filter((id) => id !== statementId)
-    );
-    setShowEmptySelectionWarning(false);
-  }, []);
-
-  const handleSelectAll = useCallback(() => {
-    if (selectedStatementIds.length === items.length && items.length > 0) {
-      setSelectedStatementIds([]);
-    } else {
-      setSelectedStatementIds(items.map((item) => item.id));
-    }
-    setShowEmptySelectionWarning(false);
-  }, [items, selectedStatementIds.length]);
-
-  const handleMultiMatchClick = useCallback(() => {
-    if (selectedStatementIds.length === 0) {
-      setShowEmptySelectionWarning(true);
-      return;
-    }
-    if (onMultiMatch) {
-      const selectedItems = items.filter((item) =>
-        selectedStatementIds.includes(item.id)
-      );
-      onMultiMatch(selectedItems);
-    }
-  }, [selectedStatementIds, items, onMultiMatch]);
-
-  const colCount = selectionMode ? 6 : 5;
+  const colCount = 5;
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-sm transition-all duration-300">
-      {/* Multi-Match Selection Bar */}
-      {selectionMode && (
-        <div className="bg-linear-to-r from-blue-600 to-indigo-700 px-6 py-4 animate-in slide-in-from-top duration-300">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-6">
-              <button
-                onClick={handleSelectAll}
-                className="group relative flex items-center justify-center transition-transform active:scale-90"
-                aria-label={selectedStatementIds.length === items.length ? "Hapus semua pilihan" : "Pilih semua"}
-              >
-                <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center bg-white/10 ${selectedStatementIds.length === items.length ? 'border-white' : 'border-white/40 group-hover:border-white'}`}>
-                  {selectedStatementIds.length === items.length && items.length > 0 && (
-                    <CheckSquare className="w-4 h-4 text-white" />
-                  )}
-                </div>
-              </button>
-              <div>
-                 <span className="text-white text-sm font-black uppercase tracking-widest">
-                   {selectedStatementIds.length} Statements Selected
-                 </span>
-                 <p className="text-blue-100 text-[10px] font-bold uppercase tracking-tight mt-0.5">
-                    Click "Multi-Match" to reconcile as group
-                 </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-6">
-              <div className="text-right">
-                <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest leading-none mb-1">Total Selected</p>
-                <p className="text-lg font-black text-white leading-none">
-                  {formatCurrency(selectedTotal)}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleMultiMatchClick}
-                  disabled={selectedStatementIds.length === 0 || !onMultiMatch}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-white text-blue-700 rounded-xl text-sm font-black uppercase tracking-widest hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg active:scale-95"
-                >
-                  <Link2 className="w-4 h-4" />
-                  Multi-Match
-                </button>
-                <button
-                  onClick={toggleSelectionMode}
-                  className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl border border-white/20 transition-all active:scale-90"
-                  aria-label="Tutup mode seleksi"
-                >
-                  <X className="w-5 h-5 text-white" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {showEmptySelectionWarning && (
-            <div className="mt-3 flex items-center gap-3 text-xs font-bold text-white bg-red-500/30 px-4 py-2 rounded-xl animate-in slide-in-from-top-2 border border-red-400/30">
-              <AlertCircle className="w-4 h-4" />
-              Pilih minimal satu statement terlebih dahulu
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Header */}
       <div className="px-6 py-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between flex-wrap gap-4 bg-gray-50/20 dark:bg-gray-800/20">
         <div>
@@ -295,46 +179,13 @@ export function BankMutationTable({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          {showMultiMatch && onMultiMatch && !selectionMode && (
-            <button
-              onClick={toggleSelectionMode}
-              className="flex items-center gap-2.5 px-5 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 transition-all group active:scale-95 border border-transparent hover:border-blue-500 shadow-xs"
-            >
-              <Link2Off className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-              Multi-Match Selection
-            </button>
-          )}
-          {onOpenWizard && !selectionMode && (
-            <button
-              onClick={onOpenWizard}
-              className="group relative flex items-center gap-2.5 px-6 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 shadow-md shadow-blue-500/20 active:scale-95 transition-all overflow-hidden"
-            >
-              <Sparkles className="w-4 h-4 group-hover:scale-125 transition-transform" />
-              Wizard
-            </button>
-          )}
-        </div>
+
       </div>
 
       <div className="overflow-x-auto scrollbar-thin">
         <table className="w-full border-collapse" role="table">
           <thead>
             <tr className="bg-gray-50/50 dark:bg-gray-900/50 font-black text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-              {selectionMode && (
-                <th className="w-16 px-6 py-4 text-center" scope="col">
-                  <button
-                    onClick={handleSelectAll}
-                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                  >
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${selectedStatementIds.length === items.length && items.length > 0 ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
-                      {selectedStatementIds.length === items.length && items.length > 0 && (
-                        <CheckSquare className="w-3.5 h-3.5 text-white" />
-                      )}
-                    </div>
-                  </button>
-                </th>
-              )}
               <th className="px-6 py-4 text-left" scope="col">Transaksi & Status</th>
               <th className="px-6 py-4 text-right" scope="col">Nominal Bank</th>
               <th className="px-6 py-4 text-right hidden md:table-cell" scope="col">Nett POS</th>
@@ -357,7 +208,6 @@ export function BankMutationTable({
               </tr>
             ) : (
               items.map((item) => {
-                const isSelected = selectedStatementIds.includes(item.id);
                 const groupInfo = statementGroupMap[item.id];
                 const isInGroup = !!groupInfo;
                 const hasPotentialMatch = (potentialMatchesMap[item.id]?.length ?? 0) > 0;
@@ -370,24 +220,10 @@ export function BankMutationTable({
                     <tr
                       className={`
                         transition-all duration-200 group/row
-                        ${isSelected ? "bg-blue-50/50 dark:bg-blue-900/10" : "hover:bg-gray-50/30 dark:hover:bg-gray-800/20"}
+                        hover:bg-gray-50/30 dark:hover:bg-gray-800/20
                         ${isInGroup ? "border-l-4 border-l-blue-600" : ""}
                       `}
                     >
-                      {selectionMode && (
-                        <td className="px-6 py-4 text-center">
-                          <button
-                            onClick={() => handleRowSelect(item.id, !isSelected)}
-                            disabled={isInGroup}
-                            className="transition-all active:scale-90"
-                          >
-                            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-blue-600 border-blue-600 shadow-sm' : 'border-gray-200 dark:border-gray-700'}`}>
-                               {isSelected && <Check className="w-3.5 h-3.5 text-white" strokeWidth={4} />}
-                            </div>
-                          </button>
-                        </td>
-                      )}
-
                       {/* Transaksi & Status */}
                       <td className="px-6 py-5">
                         <div className="space-y-2">

@@ -77,13 +77,7 @@ export function ReconciliationSummaryCards({
   summary,
 }: ReconciliationSummaryProps) {
   if (!summary) {
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="h-14 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 animate-pulse" />
-        ))}
-      </div>
-    );
+    return null;
   }
 
   const safeSummary = {

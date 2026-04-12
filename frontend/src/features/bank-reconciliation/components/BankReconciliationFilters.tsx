@@ -53,7 +53,11 @@ function getToday(): string {
 
 function getWeekStart(): string {
   const d = new Date()
-  d.setDate(d.getDate() - d.getDay() + 1)
+  const day = d.getDay()
+  // getDay(): 0=Minggu, 1=Senin, ..., 6=Sabtu
+  // Kalau Minggu (0), mundur 6 hari ke Senin. Selain itu, mundur (day-1) hari.
+  const diff = day === 0 ? 6 : day - 1
+  d.setDate(d.getDate() - diff)
   return d.toISOString().split('T')[0]
 }
 
