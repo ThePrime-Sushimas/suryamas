@@ -13,13 +13,14 @@ export interface PosSyncAggregate {
   grand_total: number;
   payment_amount: number;
   transaction_count: number;
+  void_transaction_count: number;
   fee_percentage: number;
   fee_fixed_amount: number;
   percentage_fee_amount: number;
   fixed_fee_amount_calc: number;
   total_fee_amount: number;
   nett_amount: number;
-  status: "PENDING" | "READY" | "FAILED" | "JOURNALED";
+  status: "PENDING" | "READY" | "FAILED" | "JOURNALED" | "VOID" | "RECALCULATED" | "PENDING_MAPPING" | "INVALID";
   skip_reason: string | null;
   journal_id: string | null;
   recalculated: boolean;

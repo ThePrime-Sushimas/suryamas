@@ -38,12 +38,22 @@ interface RawSaleRow {
   sales_num: string;
   sales_date: string;
   branch_id: number;
+  status_id: number;
   subtotal: number;
   discount_total: number;
   other_tax_total: number;
   vat_total: number;
   grand_total: number;
 }
+
+interface VoidAggregateGroup {
+  sales_date: string;
+  branch_pos_id: number;
+  void_count: number;
+  void_sales_nums: string[];
+}
+
+const VOID_STATUS_ID = 12;
 
 interface RawPaymentRow {
   sales_num: string;
@@ -98,7 +108,7 @@ export async function processPosSyncAggregates(
     let salesQuery = supabase
       .from("tr_saleshead")
       .select(
-        "sales_num, sales_date, branch_id, subtotal, discount_total, other_tax_total, vat_total, grand_total",
+        "sales_num, sales_date, branch_id, status_id, subtotal, discount_total, other_tax_total, vat_total, grand_total",
       );
 
     if (salesNums && salesNums.length > 0) {
@@ -170,8 +180,30 @@ export async function processPosSyncAggregates(
 
     // ── PHASE 4: Group by sales_date + branch_pos_id + payment_pos_id ──
     const groups = new Map<string, AggregateGroup>();
+    const voidGroups = new Map<string, VoidAggregateGroup>();
 
     for (const sale of salesRows as RawSaleRow[]) {
+      if (sale.status_id === VOID_STATUS_ID) {
+        const voidKey = `${sale.sales_date}|${sale.branch_id}|VOID`;
+        if (!voidGroups.has(voidKey)) {
+          voidGroups.set(voidKey, {
+            sales_date: sale.sales_date,
+            branch_pos_id: sale.branch_id,
+            void_count: 0,
+            void_sales_nums: [],
+          });
+        }
+        const voidGroup = voidGroups.get(voidKey)!;
+        voidGroup.void_count++;
+        voidGroup.void_sales_nums.push(sale.sales_num);
+        logWarn("PosSyncAggregates: VOID transaction detected", {
+          sales_num: sale.sales_num,
+          sales_date: sale.sales_date,
+          branch_id: sale.branch_id,
+        });
+        continue;
+      }
+
       const rawPayments = paymentIndex.get(sale.sales_num) ?? [];
 
       // Urutkan payment: pastikan CASH ada di akhir supaya bisa menyerap "kembalian"
@@ -223,11 +255,17 @@ export async function processPosSyncAggregates(
       }
     }
 
-    logInfo("PosSyncAggregates: groups built", { total: groups.size });
+    logInfo("PosSyncAggregates: groups built", {
+      total: groups.size,
+      void_groups: voidGroups.size,
+    });
 
     // ── PHASE 5: Check existing aggregates ────────────────────────────
     const allDates = [
-      ...new Set([...groups.values()].map((g) => g.sales_date)),
+      ...new Set([
+        ...[...groups.values()].map((g) => g.sales_date),
+        ...[...voidGroups.values()].map((g) => g.sales_date),
+      ]),
     ];
 
     const { data: existingRows } = await supabase
@@ -265,6 +303,65 @@ export async function processPosSyncAggregates(
     const toUpdate: PendingUpdate[] = [];
     const linesByKey = new Map<string, any[]>();
     const now = new Date().toISOString();
+
+    // ── Process VOID groups ───────────────────────────────────────────
+    for (const [, voidGroup] of voidGroups) {
+      const { sales_date, branch_pos_id, void_count, void_sales_nums } = voidGroup;
+      const stagingBranch = branchMap.get(branch_pos_id);
+      const branch_id = stagingBranch?.mapped_id ?? null;
+      const branch_name = stagingBranch?.branch_name ?? null;
+
+      const aggregateData = {
+        sales_date,
+        branch_pos_id,
+        branch_id,
+        branch_name,
+        payment_pos_id: 0,
+        payment_method_id: null,
+        gross_amount: 0,
+        discount_amount: 0,
+        tax_amount: 0,
+        other_tax_amount: 0,
+        grand_total: 0,
+        payment_amount: 0,
+        transaction_count: 0,
+        void_transaction_count: void_count,
+        fee_percentage: 0,
+        fee_fixed_amount: 0,
+        percentage_fee_amount: 0,
+        fixed_fee_amount_calc: 0,
+        total_fee_amount: 0,
+        nett_amount: 0,
+        status: "VOID",
+        skip_reason: `${void_count} voided transaction(s): ${void_sales_nums.join(", ")}`,
+        synced_at: now,
+        updated_at: now,
+      };
+
+      const existing = existingMap.get(`${sales_date}|${branch_pos_id}|0`);
+
+      if (!existing) {
+        toInsert.push({ ...aggregateData, created_at: now });
+      } else if (existing.status === "JOURNALED") {
+        result.skipped++;
+        logWarn("PosSyncAggregates: skip JOURNALED VOID", {
+          key: `${sales_date}|${branch_pos_id}|VOID`,
+        });
+      } else {
+        toUpdate.push({
+          id: existing.id,
+          key: `${sales_date}|${branch_pos_id}|VOID`,
+          recalculated_count: existing.recalculated_count,
+          data: {
+            ...aggregateData,
+            status: "VOID",
+            recalculated: true,
+            recalculated_at: now,
+            recalculated_count: existing.recalculated_count + 1,
+          },
+        });
+      }
+    }
 
     for (const [key, group] of groups) {
       try {

@@ -385,4 +385,62 @@ export const posSyncAggregatesRepository = {
 
     if (error) throw error;
   },
+
+  async getVoidAggregates(salesDate: string, branchId?: string | null) {
+    let query = supabase
+      .from("pos_sync_aggregates")
+      .select("*")
+      .eq("status", "VOID")
+      .eq("sales_date", salesDate);
+
+    if (branchId) query = query.eq("branch_id", branchId);
+
+    const { data, error } = await query.order("created_at", { ascending: false });
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  async getVoidTransactionCount(salesDate: string) {
+    const { data, error } = await supabase
+      .from("pos_sync_aggregates")
+      .select("void_transaction_count")
+      .eq("status", "VOID")
+      .eq("sales_date", salesDate);
+
+    if (error) throw error;
+    return (data ?? []).reduce(
+      (sum, row) => sum + (row.void_transaction_count ?? 0),
+      0,
+    );
+  },
+
+  async getVoidSummary(startDate: string, endDate: string) {
+    const { data, error } = await supabase
+      .from("pos_sync_aggregates")
+      .select(
+        "sales_date, branch_id, branch_name, void_transaction_count, recalculated_count, updated_at",
+      )
+      .eq("status", "VOID")
+      .gte("sales_date", startDate)
+      .lte("sales_date", endDate)
+      .order("sales_date", { ascending: false });
+
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  async getRecentVoidActivity(daysBack: number = 7) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+
+    const { data, error } = await supabase
+      .from("pos_sync_aggregates")
+      .select("*")
+      .eq("status", "VOID")
+      .gte("updated_at", startDate.toISOString())
+      .order("updated_at", { ascending: false });
+
+    if (error) throw error;
+    return data ?? [];
+  },
 };
