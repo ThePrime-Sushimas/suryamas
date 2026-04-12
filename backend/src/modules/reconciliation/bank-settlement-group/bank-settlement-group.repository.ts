@@ -37,6 +37,7 @@ interface AggregatedTransactionInfo {
   transaction_date: string;
   gross_amount: number;
   nett_amount: number;
+  actual_nett_amount: number;
   payment_methods: PaymentMethodInfo | null;
   branches: BranchInfo | null;
 }
@@ -87,6 +88,7 @@ interface AggregatedTransactionDb {
   transaction_date: string;
   gross_amount: number;
   nett_amount: number;
+  actual_nett_amount: number;
   payment_methods: PaymentMethodInfo | null;
   branches: BranchInfo | null;
   is_reconciled: boolean;
@@ -915,7 +917,7 @@ export class SettlementGroupRepository {
       // Query 2: All aggregate transactions in one batch
       const { data: aggTransactions } = await supabase
         .from("aggregated_transactions")
-        .select("id, transaction_date, gross_amount, nett_amount, payment_method_id, branch_name")
+        .select("id, transaction_date, gross_amount, nett_amount, actual_nett_amount, payment_method_id, branch_name")
         .in("id", aggregateIds);
 
       const aggMap = new Map<string, any>();
@@ -952,6 +954,7 @@ export class SettlementGroupRepository {
             transaction_date: aggData.transaction_date,
             gross_amount: parseFloat(String(aggData.gross_amount)) || 0,
             nett_amount: parseFloat(String(aggData.nett_amount)) || 0,
+            actual_nett_amount: parseFloat(String(aggData.actual_nett_amount)) || parseFloat(String(aggData.nett_amount)) || 0,
             payment_method_name: pmMap[aggData.payment_method_id] || null,
             payment_method_id: aggData.payment_method_id,
             branch_name: aggData.branch_name || null,
@@ -1010,7 +1013,7 @@ export class SettlementGroupRepository {
       // Fetch the full aggregate transaction details - include branch_name since it exists
       const { data: aggregateTransactions, error: aggError } = await supabase
         .from("aggregated_transactions")
-        .select("id, transaction_date, gross_amount, nett_amount, payment_method_id, branch_name")
+        .select("id, transaction_date, gross_amount, nett_amount, actual_nett_amount, payment_method_id, branch_name")
         .in("id", aggregateIds);
 
       if (aggError) {
@@ -1091,6 +1094,7 @@ export class SettlementGroupRepository {
             transaction_date: aggData.transaction_date,
             gross_amount: parseFloat(String(aggData.gross_amount)) || aggData.gross_amount || 0,
             nett_amount: parseFloat(String(aggData.nett_amount)) || aggData.nett_amount || 0,
+            actual_nett_amount: parseFloat(String(aggData.actual_nett_amount)) || parseFloat(String(aggData.nett_amount)) || 0,
             payment_method_name: paymentMethodsMap[aggData.payment_method_id] || null,
             payment_method_id: aggData.payment_method_id,
             // Use branch_name directly from aggregated_transactions table
@@ -1158,6 +1162,7 @@ export class SettlementGroupRepository {
           transaction_date,
           gross_amount,
           nett_amount,
+          actual_nett_amount,
           payment_method_id,
           is_reconciled,
           branch_name
@@ -1232,6 +1237,7 @@ export class SettlementGroupRepository {
         transaction_date: agg.transaction_date,
         gross_amount: agg.gross_amount,
         nett_amount: agg.nett_amount,
+        actual_nett_amount: agg.actual_nett_amount ?? agg.nett_amount,
         payment_method_name: paymentMethodsMap[agg.payment_method_id] || null,
         payment_method_id: agg.payment_method_id,
         branch_name: agg.branch_name || null,
@@ -1259,6 +1265,7 @@ export class SettlementGroupRepository {
           transaction_date,
           gross_amount,
           nett_amount,
+          actual_nett_amount,
           payment_method_id,
           is_reconciled,
           branch_name
@@ -1309,6 +1316,7 @@ export class SettlementGroupRepository {
         transaction_date: data.transaction_date,
         gross_amount: data.gross_amount,
         nett_amount: data.nett_amount,
+        actual_nett_amount: data.actual_nett_amount ?? data.nett_amount,
         payment_method_name: paymentMethodName,
         payment_method_id: paymentMethodId,
         branch_name: data.branch_name || null,

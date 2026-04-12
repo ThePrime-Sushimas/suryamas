@@ -59,7 +59,7 @@ export class BankVouchersRepository {
         -- Amounts (SUM per group)
         SUM(at.gross_amount)                        AS gross_amount,
         SUM(at.tax_amount)                          AS tax_amount,
-        SUM(at.nett_amount)                         AS nett_amount,
+        SUM(at.actual_nett_amount)                   AS nett_amount,
         -- Fee: actual yang terjadi (termasuk discrepancy sesuai requirement)
         SUM(at.actual_fee_amount)                   AS actual_fee_amount,
         SUM(at.fee_discrepancy)                     AS fee_discrepancy,
@@ -123,7 +123,7 @@ export class BankVouchersRepository {
       SELECT
         pm.bank_account_id,
         ba.account_name                              AS bank_account_name,
-        SUM(at.nett_amount)                          AS total_nett,
+        SUM(at.actual_nett_amount)                          AS total_nett,
         SUM(at.actual_fee_amount + at.fee_discrepancy) AS total_fee
       FROM aggregated_transactions at
       JOIN payment_methods pm ON pm.id = at.payment_method_id
@@ -173,7 +173,7 @@ export class BankVouchersRepository {
     const sql = `
       SELECT
         at.transaction_date,
-        SUM(at.nett_amount)                          AS total_nett,
+        SUM(at.actual_nett_amount)                          AS total_nett,
         SUM(at.actual_fee_amount + at.fee_discrepancy) AS total_fee
       FROM aggregated_transactions at
       JOIN payment_methods pm ON pm.id = at.payment_method_id

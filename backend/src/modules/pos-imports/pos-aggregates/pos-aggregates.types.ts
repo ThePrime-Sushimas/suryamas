@@ -67,6 +67,7 @@ export interface AggregatedTransaction {
   fixed_fee_amount: number; // Fixed fee (per transaction or per total)
   total_fee_amount: number; // Total fee (percentage_fee + fixed_fee)
   nett_amount: number; // bill_after_discount - total_fee_amount (final amount after fee)
+  actual_nett_amount?: number; // GENERATED: nett_amount - fee_discrepancy (real amount after actual bank fee) — DB computed, never set manually
   currency: string; // Default: 'IDR'
   journal_id: string | null;
   is_reconciled: boolean; // Default: false
@@ -145,6 +146,7 @@ export interface AggregatedTransactionListItem extends Pick<
   | "fixed_fee_amount"
   | "total_fee_amount"
   | "nett_amount"
+  | "actual_nett_amount"
   | "currency"
   | "status"
   | "is_reconciled"

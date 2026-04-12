@@ -59,6 +59,7 @@ export interface AggregatedTransactionInfo {
   transaction_date: string;
   gross_amount: number;
   nett_amount: number;
+  actual_nett_amount: number;
   payment_method_name?: string;
 }
 
@@ -147,6 +148,7 @@ export interface AvailableAggregateDto {
   transaction_date: string;
   gross_amount: number;
   nett_amount: number;
+  actual_nett_amount: number;
   payment_method_name?: string;
   is_reconciled: boolean;
 }

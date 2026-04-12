@@ -15,6 +15,7 @@ export interface AggregatedTransaction {
   fixed_fee_amount: number;
   total_fee_amount: number;
   nett_amount: number;
+  actual_nett_amount: number;
   currency: string;
   journal_id?: string;
   is_reconciled: boolean;
@@ -28,6 +29,7 @@ export interface AggregatedTransaction {
 export interface ReconciliationAggregate {
   id: string;
   nett_amount: number;
+  actual_nett_amount: number;
   transaction_date: string;
   reference_number?: string;
   payment_method_id: number;

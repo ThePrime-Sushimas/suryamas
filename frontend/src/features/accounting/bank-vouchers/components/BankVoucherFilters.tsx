@@ -64,7 +64,7 @@ export const BankVoucherFilters = () => {
         <select
           value={filter.bank_account_id ?? ''}
           onChange={e => setFilter({ bank_account_id: e.target.value ? Number(e.target.value) : undefined })}
-          className="px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[160px]"
+          className="px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-40"
         >
           <option value="">Semua Bank</option>
           {bankAccounts.map(ba => (

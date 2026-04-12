@@ -350,6 +350,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     return {
       id: agg.id,
       nett_amount: Number(agg.nett_amount),
+      actual_nett_amount: Number(agg.actual_nett_amount ?? agg.nett_amount),
       transaction_date: agg.transaction_date,
       reference_number: agg.source_ref,
       payment_method_id: agg.payment_method_id,

@@ -52,6 +52,7 @@ export interface AggregatedTransaction {
   fixed_fee_amount: number;
   total_fee_amount: number;
   nett_amount: number;
+  actual_nett_amount: number;
   currency: string;
   journal_id: string | null;
   is_reconciled: boolean;
@@ -134,6 +135,7 @@ export interface AggregatedTransactionListItem {
   fixed_fee_amount: number;
   total_fee_amount: number;
   nett_amount: number;
+  actual_nett_amount: number;
   actual_fee_amount?: number | null;
   fee_discrepancy?: number | null;
   fee_discrepancy_note?: string | null;
@@ -496,6 +498,7 @@ export function mapToAggregatedTransactionListItem(
     fixed_fee_amount: transaction.fixed_fee_amount,
     total_fee_amount: transaction.total_fee_amount,
     nett_amount: transaction.nett_amount,
+    actual_nett_amount: transaction.actual_nett_amount,
     // TAMBAH INI ↓
     actual_fee_amount: transaction.actual_fee_amount ?? null,
     fee_discrepancy: transaction.fee_discrepancy ?? null,

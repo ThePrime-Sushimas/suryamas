@@ -215,6 +215,9 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                 Aktual Fee (Bank)
               </th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Nett Aktual
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Selisih Fee
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -337,6 +340,17 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                     {transaction.is_reconciled && transaction.actual_fee_amount != null ? (
                       <span className="text-sm text-gray-700 dark:text-gray-300">
                         {formatCurrency(transaction.actual_fee_amount)}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-gray-300 dark:text-gray-600">—</span>
+                    )}
+                  </td>
+
+                  {/* Nett Aktual = from DB generated column */}
+                  <td className="px-4 py-3 whitespace-nowrap text-right">
+                    {transaction.is_reconciled && transaction.actual_fee_amount != null ? (
+                      <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                        {formatCurrency(transaction.actual_nett_amount)}
                       </span>
                     ) : (
                       <span className="text-sm text-gray-300 dark:text-gray-600">—</span>

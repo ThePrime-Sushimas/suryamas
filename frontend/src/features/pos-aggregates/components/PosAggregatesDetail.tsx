@@ -698,7 +698,7 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({
                   <div className="flex justify-between items-center py-3 bg-green-50 dark:bg-green-900/20 px-3 rounded-lg border border-green-200 dark:border-green-800 mt-3">
                     <span className="text-sm font-bold text-green-900 dark:text-green-100">= Nett (Aktual)</span>
                     <span className="text-lg font-bold text-green-900 dark:text-green-100">
-                      {formatCurrency(transaction.nett_amount - (transaction.fee_discrepancy || 0))}
+                      {formatCurrency(transaction.actual_nett_amount)}
                     </span>
                   </div>
                 </>
