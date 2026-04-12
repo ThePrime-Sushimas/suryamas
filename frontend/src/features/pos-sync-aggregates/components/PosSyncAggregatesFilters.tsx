@@ -232,7 +232,7 @@ export const PosSyncAggregatesFilters: React.FC = () => {
                       }}
                       className="mr-2"
                     />
-                    <span className="text-sm truncate text-gray-900 dark:text-white">
+                    <span className="text-xs text-gray-900 dark:text-white">
                       {b.branch_name}
                     </span>
                   </label>

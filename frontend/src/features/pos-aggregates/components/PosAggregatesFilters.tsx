@@ -292,7 +292,7 @@ export const PosAggregatesFilters: React.FC = () => {
                         onChange={() => handleBranchToggle(b.branch_name)}
                         className="mr-2"
                       />
-                      <span className="text-sm truncate text-gray-900 dark:text-white">{b.branch_name}</span>
+                      <span className="text-xs text-gray-900 dark:text-white">{b.branch_name}</span>
                     </label>
                   ))}
                 </div>
