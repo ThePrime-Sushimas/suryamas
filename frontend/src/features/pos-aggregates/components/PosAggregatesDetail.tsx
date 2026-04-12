@@ -115,6 +115,7 @@ interface ConfidenceResult {
 const getConfidenceScore = (tx: AggregatedTransactionWithDetails): ConfidenceResult => {
   let score = 100;
   const reasons: string[] = [];
+  const isBulkRecon = !!(tx.settlement_group_id || tx.multi_match_group_id);
 
   if (!tx.is_reconciled) {
     score -= 40;
@@ -123,9 +124,13 @@ const getConfidenceScore = (tx: AggregatedTransactionWithDetails): ConfidenceRes
     reasons.push('✓ Sudah direkonsiliasi');
   }
   
-  if (tx.fee_discrepancy !== 0) {
+  if (tx.actual_fee_amount == null && isBulkRecon && tx.is_reconciled) {
+    // Bulk recon tanpa fee data — bukan masalah, tapi bukan sempurna juga
+    score -= 10;
+    reasons.push('Fee per-aggregate belum tersedia (bulk)');
+  } else if (tx.fee_discrepancy !== 0 && tx.fee_discrepancy != null) {
     score -= 30;
-    reasons.push(`Selisih fee ${formatCurrency(Math.abs(tx.fee_discrepancy ?? 0))}`);
+    reasons.push(`Selisih fee ${formatCurrency(Math.abs(tx.fee_discrepancy))}`);
   } else if (tx.is_reconciled) {
     reasons.push('✓ Fee match sempurna');
   }
@@ -187,7 +192,7 @@ const getAlerts = (tx: AggregatedTransactionWithDetails): AlertState[] => {
   }
 
   // Discrepancy checks
-  if (tx.fee_discrepancy !== 0 && tx.is_reconciled) {
+  if (tx.fee_discrepancy != null && tx.fee_discrepancy !== 0 && tx.is_reconciled) {
     const discrepancyAbs = Math.abs(tx.fee_discrepancy ?? 0);
     const isUnderpayment = (tx.fee_discrepancy ?? 0) > 0;
     alerts.push({
@@ -379,6 +384,13 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({
     transaction.bank_mutation_id || transaction.settlement_group_id || transaction.multi_match_group_id
   );
 
+  // Determine reconciliation type
+  const reconciliationType: 'single' | 'settlement' | 'multi-match' | 'none' =
+    transaction.bank_mutation_id ? 'single'
+    : transaction.settlement_group_id ? 'settlement'
+    : transaction.multi_match_group_id ? 'multi-match'
+    : 'none';
+
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
 
@@ -549,66 +561,86 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({
         </div>
 
         {/* Total Fee */}
-        <div className={`bg-linear-to-br rounded-xl p-4 border-2 ${
-          transaction.fee_discrepancy === 0
-            ? 'from-gray-50 to-slate-50 dark:from-gray-900/20 dark:to-slate-900/20 border-gray-300 dark:border-gray-700'
-            : 'from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border-orange-300 dark:border-orange-700'
-        }`}>
-          <div className={`text-xs font-semibold uppercase tracking-wider ${
-            transaction.fee_discrepancy === 0
-              ? 'text-gray-700 dark:text-gray-400'
-              : 'text-orange-700 dark:text-orange-400'
-          }`}>
-            Total Fee
-          </div>
-          <div className={`text-2xl font-bold mt-2 ${
-            transaction.fee_discrepancy === 0
-              ? 'text-gray-900 dark:text-gray-100'
-              : 'text-orange-900 dark:text-orange-100'
-          }`}>
-            {transaction.is_reconciled && transaction.actual_fee_amount != null
-              ? formatCurrency(transaction.actual_fee_amount!)
-              : formatCurrency(transaction.total_fee_amount)}
-          </div>
-          <div className={`text-xs mt-1 ${
-            transaction.fee_discrepancy === 0
-              ? 'text-gray-600 dark:text-gray-400'
-              : 'text-orange-600 dark:text-orange-400'
-          }`}>
-            {transaction.is_reconciled ? 'Aktual' : 'Estimasi'}
-          </div>
-        </div>
+        {(() => {
+          const hasFeeData = transaction.actual_fee_amount != null;
+          const isBulkRecon = reconciliationType === 'settlement' || reconciliationType === 'multi-match';
+          const feeLabel = hasFeeData ? 'Aktual' : isBulkRecon ? 'Estimasi (bulk)' : transaction.is_reconciled ? 'Aktual' : 'Estimasi';
+          const feeValue = hasFeeData ? transaction.actual_fee_amount! : transaction.total_fee_amount;
+          const hasDiscrepancy = hasFeeData && transaction.fee_discrepancy !== 0;
+          return (
+            <div className={`bg-linear-to-br rounded-xl p-4 border-2 ${
+              !hasFeeData && isBulkRecon
+                ? 'from-gray-50 to-slate-50 dark:from-gray-900/20 dark:to-slate-900/20 border-gray-300 dark:border-gray-700'
+                : hasDiscrepancy
+                ? 'from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border-orange-300 dark:border-orange-700'
+                : 'from-gray-50 to-slate-50 dark:from-gray-900/20 dark:to-slate-900/20 border-gray-300 dark:border-gray-700'
+            }`}>
+              <div className={`text-xs font-semibold uppercase tracking-wider ${
+                hasDiscrepancy ? 'text-orange-700 dark:text-orange-400' : 'text-gray-700 dark:text-gray-400'
+              }`}>
+                Total Fee
+              </div>
+              <div className={`text-2xl font-bold mt-2 ${
+                hasDiscrepancy ? 'text-orange-900 dark:text-orange-100' : 'text-gray-900 dark:text-gray-100'
+              }`}>
+                {formatCurrency(feeValue)}
+              </div>
+              <div className={`text-xs mt-1 ${
+                hasDiscrepancy ? 'text-orange-600 dark:text-orange-400' : 'text-gray-600 dark:text-gray-400'
+              }`}>
+                {feeLabel}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Discrepancy */}
-        <div className={`bg-linear-to-br rounded-xl p-4 border-2 ${
-          transaction.fee_discrepancy === 0
-            ? 'from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-300 dark:border-green-700'
-            : 'from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border-red-300 dark:border-red-700'
-        }`}>
-          <div className={`text-xs font-semibold uppercase tracking-wider ${
-            transaction.fee_discrepancy === 0
-              ? 'text-green-700 dark:text-green-400'
-              : 'text-red-700 dark:text-red-400'
-          }`}>
-            Fee Discrepancy
-          </div>
-          <div className={`text-2xl font-bold mt-2 ${
-            transaction.fee_discrepancy === 0
-              ? 'text-green-900 dark:text-green-100'
-              : 'text-red-900 dark:text-red-100'
-          }`}>
-            {transaction.fee_discrepancy === 0
-              ? 'Match ✓'
-              : formatCurrency(Math.abs(transaction.fee_discrepancy ?? 0))}
-          </div>
-          <div className={`text-xs mt-1 ${
-            transaction.fee_discrepancy === 0
-              ? 'text-green-600 dark:text-green-400'
-              : 'text-red-600 dark:text-red-400'
-          }`}>
-            {transaction.fee_discrepancy === 0 ? 'Sempurna' : 'Perhatian'}
-          </div>
-        </div>
+        {(() => {
+          const hasFeeData = transaction.actual_fee_amount != null;
+          const isBulkRecon = reconciliationType === 'settlement' || reconciliationType === 'multi-match';
+          // Jika bulk recon dan belum ada actual_fee, discrepancy belum bisa dihitung
+          if (!hasFeeData && isBulkRecon && transaction.is_reconciled) {
+            return (
+              <div className="bg-linear-to-br from-gray-50 to-slate-50 dark:from-gray-900/20 dark:to-slate-900/20 rounded-xl p-4 border-2 border-dashed border-gray-300 dark:border-gray-600">
+                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Fee Discrepancy
+                </div>
+                <div className="text-lg font-bold text-gray-500 dark:text-gray-400 mt-2">
+                  N/A
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {reconciliationType === 'settlement' ? 'Bulk settlement' : 'Multi-match'} — fee per-aggregate belum dihitung
+                </div>
+              </div>
+            );
+          }
+          const isNeutral = transaction.fee_discrepancy == null || transaction.fee_discrepancy === 0;
+          return (
+            <div className={`bg-linear-to-br rounded-xl p-4 border-2 ${
+              isNeutral
+                ? 'from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-300 dark:border-green-700'
+                : 'from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border-red-300 dark:border-red-700'
+            }`}>
+              <div className={`text-xs font-semibold uppercase tracking-wider ${
+                isNeutral ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
+              }`}>
+                Fee Discrepancy
+              </div>
+              <div className={`text-2xl font-bold mt-2 ${
+                isNeutral ? 'text-green-900 dark:text-green-100' : 'text-red-900 dark:text-red-100'
+              }`}>
+                {isNeutral
+                  ? 'Match ✓'
+                  : formatCurrency(Math.abs(transaction.fee_discrepancy!))}
+              </div>
+              <div className={`text-xs mt-1 ${
+                isNeutral ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+              }`}>
+                {isNeutral ? 'Sempurna' : 'Perhatian'}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── RECONCILIATION SUMMARY: EST vs ACTUAL ──────────────────────── */}
@@ -649,26 +681,44 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({
           </h3>
           <div className="space-y-3">
             {transaction.is_reconciled ? (
-              <>
-                <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Gross</span>
-                  <span className="font-semibold text-gray-900 dark:text-white">
-                    {formatCurrency(transaction.gross_amount)}
-                  </span>
+              transaction.actual_fee_amount != null ? (
+                <>
+                  <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Gross</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">
+                      {formatCurrency(transaction.gross_amount)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Fee (Aktual)</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">
+                      - {formatCurrency(transaction.actual_fee_amount)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-3 bg-green-50 dark:bg-green-900/20 px-3 rounded-lg border border-green-200 dark:border-green-800 mt-3">
+                    <span className="text-sm font-bold text-green-900 dark:text-green-100">= Nett (Aktual)</span>
+                    <span className="text-lg font-bold text-green-900 dark:text-green-100">
+                      {formatCurrency(transaction.nett_amount - (transaction.fee_discrepancy || 0))}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                /* Reconciled via settlement/multi-match tapi actual_fee belum dihitung */
+                <div className="text-center py-6">
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 rounded-full text-xs font-bold text-green-700 dark:text-green-300 mb-3">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Reconciled
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Fee aktual per-aggregate belum tersedia.
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                    {reconciliationType === 'settlement'
+                      ? 'Bank statement di-settle secara bulk — fee individual tidak terpisah.'
+                      : 'Dicocokkan ke beberapa mutasi bank — fee gabungan.'}
+                  </p>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Fee (Aktual)</span>
-                  <span className="font-semibold text-gray-900 dark:text-white">
-                    - {formatCurrency(transaction.actual_fee_amount || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center py-3 bg-green-50 dark:bg-green-900/20 px-3 rounded-lg border border-green-200 dark:border-green-800 mt-3">
-                  <span className="text-sm font-bold text-green-900 dark:text-green-100">= Nett (Aktual)</span>
-                  <span className="text-lg font-bold text-green-900 dark:text-green-100">
-                    {formatCurrency(transaction.nett_amount - (transaction.fee_discrepancy || 0))}
-                  </span>
-                </div>
-              </>
+              )
             ) : (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                 <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -679,64 +729,91 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({
         </div>
 
         {/* Difference / Variance */}
-        <div className={`rounded-2xl shadow-lg border-l-4 p-6 ${
-          transaction.fee_discrepancy === 0
-            ? 'bg-green-50 dark:bg-green-900/20 border-green-500'
-            : 'bg-orange-50 dark:bg-orange-900/20 border-orange-500'
-        }`}>
-          <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${
-            transaction.fee_discrepancy === 0
-              ? 'text-green-900 dark:text-green-100'
-              : 'text-orange-900 dark:text-orange-100'
-          }`}>
-            <div className={`w-2 h-2 rounded-full ${
-              transaction.fee_discrepancy === 0 ? 'bg-green-500' : 'bg-orange-500'
-            }`} />
-            {transaction.fee_discrepancy === 0 ? 'Match ✓' : 'Variance ⚠'}
-          </h3>
-          {transaction.is_reconciled ? (
-            <div className="space-y-3">
-              <div className="flex justify-between items-center py-2">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Fee Diff</span>
-                <span className={`font-bold ${
-                  transaction.fee_discrepancy === 0
-                    ? 'text-green-700 dark:text-green-300'
-                    : 'text-orange-700 dark:text-orange-300'
-                }`}>
-                  {transaction.fee_discrepancy === 0
-                    ? 'Rp 0'
-                    : formatCurrency(Math.abs(transaction.fee_discrepancy ?? 0))}
-                </span>
+        {(() => {
+          const hasFeeData = transaction.actual_fee_amount != null;
+          const isBulkRecon = reconciliationType === 'settlement' || reconciliationType === 'multi-match';
+          // Bulk recon tanpa fee data → tampilkan N/A
+          if (transaction.is_reconciled && !hasFeeData && isBulkRecon) {
+            return (
+              <div className="rounded-2xl shadow-lg border-l-4 border-gray-300 dark:border-gray-600 p-6 bg-gray-50 dark:bg-gray-700/30">
+                <h3 className="text-lg font-bold text-gray-600 dark:text-gray-300 mb-4 flex items-center gap-2">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full" />
+                  Variance
+                </h3>
+                <div className="text-center py-4">
+                  <div className="text-2xl font-bold text-gray-400 dark:text-gray-500">N/A</div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Fee discrepancy tidak dapat dihitung karena bank statement di-{reconciliationType === 'settlement' ? 'settle' : 'match'} secara {reconciliationType === 'settlement' ? 'bulk' : 'multi'}.
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    Lihat detail di section Bank Reconciliation.
+                  </p>
+                </div>
               </div>
-              {transaction.fee_discrepancy !== 0 && (
-                <>
-                  <div className="text-xs text-gray-600 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-700">
-                    <p className="font-semibold mb-1">Possible causes:</p>
-                    <ul className="list-disc list-inside space-y-0.5">
-                      <li>Rounding differences</li>
-                      <li>MDR percentage mismatch</li>
-                      <li>Bank additional fees</li>
-                      <li>Currency conversion</li>
-                    </ul>
+            );
+          }
+          const isVarianceNeutral = transaction.fee_discrepancy == null || transaction.fee_discrepancy === 0;
+          return (
+            <div className={`rounded-2xl shadow-lg border-l-4 p-6 ${
+              isVarianceNeutral
+                ? 'bg-green-50 dark:bg-green-900/20 border-green-500'
+                : 'bg-orange-50 dark:bg-orange-900/20 border-orange-500'
+            }`}>
+              <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${
+                isVarianceNeutral
+                  ? 'text-green-900 dark:text-green-100'
+                  : 'text-orange-900 dark:text-orange-100'
+              }`}>
+                <div className={`w-2 h-2 rounded-full ${
+                  isVarianceNeutral ? 'bg-green-500' : 'bg-orange-500'
+                }`} />
+                {isVarianceNeutral ? 'Match ✓' : 'Variance ⚠'}
+              </h3>
+              {transaction.is_reconciled ? (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Fee Diff</span>
+                    <span className={`font-bold ${
+                      isVarianceNeutral
+                        ? 'text-green-700 dark:text-green-300'
+                        : 'text-orange-700 dark:text-orange-300'
+                    }`}>
+                      {isVarianceNeutral
+                        ? 'Rp 0'
+                        : formatCurrency(Math.abs(transaction.fee_discrepancy!))}
+                    </span>
                   </div>
-                  {transaction.fee_discrepancy_note && (
-                    <div className="bg-white dark:bg-gray-800 p-2.5 rounded border border-gray-200 dark:border-gray-700 mt-2">
-                      <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">📝 Note:</div>
-                      <p className="text-xs text-gray-700 dark:text-gray-300 italic">
-                        {transaction.fee_discrepancy_note}
-                      </p>
-                    </div>
+                  {transaction.fee_discrepancy != null && transaction.fee_discrepancy !== 0 && (
+                    <>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <p className="font-semibold mb-1">Possible causes:</p>
+                        <ul className="list-disc list-inside space-y-0.5">
+                          <li>Rounding differences</li>
+                          <li>MDR percentage mismatch</li>
+                          <li>Bank additional fees</li>
+                          <li>Currency conversion</li>
+                        </ul>
+                      </div>
+                      {transaction.fee_discrepancy_note && (
+                        <div className="bg-white dark:bg-gray-800 p-2.5 rounded border border-gray-200 dark:border-gray-700 mt-2">
+                          <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">📝 Note:</div>
+                          <p className="text-xs text-gray-700 dark:text-gray-300 italic">
+                            {transaction.fee_discrepancy_note}
+                          </p>
+                        </div>
+                      )}
+                    </>
                   )}
-                </>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <Info className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Verifikasi belum selesai</p>
+                </div>
               )}
             </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              <Info className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">Verifikasi belum selesai</p>
-            </div>
-          )}
-        </div>
+          );
+        })()}
       </div>
 
       {/* ── METADATA — 3 COLUMN GRID ─────────────────────────────────────── */}
@@ -887,70 +964,57 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({
             <Building2 className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
           </div>
           Bank Reconciliation
+          {reconciliationType !== 'none' && (
+            <span className={`ml-2 px-2.5 py-1 rounded-full text-xs font-bold uppercase ${
+              reconciliationType === 'single'
+                ? 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300'
+                : reconciliationType === 'settlement'
+                ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
+                : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+            }`}>
+              {reconciliationType === 'single' ? '1:1 Match' : reconciliationType === 'settlement' ? 'Settlement Group' : 'Multi-Match'}
+            </span>
+          )}
         </h3>
-        {transaction.is_reconciled ? (
+
+        {/* ── SINGLE MATCH ── */}
+        {reconciliationType === 'single' && (
           <div className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4 border border-cyan-200 dark:border-cyan-800">
-                <label className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 uppercase block mb-2">
-                  Bank Name
-                </label>
-                <div className="text-sm font-bold text-cyan-900 dark:text-cyan-200">
-                  {transaction.bank_name || "-"}
-                </div>
+                <label className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 uppercase block mb-2">Bank Name</label>
+                <div className="text-sm font-bold text-cyan-900 dark:text-cyan-200">{transaction.bank_name || "-"}</div>
               </div>
               <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4 border border-cyan-200 dark:border-cyan-800">
-                <label className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 uppercase block mb-2">
-                  Account Name
-                </label>
-                <div className="text-sm font-bold text-cyan-900 dark:text-cyan-200">
-                  {transaction.bank_account_name || "-"}
-                </div>
+                <label className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 uppercase block mb-2">Account Name</label>
+                <div className="text-sm font-bold text-cyan-900 dark:text-cyan-200">{transaction.bank_account_name || "-"}</div>
               </div>
             </div>
             <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4 border border-cyan-200 dark:border-cyan-800">
-              <label className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 uppercase block mb-2">
-                Account Number (Traceable)
-              </label>
-              <TraceableId 
-                value={transaction.bank_account_number || "-"} 
-                label="Bank Account"
-                context="Bank settlement"
-              />
+              <label className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 uppercase block mb-2">Account Number (Traceable)</label>
+              <TraceableId value={transaction.bank_account_number || "-"} label="Bank Account" context="Bank settlement" />
             </div>
             <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4 border border-cyan-200 dark:border-cyan-800">
-              <label className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 uppercase block mb-2">
-                Bank Mutation ID (Source)
-              </label>
-              <TraceableId 
-                value={transaction.bank_mutation_id || "-"} 
-                label="Bank Mutation ID"
-                context="Bank statement reference"
-              />
+              <label className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 uppercase block mb-2">Bank Mutation ID (Source)</label>
+              <TraceableId value={transaction.bank_mutation_id || "-"} label="Bank Mutation ID" context="Bank statement reference" />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
               <div>
-                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase block mb-2">
-                  Mutation Date
-                </label>
+                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase block mb-2">Mutation Date</label>
                 <div className="text-sm text-gray-900 dark:text-white flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-gray-400" />
                   {transaction.bank_mutation_date ? formatDate(transaction.bank_mutation_date) : "-"}
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase block mb-2">
-                  Reconciled Date
-                </label>
+                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase block mb-2">Reconciled Date</label>
                 <div className="text-sm text-gray-900 dark:text-white flex items-center gap-2">
                   <Clock className="w-4 h-4 text-gray-400" />
                   {transaction.reconciled_at ? formatDate(transaction.reconciled_at) : "-"}
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase block mb-2">
-                  Reconciled By
-                </label>
+                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase block mb-2">Reconciled By</label>
                 <div className="text-sm text-gray-900 dark:text-white flex items-center gap-2">
                   <User className="w-4 h-4 text-gray-400" />
                   {transaction.reconciled_by || "-"}
@@ -958,7 +1022,151 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({
               </div>
             </div>
           </div>
-        ) : (
+        )}
+
+        {/* ── SETTLEMENT GROUP ── */}
+        {reconciliationType === 'settlement' && (
+          <div className="space-y-5">
+            <div className="rounded-lg bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Info className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                <span className="text-xs font-bold text-violet-700 dark:text-violet-300 uppercase">Settlement Group</span>
+              </div>
+              <p className="text-sm text-violet-800 dark:text-violet-300">
+                Transaksi ini direkonsiliasi melalui settlement group — 1 mutasi bank mencakup beberapa POS aggregate.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4 border border-cyan-200 dark:border-cyan-800">
+                <label className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 uppercase block mb-2">Settlement Number</label>
+                <div className="text-sm font-bold text-cyan-900 dark:text-cyan-200 font-mono">{transaction.settlement_number || "-"}</div>
+              </div>
+              <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4 border border-cyan-200 dark:border-cyan-800">
+                <label className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 uppercase block mb-2">Bank Name</label>
+                <div className="text-sm font-bold text-cyan-900 dark:text-cyan-200">{transaction.settlement_bank_name || transaction.bank_name || "-"}</div>
+              </div>
+            </div>
+            {transaction.settlement_bank_statement_description && (
+              <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4 border border-cyan-200 dark:border-cyan-800">
+                <label className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 uppercase block mb-2">Bank Statement Description</label>
+                <div className="text-sm text-cyan-900 dark:text-cyan-200">{transaction.settlement_bank_statement_description}</div>
+              </div>
+            )}
+            {transaction.settlement_bank_statement_amount != null && (
+              <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4 border border-cyan-200 dark:border-cyan-800">
+                <label className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 uppercase block mb-2">Bank Statement Amount (Total Settlement)</label>
+                <div className="text-lg font-bold text-cyan-900 dark:text-cyan-200">{formatCurrency(transaction.settlement_bank_statement_amount)}</div>
+                <div className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">Jumlah ini mencakup beberapa POS aggregate dalam 1 settlement</div>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase block mb-2">Settlement Date</label>
+                <div className="text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  {transaction.settlement_date ? formatDate(transaction.settlement_date) : "-"}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase block mb-2">Status</label>
+                <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${
+                  transaction.settlement_status === 'RECONCILED'
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                    : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
+                }`}>
+                  {transaction.settlement_status || "-"}
+                </span>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase block mb-2">Reconciled By</label>
+                <div className="text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                  <User className="w-4 h-4 text-gray-400" />
+                  {transaction.reconciled_by || "-"}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── MULTI-MATCH ── */}
+        {reconciliationType === 'multi-match' && (
+          <div className="space-y-5">
+            <div className="rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Info className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span className="text-xs font-bold text-amber-700 dark:text-amber-300 uppercase">Multi-Match</span>
+              </div>
+              <p className="text-sm text-amber-800 dark:text-amber-300">
+                Transaksi ini direkonsiliasi dengan beberapa mutasi bank — 1 POS aggregate dicocokkan ke {transaction.multi_match_statements && transaction.multi_match_statements.length > 0 ? `${transaction.multi_match_statements.length} bank statement` : 'beberapa bank statement'}.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4 border border-cyan-200 dark:border-cyan-800">
+                <label className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 uppercase block mb-2">Total Bank Amount</label>
+                <div className="text-lg font-bold text-cyan-900 dark:text-cyan-200">
+                  {transaction.multi_match_total_bank_amount != null ? formatCurrency(transaction.multi_match_total_bank_amount) : "-"}
+                </div>
+              </div>
+              <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4 border border-cyan-200 dark:border-cyan-800">
+                <label className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 uppercase block mb-2">Difference</label>
+                <div className={`text-lg font-bold ${
+                  transaction.multi_match_difference === 0
+                    ? 'text-green-600 dark:text-green-400'
+                    : 'text-red-600 dark:text-red-400'
+                }`}>
+                  {transaction.multi_match_difference != null
+                    ? (transaction.multi_match_difference === 0 ? 'Match ✓' : formatCurrency(Math.abs(transaction.multi_match_difference)))
+                    : "-"}
+                </div>
+              </div>
+            </div>
+            {/* Bank statements list */}
+            {transaction.multi_match_statements && transaction.multi_match_statements.length > 0 && (
+              <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg border border-cyan-200 dark:border-cyan-800 overflow-hidden">
+                <div className="px-4 py-3 border-b border-cyan-200 dark:border-cyan-800">
+                  <label className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 uppercase">Matched Bank Statements ({transaction.multi_match_statements.length})</label>
+                </div>
+                <div className="divide-y divide-cyan-200 dark:divide-cyan-800">
+                  {transaction.multi_match_statements.map((stmt, idx) => (
+                    <div key={stmt.id || idx} className="px-4 py-3 flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-cyan-900 dark:text-cyan-200 truncate">{stmt.description || '-'}</div>
+                        <div className="text-xs text-cyan-600 dark:text-cyan-400 mt-0.5">
+                          {stmt.transaction_date ? formatDate(stmt.transaction_date) : '-'}
+                        </div>
+                      </div>
+                      <div className="text-sm font-bold text-cyan-900 dark:text-cyan-200 shrink-0">
+                        {formatCurrency(stmt.amount)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase block mb-2">Status</label>
+                <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${
+                  transaction.multi_match_status === 'RECONCILED'
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                    : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
+                }`}>
+                  {transaction.multi_match_status || "-"}
+                </span>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase block mb-2">Reconciled By</label>
+                <div className="text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                  <User className="w-4 h-4 text-gray-400" />
+                  {transaction.reconciled_by || "-"}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── NOT RECONCILED ── */}
+        {reconciliationType === 'none' && (
           <div className="flex flex-col items-center justify-center p-8 bg-gray-50 dark:bg-gray-700 rounded-lg text-center">
             <Clock className="w-8 h-8 text-gray-400 mb-2" />
             <div className="font-medium text-gray-900 dark:text-white">Reconciliation Pending</div>
@@ -1022,96 +1230,6 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({
             </div>
           </div>
         </div>
-      )}
-
-      {/* ── SETTLEMENT GROUP (accordion) ────────────────────────────────── */}
-      {transaction.settlement_group_id && (
-        <AccordionSection
-          title="Settlement Batch"
-          icon={<Building2 className="w-5 h-5 text-violet-600 dark:text-violet-400" />}
-          iconBg="bg-violet-100 dark:bg-violet-900/30"
-          defaultOpen={false}
-        >
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-4 border border-violet-200 dark:border-violet-800">
-              <label className="text-xs font-semibold text-violet-700 dark:text-violet-400 uppercase block mb-2">
-                Settlement Number
-              </label>
-              <div className="font-mono text-sm font-bold text-violet-800 dark:text-violet-300">
-                {transaction.settlement_number || "-"}
-              </div>
-            </div>
-            <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-4 border border-violet-200 dark:border-violet-800">
-              <label className="text-xs font-semibold text-violet-700 dark:text-violet-400 uppercase block mb-2">
-                Settlement Date
-              </label>
-              <div className="text-sm text-violet-800 dark:text-violet-300">
-                {transaction.settlement_date ? formatDate(transaction.settlement_date) : "-"}
-              </div>
-            </div>
-            <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-4 border border-violet-200 dark:border-violet-800">
-              <label className="text-xs font-semibold text-violet-700 dark:text-violet-400 uppercase block mb-2">
-                Status
-              </label>
-              <span className="inline-flex px-2 py-1 rounded text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
-                {transaction.settlement_status || "RECONCILED"}
-              </span>
-            </div>
-          </div>
-        </AccordionSection>
-      )}
-
-      {/* ── MULTI-MATCH (accordion) ───────────────────────────────────── */}
-      {transaction.multi_match_group_id && (
-        <AccordionSection
-          title="Multi-Match Group"
-          icon={<Building2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />}
-          iconBg="bg-amber-100 dark:bg-amber-900/30"
-          defaultOpen={false}
-        >
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 border border-amber-200 dark:border-amber-800">
-              <label className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase block mb-2">
-                Status
-              </label>
-              <span
-                className={`inline-flex px-2 py-1 rounded text-xs font-medium ${
-                  transaction.multi_match_status === "RECONCILED"
-                    ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
-                    : "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300"
-                }`}
-              >
-                {transaction.multi_match_status || "-"}
-              </span>
-            </div>
-            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 border border-amber-200 dark:border-amber-800">
-              <label className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase block mb-2">
-                Total Bank Amount
-              </label>
-              <div className="text-sm font-bold text-amber-800 dark:text-amber-300">
-                {transaction.multi_match_total_bank_amount != null
-                  ? formatCurrency(transaction.multi_match_total_bank_amount)
-                  : "-"}
-              </div>
-            </div>
-            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 border border-amber-200 dark:border-amber-800">
-              <label className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase block mb-2">
-                Difference
-              </label>
-              <div
-                className={`text-sm font-bold ${
-                  transaction.multi_match_difference === 0
-                    ? "text-green-600 dark:text-green-400"
-                    : "text-red-600 dark:text-red-400"
-                }`}
-              >
-                {transaction.multi_match_difference != null
-                  ? formatCurrency(Math.abs(transaction.multi_match_difference))
-                  : "-"}
-              </div>
-            </div>
-          </div>
-        </AccordionSection>
       )}
 
       {/* ── AUDIT LOG ──────────────────────────────────────────────────── */}
