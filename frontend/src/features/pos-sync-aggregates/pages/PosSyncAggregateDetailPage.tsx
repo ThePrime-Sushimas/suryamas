@@ -39,6 +39,7 @@ function toModalAggregate(
     fixed_fee_amount: Number(agg.fixed_fee_amount_calc),
     total_fee_amount: Number(agg.total_fee_amount),
     nett_amount: Number(agg.nett_amount),
+    actual_nett_amount: Number(agg.nett_amount) - Number(agg.fee_discrepancy ?? 0),
     actual_fee_amount: agg.actual_fee_amount,
     fee_discrepancy: agg.fee_discrepancy,
     fee_discrepancy_note: agg.fee_discrepancy_note,
