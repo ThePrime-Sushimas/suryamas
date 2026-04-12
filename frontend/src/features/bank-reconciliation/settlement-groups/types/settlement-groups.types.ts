@@ -328,24 +328,24 @@ export interface AvailableBankStatementsResponse {
  */
 export const SettlementGroupStatusColors = {
   [SettlementGroupStatus.PENDING]: {
-    bg: 'bg-yellow-100',
-    text: 'text-yellow-800',
-    border: 'border-yellow-200',
+    bg: 'bg-yellow-100 dark:bg-yellow-900/30',
+    text: 'text-yellow-800 dark:text-yellow-300',
+    border: 'border-yellow-200 dark:border-yellow-800',
   },
   [SettlementGroupStatus.RECONCILED]: {
-    bg: 'bg-green-100',
-    text: 'text-green-800',
-    border: 'border-green-200',
+    bg: 'bg-green-100 dark:bg-green-900/30',
+    text: 'text-green-800 dark:text-green-300',
+    border: 'border-green-200 dark:border-green-800',
   },
   [SettlementGroupStatus.DISCREPANCY]: {
-    bg: 'bg-red-100',
-    text: 'text-red-800',
-    border: 'border-red-200',
+    bg: 'bg-red-100 dark:bg-red-900/30',
+    text: 'text-red-800 dark:text-red-300',
+    border: 'border-red-200 dark:border-red-800',
   },
   [SettlementGroupStatus.UNDO]: {
-    bg: 'bg-gray-100',
-    text: 'text-gray-800',
-    border: 'border-gray-200',
+    bg: 'bg-gray-100 dark:bg-gray-700',
+    text: 'text-gray-800 dark:text-gray-300',
+    border: 'border-gray-200 dark:border-gray-600',
   },
 } as const;
 

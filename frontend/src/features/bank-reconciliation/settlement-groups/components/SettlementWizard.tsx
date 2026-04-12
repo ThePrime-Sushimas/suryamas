@@ -117,7 +117,7 @@ export const SettlementWizard: React.FC<SettlementWizardProps> = ({
               ? "border-blue-500 bg-blue-500 text-white"
               : isCompleted
               ? "border-green-500 bg-green-500 text-white"
-              : "border-gray-300 bg-white text-gray-500"
+              : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400"
           }`}
         >
           {isCompleted ? (
@@ -130,10 +130,10 @@ export const SettlementWizard: React.FC<SettlementWizardProps> = ({
           <div
             className={`text-sm font-medium ${
               isActive
-                ? "text-blue-600"
+                ? "text-blue-600 dark:text-blue-400"
                 : isCompleted
-                ? "text-green-600"
-                : "text-gray-500"
+                ? "text-green-600 dark:text-green-400"
+                : "text-gray-500 dark:text-gray-500"
             }`}
           >
             {step.title}
@@ -163,10 +163,10 @@ export const SettlementWizard: React.FC<SettlementWizardProps> = ({
     <div className="max-w-7xl mx-auto p-6">
       {/* Header */}
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
           Create Settlement Group
         </h2>
-        <p className="text-gray-600">
+        <p className="text-gray-600 dark:text-gray-400">
           Follow the steps to create a bulk settlement by matching multiple POS aggregates to a single bank statement.
         </p>
       </div>
@@ -183,7 +183,7 @@ export const SettlementWizard: React.FC<SettlementWizardProps> = ({
             </React.Fragment>
           ))}
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
           <div
             className="bg-blue-600 h-2 rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
@@ -192,9 +192,9 @@ export const SettlementWizard: React.FC<SettlementWizardProps> = ({
       </div>
 
       {/* Step Content */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm mb-6">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm mb-6">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
             <span className="inline-flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-600 rounded-full text-sm font-semibold">
               {currentStep + 1}
             </span>
@@ -211,7 +211,7 @@ export const SettlementWizard: React.FC<SettlementWizardProps> = ({
         <button
           onClick={handleCancel}
           disabled={isSubmitting}
-          className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           Cancel
         </button>
@@ -221,7 +221,7 @@ export const SettlementWizard: React.FC<SettlementWizardProps> = ({
             <button
               onClick={handlePrevious}
               disabled={isSubmitting}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
               Previous
@@ -326,7 +326,7 @@ const SelectBankStatementStep: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <p className="text-gray-600">
+      <p className="text-gray-600 dark:text-gray-400">
         Select a bank statement to reconcile with multiple POS aggregates.
       </p>
 
@@ -338,55 +338,55 @@ const SelectBankStatementStep: React.FC = () => {
           placeholder="Search by description or reference number..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
       </div>
 
       {/* Statements Table */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden w-full">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden w-full">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-            <span className="ml-2 text-gray-600">Loading bank statements...</span>
+            <span className="ml-2 text-gray-600 dark:text-gray-400">Loading bank statements...</span>
           </div>
         ) : bankStatements.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500">
+            <p className="text-gray-500 dark:text-gray-400">
               {searchTerm ? 'No statements found matching your search' : 'No unreconciled bank statements available'}
             </p>
           </div>
         ) : (
           <div ref={scrollContainerRef} className="overflow-x-auto max-h-96 overflow-y-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50 sticky top-0">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900/50 sticky top-0">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-10">
                     Select
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Date
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Description
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Source
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Amount
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {bankStatements.map((statement: AvailableBankStatementDto) => (
                   <tr 
                     key={statement.id}
                     onClick={() => handleSelect(statement)}
                     className={`cursor-pointer transition-colors ${
                       selectedBankStatement === statement.id
-                        ? 'bg-blue-50 border-blue-300'
-                        : 'hover:bg-gray-50'
+                        ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                     }`}
                   >
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -398,21 +398,21 @@ const SelectBankStatementStep: React.FC = () => {
                         className="h-4 w-4 text-blue-600 focus:ring-blue-500"
                       />
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-gray-400" />
                         {formatDate(statement.transaction_date)}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
                       <div>
                         <div className="font-medium">{statement.description}</div>
                         {statement.reference_number && (
-                          <div className="text-xs text-gray-500">Ref: {statement.reference_number}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">Ref: {statement.reference_number}</div>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       <div className="flex items-center gap-2">
                         <Building className="h-4 w-4 text-gray-400" />
                         {statement.source_file || 'N/A'}
@@ -452,8 +452,8 @@ const SelectBankStatementStep: React.FC = () => {
 
       {/* Selection Summary */}
       {selectedBankStatement && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-800">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <p className="text-sm text-blue-800 dark:text-blue-300">
             <strong>Selected:</strong> Bank statement has been selected. Click "Next" to continue.
           </p>
         </div>
@@ -532,7 +532,7 @@ const SelectAggregatesStep: React.FC<SelectAggregatesStepProps> = ({
 
   return (
     <div className="space-y-4">
-      <p className="text-gray-600">
+      <p className="text-gray-600 dark:text-gray-400">
         Select POS aggregates to match with the selected bank statement.
         You can select multiple aggregates to reconcile them together.
       </p>
@@ -545,55 +545,55 @@ const SelectAggregatesStep: React.FC<SelectAggregatesStepProps> = ({
           placeholder="Search by branch, payment method, or reference..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
       </div>
 
       {/* Aggregates Table */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden w-full">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden w-full">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-            <span className="ml-2 text-gray-600">Loading aggregates...</span>
+            <span className="ml-2 text-gray-600 dark:text-gray-400">Loading aggregates...</span>
           </div>
         ) : aggregates.length === 0 ? (
           <div className="text-center py-12">
             <CreditCard className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500">
+            <p className="text-gray-500 dark:text-gray-400">
               {searchTerm ? 'No aggregates found matching your search' : 'No unreconciled aggregates available'}
             </p>
           </div>
         ) : (
           <div className="overflow-x-auto max-h-96 overflow-y-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50 sticky top-0">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900/50 sticky top-0">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-10">
                     Select
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Date
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Branch
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Payment Method
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Amount
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {aggregates.map((aggregate: AvailableAggregateDto) => (
                   <tr 
                     key={aggregate.id}
                     onClick={() => handleToggleAggregate(aggregate)}
                     className={`cursor-pointer transition-colors ${
                       isSelected(aggregate.id)
-                        ? 'bg-blue-50'
-                        : 'hover:bg-gray-50'
+                        ? 'bg-blue-50 dark:bg-blue-900/20'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                     }`}
                   >
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -605,19 +605,19 @@ const SelectAggregatesStep: React.FC<SelectAggregatesStepProps> = ({
                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 rounded"
                       />
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-gray-400" />
                         {formatDate(aggregate.transaction_date)}
                       </div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       <div className="flex items-center gap-2">
                         <Building className="h-4 w-4 text-gray-400" />
                         {aggregate.branch_name || 'N/A'}
                       </div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {aggregate.payment_method_name || 'N/A'}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-medium">
@@ -633,13 +633,13 @@ const SelectAggregatesStep: React.FC<SelectAggregatesStepProps> = ({
 
       {/* Selected Summary */}
       {selectedAggregates.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-sm text-blue-800">
+              <p className="text-sm text-blue-800 dark:text-blue-300">
                 <strong>{selectedAggregates.length}</strong> aggregates selected
               </p>
-              <p className="text-xs text-blue-600 mt-1">
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                 Total: {formatCurrency(selectedTotal)}
               </p>
             </div>
@@ -706,29 +706,29 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
       </p>
 
       {/* Bank Statement Summary */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-blue-800 mb-3">Selected Bank Statement</h4>
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-3">Selected Bank Statement</h4>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-xs text-blue-600">Date</p>
-            <p className="text-sm font-medium text-gray-900">{formatDate(selectedBankStatementData.transaction_date)}</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400">Date</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(selectedBankStatementData.transaction_date)}</p>
           </div>
           <div>
-            <p className="text-xs text-blue-600">Amount</p>
-            <p className="text-lg font-bold text-blue-700">{formatCurrency(selectedBankStatementData.amount)}</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400">Amount</p>
+            <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatCurrency(selectedBankStatementData.amount)}</p>
           </div>
           <div className="col-span-2">
-            <p className="text-xs text-blue-600">Description</p>
-            <p className="text-sm text-gray-900">{selectedBankStatementData.description}</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400">Description</p>
+            <p className="text-sm text-gray-900 dark:text-white">{selectedBankStatementData.description}</p>
           </div>
         </div>
       </div>
 
       {/* Aggregates Summary */}
-      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
         <div className="flex justify-between items-start mb-3">
-          <h4 className="text-sm font-semibold text-green-800">Selected Aggregates</h4>
-          <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded-full">
+          <h4 className="text-sm font-semibold text-green-800 dark:text-green-300">Selected Aggregates</h4>
+          <span className="text-xs bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-300 px-2 py-1 rounded-full">
             {selectedAggregates.length} items
           </span>
         </div>
@@ -738,58 +738,58 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
             {selectedAggregates.map((agg) => (
               <div key={agg.id} className="flex justify-between items-center text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500">{agg.branchName || 'N/A'}</span>
-                  <span className="text-gray-400">•</span>
-                  <span className="text-gray-500">{agg.payment_method_name || 'N/A'}</span>
+                  <span className="text-gray-500 dark:text-gray-400">{agg.branchName || 'N/A'}</span>
+                  <span className="text-gray-400 dark:text-gray-500">•</span>
+                  <span className="text-gray-500 dark:text-gray-400">{agg.payment_method_name || 'N/A'}</span>
                 </div>
-                <span className="font-medium text-gray-900">{formatCurrency(agg.nett_amount || 0)}</span>
+                <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(agg.nett_amount || 0)}</span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-gray-500">No aggregates selected</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">No aggregates selected</p>
         )}
         
-        <div className="mt-3 pt-3 border-t border-green-200 flex justify-between items-center">
-          <span className="text-sm font-medium text-green-800">Total Aggregates</span>
-          <span className="text-lg font-bold text-green-700">{formatCurrency(totalAggregates)}</span>
+        <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-800 flex justify-between items-center">
+          <span className="text-sm font-medium text-green-800 dark:text-green-300">Total Aggregates</span>
+          <span className="text-lg font-bold text-green-700 dark:text-green-300">{formatCurrency(totalAggregates)}</span>
         </div>
       </div>
 
       {/* Difference Summary */}
-      <div className={`border rounded-lg p-4 ${isWithinThreshold ? 'bg-gray-50 border-gray-200' : 'bg-red-50 border-red-200'}`}>
+      <div className={`border rounded-lg p-4 ${isWithinThreshold ? 'bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'}`}>
         <div className="flex justify-between items-center mb-2">
           <div>
-            <p className="text-sm font-medium text-gray-700">Difference</p>
-            <p className="text-xs text-gray-500">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Difference</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               {formatCurrency(selectedBankStatementData.amount)} - {formatCurrency(totalAggregates)}
             </p>
           </div>
           <div className="text-right">
-            <p className={`text-lg font-bold ${isWithinThreshold ? 'text-gray-700' : 'text-red-600'}`}>
+            <p className={`text-lg font-bold ${isWithinThreshold ? 'text-gray-700 dark:text-gray-300' : 'text-red-600 dark:text-red-400'}`}>
               {formatCurrency(difference)}
             </p>
-            <p className="text-xs text-gray-500">{differencePercent.toFixed(2)}%</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{differencePercent.toFixed(2)}%</p>
           </div>
         </div>
         
         {/* Notes Input */}
         <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Notes (optional)
           </label>
           <textarea
             value={wizardNotes}
             onChange={(e) => setWizardNotes(e.target.value)}
             placeholder="Add notes about this settlement..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             rows={2}
           />
         </div>
 
         {/* Override Difference Checkbox */}
         {!isWithinThreshold && (
-          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -798,11 +798,11 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
                 className="mt-1 h-4 w-4 text-amber-600 focus:ring-amber-500 rounded"
               />
               <div className="flex-1">
-                <p className="text-sm font-medium text-amber-800 flex items-center gap-2">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4" />
                   Override Difference Threshold
                 </p>
-                <p className="text-xs text-amber-600 mt-1">
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
                   The difference ({formatCurrency(difference)} / {differencePercent.toFixed(2)}%) exceeds the 5% threshold.
                   Check this box to proceed anyway.
                 </p>

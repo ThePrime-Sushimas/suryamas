@@ -22,7 +22,7 @@ export const DifferenceIndicator: React.FC<DifferenceIndicatorProps> = ({
   // Handle null/undefined values
   if (difference === null || difference === undefined || isNaN(difference)) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-md border bg-gray-50 border-gray-200 px-2.5 py-1.5 text-sm text-gray-600">
+      <span className="inline-flex items-center gap-1 rounded-md border bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 px-2.5 py-1.5 text-sm text-gray-600 dark:text-gray-400">
         -
       </span>
     );
@@ -30,7 +30,7 @@ export const DifferenceIndicator: React.FC<DifferenceIndicatorProps> = ({
   
   if (totalAmount === null || totalAmount === undefined || isNaN(totalAmount) || totalAmount === 0) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-md border bg-gray-50 border-gray-200 px-2.5 py-1.5 text-sm text-gray-600">
+      <span className="inline-flex items-center gap-1 rounded-md border bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 px-2.5 py-1.5 text-sm text-gray-600 dark:text-gray-400">
         {new Intl.NumberFormat('id-ID', {
           style: 'currency',
           currency: 'IDR',
@@ -55,9 +55,9 @@ export const DifferenceIndicator: React.FC<DifferenceIndicatorProps> = ({
   };
 
   const getColorClasses = () => {
-    if (isZero) return 'text-gray-600 bg-gray-50 border-gray-200';
-    if (isPositive) return 'text-green-700 bg-green-50 border-green-200';
-    return 'text-red-700 bg-red-50 border-red-200';
+    if (isZero) return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700';
+    if (isPositive) return 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800';
+    return 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
   };
 
   const getIcon = () => {

@@ -230,7 +230,7 @@ function StepSelectMode({
           <button
             key={m.id}
             onClick={() => onSelect(m.id)}
-            className={`group relative flex items-center gap-5 p-5 rounded-2xl border-2 border-transparent bg-gray-50 dark:bg-gray-800 hover:border-gray-200 dark:hover:border-gray-600 hover:bg-white dark:hover:bg-gray-750 hover:shadow-md transition-all duration-200 text-left ring-0 hover:ring-4 ${m.ring}`}
+            className={`group relative flex items-center gap-5 p-5 rounded-2xl border-2 border-transparent bg-gray-50 dark:bg-gray-800 hover:border-gray-200 dark:hover:border-gray-600 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md transition-all duration-200 text-left ring-0 hover:ring-4 ${m.ring}`}
           >
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${m.color}`}>
               {m.icon}
@@ -533,12 +533,12 @@ function StepAutoMatch({
                   className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
                     isSelected
                       ? "border-blue-300 bg-blue-50 dark:bg-blue-900/20"
-                      : "border-gray-100 dark:border-gray-800 hover:border-gray-200 hover:bg-gray-50"
+                      : "border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
                   }`}
                 >
                   <div
                     className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
-                      isSelected ? "bg-blue-600 border-blue-600" : "border-gray-300"
+                      isSelected ? "bg-blue-600 border-blue-600" : "border-gray-300 dark:border-gray-600"
                     }`}
                   >
                     {isSelected && <Check className="w-3 h-3 text-white" />}
@@ -688,7 +688,7 @@ function StepManualMatch({
                 className={`p-3 rounded-xl border cursor-pointer transition-all ${
                   isSelected
                     ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20"
-                    : "border-gray-100 dark:border-gray-800 hover:border-gray-200 hover:bg-gray-50"
+                    : "border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
                 }`}
               >
                 <div className="flex justify-between items-start">
@@ -750,7 +750,7 @@ function StepManualMatch({
                   className={`p-3 rounded-xl border cursor-pointer transition-all ${
                     isSelected
                       ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20"
-                      : "border-gray-100 dark:border-gray-800 hover:border-gray-200 hover:bg-gray-50"
+                      : "border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
                   }`}
                 >
                   <div className="flex justify-between items-start">
@@ -1007,7 +1007,7 @@ function StepMultiMatch({
                   className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                     isSelected
                       ? "border-violet-300 bg-violet-50 dark:bg-violet-900/20"
-                      : "border-gray-100 dark:border-gray-800 hover:bg-gray-50"
+                      : "border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
                   }`}
                 >
                   <div
@@ -1108,7 +1108,7 @@ function StepMultiMatch({
                       setAggregate(agg);
                       setShowAggList(false);
                     }}
-                    className={`w-full text-left px-3 py-2.5 hover:bg-violet-50 dark:hover:bg-violet-900/10 border-b border-gray-50 dark:border-gray-800 last:border-0 transition-colors ${
+                    className={`w-full text-left px-3 py-2.5 hover:bg-violet-50 dark:hover:bg-violet-900/20 border-b border-gray-50 dark:border-gray-800 last:border-0 transition-colors ${
                       aggregate?.id === agg.id ? "bg-violet-50 dark:bg-violet-900/10" : ""
                     }`}
                   >
@@ -1327,7 +1327,7 @@ function StepSettlement({
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     isSelected
                       ? "border-amber-400 bg-amber-50 dark:bg-amber-900/20"
-                      : "border-gray-100 dark:border-gray-800 hover:border-gray-200 hover:bg-gray-50"
+                      : "border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
                   }`}
                 >
                   <div className="flex justify-between items-start">
@@ -1410,7 +1410,7 @@ function StepSettlement({
                   className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                     isSelected
                       ? "border-amber-300 bg-amber-50 dark:bg-amber-900/20"
-                      : "border-gray-100 dark:border-gray-800 hover:bg-gray-50"
+                      : "border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
                   }`}
                 >
                   <div
