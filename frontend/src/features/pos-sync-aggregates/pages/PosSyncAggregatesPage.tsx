@@ -17,6 +17,7 @@ const STATUS_BADGE: Record<AggregateStatus, string> = {
   RECALCULATED: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
   PENDING_MAPPING: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
   INVALID: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  VOID: "bg-red-800 text-gray-100 dark:bg-red-800 dark:text-gray-100",
 };
 
 export default function PosSyncAggregatesPage() {
@@ -45,9 +46,11 @@ export default function PosSyncAggregatesPage() {
   const summary = rows.reduce(
     (acc, r) => {
       acc[r.status] = (acc[r.status] ?? 0) + 1;
-      acc._grand_total = (acc._grand_total ?? 0) + Number(r.grand_total);
-      acc._nett = (acc._nett ?? 0) + Number(r.nett_amount);
-      acc._fee = (acc._fee ?? 0) + Number(r.total_fee_amount);
+      if (r.status !== "VOID") {
+        acc._grand_total = (acc._grand_total ?? 0) + Number(r.grand_total);
+        acc._nett = (acc._nett ?? 0) + Number(r.nett_amount);
+        acc._fee = (acc._fee ?? 0) + Number(r.total_fee_amount);
+      }
       acc._reconciled = (acc._reconciled ?? 0) + (r.is_reconciled ? 1 : 0);
       return acc;
     },
@@ -239,7 +242,7 @@ export default function PosSyncAggregatesPage() {
                     id={`row-${row.id}`}
                     key={row.id}
                     onClick={() => navigate(`/pos-sync-aggregates/${row.id}`)}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+                    className={`cursor-pointer ${row.status === "VOID" ? "bg-red-50 hover:bg-red-100 dark:bg-red-900/10 dark:hover:bg-red-900/20" : "hover:bg-gray-50 dark:hover:bg-gray-700/50"}`}
                   >
                     <td className="px-3 py-2.5 text-sm text-gray-900 dark:text-white whitespace-nowrap">
                       {row.sales_date}
@@ -248,18 +251,30 @@ export default function PosSyncAggregatesPage() {
                       {row.branch_name ?? `POS #${row.branch_pos_id}`}
                     </td>
                     <td className="px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                      <div>
-                        {row.payment_methods?.name ??
-                          `POS #${row.payment_pos_id}`}
-                      </div>
-                      {row.payment_methods?.payment_type && (
-                        <div className="text-xs text-gray-400">
-                          {row.payment_methods.payment_type}
-                        </div>
+                      {row.status === "VOID" ? (
+                        <span className="text-gray-600 dark:text-gray-400 font-medium">VOID</span>
+                      ) : (
+                        <>
+                          <div>
+                            {row.payment_methods?.name ??
+                              `POS #${row.payment_pos_id}`}
+                          </div>
+                          {row.payment_methods?.payment_type && (
+                            <div className="text-xs text-gray-400">
+                              {row.payment_methods.payment_type}
+                            </div>
+                          )}
+                        </>
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-sm text-center text-gray-700 dark:text-gray-300">
-                      {row.transaction_count}
+                      {row.status === "VOID" ? (
+                        <span title={row.skip_reason ?? undefined}>
+                          {row.void_transaction_count ?? 0}
+                        </span>
+                      ) : (
+                        row.transaction_count
+                      )}
                     </td>
                     <td className="px-3 py-2.5 text-sm text-right text-gray-900 dark:text-white whitespace-nowrap">
                       Rp {fmt(row.grand_total)}

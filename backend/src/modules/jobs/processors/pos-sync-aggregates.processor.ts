@@ -51,6 +51,11 @@ interface VoidAggregateGroup {
   branch_pos_id: number;
   void_count: number;
   void_sales_nums: string[];
+  gross_amount: number;
+  discount_amount: number;
+  tax_amount: number;
+  other_tax_amount: number;
+  grand_total: number;
 }
 
 const VOID_STATUS_ID = 12;
@@ -191,11 +196,21 @@ export async function processPosSyncAggregates(
             branch_pos_id: sale.branch_id,
             void_count: 0,
             void_sales_nums: [],
+            gross_amount: 0,
+            discount_amount: 0,
+            tax_amount: 0,
+            other_tax_amount: 0,
+            grand_total: 0,
           });
         }
         const voidGroup = voidGroups.get(voidKey)!;
         voidGroup.void_count++;
         voidGroup.void_sales_nums.push(sale.sales_num);
+        voidGroup.gross_amount += Number(sale.subtotal ?? 0);
+        voidGroup.discount_amount += Number(sale.discount_total ?? 0);
+        voidGroup.tax_amount += Number(sale.vat_total ?? 0);
+        voidGroup.other_tax_amount += Number(sale.other_tax_total ?? 0);
+        voidGroup.grand_total += Number(sale.grand_total ?? 0);
         logWarn("PosSyncAggregates: VOID transaction detected", {
           sales_num: sale.sales_num,
           sales_date: sale.sales_date,
@@ -318,11 +333,11 @@ export async function processPosSyncAggregates(
         branch_name,
         payment_pos_id: 0,
         payment_method_id: null,
-        gross_amount: 0,
-        discount_amount: 0,
-        tax_amount: 0,
-        other_tax_amount: 0,
-        grand_total: 0,
+        gross_amount: voidGroup.gross_amount,
+        discount_amount: voidGroup.discount_amount,
+        tax_amount: voidGroup.tax_amount,
+        other_tax_amount: voidGroup.other_tax_amount,
+        grand_total: voidGroup.grand_total,
         payment_amount: 0,
         transaction_count: 0,
         void_transaction_count: void_count,

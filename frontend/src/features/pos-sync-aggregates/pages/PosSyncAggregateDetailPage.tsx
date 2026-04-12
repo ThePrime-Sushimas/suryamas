@@ -144,7 +144,9 @@ export default function PosSyncAggregateDetailPage() {
     ],
     ["Payment Type", aggregate.payment_methods?.payment_type ?? "—"],
     ["Status", aggregate.status],
-    ["Jumlah Transaksi", aggregate.transaction_count],
+    ["Jumlah Transaksi", aggregate.status === "VOID"
+      ? `${aggregate.void_transaction_count ?? 0} (VOID)`
+      : aggregate.transaction_count],
     [
       "Recalculated",
       aggregate.recalculated

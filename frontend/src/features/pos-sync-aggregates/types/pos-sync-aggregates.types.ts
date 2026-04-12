@@ -5,7 +5,8 @@ export type AggregateStatus =
   | "JOURNALED" 
   | "RECALCULATED" 
   | "PENDING_MAPPING" 
-  | "INVALID";  // ← tambah
+  | "INVALID"
+  | "VOID";
 
 export interface PaymentMethodInfo {
   id: number;
@@ -29,6 +30,7 @@ export interface PosSyncAggregate {
   grand_total: number;
   payment_amount: number;
   transaction_count: number;
+  void_transaction_count: number;
   fee_percentage: number;
   fee_fixed_amount: number;
   percentage_fee_amount: number;
