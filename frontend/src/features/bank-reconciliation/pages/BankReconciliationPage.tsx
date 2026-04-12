@@ -35,9 +35,12 @@ import type {
 } from "../types/bank-reconciliation.types";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { ReconciliationSummaryCards } from "../components/reconciliation/ReconciliationSummary";
+import { SettlementGroupList } from "../components/reconciliation/SettlementGroupList";
 
 // ← NEW: unified wizard
 import { ReconciliationWizard } from "../components/reconciliation/ReconciliationWizard";
+import { settlementGroupsApi } from "../settlement-groups/api/settlement-groups.api";
+import type { CreateSettlementGroupResultDto } from "../settlement-groups/types/settlement-groups.types";
 
 type DateRange = {
   startDate: string;
@@ -83,6 +86,9 @@ export function BankReconciliationPage() {
     setPage,
     setPageSize,
     fetchSettlementGroups,
+    settlementGroups,
+    settlementGroupsTotal,
+    deleteSettlementGroup,
   } = useBankReconciliation();
 
   useEffect(() => {
@@ -284,6 +290,33 @@ export function BankReconciliationPage() {
     }
   }, []);
 
+  const handleDeleteSettlementGroup = useCallback(
+    async (groupId: string) => {
+      await deleteSettlementGroup(groupId);
+      refreshData();
+    },
+    [deleteSettlementGroup, refreshData]
+  );
+
+  const handleSettlementConfirm = useCallback(
+    async (
+      bankStatementId: string,
+      aggregateIds: string[],
+      notes: string,
+      overrideDifference: boolean
+    ): Promise<CreateSettlementGroupResultDto> => {
+      const result = await settlementGroupsApi.createSettlementGroup({
+        bankStatementId,
+        aggregateIds,
+        notes,
+        overrideDifference,
+      });
+      refreshData();
+      return result;
+    },
+    [refreshData]
+  );
+
   // Undo remains outside wizard (row-level action)
   const handleUndo = async (statementId: string) => {
     if (confirm("Apakah Anda yakin ingin membatalkan rekonsiliasi ini?")) {
@@ -437,8 +470,19 @@ export function BankReconciliationPage() {
           )}
         </div>
 
-        {/* Right Column: Mini Info / Guide / Legend */}
+        {/* Right Column: Settlement Groups + Info */}
         <div className="space-y-10">
+           {/* Settlement Groups List with Undo/Delete */}
+           {filtersApplied && settlementGroups.length > 0 && (
+             <ErrorBoundary>
+               <SettlementGroupList
+                 groups={settlementGroups}
+                 total={settlementGroupsTotal}
+                 onDelete={handleDeleteSettlementGroup}
+               />
+             </ErrorBoundary>
+           )}
+
            <div className="bg-linear-to-br from-gray-900 to-indigo-950 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-40 h-40 bg-blue-500/20 rounded-full blur-3xl -mr-20 -mt-20 group-hover:scale-150 transition-transform duration-700" />
               <div className="relative z-10 space-y-6">
@@ -470,6 +514,7 @@ export function BankReconciliationPage() {
         onMultiMatchConfirm={handleMultiMatchConfirm}
         onFindAggregate={handleFindAggregateForMultiMatch}
         onLoadAggregates={handleLoadAggregates}
+        onSettlementConfirm={handleSettlementConfirm}
       />
     </div>
   );

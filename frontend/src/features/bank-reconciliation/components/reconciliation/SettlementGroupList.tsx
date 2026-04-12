@@ -320,7 +320,7 @@ export function SettlementGroupList({
                                     {agg.aggregate?.transaction_date ? formatDate(agg.aggregate.transaction_date) : '-'}
                                   </p>
                                   <p className="text-sm font-black text-gray-800 dark:text-gray-200">
-                                    {agg.aggregate?.payment_method_name || 'Manual Gateway'}
+                                    {agg.aggregate?.payment_method_name || 'Tidak diketahui'}
                                   </p>
                                   {agg.aggregate?.branch_name && (
                                     <p className="text-[10px] font-bold text-gray-500 italic mt-0.5">

@@ -837,30 +837,9 @@ export class SettlementGroupRepository {
 
           if (retryError) throw retryError;
 
-          // Get all group IDs to fetch aggregates
+          // Batch fetch aggregates with full details (3 queries total, not N×3)
           const groupIds = (retryData || []).map((g: any) => g.id);
-          let aggregatesMap: Record<string, any[]> = {};
-          
-          if (groupIds.length > 0) {
-            try {
-              const { data: aggData } = await supabase
-                .from("bank_settlement_aggregates")
-                .select("*")
-                .in("settlement_group_id", groupIds);
-              
-              if (aggData) {
-                aggregatesMap = aggData.reduce((acc: Record<string, any[]>, agg: any) => {
-                  if (!acc[agg.settlement_group_id]) {
-                    acc[agg.settlement_group_id] = [];
-                  }
-                  acc[agg.settlement_group_id].push(agg);
-                  return acc;
-                }, {});
-              }
-            } catch (aggError) {
-              logError("Error fetching aggregates for list", { error: aggError instanceof Error ? aggError.message : 'Unknown' });
-            }
-          }
+          const aggregatesMap = await this.batchFetchAggregatesForGroups(groupIds);
 
           const transformedData = (retryData || []).map((group: any) => ({
             ...group,
@@ -883,30 +862,9 @@ export class SettlementGroupRepository {
         throw error;
       }
 
-      // Get all group IDs to fetch aggregates
+      // Batch fetch aggregates with full details (3 queries total, not N×3)
       const groupIds = (data || []).map((g: any) => g.id);
-      let aggregatesMap: Record<string, any[]> = {};
-      
-      if (groupIds.length > 0) {
-        try {
-          const { data: aggData } = await supabase
-            .from("bank_settlement_aggregates")
-            .select("*")
-            .in("settlement_group_id", groupIds);
-          
-          if (aggData) {
-            aggregatesMap = aggData.reduce((acc: Record<string, any[]>, agg: any) => {
-              if (!acc[agg.settlement_group_id]) {
-                acc[agg.settlement_group_id] = [];
-              }
-              acc[agg.settlement_group_id].push(agg);
-              return acc;
-            }, {});
-          }
-        } catch (aggError) {
-          logError("Error fetching aggregates for list", { error: aggError instanceof Error ? aggError.message : 'Unknown' });
-        }
-      }
+      const aggregatesMap = await this.batchFetchAggregatesForGroups(groupIds);
 
       const transformedData = (data || []).map((group: any) => ({
         ...group,
@@ -930,6 +888,86 @@ export class SettlementGroupRepository {
       logError("Error fetching settlement groups", { options, error: errorMessage });
       throw error;
     }
+  }
+
+  /**
+   * Batch fetch aggregates for multiple groups in 3 queries total
+   * Instead of N×3 queries (N groups × 3 queries each)
+   */
+  private async batchFetchAggregatesForGroups(
+    groupIds: string[]
+  ): Promise<Record<string, any[]>> {
+    const result: Record<string, any[]> = {};
+    if (groupIds.length === 0) return result;
+
+    try {
+      // Query 1: All settlement aggregates for all groups
+      const { data: allSettlementAggs } = await supabase
+        .from("bank_settlement_aggregates")
+        .select("id, settlement_group_id, aggregate_id, allocated_amount, original_amount, created_at")
+        .in("settlement_group_id", groupIds)
+        .order("created_at", { ascending: true });
+
+      if (!allSettlementAggs || allSettlementAggs.length === 0) return result;
+
+      const aggregateIds = [...new Set(allSettlementAggs.map(sa => sa.aggregate_id))];
+
+      // Query 2: All aggregate transactions in one batch
+      const { data: aggTransactions } = await supabase
+        .from("aggregated_transactions")
+        .select("id, transaction_date, gross_amount, nett_amount, payment_method_id, branch_name")
+        .in("id", aggregateIds);
+
+      const aggMap = new Map<string, any>();
+      (aggTransactions || []).forEach((at: any) => {
+        aggMap.set(at.id, at);
+        aggMap.set(String(at.id), at);
+      });
+
+      // Query 3: All payment methods in one batch
+      const paymentMethodIds = [...new Set(
+        (aggTransactions || []).map((at: any) => at.payment_method_id).filter(Boolean)
+      )];
+      const pmMap: Record<string, string> = {};
+      if (paymentMethodIds.length > 0) {
+        const { data: pms } = await supabase
+          .from("payment_methods")
+          .select("id, name")
+          .in("id", paymentMethodIds);
+        (pms || []).forEach((pm: any) => { pmMap[pm.id] = pm.name; });
+      }
+
+      // Assemble: group by settlement_group_id
+      for (const sa of allSettlementAggs) {
+        const aggData = aggMap.get(sa.aggregate_id) || aggMap.get(String(sa.aggregate_id));
+        const entry = {
+          id: sa.id,
+          settlement_group_id: sa.settlement_group_id,
+          aggregate_id: sa.aggregate_id,
+          allocated_amount: parseFloat(String(sa.allocated_amount)) || 0,
+          original_amount: parseFloat(String(sa.original_amount)) || 0,
+          created_at: sa.created_at,
+          aggregate: aggData ? {
+            id: aggData.id,
+            transaction_date: aggData.transaction_date,
+            gross_amount: parseFloat(String(aggData.gross_amount)) || 0,
+            nett_amount: parseFloat(String(aggData.nett_amount)) || 0,
+            payment_method_name: pmMap[aggData.payment_method_id] || null,
+            payment_method_id: aggData.payment_method_id,
+            branch_name: aggData.branch_name || null,
+          } : null,
+        };
+        if (!result[sa.settlement_group_id]) result[sa.settlement_group_id] = [];
+        result[sa.settlement_group_id].push(entry);
+      }
+    } catch (error) {
+      logError("Error in batchFetchAggregatesForGroups", {
+        groupCount: groupIds.length,
+        error: error instanceof Error ? error.message : 'Unknown',
+      });
+    }
+
+    return result;
   }
 
   /**

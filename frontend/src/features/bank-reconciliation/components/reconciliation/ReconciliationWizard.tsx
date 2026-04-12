@@ -2,7 +2,7 @@
  * ReconciliationWizard
  * Unified wizard replacing ManualMatchModal, AutoMatchDialog, MultiMatchModal
  *
- * Step 1 → Select Mode (Auto / Manual / Multi-Match)
+ * Step 1 → Select Mode (Auto / Manual / Multi-Match / Settlement)
  * Step 2 → Mode-specific workflow
  * Step 3 → Review & Confirm
  *
@@ -16,6 +16,7 @@ import {
   Sparkles,
   MousePointerClick,
   Link2,
+  Layers,
   ChevronRight,
   Check,
   AlertCircle,
@@ -28,6 +29,8 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
+  Building,
+  AlertTriangle,
 } from "lucide-react";
 
 import { DEFAULT_MATCHING_CRITERIA } from "../../constants/reconciliation.config";
@@ -41,12 +44,19 @@ import type {
   AutoMatchPreviewResponse,
   MatchingCriteria,
 } from "../../types/bank-reconciliation.types";
+import { settlementGroupsApi } from "../../settlement-groups/api/settlement-groups.api";
+import type {
+  AvailableBankStatementDto,
+  AvailableAggregateDto,
+  AggregateSelection,
+  CreateSettlementGroupResultDto,
+} from "../../settlement-groups/types/settlement-groups.types";
 
 // ─────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────
 
-export type ReconciliationMode = "auto" | "manual" | "multi";
+export type ReconciliationMode = "auto" | "manual" | "multi" | "settlement";
 
 export interface ReconciliationWizardProps {
   isOpen: boolean;
@@ -84,6 +94,14 @@ export interface ReconciliationWizardProps {
     statementIds: string[]
   ) => Promise<AggregatedTransactionListItem | null>;
   onLoadAggregates?: () => Promise<AggregatedTransactionListItem[]>;
+
+  // Settlement mode handler
+  onSettlementConfirm?: (
+    bankStatementId: string,
+    aggregateIds: string[],
+    notes: string,
+    overrideDifference: boolean
+  ) => Promise<CreateSettlementGroupResultDto>;
 }
 
 // ─────────────────────────────────────────────
@@ -186,6 +204,14 @@ function StepSelectMode({
       desc: "Cocokkan beberapa bank statements ke 1 transaksi POS aggregate",
       color: "bg-violet-600 text-white",
       ring: "ring-violet-200",
+    },
+    {
+      id: "settlement",
+      icon: <Layers className="w-6 h-6" />,
+      title: "Bulk Settlement",
+      desc: "1 bank statement besar dicocokkan ke banyak transaksi POS aggregate sekaligus",
+      color: "bg-amber-600 text-white",
+      ring: "ring-amber-200",
     },
   ];
 
@@ -1135,6 +1161,343 @@ function StepMultiMatch({
 }
 
 // ─────────────────────────────────────────────
+// STEP 2D — Bulk Settlement (1 Bank → Many Aggregates)
+// ─────────────────────────────────────────────
+
+function StepSettlement({
+  onNext,
+}: {
+  onNext: (
+    bankStatementId: string,
+    bankStatementData: { id: string; transaction_date: string; description: string; amount: number },
+    aggregates: AggregateSelection[],
+    notes: string,
+    overrideDifference: boolean
+  ) => void;
+}) {
+  const [subStep, setSubStep] = useState<0 | 1>(0); // 0=select bank, 1=select aggregates
+  const [selectedStatement, setSelectedStatement] = useState<AvailableBankStatementDto | null>(null);
+  const [selectedAggregates, setSelectedAggregates] = useState<AggregateSelection[]>([]);
+  const [notes, setNotes] = useState("");
+  const [overrideDifference, setOverrideDifference] = useState(false);
+
+  // Bank statements
+  const [bankSearch, setBankSearch] = useState("");
+  const [debouncedBankSearch, setDebouncedBankSearch] = useState("");
+  const [bankStatements, setBankStatements] = useState<AvailableBankStatementDto[]>([]);
+  const [isBankLoading, setIsBankLoading] = useState(false);
+
+  // Aggregates
+  const [aggSearch, setAggSearch] = useState("");
+  const [debouncedAggSearch, setDebouncedAggSearch] = useState("");
+  const [aggregates, setAggregates] = useState<AvailableAggregateDto[]>([]);
+  const [isAggLoading, setIsAggLoading] = useState(false);
+
+  // Debounce bank search
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedBankSearch(bankSearch), 300);
+    return () => clearTimeout(t);
+  }, [bankSearch]);
+
+  // Debounce agg search
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedAggSearch(aggSearch), 300);
+    return () => clearTimeout(t);
+  }, [aggSearch]);
+
+  // Fetch bank statements
+  useEffect(() => {
+    setIsBankLoading(true);
+    settlementGroupsApi
+      .getAvailableBankStatements({ search: debouncedBankSearch || undefined, limit: 50 })
+      .then((r) => setBankStatements(r.data))
+      .catch(console.error)
+      .finally(() => setIsBankLoading(false));
+  }, [debouncedBankSearch]);
+
+  // Fetch aggregates when on sub-step 1
+  useEffect(() => {
+    if (subStep !== 1) return;
+    setIsAggLoading(true);
+    settlementGroupsApi
+      .getAvailableAggregates({ search: debouncedAggSearch || undefined, limit: 100 })
+      .then((r) => setAggregates(r.data))
+      .catch(console.error)
+      .finally(() => setIsAggLoading(false));
+  }, [subStep, debouncedAggSearch]);
+
+  const toggleAggregate = (agg: AvailableAggregateDto) => {
+    const exists = selectedAggregates.some((a) => a.id === agg.id);
+    if (exists) {
+      setSelectedAggregates((prev) => prev.filter((a) => a.id !== agg.id));
+    } else {
+      setSelectedAggregates((prev) => [
+        ...prev,
+        {
+          id: agg.id,
+          allocatedAmount: agg.nett_amount,
+          originalAmount: agg.nett_amount,
+          selected: true,
+          branchName: agg.branch_name || undefined,
+          payment_method_name: agg.payment_method_name || undefined,
+          transaction_date: agg.transaction_date,
+          nett_amount: agg.nett_amount,
+        },
+      ]);
+    }
+  };
+
+  const totalAgg = selectedAggregates.reduce((s, a) => s + (a.nett_amount || 0), 0);
+  const bankAmt = selectedStatement?.amount || 0;
+  const diff = bankAmt - totalAgg;
+  const diffPct = bankAmt !== 0 ? (Math.abs(diff) / Math.abs(bankAmt)) * 100 : 0;
+  const isWithinThreshold = diffPct <= 5;
+  const canProceed = selectedStatement && selectedAggregates.length > 0 && (isWithinThreshold || overrideDifference);
+
+  // Sub-step 0: Select Bank Statement
+  if (subStep === 0) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="px-6 pt-5 pb-3 border-b border-gray-100 dark:border-gray-800">
+          <p className="text-sm text-gray-500">Pilih 1 bank statement untuk di-settle ke banyak aggregate</p>
+          <div className="relative mt-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <input
+              value={bankSearch}
+              onChange={(e) => setBankSearch(e.target.value)}
+              placeholder="Cari bank statement..."
+              className="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs border-none focus:ring-2 focus:ring-amber-500 outline-none"
+            />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {isBankLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
+            </div>
+          ) : bankStatements.length === 0 ? (
+            <div className="flex items-center justify-center h-32 text-gray-400 text-xs">
+              Tidak ada bank statement yang tersedia
+            </div>
+          ) : (
+            bankStatements.map((s) => {
+              const isSelected = selectedStatement?.id === s.id;
+              return (
+                <div
+                  key={s.id}
+                  onClick={() => setSelectedStatement(s)}
+                  className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                    isSelected
+                      ? "border-amber-400 bg-amber-50 dark:bg-amber-900/20"
+                      : "border-gray-100 dark:border-gray-800 hover:border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-3 h-3 text-gray-400" />
+                        <p className="text-[11px] text-gray-400">{s.transaction_date}</p>
+                      </div>
+                      <p className="text-sm text-gray-800 dark:text-gray-200 mt-1">{s.description}</p>
+                      {s.reference_number && (
+                        <p className="text-[11px] text-gray-400 mt-0.5">Ref: {s.reference_number}</p>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0 ml-3">
+                      <p className={`text-sm font-bold ${s.amount < 0 ? "text-red-600" : "text-green-600"}`}>
+                        {fmt(s.amount)}
+                      </p>
+                      {isSelected && <CheckCircle2 className="w-4 h-4 text-amber-500 mt-1 ml-auto" />}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
+          <button
+            disabled={!selectedStatement}
+            onClick={() => setSubStep(1)}
+            className="flex items-center gap-2 px-6 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-bold hover:bg-amber-700 disabled:opacity-40 transition-all"
+          >
+            Pilih Aggregates <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Sub-step 1: Select Aggregates + Review summary
+  return (
+    <div className="flex h-full">
+      {/* Left: Aggregates list */}
+      <div className="w-1/2 border-r border-gray-100 dark:border-gray-800 flex flex-col">
+        <div className="p-4 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex items-center justify-between mb-2">
+            <button
+              onClick={() => setSubStep(0)}
+              className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium"
+            >
+              <ArrowLeft className="w-3 h-3" /> Ubah Statement
+            </button>
+            <span className="text-xs text-gray-400">{selectedAggregates.length} dipilih</span>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <input
+              value={aggSearch}
+              onChange={(e) => setAggSearch(e.target.value)}
+              placeholder="Cari aggregate..."
+              className="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs border-none focus:ring-2 focus:ring-amber-500 outline-none"
+            />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+          {isAggLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="w-5 h-5 animate-spin text-amber-400" />
+            </div>
+          ) : aggregates.length === 0 ? (
+            <div className="flex items-center justify-center h-32 text-gray-400 text-xs">
+              Tidak ada aggregate
+            </div>
+          ) : (
+            aggregates.map((agg) => {
+              const isSelected = selectedAggregates.some((a) => a.id === agg.id);
+              return (
+                <div
+                  key={agg.id}
+                  onClick={() => toggleAggregate(agg)}
+                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                    isSelected
+                      ? "border-amber-300 bg-amber-50 dark:bg-amber-900/20"
+                      : "border-gray-100 dark:border-gray-800 hover:bg-gray-50"
+                  }`}
+                >
+                  <div
+                    className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                      isSelected ? "bg-amber-600 border-amber-600" : "border-gray-300"
+                    }`}
+                  >
+                    {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="w-3 h-3 text-gray-400" />
+                      <p className="text-[11px] text-gray-400">{agg.transaction_date}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Building className="w-3 h-3 text-gray-400" />
+                      <p className="text-xs text-gray-600 dark:text-gray-400">{agg.branch_name || 'N/A'}</p>
+                    </div>
+                    <p className="text-[11px] text-gray-400">{agg.payment_method_name || 'N/A'}</p>
+                  </div>
+                  <p className="text-xs font-bold text-gray-900 dark:text-white shrink-0">{fmt(agg.nett_amount)}</p>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Right: Summary */}
+      <div className="w-1/2 flex flex-col">
+        <div className="p-4 border-b border-gray-100 dark:border-gray-800">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Bank Statement</p>
+          {selectedStatement && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3">
+              <p className="text-[11px] text-gray-400">{selectedStatement.transaction_date}</p>
+              <p className="text-xs text-gray-700 dark:text-gray-300 mt-0.5">{selectedStatement.description}</p>
+              <p className="text-base font-bold text-amber-600 mt-1">{fmt(bankAmt)}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+          {/* Totals */}
+          <div className="text-xs space-y-1.5">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Bank Statement:</span>
+              <span className="font-bold text-gray-900 dark:text-white">{fmt(bankAmt)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Total Aggregates ({selectedAggregates.length}):</span>
+              <span className="font-bold text-gray-900 dark:text-white">{fmt(totalAgg)}</span>
+            </div>
+            <div className="flex justify-between border-t border-gray-100 dark:border-gray-800 pt-1.5">
+              <span className="text-gray-500">Selisih:</span>
+              <span className={`font-bold ${isWithinThreshold ? "text-green-600" : "text-red-600"}`}>
+                {fmt(diff)} ({diffPct.toFixed(2)}%)
+              </span>
+            </div>
+          </div>
+
+          {/* Override */}
+          {!isWithinThreshold && selectedAggregates.length > 0 && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={overrideDifference}
+                  onChange={(e) => setOverrideDifference(e.target.checked)}
+                  className="mt-0.5 rounded border-amber-300 text-amber-600"
+                />
+                <div>
+                  <p className="text-xs font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> Override Threshold
+                  </p>
+                  <p className="text-[11px] text-amber-600 mt-0.5">
+                    Selisih melebihi 5%. Centang untuk lanjut.
+                  </p>
+                </div>
+              </label>
+            </div>
+          )}
+
+          {/* Notes */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Catatan (opsional)</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Tambahkan catatan..."
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs focus:ring-1 focus:ring-amber-500 outline-none"
+            />
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div className="p-4 border-t border-gray-100 dark:border-gray-800">
+          <button
+            disabled={!canProceed}
+            onClick={() =>
+              selectedStatement &&
+              onNext(
+                selectedStatement.id,
+                {
+                  id: selectedStatement.id,
+                  transaction_date: selectedStatement.transaction_date,
+                  description: selectedStatement.description,
+                  amount: selectedStatement.amount,
+                },
+                selectedAggregates,
+                notes,
+                overrideDifference
+              )
+            }
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-bold hover:bg-amber-700 disabled:opacity-40 transition-all"
+          >
+            Review Settlement <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // STEP 3 — Review & Confirm
 // ─────────────────────────────────────────────
 
@@ -1151,6 +1514,12 @@ interface ReviewData {
   multiAggregateId?: string;
   multiStatementIds?: string[];
   multiOverride?: boolean;
+  // Settlement
+  settlementBankStatementId?: string;
+  settlementBankStatementData?: { id: string; transaction_date: string; description: string; amount: number };
+  settlementAggregates?: AggregateSelection[];
+  settlementNotes?: string;
+  settlementOverride?: boolean;
 }
 
 function StepReview({
@@ -1172,6 +1541,7 @@ function StepReview({
   const getModeLabel = () => {
     if (data.mode === "auto") return { label: "Auto-Match", color: "bg-blue-100 text-blue-700" };
     if (data.mode === "manual") return { label: "Manual Match", color: "bg-emerald-100 text-emerald-700" };
+    if (data.mode === "settlement") return { label: "Bulk Settlement", color: "bg-amber-100 text-amber-700" };
     return { label: "Multi-Match", color: "bg-violet-100 text-violet-700" };
   };
 
@@ -1297,6 +1667,66 @@ function StepReview({
         );
       })()}
 
+      {data.mode === "settlement" && (() => {
+        const aggs = data.settlementAggregates || [];
+        const totalAgg = aggs.reduce((sum, a) => sum + (a.nett_amount || 0), 0);
+        const bankAmt = data.settlementBankStatementData?.amount || 0;
+        const diff = bankAmt - totalAgg;
+        const diffPct = bankAmt !== 0 ? (Math.abs(diff) / Math.abs(bankAmt)) * 100 : 0;
+        return (
+          <div className="space-y-4">
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-2xl p-4 space-y-3">
+              <p className="text-[11px] font-bold text-amber-600 uppercase tracking-widest">Bank Statement</p>
+              {data.settlementBankStatementData && (
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <p className="text-gray-400">Tanggal</p>
+                    <p className="font-semibold text-gray-900 dark:text-white">{data.settlementBankStatementData.transaction_date}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">Amount</p>
+                    <p className="text-base font-bold text-amber-600">{fmt(bankAmt)}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-gray-400">Deskripsi</p>
+                    <p className="text-gray-700 dark:text-gray-300">{data.settlementBankStatementData.description}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800 rounded-2xl p-4">
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-[11px] font-bold text-green-600 uppercase tracking-widest">Aggregates ({aggs.length})</p>
+                <p className="text-sm font-bold text-green-700">{fmt(totalAgg)}</p>
+              </div>
+              <div className="max-h-40 overflow-y-auto space-y-1">
+                {aggs.map((a) => (
+                  <div key={a.id} className="flex justify-between items-center py-1 border-b border-green-100 dark:border-green-800 last:border-0 text-xs">
+                    <span className="text-gray-600 dark:text-gray-400">{a.branchName || 'N/A'} · {a.payment_method_name || 'N/A'}</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{fmt(a.nett_amount || 0)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-between items-center text-sm p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+              <span className="text-gray-500">Selisih:</span>
+              <span className={`font-bold ${diffPct <= 5 ? "text-green-600" : "text-red-600"}`}>
+                {fmt(diff)} ({diffPct.toFixed(2)}%)
+              </span>
+            </div>
+            {data.settlementNotes && (
+              <div className="text-xs text-gray-500">Catatan: {data.settlementNotes}</div>
+            )}
+            {data.settlementOverride && (
+              <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg border border-amber-200 dark:border-amber-700">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                Perbedaan nominal dikonfirmasi (override)
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       <div className="flex justify-end pt-2">
         <button
           onClick={onConfirm}
@@ -1332,6 +1762,7 @@ export function ReconciliationWizard({
   onMultiMatchConfirm,
   onFindAggregate,
   onLoadAggregates,
+  onSettlementConfirm,
 }: ReconciliationWizardProps) {
   const [step, setStep] = useState(0); // 0=mode, 1=config, 2=review
   const [mode, setMode] = useState<ReconciliationMode | null>(null);
@@ -1384,6 +1815,24 @@ export function ReconciliationWizard({
     setStep(2);
   };
 
+  const handleSettlementNext = (
+    bankStatementId: string,
+    bankStatementData: { id: string; transaction_date: string; description: string; amount: number },
+    aggregates: AggregateSelection[],
+    notes: string,
+    override: boolean
+  ) => {
+    setReviewData({
+      mode: "settlement",
+      settlementBankStatementId: bankStatementId,
+      settlementBankStatementData: bankStatementData,
+      settlementAggregates: aggregates,
+      settlementNotes: notes,
+      settlementOverride: override,
+    });
+    setStep(2);
+  };
+
   const handleConfirm = async () => {
     if (!reviewData) return;
     setIsConfirming(true);
@@ -1405,6 +1854,13 @@ export function ReconciliationWizard({
           reviewData.multiStatementIds || [],
           reviewData.multiOverride || false
         );
+      } else if (reviewData.mode === "settlement" && onSettlementConfirm) {
+        await onSettlementConfirm(
+          reviewData.settlementBankStatementId!,
+          (reviewData.settlementAggregates || []).map((a) => a.id),
+          reviewData.settlementNotes || "",
+          reviewData.settlementOverride || false
+        );
       }
       onClose();
     } catch (err) {
@@ -1419,6 +1875,7 @@ export function ReconciliationWizard({
     auto: "from-blue-600 to-indigo-700",
     manual: "from-emerald-600 to-teal-700",
     multi: "from-violet-600 to-purple-700",
+    settlement: "from-amber-600 to-orange-700",
   };
   const headerGradient = mode ? modeColors[mode] : "from-gray-700 to-gray-800";
 
@@ -1456,6 +1913,7 @@ export function ReconciliationWizard({
                       {step === 1 && mode === "auto" && "Auto-Match Preview"}
                       {step === 1 && mode === "manual" && "Pilih transaksi"}
                       {step === 1 && mode === "multi" && "Multi-Statement Match"}
+                      {step === 1 && mode === "settlement" && "Bulk Settlement"}
                       {step === 2 && "Review & Konfirmasi"}
                     </p>
                   </div>
@@ -1504,6 +1962,12 @@ export function ReconciliationWizard({
                     onLoadAggregates={onLoadAggregates}
                     onNext={handleMultiNext}
                   />
+                </div>
+              )}
+
+              {step === 1 && mode === "settlement" && (
+                <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                  <StepSettlement onNext={handleSettlementNext} />
                 </div>
               )}
 
