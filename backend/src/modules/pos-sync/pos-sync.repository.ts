@@ -1,6 +1,7 @@
 import { supabase } from "@/config/supabase";
 import { toSaleRow, toSaleItemRow, toSalePaymentRow } from "./pos-sync.mapper";
 import { SaleInput, SaleItemInput, SalePaymentInput, MasterBranchInput, MasterPaymentMethodInput, MasterMenuCategoryInput, MasterMenuGroupInput, MasterMenuInput, StagingTable, StagingListParams, StagingUpdatePayload } from "./pos-sync.types";
+import { logWarn } from "@/config/logger";
 
 export const salesRepository = {
   async upsertSales(sales: SaleInput[]): Promise<void> {
@@ -39,17 +40,38 @@ export const salesRepository = {
 
   async upsertPayments(payments: SalePaymentInput[]): Promise<void> {
     const payload = payments.map(toSalePaymentRow);
-    console.log(`📤 Upserting ${payload.length} payments...`); // ✅
+    console.log(`📤 Upserting ${payload.length} payments...`);
+
+    // Auto-delete old payment records before upsert
+    const salesNums = [...new Set(payload.map((p) => p.sales_num))];
+
+    if (salesNums.length > 0) {
+      console.log(`🗑️ Deleting old payment records for ${salesNums.length} transactions...`);
+      
+      const { error: deleteErr, count: deletedCount } = await supabase
+        .from("tr_salespayment")
+        .delete()
+        .in("sales_num", salesNums);
+
+      if (deleteErr) {
+        logWarn("PosSyncRepository: delete old payments failed", { 
+          error: deleteErr.message,
+          salesNums: salesNums.length 
+        });
+      } else {
+        console.log(`✅ Deleted ${deletedCount} old payment record(s)`);
+      }
+    }
 
     const { error } = await supabase
       .from("tr_salespayment")
       .upsert(payload, { onConflict: "external_id" });
 
     if (error) {
-      console.error("❌ SUPABASE PAYMENTS ERROR:", JSON.stringify(error)); // ✅
+      console.error("❌ SUPABASE PAYMENTS ERROR:", JSON.stringify(error));
       throw error;
     }
-    console.log(`✅ Payments upsert done`); // ✅
+    console.log(`✅ Payments upsert done`);
   },
 };
 
