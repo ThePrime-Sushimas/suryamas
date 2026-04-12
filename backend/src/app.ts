@@ -42,6 +42,8 @@ import { requestLogger } from "./middleware/request-logger.middleware";
 import { generateOpenApiDocument } from "./config/openapi";
 import posSyncRoutes from "./modules/pos-sync/pos-sync.routes";
 import posSyncAggregatesRoutes from "./modules/pos-sync-aggregates/pos-sync-aggregates.routes";
+import bankVoucherRoutes from "./modules/bank-vouchers/bank-vouchers.routes";
+import { pool } from "./config/db";
 
 const app = express();
 
@@ -57,8 +59,13 @@ app.use(express.json());
 app.use(requestLogger);
 
 // Health check
-app.get("/health", (req, res) => {
-  res.json({ status: "OK", timestamp: new Date().toISOString() });
+app.get("/health", async (req, res) => {
+  try {
+    const { rows } = await pool.query("SELECT NOW() AS db_time");
+    res.json({ status: "OK", db: "connected", db_time: rows[0].db_time, timestamp: new Date().toISOString() });
+  } catch (err: any) {
+    res.status(500).json({ status: "ERROR", db: "disconnected", error: err.message, timestamp: new Date().toISOString() });
+  }
 });
 
 // OpenAPI Documentation
@@ -112,6 +119,7 @@ app.use("/api/v1/bank-statement-imports", bankStatementImportRoutes);
 app.use("/api/v1/reconciliation/bank", setupBankReconciliationModule().router);
 app.use("/api/v1/settlement-group", setupSettlementGroupModule().router);
 app.use("/api/v1", ownerBankAccountsRouter);
+app.use("/api/v1/bank-vouchers", bankVoucherRoutes);
 
 // Error handler
 app.use(errorHandler);
@@ -131,40 +139,103 @@ const registerModules = async () => {
     await PermissionService.registerModule("users", "User Management System");
     await PermissionService.registerModule("products", "Product Management");
     await PermissionService.registerModule("categories", "Category Management");
-    await PermissionService.registerModule("sub_categories", "Sub-Category Management");
-    await PermissionService.registerModule("metric_units", "Metric Units Management");
-    await PermissionService.registerModule("product_uoms", "Product UOM Management");
+    await PermissionService.registerModule(
+      "sub_categories",
+      "Sub-Category Management",
+    );
+    await PermissionService.registerModule(
+      "metric_units",
+      "Metric Units Management",
+    );
+    await PermissionService.registerModule(
+      "product_uoms",
+      "Product UOM Management",
+    );
     await PermissionService.registerModule("suppliers", "Supplier Management");
-    await PermissionService.registerModule("supplier_products", "Supplier Product Management");
-    await PermissionService.registerModule("pricelists", "Pricelist Management");
-    await PermissionService.registerModule("payment_terms", "Payment Terms Management");
-    await PermissionService.registerModule("payment_methods", "Payment Methods Management");
+    await PermissionService.registerModule(
+      "supplier_products",
+      "Supplier Product Management",
+    );
+    await PermissionService.registerModule(
+      "pricelists",
+      "Pricelist Management",
+    );
+    await PermissionService.registerModule(
+      "payment_terms",
+      "Payment Terms Management",
+    );
+    await PermissionService.registerModule(
+      "payment_methods",
+      "Payment Methods Management",
+    );
     await PermissionService.registerModule("banks", "Bank Management");
-    await PermissionService.registerModule("bank_accounts", "Bank Account Management");
-    
+    await PermissionService.registerModule(
+      "bank_accounts",
+      "Bank Account Management",
+    );
+
     // Register accounting & pos modules
-    await PermissionService.registerModule("journals", "Journal Entries Management");
-    await PermissionService.registerModule("chart_of_accounts", "Chart of Accounts");
-    await PermissionService.registerModule("fiscal_periods", "Fiscal Periods Management");
-    await PermissionService.registerModule("accounting_purposes", "Accounting Purposes");
-    await PermissionService.registerModule("accounting_purpose_accounts", "Accounting Purpose Mappings");
-    await PermissionService.registerModule("pos_sync", "POS Sync & Staging Management");
-    await PermissionService.registerModule("pos_sync_aggregates", "POS Sync Aggregates Management");
+    await PermissionService.registerModule(
+      "journals",
+      "Journal Entries Management",
+    );
+    await PermissionService.registerModule(
+      "chart_of_accounts",
+      "Chart of Accounts",
+    );
+    await PermissionService.registerModule(
+      "fiscal_periods",
+      "Fiscal Periods Management",
+    );
+    await PermissionService.registerModule(
+      "accounting_purposes",
+      "Accounting Purposes",
+    );
+    await PermissionService.registerModule(
+      "accounting_purpose_accounts",
+      "Accounting Purpose Mappings",
+    );
+    await PermissionService.registerModule(
+      "pos_sync",
+      "POS Sync & Staging Management",
+    );
+    await PermissionService.registerModule(
+      "pos_sync_aggregates",
+      "POS Sync Aggregates Management",
+    );
     await PermissionService.registerModule("pos_imports", "POS Imports");
-    await PermissionService.registerModule("pos_aggregates", "POS Aggregates Management");
+    await PermissionService.registerModule(
+      "pos_aggregates",
+      "POS Aggregates Management",
+    );
 
-    
     // Register reconciliation & monitoring
-    await PermissionService.registerModule("bank_reconciliation", "Bank Reconciliation");
-    await PermissionService.registerModule("bank_statement_import", "Bank Statement Import");
-    await PermissionService.registerModule("bank_settlement_group", "Bank Settlement Grouping");
-    await PermissionService.registerModule("monitoring", "System Monitoring & Audit");
-    await PermissionService.registerModule("employee_branches", "Employee Branch Access");
-    await PermissionService.registerModule("permissions", "Permission Management System");
-
+    await PermissionService.registerModule(
+      "bank_reconciliation",
+      "Bank Reconciliation",
+    );
+    await PermissionService.registerModule(
+      "bank_statement_import",
+      "Bank Statement Import",
+    );
+    await PermissionService.registerModule(
+      "bank_settlement_group",
+      "Bank Settlement Grouping",
+    );
+    await PermissionService.registerModule(
+      "monitoring",
+      "System Monitoring & Audit",
+    );
+    await PermissionService.registerModule(
+      "employee_branches",
+      "Employee Branch Access",
+    );
+    await PermissionService.registerModule(
+      "permissions",
+      "Permission Management System",
+    );
 
     logInfo("Permission modules registered successfully");
-
   } catch (error) {
     // Silently fail - module will be registered via seed later
     logInfo("Permission modules will be registered via seed");
