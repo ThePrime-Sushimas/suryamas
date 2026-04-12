@@ -3,7 +3,7 @@ import { bankVouchersService } from './bank-vouchers.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { logInfo } from '../../config/logger'
-import type { AuthenticatedRequest } from '../../types/request.types'
+import type { AuthRequest } from '../../types/common.types'
 import type { BankVoucherPreviewQuery, BankVoucherSummaryQuery } from './bank-vouchers.schema'
 import { BankVoucherMissingCompanyError } from './bank-vouchers.errors'
 
@@ -14,7 +14,7 @@ export class BankVouchersController {
   // Query: period_month, period_year, branch_id?, bank_account_id?, voucher_type?
   // ============================================
 
-  async preview(req: AuthenticatedRequest, res: Response) {
+  async preview(req: AuthRequest, res: Response) {
     try {
       const company_id = req.context?.company_id
       if (!company_id) {
@@ -50,7 +50,7 @@ export class BankVouchersController {
   // Query: period_month, period_year, branch_id?
   // ============================================
 
-  async summary(req: AuthenticatedRequest, res: Response) {
+  async summary(req: AuthRequest, res: Response) {
     try {
       const company_id = req.context?.company_id
       if (!company_id) {
@@ -77,7 +77,7 @@ export class BankVouchersController {
   // Dropdown list untuk filter UI
   // ============================================
 
-  async getBankAccounts(req: AuthenticatedRequest, res: Response) {
+  async getBankAccounts(req: AuthRequest, res: Response) {
     try {
       const company_id = req.context?.company_id
       if (!company_id) {

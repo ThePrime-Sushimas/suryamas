@@ -6,7 +6,7 @@ import { canView } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { PermissionService } from '../../services/permission.service'
 import { bankVoucherPreviewSchema, bankVoucherSummarySchema } from './bank-vouchers.schema'
-import type { AuthenticatedRequest } from '../../types/request.types'
+import type { AuthRequest } from '../../types/common.types'
 
 PermissionService.registerModule('bank_vouchers', 'Bank Vouchers').catch((error) => {
   console.error('Failed to register bank_vouchers module:', error.message)
@@ -25,7 +25,7 @@ router.use(authenticate, resolveBranchContext)
 router.get(
   '/bank-accounts',
   canView('bank_vouchers'),
-  (req, res) => bankVouchersController.getBankAccounts(req as AuthenticatedRequest, res)
+  (req, res) => bankVouchersController.getBankAccounts(req as AuthRequest, res)
 )
 
 // ============================================
@@ -38,7 +38,7 @@ router.get(
   '/preview',
   canView('bank_vouchers'),
   validateSchema(bankVoucherPreviewSchema),
-  (req, res) => bankVouchersController.preview(req as AuthenticatedRequest, res)
+  (req, res) => bankVouchersController.preview(req as AuthRequest, res)
 )
 
 // ============================================
@@ -51,7 +51,7 @@ router.get(
   '/summary',
   canView('bank_vouchers'),
   validateSchema(bankVoucherSummarySchema),
-  (req, res) => bankVouchersController.summary(req as AuthenticatedRequest, res)
+  (req, res) => bankVouchersController.summary(req as AuthRequest, res)
 )
 
 // ============================================
