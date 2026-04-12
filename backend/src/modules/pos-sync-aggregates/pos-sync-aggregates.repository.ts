@@ -165,7 +165,7 @@ export const posSyncAggregatesRepository = {
     supersededById: string;
     transactionDate: string;
     paymentMethodId: number;
-    branchId: string;
+    branchId: string | null;
     branchName?: string | null;
   }) {
     let query = supabase
@@ -182,9 +182,12 @@ export const posSyncAggregatesRepository = {
       .is("superseded_by", null)
       .is("deleted_at", null);
 
-    // Match by branch_id OR branch_name (manual CSV may not have branch_id)
-    if (params.branchId) {
-      query = query.or(`branch_id.eq.${params.branchId}${params.branchName ? `,branch_name.eq.${params.branchName}` : ""}`);
+    if (params.branchId && params.branchName) {
+      query = query.or(
+        `branch_id.eq.${params.branchId},branch_name.eq."${params.branchName}"`
+      );
+    } else if (params.branchId) {
+      query = query.eq("branch_id", params.branchId);
     } else if (params.branchName) {
       query = query.eq("branch_name", params.branchName);
     }
