@@ -1,5 +1,6 @@
 import { Request } from 'express'
 import { EmployeeWithBranch } from '../modules/employees/employees.types'
+import type { BranchContext } from './common.types'
 
 export interface AuthUser {
   id: string
@@ -30,6 +31,7 @@ export interface QueryFilter {
 export interface AuthenticatedRequest extends Request {
   user: AuthUser
   employee?: AuthEmployee // Optional: populated by authenticate middleware
+  context?: BranchContext
 }
 
 // Authenticated request with pagination
@@ -49,7 +51,7 @@ export interface AuthenticatedFilteredRequest extends AuthenticatedRequest {
 
 // Authenticated request with pagination + sort + filter
 export interface AuthenticatedQueryRequest extends AuthenticatedRequest {
-  context: any
+  context: BranchContext
   pagination: PaginationParams
   sort?: SortParams
   queryFilter?: QueryFilter
