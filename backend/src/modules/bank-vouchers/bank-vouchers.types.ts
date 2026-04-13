@@ -120,9 +120,10 @@ export interface BankVoucherPreviewResult {
 
 export interface BankVoucherSummaryResult {
   period_label: string;
+  opening_balance: number;
   total_bank_masuk: number;
-  total_bank_keluar: number; // 0 sampai BK phase selesai
-  saldo_berjalan: number;
+  total_bank_keluar: number;
+  saldo_berjalan: number;        // opening + masuk - keluar
   by_bank: BankSummaryItem[];
   by_date: DailySummaryItem[];
 }
@@ -130,9 +131,10 @@ export interface BankVoucherSummaryResult {
 export interface BankSummaryItem {
   bank_account_id: number;
   bank_account_name: string;
+  opening_balance: number;
   total_masuk: number;
   total_keluar: number;
-  saldo: number;
+  saldo: number;                 // opening + masuk - keluar
 }
 
 export interface DailySummaryItem {

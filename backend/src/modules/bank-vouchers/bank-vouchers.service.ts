@@ -157,24 +157,35 @@ export class BankVouchersService {
         }),
       ]);
 
-      // By bank summary
+      // Get opening balances for all banks in this period
+      const openingBalances = await bankVouchersRepository.getOpeningBalancesByPeriod({
+        company_id: params.company_id,
+        period_month: params.period_month,
+        period_year: params.period_year,
+      });
+      const obMap = new Map(openingBalances.map(ob => [ob.bank_account_id, ob.opening_balance]));
+      const totalOpeningBalance = openingBalances.reduce((s, ob) => s + ob.opening_balance, 0);
+
+      // By bank summary (with opening balance per bank)
       const by_bank = byBankRows.map((row) => {
         const totalMasuk = parseFloat(row.total_nett) || 0;
-        const totalKeluar = 0; // Phase 2: BK akan diimplementasi
+        const totalKeluar = 0;
+        const ob = obMap.get(row.bank_account_id) || 0;
         return {
           bank_account_id: row.bank_account_id,
           bank_account_name: row.bank_account_name,
+          opening_balance: ob,
           total_masuk: totalMasuk,
           total_keluar: totalKeluar,
-          saldo: totalMasuk - totalKeluar,
+          saldo: ob + totalMasuk - totalKeluar,
         };
       });
 
-      // By date with running balance
-      let runningBalance = 0;
+      // By date with running balance (starting from total opening balance)
+      let runningBalance = totalOpeningBalance;
       const by_date = byDayRows.map((row) => {
         const totalMasuk = parseFloat(row.total_nett) || 0;
-        const totalKeluar = 0; // Phase 2: BK
+        const totalKeluar = 0;
         runningBalance += totalMasuk - totalKeluar;
         return {
           transaction_date: this.formatDate(row.transaction_date),
@@ -186,13 +197,14 @@ export class BankVouchersService {
       });
 
       const totalBankMasuk = by_bank.reduce((acc, b) => acc + b.total_masuk, 0);
-      const totalBankKeluar = 0; // Phase 2
+      const totalBankKeluar = 0;
 
       return {
         period_label: periodLabel,
+        opening_balance: totalOpeningBalance,
         total_bank_masuk: totalBankMasuk,
         total_bank_keluar: totalBankKeluar,
-        saldo_berjalan: totalBankMasuk - totalBankKeluar,
+        saldo_berjalan: totalOpeningBalance + totalBankMasuk - totalBankKeluar,
         by_bank,
         by_date,
       };

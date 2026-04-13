@@ -327,7 +327,32 @@ export class BankVouchersRepository {
   }
 
   // ============================================
-  // BANK ACCOUNT BALANCES (Phase 2 placeholders)
+  // OPENING BALANCES: get all banks for a period
+  // ============================================
+
+  async getOpeningBalancesByPeriod(params: {
+    company_id: string;
+    period_month: number;
+    period_year: number;
+  }): Promise<Array<{ bank_account_id: number; opening_balance: number }>> {
+    const sql = `
+      SELECT bank_account_id, opening_balance::numeric
+      FROM bank_account_balances
+      WHERE company_id = $1
+        AND period_month = $2
+        AND period_year = $3
+    `;
+    const result = await pool.query(sql, [
+      params.company_id, params.period_month, params.period_year,
+    ]);
+    return result.rows.map(r => ({
+      bank_account_id: r.bank_account_id,
+      opening_balance: Number(r.opening_balance),
+    }));
+  }
+
+  // ============================================
+  // BANK ACCOUNT BALANCES
   // ============================================
 
   async getOrCreatePeriodBalance(params: {

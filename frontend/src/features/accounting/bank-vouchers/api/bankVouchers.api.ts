@@ -4,65 +4,105 @@ import type {
   BankVoucherSummaryResult,
   BankVoucherFilter,
   BankAccountOption,
+  ConfirmResult,
+  VoucherListResult,
+  VoucherDetail,
+  ManualVoucherInput,
+  OpeningBalanceData,
 } from '../types/bank-vouchers.types'
 
-type ApiResponse<T> = {
-  success: boolean
-  data: T
-  message?: string
+type ApiResponse<T> = { success: boolean; data: T; message?: string }
+
+const toParams = (obj: Record<string, unknown>) => {
+  const p = new URLSearchParams()
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined && v !== null && v !== '') p.append(k, String(v))
+  }
+  return p.toString()
 }
 
 export const bankVouchersApi = {
-  // GET /api/v1/bank-vouchers/preview
   preview: async (filter: BankVoucherFilter): Promise<BankVoucherPreviewResult> => {
-    const params = new URLSearchParams()
-    params.append('period_month', String(filter.period_month))
-    params.append('period_year', String(filter.period_year))
-    if (filter.branch_id) params.append('branch_id', filter.branch_id)
-    if (filter.bank_account_id) params.append('bank_account_id', String(filter.bank_account_id))
-
     const res = await api.get<ApiResponse<BankVoucherPreviewResult>>(
-      `/bank-vouchers/preview?${params}`
+      `/bank-vouchers/preview?${toParams(filter as any)}`
     )
-    if (!res.data.success) throw new Error(res.data.message ?? 'Gagal memuat preview voucher')
+    if (!res.data.success) throw new Error(res.data.message ?? 'Gagal memuat preview')
     return res.data.data
   },
 
-  // GET /api/v1/bank-vouchers/summary
   summary: async (filter: Omit<BankVoucherFilter, 'bank_account_id'>): Promise<BankVoucherSummaryResult> => {
-    const params = new URLSearchParams()
-    params.append('period_month', String(filter.period_month))
-    params.append('period_year', String(filter.period_year))
-    if (filter.branch_id) params.append('branch_id', filter.branch_id)
-
     const res = await api.get<ApiResponse<BankVoucherSummaryResult>>(
-      `/bank-vouchers/summary?${params}`
+      `/bank-vouchers/summary?${toParams(filter as any)}`
     )
     if (!res.data.success) throw new Error(res.data.message ?? 'Gagal memuat ringkasan')
     return res.data.data
   },
 
-  // GET /api/v1/bank-vouchers/bank-accounts
   getBankAccounts: async (): Promise<BankAccountOption[]> => {
     const res = await api.get<ApiResponse<BankAccountOption[]>>('/bank-vouchers/bank-accounts')
     if (!res.data.success) throw new Error('Gagal memuat daftar bank')
     return res.data.data
   },
 
-  // ============================================
-  // PHASE 2 (uncomment setelah backend ready)
-  // ============================================
+  confirm: async (params: {
+    transaction_dates: string[]
+    branch_id?: string
+    bank_account_id?: number
+  }): Promise<ConfirmResult> => {
+    const res = await api.post<ApiResponse<ConfirmResult>>('/bank-vouchers/confirm', params)
+    if (!res.data.success) throw new Error(res.data.message ?? 'Gagal konfirmasi voucher')
+    return res.data.data
+  },
 
-  // confirm: async (params: {
-  //   dates: string[]
-  //   branch_id?: string
-  //   bank_account_id?: number
-  // }): Promise<void> => {
-  //   const res = await api.post<ApiResponse<null>>('/bank-vouchers/confirm', {
-  //     transaction_dates: params.dates,
-  //     branch_id: params.branch_id,
-  //     bank_account_id: params.bank_account_id,
-  //   })
-  //   if (!res.data.success) throw new Error(res.data.message ?? 'Gagal konfirmasi voucher')
-  // },
+  list: async (filter: BankVoucherFilter & { status?: string }): Promise<VoucherListResult> => {
+    const res = await api.get<ApiResponse<VoucherListResult>>(
+      `/bank-vouchers/list?${toParams(filter as any)}`
+    )
+    if (!res.data.success) throw new Error(res.data.message ?? 'Gagal memuat daftar voucher')
+    return res.data.data
+  },
+
+  getById: async (id: string): Promise<VoucherDetail> => {
+    const res = await api.get<ApiResponse<VoucherDetail>>(`/bank-vouchers/${id}`)
+    if (!res.data.success) throw new Error(res.data.message ?? 'Voucher tidak ditemukan')
+    return res.data.data
+  },
+
+  createManual: async (data: ManualVoucherInput): Promise<{ voucher_number: string; voucher_id: string }> => {
+    const res = await api.post<ApiResponse<{ voucher_number: string; voucher_id: string }>>(
+      '/bank-vouchers/manual', data
+    )
+    if (!res.data.success) throw new Error(res.data.message ?? 'Gagal membuat voucher manual')
+    return res.data.data
+  },
+
+  voidVoucher: async (id: string, reason: string): Promise<{ voucher_number: string; status: string }> => {
+    const res = await api.post<ApiResponse<{ voucher_number: string; status: string }>>(
+      `/bank-vouchers/${id}/void`, { reason }
+    )
+    if (!res.data.success) throw new Error(res.data.message ?? 'Gagal void voucher')
+    return res.data.data
+  },
+
+  getOpeningBalance: async (params: {
+    bank_account_id: number; period_month: number; period_year: number
+  }): Promise<OpeningBalanceData> => {
+    const res = await api.get<ApiResponse<OpeningBalanceData>>(
+      `/bank-vouchers/opening-balance?${toParams(params as any)}`
+    )
+    if (!res.data.success) throw new Error(res.data.message ?? 'Gagal memuat saldo awal')
+    return res.data.data
+  },
+
+  setOpeningBalance: async (params: {
+    bank_account_id: number; period_month: number; period_year: number; opening_balance: number
+  }): Promise<{ id: string; opening_balance: number; closing_balance: number }> => {
+    const res = await api.post<ApiResponse<{ id: string; opening_balance: number; closing_balance: number }>>(
+      '/bank-vouchers/opening-balance', params
+    )
+    if (!res.data.success) throw new Error(res.data.message ?? 'Gagal set saldo awal')
+    return res.data.data
+  },
+
+  getPrintUrl: (id: string) => `/bank-vouchers/${id}/print`,
 }

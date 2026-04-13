@@ -1,8 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useBankVouchersStore } from "../store/bankVouchers.store";
 import { BankVoucherFilters } from "../components/BankVoucherFilters";
 import { BankVoucherTable } from "../components/BankVoucherTable";
 import { BankVoucherSummary } from "../components/BankVoucherSummary";
+import { VoucherListTab } from "../components/VoucherListTab";
+import { OpeningBalanceModal } from "../components/OpeningBalanceModal";
+import { ManualVoucherModal } from "../components/ManualVoucherModal";
 import { useToast } from "@/contexts/ToastContext";
 import { useBranchContext } from "@/features/branch_context/hooks/useBranchContext";
 
@@ -11,34 +14,34 @@ export const BankVouchersPage = () => {
   const branchContext = useBranchContext();
 
   const {
-    activeTab,
-    setActiveTab,
-    preview,
-    summaryData,
-    error,
-    clearError,
-    fetchAll,
-    filter,
-    loading,
+    activeTab, setActiveTab,
+    preview, summaryData, voucherList,
+    error, clearError,
+    fetchAll, fetchList,
+    filter, loading,
   } = useBankVouchersStore();
 
-  // Load data saat company context tersedia
-  useEffect(() => {
-    if (branchContext?.company_id) {
-      fetchAll();
-    }
-  }, [branchContext?.company_id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [showOpeningBalance, setShowOpeningBalance] = useState(false);
+  const [showManualVoucher, setShowManualVoucher] = useState(false);
 
-  // Handle error dari store
   useEffect(() => {
-    if (error) {
-      toastError(error.message);
-      clearError();
-    }
+    if (branchContext?.company_id) fetchAll();
+  }, [branchContext?.company_id]); // eslint-disable-line
+
+  useEffect(() => {
+    if (error) { toastError(error.message); clearError(); }
   }, [error, toastError, clearError]);
 
-  const periodLabel =
-    preview?.period_label ?? `${filter.period_month}/${filter.period_year}`;
+  useEffect(() => {
+    if (activeTab === 'list' && !voucherList) fetchList();
+  }, [activeTab]); // eslint-disable-line
+
+  const periodLabel = preview?.period_label ?? `${filter.period_month}/${filter.period_year}`;
+
+  const handleManualSuccess = () => {
+    fetchList();
+    fetchAll();
+  };
 
   return (
     <div className="h-screen flex flex-col bg-[#fdfdfd] dark:bg-gray-950 font-sans text-slate-800 dark:text-slate-200">
@@ -55,54 +58,58 @@ export const BankVouchersPage = () => {
               <h1 className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">
                 Voucher Bank
               </h1>
-              <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[10px] font-bold uppercase rounded tracking-wider border border-blue-100 dark:border-blue-800 ml-2">
-                Phase 1
-              </span>
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
-              Buku pembantu kas & bank sistem akuntansi
+              Buku pembantu kas & bank
               <span className="w-1 h-1 bg-gray-300 rounded-full" />
               Periode {periodLabel}
             </p>
           </div>
-
           <BankVoucherFilters />
         </div>
       </div>
 
-      {/* Toolbar / Tabs */}
+      {/* Tabs + Actions */}
       <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-8 flex items-center justify-between">
         <div className="flex gap-8">
-          {[
-            { key: 'voucher', label: 'BUKU MUTASI (MUTATION)', count: preview?.summary.total_vouchers },
-            { key: 'summary', label: 'RINGKASAN (SUMMARY)', count: summaryData?.by_bank.length },
-          ].map(tab => (
+          {([
+            { key: 'voucher', label: 'BUKU MUTASI', count: preview?.summary.total_vouchers },
+            { key: 'list', label: 'DAFTAR VOUCHER', count: voucherList?.total },
+            { key: 'summary', label: 'RINGKASAN', count: summaryData?.by_bank.length },
+          ] as const).map(tab => (
             <button
-               key={tab.key}
-               onClick={() => setActiveTab(tab.key as 'voucher' | 'summary')}
-               className={`py-4 text-xs font-semibold tracking-wider border-b-2 transition-all relative ${
-                 activeTab === tab.key
-                   ? 'border-blue-600 text-blue-600'
-                   : 'border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
-               }`}
-             >
-               {tab.label}
-               {tab.count !== undefined && (
-                 <span className="ml-2 opacity-50">[{tab.count}]</span>
-               )}
-               {activeTab === tab.key && (
-                 <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 shadow-sm" />
-               )}
-             </button>
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`py-4 text-xs font-semibold tracking-wider border-b-2 transition-all relative ${
+                activeTab === tab.key
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+              }`}
+            >
+              {tab.label}
+              {tab.count !== undefined && <span className="ml-2 opacity-50">[{tab.count}]</span>}
+            </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-4">
-           <button className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold text-gray-500 hover:text-gray-700 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg transition-all uppercase tracking-widest">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowOpeningBalance(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-gray-500 hover:text-blue-600 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg transition-all uppercase tracking-widest"
+          >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2-8H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V9l-5-5z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
             </svg>
-            Export Excel
+            Saldo Awal
+          </button>
+          <button
+            onClick={() => setShowManualVoucher(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-all uppercase tracking-widest"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Buat Manual
           </button>
           <button
             onClick={() => fetchAll()}
@@ -117,51 +124,22 @@ export const BankVouchersPage = () => {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Content */}
       <div className="flex-1 overflow-auto p-8 scrollbar-thin">
         <div className="max-w-[1600px] mx-auto space-y-8">
-          {activeTab === 'voucher' ? (
-            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl shadow-gray-200/20 dark:shadow-none overflow-hidden">
-              <BankVoucherTable />
-            </div>
-          ) : (
-             <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl shadow-gray-200/20 dark:shadow-none p-8">
-              <BankVoucherSummary />
-            </div>
-          )}
-
-          {/* Guidelines / Help */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-5 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-2xl">
-              <h5 className="text-[11px] font-bold text-blue-900 dark:text-blue-300 uppercase tracking-widest mb-2 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
-                Alur Mutasi (Workflow)
-              </h5>
-              <p className="text-xs text-blue-700/70 dark:text-blue-400/70 leading-relaxed">
-                Data mutasi di halaman ini berasal dari transaksi POS yang sudah tervalidasi (Reconciled). Satu hari mutasi dikelompokkan menjadi satu Voucher BM (Bank Masuk).
-              </p>
-            </div>
-            <div className="p-5 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 rounded-2xl">
-              <h5 className="text-[11px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-widest mb-2 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
-                Validasi Saldo
-              </h5>
-              <p className="text-xs text-amber-700/70 dark:text-amber-400/70 leading-relaxed">
-                Gunakan tab "Ringkasan" untuk mencocokkan total setoran dengan mutasi rekening koran sesungguhnya per bank.
-              </p>
-            </div>
-            <div className="p-5 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl">
-              <h5 className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full" />
-                Integrasi Journal
-              </h5>
-              <p className="text-xs text-gray-400 leading-relaxed">
-                Di Phase 2, tombol "Konfirmasi" akan memposting nilai mutasi ini ke Buku Besar (Journal Voucher) secara otomatis.
-              </p>
-            </div>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl shadow-gray-200/20 dark:shadow-none overflow-hidden">
+            {activeTab === 'voucher' && <BankVoucherTable />}
+            {activeTab === 'list' && <VoucherListTab />}
+            {activeTab === 'summary' && (
+              <div className="p-8"><BankVoucherSummary /></div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      <OpeningBalanceModal isOpen={showOpeningBalance} onClose={() => setShowOpeningBalance(false)} />
+      <ManualVoucherModal isOpen={showManualVoucher} onClose={() => setShowManualVoucher(false)} onSuccess={handleManualSuccess} />
     </div>
   );
 };
