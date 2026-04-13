@@ -33,6 +33,8 @@ export type {
   BankSummaryItem,
   DailySummaryItem,
   BankAccountOption,
+  VoucherPrintData,
+  VoucherPrintLine,
 } from './bank-vouchers.types'
 
 export {

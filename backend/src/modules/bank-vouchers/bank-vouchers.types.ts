@@ -144,6 +144,56 @@ export interface DailySummaryItem {
 }
 
 // ============================================
+// PRINT DATA (audit-ready)
+// ============================================
+
+export interface VoucherPrintLine {
+  line_number: number;
+  payment_method_name: string;
+  description: string;
+  is_fee_line: boolean;
+  gross_amount: number;
+  tax_amount: number;
+  nett_amount: number;
+  actual_fee_amount: number;
+  coa_code: string | null;       // COA account code for audit
+  fee_coa_code: string | null;   // Fee COA code for audit
+  reference: string | null;      // settlement group / recon id
+  source_type: string;
+  transaction_date: string | null;
+}
+
+export interface VoucherPrintData {
+  voucher_number: string;
+  voucher_type: VoucherType;
+  voucher_type_label: string;    // "Bank Masuk" / "Bank Keluar"
+  status: string;
+  transaction_date: string;
+  bank_date: string;
+  period_label: string;
+  branch_name: string | null;
+  bank_account_name: string;
+  bank_account_number: string | null;
+  company_name: string;
+  company_npwp: string | null;
+  description: string | null;
+  notes: string | null;
+  is_manual: boolean;
+  // Totals
+  total_gross: number;
+  total_tax: number;
+  total_fee: number;
+  total_nett: number;
+  // Lines
+  lines: VoucherPrintLine[];
+  // Audit
+  created_by_name: string | null;
+  confirmed_by_name: string | null;
+  confirmed_at: string | null;
+  printed_at: string;
+}
+
+// ============================================
 // BANK ACCOUNTS DROPDOWN
 // ============================================
 

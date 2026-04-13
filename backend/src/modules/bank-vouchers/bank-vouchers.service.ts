@@ -20,7 +20,10 @@ import type {
   VoucherLine,
   AggregatedVoucherRow,
   BankAccountOption,
+  VoucherPrintData,
+  VoucherPrintLine,
 } from "./bank-vouchers.types";
+import { BankVoucherNotFoundError } from "./bank-vouchers.errors";
 import { logInfo, logError } from "../../config/logger";
 
 /**
@@ -317,6 +320,205 @@ export class BankVouchersService {
       logError("Bank voucher confirmation failed", error);
       throw error;
     }
+  }
+
+  // ============================================
+  // PRINT: get voucher data for printing
+  // ============================================
+
+  async getVoucherPrintData(voucherId: string): Promise<VoucherPrintData> {
+    const row = await bankVouchersRepository.getVoucherById(voucherId);
+    if (!row) throw new BankVoucherNotFoundError(voucherId);
+
+    const periodLabel = getPeriodLabel(row.period_month, row.period_year);
+    const typeLabel = row.voucher_type === "BM" ? "Bank Masuk" : "Bank Keluar";
+
+    const lines: VoucherPrintLine[] = row.lines.map((l: any) => ({
+      line_number: l.line_number,
+      payment_method_name: l.payment_method_name || "-",
+      description: l.description,
+      is_fee_line: l.is_fee_line,
+      gross_amount: Number(l.gross_amount),
+      tax_amount: Number(l.tax_amount),
+      nett_amount: Number(l.nett_amount),
+      actual_fee_amount: Number(l.actual_fee_amount),
+      coa_code: l.is_fee_line ? (l.fee_coa_code || null) : (l.coa_code || null),
+      fee_coa_code: l.fee_coa_code || null,
+      reference: l.aggregate_id
+        ? `${l.source_type === "SETTLEMENT_GROUP" ? "SG" : "RC"}#${String(l.aggregate_id).slice(0, 8)}`
+        : null,
+      source_type: l.source_type,
+      transaction_date: l.transaction_date ? this.formatDate(l.transaction_date) : null,
+    }));
+
+    return {
+      voucher_number: row.voucher_number,
+      voucher_type: row.voucher_type,
+      voucher_type_label: typeLabel,
+      status: row.status,
+      transaction_date: this.formatDate(row.transaction_date),
+      bank_date: this.formatDate(row.bank_date),
+      period_label: periodLabel,
+      branch_name: row.branch_name,
+      bank_account_name: row.bank_account_name,
+      bank_account_number: row.bank_account_number,
+      company_name: row.company_name,
+      company_npwp: row.company_npwp,
+      description: row.description,
+      notes: row.notes,
+      is_manual: row.is_manual,
+      total_gross: Number(row.total_gross),
+      total_tax: Number(row.total_tax),
+      total_fee: Number(row.total_fee),
+      total_nett: Number(row.total_nett),
+      lines,
+      created_by_name: row.created_by_name,
+      confirmed_by_name: row.confirmed_by_name,
+      confirmed_at: row.confirmed_at ? new Date(row.confirmed_at).toISOString() : null,
+      printed_at: new Date().toISOString(),
+    };
+  }
+
+  // ============================================
+  // PRINT: generate HTML for browser printing
+  // ============================================
+
+  generatePrintHtml(data: VoucherPrintData): string {
+    const fmt = (n: number) => n.toLocaleString("id-ID", { minimumFractionDigits: 0 });
+    const fmtDate = (d: string) => {
+      const [y, m, day] = d.split("-");
+      return `${day}-${m}-${y}`;
+    };
+
+    const lineRows = data.lines.map(l => `
+      <tr class="${l.is_fee_line ? 'fee-row' : ''}">
+        <td class="center">${l.line_number}</td>
+        <td>${l.description}</td>
+        <td>${l.payment_method_name}</td>
+        <td class="right">${l.is_fee_line ? '-' : fmt(l.gross_amount)}</td>
+        <td class="right">${l.is_fee_line ? '-' : fmt(l.tax_amount)}</td>
+        <td class="right">${fmt(l.actual_fee_amount)}</td>
+        <td class="right bold">${fmt(l.nett_amount)}</td>
+        <td class="mono">${l.coa_code || '-'}</td>
+        <td class="mono small">${l.reference || '-'}</td>
+      </tr>
+    `).join("");
+
+    return `<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Voucher ${data.voucher_number}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #222; padding: 20px; }
+  .voucher { max-width: 900px; margin: 0 auto; border: 2px solid #333; }
+  .header { padding: 12px 16px; border-bottom: 2px solid #333; display: flex; justify-content: space-between; }
+  .header-left h1 { font-size: 16px; margin-bottom: 2px; }
+  .header-left .sub { font-size: 10px; color: #555; }
+  .header-right { text-align: right; }
+  .header-right .vnum { font-size: 18px; font-weight: bold; font-family: monospace; }
+  .header-right .status { display: inline-block; padding: 2px 8px; font-size: 9px; font-weight: bold; border-radius: 3px; margin-top: 4px; }
+  .status-CONFIRMED { background: #d4edda; color: #155724; }
+  .status-DRAFT { background: #fff3cd; color: #856404; }
+  .status-JOURNALED { background: #cce5ff; color: #004085; }
+  .status-VOID { background: #f8d7da; color: #721c24; }
+  .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border-bottom: 1px solid #999; }
+  .meta-cell { padding: 6px 16px; border-bottom: 1px solid #ddd; }
+  .meta-cell .label { font-size: 9px; color: #666; text-transform: uppercase; }
+  .meta-cell .value { font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #f0f0f0; padding: 6px 8px; text-align: left; font-size: 10px; text-transform: uppercase; border-bottom: 2px solid #333; }
+  td { padding: 5px 8px; border-bottom: 1px solid #ddd; }
+  .right { text-align: right; }
+  .center { text-align: center; }
+  .mono { font-family: monospace; font-size: 10px; }
+  .small { font-size: 9px; }
+  .bold { font-weight: 700; }
+  .fee-row { color: #888; font-style: italic; }
+  .total-row td { border-top: 2px solid #333; font-weight: 700; background: #f9f9f9; }
+  .footer { display: grid; grid-template-columns: 1fr 1fr 1fr; border-top: 2px solid #333; }
+  .sign-box { padding: 12px 16px; text-align: center; min-height: 80px; }
+  .sign-box .role { font-size: 9px; color: #666; text-transform: uppercase; }
+  .sign-box .name { margin-top: 40px; font-weight: 600; border-top: 1px solid #333; display: inline-block; padding-top: 4px; min-width: 120px; }
+  .print-info { text-align: center; font-size: 8px; color: #999; padding: 6px; border-top: 1px solid #ddd; }
+  @media print {
+    body { padding: 0; }
+    .voucher { border: 1px solid #000; }
+    .no-print { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="voucher">
+  <div class="header">
+    <div class="header-left">
+      <h1>${data.company_name}</h1>
+      <div class="sub">${data.company_npwp ? 'NPWP: ' + data.company_npwp : ''}</div>
+    </div>
+    <div class="header-right">
+      <div style="font-size:12px;font-weight:600;">VOUCHER ${data.voucher_type_label.toUpperCase()}</div>
+      <div class="vnum">${data.voucher_number}</div>
+      <span class="status status-${data.status}">${data.status}</span>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div class="meta-cell"><div class="label">Tanggal Bank</div><div class="value">${fmtDate(data.bank_date)}</div></div>
+    <div class="meta-cell"><div class="label">Periode</div><div class="value">${data.period_label}</div></div>
+    <div class="meta-cell"><div class="label">Bank Account</div><div class="value">${data.bank_account_name} ${data.bank_account_number ? '(' + data.bank_account_number + ')' : ''}</div></div>
+    <div class="meta-cell"><div class="label">Cabang</div><div class="value">${data.branch_name || '-'}</div></div>
+    ${data.description ? `<div class="meta-cell" style="grid-column:span 2"><div class="label">Keterangan</div><div class="value">${data.description}</div></div>` : ''}
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:30px">#</th>
+        <th>Uraian</th>
+        <th>Payment Method</th>
+        <th class="right">Gross</th>
+        <th class="right">Tax</th>
+        <th class="right">Fee</th>
+        <th class="right">Nett</th>
+        <th>COA</th>
+        <th>Ref</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${lineRows}
+      <tr class="total-row">
+        <td colspan="3" class="right">TOTAL</td>
+        <td class="right">${fmt(data.total_gross)}</td>
+        <td class="right">${fmt(data.total_tax)}</td>
+        <td class="right">${fmt(data.total_fee)}</td>
+        <td class="right">${fmt(data.total_nett)}</td>
+        <td colspan="2"></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <div class="sign-box">
+      <div class="role">Dibuat oleh</div>
+      <div class="name">${data.created_by_name || '___________'}</div>
+    </div>
+    <div class="sign-box">
+      <div class="role">Disetujui oleh</div>
+      <div class="name">${data.confirmed_by_name || '___________'}</div>
+    </div>
+    <div class="sign-box">
+      <div class="role">Mengetahui</div>
+      <div class="name">___________</div>
+    </div>
+  </div>
+
+  <div class="print-info">
+    Dicetak: ${new Date().toLocaleString('id-ID')} | ${data.is_manual ? 'MANUAL ENTRY' : 'SYSTEM GENERATED'}
+  </div>
+</div>
+</body>
+</html>`;
   }
 
   // ============================================

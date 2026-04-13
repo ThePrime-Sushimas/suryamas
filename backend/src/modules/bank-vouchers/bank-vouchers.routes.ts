@@ -82,6 +82,13 @@ router.post(
   (req, res) => bankVouchersController.confirm(req as AuthenticatedRequest, res)
 )
 
+// GET /:id/print — generate printable voucher (HTML or JSON)
+router.get(
+  '/:id/print',
+  canView('bank_vouchers'),
+  (req, res) => bankVouchersController.print(req as AuthenticatedRequest, res)
+)
+
 // GET /:id — get saved voucher detail
 // router.get('/:id', canView('bank_vouchers'),
 //   (req, res) => bankVouchersController.getById(req as AuthenticatedRequest, res))
@@ -94,10 +101,7 @@ router.post(
 // router.delete('/:id', canDelete('bank_vouchers'),
 //   (req, res) => bankVouchersController.void(req as AuthenticatedRequest, res))
 
-// POST /:id/print — generate PDF
-// router.post('/:id/print', canView('bank_vouchers'),
-//   (req, res) => bankVouchersController.print(req as AuthenticatedRequest, res))
-
+// POST /:id/print — (legacy comment, now active above as GET)
 // POST /opening-balance — set opening balance bulan pertama
 // router.post('/opening-balance', canInsert('bank_vouchers'), validateSchema(bankVoucherOpeningBalanceSchema),
 //   (req, res) => bankVouchersController.setOpeningBalance(req as AuthenticatedRequest, res))

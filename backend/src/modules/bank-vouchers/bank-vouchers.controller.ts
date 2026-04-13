@@ -11,6 +11,7 @@ import {
   bankVoucherSummarySchema,
   bankVoucherConfirmSchema,
 } from "./bank-vouchers.schema";
+import { uuidSchema } from "./bank-vouchers.schema";
 
 type PreviewReq = ValidatedRequest<typeof bankVoucherPreviewSchema>;
 type SummaryReq = ValidatedRequest<typeof bankVoucherSummarySchema>;
@@ -129,6 +130,38 @@ export class BankVouchersController {
       handleError(res, error);
     }
   });
+
+  // ============================================
+  // GET /bank-vouchers/:id/print
+  // Returns HTML for browser printing
+  // ============================================
+
+  async print(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const company_id = req.context?.company_id;
+      if (!company_id) {
+        sendError(res, "Company context required", 400);
+        return;
+      }
+
+      const voucherId = uuidSchema.parse(req.params.id);
+      const format = req.query.format as string | undefined;
+
+      const printData = await bankVouchersService.getVoucherPrintData(voucherId);
+
+      if (format === "json") {
+        sendSuccess(res, printData, "Voucher print data retrieved");
+        return;
+      }
+
+      // Default: return HTML
+      const html = bankVouchersService.generatePrintHtml(printData);
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(html);
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
 
   // ============================================
   // GET /bank-vouchers/bank-accounts

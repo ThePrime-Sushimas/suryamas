@@ -267,6 +267,49 @@ export class BankVouchersRepository {
   }
 
   // ============================================
+  // GET VOUCHER BY ID (for print / detail)
+  // Joins: company, bank_account, lines + COA codes
+  // ============================================
+
+  async getVoucherById(voucherId: string): Promise<any | null> {
+    const sql = `
+      SELECT
+        bv.*,
+        c.company_name,
+        c.npwp AS company_npwp,
+        ba.account_name AS bank_account_name,
+        ba.account_number AS bank_account_number,
+        uc.raw_user_meta_data->>'full_name' AS created_by_name,
+        uconf.raw_user_meta_data->>'full_name' AS confirmed_by_name
+      FROM bank_vouchers bv
+      JOIN companies c ON c.id = bv.company_id
+      JOIN bank_accounts ba ON ba.id = bv.bank_account_id
+      LEFT JOIN auth.users uc ON uc.id = bv.created_by
+      LEFT JOIN auth.users uconf ON uconf.id = bv.confirmed_by
+      WHERE bv.id = $1
+        AND bv.deleted_at IS NULL
+      LIMIT 1
+    `;
+    const header = await pool.query(sql, [voucherId]);
+    if (header.rows.length === 0) return null;
+
+    const linesSql = `
+      SELECT
+        bvl.*,
+        coa.account_code AS coa_code,
+        fcoa.account_code AS fee_coa_code
+      FROM bank_voucher_lines bvl
+      LEFT JOIN chart_of_accounts coa ON coa.id = bvl.coa_account_id
+      LEFT JOIN chart_of_accounts fcoa ON fcoa.id = bvl.fee_coa_account_id
+      WHERE bvl.voucher_id = $1
+      ORDER BY bvl.line_number ASC
+    `;
+    const lines = await pool.query(linesSql, [voucherId]);
+
+    return { ...header.rows[0], lines: lines.rows };
+  }
+
+  // ============================================
   // VALIDATION: check bank account exists & active
   // ============================================
 
