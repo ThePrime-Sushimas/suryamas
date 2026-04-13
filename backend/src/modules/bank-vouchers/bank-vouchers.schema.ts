@@ -68,7 +68,8 @@ export type BankVoucherSummaryQuery = z.infer<typeof bankVoucherSummarySchema>['
 
 export const bankVoucherConfirmSchema = z.object({
   body: z.object({
-    voucher_ids: z.array(uuidSchema).min(1, 'At least one voucher_id required'),
+    transaction_dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1, 'At least one date required'),
+    branch_id: uuidSchema.optional(),
   }),
 })
 

@@ -1,63 +1,75 @@
-import { pool } from '../../config/db'
-import type { AggregatedVoucherRow, BankAccountOption } from './bank-vouchers.types'
-import { BankVoucherInvalidBankAccountError } from './bank-vouchers.errors'
+import { pool } from "../../config/db";
+import type {
+  AggregatedVoucherRow,
+  BankAccountOption,
+} from "./bank-vouchers.types";
+import { BankVoucherInvalidBankAccountError } from "./bank-vouchers.errors";
+import { logInfo } from "../../config/logger";
 
 /**
  * Bank Vouchers Repository
  * Handle semua query database untuk bank vouchers system
  */
 export class BankVouchersRepository {
-
   // ============================================
   // MAIN: fetch reconciled aggregates per period
   // Grouped by: transaction_date + bank_account + payment_method
   // ============================================
 
   async getReconciledAggregates(params: {
-    company_id: string
-    branch_id?: string
-    date_start: string          // 'YYYY-MM-DD'
-    date_end: string            // 'YYYY-MM-DD'
-    bank_account_id?: number
+    company_id: string;
+    branch_id?: string;
+    date_start: string; // 'YYYY-MM-DD'
+    date_end: string; // 'YYYY-MM-DD'
+    bank_account_id?: number;
   }): Promise<AggregatedVoucherRow[]> {
-    const values: unknown[] = [params.company_id, params.date_start, params.date_end]
-    let paramIndex = 4
+    const values: unknown[] = [
+      params.company_id,
+      params.date_start,
+      params.date_end,
+    ];
+    let paramIndex = 4;
 
     const conditions: string[] = [
-      'at.deleted_at IS NULL',
-      'at.is_reconciled = TRUE',
-      'at.superseded_by IS NULL',           // exclude versi lama yang sudah digantikan
-      'pm.bank_account_id IS NOT NULL',     // hanya payment method yang punya mapping bank
-      'pm.deleted_at IS NULL',
-      'ba.deleted_at IS NULL',
+      "at.deleted_at IS NULL",
+      "at.is_reconciled = TRUE",
+      "at.superseded_by IS NULL", // exclude versi lama yang sudah digantikan
+      "pm.bank_account_id IS NOT NULL", // hanya payment method yang punya mapping bank
+      "pm.deleted_at IS NULL",
+      "ba.deleted_at IS NULL",
       // filter company via branch
-      'br.company_id = $1',
-      'at.transaction_date BETWEEN $2 AND $3',
-    ]
+      "br.company_id = $1",
+      "at.transaction_date::date BETWEEN $2 AND $3",
+    ];
 
     if (params.branch_id) {
-      conditions.push(`at.branch_id = $${paramIndex}`)
-      values.push(params.branch_id)
-      paramIndex++
+      conditions.push(`at.branch_id = $${paramIndex}`);
+      values.push(params.branch_id);
+      paramIndex++;
     }
 
     if (params.bank_account_id) {
-      conditions.push(`pm.bank_account_id = $${paramIndex}`)
-      values.push(params.bank_account_id)
-      paramIndex++
+      conditions.push(`pm.bank_account_id = $${paramIndex}`);
+      values.push(params.bank_account_id);
+      paramIndex++;
     }
 
-    const whereClause = conditions.map(c => `  AND ${c}`).join('\n').replace(/^  AND /, 'WHERE ')
+    const whereClause = conditions
+      .map((c) => `  AND ${c}`)
+      .join("\n")
+      .replace(/^  AND /, "WHERE ");
 
     const sql = `
       SELECT
-        at.transaction_date,
+        at.transaction_date::date                   AS transaction_date,
         pm.bank_account_id,
         ba.account_name                             AS bank_account_name,
         ba.account_number                           AS bank_account_number,
         pm.id                                       AS payment_method_id,
         pm.name                                     AS payment_method_name,
         pm.payment_type,
+        pm.coa_account_id,
+        pm.fee_coa_account_id,
         at.branch_id,
         COALESCE(at.branch_name, br.branch_name)    AS branch_name,
         -- Amounts (SUM per group)
@@ -79,23 +91,37 @@ export class BankVouchersRepository {
         ON br.id = at.branch_id
       ${whereClause}
       GROUP BY
-        at.transaction_date,
+        at.transaction_date::date,
         pm.bank_account_id,
         ba.account_name,
         ba.account_number,
         pm.id,
         pm.name,
         pm.payment_type,
+        pm.coa_account_id,
+        pm.fee_coa_account_id,
         at.branch_id,
         COALESCE(at.branch_name, br.branch_name)
       ORDER BY
-        at.transaction_date ASC,
+        at.transaction_date::date ASC,
         pm.bank_account_id ASC,
         pm.name ASC
-    `
+    `;
 
-    const result = await pool.query<AggregatedVoucherRow>(sql, values)
-    return result.rows
+    const result = await pool.query<AggregatedVoucherRow>(sql, values);
+
+    // Add logging for debugging
+    logInfo("RECONCILED AGGREGATES QUERY RESULT", {
+      params: {
+        ...params,
+        company_id: params.company_id.substring(0, 8) + "...",
+      },
+      rows_count: result.rows.length,
+      first_row_date:
+        result.rows.length > 0 ? result.rows[0].transaction_date : null,
+    });
+
+    return result.rows;
   }
 
   // ============================================
@@ -103,24 +129,30 @@ export class BankVouchersRepository {
   // ============================================
 
   async getPeriodSummaryByBank(params: {
-    company_id: string
-    branch_id?: string
-    date_start: string
-    date_end: string
-  }): Promise<{
-    bank_account_id: number
-    bank_account_name: string
-    total_nett: string
-    total_fee: string
-  }[]> {
-    const values: unknown[] = [params.company_id, params.date_start, params.date_end]
-    let paramIndex = 4
+    company_id: string;
+    branch_id?: string;
+    date_start: string;
+    date_end: string;
+  }): Promise<
+    {
+      bank_account_id: number;
+      bank_account_name: string;
+      total_nett: string;
+      total_fee: string;
+    }[]
+  > {
+    const values: unknown[] = [
+      params.company_id,
+      params.date_start,
+      params.date_end,
+    ];
+    let paramIndex = 4;
 
-    let branchFilter = ''
+    let branchFilter = "";
     if (params.branch_id) {
-      branchFilter = `AND at.branch_id = $${paramIndex}`
-      values.push(params.branch_id)
-      paramIndex++
+      branchFilter = `AND at.branch_id = $${paramIndex}`;
+      values.push(params.branch_id);
+      paramIndex++;
     }
 
     const sql = `
@@ -144,10 +176,10 @@ export class BankVouchersRepository {
         ${branchFilter}
       GROUP BY pm.bank_account_id, ba.account_name
       ORDER BY ba.account_name ASC
-    `
+    `;
 
-    const result = await pool.query(sql, values)
-    return result.rows
+    const result = await pool.query(sql, values);
+    return result.rows;
   }
 
   // ============================================
@@ -155,23 +187,29 @@ export class BankVouchersRepository {
   // ============================================
 
   async getDailySummary(params: {
-    company_id: string
-    branch_id?: string
-    date_start: string
-    date_end: string
-  }): Promise<{
-    transaction_date: Date
-    total_nett: string
-    total_fee: string
-  }[]> {
-    const values: unknown[] = [params.company_id, params.date_start, params.date_end]
-    let paramIndex = 4
+    company_id: string;
+    branch_id?: string;
+    date_start: string;
+    date_end: string;
+  }): Promise<
+    {
+      transaction_date: Date;
+      total_nett: string;
+      total_fee: string;
+    }[]
+  > {
+    const values: unknown[] = [
+      params.company_id,
+      params.date_start,
+      params.date_end,
+    ];
+    let paramIndex = 4;
 
-    let branchFilter = ''
+    let branchFilter = "";
     if (params.branch_id) {
-      branchFilter = `AND at.branch_id = $${paramIndex}`
-      values.push(params.branch_id)
-      paramIndex++
+      branchFilter = `AND at.branch_id = $${paramIndex}`;
+      values.push(params.branch_id);
+      paramIndex++;
     }
 
     const sql = `
@@ -194,17 +232,19 @@ export class BankVouchersRepository {
         ${branchFilter}
       GROUP BY at.transaction_date
       ORDER BY at.transaction_date ASC
-    `
+    `;
 
-    const result = await pool.query(sql, values)
-    return result.rows
+    const result = await pool.query(sql, values);
+    return result.rows;
   }
 
   // ============================================
   // DROPDOWN: bank accounts untuk filter
   // ============================================
 
-  async getBankAccountsByCompany(company_id: string): Promise<BankAccountOption[]> {
+  async getBankAccountsByCompany(
+    company_id: string,
+  ): Promise<BankAccountOption[]> {
     // bank_accounts yang punya mapping ke payment_methods aktif di company ini
     const sql = `
       SELECT DISTINCT
@@ -220,10 +260,10 @@ export class BankVouchersRepository {
       WHERE ba.deleted_at IS NULL
         AND ba.is_active = TRUE
       ORDER BY ba.account_name ASC
-    `
+    `;
 
-    const result = await pool.query<BankAccountOption>(sql, [company_id])
-    return result.rows
+    const result = await pool.query<BankAccountOption>(sql, [company_id]);
+    return result.rows;
   }
 
   // ============================================
@@ -237,10 +277,10 @@ export class BankVouchersRepository {
         AND is_active = TRUE
         AND deleted_at IS NULL
       LIMIT 1
-    `
+    `;
 
-    const result = await pool.query(sql, [bank_account_id])
-    return result.rows.length > 0
+    const result = await pool.query(sql, [bank_account_id]);
+    return result.rows.length > 0;
   }
 
   // ============================================
@@ -248,17 +288,17 @@ export class BankVouchersRepository {
   // ============================================
 
   async getOrCreatePeriodBalance(params: {
-    company_id: string
-    bank_account_id: number
-    period_month: number
-    period_year: number
+    company_id: string;
+    bank_account_id: number;
+    period_month: number;
+    period_year: number;
   }): Promise<{
-    id: string
-    opening_balance: number
-    total_masuk: number
-    total_keluar: number
-    closing_balance: number
-    is_locked: boolean
+    id: string;
+    opening_balance: number;
+    total_masuk: number;
+    total_keluar: number;
+    closing_balance: number;
+    is_locked: boolean;
   }> {
     const sql = `
       SELECT
@@ -274,28 +314,28 @@ export class BankVouchersRepository {
         AND period_month = $3
         AND period_year = $4
       LIMIT 1
-    `
+    `;
 
     const result = await pool.query(sql, [
       params.company_id,
       params.bank_account_id,
       params.period_month,
       params.period_year,
-    ])
+    ]);
 
     if (result.rows.length === 0) {
       // Return default balance jika belum ada
       return {
-        id: '',
+        id: "",
         opening_balance: 0,
         total_masuk: 0,
         total_keluar: 0,
         closing_balance: 0,
         is_locked: false,
-      }
+      };
     }
 
-    const row = result.rows[0]
+    const row = result.rows[0];
     return {
       id: row.id,
       opening_balance: Number(row.opening_balance),
@@ -303,7 +343,7 @@ export class BankVouchersRepository {
       total_keluar: Number(row.total_keluar),
       closing_balance: Number(row.closing_balance),
       is_locked: row.is_locked,
-    }
+    };
   }
 
   // ============================================
@@ -311,18 +351,18 @@ export class BankVouchersRepository {
   // ============================================
 
   async getPreviousMonthClosingBalance(params: {
-    company_id: string
-    bank_account_id: number
-    period_month: number
-    period_year: number
+    company_id: string;
+    bank_account_id: number;
+    period_month: number;
+    period_year: number;
   }): Promise<number> {
     // Calculate previous month
-    let prevMonth = params.period_month - 1
-    let prevYear = params.period_year
+    let prevMonth = params.period_month - 1;
+    let prevYear = params.period_year;
 
     if (prevMonth < 1) {
-      prevMonth = 12
-      prevYear -= 1
+      prevMonth = 12;
+      prevYear -= 1;
     }
 
     const sql = `
@@ -333,21 +373,189 @@ export class BankVouchersRepository {
         AND period_month = $3
         AND period_year = $4
       LIMIT 1
-    `
+    `;
 
     const result = await pool.query(sql, [
       params.company_id,
       params.bank_account_id,
       prevMonth,
       prevYear,
-    ])
+    ]);
 
     if (result.rows.length === 0) {
-      return 0
+      return 0;
     }
 
-    return Number(result.rows[0].closing_balance)
+    return Number(result.rows[0].closing_balance);
+  }
+  // ============================================
+  // PERSISTENCE: Create Voucher (Header + Lines)
+  // ============================================
+
+  async createVoucher(params: {
+    company_id: string;
+    voucher_type: "BM" | "BK";
+    transaction_date: string;
+    bank_date: string;
+    period_month: number;
+    period_year: number;
+    branch_id?: string;
+    branch_name?: string;
+    bank_account_id: number;
+    total_gross: number;
+    total_tax: number;
+    total_fee: number;
+    total_nett: number;
+    description: string;
+    created_by?: string;
+    lines: Array<{
+      line_number: number;
+      aggregate_id?: string;
+      source_type: string;
+      payment_method_id?: number;
+      payment_method_name?: string;
+      bank_account_id: number;
+      bank_account_name: string;
+      bank_account_number?: string;
+      description: string;
+      is_fee_line: boolean;
+      gross_amount: number;
+      tax_amount: number;
+      actual_fee_amount: number;
+      nett_amount: number;
+      coa_account_id?: string;
+      fee_coa_account_id?: string;
+      transaction_date: string;
+    }>;
+  }): Promise<string> {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // 1. Generate voucher number menggunakan function DB
+      const numResult = await client.query(
+        "SELECT generate_bank_voucher_number($1, $2, $3) as num",
+        [params.company_id, params.voucher_type, params.bank_date],
+      );
+      const voucherNumber = numResult.rows[0].num;
+
+      // 2. Insert Header
+      const headerSql = `
+        INSERT INTO bank_vouchers (
+          company_id, voucher_type, voucher_number, transaction_date, bank_date,
+          period_month, period_year, branch_id, branch_name, bank_account_id,
+          total_gross, total_tax, total_fee, total_nett, description, 
+          status, confirmed_at, confirmed_by, created_by, updated_by
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 
+          'CONFIRMED', NOW(), $16, $16, $16
+        ) RETURNING id
+      `;
+      const headerResult = await client.query(headerSql, [
+        params.company_id,
+        params.voucher_type,
+        voucherNumber,
+        params.transaction_date,
+        params.bank_date,
+        params.period_month,
+        params.period_year,
+        params.branch_id,
+        params.branch_name,
+        params.bank_account_id,
+        params.total_gross,
+        params.total_tax,
+        params.total_fee,
+        params.total_nett,
+        params.description,
+        params.created_by,
+      ]);
+      const voucherId = headerResult.rows[0].id;
+
+      // 3. Insert Lines
+      for (const line of params.lines) {
+        const lineSql = `
+          INSERT INTO bank_voucher_lines (
+            voucher_id, line_number, aggregate_id, source_type,
+            payment_method_id, payment_method_name, bank_account_id,
+            bank_account_name, bank_account_number, description,
+            is_fee_line, gross_amount, tax_amount, actual_fee_amount,
+            nett_amount, coa_account_id, fee_coa_account_id, transaction_date
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+          )
+        `;
+        await client.query(lineSql, [
+          voucherId,
+          line.line_number,
+          line.aggregate_id,
+          line.source_type,
+          line.payment_method_id,
+          line.payment_method_name,
+          line.bank_account_id,
+          line.bank_account_name,
+          line.bank_account_number,
+          line.description,
+          line.is_fee_line,
+          line.gross_amount,
+          line.tax_amount,
+          line.actual_fee_amount,
+          line.nett_amount,
+          line.coa_account_id,
+          line.fee_coa_account_id,
+          line.transaction_date,
+        ]);
+      }
+
+      await client.query("COMMIT");
+      return voucherNumber;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  // ============================================
+  // CHECK: Existing confirmed vouchers
+  // ============================================
+
+  async getConfirmedVouchersByPeriod(params: {
+    company_id: string;
+    date_start: string;
+    date_end: string;
+    branch_id?: string;
+  }): Promise<
+    Array<{
+      transaction_date: Date;
+      bank_account_id: number;
+      status: string;
+      voucher_number: string;
+    }>
+  > {
+    const values: unknown[] = [
+      params.company_id,
+      params.date_start,
+      params.date_end,
+    ];
+    let branchFilter = "";
+    if (params.branch_id) {
+      branchFilter = "AND branch_id = $4";
+      values.push(params.branch_id);
+    }
+
+    const sql = `
+      SELECT transaction_date, bank_account_id, status, voucher_number
+      FROM bank_vouchers
+      WHERE company_id = $1
+        AND transaction_date BETWEEN $2 AND $3
+        AND deleted_at IS NULL
+        ${branchFilter}
+    `;
+
+    const result = await pool.query(sql, values);
+    return result.rows;
   }
 }
 
-export const bankVouchersRepository = new BankVouchersRepository()
+export const bankVouchersRepository = new BankVouchersRepository();

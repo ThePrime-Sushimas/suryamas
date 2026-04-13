@@ -19,6 +19,7 @@ interface LoadingState {
   preview: boolean
   summary: boolean
   bankAccounts: boolean
+  confirm: boolean
 }
 
 interface ErrorState {
@@ -52,6 +53,7 @@ interface BankVouchersState {
   fetchSummary: () => Promise<void>
   fetchBankAccounts: () => Promise<void>
   fetchAll: () => Promise<void>
+  confirmVouchers: (dates: string[]) => Promise<void>
 
   clearError: () => void
   reset: () => void
@@ -64,7 +66,7 @@ const initialState = {
   filter: defaultFilter,
   activeTab: 'voucher' as ActiveTab,
   expandedDates: new Set<string>(),
-  loading: { preview: false, summary: false, bankAccounts: false },
+  loading: { preview: false, summary: false, bankAccounts: false, confirm: false },
   error: null,
 }
 
@@ -150,6 +152,23 @@ export const useBankVouchersStore = create<BankVouchersState>((set, get) => ({
   fetchAll: async () => {
     const { fetchPreview, fetchSummary } = get()
     await Promise.all([fetchPreview(), fetchSummary()])
+  },
+
+  confirmVouchers: async (dates: string[]) => {
+    set(state => ({ loading: { ...state.loading, confirm: true }, error: null }))
+    try {
+      await bankVouchersApi.confirm(dates)
+      // Refresh data setelah konfirmasi
+      await get().fetchAll()
+      set(state => ({ loading: { ...state.loading, confirm: false } }))
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Gagal konfirmasi voucher'
+      set(state => ({
+        loading: { ...state.loading, confirm: false },
+        error: { scope: 'preview', message },
+      }))
+      throw err // Re-throw agar UI bisa handle (misal: alert)
+    }
   },
 
   clearError: () => set({ error: null }),

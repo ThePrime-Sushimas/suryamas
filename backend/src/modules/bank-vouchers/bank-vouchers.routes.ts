@@ -8,6 +8,7 @@ import { PermissionService } from '../../services/permission.service'
 import {
   bankVoucherPreviewSchema,
   bankVoucherSummarySchema,
+  bankVoucherConfirmSchema,
 } from './bank-vouchers.schema'
 import type { AuthenticatedRequest } from '../../types/request.types'
 
@@ -69,13 +70,17 @@ router.get(
   (req, res) => bankVouchersController.summary(req as AuthenticatedRequest, res)
 )
 
-// ============================================================
-// PHASE 2 PLACEHOLDERS (uncomment setelah phase 2 siap)
-// ============================================================
+// ============================================
+// ACTION: POST /api/v1/bank-vouchers/confirm
+// Confirm & freeze voucher ke database
+// ============================================
 
-// POST /confirm — freeze voucher ke DB
-// router.post('/confirm', canInsert('bank_vouchers'), validateSchema(bankVoucherConfirmSchema),
-//   (req, res) => bankVouchersController.confirm(req as AuthenticatedRequest, res))
+router.post(
+  '/confirm',
+  canInsert('bank_vouchers'),
+  validateSchema(bankVoucherConfirmSchema),
+  (req, res) => bankVouchersController.confirm(req as AuthenticatedRequest, res)
+)
 
 // GET /:id — get saved voucher detail
 // router.get('/:id', canView('bank_vouchers'),
