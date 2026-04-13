@@ -10,12 +10,22 @@ import {
   bankVoucherPreviewSchema,
   bankVoucherSummarySchema,
   bankVoucherConfirmSchema,
+  bankVoucherManualCreateSchema,
+  bankVoucherVoidSchema,
+  bankVoucherOpeningBalanceSchema,
+  bankVoucherGetOpeningBalanceSchema,
+  bankVoucherListSchema,
 } from "./bank-vouchers.schema";
 import { uuidSchema } from "./bank-vouchers.schema";
 
 type PreviewReq = ValidatedRequest<typeof bankVoucherPreviewSchema>;
 type SummaryReq = ValidatedRequest<typeof bankVoucherSummarySchema>;
 type ConfirmReq = ValidatedRequest<typeof bankVoucherConfirmSchema>;
+type ManualCreateReq = ValidatedRequest<typeof bankVoucherManualCreateSchema>;
+type VoidReq = ValidatedRequest<typeof bankVoucherVoidSchema>;
+type OpeningBalanceReq = ValidatedRequest<typeof bankVoucherOpeningBalanceSchema>;
+type GetOpeningBalanceReq = ValidatedRequest<typeof bankVoucherGetOpeningBalanceSchema>;
+type ListReq = ValidatedRequest<typeof bankVoucherListSchema>;
 
 export class BankVouchersController {
 
@@ -126,6 +136,131 @@ export class BankVouchersController {
       });
 
       sendSuccess(res, result, "Bank vouchers confirmed successfully");
+    } catch (error) {
+      handleError(res, error);
+    }
+  });
+
+  // ============================================
+  // GET /bank-vouchers/:id
+  // ============================================
+
+  async getById(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const company_id = req.context?.company_id;
+      if (!company_id) { sendError(res, "Company context required", 400); return; }
+
+      const voucherId = uuidSchema.parse(req.params.id);
+      const result = await bankVouchersService.getVoucherDetail(voucherId);
+      sendSuccess(res, result, "Voucher detail retrieved");
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  // ============================================
+  // GET /bank-vouchers/list
+  // ============================================
+
+  list = withValidated(async (req: ListReq, res: Response): Promise<void> => {
+    try {
+      const company_id = (req as any).context?.company_id;
+      if (!company_id) { sendError(res, "Company context required", 400); return; }
+
+      const { query } = req.validated;
+      const result = await bankVouchersService.listVouchers({
+        company_id,
+        period_month: query.period_month,
+        period_year: query.period_year,
+        branch_id: query.branch_id,
+        bank_account_id: query.bank_account_id,
+        status: query.status,
+      });
+      sendSuccess(res, result, "Voucher list retrieved");
+    } catch (error) {
+      handleError(res, error);
+    }
+  });
+
+  // ============================================
+  // POST /bank-vouchers/manual
+  // ============================================
+
+  createManual = withValidated(async (req: ManualCreateReq, res: Response): Promise<void> => {
+    try {
+      const company_id = (req as any).context?.company_id;
+      if (!company_id) { sendError(res, "Company context required", 400); return; }
+
+      const result = await bankVouchersService.createManualVoucher({
+        company_id,
+        user_id: (req as any).user?.id,
+        data: req.validated.body,
+      });
+      sendSuccess(res, result, "Manual voucher created", 201);
+    } catch (error) {
+      handleError(res, error);
+    }
+  });
+
+  // ============================================
+  // POST /bank-vouchers/:id/void
+  // ============================================
+
+  voidVoucher = withValidated(async (req: VoidReq, res: Response): Promise<void> => {
+    try {
+      const company_id = (req as any).context?.company_id;
+      if (!company_id) { sendError(res, "Company context required", 400); return; }
+
+      const voucherId = uuidSchema.parse(req.params.id);
+      const result = await bankVouchersService.voidVoucher({
+        company_id,
+        voucher_id: voucherId,
+        reason: req.validated.body.reason,
+        user_id: (req as any).user?.id,
+      });
+      sendSuccess(res, result, "Voucher voided");
+    } catch (error) {
+      handleError(res, error);
+    }
+  });
+
+  // ============================================
+  // POST /bank-vouchers/opening-balance
+  // ============================================
+
+  setOpeningBalance = withValidated(async (req: OpeningBalanceReq, res: Response): Promise<void> => {
+    try {
+      const company_id = (req as any).context?.company_id;
+      if (!company_id) { sendError(res, "Company context required", 400); return; }
+
+      const result = await bankVouchersService.setOpeningBalance({
+        company_id,
+        ...req.validated.body,
+        user_id: (req as any).user?.id,
+      });
+      sendSuccess(res, result, "Opening balance set");
+    } catch (error) {
+      handleError(res, error);
+    }
+  });
+
+  // ============================================
+  // GET /bank-vouchers/opening-balance
+  // ============================================
+
+  getOpeningBalance = withValidated(async (req: GetOpeningBalanceReq, res: Response): Promise<void> => {
+    try {
+      const company_id = (req as any).context?.company_id;
+      if (!company_id) { sendError(res, "Company context required", 400); return; }
+
+      const { query } = req.validated;
+      const result = await bankVouchersService.getOpeningBalance({
+        company_id,
+        bank_account_id: query.bank_account_id,
+        period_month: query.period_month,
+        period_year: query.period_year,
+      });
+      sendSuccess(res, result, "Opening balance retrieved");
     } catch (error) {
       handleError(res, error);
     }

@@ -9,12 +9,13 @@ import {
   bankVoucherPreviewSchema,
   bankVoucherSummarySchema,
   bankVoucherConfirmSchema,
+  bankVoucherManualCreateSchema,
+  bankVoucherVoidSchema,
+  bankVoucherOpeningBalanceSchema,
+  bankVoucherGetOpeningBalanceSchema,
+  bankVoucherListSchema,
 } from './bank-vouchers.schema'
 import type { AuthenticatedRequest } from '../../types/request.types'
-
-// ============================================================
-// Register module permissions
-// ============================================================
 
 PermissionService.registerModule('bank_vouchers', 'Bank Vouchers').catch((error) => {
   console.error('Failed to register bank_vouchers module:', error.message)
@@ -24,86 +25,71 @@ const router = Router()
 
 router.use(authenticate, resolveBranchContext)
 
-// ============================================================
-// GET /api/v1/bank-vouchers/health
-// ============================================================
+// Health
+router.get('/health',
+  (req, res) => bankVouchersController.health(req as AuthenticatedRequest, res))
 
-router.get(
-  '/health',
-  (req, res) => bankVouchersController.health(req as AuthenticatedRequest, res)
-)
-
-// ============================================================
-// GET /api/v1/bank-vouchers/bank-accounts
-// Dropdown list bank account untuk filter
-// ============================================================
-
-router.get(
-  '/bank-accounts',
+// Dropdown: bank accounts
+router.get('/bank-accounts',
   canView('bank_vouchers'),
-  (req, res) => bankVouchersController.getBankAccounts(req as AuthenticatedRequest, res)
-)
+  (req, res) => bankVouchersController.getBankAccounts(req as AuthenticatedRequest, res))
 
-// ============================================================
-// GET /api/v1/bank-vouchers/preview
-// Preview buku mutasi bank on-the-fly
-// Query: period_month, period_year, branch_id?, bank_account_id?, voucher_type?
-// ============================================================
-
-router.get(
-  '/preview',
+// Preview (on-the-fly)
+router.get('/preview',
   canView('bank_vouchers'),
   validateSchema(bankVoucherPreviewSchema),
-  (req, res) => bankVouchersController.preview(req as AuthenticatedRequest, res)
-)
+  (req, res) => bankVouchersController.preview(req as AuthenticatedRequest, res))
 
-// ============================================================
-// GET /api/v1/bank-vouchers/summary
-// Totals + running balance per periode
-// Query: period_month, period_year, branch_id?
-// ============================================================
-
-router.get(
-  '/summary',
+// Summary (totals + running balance)
+router.get('/summary',
   canView('bank_vouchers'),
   validateSchema(bankVoucherSummarySchema),
-  (req, res) => bankVouchersController.summary(req as AuthenticatedRequest, res)
-)
+  (req, res) => bankVouchersController.summary(req as AuthenticatedRequest, res))
 
-// ============================================
-// ACTION: POST /api/v1/bank-vouchers/confirm
-// Confirm & freeze voucher ke database
-// ============================================
+// List confirmed vouchers
+router.get('/list',
+  canView('bank_vouchers'),
+  validateSchema(bankVoucherListSchema),
+  (req, res) => bankVouchersController.list(req as AuthenticatedRequest, res))
 
-router.post(
-  '/confirm',
+// Opening balance — GET
+router.get('/opening-balance',
+  canView('bank_vouchers'),
+  validateSchema(bankVoucherGetOpeningBalanceSchema),
+  (req, res) => bankVouchersController.getOpeningBalance(req as AuthenticatedRequest, res))
+
+// Opening balance — SET
+router.post('/opening-balance',
+  canInsert('bank_vouchers'),
+  validateSchema(bankVoucherOpeningBalanceSchema),
+  (req, res) => bankVouchersController.setOpeningBalance(req as AuthenticatedRequest, res))
+
+// Confirm vouchers (from preview)
+router.post('/confirm',
   canInsert('bank_vouchers'),
   validateSchema(bankVoucherConfirmSchema),
-  (req, res) => bankVouchersController.confirm(req as AuthenticatedRequest, res)
-)
+  (req, res) => bankVouchersController.confirm(req as AuthenticatedRequest, res))
 
-// GET /:id/print — generate printable voucher (HTML or JSON)
-router.get(
-  '/:id/print',
+// Manual create
+router.post('/manual',
+  canInsert('bank_vouchers'),
+  validateSchema(bankVoucherManualCreateSchema),
+  (req, res) => bankVouchersController.createManual(req as AuthenticatedRequest, res))
+
+// Print voucher (HTML or JSON)
+router.get('/:id/print',
   canView('bank_vouchers'),
-  (req, res) => bankVouchersController.print(req as AuthenticatedRequest, res)
-)
+  (req, res) => bankVouchersController.print(req as AuthenticatedRequest, res))
 
-// GET /:id — get saved voucher detail
-// router.get('/:id', canView('bank_vouchers'),
-//   (req, res) => bankVouchersController.getById(req as AuthenticatedRequest, res))
+// Void voucher
+router.post('/:id/void',
+  canUpdate('bank_vouchers'),
+  validateSchema(bankVoucherVoidSchema),
+  (req, res) => bankVouchersController.voidVoucher(req as AuthenticatedRequest, res))
 
-// PUT /:id — adjust voucher lines
-// router.put('/:id', canUpdate('bank_vouchers'), validateSchema(bankVoucherAdjustSchema),
-//   (req, res) => bankVouchersController.adjust(req as AuthenticatedRequest, res))
-
-// DELETE /:id — void voucher
-// router.delete('/:id', canDelete('bank_vouchers'),
-//   (req, res) => bankVouchersController.void(req as AuthenticatedRequest, res))
-
-// POST /:id/print — (legacy comment, now active above as GET)
-// POST /opening-balance — set opening balance bulan pertama
-// router.post('/opening-balance', canInsert('bank_vouchers'), validateSchema(bankVoucherOpeningBalanceSchema),
-//   (req, res) => bankVouchersController.setOpeningBalance(req as AuthenticatedRequest, res))
+// Get voucher detail
+router.get('/:id',
+  canView('bank_vouchers'),
+  (req, res) => bankVouchersController.getById(req as AuthenticatedRequest, res))
 
 export default router

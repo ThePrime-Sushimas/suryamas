@@ -10,6 +10,9 @@ import {
   BankVoucherMissingCompanyError,
   BankVoucherInvalidPeriodError,
   BankVoucherInvalidBankAccountError,
+  BankVoucherNotFoundError,
+  BankVoucherAlreadyConfirmedError,
+  BankVoucherPeriodLockedError,
 } from "./bank-vouchers.errors";
 import type {
   BankVoucherPreviewParams,
@@ -23,7 +26,7 @@ import type {
   VoucherPrintData,
   VoucherPrintLine,
 } from "./bank-vouchers.types";
-import { BankVoucherNotFoundError } from "./bank-vouchers.errors";
+import type { BankVoucherManualCreateRequest } from "./bank-vouchers.schema";
 import { logInfo, logError } from "../../config/logger";
 
 /**
@@ -277,7 +280,7 @@ export class BankVouchersService {
           company_id: params.company_id,
           voucher_type: v.voucher_type,
           transaction_date: v.transaction_date,
-          bank_date: v.transaction_date, // Phase 1: bank_date = transaction_date
+          bank_date: v.transaction_date,
           period_month: targetMonth,
           period_year: targetYear,
           branch_id: v.branch_id,
@@ -291,8 +294,8 @@ export class BankVouchersService {
           created_by: params.user_id,
           lines: v.lines.map(l => ({
             line_number: l.line_number,
-            aggregate_id: l.aggregate_id, // ini penting
-            source_type: "RECONCILIATION",
+            aggregate_id: l.aggregate_id,
+            source_type: "RECONCILIATION" as const,
             payment_method_id: l.payment_method_id,
             payment_method_name: l.payment_method_name,
             bank_account_id: l.bank_account_id,
@@ -309,7 +312,7 @@ export class BankVouchersService {
             transaction_date: v.transaction_date,
           })),
         });
-        confirmedNumbers.push(num);
+        confirmedNumbers.push(num.voucher_number);
       }
 
       return {
@@ -320,6 +323,242 @@ export class BankVouchersService {
       logError("Bank voucher confirmation failed", error);
       throw error;
     }
+  }
+
+  // ============================================
+  // DETAIL: get single voucher by ID
+  // ============================================
+
+  async getVoucherDetail(voucherId: string) {
+    const row = await bankVouchersRepository.getVoucherById(voucherId);
+    if (!row) throw new BankVoucherNotFoundError(voucherId);
+
+    return {
+      id: row.id,
+      voucher_number: row.voucher_number,
+      voucher_type: row.voucher_type,
+      status: row.status,
+      transaction_date: this.formatDate(row.transaction_date),
+      bank_date: this.formatDate(row.bank_date),
+      period_month: row.period_month,
+      period_year: row.period_year,
+      period_label: getPeriodLabel(row.period_month, row.period_year),
+      branch_id: row.branch_id,
+      branch_name: row.branch_name,
+      bank_account_id: row.bank_account_id,
+      bank_account_name: row.bank_account_name,
+      bank_account_number: row.bank_account_number,
+      company_name: row.company_name,
+      is_manual: row.is_manual,
+      is_adjustment: row.is_adjustment,
+      description: row.description,
+      notes: row.notes,
+      total_gross: Number(row.total_gross),
+      total_tax: Number(row.total_tax),
+      total_fee: Number(row.total_fee),
+      total_nett: Number(row.total_nett),
+      confirmed_at: row.confirmed_at,
+      confirmed_by_name: row.confirmed_by_name,
+      created_by_name: row.created_by_name,
+      voided_at: row.voided_at,
+      void_reason: row.void_reason,
+      lines: row.lines.map((l: any) => ({
+        id: l.id,
+        line_number: l.line_number,
+        description: l.description,
+        payment_method_name: l.payment_method_name,
+        is_fee_line: l.is_fee_line,
+        gross_amount: Number(l.gross_amount),
+        tax_amount: Number(l.tax_amount),
+        actual_fee_amount: Number(l.actual_fee_amount),
+        nett_amount: Number(l.nett_amount),
+        coa_code: l.coa_code || null,
+        fee_coa_code: l.fee_coa_code || null,
+        source_type: l.source_type,
+        aggregate_id: l.aggregate_id,
+        transaction_date: l.transaction_date ? this.formatDate(l.transaction_date) : null,
+        is_manual: l.is_manual,
+      })),
+    };
+  }
+
+  // ============================================
+  // LIST: confirmed vouchers by period
+  // ============================================
+
+  async listVouchers(params: {
+    company_id: string;
+    period_month: number;
+    period_year: number;
+    branch_id?: string;
+    bank_account_id?: number;
+    status?: string;
+  }) {
+    if (!params.company_id) throw new BankVoucherMissingCompanyError();
+    validatePeriod(params.period_month, params.period_year);
+
+    const rows = await bankVouchersRepository.listVouchersByPeriod(params);
+    return {
+      period_label: getPeriodLabel(params.period_month, params.period_year),
+      vouchers: rows.map((r: any) => ({
+        ...r,
+        transaction_date: this.formatDate(r.transaction_date),
+        bank_date: this.formatDate(r.bank_date),
+        total_gross: Number(r.total_gross),
+        total_tax: Number(r.total_tax),
+        total_fee: Number(r.total_fee),
+        total_nett: Number(r.total_nett),
+      })),
+      total: rows.length,
+    };
+  }
+
+  // ============================================
+  // MANUAL CREATE: user-created voucher
+  // ============================================
+
+  async createManualVoucher(params: {
+    company_id: string;
+    user_id?: string;
+    data: BankVoucherManualCreateRequest;
+  }) {
+    if (!params.company_id) throw new BankVoucherMissingCompanyError();
+
+    const bankDate = new Date(params.data.bank_date);
+    const periodMonth = bankDate.getMonth() + 1;
+    const periodYear = bankDate.getFullYear();
+    validatePeriod(periodMonth, periodYear);
+
+    const bankValid = await bankVouchersRepository.validateBankAccount(params.data.bank_account_id);
+    if (!bankValid) throw new BankVoucherInvalidBankAccountError(params.data.bank_account_id);
+
+    const balance = await bankVouchersRepository.getOrCreatePeriodBalance({
+      company_id: params.company_id,
+      bank_account_id: params.data.bank_account_id,
+      period_month: periodMonth,
+      period_year: periodYear,
+    });
+    if (balance.is_locked) {
+      throw new BankVoucherPeriodLockedError(getPeriodLabel(periodMonth, periodYear));
+    }
+
+    const nonFeeLines = params.data.lines.filter(l => !l.is_fee_line);
+    const feeLines = params.data.lines.filter(l => l.is_fee_line);
+    const totalGross = nonFeeLines.reduce((s, l) => s + l.gross_amount, 0);
+    const totalTax = nonFeeLines.reduce((s, l) => s + l.tax_amount, 0);
+    const totalFee = feeLines.reduce((s, l) => s + Math.abs(l.nett_amount), 0);
+    const totalNett = params.data.lines.reduce((s, l) => s + l.nett_amount, 0);
+
+    const result = await bankVouchersRepository.createVoucher({
+      company_id: params.company_id,
+      voucher_type: params.data.voucher_type,
+      transaction_date: params.data.bank_date,
+      bank_date: params.data.bank_date,
+      period_month: periodMonth,
+      period_year: periodYear,
+      branch_id: params.data.branch_id,
+      bank_account_id: params.data.bank_account_id,
+      total_gross: totalGross,
+      total_tax: totalTax,
+      total_fee: totalFee,
+      total_nett: totalNett,
+      description: params.data.description || `Manual Voucher ${params.data.bank_date}`,
+      notes: params.data.notes,
+      is_manual: true,
+      status: 'CONFIRMED',
+      created_by: params.user_id,
+      lines: params.data.lines.map((l, idx) => ({
+        line_number: idx + 1,
+        source_type: 'MANUAL' as const,
+        bank_account_id: l.bank_account_id,
+        bank_account_name: l.bank_account_name,
+        bank_account_number: l.bank_account_number,
+        payment_method_id: l.payment_method_id,
+        payment_method_name: l.payment_method_name,
+        description: l.description,
+        is_fee_line: l.is_fee_line,
+        gross_amount: l.gross_amount,
+        tax_amount: l.tax_amount,
+        actual_fee_amount: l.actual_fee_amount,
+        nett_amount: l.nett_amount,
+        coa_account_id: l.coa_account_id,
+        fee_coa_account_id: l.fee_coa_account_id,
+        transaction_date: l.transaction_date || params.data.bank_date,
+        is_manual: true,
+      })),
+    });
+
+    logInfo("Manual voucher created", { voucher_number: result.voucher_number });
+    return result;
+  }
+
+  // ============================================
+  // VOID: void a confirmed voucher
+  // ============================================
+
+  async voidVoucher(params: {
+    company_id: string;
+    voucher_id: string;
+    reason: string;
+    user_id?: string;
+  }) {
+    if (!params.company_id) throw new BankVoucherMissingCompanyError();
+
+    const voucher = await bankVouchersRepository.getVoucherById(params.voucher_id);
+    if (!voucher) throw new BankVoucherNotFoundError(params.voucher_id);
+    if (voucher.status === 'VOID') throw new BankVoucherAlreadyConfirmedError(voucher.voucher_number);
+    if (voucher.status === 'JOURNALED') {
+      throw new BankVoucherPeriodLockedError('Cannot void journaled voucher');
+    }
+
+    await bankVouchersRepository.voidVoucher({
+      voucher_id: params.voucher_id,
+      reason: params.reason,
+      user_id: params.user_id,
+    });
+
+    logInfo("Voucher voided", { voucher_number: voucher.voucher_number, reason: params.reason });
+    return { voucher_number: voucher.voucher_number, status: 'VOID' };
+  }
+
+  // ============================================
+  // OPENING BALANCE: set/get
+  // ============================================
+
+  async setOpeningBalance(params: {
+    company_id: string;
+    bank_account_id: number;
+    period_month: number;
+    period_year: number;
+    opening_balance: number;
+    user_id?: string;
+  }) {
+    if (!params.company_id) throw new BankVoucherMissingCompanyError();
+    validatePeriod(params.period_month, params.period_year);
+
+    const bankValid = await bankVouchersRepository.validateBankAccount(params.bank_account_id);
+    if (!bankValid) throw new BankVoucherInvalidBankAccountError(params.bank_account_id);
+
+    return bankVouchersRepository.upsertOpeningBalance(params);
+  }
+
+  async getOpeningBalance(params: {
+    company_id: string;
+    bank_account_id: number;
+    period_month: number;
+    period_year: number;
+  }) {
+    if (!params.company_id) throw new BankVoucherMissingCompanyError();
+    validatePeriod(params.period_month, params.period_year);
+
+    const balance = await bankVouchersRepository.getOrCreatePeriodBalance(params);
+    const prevClosing = await bankVouchersRepository.getPreviousMonthClosingBalance(params);
+
+    return {
+      ...balance,
+      previous_month_closing: prevClosing,
+      period_label: getPeriodLabel(params.period_month, params.period_year),
+    };
   }
 
   // ============================================

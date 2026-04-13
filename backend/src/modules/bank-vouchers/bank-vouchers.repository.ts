@@ -433,6 +433,7 @@ export class BankVouchersRepository {
   }
   // ============================================
   // PERSISTENCE: Create Voucher (Header + Lines)
+  // Supports both auto-confirm and manual draft
   // ============================================
 
   async createVoucher(params: {
@@ -450,6 +451,9 @@ export class BankVouchersRepository {
     total_fee: number;
     total_nett: number;
     description: string;
+    notes?: string;
+    is_manual?: boolean;
+    status?: string;
     created_by?: string;
     lines: Array<{
       line_number: number;
@@ -469,29 +473,32 @@ export class BankVouchersRepository {
       coa_account_id?: string;
       fee_coa_account_id?: string;
       transaction_date: string;
+      is_manual?: boolean;
     }>;
-  }): Promise<string> {
+  }): Promise<{ voucher_number: string; voucher_id: string }> {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
 
-      // 1. Generate voucher number menggunakan function DB
       const numResult = await client.query(
         "SELECT generate_bank_voucher_number($1, $2, $3) as num",
         [params.company_id, params.voucher_type, params.bank_date],
       );
       const voucherNumber = numResult.rows[0].num;
+      const status = params.status || 'CONFIRMED';
+      const isConfirmed = status === 'CONFIRMED';
 
-      // 2. Insert Header
       const headerSql = `
         INSERT INTO bank_vouchers (
           company_id, voucher_type, voucher_number, transaction_date, bank_date,
           period_month, period_year, branch_id, branch_name, bank_account_id,
-          total_gross, total_tax, total_fee, total_nett, description, 
-          status, confirmed_at, confirmed_by, created_by, updated_by
+          total_gross, total_tax, total_fee, total_nett, description, notes,
+          is_manual, status,
+          confirmed_at, confirmed_by, created_by, updated_by
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 
-          'CONFIRMED', NOW(), $16, $16, $16
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+          $17, $18,
+          ${isConfirmed ? 'NOW()' : 'NULL'}, ${isConfirmed ? '$19' : 'NULL'}, $19, $19
         ) RETURNING id
       `;
       const headerResult = await client.query(headerSql, [
@@ -510,11 +517,13 @@ export class BankVouchersRepository {
         params.total_fee,
         params.total_nett,
         params.description,
+        params.notes || null,
+        params.is_manual || false,
+        status,
         params.created_by,
       ]);
       const voucherId = headerResult.rows[0].id;
 
-      // 3. Insert Lines
       for (const line of params.lines) {
         const lineSql = `
           INSERT INTO bank_voucher_lines (
@@ -522,41 +531,167 @@ export class BankVouchersRepository {
             payment_method_id, payment_method_name, bank_account_id,
             bank_account_name, bank_account_number, description,
             is_fee_line, gross_amount, tax_amount, actual_fee_amount,
-            nett_amount, coa_account_id, fee_coa_account_id, transaction_date
+            nett_amount, coa_account_id, fee_coa_account_id, transaction_date, is_manual
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
           )
         `;
         await client.query(lineSql, [
           voucherId,
           line.line_number,
-          line.aggregate_id,
+          line.aggregate_id || null,
           line.source_type,
-          line.payment_method_id,
-          line.payment_method_name,
+          line.payment_method_id || null,
+          line.payment_method_name || null,
           line.bank_account_id,
           line.bank_account_name,
-          line.bank_account_number,
+          line.bank_account_number || null,
           line.description,
           line.is_fee_line,
           line.gross_amount,
           line.tax_amount,
           line.actual_fee_amount,
           line.nett_amount,
-          line.coa_account_id,
-          line.fee_coa_account_id,
+          line.coa_account_id || null,
+          line.fee_coa_account_id || null,
           line.transaction_date,
+          line.is_manual || false,
         ]);
       }
 
       await client.query("COMMIT");
-      return voucherNumber;
+      return { voucher_number: voucherNumber, voucher_id: voucherId };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
     } finally {
       client.release();
     }
+  }
+
+  // ============================================
+  // VOID: soft-void a voucher
+  // ============================================
+
+  async voidVoucher(params: {
+    voucher_id: string;
+    reason: string;
+    user_id?: string;
+  }): Promise<void> {
+    const sql = `
+      UPDATE bank_vouchers SET
+        status = 'VOID',
+        voided_at = NOW(),
+        voided_by = $2,
+        void_reason = $3,
+        updated_at = NOW(),
+        updated_by = $2
+      WHERE id = $1
+        AND deleted_at IS NULL
+        AND status != 'VOID'
+    `;
+    await pool.query(sql, [params.voucher_id, params.user_id, params.reason]);
+  }
+
+  // ============================================
+  // OPENING BALANCE: upsert
+  // ============================================
+
+  async upsertOpeningBalance(params: {
+    company_id: string;
+    bank_account_id: number;
+    period_month: number;
+    period_year: number;
+    opening_balance: number;
+    user_id?: string;
+  }): Promise<{ id: string; opening_balance: number; closing_balance: number }> {
+    const sql = `
+      INSERT INTO bank_account_balances (
+        company_id, bank_account_id, period_month, period_year,
+        opening_balance, is_manual_opening, created_by, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, true, $6, $6)
+      ON CONFLICT (company_id, bank_account_id, period_month, period_year)
+      DO UPDATE SET
+        opening_balance = $5,
+        is_manual_opening = true,
+        updated_by = $6,
+        updated_at = NOW()
+      WHERE NOT bank_account_balances.is_locked
+      RETURNING id, opening_balance::numeric, closing_balance::numeric
+    `;
+    const result = await pool.query(sql, [
+      params.company_id,
+      params.bank_account_id,
+      params.period_month,
+      params.period_year,
+      params.opening_balance,
+      params.user_id,
+    ]);
+    if (result.rows.length === 0) {
+      throw new Error('Period is locked, cannot update opening balance');
+    }
+    const row = result.rows[0];
+    return {
+      id: row.id,
+      opening_balance: Number(row.opening_balance),
+      closing_balance: Number(row.closing_balance),
+    };
+  }
+
+  // ============================================
+  // LIST: confirmed vouchers by period
+  // ============================================
+
+  async listVouchersByPeriod(params: {
+    company_id: string;
+    period_month: number;
+    period_year: number;
+    branch_id?: string;
+    bank_account_id?: number;
+    status?: string;
+  }): Promise<any[]> {
+    const values: unknown[] = [params.company_id, params.period_month, params.period_year];
+    let paramIndex = 4;
+    const filters: string[] = [];
+
+    if (params.branch_id) {
+      filters.push(`bv.branch_id = $${paramIndex}`);
+      values.push(params.branch_id);
+      paramIndex++;
+    }
+    if (params.bank_account_id) {
+      filters.push(`bv.bank_account_id = $${paramIndex}`);
+      values.push(params.bank_account_id);
+      paramIndex++;
+    }
+    if (params.status) {
+      filters.push(`bv.status = $${paramIndex}`);
+      values.push(params.status);
+      paramIndex++;
+    }
+
+    const extraWhere = filters.length > 0 ? 'AND ' + filters.join(' AND ') : '';
+
+    const sql = `
+      SELECT
+        bv.id, bv.voucher_number, bv.voucher_type, bv.status,
+        bv.transaction_date, bv.bank_date, bv.bank_account_id,
+        ba.account_name AS bank_account_name,
+        bv.branch_name, bv.is_manual,
+        bv.total_gross::numeric, bv.total_tax::numeric,
+        bv.total_fee::numeric, bv.total_nett::numeric,
+        bv.description, bv.confirmed_at, bv.created_at
+      FROM bank_vouchers bv
+      JOIN bank_accounts ba ON ba.id = bv.bank_account_id
+      WHERE bv.company_id = $1
+        AND bv.period_month = $2
+        AND bv.period_year = $3
+        AND bv.deleted_at IS NULL
+        ${extraWhere}
+      ORDER BY bv.bank_date ASC, bv.voucher_number ASC
+    `;
+    const result = await pool.query(sql, values);
+    return result.rows;
   }
 
   // ============================================

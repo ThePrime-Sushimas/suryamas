@@ -96,7 +96,7 @@ export const bankVoucherAdjustSchema = z.object({
 export type BankVoucherAdjustRequest = z.infer<typeof bankVoucherAdjustSchema>['body']
 
 // ============================================================
-// PHASE 2: POST /opening-balance (placeholder)
+// POST /opening-balance
 // ============================================================
 
 export const bankVoucherOpeningBalanceSchema = z.object({
@@ -104,11 +104,88 @@ export const bankVoucherOpeningBalanceSchema = z.object({
     bank_account_id: bankAccountIdSchema,
     period_month: periodMonthSchema,
     period_year: periodYearSchema,
-    opening_balance: z.number().finite().min(0),
+    opening_balance: z.number().finite(),
   }),
 })
 
 export type BankVoucherOpeningBalanceRequest = z.infer<typeof bankVoucherOpeningBalanceSchema>['body']
+
+// ============================================================
+// GET /opening-balance
+// ============================================================
+
+export const bankVoucherGetOpeningBalanceSchema = z.object({
+  query: z.object({
+    bank_account_id: bankAccountIdSchema,
+    period_month: periodMonthSchema,
+    period_year: periodYearSchema,
+  }),
+})
+
+export type BankVoucherGetOpeningBalanceQuery = z.infer<typeof bankVoucherGetOpeningBalanceSchema>['query']
+
+// ============================================================
+// POST /manual — create manual voucher
+// ============================================================
+
+const manualLineSchema = z.object({
+  description: z.string().min(1, 'Description required'),
+  bank_account_id: bankAccountIdSchema,
+  bank_account_name: z.string().min(1),
+  bank_account_number: z.string().optional(),
+  payment_method_id: z.number().int().positive().optional(),
+  payment_method_name: z.string().optional(),
+  is_fee_line: z.boolean().default(false),
+  gross_amount: z.number().finite().default(0),
+  tax_amount: z.number().finite().default(0),
+  actual_fee_amount: z.number().finite().default(0),
+  nett_amount: z.number().finite(),
+  coa_account_id: uuidSchema.optional(),
+  fee_coa_account_id: uuidSchema.optional(),
+  transaction_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+})
+
+export const bankVoucherManualCreateSchema = z.object({
+  body: z.object({
+    voucher_type: voucherTypeSchema,
+    bank_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'bank_date must be YYYY-MM-DD'),
+    bank_account_id: bankAccountIdSchema,
+    branch_id: uuidSchema.optional(),
+    description: z.string().optional(),
+    notes: z.string().optional(),
+    lines: z.array(manualLineSchema).min(1, 'At least one line required'),
+  }),
+})
+
+export type BankVoucherManualCreateRequest = z.infer<typeof bankVoucherManualCreateSchema>['body']
+
+// ============================================================
+// DELETE /:id/void — void voucher
+// ============================================================
+
+export const bankVoucherVoidSchema = z.object({
+  body: z.object({
+    reason: z.string().min(1, 'Void reason is required'),
+  }),
+})
+
+export type BankVoucherVoidRequest = z.infer<typeof bankVoucherVoidSchema>['body']
+
+// ============================================================
+// GET /list — list confirmed vouchers
+// ============================================================
+
+export const bankVoucherListSchema = z.object({
+  query: z.object({
+    period_month: periodMonthSchema,
+    period_year: periodYearSchema,
+    branch_id: uuidSchema.optional(),
+    bank_account_id: bankAccountIdSchema.optional(),
+    status: z.enum(['DRAFT', 'CONFIRMED', 'JOURNALED', 'VOID']).optional(),
+  }),
+})
+
+export type BankVoucherListQuery = z.infer<typeof bankVoucherListSchema>['query']
 
 // ============================================================
 // HELPERS
