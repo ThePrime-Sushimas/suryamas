@@ -70,6 +70,7 @@ export const bankVoucherConfirmSchema = z.object({
   body: z.object({
     transaction_dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1, 'At least one date required'),
     branch_id: uuidSchema.optional(),
+    bank_account_id: bankAccountIdSchema.optional(),
   }),
 })
 

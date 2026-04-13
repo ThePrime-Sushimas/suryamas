@@ -429,7 +429,7 @@ export const PaymentMethodForm = ({
             </label>
             <input
               type="number"
-              step="0.001"
+              step="0.0001"
               min="0"
               max="100"
               {...register('fee_percentage', {
@@ -438,7 +438,7 @@ export const PaymentMethodForm = ({
                 max: { value: 100, message: 'Fee percentage maksimal 100%' }
               })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              placeholder="0.00"
+              placeholder="0.00000"
             />
             {errors.fee_percentage && showErrors && (
               <p className="mt-1 text-sm text-red-500">{errors.fee_percentage.message}</p>

@@ -108,7 +108,7 @@ export class BankVouchersController {
         return;
       }
 
-      const { transaction_dates, branch_id } = req.validated.body;
+      const { transaction_dates, branch_id, bank_account_id } = req.validated.body;
 
       logInfo("Bank voucher confirmation requested", {
         company_id,
@@ -120,6 +120,7 @@ export class BankVouchersController {
         company_id,
         transaction_dates,
         branch_id,
+        bank_account_id,
         user_id: (req as any).user?.id,
       });
 

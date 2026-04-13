@@ -203,6 +203,7 @@ export class BankVouchersService {
     company_id: string;
     transaction_dates: string[];
     branch_id?: string;
+    bank_account_id?: number;
     user_id?: string;
   }): Promise<{ total_confirmed: number; voucher_numbers: string[] }> {
     try {
@@ -216,15 +217,25 @@ export class BankVouchersService {
       const dateStart = sortedDates[0];
       const dateEnd = sortedDates[sortedDates.length - 1];
 
+      logInfo("Re-fetching data for confirmation", {
+        company_id: params.company_id,
+        date_start: dateStart,
+        date_end: dateEnd,
+        branch_id: params.branch_id,
+        bank_account_id: params.bank_account_id
+      });
+
       const rows = await bankVouchersRepository.getReconciledAggregates({
         company_id: params.company_id,
         branch_id: params.branch_id,
         date_start: dateStart,
         date_end: dateEnd,
+        bank_account_id: params.bank_account_id,
       });
 
       if (rows.length === 0) {
-        throw new Error("No data found for the selected dates");
+        const dateLabel = dateStart === dateEnd ? dateStart : `${dateStart} - ${dateEnd}`;
+        throw new BankVoucherNoPeriodDataError(dateLabel);
       }
 
       // Get confirmed vouchers first to avoid double saving/unique constraint error
@@ -439,15 +450,15 @@ export class BankVouchersService {
         is_fee_line: false,
         gross_amount: gross,
         tax_amount: tax,
-        nett_amount: gross + tax, // Nilai penjualan sebelum dipotong biaya admin
+        nett_amount: actualNett, // FIX 1: pakai actual_nett_amount, bukan gross+tax
         actual_fee_amount: fee,
         coa_account_id: row.coa_account_id,
         fee_coa_account_id: row.fee_coa_account_id,
         transaction_count: txCount,
       });
 
-      // Baris 2: Biaya Admin (hanya jika ada fee > 0)
-      if (fee > 0) {
+      // Baris 2: Biaya Admin / Bonus (FIX 2: tampilkan juga fee negatif)
+      if (fee !== 0) {
         lineNumber++;
         lines.push({
           line_number: lineNumber,
@@ -457,11 +468,11 @@ export class BankVouchersService {
           bank_account_number: row.bank_account_number,
           payment_method_id: row.payment_method_id,
           payment_method_name: row.payment_method_name,
-          description: feeDescription,
+          description: fee < 0 ? `LEBIH ${pmName}` : feeDescription,
           is_fee_line: true,
           gross_amount: 0,
           tax_amount: 0,
-          nett_amount: -fee,
+          nett_amount: -fee, // fee negatif → nett positif (tambahan masuk)
           actual_fee_amount: fee,
           coa_account_id: row.coa_account_id,
           fee_coa_account_id: row.fee_coa_account_id,

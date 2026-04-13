@@ -8,7 +8,6 @@ import type {
   ActiveTab,
 } from '../types/bank-vouchers.types'
 
-// Default filter: bulan & tahun sekarang
 const now = new Date()
 const defaultFilter: BankVoucherFilter = {
   period_month: now.getMonth() + 1,
@@ -19,7 +18,7 @@ interface LoadingState {
   preview: boolean
   summary: boolean
   bankAccounts: boolean
-  confirm: boolean
+  // Phase 2: confirm: boolean
 }
 
 interface ErrorState {
@@ -36,7 +35,7 @@ interface BankVouchersState {
   // UI
   filter: BankVoucherFilter
   activeTab: ActiveTab
-  expandedDates: Set<string>   // tanggal yang di-expand di table
+  expandedDates: Set<string>
 
   // Status
   loading: LoadingState
@@ -53,7 +52,8 @@ interface BankVouchersState {
   fetchSummary: () => Promise<void>
   fetchBankAccounts: () => Promise<void>
   fetchAll: () => Promise<void>
-  confirmVouchers: (dates: string[]) => Promise<void>
+
+  // Phase 2: confirmVouchers: (dates: string[]) => Promise<void>
 
   clearError: () => void
   reset: () => void
@@ -66,7 +66,7 @@ const initialState = {
   filter: defaultFilter,
   activeTab: 'voucher' as ActiveTab,
   expandedDates: new Set<string>(),
-  loading: { preview: false, summary: false, bankAccounts: false, confirm: false },
+  loading: { preview: false, summary: false, bankAccounts: false },
   error: null,
 }
 
@@ -74,7 +74,11 @@ export const useBankVouchersStore = create<BankVouchersState>((set, get) => ({
   ...initialState,
 
   setFilter: (newFilter) => {
-    set(state => ({ filter: { ...state.filter, ...newFilter }, preview: null, summaryData: null }))
+    set(state => ({
+      filter: { ...state.filter, ...newFilter },
+      preview: null,
+      summaryData: null,
+    }))
   },
 
   setActiveTab: (tab) => set({ activeTab: tab }),
@@ -82,11 +86,8 @@ export const useBankVouchersStore = create<BankVouchersState>((set, get) => ({
   toggleDate: (date) => {
     set(state => {
       const next = new Set(state.expandedDates)
-      if (next.has(date)) {
-        next.delete(date)
-      } else {
-        next.add(date)
-      }
+      if (next.has(date)) next.delete(date)
+      else next.add(date)
       return { expandedDates: next }
     })
   },
@@ -104,11 +105,9 @@ export const useBankVouchersStore = create<BankVouchersState>((set, get) => ({
     set(state => ({ loading: { ...state.loading, preview: true }, error: null }))
     try {
       const data = await bankVouchersApi.preview(filter)
-      // Auto-expand semua tanggal saat pertama load
-      const allDates = new Set(data.vouchers.map(v => v.transaction_date))
       set(state => ({
         preview: data,
-        expandedDates: allDates,
+        expandedDates: new Set(data.vouchers.map(v => v.transaction_date)),
         loading: { ...state.loading, preview: false },
       }))
     } catch (err: unknown) {
@@ -150,26 +149,25 @@ export const useBankVouchersStore = create<BankVouchersState>((set, get) => ({
   },
 
   fetchAll: async () => {
-    const { fetchPreview, fetchSummary } = get()
-    await Promise.all([fetchPreview(), fetchSummary()])
+    await Promise.all([get().fetchPreview(), get().fetchSummary()])
   },
 
-  confirmVouchers: async (dates: string[]) => {
-    set(state => ({ loading: { ...state.loading, confirm: true }, error: null }))
-    try {
-      await bankVouchersApi.confirm(dates)
-      // Refresh data setelah konfirmasi
-      await get().fetchAll()
-      set(state => ({ loading: { ...state.loading, confirm: false } }))
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Gagal konfirmasi voucher'
-      set(state => ({
-        loading: { ...state.loading, confirm: false },
-        error: { scope: 'preview', message },
-      }))
-      throw err // Re-throw agar UI bisa handle (misal: alert)
-    }
-  },
+  // ============================================
+  // PHASE 2 (uncomment setelah backend confirm ready)
+  // ============================================
+  // confirmVouchers: async (dates) => {
+  //   const { filter } = get()
+  //   set(state => ({ loading: { ...state.loading, confirm: true }, error: null }))
+  //   try {
+  //     await bankVouchersApi.confirm({ dates, branch_id: filter.branch_id, bank_account_id: filter.bank_account_id })
+  //     await get().fetchAll()
+  //     set(state => ({ loading: { ...state.loading, confirm: false } }))
+  //   } catch (err: unknown) {
+  //     const message = err instanceof Error ? err.message : 'Gagal konfirmasi voucher'
+  //     set(state => ({ loading: { ...state.loading, confirm: false }, error: { scope: 'preview', message } }))
+  //     throw err
+  //   }
+  // },
 
   clearError: () => set({ error: null }),
   reset: () => set(initialState),
