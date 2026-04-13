@@ -1,8 +1,15 @@
 import { bankVouchersRepository } from './bank-vouchers.repository'
-import { generateVoucherNumber, getPeriodLabel, getPeriodDateRange } from './bank-vouchers.config'
+import {
+  generateVoucherNumber,
+  getPeriodLabel,
+  getPeriodDateRange,
+  validatePeriod,
+} from './bank-vouchers.config'
 import {
   BankVoucherNoPeriodDataError,
   BankVoucherMissingCompanyError,
+  BankVoucherInvalidPeriodError,
+  BankVoucherInvalidBankAccountError,
 } from './bank-vouchers.errors'
 import type {
   BankVoucherPreviewParams,
@@ -14,44 +21,75 @@ import type {
   AggregatedVoucherRow,
   BankAccountOption,
 } from './bank-vouchers.types'
+import { logInfo, logError } from '../../config/logger'
 
+/**
+ * Bank Vouchers Service
+ * Main business logic untuk bank vouchers system
+ * Phase 1: Preview only (read-only, on-the-fly generation)
+ * Phase 2: Confirm & persist ke database
+ */
 export class BankVouchersService {
 
   // ============================================
-  // PREVIEW: main query on-the-fly
-  // Tidak simpan ke DB — murni dari aggregated_transactions
+  // MAIN: PREVIEW on-the-fly
+  // Tidak simpan ke DB — murni query + transform
   // ============================================
 
   async getPreview(params: BankVoucherPreviewParams): Promise<BankVoucherPreviewResult> {
-    if (!params.company_id) throw new BankVoucherMissingCompanyError()
+    try {
+      if (!params.company_id) {
+        throw new BankVoucherMissingCompanyError()
+      }
 
-    const { start, end } = getPeriodDateRange(params.period_month, params.period_year)
-    const periodLabel = getPeriodLabel(params.period_month, params.period_year)
+      // Validate period
+      validatePeriod(params.period_month, params.period_year)
 
-    const rows = await bankVouchersRepository.getReconciledAggregates({
-      company_id: params.company_id,
-      branch_id: params.branch_id,
-      date_start: start,
-      date_end: end,
-      bank_account_id: params.bank_account_id,
-    })
+      const { start, end } = getPeriodDateRange(params.period_month, params.period_year)
+      const periodLabel = getPeriodLabel(params.period_month, params.period_year)
 
-    if (rows.length === 0) {
-      throw new BankVoucherNoPeriodDataError(periodLabel)
-    }
+      logInfo('Bank voucher preview started', {
+        company_id: params.company_id,
+        period: `${params.period_month}/${params.period_year}`,
+        branch_id: params.branch_id,
+      })
 
-    const vouchers = this.buildVoucherDays(rows, params.period_month, params.period_year)
+      const rows = await bankVouchersRepository.getReconciledAggregates({
+        company_id: params.company_id,
+        branch_id: params.branch_id,
+        date_start: start,
+        date_end: end,
+        bank_account_id: params.bank_account_id,
+      })
 
-    const summary = this.buildSummary(vouchers)
+      if (rows.length === 0) {
+        throw new BankVoucherNoPeriodDataError(periodLabel)
+      }
 
-    return {
-      period_month: params.period_month,
-      period_year: params.period_year,
-      period_label: periodLabel,
-      company_id: params.company_id,
-      branch_id: params.branch_id,
-      vouchers,
-      summary,
+      // Build voucher days (on-the-fly numbering)
+      const vouchers = this.buildVoucherDays(rows, params.period_month, params.period_year)
+
+      // Build summary
+      const summary = this.buildSummary(vouchers)
+
+      logInfo('Bank voucher preview completed', {
+        company_id: params.company_id,
+        total_vouchers: vouchers.length,
+        total_nett: summary.total_nett,
+      })
+
+      return {
+        period_month: params.period_month,
+        period_year: params.period_year,
+        period_label: periodLabel,
+        company_id: params.company_id,
+        branch_id: params.branch_id,
+        vouchers,
+        summary,
+      }
+    } catch (error) {
+      logError('Bank voucher preview failed', error)
+      throw error
     }
   }
 
@@ -60,64 +98,73 @@ export class BankVouchersService {
   // ============================================
 
   async getSummary(params: BankVoucherSummaryParams): Promise<BankVoucherSummaryResult> {
-    if (!params.company_id) throw new BankVoucherMissingCompanyError()
-
-    const { start, end } = getPeriodDateRange(params.period_month, params.period_year)
-    const periodLabel = getPeriodLabel(params.period_month, params.period_year)
-
-    const [byBankRows, byDayRows] = await Promise.all([
-      bankVouchersRepository.getPeriodSummaryByBank({
-        company_id: params.company_id,
-        branch_id: params.branch_id,
-        date_start: start,
-        date_end: end,
-      }),
-      bankVouchersRepository.getDailySummary({
-        company_id: params.company_id,
-        branch_id: params.branch_id,
-        date_start: start,
-        date_end: end,
-      }),
-    ])
-
-    // By bank
-    const by_bank = byBankRows.map((row) => {
-      const totalMasuk = parseFloat(row.total_nett) || 0
-      const totalKeluar = 0 // Phase 2: BK
-      return {
-        bank_account_id: row.bank_account_id,
-        bank_account_name: row.bank_account_name,
-        total_masuk: totalMasuk,
-        total_keluar: totalKeluar,
-        saldo: totalMasuk - totalKeluar,
+    try {
+      if (!params.company_id) {
+        throw new BankVoucherMissingCompanyError()
       }
-    })
 
-    // By date with running balance
-    let runningBalance = 0
-    const by_date = byDayRows.map((row) => {
-      const totalMasuk = parseFloat(row.total_nett) || 0
-      const totalKeluar = 0 // Phase 2: BK
-      runningBalance += totalMasuk - totalKeluar
+      validatePeriod(params.period_month, params.period_year)
+
+      const { start, end } = getPeriodDateRange(params.period_month, params.period_year)
+      const periodLabel = getPeriodLabel(params.period_month, params.period_year)
+
+      const [byBankRows, byDayRows] = await Promise.all([
+        bankVouchersRepository.getPeriodSummaryByBank({
+          company_id: params.company_id,
+          branch_id: params.branch_id,
+          date_start: start,
+          date_end: end,
+        }),
+        bankVouchersRepository.getDailySummary({
+          company_id: params.company_id,
+          branch_id: params.branch_id,
+          date_start: start,
+          date_end: end,
+        }),
+      ])
+
+      // By bank summary
+      const by_bank = byBankRows.map((row) => {
+        const totalMasuk = parseFloat(row.total_nett) || 0
+        const totalKeluar = 0 // Phase 2: BK akan diimplementasi
+        return {
+          bank_account_id: row.bank_account_id,
+          bank_account_name: row.bank_account_name,
+          total_masuk: totalMasuk,
+          total_keluar: totalKeluar,
+          saldo: totalMasuk - totalKeluar,
+        }
+      })
+
+      // By date with running balance
+      let runningBalance = 0
+      const by_date = byDayRows.map((row) => {
+        const totalMasuk = parseFloat(row.total_nett) || 0
+        const totalKeluar = 0 // Phase 2: BK
+        runningBalance += totalMasuk - totalKeluar
+        return {
+          transaction_date: this.formatDate(row.transaction_date),
+          total_masuk: totalMasuk,
+          total_keluar: totalKeluar,
+          saldo_harian: totalMasuk - totalKeluar,
+          running_balance: runningBalance,
+        }
+      })
+
+      const totalBankMasuk = by_bank.reduce((acc, b) => acc + b.total_masuk, 0)
+      const totalBankKeluar = 0 // Phase 2
+
       return {
-        transaction_date: this.formatDate(row.transaction_date),
-        total_masuk: totalMasuk,
-        total_keluar: totalKeluar,
-        saldo_harian: totalMasuk - totalKeluar,
-        running_balance: runningBalance,
+        period_label: periodLabel,
+        total_bank_masuk: totalBankMasuk,
+        total_bank_keluar: totalBankKeluar,
+        saldo_berjalan: totalBankMasuk - totalBankKeluar,
+        by_bank,
+        by_date,
       }
-    })
-
-    const totalBankMasuk = by_bank.reduce((acc, b) => acc + b.total_masuk, 0)
-    const totalBankKeluar = 0 // Phase 2
-
-    return {
-      period_label: periodLabel,
-      total_bank_masuk: totalBankMasuk,
-      total_bank_keluar: totalBankKeluar,
-      saldo_berjalan: totalBankMasuk - totalBankKeluar,
-      by_bank,
-      by_date,
+    } catch (error) {
+      logError('Bank voucher summary failed', error)
+      throw error
     }
   }
 
@@ -126,6 +173,10 @@ export class BankVouchersService {
   // ============================================
 
   async getBankAccounts(company_id: string): Promise<BankAccountOption[]> {
+    if (!company_id) {
+      throw new BankVoucherMissingCompanyError()
+    }
+
     return bankVouchersRepository.getBankAccountsByCompany(company_id)
   }
 
@@ -150,8 +201,7 @@ export class BankVouchersService {
     const sortedDates = Array.from(byDate.keys()).sort()
 
     // Voucher sequence counter — starts at 1 per period
-    // NOTE: In phase 2 (confirm), sequence comes from DB.
-    // Untuk preview, kita assign sequence berdasarkan urutan tanggal.
+    // NOTE: In phase 2 (confirm), sequence comes from DB
     let bmSequence = 0
 
     const vouchers: VoucherDay[] = []
@@ -167,7 +217,7 @@ export class BankVouchersService {
 
       const dayTotal = lines.reduce((acc, l) => acc + l.nett_amount, 0)
 
-      // branch dari baris pertama (sudah difilter per branch jika branch_id diberikan)
+      // Branch dari baris pertama
       const firstRow = dayRows[0]
 
       vouchers.push({
@@ -186,8 +236,7 @@ export class BankVouchersService {
 
   // ============================================
   // PRIVATE: build lines per hari
-  // Per baris = 1 payment method (nama PM) + 1 baris fee (jika fee > 0)
-  // Description pakai nama payment method langsung, bukan label generic
+  // Per baris = 1 payment method + 1 fee line (jika ada fee)
   // ============================================
 
   private buildVoucherLines(rows: AggregatedVoucherRow[]): VoucherLine[] {
@@ -197,16 +246,15 @@ export class BankVouchersService {
     for (const row of rows) {
       const gross = parseFloat(row.gross_amount) || 0
       const tax = parseFloat(row.tax_amount) || 0
-      const actualNett = parseFloat(row.actual_nett_amount) || 0   // ← pakai actual_nett_amount
+      const actualNett = parseFloat(row.actual_nett_amount) || 0
       const fee = parseFloat(row.total_fee_amount) || 0
       const txCount = parseInt(row.transaction_count) || 0
 
-      // Description = nama payment method langsung
-      // e.g. "CASH", "QRIS", "GOPAY", "OVO", "TRANSFER BCA", dll
+      // Description = nama payment method
       const pmName = row.payment_method_name.toUpperCase()
       const feeDescription = `BIAYA ADMIN ${pmName}`
 
-      // Baris 1: Penjualan (per payment method)
+      // Baris 1: Penjualan per payment method
       lineNumber++
       lines.push({
         line_number: lineNumber,
@@ -219,12 +267,12 @@ export class BankVouchersService {
         is_fee_line: false,
         gross_amount: gross,
         tax_amount: tax,
-        nett_amount: actualNett,    // ← actual_nett_amount: nilai sesungguhnya yang masuk bank
+        nett_amount: actualNett,
         actual_fee_amount: fee,
         transaction_count: txCount,
       })
 
-      // Baris 2: Biaya Admin (hanya jika ada fee)
+      // Baris 2: Biaya Admin (hanya jika ada fee > 0)
       if (fee > 0) {
         lineNumber++
         lines.push({
@@ -234,11 +282,11 @@ export class BankVouchersService {
           bank_account_number: row.bank_account_number,
           payment_method_id: row.payment_method_id,
           payment_method_name: row.payment_method_name,
-          description: feeDescription,   // e.g. "BIAYA ADMIN QRIS", "BIAYA ADMIN GOPAY"
+          description: feeDescription,
           is_fee_line: true,
           gross_amount: 0,
           tax_amount: 0,
-          nett_amount: -fee,             // negatif = pengurang
+          nett_amount: -fee,
           actual_fee_amount: fee,
           transaction_count: txCount,
         })
@@ -249,7 +297,7 @@ export class BankVouchersService {
   }
 
   // ============================================
-  // PRIVATE: build summary totals dari vouchers
+  // PRIVATE: build summary totals
   // ============================================
 
   private buildSummary(vouchers: VoucherDay[]) {
@@ -276,14 +324,14 @@ export class BankVouchersService {
       total_gross,
       total_tax,
       total_fee,
-      total_nett: total_nett - total_fee,   // nett setelah fee
+      total_nett: total_nett - total_fee,
       total_vouchers: vouchers.length,
       total_lines,
     }
   }
 
   // ============================================
-  // PRIVATE: format Date ke 'YYYY-MM-DD'
+  // PRIVATE: format Date utility
   // ============================================
 
   private formatDate(date: Date | string): string {

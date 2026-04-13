@@ -1,12 +1,16 @@
-import { pool } from '../../config/db'           // sesuaikan path ke db pool kamu
+import { pool } from '../../config/db'
 import type { AggregatedVoucherRow, BankAccountOption } from './bank-vouchers.types'
+import { BankVoucherInvalidBankAccountError } from './bank-vouchers.errors'
 
+/**
+ * Bank Vouchers Repository
+ * Handle semua query database untuk bank vouchers system
+ */
 export class BankVouchersRepository {
 
   // ============================================
   // MAIN: fetch reconciled aggregates per period
   // Grouped by: transaction_date + bank_account + payment_method
-  // Includes fee (actual_fee_amount + fee_discrepancy = real fee yang masuk bank)
   // ============================================
 
   async getReconciledAggregates(params: {
@@ -26,7 +30,7 @@ export class BankVouchersRepository {
       'pm.bank_account_id IS NOT NULL',     // hanya payment method yang punya mapping bank
       'pm.deleted_at IS NULL',
       'ba.deleted_at IS NULL',
-      // filter company via branch (karena aggregated_transactions tidak punya company_id langsung)
+      // filter company via branch
       'br.company_id = $1',
       'at.transaction_date BETWEEN $2 AND $3',
     ]
@@ -59,8 +63,8 @@ export class BankVouchersRepository {
         -- Amounts (SUM per group)
         SUM(at.gross_amount)                        AS gross_amount,
         SUM(at.tax_amount)                          AS tax_amount,
-        SUM(at.actual_nett_amount)                   AS nett_amount,
-        -- Fee: actual yang terjadi (termasuk discrepancy sesuai requirement)
+        SUM(at.actual_nett_amount)                  AS actual_nett_amount,
+        -- Fee: actual yang terjadi (termasuk discrepancy)
         SUM(at.actual_fee_amount)                   AS actual_fee_amount,
         SUM(at.fee_discrepancy)                     AS fee_discrepancy,
         -- total_fee = actual_fee + discrepancy (fee sesungguhnya yang dipotong bank)
@@ -123,7 +127,7 @@ export class BankVouchersRepository {
       SELECT
         pm.bank_account_id,
         ba.account_name                              AS bank_account_name,
-        SUM(at.actual_nett_amount)                          AS total_nett,
+        SUM(at.actual_nett_amount)                   AS total_nett,
         SUM(at.actual_fee_amount + at.fee_discrepancy) AS total_fee
       FROM aggregated_transactions at
       JOIN payment_methods pm ON pm.id = at.payment_method_id
@@ -173,7 +177,7 @@ export class BankVouchersRepository {
     const sql = `
       SELECT
         at.transaction_date,
-        SUM(at.actual_nett_amount)                          AS total_nett,
+        SUM(at.actual_nett_amount)                   AS total_nett,
         SUM(at.actual_fee_amount + at.fee_discrepancy) AS total_fee
       FROM aggregated_transactions at
       JOIN payment_methods pm ON pm.id = at.payment_method_id
@@ -207,14 +211,14 @@ export class BankVouchersRepository {
         ba.id,
         ba.account_name,
         ba.account_number,
-        COALESCE(ba.bank_name, ba.account_name) AS bank_name
+        COALESCE(ba.bank_id::text, ba.account_name) AS bank_name
       FROM bank_accounts ba
       JOIN payment_methods pm
         ON pm.bank_account_id = ba.id
        AND pm.company_id = $1
        AND pm.deleted_at IS NULL
-       AND pm.is_active = TRUE
       WHERE ba.deleted_at IS NULL
+        AND ba.is_active = TRUE
       ORDER BY ba.account_name ASC
     `
 
@@ -223,34 +227,126 @@ export class BankVouchersRepository {
   }
 
   // ============================================
-  // VOUCHER NUMBER: get last sequence per type per period
-  // (dipakai saat phase 2 — confirm/save voucher)
+  // VALIDATION: check bank account exists & active
   // ============================================
 
-  async getLastVoucherSequence(params: {
+  async validateBankAccount(bank_account_id: number): Promise<boolean> {
+    const sql = `
+      SELECT id FROM bank_accounts
+      WHERE id = $1
+        AND is_active = TRUE
+        AND deleted_at IS NULL
+      LIMIT 1
+    `
+
+    const result = await pool.query(sql, [bank_account_id])
+    return result.rows.length > 0
+  }
+
+  // ============================================
+  // BANK ACCOUNT BALANCES (Phase 2 placeholders)
+  // ============================================
+
+  async getOrCreatePeriodBalance(params: {
     company_id: string
-    voucher_type: 'BM' | 'BK'
+    bank_account_id: number
     period_month: number
     period_year: number
-  }): Promise<number> {
+  }): Promise<{
+    id: string
+    opening_balance: number
+    total_masuk: number
+    total_keluar: number
+    closing_balance: number
+    is_locked: boolean
+  }> {
     const sql = `
-      SELECT COALESCE(MAX(
-        CAST(SUBSTRING(voucher_number FROM 7) AS INTEGER)
-      ), 0) AS last_seq
-      FROM bank_vouchers
+      SELECT
+        id,
+        opening_balance::numeric,
+        total_masuk::numeric,
+        total_keluar::numeric,
+        closing_balance::numeric,
+        is_locked
+      FROM bank_account_balances
       WHERE company_id = $1
-        AND voucher_type = $2
+        AND bank_account_id = $2
         AND period_month = $3
         AND period_year = $4
-        AND deleted_at IS NULL
+      LIMIT 1
     `
+
     const result = await pool.query(sql, [
       params.company_id,
-      params.voucher_type,
+      params.bank_account_id,
       params.period_month,
       params.period_year,
     ])
-    return Number(result.rows[0]?.last_seq ?? 0)
+
+    if (result.rows.length === 0) {
+      // Return default balance jika belum ada
+      return {
+        id: '',
+        opening_balance: 0,
+        total_masuk: 0,
+        total_keluar: 0,
+        closing_balance: 0,
+        is_locked: false,
+      }
+    }
+
+    const row = result.rows[0]
+    return {
+      id: row.id,
+      opening_balance: Number(row.opening_balance),
+      total_masuk: Number(row.total_masuk),
+      total_keluar: Number(row.total_keluar),
+      closing_balance: Number(row.closing_balance),
+      is_locked: row.is_locked,
+    }
+  }
+
+  // ============================================
+  // BANK ACCOUNT: get previous month closing balance
+  // ============================================
+
+  async getPreviousMonthClosingBalance(params: {
+    company_id: string
+    bank_account_id: number
+    period_month: number
+    period_year: number
+  }): Promise<number> {
+    // Calculate previous month
+    let prevMonth = params.period_month - 1
+    let prevYear = params.period_year
+
+    if (prevMonth < 1) {
+      prevMonth = 12
+      prevYear -= 1
+    }
+
+    const sql = `
+      SELECT closing_balance::numeric
+      FROM bank_account_balances
+      WHERE company_id = $1
+        AND bank_account_id = $2
+        AND period_month = $3
+        AND period_year = $4
+      LIMIT 1
+    `
+
+    const result = await pool.query(sql, [
+      params.company_id,
+      params.bank_account_id,
+      prevMonth,
+      prevYear,
+    ])
+
+    if (result.rows.length === 0) {
+      return 0
+    }
+
+    return Number(result.rows[0].closing_balance)
   }
 }
 

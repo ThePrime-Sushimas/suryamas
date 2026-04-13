@@ -1,10 +1,14 @@
+// ============================================================
+// BANK VOUCHERS TYPES
+// ============================================================
+
 // ============================================
 // ENUMS
 // ============================================
 
 export type VoucherType = 'BM' | 'BK'
 
-export type VoucherStatus = 'DRAFT' | 'CONFIRMED' | 'JOURNALED'
+export type VoucherStatus = 'DRAFT' | 'CONFIRMED' | 'JOURNALED' | 'VOID'
 
 export type VoucherLineSource = 'RECONCILIATION' | 'SETTLEMENT_GROUP' | 'MULTI_MATCH' | 'MANUAL'
 
@@ -45,7 +49,6 @@ export interface AggregatedVoucherRow {
   // Amounts
   gross_amount: string          // numeric comes as string from pg
   tax_amount: string
-  nett_amount: string           // nett sebelum fee discrepancy (tidak dipakai di voucher)
   actual_nett_amount: string    // = nett_amount - fee_discrepancy (nilai sesungguhnya yang masuk bank)
   actual_fee_amount: string
   fee_discrepancy: string
@@ -65,7 +68,7 @@ export interface VoucherLine {
   bank_account_number: string
   payment_method_id: number
   payment_method_name: string
-  description: string               // e.g. "PENJUALAN OFFLINE", "BIAYA ADMIN ONLINE"
+  description: string               // e.g. "CASH", "QRIS", "BIAYA ADMIN QRIS"
   is_fee_line: boolean
   gross_amount: number
   tax_amount: number
