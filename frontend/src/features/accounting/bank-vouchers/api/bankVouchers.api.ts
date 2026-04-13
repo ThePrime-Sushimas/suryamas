@@ -9,6 +9,7 @@ import type {
   VoucherDetail,
   ManualVoucherInput,
   OpeningBalanceData,
+  PaymentMethodOption,
 } from '../types/bank-vouchers.types'
 
 type ApiResponse<T> = { success: boolean; data: T; message?: string }
@@ -105,4 +106,10 @@ export const bankVouchersApi = {
   },
 
   getPrintUrl: (id: string) => `/bank-vouchers/${id}/print`,
+
+  getPaymentMethods: async (): Promise<PaymentMethodOption[]> => {
+    const res = await api.get<ApiResponse<PaymentMethodOption[]>>('/bank-vouchers/payment-methods')
+    if (!res.data.success) throw new Error('Gagal memuat payment methods')
+    return res.data.data
+  },
 }

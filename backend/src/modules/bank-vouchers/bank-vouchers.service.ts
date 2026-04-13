@@ -777,11 +777,13 @@ export class BankVouchersService {
   // ============================================
 
   async getBankAccounts(company_id: string): Promise<BankAccountOption[]> {
-    if (!company_id) {
-      throw new BankVoucherMissingCompanyError();
-    }
-
+    if (!company_id) throw new BankVoucherMissingCompanyError();
     return bankVouchersRepository.getBankAccountsByCompany(company_id);
+  }
+
+  async getPaymentMethods(company_id: string) {
+    if (!company_id) throw new BankVoucherMissingCompanyError();
+    return bankVouchersRepository.getPaymentMethodsForVoucher(company_id);
   }
 
   // ============================================

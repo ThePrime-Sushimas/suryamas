@@ -305,13 +305,20 @@ export class BankVouchersController {
   async getBankAccounts(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const company_id = req.context?.company_id
-      if (!company_id) {
-        sendError(res, 'Company context required', 400)
-        return
-      }
-
+      if (!company_id) { sendError(res, 'Company context required', 400); return }
       const result = await bankVouchersService.getBankAccounts(company_id)
       sendSuccess(res, result, 'Bank accounts retrieved')
+    } catch (error) {
+      handleError(res, error)
+    }
+  }
+
+  async getPaymentMethods(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const company_id = req.context?.company_id
+      if (!company_id) { sendError(res, 'Company context required', 400); return }
+      const result = await bankVouchersService.getPaymentMethods(company_id)
+      sendSuccess(res, result, 'Payment methods retrieved')
     } catch (error) {
       handleError(res, error)
     }

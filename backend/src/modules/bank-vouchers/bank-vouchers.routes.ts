@@ -34,6 +34,11 @@ router.get('/bank-accounts',
   canView('bank_vouchers'),
   (req, res) => bankVouchersController.getBankAccounts(req as AuthenticatedRequest, res))
 
+// Dropdown: payment methods (with COA + bank info)
+router.get('/payment-methods',
+  canView('bank_vouchers'),
+  (req, res) => bankVouchersController.getPaymentMethods(req as AuthenticatedRequest, res))
+
 // Preview (on-the-fly)
 router.get('/preview',
   canView('bank_vouchers'),

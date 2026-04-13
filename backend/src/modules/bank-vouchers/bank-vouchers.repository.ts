@@ -251,12 +251,13 @@ export class BankVouchersRepository {
         ba.id,
         ba.account_name,
         ba.account_number,
-        COALESCE(ba.bank_id::text, ba.account_name) AS bank_name
+        COALESCE(b.bank_name, ba.account_name) AS bank_name
       FROM bank_accounts ba
       JOIN payment_methods pm
         ON pm.bank_account_id = ba.id
        AND pm.company_id = $1
        AND pm.deleted_at IS NULL
+      LEFT JOIN banks b ON b.id = ba.bank_id
       WHERE ba.deleted_at IS NULL
         AND ba.is_active = TRUE
       ORDER BY ba.account_name ASC
@@ -307,6 +308,51 @@ export class BankVouchersRepository {
     const lines = await pool.query(linesSql, [voucherId]);
 
     return { ...header.rows[0], lines: lines.rows };
+  }
+
+  // ============================================
+  // DROPDOWN: payment methods with COA for manual voucher
+  // ============================================
+
+  async getPaymentMethodsForVoucher(
+    company_id: string,
+  ): Promise<Array<{
+    id: number;
+    code: string;
+    name: string;
+    payment_type: string;
+    bank_account_id: number | null;
+    bank_account_name: string | null;
+    bank_account_number: string | null;
+    bank_name: string | null;
+    coa_account_id: string | null;
+    coa_code: string | null;
+    fee_coa_account_id: string | null;
+    fee_coa_code: string | null;
+  }>> {
+    const sql = `
+      SELECT
+        pm.id, pm.code, pm.name, pm.payment_type,
+        pm.bank_account_id,
+        ba.account_name AS bank_account_name,
+        ba.account_number AS bank_account_number,
+        b.bank_name,
+        pm.coa_account_id,
+        coa.account_code AS coa_code,
+        pm.fee_coa_account_id,
+        fcoa.account_code AS fee_coa_code
+      FROM payment_methods pm
+      LEFT JOIN bank_accounts ba ON ba.id = pm.bank_account_id
+      LEFT JOIN banks b ON b.id = ba.bank_id
+      LEFT JOIN chart_of_accounts coa ON coa.id = pm.coa_account_id
+      LEFT JOIN chart_of_accounts fcoa ON fcoa.id = pm.fee_coa_account_id
+      WHERE pm.company_id = $1
+        AND pm.is_active = TRUE
+        AND pm.deleted_at IS NULL
+      ORDER BY pm.sort_order ASC, pm.name ASC
+    `;
+    const result = await pool.query(sql, [company_id]);
+    return result.rows;
   }
 
   // ============================================

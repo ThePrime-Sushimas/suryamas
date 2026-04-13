@@ -103,7 +103,7 @@ export const BankVoucherFilters = () => {
           </option>
           {bankAccounts.map(account => (
             <option key={account.id} value={account.id}>
-              {account.account_name}
+              {account.bank_name} — {account.account_name}
             </option>
           ))}
         </select>

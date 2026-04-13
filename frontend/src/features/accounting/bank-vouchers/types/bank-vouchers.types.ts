@@ -237,6 +237,25 @@ export interface OpeningBalanceData {
 }
 
 // ============================================
+// PAYMENT METHOD (for manual voucher dropdown)
+// ============================================
+
+export interface PaymentMethodOption {
+  id: number
+  code: string
+  name: string
+  payment_type: string
+  bank_account_id: number | null
+  bank_account_name: string | null
+  bank_account_number: string | null
+  bank_name: string | null
+  coa_account_id: string | null
+  coa_code: string | null
+  fee_coa_account_id: string | null
+  fee_coa_code: string | null
+}
+
+// ============================================
 // UI STATE
 // ============================================
 
