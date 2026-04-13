@@ -43,9 +43,10 @@ export interface AggregatedVoucherRow {
   branch_id: string
   branch_name: string
   // Amounts
-  gross_amount: string        // numeric comes as string from pg
+  gross_amount: string          // numeric comes as string from pg
   tax_amount: string
-  nett_amount: string
+  nett_amount: string           // nett sebelum fee discrepancy (tidak dipakai di voucher)
+  actual_nett_amount: string    // = nett_amount - fee_discrepancy (nilai sesungguhnya yang masuk bank)
   actual_fee_amount: string
   fee_discrepancy: string
   total_fee_amount: string

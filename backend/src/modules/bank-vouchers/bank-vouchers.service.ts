@@ -197,7 +197,7 @@ export class BankVouchersService {
     for (const row of rows) {
       const gross = parseFloat(row.gross_amount) || 0
       const tax = parseFloat(row.tax_amount) || 0
-      const nett = parseFloat(row.nett_amount) || 0
+      const actualNett = parseFloat(row.actual_nett_amount) || 0   // ← pakai actual_nett_amount
       const fee = parseFloat(row.total_fee_amount) || 0
       const txCount = parseInt(row.transaction_count) || 0
 
@@ -219,7 +219,7 @@ export class BankVouchersService {
         is_fee_line: false,
         gross_amount: gross,
         tax_amount: tax,
-        nett_amount: nett,
+        nett_amount: actualNett,    // ← actual_nett_amount: nilai sesungguhnya yang masuk bank
         actual_fee_amount: fee,
         transaction_count: txCount,
       })
