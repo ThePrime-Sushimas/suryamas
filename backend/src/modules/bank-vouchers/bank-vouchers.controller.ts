@@ -323,6 +323,24 @@ export class BankVouchersController {
       handleError(res, error)
     }
   }
+
+  async getAvailableAggregates(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const company_id = req.context?.company_id
+      if (!company_id) { sendError(res, 'Company context required', 400); return }
+
+      const result = await bankVouchersService.getAvailableAggregates({
+        company_id,
+        date_start: req.query.date_start as string | undefined,
+        date_end: req.query.date_end as string | undefined,
+        bank_account_id: req.query.bank_account_id ? Number(req.query.bank_account_id) : undefined,
+        search: req.query.search as string | undefined,
+      })
+      sendSuccess(res, result, 'Available aggregates retrieved')
+    } catch (error) {
+      handleError(res, error)
+    }
+  }
 }
 
 export const bankVouchersController = new BankVouchersController()

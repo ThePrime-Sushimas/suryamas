@@ -10,6 +10,7 @@ import type {
   ManualVoucherInput,
   OpeningBalanceData,
   PaymentMethodOption,
+  AvailableAggregate,
 } from '../types/bank-vouchers.types'
 
 type ApiResponse<T> = { success: boolean; data: T; message?: string }
@@ -110,6 +111,15 @@ export const bankVouchersApi = {
   getPaymentMethods: async (): Promise<PaymentMethodOption[]> => {
     const res = await api.get<ApiResponse<PaymentMethodOption[]>>('/bank-vouchers/payment-methods')
     if (!res.data.success) throw new Error('Gagal memuat payment methods')
+    return res.data.data
+  },
+
+  getAvailableAggregates: async (params?: {
+    date_start?: string; date_end?: string; bank_account_id?: number; search?: string
+  }): Promise<AvailableAggregate[]> => {
+    const qs = params ? `?${toParams(params as any)}` : ''
+    const res = await api.get<ApiResponse<AvailableAggregate[]>>(`/bank-vouchers/available-aggregates${qs}`)
+    if (!res.data.success) throw new Error('Gagal memuat data aggregate')
     return res.data.data
   },
 }

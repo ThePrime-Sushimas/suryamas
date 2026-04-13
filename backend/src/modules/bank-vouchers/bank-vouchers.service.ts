@@ -786,6 +786,17 @@ export class BankVouchersService {
     return bankVouchersRepository.getPaymentMethodsForVoucher(company_id);
   }
 
+  async getAvailableAggregates(params: {
+    company_id: string;
+    date_start?: string;
+    date_end?: string;
+    bank_account_id?: number;
+    search?: string;
+  }) {
+    if (!params.company_id) throw new BankVoucherMissingCompanyError();
+    return bankVouchersRepository.getAvailableAggregates(params);
+  }
+
   // ============================================
   // PRIVATE: build VoucherDay[] dari raw rows
   // ============================================

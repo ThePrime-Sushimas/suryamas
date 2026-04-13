@@ -373,6 +373,93 @@ export class BankVouchersRepository {
   }
 
   // ============================================
+  // AVAILABLE AGGREGATES: reconciled but not yet in any voucher
+  // For manual voucher line picker
+  // ============================================
+
+  async getAvailableAggregates(params: {
+    company_id: string;
+    date_start?: string;
+    date_end?: string;
+    bank_account_id?: number;
+    search?: string;
+  }): Promise<any[]> {
+    const values: unknown[] = [params.company_id];
+    let paramIndex = 2;
+    const filters: string[] = [];
+
+    if (params.date_start) {
+      filters.push(`at.transaction_date >= $${paramIndex}`);
+      values.push(params.date_start);
+      paramIndex++;
+    }
+    if (params.date_end) {
+      filters.push(`at.transaction_date <= $${paramIndex}`);
+      values.push(params.date_end);
+      paramIndex++;
+    }
+    if (params.bank_account_id) {
+      filters.push(`pm.bank_account_id = $${paramIndex}`);
+      values.push(params.bank_account_id);
+      paramIndex++;
+    }
+    if (params.search) {
+      filters.push(`(pm.name ILIKE $${paramIndex} OR at.branch_name ILIKE $${paramIndex})`);
+      values.push(`%${params.search}%`);
+      paramIndex++;
+    }
+
+    const extraWhere = filters.length > 0 ? 'AND ' + filters.join(' AND ') : '';
+
+    const sql = `
+      SELECT
+        at.id,
+        at.transaction_date::date AS transaction_date,
+        at.branch_name,
+        pm.id AS payment_method_id,
+        pm.name AS payment_method_name,
+        pm.payment_type,
+        pm.bank_account_id,
+        ba.account_name AS bank_account_name,
+        ba.account_number AS bank_account_number,
+        COALESCE(b.bank_name, ba.account_name) AS bank_name,
+        pm.coa_account_id,
+        coa.account_code AS coa_code,
+        pm.fee_coa_account_id,
+        fcoa.account_code AS fee_coa_code,
+        at.gross_amount::numeric,
+        at.tax_amount::numeric,
+        at.nett_amount::numeric,
+        at.actual_nett_amount::numeric,
+        at.actual_fee_amount::numeric,
+        at.fee_discrepancy::numeric
+      FROM aggregated_transactions at
+      JOIN payment_methods pm ON pm.id = at.payment_method_id
+      LEFT JOIN bank_accounts ba ON ba.id = pm.bank_account_id
+      LEFT JOIN banks b ON b.id = ba.bank_id
+      LEFT JOIN chart_of_accounts coa ON coa.id = pm.coa_account_id
+      LEFT JOIN chart_of_accounts fcoa ON fcoa.id = pm.fee_coa_account_id
+      JOIN branches br ON br.id = at.branch_id
+      WHERE br.company_id = $1
+        AND at.deleted_at IS NULL
+        AND at.is_reconciled = TRUE
+        AND at.superseded_by IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM bank_voucher_lines bvl
+          JOIN bank_vouchers bv ON bv.id = bvl.voucher_id
+          WHERE bvl.aggregate_id = at.id
+            AND bv.deleted_at IS NULL
+            AND bv.status != 'VOID'
+        )
+        ${extraWhere}
+      ORDER BY at.transaction_date DESC, pm.name ASC
+      LIMIT 200
+    `;
+    const result = await pool.query(sql, values);
+    return result.rows;
+  }
+
+  // ============================================
   // OPENING BALANCES: get all banks for a period
   // ============================================
 

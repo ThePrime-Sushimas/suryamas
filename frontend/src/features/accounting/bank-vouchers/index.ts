@@ -28,4 +28,5 @@ export type {
   ManualVoucherLineInput,
   OpeningBalanceData,
   PaymentMethodOption,
+  AvailableAggregate,
 } from './types/bank-vouchers.types'

@@ -39,6 +39,11 @@ router.get('/payment-methods',
   canView('bank_vouchers'),
   (req, res) => bankVouchersController.getPaymentMethods(req as AuthenticatedRequest, res))
 
+// Available aggregates (for manual voucher line picker)
+router.get('/available-aggregates',
+  canView('bank_vouchers'),
+  (req, res) => bankVouchersController.getAvailableAggregates(req as AuthenticatedRequest, res))
+
 // Preview (on-the-fly)
 router.get('/preview',
   canView('bank_vouchers'),

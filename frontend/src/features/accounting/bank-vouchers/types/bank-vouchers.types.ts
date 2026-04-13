@@ -237,6 +237,33 @@ export interface OpeningBalanceData {
 }
 
 // ============================================
+// AVAILABLE AGGREGATE (for manual voucher picker)
+// ============================================
+
+export interface AvailableAggregate {
+  id: string
+  transaction_date: string
+  branch_name: string | null
+  payment_method_id: number
+  payment_method_name: string
+  payment_type: string
+  bank_account_id: number | null
+  bank_account_name: string | null
+  bank_account_number: string | null
+  bank_name: string | null
+  coa_account_id: string | null
+  coa_code: string | null
+  fee_coa_account_id: string | null
+  fee_coa_code: string | null
+  gross_amount: number
+  tax_amount: number
+  nett_amount: number
+  actual_nett_amount: number
+  actual_fee_amount: number
+  fee_discrepancy: number
+}
+
+// ============================================
 // PAYMENT METHOD (for manual voucher dropdown)
 // ============================================
 
