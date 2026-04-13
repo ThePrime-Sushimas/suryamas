@@ -7,7 +7,10 @@ import type {
 } from '../types/bank-vouchers.types'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(n)
-const fmtDate = (s: string) => new Date(s + 'T00:00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
+const fmtDate = (s: string) => {
+  const dateStr = s.length > 10 ? s.slice(0, 10) : s
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
+}
 
 interface SelectedLine extends ManualVoucherLineInput {
   _source: 'aggregate' | 'manual'
@@ -27,7 +30,7 @@ export const ManualVoucherModal = ({ isOpen, onClose, onSuccess }: Props) => {
 
   // Data
   const [aggregates, setAggregates] = useState<AvailableAggregate[]>([])
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([])
+  const [, setPaymentMethods] = useState<PaymentMethodOption[]>([])
   const [loadingAgg, setLoadingAgg] = useState(false)
 
   // Filters for aggregate picker
@@ -92,6 +95,7 @@ export const ManualVoucherModal = ({ isOpen, onClose, onSuccess }: Props) => {
   const addAggregate = (agg: AvailableAggregate) => {
     if (selectedAggIds.has(agg.id)) return
     const fee = Number(agg.actual_fee_amount) + Number(agg.fee_discrepancy)
+    const txDate = agg.transaction_date.length > 10 ? agg.transaction_date.slice(0, 10) : agg.transaction_date
 
     const newLine: SelectedLine = {
       _source: 'aggregate',
@@ -111,7 +115,7 @@ export const ManualVoucherModal = ({ isOpen, onClose, onSuccess }: Props) => {
       nett_amount: Number(agg.actual_nett_amount),
       coa_account_id: agg.coa_account_id || undefined,
       fee_coa_account_id: agg.fee_coa_account_id || undefined,
-      transaction_date: agg.transaction_date,
+      transaction_date: txDate,
     }
 
     const newLines = [newLine]
@@ -134,7 +138,7 @@ export const ManualVoucherModal = ({ isOpen, onClose, onSuccess }: Props) => {
     // Auto-set header bank if not set
     if (!bankAccountId && agg.bank_account_id) setBankAccountId(agg.bank_account_id)
     // Auto-set bank_date from first aggregate
-    if (!bankDate && agg.transaction_date) setBankDate(agg.transaction_date)
+    if (!bankDate && txDate) setBankDate(txDate)
   }
 
   const removeAggregate = (aggId: string) => {
@@ -202,7 +206,7 @@ export const ManualVoucherModal = ({ isOpen, onClose, onSuccess }: Props) => {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-7xl flex flex-col max-h-full" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Buat Voucher Manual</h3>
@@ -253,7 +257,7 @@ export const ManualVoucherModal = ({ isOpen, onClose, onSuccess }: Props) => {
         <div className="flex flex-1 min-h-0">
 
           {/* LEFT: Aggregate Picker */}
-          <div className="w-[420px] border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0">
+          <div className="w-[420px] border-r border-gray-200 dark:border-gray-700 flex flex-col shrink-0">
             <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 space-y-2">
               <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Pilih Aggregate Transaksi</h4>
               <div className="flex gap-2">
@@ -412,7 +416,7 @@ export const ManualVoucherModal = ({ isOpen, onClose, onSuccess }: Props) => {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 flex-shrink-0">
+        <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 shrink-0">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg">
             Batal
           </button>

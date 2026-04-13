@@ -439,8 +439,7 @@ export class BankVouchersRepository {
       LEFT JOIN banks b ON b.id = ba.bank_id
       LEFT JOIN chart_of_accounts coa ON coa.id = pm.coa_account_id
       LEFT JOIN chart_of_accounts fcoa ON fcoa.id = pm.fee_coa_account_id
-      JOIN branches br ON br.id = at.branch_id
-      WHERE br.company_id = $1
+      WHERE pm.company_id = $1
         AND at.deleted_at IS NULL
         AND at.is_reconciled = TRUE
         AND at.superseded_by IS NULL

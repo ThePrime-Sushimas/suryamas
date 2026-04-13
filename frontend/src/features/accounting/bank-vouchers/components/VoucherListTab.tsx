@@ -1,7 +1,7 @@
 import React from 'react'
 import { useBankVouchersStore } from '../store/bankVouchers.store'
 import { bankVouchersApi } from '../api/bankVouchers.api'
-import type { VoucherListItem, VoucherStatus } from '../types/bank-vouchers.types'
+import type { VoucherListItem } from '../types/bank-vouchers.types'
 
 const formatIDR = (n: number) =>
   n === 0 ? '-' : new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(Math.abs(n))
