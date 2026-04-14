@@ -227,7 +227,7 @@ export class BankReconciliationRepository {
         });
       }
 
-      // Get all reconciliation_ids from statements
+      // ── 1:1 match: fetch aggregates via reconciliation_id ──
       const statementsWithReconciliation = (data || []).filter(
         (s) => s.reconciliation_id,
       );
@@ -237,7 +237,6 @@ export class BankReconciliationRepository {
         ),
       ];
 
-      // Fetch aggregates in batch if there are any
       let aggregateMap: Record<string, any> = {};
       if (aggregateIds.length > 0) {
         try {
@@ -272,23 +271,95 @@ export class BankReconciliationRepository {
         }
       }
 
-      // Map data to include matched_aggregate
-      const mappedData = (data || []).map((row) => ({
-        ...row,
-        matched_aggregate:
-          row.reconciliation_id && aggregateMap[row.reconciliation_id]
-            ? {
-                id: aggregateMap[row.reconciliation_id].id,
-                transaction_date:
-                  aggregateMap[row.reconciliation_id].transaction_date,
-                gross_amount: aggregateMap[row.reconciliation_id].gross_amount,
-                nett_amount: aggregateMap[row.reconciliation_id].nett_amount,
-                payment_method_name:
-                  aggregateMap[row.reconciliation_id].payment_methods?.name ||
-                  null,
-              }
-            : null,
-      }));
+      // ── Multi-match: fetch group data via reconciliation_group_id ──
+      const statementsWithGroup = (data || []).filter(
+        (s) => s.reconciliation_group_id && !s.reconciliation_id,
+      );
+      const groupIds = [
+        ...new Set(statementsWithGroup.map((s) => s.reconciliation_group_id)),
+      ];
+
+      // Map: groupId → group + aggregate data
+      let groupDataMap: Record<string, any> = {};
+      if (groupIds.length > 0) {
+        try {
+          const { data: groups, error: grpError } = await supabase
+            .from("bank_reconciliation_groups")
+            .select(
+              `
+              id,
+              aggregate_id,
+              total_bank_amount,
+              aggregate_amount,
+              difference,
+              aggregated_transactions (
+                id,
+                transaction_date,
+                gross_amount,
+                nett_amount,
+                payment_methods!left (
+                  name
+                )
+              )
+            `,
+            )
+            .in("id", groupIds)
+            .is("deleted_at", null);
+
+          if (grpError) {
+            logError("Error fetching group aggregates", { error: grpError.message });
+          } else if (groups) {
+            groupDataMap = groups.reduce(
+              (acc: Record<string, any>, grp: any) => {
+                acc[grp.id] = grp;
+                return acc;
+              },
+              {},
+            );
+          }
+        } catch (e: any) {
+          logError("Error in group aggregate fetch", { error: e.message });
+        }
+      }
+
+      // Map data to include matched_aggregate (1:1 or multi-match)
+      const mappedData = (data || []).map((row) => {
+        // 1:1 match
+        if (row.reconciliation_id && aggregateMap[row.reconciliation_id]) {
+          const agg = aggregateMap[row.reconciliation_id];
+          return {
+            ...row,
+            matched_aggregate: {
+              id: agg.id,
+              transaction_date: agg.transaction_date,
+              gross_amount: agg.gross_amount,
+              nett_amount: agg.nett_amount,
+              payment_method_name: agg.payment_methods?.name || null,
+            },
+          };
+        }
+        // Multi-match: use group-level totals
+        if (row.reconciliation_group_id && groupDataMap[row.reconciliation_group_id]) {
+          const grp = groupDataMap[row.reconciliation_group_id];
+          const agg = grp.aggregated_transactions;
+          return {
+            ...row,
+            matched_aggregate: {
+              id: agg?.id || grp.aggregate_id,
+              transaction_date: agg?.transaction_date || null,
+              gross_amount: agg?.gross_amount || 0,
+              // Use aggregate_amount from group (= nett target for the whole group)
+              nett_amount: Number(grp.aggregate_amount) || 0,
+              payment_method_name: agg?.payment_methods?.name || null,
+              // Extra fields for multi-match display
+              is_multi_match: true,
+              group_total_bank_amount: Number(grp.total_bank_amount) || 0,
+              group_difference: Number(grp.difference) || 0,
+            },
+          };
+        }
+        return { ...row, matched_aggregate: null };
+      });
 
       return {
         data: mappedData,

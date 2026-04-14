@@ -316,6 +316,11 @@ export function BankMutationTable({
   const calculateDifference = useCallback(
     (item: BankStatementWithMatch) => {
       if (!item.is_reconciled || !item.matched_aggregate) return 0;
+      // Multi-match: use pre-calculated group difference
+      if (item.matched_aggregate.is_multi_match && item.matched_aggregate.group_difference !== undefined) {
+        return Math.abs(item.matched_aggregate.group_difference);
+      }
+      // 1:1 match
       const bankAmount = getNetAmount(item.credit_amount, item.debit_amount);
       return Math.abs(bankAmount - item.matched_aggregate.nett_amount);
     },
@@ -390,6 +395,7 @@ export function BankMutationTable({
               isInGroup && expandedGroupId === groupInfo.id;
             const diff = calculateDifference(item);
             const groupDetailCount = groupInfo?.details?.length ?? 0;
+            const isFirstInGroup = isInGroup && groupInfo.details?.[0]?.statement_id === item.id;
 
             return (
               <React.Fragment key={item.id}>
@@ -463,24 +469,44 @@ export function BankMutationTable({
                   </div>
 
                   {/* Nett POS */}
-                  <div className="px-3 py-2.5 text-right font-mono whitespace-nowrap text-gray-500 dark:text-gray-400">
-                    {item.matched_aggregate
-                      ? formatNumber(item.matched_aggregate.nett_amount)
-                      : ""}
+                  <div className="px-3 py-2.5 text-right font-mono whitespace-nowrap">
+                    {isInGroup ? (
+                      isFirstInGroup && item.matched_aggregate ? (
+                        <span className="text-blue-600 dark:text-blue-400" title="Group total">
+                          {formatNumber(item.matched_aggregate.nett_amount)}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-gray-300 dark:text-gray-600 select-none">⤴ grup</span>
+                      )
+                    ) : (
+                      <span className="text-gray-500 dark:text-gray-400">
+                        {item.matched_aggregate ? formatNumber(item.matched_aggregate.nett_amount) : ""}
+                      </span>
+                    )}
                   </div>
 
                   {/* Selisih */}
                   <div className="px-3 py-2.5 text-right font-mono whitespace-nowrap">
-                    {diff > 0 ? (
-                      <span className="text-red-600 dark:text-red-400">
-                        {formatNumber(diff)}
-                      </span>
-                    ) : item.is_reconciled ? (
-                      <span className="text-green-600 dark:text-green-400">
-                        0
-                      </span>
+                    {isInGroup ? (
+                      isFirstInGroup ? (
+                        diff > 0 ? (
+                          <span className="text-amber-600 dark:text-amber-400" title="Selisih grup">
+                            {formatNumber(diff)}
+                          </span>
+                        ) : item.is_reconciled ? (
+                          <span className="text-green-600 dark:text-green-400">0</span>
+                        ) : ""
+                      ) : (
+                        <span className="text-[10px] text-gray-300 dark:text-gray-600 select-none">⤴ grup</span>
+                      )
                     ) : (
-                      ""
+                      diff > 0 ? (
+                        <span className="text-red-600 dark:text-red-400">
+                          {formatNumber(diff)}
+                        </span>
+                      ) : item.is_reconciled ? (
+                        <span className="text-green-600 dark:text-green-400">0</span>
+                      ) : ""
                     )}
                   </div>
 

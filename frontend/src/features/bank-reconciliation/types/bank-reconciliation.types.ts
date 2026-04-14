@@ -79,6 +79,10 @@ export interface BankStatementWithMatch {
     nett_amount: number;
     payment_type: string;
     payment_method_name?: string;
+    // Multi-match group-level data
+    is_multi_match?: boolean;
+    group_total_bank_amount?: number;
+    group_difference?: number;
   };
 }
 
