@@ -206,21 +206,28 @@ export const posSyncAggregatesRepository = {
     if (manualIds.length === 0) return 0;
 
     let supersededCount = 0;
+    const CHUNK = 50;
+    const allManualEntries: any[] = [];
 
-    // Fetch manual entries — include branch_name for fallback matching
-    const { data: manualEntries, error: fetchErr } = await supabase
-      .from("aggregated_transactions")
-      .select("id, transaction_date, branch_id, branch_name, payment_method_id")
-      .in("id", manualIds)
-      .eq("source_type", "POS")
-      .is("superseded_by", null)
-      .is("deleted_at", null);
+    // Fetch in chunks to avoid Supabase .in() limit
+    for (let i = 0; i < manualIds.length; i += CHUNK) {
+      const chunk = manualIds.slice(i, i + CHUNK);
+      const { data, error: fetchErr } = await supabase
+        .from("aggregated_transactions")
+        .select("id, transaction_date, branch_id, branch_name, payment_method_id")
+        .in("id", chunk)
+        .eq("source_type", "POS")
+        .is("superseded_by", null)
+        .is("deleted_at", null);
 
-    if (fetchErr || !manualEntries?.length) return 0;
+      if (fetchErr) continue;
+      if (data) allManualEntries.push(...data);
+    }
 
-    for (const manual of manualEntries) {
+    if (!allManualEntries.length) return 0;
+
+    for (const manual of allManualEntries) {
       if (!manual.payment_method_id) continue;
-      // Need at least branch_id or branch_name to match
       if (!manual.branch_id && !manual.branch_name) continue;
 
       let query = supabase
@@ -233,7 +240,6 @@ export const posSyncAggregatesRepository = {
         .is("superseded_by", null)
         .limit(1);
 
-      // Match by branch_id if available, fallback to branch_name
       if (manual.branch_id) {
         query = query.eq("branch_id", manual.branch_id);
       } else {
@@ -255,7 +261,6 @@ export const posSyncAggregatesRepository = {
         if (!updateErr) supersededCount++;
       }
     }
-
     return supersededCount;
   },
 

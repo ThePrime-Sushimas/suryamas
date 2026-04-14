@@ -840,27 +840,22 @@ export async function generateAggregatedTransactionsOptimized(
     // PHASE 6b: Auto-supersede manual entries where POS_SYNC already exists
     if (createdCount > 0) {
       try {
-        // Collect source_refs of created entries, then batch-fetch their IDs
-        const createdRefs = insertDataArray.map((b) => b.data.source_ref);
-        logInfo("Phase 6b: starting supersede check", { createdCount, refsCount: createdRefs.length });
-        const LOOKUP_BATCH = 200;
-        const manualIds: string[] = [];
+        logInfo("Phase 6b: starting supersede check", { createdCount, posImportId });
 
-        for (let i = 0; i < createdRefs.length; i += LOOKUP_BATCH) {
-          const refBatch = createdRefs.slice(i, i + LOOKUP_BATCH);
-          const { data: found, error: lookupErr } = await supabase
-            .from("aggregated_transactions")
-            .select("id")
-            .eq("source_type", "POS")
-            .in("source_ref", refBatch)
-            .is("deleted_at", null)
-            .is("superseded_by", null);
-          if (lookupErr) {
-            logWarn("Phase 6b: lookup error", { error: lookupErr.message });
-          }
-          if (found) manualIds.push(...found.map((r: any) => r.id));
+        // Lookup by source_id (posImportId) — reliable regardless of source_ref casing
+        const { data: found, error: lookupErr } = await supabase
+          .from("aggregated_transactions")
+          .select("id")
+          .eq("source_type", "POS")
+          .eq("source_id", posImportId)
+          .is("deleted_at", null)
+          .is("superseded_by", null);
+
+        if (lookupErr) {
+          logWarn("Phase 6b: lookup error", { error: lookupErr.message });
         }
 
+        const manualIds = (found || []).map((r: any) => r.id);
         logInfo("Phase 6b: manual IDs collected", { manualIdsCount: manualIds.length });
 
         if (manualIds.length > 0) {
