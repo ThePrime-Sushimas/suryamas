@@ -24,6 +24,7 @@ import { reconciliationOrchestratorService } from "../orchestrator/reconciliatio
 import { logError } from "../../../config/logger";
 import { createPaginatedResponse } from "../../../utils/pagination.util";
 import { AuditService } from "../../monitoring/monitoring.service";
+import { generateDraftVouchersFromAggregates } from "../../bank-vouchers/auto-draft-voucher";
 import type {
   MatchingStrategy,
   MatchingEngineResult
@@ -296,6 +297,18 @@ export class BankReconciliationService {
         { is_reconciled: true, aggregateId, notes }
       )
     }
+
+    // Auto-generate draft voucher
+    const stmtDate = typeof statement.transaction_date === 'string'
+      ? statement.transaction_date.slice(0, 10)
+      : new Date(statement.transaction_date).toISOString().slice(0, 10);
+    await generateDraftVouchersFromAggregates({
+      company_id: companyId || statement.company_id || '',
+      aggregate_ids: [aggregateId],
+      bank_date: stmtDate,
+      source_type: "RECONCILIATION",
+      user_id: userId,
+    });
 
     return {
       success: true,
@@ -613,6 +626,29 @@ export class BankReconciliationService {
       }
     }
   
+    // Auto-generate draft vouchers for all successful matches
+    if (successMatches.length > 0) {
+      // Group by statement date for bank_date
+      const matchesByDate = new Map<string, string[]>();
+      for (const m of successMatches) {
+        const stmt = statements.find(s => s.id === m.statementId);
+        const bankDate = stmt?.transaction_date
+          ? (typeof stmt.transaction_date === 'string' ? stmt.transaction_date.slice(0, 10) : new Date(stmt.transaction_date).toISOString().slice(0, 10))
+          : new Date().toISOString().slice(0, 10);
+        if (!matchesByDate.has(bankDate)) matchesByDate.set(bankDate, []);
+        matchesByDate.get(bankDate)!.push(m.aggregateId);
+      }
+      for (const [bankDate, aggIds] of matchesByDate) {
+        await generateDraftVouchersFromAggregates({
+          company_id: companyId || '',
+          aggregate_ids: aggIds,
+          bank_date: bankDate,
+          source_type: "RECONCILIATION",
+          user_id: userId,
+        });
+      }
+    }
+
     return {
       matched: successMatches.length,
       failed: matches.length - successMatches.length,
@@ -854,6 +890,19 @@ export class BankReconciliationService {
         { aggregateId, statementIds: uniqueStatementIds, totalBankAmount, aggregateAmount, difference }
       )
     }
+
+    // Auto-generate draft voucher for multi-match
+    const firstStmt = statements[0];
+    const multiMatchBankDate = typeof firstStmt.transaction_date === 'string'
+      ? firstStmt.transaction_date.slice(0, 10)
+      : new Date(firstStmt.transaction_date).toISOString().slice(0, 10);
+    await generateDraftVouchersFromAggregates({
+      company_id: companyId || '',
+      aggregate_ids: [aggregateId],
+      bank_date: multiMatchBankDate,
+      source_type: "MULTI_MATCH",
+      user_id: userId,
+    });
 
     return {
       success: true,

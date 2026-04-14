@@ -37,8 +37,8 @@ export class BankVouchersRepository {
       "pm.bank_account_id IS NOT NULL", // hanya payment method yang punya mapping bank
       "pm.deleted_at IS NULL",
       "ba.deleted_at IS NULL",
-      // filter company via branch
-      "br.company_id = $1",
+      // filter company via payment_methods (more reliable than branch for null branch_id)
+      "pm.company_id = $1",
       "at.transaction_date::date BETWEEN $2 AND $3",
     ];
 
@@ -87,7 +87,7 @@ export class BankVouchersRepository {
         ON pm.id = at.payment_method_id
       JOIN bank_accounts ba
         ON ba.id = pm.bank_account_id
-      JOIN branches br
+      LEFT JOIN branches br
         ON br.id = at.branch_id
       ${whereClause}
       GROUP BY
@@ -164,14 +164,14 @@ export class BankVouchersRepository {
       FROM aggregated_transactions at
       JOIN payment_methods pm ON pm.id = at.payment_method_id
       JOIN bank_accounts ba   ON ba.id = pm.bank_account_id
-      JOIN branches br        ON br.id = at.branch_id
+      LEFT JOIN branches br   ON br.id = at.branch_id
       WHERE at.deleted_at IS NULL
         AND at.is_reconciled = TRUE
         AND at.superseded_by IS NULL
         AND pm.bank_account_id IS NOT NULL
         AND pm.deleted_at IS NULL
         AND ba.deleted_at IS NULL
-        AND br.company_id = $1
+        AND pm.company_id = $1
         AND at.transaction_date BETWEEN $2 AND $3
         ${branchFilter}
       GROUP BY pm.bank_account_id, ba.account_name
@@ -220,14 +220,14 @@ export class BankVouchersRepository {
       FROM aggregated_transactions at
       JOIN payment_methods pm ON pm.id = at.payment_method_id
       JOIN bank_accounts ba   ON ba.id = pm.bank_account_id
-      JOIN branches br        ON br.id = at.branch_id
+      LEFT JOIN branches br   ON br.id = at.branch_id
       WHERE at.deleted_at IS NULL
         AND at.is_reconciled = TRUE
         AND at.superseded_by IS NULL
         AND pm.bank_account_id IS NOT NULL
         AND pm.deleted_at IS NULL
         AND ba.deleted_at IS NULL
-        AND br.company_id = $1
+        AND pm.company_id = $1
         AND at.transaction_date BETWEEN $2 AND $3
         ${branchFilter}
       GROUP BY at.transaction_date
@@ -724,6 +724,31 @@ export class BankVouchersRepository {
     } finally {
       client.release();
     }
+  }
+
+  // ============================================
+  // CONFIRM: update DRAFT voucher(s) to CONFIRMED
+  // ============================================
+
+  async confirmDraftVouchers(params: {
+    voucher_ids: string[];
+    user_id?: string;
+  }): Promise<string[]> {
+    if (params.voucher_ids.length === 0) return [];
+    const sql = `
+      UPDATE bank_vouchers SET
+        status = 'CONFIRMED',
+        confirmed_at = NOW(),
+        confirmed_by = $2,
+        updated_at = NOW(),
+        updated_by = $2
+      WHERE id = ANY($1)
+        AND status = 'DRAFT'
+        AND deleted_at IS NULL
+      RETURNING voucher_number
+    `;
+    const result = await pool.query(sql, [params.voucher_ids, params.user_id]);
+    return result.rows.map((r: any) => r.voucher_number);
   }
 
   // ============================================

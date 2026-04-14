@@ -8,7 +8,6 @@ import {
 import {
   BankVoucherNoPeriodDataError,
   BankVoucherMissingCompanyError,
-  BankVoucherInvalidPeriodError,
   BankVoucherInvalidBankAccountError,
   BankVoucherNotFoundError,
   BankVoucherAlreadyConfirmedError,
@@ -214,127 +213,25 @@ export class BankVouchersService {
     }
   }
   // ============================================
-  // ACTION: CONFIRM (Save to DB)
+  // ACTION: CONFIRM DRAFT → CONFIRMED
+  // With auto-draft from reconciliation, this just updates status
   // ============================================
 
   async confirmVouchers(params: {
     company_id: string;
-    transaction_dates: string[];
-    branch_id?: string;
-    bank_account_id?: number;
+    voucher_ids: string[];
     user_id?: string;
   }): Promise<{ total_confirmed: number; voucher_numbers: string[] }> {
-    try {
-      if (!params.company_id) {
-        throw new BankVoucherMissingCompanyError();
-      }
+    if (!params.company_id) throw new BankVoucherMissingCompanyError();
+    if (params.voucher_ids.length === 0) return { total_confirmed: 0, voucher_numbers: [] };
 
-      // 1. Get current preview data for these dates
-      // Find min and max date
-      const sortedDates = [...params.transaction_dates].sort();
-      const dateStart = sortedDates[0];
-      const dateEnd = sortedDates[sortedDates.length - 1];
+    const numbers = await bankVouchersRepository.confirmDraftVouchers({
+      voucher_ids: params.voucher_ids,
+      user_id: params.user_id,
+    });
 
-      logInfo("Re-fetching data for confirmation", {
-        company_id: params.company_id,
-        date_start: dateStart,
-        date_end: dateEnd,
-        branch_id: params.branch_id,
-        bank_account_id: params.bank_account_id
-      });
-
-      const rows = await bankVouchersRepository.getReconciledAggregates({
-        company_id: params.company_id,
-        branch_id: params.branch_id,
-        date_start: dateStart,
-        date_end: dateEnd,
-        bank_account_id: params.bank_account_id,
-      });
-
-      if (rows.length === 0) {
-        const dateLabel = dateStart === dateEnd ? dateStart : `${dateStart} - ${dateEnd}`;
-        throw new BankVoucherNoPeriodDataError(dateLabel);
-      }
-
-      // Get confirmed vouchers first to avoid double saving/unique constraint error
-      const confirmedList = await bankVouchersRepository.getConfirmedVouchersByPeriod({
-        company_id: params.company_id,
-        date_start: dateStart,
-        date_end: dateEnd,
-        branch_id: params.branch_id,
-      });
-
-      // 2. Build official vouchers per bank account per day
-      // (Using current month/year from dates)
-      const targetMonth = new Date(dateStart).getMonth() + 1;
-      const targetYear = new Date(dateStart).getFullYear();
-
-      const voucherModels = this.buildVoucherDays(
-        rows,
-        targetMonth,
-        targetYear,
-        confirmedList
-      );
-
-      // Filter only requested dates AND non-confirmed ones
-      const toConfirm = voucherModels.filter((v) => 
-        params.transaction_dates.includes(v.transaction_date) && !v.is_confirmed
-      );
-
-      if (toConfirm.length === 0) {
-        return { total_confirmed: 0, voucher_numbers: [] };
-      }
-
-      // 3. Save to DB one by one (or batch if repository supports it)
-      const confirmedNumbers: string[] = [];
-      for (const v of toConfirm) {
-        const num = await bankVouchersRepository.createVoucher({
-          company_id: params.company_id,
-          voucher_type: v.voucher_type,
-          transaction_date: v.transaction_date,
-          bank_date: v.transaction_date,
-          period_month: targetMonth,
-          period_year: targetYear,
-          branch_id: v.branch_id,
-          branch_name: v.branch_name,
-          bank_account_id: v.bank_account_id,
-          total_gross: v.lines.filter(l => !l.is_fee_line).reduce((sum, l) => sum + l.gross_amount, 0),
-          total_tax: v.lines.filter(l => !l.is_fee_line).reduce((sum, l) => sum + l.tax_amount, 0),
-          total_fee: v.lines.filter(l => l.is_fee_line).reduce((sum, l) => sum + Math.abs(l.nett_amount), 0),
-          total_nett: v.day_total,
-          description: `Voucher Bank Masuk ${v.transaction_date}`,
-          created_by: params.user_id,
-          lines: v.lines.map(l => ({
-            line_number: l.line_number,
-            aggregate_id: l.aggregate_id,
-            source_type: "RECONCILIATION" as const,
-            payment_method_id: l.payment_method_id,
-            payment_method_name: l.payment_method_name,
-            bank_account_id: l.bank_account_id,
-            bank_account_name: l.bank_account_name,
-            bank_account_number: l.bank_account_number,
-            description: l.description,
-            is_fee_line: l.is_fee_line,
-            gross_amount: l.gross_amount,
-            tax_amount: l.tax_amount,
-            actual_fee_amount: l.actual_fee_amount,
-            nett_amount: l.nett_amount,
-            coa_account_id: l.coa_account_id,
-            fee_coa_account_id: l.fee_coa_account_id,
-            transaction_date: v.transaction_date,
-          })),
-        });
-        confirmedNumbers.push(num.voucher_number);
-      }
-
-      return {
-        total_confirmed: confirmedNumbers.length,
-        voucher_numbers: confirmedNumbers,
-      };
-    } catch (error) {
-      logError("Bank voucher confirmation failed", error);
-      throw error;
-    }
+    logInfo("Vouchers confirmed", { total: numbers.length, numbers });
+    return { total_confirmed: numbers.length, voucher_numbers: numbers };
   }
 
   // ============================================

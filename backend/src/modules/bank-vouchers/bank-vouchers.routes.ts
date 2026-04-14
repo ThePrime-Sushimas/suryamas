@@ -86,8 +86,16 @@ router.post('/manual',
   validateSchema(bankVoucherManualCreateSchema),
   (req, res) => bankVouchersController.createManual(req as AuthenticatedRequest, res))
 
-// Print voucher (HTML or JSON)
+// Print voucher (HTML or JSON) — token via query param for browser tab
 router.get('/:id/print',
+  (req, _res, next) => {
+    // Allow token via query param for direct browser access
+    if (!req.headers.authorization && req.query.token) {
+      req.headers.authorization = `Bearer ${req.query.token}`;
+    }
+    next();
+  },
+  authenticate, resolveBranchContext,
   canView('bank_vouchers'),
   (req, res) => bankVouchersController.print(req as AuthenticatedRequest, res))
 

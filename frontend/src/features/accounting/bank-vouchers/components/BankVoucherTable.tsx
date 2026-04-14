@@ -32,23 +32,8 @@ export const BankVoucherTable = () => {
   const {
     preview, summaryData, loading,
     expandedDates, toggleDate, expandAll, collapseAll,
-    selectedDates, toggleSelectDate, selectAllDates, clearSelectedDates,
-    confirmSelected,
+    setActiveTab,
   } = useBankVouchersStore()
-
-  const [confirming, setConfirming] = React.useState(false)
-
-  const handleConfirm = async () => {
-    if (selectedDates.size === 0) return
-    setConfirming(true)
-    try {
-      const numbers = await confirmSelected()
-      if (numbers.length > 0) {
-        alert(`${numbers.length} voucher berhasil dikonfirmasi:\n${numbers.join(', ')}`)
-      }
-    } catch { /* error handled by store */ }
-    setConfirming(false)
-  }
 
   if (loading.preview) {
     return (
@@ -75,7 +60,6 @@ export const BankVoucherTable = () => {
     )
   }
 
-  const unconfirmedCount = preview.vouchers.filter(v => !v.is_confirmed).length
 
   return (
     <div className="space-y-2">
@@ -83,33 +67,8 @@ export const BankVoucherTable = () => {
       <div className="flex items-center justify-between px-4 pt-4">
         <p className="text-xs text-gray-500 dark:text-gray-400">
           {preview.vouchers.length} voucher · {preview.summary.total_lines} baris
-          {unconfirmedCount > 0 && (
-            <span className="ml-2 text-amber-500">· {unconfirmedCount} belum dikonfirmasi</span>
-          )}
         </p>
         <div className="flex items-center gap-3">
-          {unconfirmedCount > 0 && (
-            <>
-              <button onClick={selectAllDates} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                Pilih Semua Draft
-              </button>
-              {selectedDates.size > 0 && (
-                <>
-                  <button onClick={clearSelectedDates} className="text-xs text-gray-400 hover:underline">
-                    Batal Pilih
-                  </button>
-                  <button
-                    onClick={handleConfirm}
-                    disabled={confirming || loading.confirm}
-                    className="px-3 py-1 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-md disabled:opacity-50 transition-colors"
-                  >
-                    {confirming ? 'Mengkonfirmasi...' : `Konfirmasi (${selectedDates.size})`}
-                  </button>
-                </>
-              )}
-              <span className="text-gray-300 dark:text-gray-600">|</span>
-            </>
-          )}
           <button onClick={expandAll} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Buka Semua</button>
           <span className="text-gray-300 dark:text-gray-600">|</span>
           <button onClick={collapseAll} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Tutup Semua</button>
@@ -121,7 +80,6 @@ export const BankVoucherTable = () => {
         <table className="min-w-full border-collapse">
           <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10 border-b border-gray-100 dark:border-gray-800">
             <tr className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-              {unconfirmedCount > 0 && <th className="px-2 py-3 w-8" />}
               <th className="px-3 py-3 text-left w-24">Tanggal</th>
               <th className="px-3 py-3 text-left w-32">Voucher</th>
               <th className="px-3 py-3 text-left w-20">Status</th>
@@ -141,7 +99,6 @@ export const BankVoucherTable = () => {
               )
               const runningBalance = dailySummary?.running_balance ?? 0
               const isConfirmed = voucher.is_confirmed
-              const isSelected = selectedDates.has(voucher.transaction_date)
 
               return (
                 <React.Fragment key={`${voucher.transaction_date}_${voucher.bank_account_id}`}>
@@ -152,18 +109,6 @@ export const BankVoucherTable = () => {
                     }`}
                     onClick={() => toggleDate(voucher.transaction_date)}
                   >
-                    {unconfirmedCount > 0 && (
-                      <td className="px-2 py-4" onClick={e => e.stopPropagation()}>
-                        {!isConfirmed && (
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelectDate(voucher.transaction_date)}
-                            className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                        )}
-                      </td>
-                    )}
                     <td className="px-3 py-4">
                       <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
                         {formatDate(voucher.transaction_date)}
@@ -213,26 +158,37 @@ export const BankVoucherTable = () => {
                   {/* Detail Lines */}
                   {isExpanded && (
                     <tr>
-                      <td colSpan={unconfirmedCount > 0 ? 9 : 8} className="px-6 py-0 bg-gray-50/50 dark:bg-gray-900/20">
+                      <td colSpan={8} className="px-6 py-0 bg-gray-50/50 dark:bg-gray-900/20">
                         <div className="py-4 space-y-3">
                           <div className="flex items-center justify-between px-2">
                             <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                               Detail Alokasi — {voucher.voucher_number}
                             </h4>
-                            {isConfirmed && (
-                              <a
-                                href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'}${bankVouchersApi.getPrintUrl(voucher.voucher_number)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={e => e.stopPropagation()}
-                                className="text-[10px] text-blue-600 hover:underline flex items-center gap-1"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                                </svg>
-                                Print
-                              </a>
-                            )}
+                            <div className="flex items-center gap-3">
+                              {voucher.status === 'DRAFT' && (
+                                <button
+                                  onClick={e => { e.stopPropagation(); setActiveTab('list') }}
+                                  className="text-[10px] text-amber-600 hover:underline flex items-center gap-1"
+                                >
+                                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full" />
+                                  DRAFT — Konfirmasi di Daftar Voucher →
+                                </button>
+                              )}
+                              {isConfirmed && (
+                                <a
+                                  href={bankVouchersApi.getPrintUrl(voucher.voucher_number)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  className="text-[10px] text-blue-600 hover:underline flex items-center gap-1"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                  </svg>
+                                  Print
+                                </a>
+                              )}
+                            </div>
                           </div>
 
                           <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-800">
@@ -314,7 +270,7 @@ export const BankVoucherTable = () => {
 
           <tfoot className="bg-gray-50 dark:bg-gray-900 border-t-2 border-gray-200 dark:border-gray-700">
             <tr className="font-bold text-gray-900 dark:text-gray-100">
-              <td colSpan={unconfirmedCount > 0 ? 6 : 5} className="px-3 py-4 text-right uppercase text-xs tracking-wider text-gray-400">
+              <td colSpan={5} className="px-3 py-4 text-right uppercase text-xs tracking-wider text-gray-400">
                 Total Periode
               </td>
               <td className="px-3 py-4 text-right font-mono text-green-600 dark:text-green-400 border-l border-gray-100 dark:border-gray-800">

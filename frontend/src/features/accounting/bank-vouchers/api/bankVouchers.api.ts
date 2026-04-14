@@ -46,12 +46,8 @@ export const bankVouchersApi = {
     return res.data.data
   },
 
-  confirm: async (params: {
-    transaction_dates: string[]
-    branch_id?: string
-    bank_account_id?: number
-  }): Promise<ConfirmResult> => {
-    const res = await api.post<ApiResponse<ConfirmResult>>('/bank-vouchers/confirm', params)
+  confirm: async (voucher_ids: string[]): Promise<ConfirmResult> => {
+    const res = await api.post<ApiResponse<ConfirmResult>>('/bank-vouchers/confirm', { voucher_ids })
     if (!res.data.success) throw new Error(res.data.message ?? 'Gagal konfirmasi voucher')
     return res.data.data
   },
@@ -106,7 +102,11 @@ export const bankVouchersApi = {
     return res.data.data
   },
 
-  getPrintUrl: (id: string) => `/bank-vouchers/${id}/print`,
+  getPrintUrl: (id: string) => {
+    const base = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'}/bank-vouchers/${id}/print`
+    const token = localStorage.getItem('token')
+    return token ? `${base}?token=${token}` : base
+  },
 
   getPaymentMethods: async (): Promise<PaymentMethodOption[]> => {
     const res = await api.get<ApiResponse<PaymentMethodOption[]>>('/bank-vouchers/payment-methods')

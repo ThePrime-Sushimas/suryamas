@@ -114,24 +114,13 @@ export class BankVouchersController {
   confirm = withValidated(async (req: ConfirmReq, res: Response): Promise<void> => {
     try {
       const company_id = (req as any).context?.company_id;
-      if (!company_id) {
-        sendError(res, "Company context required", 400);
-        return;
-      }
+      if (!company_id) { sendError(res, "Company context required", 400); return; }
 
-      const { transaction_dates, branch_id, bank_account_id } = req.validated.body;
-
-      logInfo("Bank voucher confirmation requested", {
-        company_id,
-        dates_count: transaction_dates.length,
-        user_id: (req as any).user?.id,
-      });
+      const { voucher_ids } = req.validated.body;
 
       const result = await bankVouchersService.confirmVouchers({
         company_id,
-        transaction_dates,
-        branch_id,
-        bank_account_id,
+        voucher_ids,
         user_id: (req as any).user?.id,
       });
 

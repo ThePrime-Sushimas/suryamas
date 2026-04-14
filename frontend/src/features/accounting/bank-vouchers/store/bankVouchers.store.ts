@@ -38,7 +38,7 @@ interface BankVouchersState {
   filter: BankVoucherFilter
   activeTab: ActiveTab
   expandedDates: Set<string>
-  selectedDates: Set<string>
+  selectedVoucherIds: Set<string>
 
   loading: LoadingState
   error: ErrorState | null
@@ -48,9 +48,9 @@ interface BankVouchersState {
   toggleDate: (date: string) => void
   expandAll: () => void
   collapseAll: () => void
-  toggleSelectDate: (date: string) => void
-  selectAllDates: () => void
-  clearSelectedDates: () => void
+  toggleSelectVoucher: (id: string) => void
+  selectAllDraftVouchers: () => void
+  clearSelectedVouchers: () => void
 
   fetchPreview: () => Promise<void>
   fetchSummary: () => Promise<void>
@@ -77,7 +77,7 @@ const initialState = {
   filter: defaultFilter,
   activeTab: 'voucher' as ActiveTab,
   expandedDates: new Set<string>(),
-  selectedDates: new Set<string>(),
+  selectedVoucherIds: new Set<string>(),
   loading: initialLoading,
   error: null,
 }
@@ -110,22 +110,22 @@ export const useBankVouchersStore = create<BankVouchersState>((set, get) => ({
 
   collapseAll: () => set({ expandedDates: new Set() }),
 
-  toggleSelectDate: (date) => {
+  toggleSelectVoucher: (id) => {
     set(state => {
-      const next = new Set(state.selectedDates)
-      next.has(date) ? next.delete(date) : next.add(date)
-      return { selectedDates: next }
+      const next = new Set(state.selectedVoucherIds)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return { selectedVoucherIds: next }
     })
   },
 
-  selectAllDates: () => {
-    const { preview } = get()
-    if (!preview) return
-    const unconfirmed = preview.vouchers.filter(v => !v.is_confirmed).map(v => v.transaction_date)
-    set({ selectedDates: new Set(unconfirmed) })
+  selectAllDraftVouchers: () => {
+    const { voucherList } = get()
+    if (!voucherList) return
+    const drafts = voucherList.vouchers.filter(v => v.status === 'DRAFT').map(v => v.id)
+    set({ selectedVoucherIds: new Set(drafts) })
   },
 
-  clearSelectedDates: () => set({ selectedDates: new Set() }),
+  clearSelectedVouchers: () => set({ selectedVoucherIds: new Set() }),
 
   fetchPreview: async () => {
     const { filter } = get()
@@ -189,19 +189,14 @@ export const useBankVouchersStore = create<BankVouchersState>((set, get) => ({
   },
 
   confirmSelected: async () => {
-    const { filter, selectedDates } = get()
-    if (selectedDates.size === 0) return []
+    const { selectedVoucherIds } = get()
+    if (selectedVoucherIds.size === 0) return []
 
     set(s => ({ loading: { ...s.loading, confirm: true }, error: null }))
     try {
-      const result = await bankVouchersApi.confirm({
-        transaction_dates: Array.from(selectedDates),
-        branch_id: filter.branch_id,
-        bank_account_id: filter.bank_account_id,
-      })
-      set(s => ({ loading: { ...s.loading, confirm: false }, selectedDates: new Set() }))
-      // Refresh data
-      await get().fetchAll()
+      const result = await bankVouchersApi.confirm(Array.from(selectedVoucherIds))
+      set(s => ({ loading: { ...s.loading, confirm: false }, selectedVoucherIds: new Set() }))
+      await get().fetchList()
       return result.voucher_numbers
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Gagal konfirmasi voucher'
