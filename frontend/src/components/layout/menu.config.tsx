@@ -15,6 +15,7 @@ import {
   UserCog,
   Shield,
   Activity,
+  Coins,
 } from "lucide-react";
 import type { MenuItem } from "./types";
 
@@ -248,6 +249,13 @@ export const menuItems: MenuItem[] = [
             href: "/bank-reconciliation/settlement-groups",
             icon: <FileSpreadsheet size={16} />,
             module: "bank_reconciliation",
+          },
+          {
+            id: "cash-counts",
+            name: "Cash Count",
+            href: "/cash-counts",
+            icon: <Coins size={16} />,
+            module: "cash_counts",
           },
         ],
       },

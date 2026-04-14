@@ -351,6 +351,11 @@ const BankReconciliationPage = lazy(() =>
     default: m.BankReconciliationPage,
   })),
 );
+const CashCountsPage = lazy(() =>
+  import("./features/cash-counts").then((m) => ({
+    default: m.CashCountsPage,
+  })),
+);
 const SettlementGroupsPage = lazy(() =>
   import("./features/bank-reconciliation/settlement-groups").then((m) => ({
     default: m.SettlementGroupsPage,
@@ -1287,6 +1292,16 @@ function App() {
                       <ProtectedRoute>
                         <Suspense fallback={<LoadingFallback />}>
                           <SettlementGroupDetailPage />
+                        </Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="cash-counts"
+                    element={
+                      <ProtectedRoute>
+                        <Suspense fallback={<LoadingFallback />}>
+                          <CashCountsPage />
                         </Suspense>
                       </ProtectedRoute>
                     }
