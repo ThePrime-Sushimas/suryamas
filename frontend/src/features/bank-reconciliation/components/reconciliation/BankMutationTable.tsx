@@ -1,9 +1,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import {
-  CheckCircle,
-  AlertCircle,
   Undo2,
-  HelpCircle,
   Sparkles,
   RefreshCw,
   Link2,
@@ -27,56 +24,41 @@ import {
   formatNumber,
   getNetAmount,
 } from "../../utils/reconciliation.utils";
-import { STATUS_CONFIG } from "../../constants/reconciliation.config";
 import { Pagination } from "@/components/ui/Pagination";
 
 // ─── Status Badge ────────────────────────────────────────────────────────────
 
+type SimpleStatus = "RECONCILED" | "UNRECONCILED";
+
+function getSimpleStatus(status: BankReconciliationStatus): SimpleStatus {
+  return status === "AUTO_MATCHED" || status === "MANUALLY_MATCHED" || status === "DISCREPANCY"
+    ? "RECONCILED"
+    : "UNRECONCILED";
+}
+
+const SIMPLE_STATUS_CONFIG: Record<SimpleStatus, { label: string; dot: string; badge: string }> = {
+  RECONCILED: {
+    label: "Reconciled",
+    dot: "bg-green-500",
+    badge: "text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-900/20",
+  },
+  UNRECONCILED: {
+    label: "Unreconciled",
+    dot: "bg-gray-400",
+    badge: "text-gray-500 bg-gray-50 dark:text-gray-400 dark:bg-gray-800",
+  },
+};
+
 function StatusBadge({ status }: { status: BankReconciliationStatus }) {
-  const config = STATUS_CONFIG[status];
-
-  const variants: Record<
-    BankReconciliationStatus,
-    { dot: string; badge: string; icon: typeof CheckCircle }
-  > = {
-    AUTO_MATCHED: {
-      dot: "bg-green-500",
-      badge:
-        "text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-900/20",
-      icon: CheckCircle,
-    },
-    MANUALLY_MATCHED: {
-      dot: "bg-green-500",
-      badge:
-        "text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-900/20",
-      icon: CheckCircle,
-    },
-    DISCREPANCY: {
-      dot: "bg-amber-500",
-      badge:
-        "text-amber-700 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/20",
-      icon: AlertCircle,
-    },
-    PENDING: {
-      dot: "bg-blue-500",
-      badge: "text-blue-700 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20",
-      icon: HelpCircle,
-    },
-    UNRECONCILED: {
-      dot: "bg-gray-400",
-      badge: "text-gray-500 bg-gray-50 dark:text-gray-400 dark:bg-gray-800",
-      icon: AlertCircle,
-    },
-  };
-
-  const v = variants[status];
+  const simple = getSimpleStatus(status);
+  const v = SIMPLE_STATUS_CONFIG[simple];
 
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium ${v.badge}`}
     >
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${v.dot}`} />
-      {config.label}
+      {v.label}
     </span>
   );
 }
@@ -93,33 +75,20 @@ function SummaryCards({ items, summary }: SummaryCardsProps) {
     if (summary) {
       return {
         total: summary.totalStatements,
-        matched: summary.autoMatched + summary.manuallyMatched,
-        unmatched: summary.unreconciled,
-        discrepancy: summary.discrepancies,
-        totalDiff: summary.totalDifference,
+        reconciled: summary.autoMatched + summary.manuallyMatched + summary.discrepancies,
+        unreconciled: summary.unreconciled,
       };
     }
-    // Fallback: hitung dari items
-    const matched = items.filter(
+    const reconciled = items.filter(
       (i) =>
-        i.status === "AUTO_MATCHED" || i.status === "MANUALLY_MATCHED"
+        i.status === "AUTO_MATCHED" || i.status === "MANUALLY_MATCHED" || i.status === "DISCREPANCY"
     ).length;
-    const discrepancy = items.filter((i) => i.status === "DISCREPANCY").length;
-    const unmatched = items.filter(
-      (i) => i.status === "UNRECONCILED" || i.status === "PENDING"
-    ).length;
-    const totalDiff = items.reduce((acc, item) => {
-      if (!item.is_reconciled || !item.matched_aggregate) return acc;
-      const bankAmt = getNetAmount(item.credit_amount, item.debit_amount);
-      return acc + Math.abs(bankAmt - item.matched_aggregate.nett_amount);
-    }, 0);
+    const unreconciled = items.length - reconciled;
 
     return {
       total: items.length,
-      matched,
-      unmatched,
-      discrepancy,
-      totalDiff,
+      reconciled,
+      unreconciled,
     };
   }, [items, summary]);
 
@@ -131,42 +100,24 @@ function SummaryCards({ items, summary }: SummaryCardsProps) {
       color: "text-gray-900 dark:text-white",
     },
     {
-      label: "Sudah cocok",
-      value: stats.matched,
-      display: stats.matched.toString(),
+      label: "Reconciled",
+      value: stats.reconciled,
+      display: stats.reconciled.toString(),
       color: "text-green-600 dark:text-green-400",
     },
     {
-      label: "Belum cocok",
-      value: stats.unmatched,
-      display: stats.unmatched.toString(),
+      label: "Unreconciled",
+      value: stats.unreconciled,
+      display: stats.unreconciled.toString(),
       color:
-        stats.unmatched > 0
+        stats.unreconciled > 0
           ? "text-amber-600 dark:text-amber-400"
           : "text-gray-400",
-    },
-    {
-      label: "Selisih",
-      value: stats.discrepancy,
-      display: stats.discrepancy.toString(),
-      color:
-        stats.discrepancy > 0
-          ? "text-red-600 dark:text-red-400"
-          : "text-gray-400",
-    },
-    {
-      label: "Total selisih nominal",
-      value: stats.totalDiff,
-      display: stats.totalDiff > 0 ? formatCurrency(stats.totalDiff) : "Rp 0",
-      color:
-        stats.totalDiff > 0
-          ? "text-red-600 dark:text-red-400"
-          : "text-green-600 dark:text-green-400",
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
+    <div className="grid grid-cols-3 gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
       {cards.map((card) => (
         <div
           key={card.label}

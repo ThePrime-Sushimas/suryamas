@@ -17,7 +17,7 @@ import { tailwindTheme } from '@/lib/tailwind-theme'
 // TYPES
 // =============================================================================
 
-export type BankStatementFilterStatus = 'RECONCILED' | 'UNRECONCILED' | 'DISCREPANCY' | '';
+export type BankStatementFilterStatus = 'RECONCILED' | 'UNRECONCILED' | '';
 
 export interface BankStatementFilter {
   search?: string
@@ -38,9 +38,8 @@ export interface BankStatementFilter {
 
 const STATUS_OPTIONS: { value: BankStatementFilterStatus; label: string; description: string }[] = [
   { value: '', label: 'Semua Status', description: 'Tampilkan semua transaksi' },
-  { value: 'RECONCILED', label: '✓ Sudah Cocok', description: 'Berhasil dicocokkan' },
-  { value: 'UNRECONCILED', label: '○ Belum Cocok', description: 'Perlu dicocokkan' },
-  { value: 'DISCREPANCY', label: '⚠ Ada Selisih', description: 'Cocok tapi nominal berbeda' },
+  { value: 'RECONCILED', label: '✓ Reconciled', description: 'Sudah dicocokkan' },
+  { value: 'UNRECONCILED', label: '○ Unreconciled', description: 'Belum dicocokkan' },
 ]
 
 // =============================================================================

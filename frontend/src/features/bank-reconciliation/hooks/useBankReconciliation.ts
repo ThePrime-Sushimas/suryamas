@@ -163,15 +163,15 @@ async (filters: BankStatementFilter, resetPagination = true) => {
           ? filters.bankAccountIds[0]
           : undefined;
 
-        const validStatuses = ['RECONCILED', 'UNRECONCILED', 'DISCREPANCY'] as const;
+        const validStatuses = ['RECONCILED', 'UNRECONCILED'] as const;
         const statusParam = validStatuses.includes(filters.status as typeof validStatuses[number]) 
-          ? filters.status as 'RECONCILED' | 'UNRECONCILED' | 'DISCREPANCY'
+          ? filters.status as 'RECONCILED' | 'UNRECONCILED'
           : undefined;
 
         const page = resetPagination ? 1 : paginationRef.current.page;
         const limit = filters.limit || PAGINATION_CONFIG.DEFAULT_PAGE_SIZE;
 
-        const safeStatus = statusParam as 'RECONCILED' | 'UNRECONCILED' | 'DISCREPANCY' | undefined;
+        const safeStatus = statusParam as 'RECONCILED' | 'UNRECONCILED' | undefined;
 
         const params: BankStatementFilterParams = {
           startDate: filters.startDate,
