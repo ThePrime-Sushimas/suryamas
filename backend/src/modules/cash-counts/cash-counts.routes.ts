@@ -6,12 +6,8 @@ import { validateSchema } from '../../middleware/validation.middleware'
 import { cashCountsController } from './cash-counts.controller'
 import { PermissionService } from '../../services/permission.service'
 import {
-  previewSchema,
-  createCashCountSchema,
-  cashCountIdSchema,
-  updatePhysicalCountSchema,
-  depositSchema,
-  cashCountListQuerySchema,
+  previewSchema, createCashCountSchema, cashCountIdSchema,
+  updatePhysicalCountSchema, createDepositSchema, depositIdSchema, cashCountListQuerySchema,
 } from './cash-counts.schema'
 
 const router = Router()
@@ -20,28 +16,20 @@ PermissionService.registerModule('cash_counts', 'Cash Count Management').catch((
 
 router.use(authenticate, resolveBranchContext)
 
-// Preview (working sheet — no records created)
+// Preview
 router.get('/preview', canView('cash_counts'), validateSchema(previewSchema), cashCountsController.preview)
 
-// List
+// Deposits
+router.post('/deposits', canInsert('cash_counts'), validateSchema(createDepositSchema), cashCountsController.createDeposit)
+router.get('/deposits/:id', canView('cash_counts'), validateSchema(depositIdSchema), cashCountsController.getDeposit)
+router.delete('/deposits/:id', canDelete('cash_counts'), validateSchema(depositIdSchema), cashCountsController.deleteDeposit)
+
+// Cash counts
 router.get('/', canView('cash_counts'), validateSchema(cashCountListQuerySchema), cashCountsController.list)
-
-// Get by ID
 router.get('/:id', canView('cash_counts'), validateSchema(cashCountIdSchema), cashCountsController.findById)
-
-// Create (single branch — called per row from preview)
 router.post('/', canInsert('cash_counts'), validateSchema(createCashCountSchema), cashCountsController.create)
-
-// Physical count (OPEN → COUNTED)
 router.put('/:id/count', canUpdate('cash_counts'), validateSchema(updatePhysicalCountSchema), cashCountsController.updatePhysicalCount)
-
-// Deposit (COUNTED → DEPOSITED)
-router.put('/:id/deposit', canUpdate('cash_counts'), validateSchema(depositSchema), cashCountsController.deposit)
-
-// Close (DEPOSITED → CLOSED)
 router.post('/:id/close', canUpdate('cash_counts'), validateSchema(cashCountIdSchema), cashCountsController.close)
-
-// Delete (only OPEN)
 router.delete('/:id', canDelete('cash_counts'), validateSchema(cashCountIdSchema), cashCountsController.delete)
 
 export default router

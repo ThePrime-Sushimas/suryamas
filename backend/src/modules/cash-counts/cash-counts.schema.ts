@@ -42,16 +42,19 @@ export const updatePhysicalCountSchema = z.object({
   }),
 })
 
-export const depositSchema = z.object({
-  params: z.object({
-    id: z.string().uuid('Invalid cash count ID'),
-  }),
+export const createDepositSchema = z.object({
   body: z.object({
-    deposit_amount: z.coerce.number().min(0, 'Deposit amount harus >= 0'),
+    cash_count_ids: z.array(z.string().uuid()).min(1, 'Pilih minimal 1 cash count'),
     deposit_date: z.string().regex(DATE_REGEX, 'Format tanggal harus YYYY-MM-DD'),
-    deposit_bank_account_id: z.coerce.number().int().positive(),
-    deposit_reference: z.string().optional(),
+    bank_account_id: z.coerce.number().int().positive(),
+    reference: z.string().optional(),
     notes: z.string().optional(),
+  }),
+})
+
+export const depositIdSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid deposit ID'),
   }),
 })
 
@@ -59,7 +62,7 @@ export const cashCountListQuerySchema = z.object({
   query: z.object({
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().max(100).default(20),
-    branch_id: z.string().uuid().optional(),
+    branch_name: z.string().optional(),
     payment_method_id: z.coerce.number().int().positive().optional(),
     status: z.enum(VALID_STATUSES).optional(),
     start_date: z.string().regex(DATE_REGEX).optional(),

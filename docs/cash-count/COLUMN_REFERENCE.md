@@ -1,64 +1,102 @@
-# Cash Count — Column Reference
+# Cash Count — Updated Structure
 
-## Table: `cash_counts`
+## ERD
 
-| Kolom | Tipe | Nullable | Default | Deskripsi |
-|---|---|---|---|---|
-| `id` | UUID | NO | gen_random_uuid() | Primary key |
-| `company_id` | UUID | NO | - | Tenant isolation |
-| `start_date` | DATE | NO | - | Awal periode count |
-| `end_date` | DATE | NO | - | Akhir periode count (>= start_date) |
-| `branch_id` | UUID | YES | - | Cabang. NULL = semua. FK → branches |
-| `payment_method_id` | INT | NO | - | Payment method (cash). FK → payment_methods → COA |
-| `system_balance` | NUMERIC(18,2) | NO | 0 | Auto: SUM(nett_amount) dari aggregated_transactions |
-| `transaction_count` | INT | NO | 0 | Auto: COUNT(*) transaksi di periode |
-| `physical_count` | NUMERIC(18,2) | YES | - | Input user: jumlah uang fisik. NULL = OPEN |
-| `difference` | NUMERIC(18,2) | - | GENERATED | physical_count - system_balance. (+) surplus, (-) deficit |
-| `status` | VARCHAR(20) | NO | 'OPEN' | OPEN / COUNTED / DEPOSITED / CLOSED |
-| `deposit_amount` | NUMERIC(18,2) | YES | - | Jumlah setor ke bank |
-| `deposit_date` | DATE | YES | - | Tanggal setor |
-| `deposit_bank_account_id` | INT | YES | - | Bank tujuan. FK → bank_accounts |
-| `deposit_reference` | VARCHAR(100) | YES | - | Slip setoran |
-| `responsible_employee_id` | UUID | YES | - | **Employee bertanggung jawab atas deficit.** FK → employees |
-| `notes` | TEXT | YES | - | Catatan |
-| `counted_by` | UUID | YES | - | User yang hitung fisik |
-| `counted_at` | TIMESTAMPTZ | YES | - | Waktu hitung |
-| `deposited_by` | UUID | YES | - | User yang setor |
-| `deposited_at` | TIMESTAMPTZ | YES | - | Waktu setor |
-| `closed_by` | UUID | YES | - | User yang close |
-| `closed_at` | TIMESTAMPTZ | YES | - | Waktu close |
-| `created_by` | UUID | YES | - | User pembuat |
-| `created_at` | TIMESTAMPTZ | NO | NOW() | - |
-| `updated_at` | TIMESTAMPTZ | NO | NOW() | Auto-update via trigger |
-| `deleted_at` | TIMESTAMPTZ | YES | - | Soft delete |
+```
+cash_counts (per cabang per hari)
+  │ N:1 (cash_deposit_id)
+  ▼
+cash_deposits (per setoran)
+  │ 1:1 (bank_statement_id, saat reconcile)
+  ▼
+bank_statements (mutasi bank)
+```
 
-## Table: `cash_count_details`
+## Table: cash_counts (after migration)
 
-| Kolom | Tipe | Nullable | Default | Deskripsi |
-|---|---|---|---|---|
-| `id` | UUID | NO | gen_random_uuid() | PK |
-| `cash_count_id` | UUID | NO | - | FK → cash_counts (CASCADE delete) |
-| `transaction_date` | DATE | NO | - | Tanggal transaksi (1 row per hari) |
-| `amount` | NUMERIC(18,2) | NO | 0 | Penjualan cash di tanggal ini |
-| `transaction_count` | INT | NO | 0 | Jumlah transaksi |
-| `notes` | TEXT | YES | - | Catatan per hari |
-| `created_at` | TIMESTAMPTZ | NO | NOW() | - |
+| Kolom | Tipe | Deskripsi |
+|---|---|---|
+| id | UUID | PK |
+| company_id | UUID | Tenant |
+| start_date | DATE | = transaction_date (single day) |
+| end_date | DATE | = transaction_date (single day) |
+| branch_name | VARCHAR | Nama cabang |
+| payment_method_id | INT | Payment method (cash) |
+| system_balance | NUMERIC | Auto: SUM(nett_amount) dari aggregated_transactions |
+| transaction_count | INT | COUNT transaksi |
+| large_denomination | NUMERIC | Pecahan besar (100rb + 50rb) |
+| small_denomination | NUMERIC | Pecahan kecil (sisanya) |
+| physical_count | NUMERIC | = large + small (set by app) |
+| difference | NUMERIC | GENERATED: physical - system |
+| status | VARCHAR | OPEN / COUNTED / DEPOSITED / CLOSED |
+| cash_deposit_id | UUID | FK → cash_deposits (diisi saat deposit) |
+| responsible_employee_id | UUID | FK → employees (PIC deficit) |
+| notes | TEXT | Catatan |
+| counted_by | UUID | User yang hitung |
+| counted_at | TIMESTAMPTZ | Waktu hitung |
+| closed_by | UUID | User yang close |
+| closed_at | TIMESTAMPTZ | Waktu close |
+| created_by | UUID | User pembuat |
+| created_at | TIMESTAMPTZ | - |
+| updated_at | TIMESTAMPTZ | Auto-update |
+| deleted_at | TIMESTAMPTZ | Soft delete |
 
-## Constraints
+**Dropped columns:** deposit_amount, deposit_date, deposit_bank_account_id, deposit_reference, deposited_by, deposited_at
 
-| Constraint | Rule |
-|---|---|
-| Date range | `end_date >= start_date` |
-| Status | Only `OPEN`, `COUNTED`, `DEPOSITED`, `CLOSED` |
-| Amounts >= 0 | `system_balance`, `physical_count`, `deposit_amount` |
-| Unique period | 1 cash count per (company, start, end, branch, payment_method) |
+**Dropped table:** cash_count_details
 
-## Indexes
+## Table: cash_deposits (NEW)
 
-| Index | Kolom | Kondisi | Tujuan |
-|---|---|---|---|
-| `idx_cash_counts_company_period` | company_id, start_date, end_date | deleted_at IS NULL | Query utama |
-| `idx_cash_counts_branch_pm` | branch_id, payment_method_id | deleted_at IS NULL | Filter dimensi |
-| `idx_cash_counts_status` | company_id, status | deleted_at IS NULL | Filter status |
-| `idx_cash_counts_deficit` | company_id, responsible_employee_id | deleted_at IS NULL | Accountability report |
-| `uq_cash_counts_period_branch_pm` | company, start, end, branch, pm | deleted_at IS NULL | Unique constraint |
+| Kolom | Tipe | Deskripsi |
+|---|---|---|
+| id | UUID | PK |
+| company_id | UUID | Tenant |
+| deposit_amount | NUMERIC | Total disetor = SUM(large_denomination) |
+| deposit_date | DATE | Tanggal setor |
+| bank_account_id | INT | Bank tujuan |
+| reference | VARCHAR | Slip setoran |
+| bank_statement_id | BIGINT | FK → bank_statements (saat reconcile) |
+| status | VARCHAR | PENDING / RECONCILED |
+| branch_name | VARCHAR | Cabang asal |
+| payment_method_id | INT | Payment method |
+| period_start | DATE | Tanggal awal cash counts |
+| period_end | DATE | Tanggal akhir cash counts |
+| item_count | INT | Jumlah cash_counts dalam deposit |
+| notes | TEXT | Catatan |
+| created_by | UUID | User |
+| created_at | TIMESTAMPTZ | - |
+| updated_at | TIMESTAMPTZ | Auto-update |
+| deleted_at | TIMESTAMPTZ | Soft delete |
+
+## Flow
+
+```
+OPEN → COUNTED → DEPOSITED → CLOSED
+
+Step 1: Preview
+  User pilih periode + payment method
+  System tampilkan semua cabang x hari
+
+Step 2: Count (OPEN → COUNTED)
+  User input pecahan besar + kecil per row
+  physical_count = large + small
+  Jika deficit → wajib PIC
+
+Step 3: Deposit (COUNTED → DEPOSITED)
+  User pilih beberapa rows COUNTED (same branch)
+  Buat cash_deposits record:
+    deposit_amount = SUM(large_denomination)
+    deposit_date, bank_account_id, reference
+  Update cash_counts:
+    status → DEPOSITED
+    cash_deposit_id → link ke deposit
+
+Step 4: Reconcile (DEPOSITED → CLOSED)
+  Bank statement masuk di halaman Bank Reconciliation
+  Match bank statement ↔ cash_deposit
+  Update cash_deposits:
+    status → RECONCILED
+    bank_statement_id → link ke bank statement
+  Update cash_counts:
+    status → CLOSED
+```

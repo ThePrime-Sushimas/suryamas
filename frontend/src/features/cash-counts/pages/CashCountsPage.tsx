@@ -4,7 +4,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { cashCountsApi, type CashCountPreviewRow } from '../api/cashCounts.api'
 import { CashCountStatusBadge } from '../components/CashCountStatusBadge'
 import { CashCountDetailPanel } from '../components/CashCountDetailPanel'
-import type { CashCount, CashCountStatus, UpdatePhysicalCountDto, DepositDto } from '../types'
+import type { CashCount, CashCountStatus, UpdatePhysicalCountDto } from '../types'
 import api from '@/lib/axios'
 
 const fmt = (n: number) => n.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
@@ -99,9 +99,8 @@ export function CashCountsPage() {
     catch { toast.error('Gagal memuat detail') }
   }, [toast])
 
-  const handleCount = useCallback(async (id: string, dto: UpdatePhysicalCountDto) => { await cashCountsApi.updatePhysicalCount(id, dto); toast.success('Disimpan'); handlePreview() }, [toast, handlePreview])
-  const handleDeposit = useCallback(async (id: string, dto: DepositDto) => { await cashCountsApi.deposit(id, dto); toast.success('Setoran dicatat'); handlePreview() }, [toast, handlePreview])
-  const handleClose = useCallback(async (id: string) => { await cashCountsApi.close(id); toast.success('Ditutup'); handlePreview() }, [toast, handlePreview])
+  const handleCount = useCallback(async (id: string, dto: UpdatePhysicalCountDto) => { await cashCountsApi.updatePhysicalCount(id, dto); toast.success('Disimpan'); setShowDetail(false); handlePreview() }, [toast, handlePreview])
+  const handleClose = useCallback(async (id: string) => { await cashCountsApi.close(id); toast.success('Ditutup'); setShowDetail(false); handlePreview() }, [toast, handlePreview])
 
   return (
     <div className="p-4 lg:p-6 space-y-4">
@@ -298,7 +297,7 @@ export function CashCountsPage() {
       {selectedDetail && (
         <CashCountDetailPanel
           item={selectedDetail} isOpen={showDetail} onClose={() => setShowDetail(false)}
-          onCount={handleCount} onDeposit={handleDeposit} onCloseCount={handleClose}
+          onCount={handleCount} onCloseCount={handleClose}
           employees={employees} bankAccounts={bankAccounts} isLoading={isMutating}
         />
       )}

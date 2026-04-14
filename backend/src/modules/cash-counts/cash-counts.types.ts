@@ -1,4 +1,5 @@
 export type CashCountStatus = 'OPEN' | 'COUNTED' | 'DEPOSITED' | 'CLOSED'
+export type CashDepositStatus = 'PENDING' | 'RECONCILED'
 
 export interface CashCount {
   id: string
@@ -14,16 +15,11 @@ export interface CashCount {
   small_denomination: number | null
   difference: number | null
   status: CashCountStatus
-  deposit_amount: number | null
-  deposit_date: string | null
-  deposit_bank_account_id: number | null
-  deposit_reference: string | null
+  cash_deposit_id: string | null
   responsible_employee_id: string | null
   notes: string | null
   counted_by: string | null
   counted_at: string | null
-  deposited_by: string | null
-  deposited_at: string | null
   closed_by: string | null
   closed_at: string | null
   created_by: string | null
@@ -35,18 +31,32 @@ export interface CashCount {
 export interface CashCountWithRelations extends CashCount {
   payment_method_name?: string | null
   responsible_employee_name?: string | null
-  deposit_bank_name?: string | null
-  details?: CashCountDetail[]
 }
 
-export interface CashCountDetail {
+export interface CashDeposit {
   id: string
-  cash_count_id: string
-  transaction_date: string
-  amount: number
-  transaction_count: number
+  company_id: string
+  deposit_amount: number
+  deposit_date: string
+  bank_account_id: number
+  reference: string | null
+  bank_statement_id: string | null
+  status: CashDepositStatus
+  branch_name: string | null
+  payment_method_id: number | null
+  period_start: string | null
+  period_end: string | null
+  item_count: number
   notes: string | null
+  created_by: string | null
   created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+export interface CashDepositWithRelations extends CashDeposit {
+  bank_account_name?: string | null
+  items?: CashCount[]
 }
 
 export interface CreateCashCountDto {
@@ -64,18 +74,18 @@ export interface UpdatePhysicalCountDto {
   notes?: string
 }
 
-export interface DepositDto {
-  deposit_amount: number
+export interface CreateDepositDto {
+  cash_count_ids: string[]
   deposit_date: string
-  deposit_bank_account_id: number
-  deposit_reference?: string
+  bank_account_id: number
+  reference?: string
   notes?: string
 }
 
 export interface CashCountListQuery {
   page?: number
   limit?: number
-  branch_id?: string
+  branch_name?: string
   payment_method_id?: number
   status?: CashCountStatus
   start_date?: string

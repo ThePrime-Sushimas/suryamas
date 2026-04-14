@@ -1,5 +1,5 @@
 import api from '@/lib/axios'
-import type { CashCount, CreateCashCountDto, UpdatePhysicalCountDto, DepositDto, CashCountListFilter } from '../types'
+import type { CashCount, CashDeposit, CreateCashCountDto, UpdatePhysicalCountDto, CreateDepositDto, CashCountListFilter } from '../types'
 
 export interface CashCountPreviewRow {
   branch_name: string
@@ -12,15 +12,9 @@ export interface CashCountPreviewRow {
   small_denomination: number | null
   difference: number | null
   status: string | null
+  cash_deposit_id: string | null
   responsible_employee_id: string | null
-  deposit_amount: number | null
-  deposit_date: string | null
   notes: string | null
-}
-
-export interface CashCountListResponse {
-  data: CashCount[]
-  pagination: { page: number; limit: number; total: number; totalPages: number; hasNext: boolean; hasPrev: boolean }
 }
 
 export const cashCountsApi = {
@@ -29,9 +23,9 @@ export const cashCountsApi = {
     return res.data.data
   },
 
-  async list(params: CashCountListFilter = {}): Promise<CashCountListResponse> {
+  async list(params: CashCountListFilter = {}) {
     const res = await api.get('/cash-counts', { params })
-    return { data: res.data.data, pagination: res.data.pagination }
+    return { data: res.data.data as CashCount[], pagination: res.data.pagination }
   },
 
   async getById(id: string): Promise<CashCount> {
@@ -49,11 +43,6 @@ export const cashCountsApi = {
     return res.data.data
   },
 
-  async deposit(id: string, dto: DepositDto): Promise<CashCount> {
-    const res = await api.put(`/cash-counts/${id}/deposit`, dto)
-    return res.data.data
-  },
-
   async close(id: string): Promise<CashCount> {
     const res = await api.post(`/cash-counts/${id}/close`)
     return res.data.data
@@ -61,5 +50,20 @@ export const cashCountsApi = {
 
   async delete(id: string): Promise<void> {
     await api.delete(`/cash-counts/${id}`)
+  },
+
+  // Deposits
+  async createDeposit(dto: CreateDepositDto): Promise<CashDeposit> {
+    const res = await api.post('/cash-counts/deposits', dto)
+    return res.data.data
+  },
+
+  async getDeposit(id: string): Promise<CashDeposit> {
+    const res = await api.get(`/cash-counts/deposits/${id}`)
+    return res.data.data
+  },
+
+  async deleteDeposit(id: string): Promise<void> {
+    await api.delete(`/cash-counts/deposits/${id}`)
   },
 }
