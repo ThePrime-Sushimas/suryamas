@@ -160,21 +160,30 @@ export class SettlementGroupService {
     if (status === SettlementGroupStatus.RECONCILED) {
       try {
         await this.repository.markAggregatesAsReconciled(dto.aggregateIds);
-        await this.repository.markBankStatementAsReconciled(
-          dto.bankStatementId,
-          groupId,
-        );
       } catch (error) {
         logError(
-          "Failed to mark as reconciled during settlement group creation",
+          "Failed to mark aggregates as reconciled",
           {
             groupId,
-            bankStatementId: dto.bankStatementId,
             aggregateIds: dto.aggregateIds,
             error: error instanceof Error ? error.message : "Unknown error",
           },
         );
-        // Continue without throwing - the settlement group is created, just the reconciliation flags might need manual fix
+      }
+
+      try {
+        await this.repository.markBankStatementAsReconciled(
+          dto.bankStatementId,
+        );
+      } catch (error) {
+        logError(
+          "Failed to mark bank statement as reconciled",
+          {
+            groupId,
+            bankStatementId: dto.bankStatementId,
+            error: error instanceof Error ? error.message : "Unknown error",
+          },
+        );
       }
     }
 

@@ -548,7 +548,7 @@ export class SettlementGroupRepository {
   /**
    * Mark bank statement as reconciled
    */
-  async markBankStatementAsReconciled(statementId: string, settlementGroupId?: string): Promise<void> {
+  async markBankStatementAsReconciled(statementId: string): Promise<void> {
     // Handle different formats of statementId (string, number, bigint)
     let statementIdNum: number;
     if (typeof statementId === 'string') {
@@ -565,18 +565,12 @@ export class SettlementGroupRepository {
       throw new Error(`Invalid statement ID: ${statementId}`);
     }
 
-    const updateData: any = {
-      is_reconciled: true,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (settlementGroupId) {
-      updateData.reconciliation_group_id = settlementGroupId;
-    }
-
     const { error } = await supabase
       .from('bank_statements')
-      .update(updateData)
+      .update({
+        is_reconciled: true,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', statementIdNum);
 
     if (error) {
@@ -701,7 +695,6 @@ export class SettlementGroupRepository {
       .from('bank_statements')
       .update({
         is_reconciled: false,
-        reconciliation_group_id: null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', statementIdNum);
