@@ -366,9 +366,6 @@ const SettlementGroupDetailPage = lazy(() =>
 const MonitoringPage = lazy(() =>
   import("./features/monitoring").then((m) => ({ default: m.MonitoringPage })),
 );
-const BankVouchersPage = lazy(() =>
-  import("./features/accounting/bank-vouchers").then((m) => ({ default: m.BankVouchersPage })),
-);
 
 const PosSyncAggregatesPage = lazy(() =>
   import('./features/pos-sync-aggregates').then(m => ({ default: m.PosSyncAggregatesPage }))
@@ -1290,16 +1287,6 @@ function App() {
                       <ProtectedRoute>
                         <Suspense fallback={<LoadingFallback />}>
                           <SettlementGroupDetailPage />
-                        </Suspense>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="bank-vouchers"
-                    element={
-                      <ProtectedRoute>
-                        <Suspense fallback={<LoadingFallback />}>
-                          <BankVouchersPage />
                         </Suspense>
                       </ProtectedRoute>
                     }

@@ -42,7 +42,6 @@ import { requestLogger } from "./middleware/request-logger.middleware";
 import { generateOpenApiDocument } from "./config/openapi";
 import posSyncRoutes from "./modules/pos-sync/pos-sync.routes";
 import posSyncAggregatesRoutes from "./modules/pos-sync-aggregates/pos-sync-aggregates.routes";
-import bankVoucherRoutes from "./modules/bank-vouchers/bank-vouchers.routes";
 import { pool } from "./config/db";
 
 const app = express();
@@ -119,7 +118,6 @@ app.use("/api/v1/bank-statement-imports", bankStatementImportRoutes);
 app.use("/api/v1/reconciliation/bank", setupBankReconciliationModule().router);
 app.use("/api/v1/settlement-group", setupSettlementGroupModule().router);
 app.use("/api/v1", ownerBankAccountsRouter);
-app.use("/api/v1/bank-vouchers", bankVoucherRoutes);
 
 // Error handler
 app.use(errorHandler);

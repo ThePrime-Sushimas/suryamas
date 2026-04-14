@@ -22,13 +22,10 @@ import {
   AggregateAlreadyReconciledError,
   StatementAlreadyReconciledError,
   DifferenceThresholdExceededError,
-  SettlementAlreadyConfirmedError,
-  AggregateReconciledElsewhereError,
 } from "./bank-settlement-group.errors";
 import { logError, logInfo } from "../../../config/logger";
 import { bankSettlementConfig } from "./bank-settlement-group.config";
 import { AuditService } from "../../monitoring/monitoring.service";
-import { generateDraftVouchersFromAggregates } from "../../bank-vouchers/auto-draft-voucher";
 
 export class SettlementGroupService {
   private readonly repository: SettlementGroupRepository;
@@ -207,19 +204,6 @@ export class SettlementGroupService {
         difference,
       },
     );
-
-    // 11. Auto-generate draft voucher
-    if (status === SettlementGroupStatus.RECONCILED) {
-      const rawDate = statement.transaction_date;
-      const bankDate = typeof rawDate === 'string' ? rawDate.slice(0, 10) : new Date(rawDate).toISOString().slice(0, 10);
-      await generateDraftVouchersFromAggregates({
-        company_id: dto.companyId,
-        aggregate_ids: dto.aggregateIds,
-        bank_date: bankDate,
-        source_type: "SETTLEMENT_GROUP",
-        user_id: dto.userId,
-      });
-    }
 
     return {
       success: true,

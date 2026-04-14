@@ -182,6 +182,7 @@ export const handleError = async (res: Response, error: unknown): Promise<void> 
       
       if (config) {
         const category = getErrorCategoryByName(config.name)
+        const statusCode = (error as any).statusCode || config.defaultStatusCode
         
         logError(config.name, {
           message: error.message,
@@ -190,8 +191,8 @@ export const handleError = async (res: Response, error: unknown): Promise<void> 
         })
         
         // Send response with module-specific status code
-        sendError(res, error.message, config.defaultStatusCode, {
-          code: config.name,
+        sendError(res, error.message, statusCode, {
+          code: (error as any).code || config.name,
           category: config.category
         })
         return
@@ -233,9 +234,10 @@ export const handleError = async (res: Response, error: unknown): Promise<void> 
       if (await isModuleError(error, errorTypeName)) {
         const config = Object.values(ERROR_REGISTRY).find(c => c.name === errorTypeName)
         if (config) {
+          const statusCode = (error as any).statusCode || config.defaultStatusCode
           logError(errorTypeName, { message: error.message })
-          sendError(res, error.message, config.defaultStatusCode, {
-            code: errorTypeName,
+          sendError(res, error.message, statusCode, {
+            code: (error as any).code || errorTypeName,
             category: config.category
           })
           return

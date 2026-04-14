@@ -11,8 +11,6 @@ import {
 } from "./bank-reconciliation.types";
 import {
   AlreadyReconciledError,
-  NoMatchFoundError,
-  DifferenceThresholdExceededError,
 } from "./bank-reconciliation.errors";
 import { getReconciliationConfig } from "./bank-reconciliation.config";
 import { IReconciliationOrchestratorService } from "../orchestrator/reconciliation-orchestrator.types";
@@ -24,7 +22,6 @@ import { reconciliationOrchestratorService } from "../orchestrator/reconciliatio
 import { logError } from "../../../config/logger";
 import { createPaginatedResponse } from "../../../utils/pagination.util";
 import { AuditService } from "../../monitoring/monitoring.service";
-import { generateDraftVouchersFromAggregates } from "../../bank-vouchers/auto-draft-voucher";
 import type {
   MatchingStrategy,
   MatchingEngineResult
@@ -302,13 +299,6 @@ export class BankReconciliationService {
     const stmtDate = typeof statement.transaction_date === 'string'
       ? statement.transaction_date.slice(0, 10)
       : new Date(statement.transaction_date).toISOString().slice(0, 10);
-    await generateDraftVouchersFromAggregates({
-      company_id: companyId || statement.company_id || '',
-      aggregate_ids: [aggregateId],
-      bank_date: stmtDate,
-      source_type: "RECONCILIATION",
-      user_id: userId,
-    });
 
     return {
       success: true,
@@ -639,13 +629,6 @@ export class BankReconciliationService {
         matchesByDate.get(bankDate)!.push(m.aggregateId);
       }
       for (const [bankDate, aggIds] of matchesByDate) {
-        await generateDraftVouchersFromAggregates({
-          company_id: companyId || '',
-          aggregate_ids: aggIds,
-          bank_date: bankDate,
-          source_type: "RECONCILIATION",
-          user_id: userId,
-        });
       }
     }
 
@@ -896,13 +879,6 @@ export class BankReconciliationService {
     const multiMatchBankDate = typeof firstStmt.transaction_date === 'string'
       ? firstStmt.transaction_date.slice(0, 10)
       : new Date(firstStmt.transaction_date).toISOString().slice(0, 10);
-    await generateDraftVouchersFromAggregates({
-      company_id: companyId || '',
-      aggregate_ids: [aggregateId],
-      bank_date: multiMatchBankDate,
-      source_type: "MULTI_MATCH",
-      user_id: userId,
-    });
 
     return {
       success: true,
