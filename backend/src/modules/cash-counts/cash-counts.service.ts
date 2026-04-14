@@ -66,18 +66,26 @@ export class CashCountsService {
       throw new CashCountInvalidStatusError(existing.status, 'OPEN atau COUNTED')
     }
 
+    // Re-calculate system_balance dari aggregated_transactions (snapshot saat count)
+    const { totalAmount, count } = await cashCountsRepository.calculateSystemBalance(
+      existing.company_id, existing.start_date, existing.end_date,
+      existing.payment_method_id, existing.branch_name,
+    )
+
     const physicalCount = dto.large_denomination + dto.small_denomination
-    const diff = physicalCount - existing.system_balance
+    const diff = physicalCount - totalAmount
     if (diff < 0 && !dto.responsible_employee_id) throw new CashCountDeficitRequiresEmployeeError()
 
     await cashCountsRepository.updatePhysicalCount(
       id, dto.large_denomination, dto.small_denomination,
+      totalAmount, count,
       diff < 0 ? (dto.responsible_employee_id || null) : null, dto.notes, userId,
     )
 
     if (userId) {
       await AuditService.log('UPDATE', 'cash_count', id, userId,
-        { status: existing.status }, { status: 'COUNTED', large_denomination: dto.large_denomination, small_denomination: dto.small_denomination },
+        { status: existing.status, system_balance: existing.system_balance },
+        { status: 'COUNTED', system_balance: totalAmount, large_denomination: dto.large_denomination, small_denomination: dto.small_denomination, difference: diff },
       )
     }
     return (await cashCountsRepository.findById(id))!
@@ -99,7 +107,8 @@ export class CashCountsService {
     if (depositAmount <= 0) throw new CashCountOperationError('deposit', 'Total pecahan besar harus > 0')
 
     const dates = cashCounts.map((cc) => cc!.start_date).sort()
-    const branchName = cashCounts[0]!.branch_name
+    const branchNames = [...new Set(cashCounts.map((cc) => cc!.branch_name).filter(Boolean))]
+    const branchName = branchNames.length === 1 ? branchNames[0] : branchNames.join(', ')
     const pmId = cashCounts[0]!.payment_method_id
 
     const deposit = await cashCountsRepository.createDeposit({
@@ -160,6 +169,25 @@ export class CashCountsService {
     const dep = await cashCountsRepository.findDepositById(id)
     if (!dep) throw new CashCountNotFoundError(id)
     return dep
+  }
+
+  async listDeposits(companyId: string, page: number = 1, limit: number = 20) {
+    const offset = (page - 1) * limit
+    const { data, total } = await cashCountsRepository.listDeposits(companyId, { limit, offset })
+
+    // Batch fetch bank account names
+    const baIds = [...new Set(data.map((d: any) => d.bank_account_id).filter(Boolean))]
+    let baMap: Record<number, string> = {}
+    if (baIds.length > 0) {
+      const { data: bas } = await (await import('../../config/supabase')).supabase
+        .from('bank_accounts').select('id, account_name, banks(bank_name)').in('id', baIds)
+      if (bas) baMap = bas.reduce((a: any, b: any) => {
+        a[b.id] = `${(b.banks as any)?.bank_name || ''} - ${b.account_name}`; return a
+      }, {})
+    }
+
+    const mapped = data.map((d: any) => ({ ...d, bank_account_name: d.bank_account_id ? baMap[d.bank_account_id] || null : null }))
+    return { data: mapped, pagination: { page, limit, total, totalPages: Math.ceil(total / limit), hasNext: page * limit < total, hasPrev: page > 1 } }
   }
 
   async deleteDeposit(id: string, userId?: string): Promise<void> {

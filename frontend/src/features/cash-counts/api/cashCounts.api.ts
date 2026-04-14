@@ -66,4 +66,9 @@ export const cashCountsApi = {
   async deleteDeposit(id: string): Promise<void> {
     await api.delete(`/cash-counts/deposits/${id}`)
   },
+
+  async listDeposits(page: number = 1, limit: number = 20) {
+    const res = await api.get('/cash-counts/deposits', { params: { page, limit } })
+    return { data: res.data.data as CashDeposit[], pagination: res.data.pagination }
+  },
 }

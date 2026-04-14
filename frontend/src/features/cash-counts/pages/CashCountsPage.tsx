@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
-import { Coins, Search, RefreshCw, Loader2, AlertTriangle, Check, X, ChevronDown, ChevronUp, Building } from 'lucide-react'
+import { Coins, Search, RefreshCw, Loader2, AlertTriangle, Check, X, ChevronDown, ChevronUp, Building, Banknote } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { cashCountsApi, type CashCountPreviewRow } from '../api/cashCounts.api'
 import { CashCountStatusBadge } from '../components/CashCountStatusBadge'
 import { CashCountDetailPanel } from '../components/CashCountDetailPanel'
+import { DepositModal } from '../components/DepositModal'
 import type { CashCount, CashCountStatus, UpdatePhysicalCountDto } from '../types'
 import api from '@/lib/axios'
 
@@ -23,9 +24,15 @@ export function CashCountsPage() {
   const [isMutating, setIsMutating] = useState(false)
   const [collapsedBranches, setCollapsedBranches] = useState<Set<string>>(new Set())
 
+  // Detail panel
   const [selectedDetail, setSelectedDetail] = useState<CashCount | null>(null)
   const [showDetail, setShowDetail] = useState(false)
 
+  // Deposit selection
+  const [selectedForDeposit, setSelectedForDeposit] = useState<Set<string>>(new Set()) // keys: "branch|date"
+  const [showDepositModal, setShowDepositModal] = useState(false)
+
+  // Reference data
   const [paymentMethods, setPaymentMethods] = useState<{ id: number; name: string }[]>([])
   const [employees, setEmployees] = useState<{ id: string; full_name: string }[]>([])
   const [bankAccounts, setBankAccounts] = useState<{ id: number; account_name: string; bank_name: string }[]>([])
@@ -47,7 +54,7 @@ export function CashCountsPage() {
   const handlePreview = useCallback(async () => {
     if (!startDate || !endDate || !paymentMethodId) return
     setIsLoading(true)
-    try { setRows(await cashCountsApi.preview(startDate, endDate, paymentMethodId)); setCollapsedBranches(new Set()) }
+    try { setRows(await cashCountsApi.preview(startDate, endDate, paymentMethodId)); setCollapsedBranches(new Set()); setSelectedForDeposit(new Set()) }
     catch (e) { toast.error(e instanceof Error ? e.message : 'Gagal memuat data') }
     finally { setIsLoading(false) }
   }, [startDate, endDate, paymentMethodId, toast])
@@ -69,6 +76,13 @@ export function CashCountsPage() {
   const toggleBranch = (name: string) => setCollapsedBranches((prev) => { const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n })
 
   const editTotal = (Number(editLarge) || 0) + (Number(editSmall) || 0)
+
+  // Deposit selection helpers
+  const toggleDepositSelect = (key: string) => {
+    setSelectedForDeposit((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
+  }
+  const selectedDepositRows = rows.filter((r) => selectedForDeposit.has(rk(r)))
+  const canDeposit = selectedDepositRows.length > 0 && selectedDepositRows.every((r) => r.status === 'COUNTED' && r.cash_count_id)
 
   const handleSaveCount = useCallback(async (row: CashCountPreviewRow) => {
     const large = Number(editLarge) || 0
@@ -101,6 +115,20 @@ export function CashCountsPage() {
 
   const handleCount = useCallback(async (id: string, dto: UpdatePhysicalCountDto) => { await cashCountsApi.updatePhysicalCount(id, dto); toast.success('Disimpan'); setShowDetail(false); handlePreview() }, [toast, handlePreview])
   const handleClose = useCallback(async (id: string) => { await cashCountsApi.close(id); toast.success('Ditutup'); setShowDetail(false); handlePreview() }, [toast, handlePreview])
+
+  const handleCreateDeposit = useCallback(async (depositDate: string, bankAccountId: number, reference: string, notes: string) => {
+    const ids = selectedDepositRows.map((r) => r.cash_count_id!).filter(Boolean)
+    if (ids.length === 0) return
+    setIsMutating(true)
+    try {
+      await cashCountsApi.createDeposit({ cash_count_ids: ids, deposit_date: depositDate, bank_account_id: bankAccountId, reference: reference || undefined, notes: notes || undefined })
+      toast.success(`Setoran ${selectedDepositRows.length} item berhasil dibuat`)
+      setShowDepositModal(false)
+      setSelectedForDeposit(new Set())
+      await handlePreview()
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Gagal buat setoran') }
+    finally { setIsMutating(false) }
+  }, [selectedDepositRows, toast, handlePreview])
 
   return (
     <div className="p-4 lg:p-6 space-y-4">
@@ -142,9 +170,32 @@ export function CashCountsPage() {
         </div>
       </div>
 
+      {/* Deposit Action Bar */}
+      {selectedForDeposit.size > 0 && (
+        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3 text-xs">
+            <Banknote className="w-4 h-4 text-purple-600" />
+            <span className="text-purple-700 dark:text-purple-300 font-medium">{selectedForDeposit.size} item dipilih</span>
+            <span className="text-purple-500">· Besar: {fmt(selectedDepositRows.reduce((s, r) => s + (r.large_denomination || 0), 0))}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setSelectedForDeposit(new Set())}
+              className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+              Batal
+            </button>
+            <button onClick={() => setShowDepositModal(true)} disabled={!canDeposit}
+              className="px-4 py-1.5 text-xs font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1.5">
+              <Banknote className="w-3.5 h-3.5" /> Setor
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Branch Groups */}
       {branchGroups.map((group) => {
         const isCollapsed = collapsedBranches.has(group.name)
+        const countedInGroup = group.items.filter((r) => r.status === 'COUNTED' && r.cash_count_id && !r.cash_deposit_id)
+
         return (
           <div key={group.name} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             {/* Branch Header */}
@@ -154,6 +205,9 @@ export function CashCountsPage() {
                 <Building className="w-3.5 h-3.5 text-gray-400" />
                 <span className="text-xs font-semibold text-gray-900 dark:text-white">{group.name}</span>
                 <span className="text-[10px] text-gray-400">{group.counted}/{group.items.length}</span>
+                {countedInGroup.length > 0 && (
+                  <span className="text-[10px] text-purple-500 font-medium">{countedInGroup.length} siap setor</span>
+                )}
               </div>
               <div className="flex items-center gap-4">
                 <span className="text-[10px] font-mono text-gray-500">{fmt(group.system)}</span>
@@ -166,11 +220,11 @@ export function CashCountsPage() {
               </div>
             </button>
 
-            {/* Rows */}
             {!isCollapsed && (
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-800">
+                    <th className="px-2 py-2 w-8"></th>
                     <th className="px-3 py-2 text-left font-semibold">Tanggal</th>
                     <th className="px-3 py-2 text-right font-semibold">System</th>
                     <th className="px-3 py-2 text-right font-semibold">Besar</th>
@@ -187,38 +241,53 @@ export function CashCountsPage() {
                     const k = rk(row)
                     const isEditing = editKey === k
                     const diff = row.difference ?? 0
-                    const canEdit = !row.status || row.status === 'OPEN'
-                    const hasDetail = !!row.cash_count_id && row.status && row.status !== 'OPEN'
+                    const canEdit = !row.status || row.status === 'OPEN' || row.status === 'COUNTED'
+                    const hasDetail = !!row.cash_count_id
+                    const canSelect = row.status === 'COUNTED' && row.cash_count_id && !row.cash_deposit_id
+                    const isSelected = selectedForDeposit.has(k)
 
                     return (
-                      <tr key={k} className={`border-b border-gray-100 dark:border-gray-800 transition-colors ${hasDetail ? 'cursor-pointer hover:bg-gray-50/70 dark:hover:bg-gray-800/40' : ''}`}
-                        onClick={() => hasDetail && handleOpenDetail(row)}>
+                      <tr key={k} className={`border-b border-gray-100 dark:border-gray-800 transition-colors ${
+                        isSelected ? 'bg-purple-50/50 dark:bg-purple-900/10' : hasDetail ? 'hover:bg-gray-50/70 dark:hover:bg-gray-800/40' : ''
+                      } ${hasDetail && !isEditing ? 'cursor-pointer' : ''}`}
+                        onClick={() => !isEditing && hasDetail && handleOpenDetail(row)}>
+
+                        {/* Checkbox for deposit */}
+                        <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
+                          {canSelect ? (
+                            <input type="checkbox" checked={isSelected} onChange={() => toggleDepositSelect(k)}
+                              className="rounded border-purple-300 text-purple-600 focus:ring-purple-500 cursor-pointer" />
+                          ) : row.cash_deposit_id ? (
+                            <span title="Sudah disetor"><Banknote className="w-3 h-3 text-purple-400 mx-auto" /></span>
+                          ) : null}
+                        </td>
+
                         <td className="px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmtDate(row.transaction_date)}</td>
                         <td className="px-3 py-2 text-right font-mono text-gray-700 dark:text-gray-300">{fmt(row.system_balance)}</td>
 
-                        {/* Pecahan Besar */}
+                        {/* Besar */}
                         <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                           {isEditing ? (
                             <input type="number" value={editLarge} onChange={(e) => setEditLarge(e.target.value)} min={0} autoFocus placeholder="0"
                               className="w-24 px-2 py-1 border border-amber-300 dark:border-amber-600 rounded text-xs text-right font-mono focus:ring-1 focus:ring-amber-500 outline-none bg-white dark:bg-gray-700 dark:text-white"
                               onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCount(row); if (e.key === 'Escape') setEditKey(null) }} />
-                          ) : row.physical_count !== null ? (
-                            <span className="font-mono text-gray-600 dark:text-gray-400">{fmt(row.large_denomination ?? 0)}</span>
+                          ) : row.large_denomination != null ? (
+                            <span className="font-mono text-gray-600 dark:text-gray-400">{fmt(row.large_denomination)}</span>
                           ) : null}
                         </td>
 
-                        {/* Pecahan Kecil */}
+                        {/* Kecil */}
                         <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                           {isEditing ? (
                             <input type="number" value={editSmall} onChange={(e) => setEditSmall(e.target.value)} min={0} placeholder="0"
                               className="w-24 px-2 py-1 border border-amber-300 dark:border-amber-600 rounded text-xs text-right font-mono focus:ring-1 focus:ring-amber-500 outline-none bg-white dark:bg-gray-700 dark:text-white"
                               onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCount(row); if (e.key === 'Escape') setEditKey(null) }} />
-                          ) : row.physical_count !== null ? (
-                            <span className="font-mono text-gray-600 dark:text-gray-400">{fmt(row.small_denomination ?? 0)}</span>
+                          ) : row.small_denomination != null ? (
+                            <span className="font-mono text-gray-600 dark:text-gray-400">{fmt(row.small_denomination)}</span>
                           ) : null}
                         </td>
 
-                        {/* Total Fisik */}
+                        {/* Total */}
                         <td className="px-3 py-2 text-right font-mono whitespace-nowrap">
                           {isEditing ? (
                             <span className="font-medium text-amber-600">{fmt(editTotal)}</span>
@@ -294,6 +363,7 @@ export function CashCountsPage() {
         <div className="py-12 text-center text-gray-400 text-xs">Pilih payment method lalu klik Tampilkan</div>
       )}
 
+      {/* Detail Panel */}
       {selectedDetail && (
         <CashCountDetailPanel
           item={selectedDetail} isOpen={showDetail} onClose={() => setShowDetail(false)}
@@ -301,6 +371,16 @@ export function CashCountsPage() {
           employees={employees} bankAccounts={bankAccounts} isLoading={isMutating}
         />
       )}
+
+      {/* Deposit Modal */}
+      <DepositModal
+        isOpen={showDepositModal}
+        onClose={() => setShowDepositModal(false)}
+        onConfirm={handleCreateDeposit}
+        selectedRows={selectedDepositRows}
+        bankAccounts={bankAccounts}
+        isLoading={isMutating}
+      />
     </div>
   )
 }

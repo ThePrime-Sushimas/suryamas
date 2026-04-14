@@ -20,6 +20,7 @@ router.use(authenticate, resolveBranchContext)
 router.get('/preview', canView('cash_counts'), validateSchema(previewSchema), cashCountsController.preview)
 
 // Deposits
+router.get('/deposits', canView('cash_counts'), cashCountsController.listDeposits)
 router.post('/deposits', canInsert('cash_counts'), validateSchema(createDepositSchema), cashCountsController.createDeposit)
 router.get('/deposits/:id', canView('cash_counts'), validateSchema(depositIdSchema), cashCountsController.getDeposit)
 router.delete('/deposits/:id', canDelete('cash_counts'), validateSchema(depositIdSchema), cashCountsController.deleteDeposit)

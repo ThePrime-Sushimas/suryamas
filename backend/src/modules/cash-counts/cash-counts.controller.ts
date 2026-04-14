@@ -60,6 +60,15 @@ export class CashCountsController {
     } catch (error: any) { handleError(res, error) }
   })
 
+  listDeposits = async (req: any, res: Response) => {
+    try {
+      const page = parseInt(req.query.page || '1')
+      const limit = parseInt(req.query.limit || '20')
+      const result = await cashCountsService.listDeposits(req.context?.company_id!, page, limit)
+      sendSuccess(res, result.data, 'Deposits retrieved', 200, result.pagination)
+    } catch (error: any) { handleError(res, error) }
+  }
+
   deleteDeposit = withValidated(async (req: ValidatedAuthRequest<typeof depositIdSchema>, res: Response) => {
     try {
       await cashCountsService.deleteDeposit(req.validated.params.id, req.context?.employee_id)

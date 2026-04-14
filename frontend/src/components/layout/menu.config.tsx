@@ -257,6 +257,13 @@ export const menuItems: MenuItem[] = [
             icon: <Coins size={16} />,
             module: "cash_counts",
           },
+          {
+            id: "cash-deposits",
+            name: "Cash Deposits",
+            href: "/cash-deposits",
+            icon: <Coins size={16} />,
+            module: "cash_counts",
+          },
         ],
       },
     ],

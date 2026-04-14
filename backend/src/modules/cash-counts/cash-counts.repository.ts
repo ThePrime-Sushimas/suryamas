@@ -143,9 +143,10 @@ export class CashCountsRepository {
   }
 
   // ── Update physical count ──
-  async updatePhysicalCount(id: string, largeD: number, smallD: number, responsibleEmployeeId: string | null, notes: string | undefined, userId?: string): Promise<CashCount> {
+  async updatePhysicalCount(id: string, largeD: number, smallD: number, systemBalance: number, transactionCount: number, responsibleEmployeeId: string | null, notes: string | undefined, userId?: string): Promise<CashCount> {
     const updates: Record<string, any> = {
       large_denomination: largeD, small_denomination: smallD, physical_count: largeD + smallD,
+      system_balance: systemBalance, transaction_count: transactionCount,
       responsible_employee_id: responsibleEmployeeId,
       status: 'COUNTED', counted_by: userId, counted_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     }
