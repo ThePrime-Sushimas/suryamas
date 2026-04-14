@@ -90,13 +90,17 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
   const [showFilters, setShowFilters] = useState(true)
   const [dateError, setDateError] = useState<string | null>(null)
 
-  // Restore filters from localStorage on mount
+  // Restore filters from localStorage on mount & auto-apply
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.LAST_FILTER)
       if (saved) {
         const parsed = JSON.parse(saved) as BankStatementFilter
-        if (parsed.startDate || parsed.endDate || parsed.status || parsed.search) {
+        if (parsed.startDate && parsed.endDate) {
+          onFiltersChange(parsed)
+          // Auto-apply on next tick so state is updated
+          setTimeout(() => onApplyFilters(parsed), 0)
+        } else if (parsed.startDate || parsed.endDate || parsed.status || parsed.search) {
           onFiltersChange(parsed)
         }
       }
