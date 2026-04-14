@@ -8,7 +8,7 @@
  */
 
 import React, { useState, useEffect } from 'react'
-import { Search, X, ChevronDown, Filter, Calendar, RefreshCw } from 'lucide-react'
+import { Search, X, Filter, Calendar, RefreshCw, Check } from 'lucide-react'
 import type { BankAccountStatus } from '../types/bank-reconciliation.types'
 import { STORAGE_KEYS } from '../constants/reconciliation.config'
 
@@ -87,7 +87,6 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
   bankAccounts,
   isLoading = false
 }) => {
-  const [showAccountDropdown, setShowAccountDropdown] = useState(false)
   const [showFilters, setShowFilters] = useState(true)
   const [dateError, setDateError] = useState<string | null>(null)
 
@@ -151,7 +150,12 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
     const updated = current.includes(accountId)
       ? current.filter(a => a !== accountId)
       : [...current, accountId]
-    onFiltersChange({ bankAccountIds: updated.length > 0 ? updated : undefined })
+    const newFilters = { ...filters, bankAccountIds: updated.length > 0 ? updated : undefined }
+    onFiltersChange({ bankAccountIds: newFilters.bankAccountIds })
+    // Auto-fetch if dates are set
+    if (filters.startDate && filters.endDate) {
+      onApplyFilters(newFilters)
+    }
   }
 
   const handleApplyFilters = () => {
@@ -238,9 +242,9 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
 
       {showFilters && (
         <>
-          {/* Quick Date Presets */}
+          {/* Quick Presets + Bank Account Chips */}
           <div className="flex flex-wrap gap-2 mb-4">
-            <span className={`text-[10px] text-gray-500 self-center mr-1`}>Cepat:</span>
+            <span className="text-[10px] text-gray-500 self-center mr-1">Cepat:</span>
             {[
               { label: 'Kemarin', start: getYesterday(), end: getYesterday() },
               { label: 'Minggu Ini', start: getWeekStart(), end: getYesterday() },
@@ -249,11 +253,35 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
               <button
                 key={preset.label}
                 onClick={() => handleQuickDate(preset.start, preset.end)}
-                className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-medium rounded-lg transition-colors h-auto cursor-pointer`}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-medium rounded-lg transition-colors h-auto cursor-pointer"
               >
                 {preset.label}
               </button>
             ))}
+
+            {bankAccounts.length > 0 && (
+              <>
+                <span className="text-gray-200 dark:text-gray-700 self-center">|</span>
+                <span className="text-[10px] text-gray-500 self-center mr-1">Akun:</span>
+                {bankAccounts.map(acc => {
+                  const isActive = filters.bankAccountIds?.includes(acc.id) || false
+                  return (
+                    <button
+                      key={acc.id}
+                      onClick={() => handleAccountToggle(acc.id)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all h-auto cursor-pointer border ${
+                        isActive
+                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700'
+                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                      }`}
+                    >
+                      {isActive && <Check size={12} className="text-blue-600" />}
+                      {acc.banks.bank_name} · {acc.account_number.slice(-4)}
+                    </button>
+                  )
+                })}
+              </>
+            )}
           </div>
 
           {/* Active Filters Tags */}
@@ -306,7 +334,7 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
           <div className="flex flex-wrap gap-4 items-end">
             {/* Search */}
             <div className="flex-1 min-w-[200px]">
-              <label htmlFor="filter-search" className={`block text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1`}>
+              <label htmlFor="filter-search" className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
                 Pencarian
               </label>
               <div className="relative">
@@ -317,7 +345,7 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
                   placeholder="Cari deskripsi atau referensi..."
                   value={filters.search || ''}
                   onChange={handleSearchChange}
-                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pl-9 pr-9`}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pl-9 pr-9"
                 />
                 {filters.search && (
                   <button
@@ -333,7 +361,7 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
 
             {/* Date Range - From */}
             <div className="w-40">
-              <label htmlFor="filter-date-from" className={`block text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1`}>
+              <label htmlFor="filter-date-from" className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
                 Dari Tanggal <span className="text-red-500">*</span>
               </label>
               <input
@@ -350,7 +378,7 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
 
             {/* Date Range - To */}
             <div className="w-40">
-              <label htmlFor="filter-date-to" className={`block text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1`}>
+              <label htmlFor="filter-date-to" className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
                 Sampai Tanggal <span className="text-red-500">*</span>
               </label>
               <input
@@ -366,56 +394,16 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
               />
             </div>
 
-            {/* Bank Account Dropdown */}
-            <div className="relative w-56">
-              <label htmlFor="filter-bank-account" className={`block text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1`}>
-                Akun Bank
-              </label>
-              <button
-                id="filter-bank-account"
-                onClick={() => setShowAccountDropdown(!showAccountDropdown)}
-                className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-white text-left flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700`}
-                aria-expanded={showAccountDropdown}
-              >
-                <span className="truncate">
-                  {(!filters.bankAccountIds || filters.bankAccountIds.length === 0)
-                    ? 'Semua Akun'
-                    : `${filters.bankAccountIds.length} dipilih`}
-                </span>
-                <ChevronDown size={16} className="text-gray-400" />
-              </button>
-              {showAccountDropdown && (
-                <div className="absolute z-20 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg max-h-60 overflow-y-auto">
-                  {bankAccounts.map(acc => (
-                    <label key={acc.id} className="flex items-center px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={filters.bankAccountIds?.includes(acc.id) || false}
-                        onChange={() => handleAccountToggle(acc.id)}
-                        className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <div className="flex flex-col">
-                        <span className="text-xs truncate text-gray-900 dark:text-white">{acc.account_name}</span>
-                        <span className="text-[10px] text-gray-500 truncate">
-                          {acc.banks.bank_name} • {acc.account_number}
-                        </span>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-
             {/* Status Filter */}
             <div className="w-48">
-              <label htmlFor="filter-status" className={`block text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1`}>
+              <label htmlFor="filter-status" className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
                 Status Transaksi
               </label>
               <select
                 id="filter-status"
                 value={filters.status || ''}
                 onChange={handleStatusChange}
-                className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 {STATUS_OPTIONS.map((option) => (
                   <option key={option.value || 'all'} value={option.value} title={option.description}>
