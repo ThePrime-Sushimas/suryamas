@@ -13,7 +13,7 @@ interface Props {
   onCount: (id: string, dto: UpdatePhysicalCountDto) => Promise<void>
   onCloseCount: (id: string) => Promise<void>
   employees: { id: string; full_name: string }[]
-  bankAccounts: { id: number; account_name: string; bank_name: string }[]
+  bankAccounts: { id: number; account_name: string; account_number: string; bank_name: string; bank_code: string }[]
   isLoading: boolean
 }
 
@@ -40,8 +40,8 @@ export function CashCountDetailPanel({ item, isOpen, onClose, onCount, employees
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <div>
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{item.branch_name || 'Cash Count'}</h3>
-            <p className="text-[10px] text-gray-400">{fmtDate(item.start_date)}</p>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">{item.branch_name || 'Cash Count'}</h3>
+            <p className="text-sm text-gray-400">{fmtDate(item.start_date)}</p>
           </div>
           <div className="flex items-center gap-2">
             <CashCountStatusBadge status={item.status} />
@@ -72,17 +72,17 @@ export function CashCountDetailPanel({ item, isOpen, onClose, onCount, employees
           {/* Edit count — OPEN or COUNTED (re-edit) */}
           {(item.status === 'OPEN' || item.status === 'COUNTED') && (
             <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl space-y-3">
-              <p className="text-xs font-semibold text-blue-800 dark:text-blue-300">
+              <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
                 {item.status === 'OPEN' ? 'Input Hitung Fisik' : 'Edit Hitung Fisik'}
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] text-gray-500 mb-1">Pecahan Besar</label>
+                  <label className="block text-xs text-gray-500 mb-1">Pecahan Besar</label>
                   <input type="number" value={editLarge} onChange={(e) => setEditLarge(e.target.value)} min={0}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs font-mono text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-gray-500 mb-1">Pecahan Kecil</label>
+                  <label className="block text-xs text-gray-500 mb-1">Pecahan Kecil</label>
                   <input type="number" value={editSmall} onChange={(e) => setEditSmall(e.target.value)} min={0}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs font-mono text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500" />
                 </div>
@@ -95,7 +95,7 @@ export function CashCountDetailPanel({ item, isOpen, onClose, onCount, employees
               </div>
               {diff < 0 && (
                 <div>
-                  <label className="block text-[10px] text-red-500 items-center gap-1 mb-1"><AlertTriangle className="w-3 h-3" />PIC Deficit *</label>
+                  <label className="block text-xs text-red-500 items-center gap-1 mb-1"><AlertTriangle className="w-3 h-3" />PIC Deficit *</label>
                   <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-white">
                     <option value="">Pilih</option>

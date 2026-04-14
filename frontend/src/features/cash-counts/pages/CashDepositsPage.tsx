@@ -76,12 +76,12 @@ export function CashDepositsPage() {
         <div className="flex items-center gap-2.5">
           <div className="p-2 bg-purple-600 rounded-xl"><Banknote className="w-5 h-5 text-white" /></div>
           <div>
-            <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Cash Deposits</h1>
-            <p className="text-[10px] text-gray-400">Riwayat setoran kas ke bank</p>
+            <h1 className="text-base font-semibold text-gray-900 dark:text-white">Cash Deposits</h1>
+            <p className="text-sm text-gray-400">Riwayat setoran kas ke bank</p>
           </div>
         </div>
         <button onClick={fetchList} disabled={isLoading}
-          className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 rounded-lg text-[10px] font-medium hover:bg-gray-50 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700">
+          className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700">
           <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
         </button>
       </div>
@@ -91,7 +91,7 @@ export function CashDepositsPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-gray-50 dark:bg-gray-800/50 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
+              <tr className="bg-gray-50 dark:bg-gray-800/50 text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
                 <th className="px-3 py-2.5 text-left font-semibold">Tanggal Setor</th>
                 <th className="px-3 py-2.5 text-left font-semibold">Cabang</th>
                 <th className="px-3 py-2.5 text-left font-semibold">Periode</th>
@@ -131,7 +131,7 @@ export function CashDepositsPage() {
                           <div className="px-3 py-2.5 text-gray-500 truncate">{dep.reference || '-'}</div>
                           <div className="px-3 py-2.5 text-center text-gray-500">{dep.item_count}</div>
                           <div className="px-3 py-2.5 text-center">
-                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
                               dep.status === 'RECONCILED'
                                 ? 'text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-900/20'
                                 : 'text-amber-700 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/20'
@@ -157,19 +157,19 @@ export function CashDepositsPage() {
                           <div className="px-4 pb-4 bg-gray-50/50 dark:bg-gray-800/20 border-t border-gray-100 dark:border-gray-800">
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 py-3 text-xs">
                               <div>
-                                <span className="text-[10px] text-gray-400 uppercase">Tanggal Setor</span>
+                                <span className="text-sm text-gray-400 uppercase">Tanggal Setor</span>
                                 <p className="font-medium text-gray-900 dark:text-white">{fmtDate(expandedDetail.deposit_date)}</p>
                               </div>
                               <div>
-                                <span className="text-[10px] text-gray-400 uppercase">Jumlah Setor</span>
+                                <span className="text-sm text-gray-400 uppercase">Jumlah Setor</span>
                                 <p className="font-mono font-semibold text-purple-700 dark:text-purple-300">{fmt(expandedDetail.deposit_amount)}</p>
                               </div>
                               <div>
-                                <span className="text-[10px] text-gray-400 uppercase">Bank</span>
+                                <span className="text-sm text-gray-400 uppercase">Bank</span>
                                 <p className="text-gray-900 dark:text-white">{expandedDetail.bank_account_name || '-'}</p>
                               </div>
                               <div>
-                                <span className="text-[10px] text-gray-400 uppercase">Bank Statement</span>
+                                <span className="text-sm text-gray-400 uppercase">Bank Statement</span>
                                 <p className="text-gray-900 dark:text-white">
                                   {expandedDetail.bank_statement_id ? `#${String(expandedDetail.bank_statement_id).slice(0, 8)}…` : <span className="text-gray-400">Belum match</span>}
                                 </p>

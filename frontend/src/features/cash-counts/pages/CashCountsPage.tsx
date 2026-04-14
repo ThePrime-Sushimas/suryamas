@@ -35,7 +35,7 @@ export function CashCountsPage() {
   // Reference data
   const [paymentMethods, setPaymentMethods] = useState<{ id: number; name: string }[]>([])
   const [employees, setEmployees] = useState<{ id: string; full_name: string }[]>([])
-  const [bankAccounts, setBankAccounts] = useState<{ id: number; account_name: string; bank_name: string }[]>([])
+  const [bankAccounts, setBankAccounts] = useState<{ id: number; account_name: string; account_number: string; bank_name: string; bank_code: string }[]>([])
 
   // Inline edit
   const [editKey, setEditKey] = useState<string | null>(null)
@@ -47,7 +47,7 @@ export function CashCountsPage() {
     api.get('/payment-methods/options').then((r) => setPaymentMethods((r.data.data || []).map((pm: any) => ({ id: pm.id, name: pm.name })))).catch(() => {})
     api.get('/employees', { params: { limit: 500 } }).then((r) => setEmployees(r.data.data || [])).catch(() => {})
     api.get('/bank-accounts').then((r) => setBankAccounts(
-      (r.data.data || []).map((a: any) => ({ id: a.id, account_name: a.account_name, bank_name: a.banks?.bank_name || '' }))
+      (r.data.data || []).map((a: any) => ({ id: a.id, account_name: a.account_name, account_number: a.account_number || '', bank_name: a.bank_name || '', bank_code: a.bank_code || '' }))
     )).catch(() => {})
   }, [])
 
@@ -136,8 +136,8 @@ export function CashCountsPage() {
       <div className="flex items-center gap-2.5">
         <div className="p-2 bg-amber-600 rounded-xl"><Coins className="w-5 h-5 text-white" /></div>
         <div>
-          <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Cash Count</h1>
-          <p className="text-[10px] text-gray-400">Hitung fisik kas vs system balance POS — per cabang per hari</p>
+          <h1 className="text-base font-semibold text-gray-900 dark:text-white">Cash Count</h1>
+          <p className="text-xs text-gray-400">Hitung fisik kas vs system balance POS — per cabang per hari</p>
         </div>
       </div>
 
@@ -145,25 +145,25 @@ export function CashCountsPage() {
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <div className="flex flex-wrap gap-4 items-end">
           <div className="w-40">
-            <label className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Dari</label>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Dari</label>
             <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="w-40">
-            <label className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Sampai</label>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Sampai</label>
             <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="w-52">
-            <label className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Payment Method *</label>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Payment Method *</label>
             <select value={paymentMethodId} onChange={(e) => setPaymentMethodId(Number(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value={0}>Pilih payment method</option>
               {paymentMethods.map((pm) => <option key={pm.id} value={pm.id}>{pm.name}</option>)}
             </select>
           </div>
           <button onClick={handlePreview} disabled={isLoading || !paymentMethodId}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50">
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
             {isLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
             Tampilkan
           </button>
@@ -180,11 +180,11 @@ export function CashCountsPage() {
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setSelectedForDeposit(new Set())}
-              className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+              className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
               Batal
             </button>
             <button onClick={() => setShowDepositModal(true)} disabled={!canDeposit}
-              className="px-4 py-1.5 text-xs font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1.5">
+              className="px-4 py-1.5 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1.5">
               <Banknote className="w-3.5 h-3.5" /> Setor
             </button>
           </div>
@@ -203,10 +203,10 @@ export function CashCountsPage() {
               className="w-full px-4 py-2.5 flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
               <div className="flex items-center gap-2">
                 <Building className="w-3.5 h-3.5 text-gray-400" />
-                <span className="text-xs font-semibold text-gray-900 dark:text-white">{group.name}</span>
-                <span className="text-[10px] text-gray-400">{group.counted}/{group.items.length}</span>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">{group.name}</span>
+                <span className="text-xs text-gray-400">{group.counted}/{group.items.length}</span>
                 {countedInGroup.length > 0 && (
-                  <span className="text-[10px] text-purple-500 font-medium">{countedInGroup.length} siap setor</span>
+                  <span className="text-xs text-purple-500 font-medium">{countedInGroup.length} siap setor</span>
                 )}
               </div>
               <div className="flex items-center gap-4">
@@ -223,7 +223,7 @@ export function CashCountsPage() {
             {!isCollapsed && (
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-800">
+                  <tr className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-800">
                     <th className="px-2 py-2 w-8"></th>
                     <th className="px-3 py-2 text-left font-semibold">Tanggal</th>
                     <th className="px-3 py-2 text-right font-semibold">System</th>
@@ -295,7 +295,7 @@ export function CashCountsPage() {
                             <span className="font-medium text-gray-900 dark:text-white">{fmt(row.physical_count)}</span>
                           ) : canEdit ? (
                             <button onClick={(e) => { e.stopPropagation(); setEditKey(k); setEditLarge(''); setEditSmall(''); setEditEmployeeId('') }}
-                              className="text-[10px] text-amber-600 hover:text-amber-700 font-medium">Input</button>
+                              className="text-xs text-amber-600 hover:text-amber-700 font-medium">Input</button>
                           ) : <span className="text-gray-300 dark:text-gray-600">—</span>}
                         </td>
 
@@ -325,7 +325,7 @@ export function CashCountsPage() {
                               {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
                             </select>
                           ) : row.responsible_employee_id ? (
-                            <span className="text-[10px] text-red-600 dark:text-red-400 flex items-center gap-1">
+                            <span className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
                               <AlertTriangle className="w-3 h-3" />
                               {employees.find((e) => e.id === row.responsible_employee_id)?.full_name || '-'}
                             </span>
