@@ -9,6 +9,7 @@ import {
   Unlink2,
   Building,
   TrendingUp,
+  Layers,
 } from "lucide-react";
 import type {
   BankStatementWithMatch,
@@ -316,13 +317,16 @@ export function BankMutationTable({
   const calculateDifference = useCallback(
     (item: BankStatementWithMatch) => {
       if (!item.is_reconciled || !item.matched_aggregate) return 0;
-      // Multi-match: use pre-calculated group difference
-      if (item.matched_aggregate.is_multi_match && item.matched_aggregate.group_difference !== undefined) {
-        return Math.abs(item.matched_aggregate.group_difference);
+      // Multi-match or settlement: use pre-calculated group difference (preserve sign)
+      if (
+        (item.matched_aggregate.is_multi_match || item.matched_aggregate.is_settlement) &&
+        item.matched_aggregate.group_difference !== undefined
+      ) {
+        return item.matched_aggregate.group_difference;
       }
-      // 1:1 match
+      // 1:1 match: bank - nett (positive = surplus, negative = deficit)
       const bankAmount = getNetAmount(item.credit_amount, item.debit_amount);
-      return Math.abs(bankAmount - item.matched_aggregate.nett_amount);
+      return bankAmount - item.matched_aggregate.nett_amount;
     },
     []
   );
@@ -396,6 +400,8 @@ export function BankMutationTable({
             const diff = calculateDifference(item);
             const groupDetailCount = groupInfo?.details?.length ?? 0;
             const isFirstInGroup = isInGroup && groupInfo.details?.[0]?.statement_id === item.id;
+            const isSettlement = !!item.matched_aggregate?.is_settlement;
+            const settlementAggCount = item.matched_aggregate?.settlement_aggregate_count ?? 0;
 
             return (
               <React.Fragment key={item.id}>
@@ -442,6 +448,12 @@ export function BankMutationTable({
                           grup · {groupDetailCount}
                         </span>
                       )}
+                      {isSettlement && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded text-[10px] font-medium shrink-0 whitespace-nowrap">
+                          <Layers className="w-2.5 h-2.5" />
+                          settlement · {settlementAggCount}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -478,6 +490,10 @@ export function BankMutationTable({
                       ) : (
                         <span className="text-[10px] text-gray-300 dark:text-gray-600 select-none">⤴ grup</span>
                       )
+                    ) : isSettlement && item.matched_aggregate ? (
+                      <span className="text-amber-600 dark:text-amber-400" title={`Settlement · ${settlementAggCount} aggregates`}>
+                        {formatNumber(item.matched_aggregate.nett_amount)}
+                      </span>
                     ) : (
                       <span className="text-gray-500 dark:text-gray-400">
                         {item.matched_aggregate ? formatNumber(item.matched_aggregate.nett_amount) : ""}
@@ -487,27 +503,28 @@ export function BankMutationTable({
 
                   {/* Selisih */}
                   <div className="px-3 py-2.5 text-right font-mono whitespace-nowrap">
-                    {isInGroup ? (
-                      isFirstInGroup ? (
-                        diff > 0 ? (
-                          <span className="text-amber-600 dark:text-amber-400" title="Selisih grup">
-                            {formatNumber(diff)}
-                          </span>
-                        ) : item.is_reconciled ? (
-                          <span className="text-green-600 dark:text-green-400">0</span>
-                        ) : ""
-                      ) : (
-                        <span className="text-[10px] text-gray-300 dark:text-gray-600 select-none">⤴ grup</span>
-                      )
-                    ) : (
-                      diff > 0 ? (
-                        <span className="text-red-600 dark:text-red-400">
-                          {formatNumber(diff)}
+                    {(() => {
+                      if (!item.is_reconciled && !isInGroup) return "";
+                      // Non-first group rows
+                      if (isInGroup && !isFirstInGroup) {
+                        return <span className="text-[10px] text-gray-300 dark:text-gray-600 select-none">⤴ grup</span>;
+                      }
+                      if (diff === 0) {
+                        return <span className="text-green-600 dark:text-green-400">0</span>;
+                      }
+                      const absDiff = Math.abs(diff);
+                      const isSurplus = diff > 0;
+                      const color = isSurplus
+                        ? "text-blue-600 dark:text-blue-400"
+                        : "text-red-600 dark:text-red-400";
+                      const prefix = isSurplus ? "+" : "-";
+                      const title = isInGroup ? "Selisih grup" : isSettlement ? "Selisih settlement" : undefined;
+                      return (
+                        <span className={color} title={title}>
+                          {prefix}{formatNumber(absDiff)}
                         </span>
-                      ) : item.is_reconciled ? (
-                        <span className="text-green-600 dark:text-green-400">0</span>
-                      ) : ""
-                    )}
+                      );
+                    })()}
                   </div>
 
                   {/* Actions */}

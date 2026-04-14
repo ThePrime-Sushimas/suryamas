@@ -322,7 +322,54 @@ export class BankReconciliationRepository {
         }
       }
 
-      // Map data to include matched_aggregate (1:1 or multi-match)
+      // ── Settlement groups: fetch via bank_statement_id ──
+      const reconciledWithoutLink = (data || []).filter(
+        (s) => s.is_reconciled && !s.reconciliation_id && !s.reconciliation_group_id,
+      );
+      const reconciledWithoutLinkIds = reconciledWithoutLink.map((s) => s.id);
+
+      // Map: statementId → settlement group data
+      let settlementMap: Record<string, any> = {};
+      if (reconciledWithoutLinkIds.length > 0) {
+        try {
+          const { data: settlements, error: setError } = await supabase
+            .from("bank_settlement_groups")
+            .select(
+              `
+              id,
+              bank_statement_id,
+              total_statement_amount,
+              total_allocated_amount,
+              difference,
+              status,
+              bank_settlement_aggregates (
+                aggregate_id,
+                allocated_amount,
+                original_amount
+              )
+            `,
+            )
+            .in("bank_statement_id", reconciledWithoutLinkIds)
+            .is("deleted_at", null);
+
+          if (setError) {
+            logError("Error fetching settlement groups", { error: setError.message });
+          } else if (settlements) {
+            settlementMap = settlements.reduce(
+              (acc: Record<string, any>, sg: any) => {
+                const bsId = String(sg.bank_statement_id);
+                acc[bsId] = sg;
+                return acc;
+              },
+              {},
+            );
+          }
+        } catch (e: any) {
+          logError("Error in settlement group fetch", { error: e.message });
+        }
+      }
+
+      // Map data to include matched_aggregate (1:1, multi-match, or settlement)
       const mappedData = (data || []).map((row) => {
         // 1:1 match
         if (row.reconciliation_id && aggregateMap[row.reconciliation_id]) {
@@ -348,13 +395,30 @@ export class BankReconciliationRepository {
               id: agg?.id || grp.aggregate_id,
               transaction_date: agg?.transaction_date || null,
               gross_amount: agg?.gross_amount || 0,
-              // Use aggregate_amount from group (= nett target for the whole group)
               nett_amount: Number(grp.aggregate_amount) || 0,
               payment_method_name: agg?.payment_methods?.name || null,
-              // Extra fields for multi-match display
               is_multi_match: true,
               group_total_bank_amount: Number(grp.total_bank_amount) || 0,
               group_difference: Number(grp.difference) || 0,
+            },
+          };
+        }
+        // Settlement group: 1 bank statement → many aggregates
+        const rowId = String(row.id);
+        if (row.is_reconciled && settlementMap[rowId]) {
+          const sg = settlementMap[rowId];
+          return {
+            ...row,
+            matched_aggregate: {
+              id: sg.id,
+              transaction_date: null,
+              gross_amount: 0,
+              nett_amount: Number(sg.total_allocated_amount) || 0,
+              payment_method_name: null,
+              is_settlement: true,
+              settlement_aggregate_count: sg.bank_settlement_aggregates?.length || 0,
+              group_total_bank_amount: Number(sg.total_statement_amount) || 0,
+              group_difference: Number(sg.difference) || 0,
             },
           };
         }
