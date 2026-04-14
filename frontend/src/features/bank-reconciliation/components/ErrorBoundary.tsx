@@ -37,26 +37,26 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="flex flex-col items-center justify-center p-8 bg-white dark:bg-gray-800 rounded-2xl border border-red-200 dark:border-red-800 shadow-lg max-w-md mx-auto">
-          <div className="p-4 bg-red-100 dark:bg-red-900/30 rounded-full mb-4">
-            <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
+        <div className="flex flex-col items-center justify-center p-6 bg-white dark:bg-gray-900 rounded-xl border border-red-200 dark:border-red-800 max-w-sm mx-auto">
+          <div className="p-2.5 bg-red-50 dark:bg-red-900/20 rounded-lg mb-3">
+            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
           </div>
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
             Terjadi Kesalahan
           </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">
-            Maaf, terjadi kesalahan saat memuat komponen. Silakan coba lagi.
+          <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-3">
+            Maaf, terjadi kesalahan saat memuat komponen.
           </p>
           {this.state.error && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-4 max-w-xs text-center break-all">
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 mb-3 max-w-xs text-center break-all">
               {this.state.error.message}
             </p>
           )}
           <button
             onClick={this.handleRetry}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20"
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-3.5 h-3.5" />
             Coba Lagi
           </button>
         </div>

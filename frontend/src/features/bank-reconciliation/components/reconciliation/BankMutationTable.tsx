@@ -419,7 +419,7 @@ export function BankMutationTable({
                     <div className="flex items-center gap-3.5">
                       <div className="min-w-0">
                         <p
-                          className="text-gray-900 dark:text-white truncate max-w-[600px]"
+                          className="text-gray-900 dark:text-white  max-w-[600px]"
                           title={item.description}
                         >
                           {item.description ?? "—"}

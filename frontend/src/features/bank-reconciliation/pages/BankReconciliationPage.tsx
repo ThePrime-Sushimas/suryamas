@@ -313,15 +313,15 @@ export function BankReconciliationPage() {
             <ShieldCheck className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Bank Reconciliation</h1>
-            <p className="text-[11px] text-gray-400 dark:text-gray-500">Cocokkan mutasi bank dengan transaksi POS</p>
+            <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Bank Reconciliation</h1>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500">Cocokkan mutasi bank dengan transaksi POS</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={refreshData}
             disabled={isRefreshing || isLoading}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-all border border-gray-200 dark:border-gray-700"
+            className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 rounded-lg text-[10px] font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-all border border-gray-200 dark:border-gray-700"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
             Refresh
@@ -329,7 +329,7 @@ export function BankReconciliationPage() {
           <button
             onClick={() => handleOpenWizard()}
             disabled={isLoading || !filtersApplied}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-all disabled:opacity-40"
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-semibold hover:bg-blue-700 transition-all disabled:opacity-40"
           >
             <Play className="w-3.5 h-3.5" />
             Rekonsiliasi
@@ -340,7 +340,7 @@ export function BankReconciliationPage() {
       {/* Error */}
       {error && (
         <div className="px-3 py-2.5 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg flex items-center justify-between" role="alert">
-          <p className="text-xs text-red-700 dark:text-red-400 font-medium">{error}</p>
+          <p className="text-[10px] text-red-700 dark:text-red-400 font-medium">{error}</p>
           <button onClick={() => setError(null)} className="p-1 hover:bg-red-100 dark:hover:bg-red-900/40 rounded">
             <X className="w-3.5 h-3.5 text-red-400" />
           </button>
@@ -404,7 +404,7 @@ export function BankReconciliationPage() {
           {!filtersApplied && (
             <div className="py-16 px-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 text-center">
               <Calendar className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Pilih rentang tanggal untuk memulai rekonsiliasi</p>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Pilih rentang tanggal untuk memulai rekonsiliasi</p>
             </div>
           )}
         </div>
