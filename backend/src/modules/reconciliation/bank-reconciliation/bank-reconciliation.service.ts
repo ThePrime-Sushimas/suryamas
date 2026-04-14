@@ -615,6 +615,16 @@ export class BankReconciliationService {
         });
       }
     }
+
+    // Update aggregate reconciliation status
+    if (successMatches.length > 0) {
+      const bulkUpdates = successMatches.map((m) => ({
+        aggregateId: m.aggregateId,
+        status: "RECONCILED" as const,
+        statementId: m.statementId,
+      }));
+      await this.orchestratorService.bulkUpdateReconciliationStatus(bulkUpdates);
+    }
   
     // Auto-generate draft vouchers for all successful matches
     if (successMatches.length > 0) {

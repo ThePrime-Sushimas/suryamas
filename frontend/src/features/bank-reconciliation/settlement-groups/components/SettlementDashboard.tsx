@@ -75,7 +75,7 @@ export const SettlementDashboard: React.FC<SettlementDashboardProps> = ({
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settlement Groups</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Manage bulk settlements by grouping multiple POS aggregates to bank statements
+            Cocokin QRIS Rek Bca 536 dengan Transaksi di POS dengan pembayaran method QRIS - M
           </p>
         </div>
         <button

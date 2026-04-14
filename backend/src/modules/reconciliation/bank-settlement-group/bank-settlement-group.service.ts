@@ -162,6 +162,7 @@ export class SettlementGroupService {
         await this.repository.markAggregatesAsReconciled(dto.aggregateIds);
         await this.repository.markBankStatementAsReconciled(
           dto.bankStatementId,
+          groupId,
         );
       } catch (error) {
         logError(
