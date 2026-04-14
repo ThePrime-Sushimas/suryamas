@@ -9,8 +9,6 @@ import {
   Link2,
   ChevronDown,
   ChevronUp,
-  Info,
-  Calendar,
   Unlink2,
 } from "lucide-react";
 import type {
@@ -27,78 +25,45 @@ import {
 } from "../../utils/reconciliation.utils";
 import { STATUS_CONFIG } from "../../constants/reconciliation.config";
 import { Pagination } from "@/components/ui/Pagination";
-import { tailwindTheme } from "@/lib/tailwind-theme";
-
-// =============================================================================
-// STATUS BADGE (Accessible: icon + color + label)
-// =============================================================================
 
 function StatusBadge({ status }: { status: BankReconciliationStatus }) {
   const config = STATUS_CONFIG[status];
-  
-  // Map internal status to theme pattern
-  let themeVariant: keyof typeof tailwindTheme.components.statusBadge = 'unreconciled';
-  if (status === 'AUTO_MATCHED') {
-    themeVariant = 'matched';
-  } else if (status === 'MANUALLY_MATCHED') {
-    themeVariant = 'matched';
-  } else if (status === 'DISCREPANCY') {
-    themeVariant = 'discrepancy';
-  } else if (status === 'PENDING') {
-    themeVariant = 'pending';
-  }
-
-  const themeConfig = tailwindTheme.components.statusBadge[themeVariant];
-  const iconMap: Record<BankReconciliationStatus, typeof CheckCircle> = {
+  const colors: Record<BankReconciliationStatus, string> = {
+    AUTO_MATCHED: "text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-900/20",
+    MANUALLY_MATCHED: "text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-900/20",
+    DISCREPANCY: "text-amber-700 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/20",
+    PENDING: "text-blue-700 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20",
+    UNRECONCILED: "text-gray-500 bg-gray-50 dark:text-gray-400 dark:bg-gray-800",
+  };
+  const icons: Record<BankReconciliationStatus, typeof CheckCircle> = {
     AUTO_MATCHED: CheckCircle,
     MANUALLY_MATCHED: CheckCircle,
     DISCREPANCY: AlertCircle,
     PENDING: HelpCircle,
     UNRECONCILED: AlertCircle,
   };
-  const Icon = iconMap[status] || Info;
-
+  const Icon = icons[status];
   return (
-    <div
-      className={themeConfig.container}
-      role="status"
-      aria-label={`Status: ${config.label}`}
-    >
-      <Icon className={themeConfig.icon} strokeWidth={3} aria-hidden="true" />
-      <span className={themeConfig.text}>{config.label}</span>
-    </div>
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${colors[status]}`}>
+      <Icon className="w-3 h-3" />
+      {config.label}
+    </span>
   );
 }
-
-// =============================================================================
-// SKELETON LOADER
-// =============================================================================
 
 function TableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <>
       {Array.from({ length: rows }).map((_, i) => (
         <tr key={`skeleton-${i}`} className="border-b border-gray-100 dark:border-gray-800">
-          <td className="px-6 py-6" colSpan={6}>
-            <div className="flex items-center gap-4">
-               <div className="h-12 w-12 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse" />
-               <div className="flex-1 space-y-3">
-                  <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded animate-pulse w-1/4" />
-                  <div className="h-3 bg-gray-50 dark:bg-gray-800/50 rounded animate-pulse w-1/2" />
-               </div>
-               <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded animate-pulse w-24" />
-               <div className="h-8 bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse w-24" />
-            </div>
+          <td className="px-3 py-2.5" colSpan={7}>
+            <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded animate-pulse w-full" />
           </td>
         </tr>
       ))}
     </>
   );
 }
-
-// =============================================================================
-// TYPES
-// =============================================================================
 
 interface BankMutationTableProps {
   items: BankStatementWithMatch[];
@@ -123,10 +88,6 @@ interface BankMutationTableProps {
   onUndoGroup?: (groupId: string) => Promise<void>;
 }
 
-// =============================================================================
-// COMPONENT
-// =============================================================================
-
 export function BankMutationTable({
   items,
   potentialMatchesMap = {},
@@ -144,7 +105,6 @@ export function BankMutationTable({
 }: BankMutationTableProps) {
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
 
-  // Map statement ID → group for O(1) lookup
   const statementGroupMap = useMemo(() => {
     const map: Record<string, ReconciliationGroup> = {};
     reconciliationGroups.forEach((group) => {
@@ -161,36 +121,31 @@ export function BankMutationTable({
     return Math.abs(bankAmount - item.matched_aggregate.nett_amount);
   }, []);
 
-  const colCount = 5;
-
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-sm transition-all duration-300">
+    <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between flex-wrap gap-4 bg-gray-50/20 dark:bg-gray-800/20">
-        <div>
-          <h3 className="text-lg font-black text-gray-900 dark:text-white uppercase tracking-widest flex items-center gap-3">
-            <div className="p-2 bg-blue-50 dark:bg-blue-900/40 rounded-xl">
-               <RefreshCw className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            Mutasi Bank
-          </h3>
-          <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-tight mt-1 ml-11">
-            {items.length} transaksi · <span className="text-green-600 dark:text-green-400">{items.filter(i => i.is_reconciled).length} cocok</span>
-          </p>
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-800/50">
+        <div className="flex items-center gap-2">
+          <RefreshCw className="w-4 h-4 text-gray-400" />
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Mutasi Bank</h3>
+          <span className="text-xs text-gray-500">
+            {items.length} transaksi · <span className="text-green-600">{items.filter(i => i.is_reconciled).length} cocok</span>
+          </span>
         </div>
-
-
       </div>
 
-      <div className="overflow-x-auto scrollbar-thin">
-        <table className="w-full border-collapse" role="table">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
           <thead>
-            <tr className="bg-gray-50/50 dark:bg-gray-900/50 font-black text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-              <th className="px-6 py-4 text-left" scope="col">Transaksi & Status</th>
-              <th className="px-6 py-4 text-right" scope="col">Nominal Bank</th>
-              <th className="px-6 py-4 text-right hidden md:table-cell" scope="col">Nett POS</th>
-              <th className="px-6 py-4 text-right hidden lg:table-cell" scope="col">Selisih</th>
-              <th className="px-6 py-4 text-right" scope="col">Tindakan</th>
+            <tr className="bg-gray-50 dark:bg-gray-800/50 text-[11px] text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+              <th className="px-3 py-2 text-left font-medium">Tanggal</th>
+              <th className="px-3 py-2 text-left font-medium">Keterangan</th>
+              <th className="px-3 py-2 text-left font-medium">Status</th>
+              <th className="px-3 py-2 text-right font-medium">Debit</th>
+              <th className="px-3 py-2 text-right font-medium">Kredit</th>
+              <th className="px-3 py-2 text-right font-medium">Nett POS</th>
+              <th className="px-3 py-2 text-right font-medium">Selisih</th>
+              <th className="px-3 py-2 text-center font-medium w-28"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -198,12 +153,8 @@ export function BankMutationTable({
               <TableSkeleton rows={10} />
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={colCount} className="px-6 py-24 text-center">
-                  <div className="w-20 h-20 bg-gray-50 dark:bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-6 opacity-40">
-                    <CheckCircle className="w-10 h-10 text-gray-300" />
-                  </div>
-                  <h4 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-widest">Tidak ada mutasi</h4>
-                  <p className="text-sm text-gray-400 mt-2">Filter rentang tanggal atau akun bank untuk memuat data.</p>
+                <td colSpan={8} className="px-3 py-12 text-center text-gray-400 text-sm">
+                  Tidak ada mutasi. Pilih rentang tanggal atau akun bank.
                 </td>
               </tr>
             ) : (
@@ -214,121 +165,87 @@ export function BankMutationTable({
                 const potentialMatch = potentialMatchesMap[item.id]?.[0];
                 const netAmount = getNetAmount(item.credit_amount, item.debit_amount);
                 const isGroupExpanded = isInGroup && expandedGroupId === groupInfo.id;
+                const diff = calculateDifference(item);
 
                 return (
                   <React.Fragment key={item.id}>
-                    <tr
-                      className={`
-                        transition-all duration-200 group/row
-                        hover:bg-gray-50/30 dark:hover:bg-gray-800/20
-                        ${isInGroup ? "border-l-4 border-l-blue-600" : ""}
-                      `}
-                    >
-                      {/* Transaksi & Status */}
-                      <td className="px-6 py-5">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5 text-gray-400">
-                               <Calendar className="w-3.5 h-3.5" />
-                               <span className="text-[11px] font-black uppercase tracking-tight">
-                                 {formatDate(item.transaction_date)}
-                               </span>
-                            </div>
-                            {isInGroup && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 rounded-md text-[9px] font-black uppercase tracking-widest shadow-xs">
-                                <Link2 className="w-3 h-3" strokeWidth={3} />
-                                Grouped
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm font-black text-gray-900 dark:text-white max-w-[500px] leading-tight group-hover/row:text-blue-600 transition-colors" title={item.description}>
-                            {item.description ?? "Untitled Transaction"}
-                          </p>
-                          <StatusBadge status={item.status} />
-                        </div>
+                    <tr className={`hover:bg-gray-50/50 dark:hover:bg-gray-800/30 ${isInGroup ? "border-l-2 border-l-blue-500" : ""}`}>
+                      {/* Tanggal */}
+                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
+                        {formatDate(item.transaction_date)}
                       </td>
 
-                      {/* Nominal Bank */}
-                      <td className="px-6 py-5 text-right">
-                        <div className="flex flex-col items-end">
-                           <span className={`text-[11px] font-black uppercase mb-1 ${netAmount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                             {netAmount >= 0 ? 'Kredit +' : 'Debit -'}
-                           </span>
-                           <span className="text-base font-black text-gray-900 dark:text-white">
-                             {formatNumber(Math.abs(netAmount))}
-                           </span>
-                        </div>
-                      </td>
-
-                      {/* POS Match (Aggregate) */}
-                      <td className="px-6 py-5 text-right hidden md:table-cell">
-                        <div className="flex flex-col items-end">
-                          <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">POS Aggregate</span>
-                          <span className="text-base font-black text-gray-700 dark:text-gray-300">
-                            {item.matched_aggregate
-                              ? formatNumber(item.matched_aggregate.nett_amount)
-                              : "—"}
+                      {/* Keterangan */}
+                      <td className="px-3 py-2 max-w-xs">
+                        <p className="text-gray-900 dark:text-white truncate" title={item.description}>
+                          {item.description ?? "—"}
+                        </p>
+                        {isInGroup && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-600 dark:text-blue-400">
+                            <Link2 className="w-2.5 h-2.5" /> grouped
                           </span>
-                        </div>
+                        )}
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-3 py-2">
+                        <StatusBadge status={item.status} />
+                      </td>
+
+                      {/* Debit */}
+                      <td className="px-3 py-2 text-right text-gray-900 dark:text-white font-mono whitespace-nowrap">
+                        {item.debit_amount > 0 ? formatNumber(item.debit_amount) : ""}
+                      </td>
+
+                      {/* Kredit */}
+                      <td className="px-3 py-2 text-right text-gray-900 dark:text-white font-mono whitespace-nowrap">
+                        {item.credit_amount > 0 ? formatNumber(item.credit_amount) : ""}
+                      </td>
+
+                      {/* Nett POS */}
+                      <td className="px-3 py-2 text-right font-mono whitespace-nowrap text-gray-600 dark:text-gray-400">
+                        {item.matched_aggregate ? formatNumber(item.matched_aggregate.nett_amount) : "—"}
                       </td>
 
                       {/* Selisih */}
-                      <td className="px-6 py-5 text-right hidden lg:table-cell">
-                        {calculateDifference(item) > 0 ? (
-                          <div className="flex flex-col items-end">
-                             <span className="text-[9px] font-black text-red-400 dark:text-red-500 uppercase tracking-widest mb-1">Difference</span>
-                             <span className="text-base font-black text-red-600 dark:text-red-400">
-                               {formatNumber(calculateDifference(item))}
-                             </span>
-                          </div>
+                      <td className="px-3 py-2 text-right font-mono whitespace-nowrap">
+                        {diff > 0 ? (
+                          <span className="text-red-600 dark:text-red-400">{formatNumber(diff)}</span>
+                        ) : item.is_reconciled ? (
+                          <span className="text-green-600">0</span>
                         ) : (
-                          <span className="text-gray-200 dark:text-gray-800 font-black">—</span>
+                          <span className="text-gray-300 dark:text-gray-700">—</span>
                         )}
                       </td>
 
                       {/* Actions */}
-                      <td className="px-6 py-5 text-right">
-                        <div className="flex items-center justify-end gap-2.5">
+                      <td className="px-3 py-2 text-right">
+                        <div className="flex items-center justify-end gap-1">
                           {!item.is_reconciled && !isInGroup && (
                             <>
                               {hasPotentialMatch ? (
-                                <div className="flex items-center gap-2 group/match animate-in fade-in slide-in-from-right duration-300">
-                                  <div className="hidden xl:flex flex-col items-end px-3 py-1 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 rounded-xl shadow-xs">
-                                    <div className="flex items-center gap-1.5">
-                                       <Sparkles className="w-3 h-3 text-blue-600 dark:text-blue-400 animate-pulse" />
-                                       <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-tighter">Suggest</span>
-                                    </div>
-                                    <span className="text-[11px] font-black text-gray-900 dark:text-white leading-tight">
-                                       {formatNumber(potentialMatch?.nett_amount ?? 0)}
-                                    </span>
-                                  </div>
-                                  <button
-                                    onClick={() => potentialMatch?.id && onQuickMatch(item, potentialMatch.id)}
-                                    className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 shadow-md shadow-blue-500/20 active:scale-95 transition-all"
-                                    aria-label={`Match dengan ${potentialMatch?.payment_method_name}`}
-                                  >
-                                    Match
-                                  </button>
-                                </div>
+                                <button
+                                  onClick={() => potentialMatch?.id && onQuickMatch(item, potentialMatch.id)}
+                                  className="px-2 py-1 bg-blue-600 text-white rounded text-[10px] font-medium hover:bg-blue-700 transition-colors"
+                                >
+                                  Match
+                                </button>
                               ) : (
                                 <button
                                   onClick={() => onCheckMatches?.(item.id)}
                                   disabled={isLoadingMatches[item.id]}
-                                  className="px-4 py-2.5 bg-gray-50 dark:bg-gray-800 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-50 dark:hover:bg-blue-950 transition-all flex items-center gap-2"
-                                  aria-label={`Suggest matches for ${item.description}`}
+                                  className="px-2 py-1 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded text-[10px] font-medium hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
                                 >
                                   {isLoadingMatches[item.id] ? (
-                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    <RefreshCw className="w-3 h-3 animate-spin" />
                                   ) : (
-                                    <Sparkles className="w-3.5 h-3.5" />
+                                    <Sparkles className="w-3 h-3" />
                                   )}
-                                  Suggest
                                 </button>
                               )}
                               <button
                                 onClick={() => onManualMatch(item)}
-                                className="px-4 py-2.5 bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:shadow-lg transition-all active:scale-95"
-                                aria-label="Manual match"
+                                className="px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-[10px] font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                               >
                                 Manual
                               </button>
@@ -338,28 +255,20 @@ export function BankMutationTable({
                           {item.is_reconciled && !isInGroup && (
                             <button
                               onClick={() => onUndo(item.id)}
-                              className="px-5 py-2.5 bg-white dark:bg-gray-800 text-gray-500 hover:text-red-600 border border-gray-100 dark:border-gray-800 rounded-xl text-xs font-black uppercase tracking-widest hover:border-red-200 hover:bg-red-50 dark:hover:bg-red-950 transition-all flex items-center gap-2"
-                              aria-label="Undo reconciliation"
+                              className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
+                              title="Undo"
                             >
                               <Undo2 className="w-3.5 h-3.5" />
-                              Undo Match
                             </button>
                           )}
 
                           {isInGroup && (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
                               <button
                                 onClick={() => setExpandedGroupId(isGroupExpanded ? null : groupInfo.id)}
-                                className={`
-                                  flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm
-                                  ${isGroupExpanded 
-                                    ? "bg-blue-600 text-white" 
-                                    : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-950"}
-                                `}
-                                aria-expanded={isGroupExpanded}
+                                className={`p-1 rounded transition-colors ${isGroupExpanded ? "text-blue-600 bg-blue-50 dark:bg-blue-900/20" : "text-gray-400 hover:text-gray-600"}`}
                               >
-                                {isGroupExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                Group
+                                {isGroupExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                               </button>
                               {onUndoGroup && (
                                 <button
@@ -368,11 +277,10 @@ export function BankMutationTable({
                                       onUndoGroup(groupInfo.id);
                                     }
                                   }}
-                                  className="flex items-center gap-1.5 px-4 py-2.5 bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-50 dark:hover:bg-red-950 hover:border-red-400 transition-all"
-                                  aria-label="Revert group match"
+                                  className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
+                                  title="Revert group"
                                 >
                                   <Unlink2 className="w-3.5 h-3.5" />
-                                  Revert
                                 </button>
                               )}
                             </div>
@@ -381,90 +289,38 @@ export function BankMutationTable({
                       </td>
                     </tr>
 
-                    {/* Expandable Group Detail Row */}
+                    {/* Group Detail */}
                     {isGroupExpanded && groupInfo && (
-                      <tr className="bg-blue-50/20 dark:bg-blue-900/5 animate-in slide-in-from-top duration-300">
-                        <td colSpan={colCount} className="p-0">
-                          <div className="px-10 py-8 space-y-8 bg-linear-to-b from-gray-50/50 to-white dark:from-gray-800/20 dark:to-gray-900 border-x-4 border-blue-600">
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-widest flex items-center gap-3">
-                                <Link2 className="w-4 h-4 text-blue-600" />
-                                Reconciliation Group Profile
-                              </h4>
-                              <div className="px-4 py-1.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 shadow-xs">
-                                <span className="text-[10px] font-black text-gray-500 uppercase">{groupInfo.details?.length ?? 0} Statements Unified</span>
-                              </div>
-                            </div>
-
+                      <tr>
+                        <td colSpan={8} className="p-0">
+                          <div className="px-6 py-3 bg-gray-50 dark:bg-gray-800/30 border-l-2 border-l-blue-500 space-y-3">
                             {groupInfo.aggregate && (
-                              <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 dark:bg-blue-900/20 rounded-full blur-3xl -mr-16 -mt-16 opacity-50" />
-                                <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-6">Target POS Aggregate</p>
-                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-                                  <div>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Transaction Date</p>
-                                    <p className="text-sm font-black text-gray-900 dark:text-white">
-                                      {formatDate(groupInfo.aggregate.transaction_date)}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Collection Method</p>
-                                    <p className="text-sm font-black text-gray-900 dark:text-white">
-                                      {groupInfo.aggregate.payment_method_name}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Nett POS Total</p>
-                                    <p className="text-lg font-black text-blue-700 dark:text-blue-400">
-                                      {formatCurrency(groupInfo.aggregate.nett_amount)}
-                                    </p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Net Difference</p>
-                                    <div className={`text-lg font-black ${groupInfo.difference === 0 ? 'text-green-600' : 'text-orange-600'}`}>
-                                      {formatCurrency(groupInfo.difference)}
-                                      {groupInfo.difference === 0 && <CheckCircle className="inline-block ml-2 w-4 h-4" />}
-                                    </div>
-                                  </div>
-                                </div>
+                              <div className="flex items-center gap-6 text-xs text-gray-600 dark:text-gray-400">
+                                <span>Aggregate: <span className="font-medium text-gray-900 dark:text-white">{groupInfo.aggregate.payment_method_name}</span></span>
+                                <span>{formatDate(groupInfo.aggregate.transaction_date)}</span>
+                                <span>Nett: <span className="font-mono font-medium text-gray-900 dark:text-white">{formatCurrency(groupInfo.aggregate.nett_amount)}</span></span>
+                                <span>Selisih: <span className={`font-mono font-medium ${groupInfo.difference === 0 ? 'text-green-600' : 'text-amber-600'}`}>{formatCurrency(groupInfo.difference)}</span></span>
                               </div>
                             )}
-
-                            {/* Group Statement List */}
                             {groupInfo.details && groupInfo.details.length > 0 && (
-                              <div className="space-y-4">
-                                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                                  <div className="w-4 h-px bg-gray-300" />
-                                  Bank Statements in Group
-                                </p>
-                                <div className="grid grid-cols-1 gap-2">
+                              <table className="w-full text-xs">
+                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                                   {groupInfo.details.map((detail) => {
                                     const credit = detail.statement?.credit_amount ?? 0;
                                     const debit = detail.statement?.debit_amount ?? 0;
                                     const amt = credit - debit;
                                     return (
-                                      <div key={detail.id} className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 hover:border-blue-200 transition-all shadow-xs group/dt">
-                                        <div className="flex-1 min-w-0 flex items-center gap-4">
-                                          <div className="w-1.5 h-10 bg-gray-50 dark:bg-gray-700 group-hover/dt:bg-blue-500 rounded-full transition-colors" />
-                                          <div>
-                                            <span className="text-[10px] font-black text-gray-400 uppercase mb-0.5 block">
-                                              {formatDate(detail.statement?.transaction_date)}
-                                            </span>
-                                            <span className="text-sm font-semibold text-gray-900 dark:text-white lg:max-w-xl block">
-                                              {detail.statement?.description || "Historical Statement Record"}
-                                            </span>
-                                          </div>
-                                        </div>
-                                        <div className="flex flex-col items-end">
-                                           <span className={`text-sm font-black ${amt >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                             {formatCurrency(amt)}
-                                           </span>
-                                        </div>
-                                      </div>
+                                      <tr key={detail.id} className="text-gray-600 dark:text-gray-400">
+                                        <td className="py-1.5 pr-3 whitespace-nowrap w-24">{formatDate(detail.statement?.transaction_date)}</td>
+                                        <td className="py-1.5 pr-3 truncate max-w-xs">{detail.statement?.description || "—"}</td>
+                                        <td className="py-1.5 text-right font-mono whitespace-nowrap">
+                                          <span className={amt >= 0 ? 'text-gray-900 dark:text-white' : 'text-red-600'}>{formatCurrency(amt)}</span>
+                                        </td>
+                                      </tr>
                                     );
                                   })}
-                                </div>
-                              </div>
+                                </tbody>
+                              </table>
                             )}
                           </div>
                         </td>
@@ -478,22 +334,14 @@ export function BankMutationTable({
         </table>
       </div>
 
-      {/* Pagination */}
       {pagination && (pagination.totalPages > 0 || pagination.total > 0) && (
-        <div className="bg-gray-50/50 dark:bg-gray-800/30 p-4 border-t border-gray-100 dark:border-gray-800">
-           <Pagination
-             pagination={{
-               page: pagination.page,
-               limit: pagination.limit,
-               total: pagination.total,
-               totalPages: pagination.totalPages,
-               hasNext: pagination.hasNext,
-               hasPrev: pagination.hasPrev,
-             }}
-             onPageChange={onPageChange}
-             onLimitChange={onLimitChange}
-             currentLength={items.length}
-           />
+        <div className="p-3 border-t border-gray-200 dark:border-gray-700">
+          <Pagination
+            pagination={pagination}
+            onPageChange={onPageChange}
+            onLimitChange={onLimitChange}
+            currentLength={items.length}
+          />
         </div>
       )}
     </div>
