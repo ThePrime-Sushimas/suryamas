@@ -180,7 +180,8 @@ export class BankReconciliationService {
                 nett_amount: agg.nett_amount,
                 reference_number: agg.reference_number,
                 payment_method_name: agg.payment_method_name,
-                gross_amount: agg.gross_amount
+                gross_amount: agg.gross_amount,
+                branch_name: agg.branch_name || null
               },
               matchScore: strategy.score,
               matchCriteria: strategy.name,

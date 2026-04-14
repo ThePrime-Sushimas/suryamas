@@ -554,6 +554,7 @@ function StepAutoMatch({
                   <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
                   <div className="flex-1 min-w-0 text-right">
                     <p className="text-xs text-gray-500">{match.aggregate.transaction_date}</p>
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300">{match.aggregate.branch_name || 'N/A'}</p>
                     <p className="text-xs text-gray-500">{match.aggregate.payment_method_name}</p>
                     {match.aggregate.reference_number && (
                       <p className="text-[10px] text-purple-600 dark:text-purple-400 font-mono truncate">{match.aggregate.reference_number}</p>
@@ -636,6 +637,7 @@ function StepManualMatch({
       (a) =>
         a.source_ref?.toLowerCase().includes(q) ||
         a.payment_method_name?.toLowerCase().includes(q) ||
+        a.branch_name?.toLowerCase().includes(q) ||
         String(a.nett_amount).includes(q)
     );
   }, [aggregates, aggSearch]);
@@ -756,6 +758,7 @@ function StepManualMatch({
                   <div className="flex justify-between items-start">
                     <div className="min-w-0 flex-1">
                       <p className="text-[11px] text-gray-400">{agg.transaction_date}</p>
+                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{agg.branch_name || 'N/A'}</p>
                       <p className="text-xs text-gray-500 truncate">{agg.payment_method_name}</p>
                       <p className="text-[11px] text-gray-400 truncate">Ref: {agg.source_ref}</p>
                     </div>
@@ -1115,7 +1118,7 @@ function StepMultiMatch({
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-xs font-semibold text-gray-800 dark:text-white">
-                          {agg.source_ref}
+                          {agg.branch_name || agg.source_ref}
                         </p>
                         <p className="text-[11px] text-gray-400">
                           {agg.payment_method_name} · {agg.transaction_date}
