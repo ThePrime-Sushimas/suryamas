@@ -242,8 +242,8 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
 
       {showFilters && (
         <>
-          {/* Quick Presets + Bank Account Chips */}
-          <div className="flex flex-wrap gap-2 mb-4">
+          {/* Quick Date Presets */}
+          <div className="flex flex-wrap gap-2 mb-3">
             <span className="text-[10px] text-gray-500 self-center mr-1">Cepat:</span>
             {[
               { label: 'Kemarin', start: getYesterday(), end: getYesterday() },
@@ -258,31 +258,31 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
                 {preset.label}
               </button>
             ))}
-
-            {bankAccounts.length > 0 && (
-              <>
-                <span className="text-gray-200 dark:text-gray-700 self-center">|</span>
-                <span className="text-[10px] text-gray-500 self-center mr-1">Akun:</span>
-                {bankAccounts.map(acc => {
-                  const isActive = filters.bankAccountIds?.includes(acc.id) || false
-                  return (
-                    <button
-                      key={acc.id}
-                      onClick={() => handleAccountToggle(acc.id)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all h-auto cursor-pointer border ${
-                        isActive
-                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700'
-                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                      }`}
-                    >
-                      {isActive && <Check size={12} className="text-blue-600" />}
-                      {acc.banks.bank_name} · {acc.account_number.slice(-4)}
-                    </button>
-                  )
-                })}
-              </>
-            )}
           </div>
+
+          {/* Bank Account Chips */}
+          {bankAccounts.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              <span className="text-[10px] text-gray-500 self-center mr-1">Bank:</span>
+              {bankAccounts.map(acc => {
+                const isActive = filters.bankAccountIds?.includes(acc.id) || false
+                return (
+                  <button
+                    key={acc.id}
+                    onClick={() => handleAccountToggle(acc.id)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all h-auto cursor-pointer border ${
+                      isActive
+                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700'
+                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}
+                  >
+                    {isActive && <Check size={12} className="text-blue-800" />}
+                    {acc.banks.bank_code} · {acc.account_name}
+                  </button>
+                )
+              })}
+            </div>
+          )}
 
           {/* Active Filters Tags */}
           {hasActiveFilters && (
