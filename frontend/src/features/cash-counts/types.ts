@@ -5,11 +5,12 @@ export interface CashCount {
   company_id: string
   start_date: string
   end_date: string
-  branch_name: string | null
   payment_method_id: number
   system_balance: number
   transaction_count: number
   physical_count: number | null
+  large_denomination: number | null
+  small_denomination: number | null
   difference: number | null
   status: CashCountStatus
   deposit_amount: number | null
@@ -55,7 +56,8 @@ export interface CreateCashCountDto {
 }
 
 export interface UpdatePhysicalCountDto {
-  physical_count: number
+  large_denomination: number
+  small_denomination: number
   responsible_employee_id?: string | null
   notes?: string
 }

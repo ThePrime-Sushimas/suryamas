@@ -8,6 +8,8 @@ export interface CashCountPreviewRow {
   transaction_count: number
   cash_count_id: string | null
   physical_count: number | null
+  large_denomination: number | null
+  small_denomination: number | null
   difference: number | null
   status: string | null
   responsible_employee_id: string | null

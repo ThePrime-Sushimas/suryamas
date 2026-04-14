@@ -47,6 +47,8 @@ export class CashCountsService {
         transaction_count: r.transaction_count,
         cash_count_id: cc?.id || null,
         physical_count: cc?.physical_count ?? null,
+        large_denomination: cc?.large_denomination ?? null,
+        small_denomination: cc?.small_denomination ?? null,
         difference: cc?.difference ?? null,
         status: cc?.status || null,
         responsible_employee_id: cc?.responsible_employee_id || null,
@@ -112,15 +114,16 @@ export class CashCountsService {
       throw new CashCountInvalidStatusError(existing.status, 'OPEN')
     }
 
-    // Check deficit accountability
-    const diff = dto.physical_count - existing.system_balance
+    const physicalCount = dto.large_denomination + dto.small_denomination
+    const diff = physicalCount - existing.system_balance
     if (diff < 0 && !dto.responsible_employee_id) {
       throw new CashCountDeficitRequiresEmployeeError()
     }
 
-    const updated = await cashCountsRepository.updatePhysicalCount(
+    await cashCountsRepository.updatePhysicalCount(
       id,
-      dto.physical_count,
+      dto.large_denomination,
+      dto.small_denomination,
       diff < 0 ? (dto.responsible_employee_id || null) : null,
       dto.notes,
       userId,
@@ -129,7 +132,7 @@ export class CashCountsService {
     if (userId) {
       await AuditService.log('UPDATE', 'cash_count', id, userId,
         { status: 'OPEN', physical_count: null },
-        { status: 'COUNTED', physical_count: dto.physical_count, difference: diff },
+        { status: 'COUNTED', large_denomination: dto.large_denomination, small_denomination: dto.small_denomination, physical_count: physicalCount, difference: diff },
       )
     }
 
