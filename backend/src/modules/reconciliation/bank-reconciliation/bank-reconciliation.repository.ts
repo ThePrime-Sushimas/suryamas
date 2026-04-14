@@ -86,7 +86,7 @@ export class BankReconciliationRepository {
     endDate?: Date,
     bankAccountId?: number,
     options?: {
-      status?: "RECONCILED" | "UNRECONCILED" | "DISCREPANCY";
+      status?: "RECONCILED" | "UNRECONCILED";
       search?: string;
       isReconciled?: boolean;
       sortField?: string;
@@ -135,16 +135,10 @@ export class BankReconciliationRepository {
       }
 
       // Apply status filter
-      // Note: DISCREPANCY status is calculated in service layer based on difference threshold
-      // For database query, we only filter by is_reconciled and let service handle the status
       if (options?.status === "RECONCILED") {
         baseQuery = baseQuery.eq("is_reconciled", true);
       } else if (options?.status === "UNRECONCILED") {
         baseQuery = baseQuery.eq("is_reconciled", false);
-      } else if (options?.status === "DISCREPANCY") {
-        // DISCREPANCY: reconciled but has amount difference - filtered in service
-        // For now, just get all reconciled records
-        baseQuery = baseQuery.eq("is_reconciled", true);
       }
 
       // Apply isReconciled filter (overrides status if both provided)
@@ -185,10 +179,6 @@ export class BankReconciliationRepository {
         countQuery = countQuery.eq("is_reconciled", true);
       } else if (options?.status === "UNRECONCILED") {
         countQuery = countQuery.eq("is_reconciled", false);
-      } else if (options?.status === "DISCREPANCY") {
-        // DISCREPANCY: reconciled but has amount difference - filtered in service
-        // For now, just get all reconciled records
-        countQuery = countQuery.eq("is_reconciled", true);
       }
       if (options?.isReconciled !== undefined) {
         countQuery = countQuery.eq("is_reconciled", options.isReconciled);
@@ -441,11 +431,7 @@ export class BankReconciliationRepository {
     userId?: string,
   ): Promise<void> {
     try {
-      const isReconciled = ![
-        BankReconciliationStatus.PENDING,
-        BankReconciliationStatus.UNRECONCILED,
-        BankReconciliationStatus.DISCREPANCY,
-      ].includes(status);
+      const isReconciled = status === BankReconciliationStatus.RECONCILED;
 
       const updateData: any = {
         is_reconciled: isReconciled,

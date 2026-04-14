@@ -5,17 +5,11 @@
  * Bank Reconciliation Statuses
  */
 export type BankReconciliationStatus =
-  | "PENDING"
-  | "AUTO_MATCHED"
-  | "MANUALLY_MATCHED"
-  | "DISCREPANCY"
+  | "RECONCILED"
   | "UNRECONCILED";
 
 export const BankReconciliationStatusMap = {
-  PENDING: "PENDING",
-  AUTO_MATCHED: "AUTO_MATCHED",
-  MANUALLY_MATCHED: "MANUALLY_MATCHED",
-  DISCREPANCY: "DISCREPANCY",
+  RECONCILED: "RECONCILED",
   UNRECONCILED: "UNRECONCILED",
 } as const;
 

@@ -657,7 +657,7 @@ export class BankReconciliationService {
     endDate?: Date,
     bankAccountId?: number,
     options?: {
-      status?: "RECONCILED" | "UNRECONCILED" | "DISCREPANCY";
+      status?: "RECONCILED" | "UNRECONCILED";
       search?: string;
       isReconciled?: boolean;
       sortField?: string;
@@ -679,31 +679,11 @@ export class BankReconciliationService {
         : 1;
 
     const processedData = statements.map((s) => {
-      const isReconciled = s.is_reconciled;
       const bankAmount = s.credit_amount - s.debit_amount;
-      // matched_aggregate is now populated from the repository join
-      const hasMatch = !!s.matched_aggregate;
-      const difference = hasMatch
-        ? Math.abs(bankAmount - s.matched_aggregate.nett_amount)
-        : 0;
 
-      let status: BankReconciliationStatus =
-        BankReconciliationStatus.UNRECONCILED;
-      if (isReconciled) {
-        if (difference === 0) {
-          status = s.reconciliation_id
-            ? BankReconciliationStatus.MANUALLY_MATCHED
-            : BankReconciliationStatus.AUTO_MATCHED;
-        } else if (difference <= this.config.differenceThreshold) {
-          status = BankReconciliationStatus.AUTO_MATCHED;
-        } else {
-          status = BankReconciliationStatus.DISCREPANCY;
-        }
-      } else {
-        status = hasMatch
-          ? BankReconciliationStatus.PENDING
-          : BankReconciliationStatus.UNRECONCILED;
-      }
+      const status: BankReconciliationStatus = s.is_reconciled
+        ? BankReconciliationStatus.RECONCILED
+        : BankReconciliationStatus.UNRECONCILED;
 
       return {
         ...s,
@@ -713,29 +693,9 @@ export class BankReconciliationService {
       };
     });
 
-    // Apply DISCREPANCY filter after processing - need to recalculate total
-    // Also apply RECONCILED filter to exclude DISCREPANCY records
-    let filteredData = processedData;
-    let finalTotal = total;
-
-    if (options?.status === "DISCREPANCY") {
-      filteredData = processedData.filter(
-        (s) => s.status === BankReconciliationStatus.DISCREPANCY,
-      );
-      finalTotal = filteredData.length;
-    } else if (options?.status === "RECONCILED") {
-      // RECONCILED should include AUTO_MATCHED and MANUALLY_MATCHED but exclude DISCREPANCY
-      filteredData = processedData.filter(
-        (s) =>
-          s.status === BankReconciliationStatus.AUTO_MATCHED ||
-          s.status === BankReconciliationStatus.MANUALLY_MATCHED,
-      );
-      finalTotal = filteredData.length;
-    }
-
     const limit = options?.limit || 50;
 
-    return createPaginatedResponse(filteredData, finalTotal, page, limit);
+    return createPaginatedResponse(processedData, total, page, limit);
   }
 
   async getPotentialMatches(statementId: string): Promise<any[]> {

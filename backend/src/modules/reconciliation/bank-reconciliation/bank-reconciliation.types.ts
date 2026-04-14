@@ -5,10 +5,7 @@
 // ==================== ENUMS ====================
 
 export enum BankReconciliationStatus {
-  PENDING = 'PENDING',
-  AUTO_MATCHED = 'AUTO_MATCHED',
-  MANUALLY_MATCHED = 'MANUALLY_MATCHED',
-  DISCREPANCY = 'DISCREPANCY',
+  RECONCILED = 'RECONCILED',
   UNRECONCILED = 'UNRECONCILED'
 }
 

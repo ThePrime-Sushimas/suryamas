@@ -28,15 +28,7 @@ import { Pagination } from "@/components/ui/Pagination";
 
 // ─── Status Badge ────────────────────────────────────────────────────────────
 
-type SimpleStatus = "RECONCILED" | "UNRECONCILED";
-
-function getSimpleStatus(status: BankReconciliationStatus): SimpleStatus {
-  return status === "AUTO_MATCHED" || status === "MANUALLY_MATCHED" || status === "DISCREPANCY"
-    ? "RECONCILED"
-    : "UNRECONCILED";
-}
-
-const SIMPLE_STATUS_CONFIG: Record<SimpleStatus, { label: string; dot: string; badge: string }> = {
+const STATUS_BADGE_CONFIG: Record<BankReconciliationStatus, { label: string; dot: string; badge: string }> = {
   RECONCILED: {
     label: "Reconciled",
     dot: "bg-green-500",
@@ -50,14 +42,13 @@ const SIMPLE_STATUS_CONFIG: Record<SimpleStatus, { label: string; dot: string; b
 };
 
 function StatusBadge({ status }: { status: BankReconciliationStatus }) {
-  const simple = getSimpleStatus(status);
-  const v = SIMPLE_STATUS_CONFIG[simple];
+  const v = STATUS_BADGE_CONFIG[status];
 
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium ${v.badge}`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${v.dot}`} />
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${v.dot}`} />
       {v.label}
     </span>
   );
@@ -81,7 +72,7 @@ function SummaryCards({ items, summary }: SummaryCardsProps) {
     }
     const reconciled = items.filter(
       (i) =>
-        i.status === "AUTO_MATCHED" || i.status === "MANUALLY_MATCHED" || i.status === "DISCREPANCY"
+        i.status === "RECONCILED"
     ).length;
     const unreconciled = items.length - reconciled;
 
@@ -231,7 +222,7 @@ function GroupDetailRow({ group }: { group: ReconciliationGroup }) {
                         <td className="px-3 py-1.5 text-gray-500 whitespace-nowrap w-24">
                           {formatDate(detail.statement?.transaction_date)}
                         </td>
-                        <td className="px-3 py-1.5 text-gray-700 dark:text-gray-300 max-w-[240px]">
+                        <td className="px-3 py-1.5 text-gray-700 dark:text-gray-300 max-w-60">
                           {detail.statement?.description || "—"}
                         </td>
                         <td className="px-3 py-1.5 text-right font-mono whitespace-nowrap">
@@ -290,7 +281,6 @@ export function BankMutationTable({
   items,
   potentialMatchesMap = {},
   isLoadingMatches = {},
-  onManualMatch,
   onQuickMatch,
   onCheckMatches,
   onUndo,
@@ -346,7 +336,7 @@ export function BankMutationTable({
 
           {activeBankAccount && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-full text-[11px]">
-              <Building className="w-3 h-3 text-blue-500 flex-shrink-0" />
+              <Building className="w-3 h-3 text-blue-500 shrink-0" />
               <span className="text-blue-700 dark:text-blue-300 font-medium">
                 {activeBankAccount.banks.bank_name}
               </span>
@@ -441,7 +431,7 @@ export function BankMutationTable({
                         )}
                       </div>
                       {isInGroup && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-[10px] font-medium flex-shrink-0 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-[10px] font-medium shrink-0 whitespace-nowrap">
                           <Link2 className="w-2.5 h-2.5" />
                           grup · {groupDetailCount}
                         </span>

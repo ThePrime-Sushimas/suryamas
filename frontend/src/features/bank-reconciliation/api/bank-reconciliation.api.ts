@@ -22,7 +22,7 @@ export interface BankStatementFilterParams {
   startDate?: string;
   endDate?: string;
   bankAccountId?: number;
-  status?: 'RECONCILED' | 'UNRECONCILED' | 'DISCREPANCY';
+  status?: 'RECONCILED' | 'UNRECONCILED';
   search?: string;
   isReconciled?: boolean;
   sort?: string;

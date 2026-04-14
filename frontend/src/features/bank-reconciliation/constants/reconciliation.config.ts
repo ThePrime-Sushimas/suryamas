@@ -34,32 +34,21 @@ export const DEFAULT_MATCHING_CRITERIA = {
 
 // Reconciliation Status Configuration
 export const RECONCILIATION_STATUS = {
-  PENDING: 'PENDING',
-  AUTO_MATCHED: 'AUTO_MATCHED',
-  MANUALLY_MATCHED: 'MANUALLY_MATCHED',
-  DISCREPANCY: 'DISCREPANCY',
+  RECONCILED: 'RECONCILED',
   UNRECONCILED: 'UNRECONCILED',
-  RECONCILED: 'RECONCILED', // For UI filter purposes
 } as const;
 
 export type ReconciliationStatus = typeof RECONCILIATION_STATUS[keyof typeof RECONCILIATION_STATUS];
 
 export const STATUS_CONFIG: Record<ReconciliationStatus, { label: string; color: string; bg: string }> = {
-  PENDING: { label: 'Pending', color: 'text-amber-700', bg: 'bg-amber-100' },
-  AUTO_MATCHED: { label: 'Auto-Matched', color: 'text-green-700', bg: 'bg-green-100' },
-  MANUALLY_MATCHED: { label: 'Manually Matched', color: 'text-blue-700', bg: 'bg-blue-100' },
-  DISCREPANCY: { label: 'Discrepancy', color: 'text-red-700', bg: 'bg-red-100' },
-  UNRECONCILED: { label: 'Unreconciled', color: 'text-orange-700', bg: 'bg-orange-100' },
   RECONCILED: { label: 'Reconciled', color: 'text-green-700', bg: 'bg-green-100' },
+  UNRECONCILED: { label: 'Unreconciled', color: 'text-gray-700', bg: 'bg-gray-100' },
 };
 
 // Legacy status colors (for backward compatibility)
 export const RECONCILIATION_STATUS_COLORS: Record<string, string> = {
-  PENDING: "gray",
-  AUTO_MATCHED: "green",
-  MANUALLY_MATCHED: "blue",
-  DISCREPANCY: "red",
-  UNRECONCILED: "orange",
+  RECONCILED: "green",
+  UNRECONCILED: "gray",
 };
 
 // Date Formatting
