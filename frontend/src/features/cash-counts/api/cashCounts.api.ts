@@ -2,7 +2,6 @@ import api from '@/lib/axios'
 import type { CashCount, CreateCashCountDto, UpdatePhysicalCountDto, DepositDto, CashCountListFilter } from '../types'
 
 export interface CashCountPreviewRow {
-  branch_id: string
   branch_name: string
   transaction_date: string
   system_balance: number

@@ -5,7 +5,7 @@ export interface CashCount {
   company_id: string
   start_date: string
   end_date: string
-  branch_id: string | null
+  branch_name: string | null
   payment_method_id: number
   system_balance: number
   transaction_count: number
@@ -49,7 +49,7 @@ export interface CashCountDetail {
 export interface CreateCashCountDto {
   start_date: string
   end_date: string
-  branch_id?: string | null
+  branch_name?: string | null
   payment_method_id: number
   notes?: string
 }

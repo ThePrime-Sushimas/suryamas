@@ -15,7 +15,7 @@ export const createCashCountSchema = z.object({
   body: z.object({
     start_date: z.string().regex(DATE_REGEX, 'Format tanggal harus YYYY-MM-DD'),
     end_date: z.string().regex(DATE_REGEX, 'Format tanggal harus YYYY-MM-DD'),
-    branch_id: z.string().uuid().nullable().optional(),
+    branch_name: z.string().nullable().optional(),
     payment_method_id: z.coerce.number().int().positive('Payment method ID harus positif'),
     notes: z.string().optional(),
   }).refine(
@@ -35,7 +35,8 @@ export const updatePhysicalCountSchema = z.object({
     id: z.string().uuid('Invalid cash count ID'),
   }),
   body: z.object({
-    physical_count: z.coerce.number().min(0, 'Physical count harus >= 0'),
+    large_denomination: z.coerce.number().min(0, 'Pecahan besar harus >= 0'),
+    small_denomination: z.coerce.number().min(0, 'Pecahan kecil harus >= 0'),
     responsible_employee_id: z.string().uuid().nullable().optional(),
     notes: z.string().optional(),
   }),

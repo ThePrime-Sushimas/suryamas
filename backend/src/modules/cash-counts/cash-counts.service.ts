@@ -32,15 +32,15 @@ export class CashCountsService {
 
     // Get existing cash counts for this period (all branches)
     const existing = await cashCountsRepository.findByPeriod(companyId, startDate, endDate, paymentMethodId)
-    // Key: branch_id|date
-    const existingMap = new Map(
-      existing.map((cc) => [`${cc.branch_id}|${cc.start_date}`, cc])
-    )
+    // Key: branch_name|start_date
+    const existingMap = new Map<string, any>()
+    for (const cc of existing) {
+      existingMap.set(`${cc.branch_name || ''}|${cc.start_date}`, cc)
+    }
 
     return rows.map((r) => {
-      const cc = existingMap.get(`${r.branch_id}|${r.transaction_date}`)
+      const cc = existingMap.get(`${r.branch_name}|${r.transaction_date}`)
       return {
-        branch_id: r.branch_id,
         branch_name: r.branch_name,
         transaction_date: r.transaction_date,
         system_balance: r.system_balance,
@@ -67,13 +67,13 @@ export class CashCountsService {
 
     // Check duplicate
     const existing = await cashCountsRepository.findDuplicate(
-      companyId, dto.start_date, dto.end_date, dto.payment_method_id, dto.branch_id,
+      companyId, dto.start_date, dto.end_date, dto.payment_method_id, dto.branch_name,
     )
     if (existing) throw new CashCountDuplicatePeriodError()
 
     // Calculate system balance
     const { totalAmount, count, dailyBreakdown } = await cashCountsRepository.calculateSystemBalance(
-      companyId, dto.start_date, dto.end_date, dto.payment_method_id, dto.branch_id,
+      companyId, dto.start_date, dto.end_date, dto.payment_method_id, dto.branch_name,
     )
 
     const cashCount = await cashCountsRepository.create(
@@ -81,7 +81,7 @@ export class CashCountsService {
         company_id: companyId,
         start_date: dto.start_date,
         end_date: dto.end_date,
-        branch_id: dto.branch_id,
+        branch_name: dto.branch_name,
         payment_method_id: dto.payment_method_id,
         system_balance: totalAmount,
         transaction_count: count,
