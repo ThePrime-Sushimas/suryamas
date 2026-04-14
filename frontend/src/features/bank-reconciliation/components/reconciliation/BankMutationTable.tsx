@@ -17,7 +17,6 @@ import type {
   PotentialMatch,
   ReconciliationGroup,
   BankAccountStatus,
-  ReconciliationSummary,
 } from "../../types/bank-reconciliation.types";
 import {
   formatDate,
@@ -55,77 +54,6 @@ function StatusBadge({ status }: { status: BankReconciliationStatus }) {
   );
 }
 
-// ─── Summary Cards ────────────────────────────────────────────────────────────
-
-interface SummaryCardsProps {
-  items: BankStatementWithMatch[];
-  summary?: ReconciliationSummary;
-}
-
-function SummaryCards({ items, summary }: SummaryCardsProps) {
-  const stats = useMemo(() => {
-    if (summary) {
-      return {
-        total: summary.totalStatements,
-        reconciled: summary.autoMatched + summary.manuallyMatched + summary.discrepancies,
-        unreconciled: summary.unreconciled,
-      };
-    }
-    const reconciled = items.filter(
-      (i) =>
-        i.status === "RECONCILED"
-    ).length;
-    const unreconciled = items.length - reconciled;
-
-    return {
-      total: items.length,
-      reconciled,
-      unreconciled,
-    };
-  }, [items, summary]);
-
-  const cards = [
-    {
-      label: "Total transaksi",
-      value: stats.total,
-      display: stats.total.toString(),
-      color: "text-gray-900 dark:text-white",
-    },
-    {
-      label: "Reconciled",
-      value: stats.reconciled,
-      display: stats.reconciled.toString(),
-      color: "text-green-600 dark:text-green-400",
-    },
-    {
-      label: "Unreconciled",
-      value: stats.unreconciled,
-      display: stats.unreconciled.toString(),
-      color:
-        stats.unreconciled > 0
-          ? "text-amber-600 dark:text-amber-400"
-          : "text-gray-400",
-    },
-  ];
-
-  return (
-    <div className="grid grid-cols-3 gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
-      {cards.map((card) => (
-        <div
-          key={card.label}
-          className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2"
-        >
-          <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">
-            {card.label}
-          </p>
-          <p className={`text-sm font-semibold ${card.color}`}>
-            {card.display}
-          </p>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -274,8 +202,6 @@ interface BankMutationTableProps {
   onUndoGroup?: (groupId: string) => Promise<void>;
   bankAccounts?: BankAccountStatus[];
   activeBankAccountIds?: number[];
-  /** Optional: data summary dari endpoint terpisah */
-  summary?: ReconciliationSummary;
 }
 
 export function BankMutationTable({
@@ -293,7 +219,6 @@ export function BankMutationTable({
   onUndoGroup,
   bankAccounts = [],
   activeBankAccountIds = [],
-  summary,
 }: BankMutationTableProps) {
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
 
@@ -361,10 +286,7 @@ export function BankMutationTable({
         </div>
       </div>
 
-      {/* ── Summary Cards ── */}
-      <SummaryCards items={items} summary={summary} />
-
-      {/* ── Grid Table ── */}
+      {/* ── Grid Table ── */
       <div className="overflow-x-auto text-xs">
         {/* Header */}
         <div className={`grid ${GRID_COLS} bg-gray-50 dark:bg-gray-800/50 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700`}>
@@ -625,7 +547,7 @@ export function BankMutationTable({
           })
         )}
       </div>
-
+}
       {/* ── Pagination ── */}
       {pagination && (pagination.totalPages > 0 || pagination.total > 0) && (
         <div className="p-3 border-t border-gray-200 dark:border-gray-700">

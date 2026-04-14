@@ -29,7 +29,6 @@ import {
 import { useBankReconciliation } from "../hooks/useBankReconciliation";
 
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { SettlementGroupList } from "../components/reconciliation/SettlementGroupList";
 import type {
   BankStatementWithMatch,
   MatchingCriteria,
@@ -84,9 +83,6 @@ export function BankReconciliationPage() {
     setPage,
     setPageSize,
     fetchSettlementGroups,
-    settlementGroups,
-    settlementGroupsTotal,
-    deleteSettlementGroup,
   } = useBankReconciliation();
 
   const unreconciledStatements = useMemo(
@@ -268,13 +264,6 @@ export function BankReconciliationPage() {
     }
   }, []);
 
-  const handleDeleteSettlementGroup = useCallback(
-    async (groupId: string) => {
-      await deleteSettlementGroup(groupId);
-      refreshData();
-    },
-    [deleteSettlementGroup, refreshData]
-  );
 
   const handleSettlementConfirm = useCallback(
     async (
@@ -409,18 +398,8 @@ export function BankReconciliationPage() {
           )}
         </div>
 
-        {/* Right Column: Settlement Groups */}
-        <div className="space-y-4">
-           {filtersApplied && settlementGroups.length > 0 && (
-             <ErrorBoundary>
-               <SettlementGroupList
-                 groups={settlementGroups}
-                 total={settlementGroupsTotal}
-                 onDelete={handleDeleteSettlementGroup}
-               />
-             </ErrorBoundary>
-           )}
-        </div>
+        {/* Right Column */}
+        <div className="space-y-4" />
       </div>
 
       {/* ─── Unified Wizard (replaces 3 modals) ─── */}
