@@ -5,6 +5,7 @@ import { handleError } from '../../utils/error-handler.util'
 import { withValidated } from '../../utils/handler'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
+  previewSchema,
   createCashCountSchema,
   cashCountIdSchema,
   updatePhysicalCountSchema,
@@ -12,6 +13,7 @@ import {
   cashCountListQuerySchema,
 } from './cash-counts.schema'
 
+type PreviewReq = ValidatedAuthRequest<typeof previewSchema>
 type CreateReq = ValidatedAuthRequest<typeof createCashCountSchema>
 type IdReq = ValidatedAuthRequest<typeof cashCountIdSchema>
 type CountReq = ValidatedAuthRequest<typeof updatePhysicalCountSchema>
@@ -19,6 +21,17 @@ type DepositReq = ValidatedAuthRequest<typeof depositSchema>
 type ListReq = ValidatedAuthRequest<typeof cashCountListQuerySchema>
 
 export class CashCountsController {
+  preview = withValidated(async (req: PreviewReq, res: Response) => {
+    try {
+      const { start_date, end_date, payment_method_id } = req.validated.query
+      const companyId = req.context?.company_id!
+      const result = await cashCountsService.preview(start_date, end_date, payment_method_id, companyId)
+      sendSuccess(res, result, 'Preview loaded')
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  })
+
   create = withValidated(async (req: CreateReq, res: Response) => {
     try {
       const { body } = req.validated
@@ -34,7 +47,7 @@ export class CashCountsController {
   list = withValidated(async (req: ListReq, res: Response) => {
     try {
       const { query } = req.validated
-      const result = await cashCountsService.list(query)
+      const result = await cashCountsService.list(query, req.context?.company_id!)
       sendSuccess(res, result.data, 'Cash counts retrieved', 200, result.pagination)
     } catch (error: any) {
       handleError(res, error)

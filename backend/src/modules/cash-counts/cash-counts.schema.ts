@@ -3,6 +3,14 @@ import { z } from '@/lib/openapi'
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
 const VALID_STATUSES = ['OPEN', 'COUNTED', 'DEPOSITED', 'CLOSED'] as const
 
+export const previewSchema = z.object({
+  query: z.object({
+    start_date: z.string().regex(DATE_REGEX, 'Format tanggal harus YYYY-MM-DD'),
+    end_date: z.string().regex(DATE_REGEX, 'Format tanggal harus YYYY-MM-DD'),
+    payment_method_id: z.coerce.number().int().positive(),
+  }),
+})
+
 export const createCashCountSchema = z.object({
   body: z.object({
     start_date: z.string().regex(DATE_REGEX, 'Format tanggal harus YYYY-MM-DD'),

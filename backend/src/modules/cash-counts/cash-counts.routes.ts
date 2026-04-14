@@ -6,6 +6,7 @@ import { validateSchema } from '../../middleware/validation.middleware'
 import { cashCountsController } from './cash-counts.controller'
 import { PermissionService } from '../../services/permission.service'
 import {
+  previewSchema,
   createCashCountSchema,
   cashCountIdSchema,
   updatePhysicalCountSchema,
@@ -19,13 +20,16 @@ PermissionService.registerModule('cash_counts', 'Cash Count Management').catch((
 
 router.use(authenticate, resolveBranchContext)
 
+// Preview (working sheet — no records created)
+router.get('/preview', canView('cash_counts'), validateSchema(previewSchema), cashCountsController.preview)
+
 // List
 router.get('/', canView('cash_counts'), validateSchema(cashCountListQuerySchema), cashCountsController.list)
 
 // Get by ID
 router.get('/:id', canView('cash_counts'), validateSchema(cashCountIdSchema), cashCountsController.findById)
 
-// Create
+// Create (single branch — called per row from preview)
 router.post('/', canInsert('cash_counts'), validateSchema(createCashCountSchema), cashCountsController.create)
 
 // Physical count (OPEN → COUNTED)

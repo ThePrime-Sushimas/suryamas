@@ -19,6 +19,45 @@ import { AuditService } from '../monitoring/monitoring.service'
 
 export class CashCountsService {
   /**
+   * Preview: show all branches x dates with system balance
+   * Merges with existing cash_counts if any
+   */
+  async preview(startDate: string, endDate: string, paymentMethodId: number, companyId: string) {
+    if (new Date(endDate) < new Date(startDate)) {
+      throw new CashCountInvalidDateRangeError()
+    }
+
+    // Get system balance per branch per date
+    const rows = await cashCountsRepository.previewByBranchDate(startDate, endDate, paymentMethodId)
+
+    // Get existing cash counts for this period (all branches)
+    const existing = await cashCountsRepository.findByPeriod(companyId, startDate, endDate, paymentMethodId)
+    // Key: branch_id|date
+    const existingMap = new Map(
+      existing.map((cc) => [`${cc.branch_id}|${cc.start_date}`, cc])
+    )
+
+    return rows.map((r) => {
+      const cc = existingMap.get(`${r.branch_id}|${r.transaction_date}`)
+      return {
+        branch_id: r.branch_id,
+        branch_name: r.branch_name,
+        transaction_date: r.transaction_date,
+        system_balance: r.system_balance,
+        transaction_count: r.transaction_count,
+        cash_count_id: cc?.id || null,
+        physical_count: cc?.physical_count ?? null,
+        difference: cc?.difference ?? null,
+        status: cc?.status || null,
+        responsible_employee_id: cc?.responsible_employee_id || null,
+        deposit_amount: cc?.deposit_amount ?? null,
+        deposit_date: cc?.deposit_date || null,
+        notes: cc?.notes || null,
+      }
+    })
+  }
+
+  /**
    * Create cash count — auto-calculate system balance from aggregated_transactions
    */
   async create(dto: CreateCashCountDto, companyId: string, userId?: string): Promise<CashCountWithRelations> {
@@ -153,9 +192,9 @@ export class CashCountsService {
   /**
    * List with pagination
    */
-  async list(query: CashCountListQuery) {
+  async list(query: CashCountListQuery, companyId: string) {
     const { page, limit, offset } = getPaginationParams(query as any)
-    const { data, total } = await cashCountsRepository.findAll({ limit, offset }, query)
+    const { data, total } = await cashCountsRepository.findAll(companyId, { limit, offset }, query)
     return createPaginatedResponse(data, total, page, limit)
   }
 
