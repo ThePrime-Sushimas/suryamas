@@ -45,8 +45,10 @@ const STATUS_OPTIONS: { value: BankStatementFilterStatus; label: string; descrip
 // HELPERS
 // =============================================================================
 
-function getToday(): string {
-  return new Date().toISOString().split('T')[0]
+function getYesterday(): string {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return d.toISOString().split('T')[0]
 }
 
 function getWeekStart(): string {
@@ -240,9 +242,9 @@ export const BankReconciliationFilters: React.FC<BankReconciliationFiltersProps>
           <div className="flex flex-wrap gap-2 mb-4">
             <span className={`text-[10px] text-gray-500 self-center mr-1`}>Cepat:</span>
             {[
-              { label: 'Hari Ini', start: getToday(), end: getToday() },
-              { label: 'Minggu Ini', start: getWeekStart(), end: getToday() },
-              { label: 'Bulan Ini', start: getMonthStart(), end: getToday() },
+              { label: 'Kemarin', start: getYesterday(), end: getYesterday() },
+              { label: 'Minggu Ini', start: getWeekStart(), end: getYesterday() },
+              { label: 'Bulan Ini', start: getMonthStart(), end: getYesterday() },
             ].map(preset => (
               <button
                 key={preset.label}
