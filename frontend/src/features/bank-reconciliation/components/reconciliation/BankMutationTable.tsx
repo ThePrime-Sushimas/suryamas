@@ -10,12 +10,16 @@ import {
   ChevronDown,
   ChevronUp,
   Unlink2,
+  Building,
+  TrendingUp,
 } from "lucide-react";
 import type {
   BankStatementWithMatch,
   BankReconciliationStatus,
   PotentialMatch,
   ReconciliationGroup,
+  BankAccountStatus,
+  ReconciliationSummary,
 } from "../../types/bank-reconciliation.types";
 import {
   formatDate,
@@ -26,44 +30,283 @@ import {
 import { STATUS_CONFIG } from "../../constants/reconciliation.config";
 import { Pagination } from "@/components/ui/Pagination";
 
+// ─── Status Badge ────────────────────────────────────────────────────────────
+
 function StatusBadge({ status }: { status: BankReconciliationStatus }) {
   const config = STATUS_CONFIG[status];
-  const colors: Record<BankReconciliationStatus, string> = {
-    AUTO_MATCHED: "text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-900/20",
-    MANUALLY_MATCHED: "text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-900/20",
-    DISCREPANCY: "text-amber-700 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/20",
-    PENDING: "text-blue-700 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20",
-    UNRECONCILED: "text-gray-500 bg-gray-50 dark:text-gray-400 dark:bg-gray-800",
+
+  const variants: Record<
+    BankReconciliationStatus,
+    { dot: string; badge: string; icon: typeof CheckCircle }
+  > = {
+    AUTO_MATCHED: {
+      dot: "bg-green-500",
+      badge:
+        "text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-900/20",
+      icon: CheckCircle,
+    },
+    MANUALLY_MATCHED: {
+      dot: "bg-green-500",
+      badge:
+        "text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-900/20",
+      icon: CheckCircle,
+    },
+    DISCREPANCY: {
+      dot: "bg-amber-500",
+      badge:
+        "text-amber-700 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/20",
+      icon: AlertCircle,
+    },
+    PENDING: {
+      dot: "bg-blue-500",
+      badge: "text-blue-700 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20",
+      icon: HelpCircle,
+    },
+    UNRECONCILED: {
+      dot: "bg-gray-400",
+      badge: "text-gray-500 bg-gray-50 dark:text-gray-400 dark:bg-gray-800",
+      icon: AlertCircle,
+    },
   };
-  const icons: Record<BankReconciliationStatus, typeof CheckCircle> = {
-    AUTO_MATCHED: CheckCircle,
-    MANUALLY_MATCHED: CheckCircle,
-    DISCREPANCY: AlertCircle,
-    PENDING: HelpCircle,
-    UNRECONCILED: AlertCircle,
-  };
-  const Icon = icons[status];
+
+  const v = variants[status];
+
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${colors[status]}`}>
-      <Icon className="w-3 h-3" />
+    <span
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium ${v.badge}`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${v.dot}`} />
       {config.label}
     </span>
   );
 }
 
+// ─── Summary Cards ────────────────────────────────────────────────────────────
+
+interface SummaryCardsProps {
+  items: BankStatementWithMatch[];
+  summary?: ReconciliationSummary;
+}
+
+function SummaryCards({ items, summary }: SummaryCardsProps) {
+  const stats = useMemo(() => {
+    if (summary) {
+      return {
+        total: summary.totalStatements,
+        matched: summary.autoMatched + summary.manuallyMatched,
+        unmatched: summary.unreconciled,
+        discrepancy: summary.discrepancies,
+        totalDiff: summary.totalDifference,
+      };
+    }
+    // Fallback: hitung dari items
+    const matched = items.filter(
+      (i) =>
+        i.status === "AUTO_MATCHED" || i.status === "MANUALLY_MATCHED"
+    ).length;
+    const discrepancy = items.filter((i) => i.status === "DISCREPANCY").length;
+    const unmatched = items.filter(
+      (i) => i.status === "UNRECONCILED" || i.status === "PENDING"
+    ).length;
+    const totalDiff = items.reduce((acc, item) => {
+      if (!item.is_reconciled || !item.matched_aggregate) return acc;
+      const bankAmt = getNetAmount(item.credit_amount, item.debit_amount);
+      return acc + Math.abs(bankAmt - item.matched_aggregate.nett_amount);
+    }, 0);
+
+    return {
+      total: items.length,
+      matched,
+      unmatched,
+      discrepancy,
+      totalDiff,
+    };
+  }, [items, summary]);
+
+  const cards = [
+    {
+      label: "Total transaksi",
+      value: stats.total,
+      display: stats.total.toString(),
+      color: "text-gray-900 dark:text-white",
+    },
+    {
+      label: "Sudah cocok",
+      value: stats.matched,
+      display: stats.matched.toString(),
+      color: "text-green-600 dark:text-green-400",
+    },
+    {
+      label: "Belum cocok",
+      value: stats.unmatched,
+      display: stats.unmatched.toString(),
+      color:
+        stats.unmatched > 0
+          ? "text-amber-600 dark:text-amber-400"
+          : "text-gray-400",
+    },
+    {
+      label: "Selisih",
+      value: stats.discrepancy,
+      display: stats.discrepancy.toString(),
+      color:
+        stats.discrepancy > 0
+          ? "text-red-600 dark:text-red-400"
+          : "text-gray-400",
+    },
+    {
+      label: "Total selisih nominal",
+      value: stats.totalDiff,
+      display: stats.totalDiff > 0 ? formatCurrency(stats.totalDiff) : "Rp 0",
+      color:
+        stats.totalDiff > 0
+          ? "text-red-600 dark:text-red-400"
+          : "text-green-600 dark:text-green-400",
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
+      {cards.map((card) => (
+        <div
+          key={card.label}
+          className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2"
+        >
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">
+            {card.label}
+          </p>
+          <p className={`text-sm font-semibold ${card.color}`}>
+            {card.display}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+const GRID_COLS = "grid-cols-[90px_1fr_100px_110px_110px_110px_90px_80px]";
+
 function TableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <>
       {Array.from({ length: rows }).map((_, i) => (
-        <tr key={`skeleton-${i}`} className="border-b border-gray-100 dark:border-gray-800">
-          <td className="px-3 py-2.5" colSpan={7}>
-            <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded animate-pulse w-full" />
-          </td>
-        </tr>
+        <div key={`skeleton-${i}`} className={`grid ${GRID_COLS} border-b border-gray-100 dark:border-gray-800`}>
+          {Array.from({ length: 8 }).map((__, j) => (
+            <div
+              key={j}
+              className="px-3 py-2.5"
+            >
+              <div
+                className="h-3 bg-gray-100 dark:bg-gray-800 rounded animate-pulse"
+                style={{ width: `${60 + Math.random() * 30}%` }}
+              />
+            </div>
+          ))}
+        </div>
       ))}
     </>
   );
 }
+
+// ─── Group Detail Row ──────────────────────────────────────────────────────────
+
+function GroupDetailRow({ group }: { group: ReconciliationGroup }) {
+  return (
+    <div className="border-b border-blue-100 dark:border-blue-900/30">
+        <div className="px-4 py-3 bg-blue-50/60 dark:bg-blue-900/10 space-y-2">
+          {/* Aggregate info */}
+          {group.aggregate && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+              <span className="font-medium text-blue-800 dark:text-blue-300">
+                {group.aggregate.payment_method_name}
+              </span>
+              <span className="text-gray-500">
+                {formatDate(group.aggregate.transaction_date)}
+              </span>
+              <span className="text-gray-600 dark:text-gray-400">
+                Nett:{" "}
+                <span className="font-medium font-mono text-gray-900 dark:text-white">
+                  {formatCurrency(group.aggregate.nett_amount)}
+                </span>
+              </span>
+              <span
+                className={
+                  group.difference === 0
+                    ? "text-green-600 dark:text-green-400"
+                    : "text-amber-600 dark:text-amber-400"
+                }
+              >
+                Selisih:{" "}
+                <span className="font-medium font-mono">
+                  {formatCurrency(group.difference)}
+                </span>
+              </span>
+            </div>
+          )}
+
+          {/* Statement details */}
+          {group.details && group.details.length > 0 && (
+            <div className="rounded-md overflow-hidden border border-blue-100 dark:border-blue-900/30">
+              <table className="w-full text-[11px] border-collapse">
+                <thead>
+                  <tr className="bg-blue-100/50 dark:bg-blue-900/20 text-[10px] text-blue-700 dark:text-blue-400">
+                    <th className="px-3 py-1.5 text-left font-medium">
+                      Tanggal
+                    </th>
+                    <th className="px-3 py-1.5 text-left font-medium">
+                      Keterangan
+                    </th>
+                    <th className="px-3 py-1.5 text-right font-medium">
+                      Jumlah
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.details.map((detail, idx) => {
+                    const credit = detail.statement?.credit_amount ?? 0;
+                    const debit = detail.statement?.debit_amount ?? 0;
+                    const amt = credit - debit;
+                    return (
+                      <tr
+                        key={detail.id}
+                        className={`${
+                          idx !== group.details!.length - 1
+                            ? "border-b border-blue-100 dark:border-blue-900/20"
+                            : ""
+                        } bg-white dark:bg-gray-900`}
+                      >
+                        <td className="px-3 py-1.5 text-gray-500 whitespace-nowrap w-24">
+                          {formatDate(detail.statement?.transaction_date)}
+                        </td>
+                        <td className="px-3 py-1.5 text-gray-700 dark:text-gray-300 max-w-[240px]">
+                          {detail.statement?.description || "—"}
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-mono whitespace-nowrap">
+                          <span
+                            className={
+                              amt >= 0
+                                ? "text-blue-700 dark:text-blue-400"
+                                : "text-red-600 dark:text-red-400"
+                            }
+                          >
+                            {formatCurrency(amt)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+    </div>
+  );
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────────
 
 interface BankMutationTableProps {
   items: BankStatementWithMatch[];
@@ -86,6 +329,10 @@ interface BankMutationTableProps {
   onPageChange: (page: number) => void;
   onLimitChange?: (limit: number) => void;
   onUndoGroup?: (groupId: string) => Promise<void>;
+  bankAccounts?: BankAccountStatus[];
+  activeBankAccountIds?: number[];
+  /** Optional: data summary dari endpoint terpisah */
+  summary?: ReconciliationSummary;
 }
 
 export function BankMutationTable({
@@ -102,6 +349,9 @@ export function BankMutationTable({
   onPageChange,
   onLimitChange,
   onUndoGroup,
+  bankAccounts = [],
+  activeBankAccountIds = [],
+  summary,
 }: BankMutationTableProps) {
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
 
@@ -115,225 +365,284 @@ export function BankMutationTable({
     return map;
   }, [reconciliationGroups]);
 
-  const calculateDifference = useCallback((item: BankStatementWithMatch) => {
-    if (!item.is_reconciled || !item.matched_aggregate) return 0;
-    const bankAmount = getNetAmount(item.credit_amount, item.debit_amount);
-    return Math.abs(bankAmount - item.matched_aggregate.nett_amount);
-  }, []);
+  const activeBankAccount = useMemo(() => {
+    if (activeBankAccountIds.length === 1) {
+      return bankAccounts.find((a) => a.id === activeBankAccountIds[0]) || null;
+    }
+    return null;
+  }, [bankAccounts, activeBankAccountIds]);
+
+  const calculateDifference = useCallback(
+    (item: BankStatementWithMatch) => {
+      if (!item.is_reconciled || !item.matched_aggregate) return 0;
+      const bankAmount = getNetAmount(item.credit_amount, item.debit_amount);
+      return Math.abs(bankAmount - item.matched_aggregate.nett_amount);
+    },
+    []
+  );
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-      {/* Header */}
+    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+      {/* ── Header ── */}
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-800/50">
-        <div className="flex items-center gap-2">
-          <RefreshCw className="w-4 h-4 text-gray-400" />
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Mutasi Bank</h3>
-          <span className="text-xs text-gray-500">
-            {items.length} transaksi · <span className="text-green-600">{items.filter(i => i.is_reconciled).length} cocok</span>
-          </span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-gray-400" />
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+              Mutasi Bank
+            </h3>
+          </div>
+
+          {activeBankAccount && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-full text-[11px]">
+              <Building className="w-3 h-3 text-blue-500 flex-shrink-0" />
+              <span className="text-blue-700 dark:text-blue-300 font-medium">
+                {activeBankAccount.banks.bank_name}
+              </span>
+              <span className="text-blue-300 dark:text-blue-600">·</span>
+              <span className="text-blue-600 dark:text-blue-300 max-w-[120px]">
+                {activeBankAccount.account_name}
+              </span>
+              <span className="text-blue-400 dark:text-blue-500 font-mono tracking-tight">
+                ···{activeBankAccount.account_number.slice(-4)}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="bg-gray-50 dark:bg-gray-800/50 text-[11px] text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-              <th className="px-3 py-2 text-left font-medium">Tanggal</th>
-              <th className="px-3 py-2 text-left font-medium">Keterangan</th>
-              <th className="px-3 py-2 text-left font-medium">Status</th>
-              <th className="px-3 py-2 text-right font-medium">Debit</th>
-              <th className="px-3 py-2 text-right font-medium">Kredit</th>
-              <th className="px-3 py-2 text-right font-medium">Nett POS</th>
-              <th className="px-3 py-2 text-right font-medium">Selisih</th>
-              <th className="px-3 py-2 text-center font-medium w-28"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-            {isTableLoading ? (
-              <TableSkeleton rows={10} />
-            ) : items.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-3 py-12 text-center text-gray-400 text-sm">
-                  Tidak ada mutasi. Pilih rentang tanggal atau akun bank.
-                </td>
-              </tr>
-            ) : (
-              items.map((item) => {
-                const groupInfo = statementGroupMap[item.id];
-                const isInGroup = !!groupInfo;
-                const hasPotentialMatch = (potentialMatchesMap[item.id]?.length ?? 0) > 0;
-                const potentialMatch = potentialMatchesMap[item.id]?.[0];
-                const netAmount = getNetAmount(item.credit_amount, item.debit_amount);
-                const isGroupExpanded = isInGroup && expandedGroupId === groupInfo.id;
-                const diff = calculateDifference(item);
+      {/* ── Summary Cards ── */}
+      <SummaryCards items={items} summary={summary} />
 
-                return (
-                  <React.Fragment key={item.id}>
-                    <tr className={`hover:bg-gray-50/50 dark:hover:bg-gray-800/30 ${isInGroup ? "border-l-2 border-l-blue-500" : ""}`}>
-                      {/* Tanggal */}
-                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
-                        {formatDate(item.transaction_date)}
-                      </td>
+      {/* ── Grid Table ── */}
+      <div className="overflow-x-auto text-xs">
+        {/* Header */}
+        <div className={`grid ${GRID_COLS} bg-gray-50 dark:bg-gray-800/50 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700`}>
+          <div className="px-3 py-2.5 text-left font-semibold">Tanggal</div>
+          <div className="px-3 py-2.5 text-left font-semibold">Keterangan</div>
+          <div className="px-3 py-2.5 text-center font-semibold">Status</div>
+          <div className="px-3 py-2.5 text-right font-semibold">Debit</div>
+          <div className="px-3 py-2.5 text-right font-semibold">Kredit</div>
+          <div className="px-3 py-2.5 text-right font-semibold">Nett POS</div>
+          <div className="px-3 py-2.5 text-right font-semibold">Selisih</div>
+          <div className="px-3 py-2.5 text-center font-semibold">Aksi</div>
+        </div>
 
-                      {/* Keterangan */}
-                      <td className="px-3 py-2 max-w-xs">
-                        <p className="text-gray-900 dark:text-white truncate" title={item.description}>
+        {/* Body */}
+        {isTableLoading ? (
+          <TableSkeleton rows={10} />
+        ) : items.length === 0 ? (
+          <div className="px-3 py-16 text-center text-gray-400 text-sm">
+            <div className="flex flex-col items-center gap-2">
+              <RefreshCw className="w-6 h-6 text-gray-300" />
+              <span>Tidak ada mutasi. Pilih rentang tanggal atau akun bank.</span>
+            </div>
+          </div>
+        ) : (
+          items.map((item) => {
+            const groupInfo = statementGroupMap[item.id];
+            const isInGroup = !!groupInfo;
+            const hasPotentialMatch =
+              (potentialMatchesMap[item.id]?.length ?? 0) > 0;
+            const potentialMatch = potentialMatchesMap[item.id]?.[0];
+            const isGroupExpanded =
+              isInGroup && expandedGroupId === groupInfo.id;
+            const diff = calculateDifference(item);
+            const groupDetailCount = groupInfo?.details?.length ?? 0;
+
+            return (
+              <React.Fragment key={item.id}>
+                <div
+                  className={`
+                    grid ${GRID_COLS} items-center border-b border-gray-100 dark:border-gray-800 transition-colors cursor-pointer
+                    ${isInGroup
+                      ? "bg-blue-50/30 dark:bg-blue-900/5 hover:bg-blue-50/60 dark:hover:bg-blue-900/10"
+                      : "hover:bg-gray-50/70 dark:hover:bg-gray-800/40"
+                    }
+                  `}
+                  onClick={() => {
+                    if (isInGroup) {
+                      setExpandedGroupId(isGroupExpanded ? null : groupInfo.id);
+                    }
+                  }}
+                >
+                  {/* Tanggal */}
+                  <div className="px-3 py-2.5 whitespace-nowrap">
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                      {formatDate(item.transaction_date)}
+                    </span>
+                  </div>
+
+                  {/* Keterangan */}
+                  <div className="px-3 py-2.5 min-w-0">
+                    <div className="flex items-center gap-3.5">
+                      <div className="min-w-0">
+                        <p
+                          className="text-gray-900 dark:text-white truncate max-w-[600px]"
+                          title={item.description}
+                        >
                           {item.description ?? "—"}
                         </p>
-                        {isInGroup && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-600 dark:text-blue-400">
-                            <Link2 className="w-2.5 h-2.5" /> grouped
-                          </span>
+                        {item.reference_number && (
+                          <p className="text-[10px] text-gray-400 dark:text-gray-500 font-mono truncate max-w-[200px]">
+                            {item.reference_number}
+                          </p>
                         )}
-                      </td>
+                      </div>
+                      {isInGroup && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-[10px] font-medium flex-shrink-0 whitespace-nowrap">
+                          <Link2 className="w-2.5 h-2.5" />
+                          grup · {groupDetailCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
 
-                      {/* Status */}
-                      <td className="px-3 py-2">
-                        <StatusBadge status={item.status} />
-                      </td>
+                  {/* Status */}
+                  <div className="px-3 py-2.5 text-center">
+                    <StatusBadge status={item.status} />
+                  </div>
 
-                      {/* Debit */}
-                      <td className="px-3 py-2 text-right text-gray-900 dark:text-white font-mono whitespace-nowrap">
-                        {item.debit_amount > 0 ? formatNumber(item.debit_amount) : ""}
-                      </td>
+                  {/* Debit */}
+                  <div className="px-3 py-2.5 text-right font-mono whitespace-nowrap">
+                    {item.debit_amount > 0 && (
+                      <span className="text-red-600 dark:text-red-400">
+                        {formatNumber(item.debit_amount)}
+                      </span>
+                    )}
+                  </div>
 
-                      {/* Kredit */}
-                      <td className="px-3 py-2 text-right text-gray-900 dark:text-white font-mono whitespace-nowrap">
-                        {item.credit_amount > 0 ? formatNumber(item.credit_amount) : ""}
-                      </td>
+                  {/* Kredit */}
+                  <div className="px-3 py-2.5 text-right font-mono whitespace-nowrap">
+                    {item.credit_amount > 0 && (
+                      <span className="text-blue-700 dark:text-blue-400">
+                        {formatNumber(item.credit_amount)}
+                      </span>
+                    )}
+                  </div>
 
-                      {/* Nett POS */}
-                      <td className="px-3 py-2 text-right font-mono whitespace-nowrap text-gray-600 dark:text-gray-400">
-                        {item.matched_aggregate ? formatNumber(item.matched_aggregate.nett_amount) : "—"}
-                      </td>
+                  {/* Nett POS */}
+                  <div className="px-3 py-2.5 text-right font-mono whitespace-nowrap text-gray-500 dark:text-gray-400">
+                    {item.matched_aggregate
+                      ? formatNumber(item.matched_aggregate.nett_amount)
+                      : ""}
+                  </div>
 
-                      {/* Selisih */}
-                      <td className="px-3 py-2 text-right font-mono whitespace-nowrap">
-                        {diff > 0 ? (
-                          <span className="text-red-600 dark:text-red-400">{formatNumber(diff)}</span>
-                        ) : item.is_reconciled ? (
-                          <span className="text-green-600">0</span>
-                        ) : (
-                          <span className="text-gray-300 dark:text-gray-700">—</span>
-                        )}
-                      </td>
+                  {/* Selisih */}
+                  <div className="px-3 py-2.5 text-right font-mono whitespace-nowrap">
+                    {diff > 0 ? (
+                      <span className="text-red-600 dark:text-red-400">
+                        {formatNumber(diff)}
+                      </span>
+                    ) : item.is_reconciled ? (
+                      <span className="text-green-600 dark:text-green-400">
+                        0
+                      </span>
+                    ) : (
+                      ""
+                    )}
+                  </div>
 
-                      {/* Actions */}
-                      <td className="px-3 py-2 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {!item.is_reconciled && !isInGroup && (
-                            <>
-                              {hasPotentialMatch ? (
-                                <button
-                                  onClick={() => potentialMatch?.id && onQuickMatch(item, potentialMatch.id)}
-                                  className="px-2 py-1 bg-blue-600 text-white rounded text-[10px] font-medium hover:bg-blue-700 transition-colors"
-                                >
-                                  Match
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => onCheckMatches?.(item.id)}
-                                  disabled={isLoadingMatches[item.id]}
-                                  className="px-2 py-1 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded text-[10px] font-medium hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
-                                >
-                                  {isLoadingMatches[item.id] ? (
-                                    <RefreshCw className="w-3 h-3 animate-spin" />
-                                  ) : (
-                                    <Sparkles className="w-3 h-3" />
-                                  )}
-                                </button>
-                              )}
-                              <button
-                                onClick={() => onManualMatch(item)}
-                                className="px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-[10px] font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                              >
-                                Manual
-                              </button>
-                            </>
-                          )}
-
-                          {item.is_reconciled && !isInGroup && (
+                  {/* Actions */}
+                  <div className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1">
+                      {/* Belum direkonsiliasi & bukan grup */}
+                      {!item.is_reconciled && !isInGroup && (
+                        <>
+                          {hasPotentialMatch ? (
                             <button
-                              onClick={() => onUndo(item.id)}
-                              className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
-                              title="Undo"
+                              onClick={() =>
+                                potentialMatch?.id &&
+                                onQuickMatch(item, potentialMatch.id)
+                              }
+                              className="px-2.5 py-1 bg-blue-600 text-white rounded-md text-[10px] font-medium hover:bg-blue-700 transition-colors"
                             >
-                              <Undo2 className="w-3.5 h-3.5" />
+                              Match
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => onCheckMatches?.(item.id)}
+                              disabled={isLoadingMatches[item.id]}
+                              className="p-1.5 text-blue-500 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-md transition-colors"
+                              title="Cari kecocokan"
+                            >
+                              {isLoadingMatches[item.id] ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Sparkles className="w-3.5 h-3.5" />
+                              )}
                             </button>
                           )}
+                        </>
+                      )}
 
-                          {isInGroup && (
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => setExpandedGroupId(isGroupExpanded ? null : groupInfo.id)}
-                                className={`p-1 rounded transition-colors ${isGroupExpanded ? "text-blue-600 bg-blue-50 dark:bg-blue-900/20" : "text-gray-400 hover:text-gray-600"}`}
-                              >
-                                {isGroupExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                              </button>
-                              {onUndoGroup && (
-                                <button
-                                  onClick={() => {
-                                    if (confirm('Batalkan seluruh multi-match group ini?')) {
-                                      onUndoGroup(groupInfo.id);
-                                    }
-                                  }}
-                                  className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
-                                  title="Revert group"
-                                >
-                                  <Unlink2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
+                      {/* Sudah rekonsiliasi, bukan grup */}
+                      {item.is_reconciled && !isInGroup && (
+                        <button
+                          onClick={() => onUndo(item.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-md transition-colors"
+                          title="Undo rekonsiliasi"
+                        >
+                          <Undo2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      {/* Bagian dari grup */}
+                      {isInGroup && (
+                        <>
+                          <button
+                            onClick={() =>
+                              setExpandedGroupId(
+                                isGroupExpanded ? null : groupInfo.id
+                              )
+                            }
+                            className={`p-1.5 rounded-md transition-colors ${
+                              isGroupExpanded
+                                ? "text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30"
+                                : "text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950"
+                            }`}
+                            title="Detail grup"
+                          >
+                            {isGroupExpanded ? (
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                          {onUndoGroup && (
+                            <button
+                              onClick={() => {
+                                if (
+                                  confirm(
+                                    "Batalkan seluruh multi-match group ini?"
+                                  )
+                                ) {
+                                  onUndoGroup(groupInfo.id);
+                                }
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-md transition-colors"
+                              title="Revert grup"
+                            >
+                              <Unlink2 className="w-3.5 h-3.5" />
+                            </button>
                           )}
-                        </div>
-                      </td>
-                    </tr>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
-                    {/* Group Detail */}
-                    {isGroupExpanded && groupInfo && (
-                      <tr>
-                        <td colSpan={8} className="p-0">
-                          <div className="px-6 py-3 bg-gray-50 dark:bg-gray-800/30 border-l-2 border-l-blue-500 space-y-3">
-                            {groupInfo.aggregate && (
-                              <div className="flex items-center gap-6 text-xs text-gray-600 dark:text-gray-400">
-                                <span>Aggregate: <span className="font-medium text-gray-900 dark:text-white">{groupInfo.aggregate.payment_method_name}</span></span>
-                                <span>{formatDate(groupInfo.aggregate.transaction_date)}</span>
-                                <span>Nett: <span className="font-mono font-medium text-gray-900 dark:text-white">{formatCurrency(groupInfo.aggregate.nett_amount)}</span></span>
-                                <span>Selisih: <span className={`font-mono font-medium ${groupInfo.difference === 0 ? 'text-green-600' : 'text-amber-600'}`}>{formatCurrency(groupInfo.difference)}</span></span>
-                              </div>
-                            )}
-                            {groupInfo.details && groupInfo.details.length > 0 && (
-                              <table className="w-full text-xs">
-                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                  {groupInfo.details.map((detail) => {
-                                    const credit = detail.statement?.credit_amount ?? 0;
-                                    const debit = detail.statement?.debit_amount ?? 0;
-                                    const amt = credit - debit;
-                                    return (
-                                      <tr key={detail.id} className="text-gray-600 dark:text-gray-400">
-                                        <td className="py-1.5 pr-3 whitespace-nowrap w-24">{formatDate(detail.statement?.transaction_date)}</td>
-                                        <td className="py-1.5 pr-3 truncate max-w-xs">{detail.statement?.description || "—"}</td>
-                                        <td className="py-1.5 text-right font-mono whitespace-nowrap">
-                                          <span className={amt >= 0 ? 'text-gray-900 dark:text-white' : 'text-red-600'}>{formatCurrency(amt)}</span>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                {/* Group Detail Row */}
+                {isGroupExpanded && groupInfo && (
+                  <GroupDetailRow group={groupInfo} />
+                )}
+              </React.Fragment>
+            );
+          })
+        )}
       </div>
 
+      {/* ── Pagination ── */}
       {pagination && (pagination.totalPages > 0 || pagination.total > 0) && (
         <div className="p-3 border-t border-gray-200 dark:border-gray-700">
           <Pagination

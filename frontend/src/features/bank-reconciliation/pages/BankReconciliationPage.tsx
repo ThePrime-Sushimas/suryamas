@@ -394,6 +394,8 @@ export function BankReconciliationPage() {
                   onPageChange={setPage}
                   onLimitChange={setPageSize}
                   onUndoGroup={handleUndoMultiMatch}
+                  bankAccounts={bankAccounts}
+                  activeBankAccountIds={filter.bankAccountIds}
                 />
             </ErrorBoundary>
           )}
