@@ -341,11 +341,11 @@ export function BankMutationTable({
                 {activeBankAccount.banks.bank_name}
               </span>
               <span className="text-blue-300 dark:text-blue-600">·</span>
-              <span className="text-blue-600 dark:text-blue-300 max-w-[120px]">
+              <span className="text-blue-600 dark:text-blue-300 max-w-[180px]">
                 {activeBankAccount.account_name}
               </span>
               <span className="text-blue-400 dark:text-blue-500 font-mono tracking-tight">
-                ···{activeBankAccount.account_number.slice(-4)}
+                ···{activeBankAccount.account_number}
               </span>
             </div>
           )}

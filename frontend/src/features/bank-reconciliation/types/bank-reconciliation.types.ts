@@ -129,6 +129,7 @@ export interface AutoMatchPreviewMatch {
     reference_number?: string;
     payment_method_name?: string;
     gross_amount: number;
+    branch_name?: string;
   };
   matchScore: number;
   matchCriteria: MatchCriteriaType;

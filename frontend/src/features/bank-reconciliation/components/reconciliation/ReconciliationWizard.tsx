@@ -277,7 +277,6 @@ function StepAutoMatch({
   const didFetch = useRef(false);
 
   const handlePreview = useCallback(async () => {
-    if (isPreviewLoading) return;
     setIsPreviewLoading(true);
     setError(null);
     try {
@@ -293,7 +292,7 @@ function StepAutoMatch({
     } finally {
       setIsPreviewLoading(false);
     }
-  }, [criteria, onPreview, isPreviewLoading]);
+  }, [criteria, onPreview]);
 
   useEffect(() => {
     if (!didFetch.current) {
@@ -342,9 +341,9 @@ function StepAutoMatch({
     s >= 90 ? "text-green-600" : s >= 80 ? "text-blue-600" : "text-amber-600";
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-y-auto">
       {/* Settings toggle */}
-      <div className="px-6 pt-5 pb-3 border-b border-gray-100 dark:border-gray-800">
+      <div className="px-6 pt-5 pb-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-gray-500">
@@ -401,7 +400,7 @@ function StepAutoMatch({
 
       {/* Summary bar */}
       {previewData && (
-        <div className="px-6 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 flex items-center gap-6 text-sm">
+        <div className="px-6 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 flex items-center gap-6 text-sm shrink-0">
           <span className="flex items-center gap-1.5 text-gray-600">
             <Calendar className="w-3.5 h-3.5 text-gray-400" />
             <strong>{previewData.summary.totalStatements}</strong> statements
@@ -422,7 +421,7 @@ function StepAutoMatch({
 
       {/* Tabs */}
       {previewData && (
-        <div className="border-b border-gray-100 dark:border-gray-800">
+        <div className="border-b border-gray-100 dark:border-gray-800 shrink-0">
           <div className="flex gap-1 px-6 overflow-x-auto">
             {[
               { key: "all", label: "Semua", count: tabCounts.all },
@@ -452,7 +451,7 @@ function StepAutoMatch({
 
       {/* Selection controls */}
       {previewData && filteredMatches.length > 0 && (
-        <div className="flex items-center justify-between px-6 py-2 border-b border-gray-100 dark:border-gray-800">
+        <div className="flex items-center justify-between px-6 py-2 border-b border-gray-100 dark:border-gray-800 shrink-0">
           <span className="text-xs text-gray-500">
             {filteredMatches.filter((m) => selectedIds.has(m.statementId)).length} / {filteredMatches.length}
           </span>
@@ -492,7 +491,7 @@ function StepAutoMatch({
       )}
 
       {/* Match list */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 min-h-0 overflow-y-auto p-6">
         {isPreviewLoading ? (
           <div className="flex flex-col items-center justify-center h-48">
             <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-3" />
@@ -577,7 +576,7 @@ function StepAutoMatch({
       </div>
 
       {/* CTA */}
-      <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
+      <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-end shrink-0">
         <button
           disabled={selectedIds.size === 0}
           onClick={() =>
@@ -1942,11 +1941,11 @@ export function ReconciliationWizard({
 
       {/* Panel */}
       <div className="absolute inset-y-0 right-0 flex max-w-full pointer-events-none">
-        <div className="w-screen max-w-3xl pointer-events-auto animate-in slide-in-from-right duration-300">
+        <div className="w-screen max-w-5xl pointer-events-auto animate-in slide-in-from-right duration-300">
           <div className="flex h-full flex-col bg-white dark:bg-gray-900 shadow-2xl">
             {/* Header */}
-            <div className={`relative bg-linear-to-br ${headerGradient} px-6 py-6 shrink-0`}>
-              <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl -mr-10 -mt-10" />
+            <div className={`relative bg-linear-to-br ${headerGradient} px-6 py-6 shrink-0 overflow-hidden`}>
+              <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
               <div className="relative flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   {step > 0 && (
