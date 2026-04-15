@@ -269,6 +269,46 @@ export function CashCountsManagementPage() {
             </div>
           </div>
 
+          {/* Summary */}
+          {branchGroups.length > 0 && (
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Building className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Ringkasan</span>
+                <span className="text-[10px] text-gray-400">{fmtDate(startDate)} — {fmtDate(endDate)}</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                {branchGroups.map((g) => (
+                  <div key={g.name} className="px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                    <p className="text-[10px] text-gray-500 truncate">{g.name}</p>
+                    <p className="text-base font-mono font-semibold text-gray-900 dark:text-white">{fmt(g.system)}</p>
+                    {g.counted > 0 && (
+                      <p className={`text-xs font-mono ${g.diff > 0 ? 'text-blue-600' : g.diff < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        Selisih: {g.diff > 0 ? '+' : ''}{fmt(g.diff)}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Grand Total</span>
+                <div className="flex items-center gap-4">
+                  <span className="text-lg font-mono font-bold text-gray-900 dark:text-white">
+                    {fmt(branchGroups.reduce((s, g) => s + g.system, 0))}
+                  </span>
+                  {branchGroups.some((g) => g.counted > 0) && (() => {
+                    const totalDiff = branchGroups.reduce((s, g) => s + g.diff, 0)
+                    return (
+                      <span className={`text-sm font-mono font-medium ${totalDiff > 0 ? 'text-blue-600' : totalDiff < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        Selisih: {totalDiff > 0 ? '+' : ''}{fmt(totalDiff)}
+                      </span>
+                    )
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Deposit Action Bar */}
           {selectedForDeposit.size > 0 && (
             <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl px-4 py-3 flex items-center justify-between">
