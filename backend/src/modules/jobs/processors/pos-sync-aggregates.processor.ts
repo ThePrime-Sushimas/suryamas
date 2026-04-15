@@ -472,6 +472,7 @@ export async function processPosSyncAggregates(
           grand_total,
           payment_amount,
           transaction_count,
+          void_transaction_count: 0,
           fee_percentage,
           fee_fixed_amount,
           percentage_fee_amount,
