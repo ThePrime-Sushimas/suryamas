@@ -392,9 +392,13 @@ export function CashCountsManagementPage() {
 
                         return (
                           <tr key={k} className={`border-b border-gray-100 dark:border-gray-800 transition-colors ${
-                            isSelected ? 'bg-purple-50/50 dark:bg-purple-900/10' : hasDetail ? 'hover:bg-gray-50/70 dark:hover:bg-gray-800/40' : ''
-                          } ${hasDetail && !isEditing ? 'cursor-pointer' : ''}`}
-                            onClick={() => !isEditing && hasDetail && handleOpenDetail(row)}>
+                            isSelected ? 'bg-purple-50/50 dark:bg-purple-900/10' : 'hover:bg-gray-50/70 dark:hover:bg-gray-800/40'
+                          } ${!isEditing ? 'cursor-pointer' : ''}`}
+                            onClick={() => {
+                              if (isEditing) return
+                              if (hasDetail) { handleOpenDetail(row); return }
+                              if (canEdit) { setEditKey(k); setEditLarge(''); setEditSmall(''); setEditEmployeeId('') }
+                            }}>
 
                             <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                               {canSelect ? (
