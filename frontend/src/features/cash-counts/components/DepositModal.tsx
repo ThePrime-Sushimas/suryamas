@@ -28,7 +28,7 @@ export function DepositModal({ isOpen, onClose, onConfirm, selectedRows, bankAcc
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full mx-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2">
             <Banknote className="w-4 h-4 text-purple-600" />
@@ -40,29 +40,29 @@ export function DepositModal({ isOpen, onClose, onConfirm, selectedRows, bankAcc
         <div className="p-4 space-y-4">
           {/* Summary */}
           <div className="p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg space-y-2">
-            <div className="flex justify-between text-xs">
+            <div className="flex justify-between text-sm">
               <span className="text-gray-500">Cabang</span>
               <span className="font-medium text-gray-900 dark:text-white">{branchName}</span>
             </div>
-            <div className="flex justify-between text-xs">
+            <div className="flex justify-between text-sm">
               <span className="text-gray-500">Jumlah item</span>
               <span className="font-medium text-gray-900 dark:text-white">{selectedRows.length} hari</span>
             </div>
-            <div className="flex justify-between text-xs">
+            <div className="flex justify-between text-sm">
               <span className="text-gray-500">Periode</span>
               <span className="font-medium text-gray-900 dark:text-white">
                 {fmtDate(selectedRows[0]?.transaction_date)} — {fmtDate(selectedRows[selectedRows.length - 1]?.transaction_date)}
               </span>
             </div>
-            <div className="flex justify-between text-xs border-t border-purple-200 dark:border-purple-700 pt-2">
+            <div className="flex justify-between text-sm border-t border-purple-200 dark:border-purple-700 pt-2">
               <span className="text-gray-500 font-semibold">Total Pecahan Besar</span>
-              <span className="font-mono font-semibold text-purple-700 dark:text-purple-300">{fmt(totalLarge)}</span>
+              <span className="font-mono font-bold text-base text-purple-700 dark:text-purple-300">{fmt(totalLarge)}</span>
             </div>
           </div>
 
           {/* Detail rows */}
           <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
-            <table className="w-full text-[10px]">
+            <table className="w-full text-xs">
               <thead><tr className="bg-gray-50 dark:bg-gray-800/50 text-gray-400">
                 <th className="px-2 py-1.5 text-left">Tanggal</th>
                 <th className="px-2 py-1.5 text-right">Besar</th>
@@ -85,12 +85,12 @@ export function DepositModal({ isOpen, onClose, onConfirm, selectedRows, bankAcc
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Tanggal Setor *</label>
               <input type="date" value={depositDate} onChange={(e) => setDepositDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500" />
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Bank Tujuan *</label>
               <select value={bankAccountId} onChange={(e) => setBankAccountId(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
+                className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
                 <option value={0}>Pilih bank</option>
                 {bankAccounts.map((b) => <option key={b.id} value={b.id}>{b.bank_name} ({b.bank_code}) - {b.account_name} · {b.account_number}</option>)}
               </select>
@@ -98,20 +98,20 @@ export function DepositModal({ isOpen, onClose, onConfirm, selectedRows, bankAcc
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Referensi / Slip</label>
               <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="No. slip setoran"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500" />
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Catatan</label>
               <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opsional"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500" />
             </div>
           </div>
         </div>
 
         <div className="flex justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
-          <button onClick={onClose} className="px-4 py-2 text-xs text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Batal</button>
+          <button onClick={onClose} className="px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Batal</button>
           <button onClick={() => onConfirm(depositDate, bankAccountId, reference, notes)} disabled={!canSubmit || isLoading}
-            className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1.5">
+            className="px-5 py-2.5 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1.5">
             {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Banknote className="w-3.5 h-3.5" />}
             Setor {fmt(totalLarge)}
           </button>

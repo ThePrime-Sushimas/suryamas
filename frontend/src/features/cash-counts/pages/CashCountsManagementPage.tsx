@@ -60,7 +60,12 @@ export function CashCountsManagementPage() {
   const [editEmployeeId, setEditEmployeeId] = useState('')
 
   useEffect(() => {
-    api.get('/payment-methods/options').then((r) => setPaymentMethods((r.data.data || []).map((pm: any) => ({ id: pm.id, name: pm.name })))).catch(() => {})
+    api.get('/payment-methods/options').then((r) => {
+      const list = (r.data.data || []).map((pm: any) => ({ id: pm.id, name: pm.name }))
+      setPaymentMethods(list)
+      const cash = list.find((pm: any) => pm.name.toLowerCase().includes('cash'))
+      if (cash && !paymentMethodId) setPaymentMethodId(cash.id)
+    }).catch(() => {})
     api.get('/employees', { params: { limit: 500 } }).then((r) => setEmployees(r.data.data || [])).catch(() => {})
     api.get('/bank-accounts').then((r) => setBankAccounts(
       (r.data.data || []).map((a: any) => ({ id: a.id, account_name: a.account_name, account_number: a.account_number || '', bank_name: a.bank_name || '', bank_code: a.bank_code || '' }))
@@ -349,9 +354,9 @@ export function CashCountsManagementPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className="text-[10px] font-mono text-gray-500">{fmt(group.system)}</span>
+                    <span className="text-sm font-mono text-gray-500">{fmt(group.system)}</span>
                     {group.counted > 0 && (
-                      <span className={`text-[10px] font-mono font-medium ${group.diff > 0 ? 'text-blue-600' : group.diff < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      <span className={`text-sm font-mono font-medium ${group.diff > 0 ? 'text-blue-600' : group.diff < 0 ? 'text-red-600' : 'text-green-600'}`}>
                         {group.diff > 0 ? '+' : ''}{fmt(group.diff)}
                       </span>
                     )}
@@ -360,7 +365,7 @@ export function CashCountsManagementPage() {
                 </button>
 
                 {!isCollapsed && (
-                  <table className="w-full text-xs">
+                  <table className="w-full text-sm">
                     <thead>
                       <tr className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-800">
                         <th className="px-2 py-2 w-8"></th>
@@ -406,7 +411,7 @@ export function CashCountsManagementPage() {
                             <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                               {isEditing ? (
                                 <input type="number" value={editLarge} onChange={(e) => setEditLarge(e.target.value)} min={0} autoFocus placeholder="0"
-                                  className="w-24 px-2 py-1 border border-amber-300 dark:border-amber-600 rounded text-xs text-right font-mono focus:ring-1 focus:ring-amber-500 outline-none bg-white dark:bg-gray-700 dark:text-white"
+                                  className="w-28 px-2 py-1 border border-amber-300 dark:border-amber-600 rounded text-sm text-right font-mono focus:ring-1 focus:ring-amber-500 outline-none bg-white dark:bg-gray-700 dark:text-white"
                                   onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCount(row); if (e.key === 'Escape') setEditKey(null) }} />
                               ) : row.large_denomination != null ? (
                                 <span className="font-mono text-gray-600 dark:text-gray-400">{fmt(row.large_denomination)}</span>
@@ -416,7 +421,7 @@ export function CashCountsManagementPage() {
                             <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                               {isEditing ? (
                                 <input type="number" value={editSmall} onChange={(e) => setEditSmall(e.target.value)} min={0} placeholder="0"
-                                  className="w-24 px-2 py-1 border border-amber-300 dark:border-amber-600 rounded text-xs text-right font-mono focus:ring-1 focus:ring-amber-500 outline-none bg-white dark:bg-gray-700 dark:text-white"
+                                  className="w-28 px-2 py-1 border border-amber-300 dark:border-amber-600 rounded text-sm text-right font-mono focus:ring-1 focus:ring-amber-500 outline-none bg-white dark:bg-gray-700 dark:text-white"
                                   onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCount(row); if (e.key === 'Escape') setEditKey(null) }} />
                               ) : row.small_denomination != null ? (
                                 <span className="font-mono text-gray-600 dark:text-gray-400">{fmt(row.small_denomination)}</span>
@@ -430,7 +435,7 @@ export function CashCountsManagementPage() {
                                 <span className="font-medium text-gray-900 dark:text-white">{fmt(row.physical_count)}</span>
                               ) : canEdit ? (
                                 <button onClick={(e) => { e.stopPropagation(); setEditKey(k); setEditLarge(''); setEditSmall(''); setEditEmployeeId('') }}
-                                  className="text-xs text-amber-600 hover:text-amber-700 font-medium">Input</button>
+                                  className="text-sm text-amber-600 hover:text-amber-700 font-medium">Input</button>
                               ) : <span className="text-gray-300 dark:text-gray-600">—</span>}
                             </td>
 
@@ -453,7 +458,7 @@ export function CashCountsManagementPage() {
                             <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                               {isEditing && editTotal < row.system_balance ? (
                                 <select value={editEmployeeId} onChange={(e) => setEditEmployeeId(e.target.value)}
-                                  className="w-full px-2 py-1 border border-red-300 dark:border-red-600 rounded text-[10px] bg-white dark:bg-gray-700 dark:text-white">
+                                  className="w-full px-2 py-1 border border-red-300 dark:border-red-600 rounded text-xs bg-white dark:bg-gray-700 dark:text-white">
                                   <option value="">PIC *</option>
                                   {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
                                 </select>
@@ -512,7 +517,7 @@ export function CashCountsManagementPage() {
 
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 dark:bg-gray-800/50 text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
                     <th className="px-3 py-2.5 text-left font-semibold">Tanggal Setor</th>
@@ -546,7 +551,7 @@ export function CashCountsManagementPage() {
                               onClick={() => handleExpandDeposit(dep)}>
                               <div className="px-3 py-2.5 text-gray-700 dark:text-gray-300">{fmtDateFull(dep.deposit_date)}</div>
                               <div className="px-3 py-2.5 text-gray-700 dark:text-gray-300 truncate max-w-[180px]">{dep.branch_name || '-'}</div>
-                              <div className="px-3 py-2.5 text-gray-500 text-[10px]">
+                              <div className="px-3 py-2.5 text-gray-500 text-xs">
                                 {dep.period_start && dep.period_end ? `${fmtDateFull(dep.period_start)} — ${fmtDateFull(dep.period_end)}` : '-'}
                               </div>
                               <div className="px-3 py-2.5 text-right font-mono font-medium text-gray-900 dark:text-white">{fmt(dep.deposit_amount)}</div>
@@ -604,7 +609,7 @@ export function CashCountsManagementPage() {
 
                                 {expandedDepositDetail.items && expandedDepositDetail.items.length > 0 && (
                                   <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                                    <table className="w-full text-[10px]">
+                                    <table className="w-full text-xs">
                                       <thead><tr className="bg-gray-100 dark:bg-gray-800 text-gray-400">
                                         <th className="px-2 py-1.5 text-left">Cabang</th>
                                         <th className="px-2 py-1.5 text-left">Tanggal</th>
@@ -681,7 +686,7 @@ export function CashCountsManagementPage() {
       {/* Detail Panel */}
       {selectedDetail && (
         <CashCountDetailPanel
-          item={selectedDetail} isOpen={showDetail} onClose={() => setShowDetail(false)}
+          key={selectedDetail.id} item={selectedDetail} isOpen={showDetail} onClose={() => setShowDetail(false)}
           onCount={handleCount} onCloseCount={handleClose}
           employees={employees} bankAccounts={bankAccounts} isLoading={isMutating}
         />
