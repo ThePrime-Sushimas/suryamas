@@ -6,7 +6,7 @@ import { withValidated } from '../../utils/handler'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   previewSchema, createCashCountSchema, cashCountIdSchema,
-  updatePhysicalCountSchema, createDepositSchema, depositIdSchema, cashCountListQuerySchema,
+  updatePhysicalCountSchema, createDepositSchema, depositIdSchema, depositListQuerySchema, cashCountListQuerySchema,
 } from './cash-counts.schema'
 
 export class CashCountsController {
@@ -60,14 +60,13 @@ export class CashCountsController {
     } catch (error: any) { handleError(res, error) }
   })
 
-  listDeposits = async (req: any, res: Response) => {
+  listDeposits = withValidated(async (req: ValidatedAuthRequest<typeof depositListQuerySchema>, res: Response) => {
     try {
-      const page = parseInt(req.query.page || '1')
-      const limit = parseInt(req.query.limit || '20')
+      const { page, limit } = req.validated.query
       const result = await cashCountsService.listDeposits(req.context?.company_id!, page, limit)
       sendSuccess(res, result.data, 'Deposits retrieved', 200, result.pagination)
     } catch (error: any) { handleError(res, error) }
-  }
+  })
 
   deleteDeposit = withValidated(async (req: ValidatedAuthRequest<typeof depositIdSchema>, res: Response) => {
     try {

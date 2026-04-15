@@ -7,7 +7,7 @@ import { cashCountsController } from './cash-counts.controller'
 import { PermissionService } from '../../services/permission.service'
 import {
   previewSchema, createCashCountSchema, cashCountIdSchema,
-  updatePhysicalCountSchema, createDepositSchema, depositIdSchema, cashCountListQuerySchema,
+  updatePhysicalCountSchema, createDepositSchema, depositIdSchema, depositListQuerySchema, cashCountListQuerySchema,
 } from './cash-counts.schema'
 
 const router = Router()
@@ -20,7 +20,7 @@ router.use(authenticate, resolveBranchContext)
 router.get('/preview', canView('cash_counts'), validateSchema(previewSchema), cashCountsController.preview)
 
 // Deposits
-router.get('/deposits', canView('cash_counts'), cashCountsController.listDeposits)
+router.get('/deposits', canView('cash_counts'), validateSchema(depositListQuerySchema), cashCountsController.listDeposits)
 router.post('/deposits', canInsert('cash_counts'), validateSchema(createDepositSchema), cashCountsController.createDeposit)
 router.get('/deposits/:id', canView('cash_counts'), validateSchema(depositIdSchema), cashCountsController.getDeposit)
 router.delete('/deposits/:id', canDelete('cash_counts'), validateSchema(depositIdSchema), cashCountsController.deleteDeposit)
