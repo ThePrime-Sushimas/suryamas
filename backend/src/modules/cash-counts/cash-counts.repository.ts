@@ -11,6 +11,7 @@ export class CashCountsRepository {
       .eq('payment_method_id', paymentMethodId)
       .gte('transaction_date', startDate).lte('transaction_date', endDate)
       .is('deleted_at', null)
+      .is('superseded_by', null)
 
     if (error) throw new CashCountOperationError('preview', error.message)
 
@@ -39,7 +40,8 @@ export class CashCountsRepository {
   // ── Calculate ──
   async calculateSystemBalance(companyId: string, startDate: string, endDate: string, paymentMethodId: number, branchName?: string | null) {
     let query = supabase.from('aggregated_transactions').select('transaction_date, nett_amount')
-      .eq('payment_method_id', paymentMethodId).gte('transaction_date', startDate).lte('transaction_date', endDate).is('deleted_at', null)
+      .eq('payment_method_id', paymentMethodId).gte('transaction_date', startDate).lte('transaction_date', endDate)
+      .is('deleted_at', null).is('superseded_by', null)
     if (branchName) query = query.eq('branch_name', branchName)
     const { data, error } = await query
     if (error) throw new CashCountOperationError('calculate_balance', error.message)
