@@ -970,18 +970,26 @@ bill_after_discount: Number(row.bill_after_discount || 0),
   async findMappedImports(posImportIds: string[]): Promise<Set<string>> {
     if (posImportIds.length === 0) return new Set();
 
-    const { data, error } = await supabase
-      .from('aggregated_transactions')
-      .select('source_id')
-      .in('source_id', posImportIds)
-      .in('status', ['READY', 'PROCESSING', 'COMPLETED'])
-      .is('deleted_at', null);
+    const result = new Set<string>();
+    const batchSize = 50;
 
-    if (error) {
-      throw new DatabaseError('Failed to find mapped imports', { cause: error });
+    for (let i = 0; i < posImportIds.length; i += batchSize) {
+      const batch = posImportIds.slice(i, i + batchSize);
+      const { data, error } = await supabase
+        .from('aggregated_transactions')
+        .select('source_id')
+        .in('source_id', batch)
+        .in('status', ['READY', 'PROCESSING', 'COMPLETED'])
+        .is('deleted_at', null);
+
+      if (error) {
+        throw new DatabaseError('Failed to find mapped imports', { cause: error });
+      }
+
+      (data || []).forEach(d => result.add(d.source_id));
     }
 
-    return new Set((data || []).map(d => d.source_id));
+    return result;
   }
 
   /**

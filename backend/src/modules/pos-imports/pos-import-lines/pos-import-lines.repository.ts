@@ -460,11 +460,16 @@ export class PosImportLinesRepository {
     if (bills.length === 0) return new Set();
 
     const billNumbers = [...new Set(bills.map(b => b.bill_number))];
+    const requestedKeys = new Set(bills.map(b => `${b.bill_number}|${b.sales_date}`));
+    const result = new Set<string>();
+    const batchSize = 50;
 
-    const { data, error } = await supabase
-      .from('pos_import_lines')
-      .select('bill_number, sales_date')
-      .in('bill_number', billNumbers);
+    for (let i = 0; i < billNumbers.length; i += batchSize) {
+      const batch = billNumbers.slice(i, i + batchSize);
+      const { data, error } = await supabase
+        .from('pos_import_lines')
+        .select('bill_number, sales_date')
+        .in('bill_number', batch);
 
       if (error) {
         logError('PosImportLinesRepository findExistingBills error', { 
@@ -474,13 +479,11 @@ export class PosImportLinesRepository {
         throw new Error(`findExistingBills failed: ${error.message} (code: ${error.code})`);
       }
 
-    const requestedKeys = new Set(bills.map(b => `${b.bill_number}|${b.sales_date}`));
-    const result = new Set<string>();
-
-    for (const row of data || []) {
-      const key = `${row.bill_number}|${row.sales_date}`;
-      if (requestedKeys.has(key)) {
-        result.add(key);
+      for (const row of data || []) {
+        const key = `${row.bill_number}|${row.sales_date}`;
+        if (requestedKeys.has(key)) {
+          result.add(key);
+        }
       }
     }
 
@@ -534,17 +537,25 @@ export class PosImportLinesRepository {
   async findBillImportMapping(billNumbers: string[]): Promise<Array<{ bill_number: string; pos_import_id: string }>> {
     if (billNumbers.length === 0) return [];
 
-    const { data, error } = await supabase
-      .from('pos_import_lines')
-      .select('bill_number, pos_import_id')
-      .in('bill_number', billNumbers);
+    const batchSize = 50;
+    const results: Array<{ bill_number: string; pos_import_id: string }> = [];
 
-    if (error) {
-      logError('PosImportLinesRepository findBillImportMapping error', { error });
-      throw error;
+    for (let i = 0; i < billNumbers.length; i += batchSize) {
+      const batch = billNumbers.slice(i, i + batchSize);
+      const { data, error } = await supabase
+        .from('pos_import_lines')
+        .select('bill_number, pos_import_id')
+        .in('bill_number', batch);
+
+      if (error) {
+        logError('PosImportLinesRepository findBillImportMapping error', { error, batch: i / batchSize });
+        throw error;
+      }
+
+      if (data) results.push(...data);
     }
 
-    return data || [];
+    return results;
   }
 
 }
