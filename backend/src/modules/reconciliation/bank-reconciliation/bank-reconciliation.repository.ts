@@ -369,7 +369,39 @@ export class BankReconciliationRepository {
         }
       }
 
-      // Map data to include matched_aggregate (1:1, multi-match, or settlement)
+      // ── Cash deposits: fetch via cash_deposit_id ──
+      const statementsWithCashDeposit = (data || []).filter(
+        (s: any) => s.cash_deposit_id,
+      );
+      const cashDepositIds = [
+        ...new Set(statementsWithCashDeposit.map((s: any) => s.cash_deposit_id)),
+      ];
+
+      let cashDepositMap: Record<string, any> = {};
+      if (cashDepositIds.length > 0) {
+        try {
+          const { data: deposits, error: depError } = await supabase
+            .from("cash_deposits")
+            .select("id, deposit_amount, deposit_date, branch_name, bank_account_id, status")
+            .in("id", cashDepositIds);
+
+          if (depError) {
+            logError("Error fetching cash deposits", { error: depError.message });
+          } else if (deposits) {
+            cashDepositMap = deposits.reduce(
+              (acc: Record<string, any>, dep: any) => {
+                acc[dep.id] = dep;
+                return acc;
+              },
+              {},
+            );
+          }
+        } catch (e: any) {
+          logError("Error in cash deposit fetch", { error: e.message });
+        }
+      }
+
+      // Map data to include matched_aggregate (1:1, multi-match, settlement, or cash deposit)
       const mappedData = (data || []).map((row) => {
         // 1:1 match
         if (row.reconciliation_id && aggregateMap[row.reconciliation_id]) {
@@ -419,6 +451,22 @@ export class BankReconciliationRepository {
               settlement_aggregate_count: sg.bank_settlement_aggregates?.length || 0,
               group_total_bank_amount: Number(sg.total_statement_amount) || 0,
               group_difference: Number(sg.difference) || 0,
+            },
+          };
+        }
+        // Cash deposit match
+        if (row.cash_deposit_id && cashDepositMap[row.cash_deposit_id]) {
+          const dep = cashDepositMap[row.cash_deposit_id];
+          return {
+            ...row,
+            matched_aggregate: {
+              id: dep.id,
+              transaction_date: dep.deposit_date,
+              gross_amount: Number(dep.deposit_amount) || 0,
+              nett_amount: Number(dep.deposit_amount) || 0,
+              payment_method_name: "Setoran Tunai",
+              is_cash_deposit: true,
+              branch_name: dep.branch_name,
             },
           };
         }

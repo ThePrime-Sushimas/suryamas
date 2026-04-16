@@ -416,6 +416,10 @@ export function BankMutationTable({
                       <span className="text-amber-600 dark:text-amber-400" title={`Settlement · ${settlementAggCount} aggregates`}>
                         {formatNumber(item.matched_aggregate.nett_amount)}
                       </span>
+                    ) : item.matched_aggregate?.is_cash_deposit ? (
+                      <span className="text-teal-600 dark:text-teal-400" title={`Setoran Tunai · ${item.matched_aggregate.branch_name || ''}`}>
+                        {formatNumber(item.matched_aggregate.nett_amount)}
+                      </span>
                     ) : (
                       <span className="text-gray-500 dark:text-gray-400">
                         {item.matched_aggregate ? formatNumber(item.matched_aggregate.nett_amount) : ""}

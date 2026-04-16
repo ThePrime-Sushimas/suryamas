@@ -86,6 +86,9 @@ export interface BankStatementWithMatch {
     // Settlement group data (1 bank → many aggregates)
     is_settlement?: boolean;
     settlement_aggregate_count?: number;
+    // Cash deposit data
+    is_cash_deposit?: boolean;
+    branch_name?: string;
   };
 }
 
