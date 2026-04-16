@@ -75,6 +75,13 @@ export const depositListQuerySchema = z.object({
   }),
 })
 
+export const capitalReportSchema = z.object({
+  query: z.object({
+    start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD'),
+    end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD'),
+  }),
+})
+
 export const cashCountListQuerySchema = z.object({
   query: z.object({
     page: z.coerce.number().int().positive().default(1),

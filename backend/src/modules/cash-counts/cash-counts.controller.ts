@@ -8,7 +8,7 @@ import { storageService } from '../../services/storage.service'
 import {
   previewSchema, createCashCountSchema, cashCountIdSchema,
   updatePhysicalCountSchema, createDepositSchema, depositIdSchema,
-  confirmDepositSchema, depositListQuerySchema, cashCountListQuerySchema,
+  confirmDepositSchema, depositListQuerySchema, capitalReportSchema, cashCountListQuerySchema,
 } from './cash-counts.schema'
 
 export class CashCountsController {
@@ -104,6 +104,14 @@ export class CashCountsController {
     try {
       await cashCountsService.delete(req.validated.params.id, req.context?.employee_id)
       sendSuccess(res, null, 'Cash count deleted')
+    } catch (error: any) { handleError(res, error) }
+  })
+
+  capitalReport = withValidated(async (req: ValidatedAuthRequest<typeof capitalReportSchema>, res: Response) => {
+    try {
+      const { start_date, end_date } = req.validated.query
+      const result = await cashCountsService.getCapitalTopUpReport(req.context?.company_id!, start_date, end_date)
+      sendSuccess(res, result, 'Capital top up report')
     } catch (error: any) { handleError(res, error) }
   })
 }

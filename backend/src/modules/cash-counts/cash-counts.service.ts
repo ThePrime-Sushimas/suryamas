@@ -223,6 +223,29 @@ export class CashCountsService {
     await cashCountsRepository.deleteDeposit(id)
     if (userId) await AuditService.log('DELETE', 'cash_deposit', id, userId, dep, null)
   }
+
+  async getCapitalTopUpReport(companyId: string, startDate: string, endDate: string) {
+    const rows = await cashCountsRepository.getCapitalTopUpReport(companyId, startDate, endDate)
+
+    // Group by branch
+    const byBranch: Record<string, { branch_name: string; total: number; count: number; deposits: any[] }> = {}
+    for (const row of rows) {
+      const branch = row.branch_name || 'Tidak diketahui'
+      if (!byBranch[branch]) byBranch[branch] = { branch_name: branch, total: 0, count: 0, deposits: [] }
+      byBranch[branch].total += Number(row.owner_top_up) || 0
+      byBranch[branch].count++
+      byBranch[branch].deposits.push(row)
+    }
+
+    const grandTotal = rows.reduce((s, r) => s + (Number(r.owner_top_up) || 0), 0)
+
+    return {
+      period: { start_date: startDate, end_date: endDate },
+      grand_total: grandTotal,
+      total_deposits: rows.length,
+      by_branch: Object.values(byBranch).sort((a, b) => b.total - a.total),
+    }
+  }
 }
 
 export const cashCountsService = new CashCountsService()

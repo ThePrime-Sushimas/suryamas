@@ -1,14 +1,14 @@
 import { Router } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
-import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
+import { canView, canInsert, canUpdate, canDelete, canRelease } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { cashCountsController } from './cash-counts.controller'
 import { PermissionService } from '../../services/permission.service'
 import {
   previewSchema, createCashCountSchema, cashCountIdSchema,
   updatePhysicalCountSchema, createDepositSchema, depositIdSchema,
-  confirmDepositSchema, depositListQuerySchema, cashCountListQuerySchema,
+  confirmDepositSchema, depositListQuerySchema, capitalReportSchema, cashCountListQuerySchema,
 } from './cash-counts.schema'
 import multer from 'multer'
 
@@ -29,6 +29,9 @@ router.use(authenticate, resolveBranchContext)
 
 // Preview
 router.get('/preview', canView('cash_counts'), validateSchema(previewSchema), cashCountsController.preview)
+
+// Report — tambahan modal (release permission only)
+router.get('/report/capital', canRelease('cash_counts'), validateSchema(capitalReportSchema), cashCountsController.capitalReport)
 
 // Deposits
 router.get('/deposits', canView('cash_counts'), validateSchema(depositListQuerySchema), cashCountsController.listDeposits)

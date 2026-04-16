@@ -76,4 +76,14 @@ export const cashCountsApi = {
     const res = await api.get('/cash-counts/deposits', { params: { page, limit } })
     return { data: res.data.data as CashDeposit[], pagination: res.data.pagination }
   },
+
+  async getCapitalReport(startDate: string, endDate: string) {
+    const res = await api.get('/cash-counts/report/capital', { params: { start_date: startDate, end_date: endDate } })
+    return res.data.data as {
+      period: { start_date: string; end_date: string }
+      grand_total: number
+      total_deposits: number
+      by_branch: { branch_name: string; total: number; count: number; deposits: any[] }[]
+    }
+  },
 }

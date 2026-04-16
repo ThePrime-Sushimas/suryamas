@@ -229,6 +229,19 @@ export class CashCountsRepository {
     return { data: data || [], total: count || 0 }
   }
 
+  async getCapitalTopUpReport(companyId: string, startDate: string, endDate: string) {
+    const { data, error } = await supabase.from('cash_deposits')
+      .select('id, deposit_date, deposited_at, branch_name, deposit_amount, large_amount, owner_top_up, status')
+      .eq('company_id', companyId)
+      .gte('deposit_date', startDate)
+      .lte('deposit_date', endDate)
+      .gt('owner_top_up', 0)
+      .is('deleted_at', null)
+      .order('deposit_date', { ascending: false })
+    if (error) throw new CashCountOperationError('capital_report', error.message)
+    return data || []
+  }
+
   async confirmDeposit(depositId: string, proofUrl: string, depositedAt: string, userId?: string): Promise<CashDeposit> {
     const { data, error } = await supabase.from('cash_deposits').update({
       status: 'DEPOSITED', proof_url: proofUrl, deposited_at: depositedAt,

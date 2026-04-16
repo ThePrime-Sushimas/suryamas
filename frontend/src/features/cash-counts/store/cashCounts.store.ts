@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-type Tab = 'counts' | 'deposits'
+type Tab = 'counts' | 'deposits' | 'capital_report'
 
 function getYesterday() {
   const d = new Date()

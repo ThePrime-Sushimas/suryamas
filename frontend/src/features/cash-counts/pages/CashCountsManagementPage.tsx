@@ -15,7 +15,112 @@ import api from '@/lib/axios'
 const fmt = (n: number) => n.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { weekday: 'short', day: '2-digit', month: 'short' })
 
+function CapitalReportTab() {
+  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 8) + '01')
+  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10))
+  const [report, setReport] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [expandedBranch, setExpandedBranch] = useState<string | null>(null)
 
+  const fetchReport = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await cashCountsApi.getCapitalReport(startDate, endDate)
+      setReport(data)
+    } catch { setReport(null) }
+    finally { setLoading(false) }
+  }, [startDate, endDate])
+
+  useEffect(() => { fetchReport() }, [fetchReport])
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 flex-wrap">
+        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm" />
+        <span className="text-gray-400">—</span>
+        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm" />
+        <button onClick={fetchReport} disabled={loading}
+          className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50 flex items-center gap-1.5">
+          {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+          Muat
+        </button>
+      </div>
+
+      {report && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl">
+              <p className="text-xs text-orange-500 uppercase font-semibold">Total Tambahan Modal</p>
+              <p className="text-xl font-bold font-mono text-orange-700 dark:text-orange-300 mt-1">{fmt(report.grand_total)}</p>
+            </div>
+            <div className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+              <p className="text-xs text-gray-500 uppercase font-semibold">Jumlah Setoran</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{report.total_deposits}</p>
+            </div>
+            <div className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+              <p className="text-xs text-gray-500 uppercase font-semibold">Cabang</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{report.by_branch.length}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {report.by_branch.map((branch: any) => (
+              <div key={branch.branch_name} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button onClick={() => setExpandedBranch(expandedBranch === branch.branch_name ? null : branch.branch_name)}
+                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <Building className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{branch.branch_name}</span>
+                    <span className="text-xs text-gray-400">{branch.count} setoran</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono font-bold text-orange-600 dark:text-orange-400">{fmt(branch.total)}</span>
+                    {expandedBranch === branch.branch_name ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                  </div>
+                </button>
+                {expandedBranch === branch.branch_name && (
+                  <div className="border-t border-gray-100 dark:border-gray-800">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-gray-50 dark:bg-gray-800/50 text-gray-400">
+                          <th className="px-4 py-2 text-left">Tanggal Deposit</th>
+                          <th className="px-4 py-2 text-left">Tanggal Setor</th>
+                          <th className="px-4 py-2 text-right">Total Setor</th>
+                          <th className="px-4 py-2 text-right">Tambahan Modal</th>
+                          <th className="px-4 py-2 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {branch.deposits.map((dep: any) => (
+                          <tr key={dep.id} className="border-t border-gray-100 dark:border-gray-800">
+                            <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{dep.deposit_date}</td>
+                            <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{dep.deposited_at ? new Date(dep.deposited_at).toLocaleDateString('id-ID') : '-'}</td>
+                            <td className="px-4 py-2 text-right font-mono text-gray-900 dark:text-white">{fmt(Number(dep.deposit_amount))}</td>
+                            <td className="px-4 py-2 text-right font-mono font-semibold text-orange-600 dark:text-orange-400">{fmt(Number(dep.owner_top_up))}</td>
+                            <td className="px-4 py-2 text-center">
+                              <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                dep.status === 'RECONCILED' ? 'text-green-700 bg-green-50' : dep.status === 'DEPOSITED' ? 'text-blue-700 bg-blue-50' : 'text-amber-700 bg-amber-50'
+                              }`}>{dep.status}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ))}
+            {report.by_branch.length === 0 && (
+              <div className="text-center py-12 text-gray-400 text-sm">Tidak ada data tambahan modal untuk periode ini</div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 export function CashCountsManagementPage() {
   const toast = useToast()
@@ -246,6 +351,19 @@ export function CashCountsManagementPage() {
           <div className="flex items-center gap-2">
             <Banknote className="w-4 h-4" />
             Deposits
+          </div>
+        </button>
+        <button
+          onClick={() => setActiveTab('capital_report')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'capital_report'
+              ? 'text-orange-600 border-orange-600'
+              : 'text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" />
+            Laporan Modal
           </div>
         </button>
       </div>
@@ -751,6 +869,11 @@ export function CashCountsManagementPage() {
           onCount={handleCount} onCloseCount={handleClose}
           employees={employees} bankAccounts={bankAccounts} isLoading={isMutating}
         />
+      )}
+
+      {/* ========== TAB: LAPORAN MODAL ========== */}
+      {activeTab === 'capital_report' && (
+        <CapitalReportTab />
       )}
 
       {/* Deposit Modal */}
