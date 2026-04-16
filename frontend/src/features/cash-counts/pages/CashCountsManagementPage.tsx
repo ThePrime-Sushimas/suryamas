@@ -426,7 +426,7 @@ export function CashCountsManagementPage() {
                             <td className="px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmtDate(row.transaction_date)}</td>
                             <td className="px-3 py-2 text-right font-mono text-gray-700 dark:text-gray-300">{fmt(row.system_balance)}</td>
 
-                            <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-3 py-2 text-right" onClick={(e) => { if (isEditing) e.stopPropagation() }}>
                               {isEditing ? (
                                 <input type="number" value={editLarge} onChange={(e) => setEditLarge(e.target.value)} min={0} autoFocus placeholder="0"
                                   className="w-28 px-2 py-1 border border-amber-300 dark:border-amber-600 rounded text-sm text-right font-mono focus:ring-1 focus:ring-amber-500 outline-none bg-white dark:bg-gray-700 dark:text-white"
@@ -436,7 +436,7 @@ export function CashCountsManagementPage() {
                               ) : null}
                             </td>
 
-                            <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-3 py-2 text-right" onClick={(e) => { if (isEditing) e.stopPropagation() }}>
                               {isEditing ? (
                                 <input type="number" value={editSmall} onChange={(e) => setEditSmall(e.target.value)} min={0} placeholder="0"
                                   className="w-28 px-2 py-1 border border-amber-300 dark:border-amber-600 rounded text-sm text-right font-mono focus:ring-1 focus:ring-amber-500 outline-none bg-white dark:bg-gray-700 dark:text-white"
