@@ -9,24 +9,25 @@ import { CashCountDetailPanel } from '../components/CashCountDetailPanel'
 import { DepositModal } from '../components/DepositModal'
 import { ConfirmDepositModal } from '../components/ConfirmDepositModal'
 import type { CashCount, CashCountStatus, UpdatePhysicalCountDto, CashDeposit } from '../types'
+import { useCashCountsStore } from '../store/cashCounts.store'
 import api from '@/lib/axios'
 
 const fmt = (n: number) => n.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { weekday: 'short', day: '2-digit', month: 'short' })
 
-function getYesterday() { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split('T')[0] }
-function getMonthStart() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01` }
 
-type Tab = 'counts' | 'deposits'
 
 export function CashCountsManagementPage() {
   const toast = useToast()
-  const [activeTab, setActiveTab] = useState<Tab>('counts')
+  const {
+    activeTab, setActiveTab,
+    startDate, setStartDate,
+    endDate, setEndDate,
+    paymentMethodId, setPaymentMethodId,
+    depositsPage, setDepositsPage,
+  } = useCashCountsStore()
 
   // ========== TAB: CASH COUNTS ==========
-  const [startDate, setStartDate] = useState(getMonthStart())
-  const [endDate, setEndDate] = useState(getYesterday())
-  const [paymentMethodId, setPaymentMethodId] = useState(0)
   const [rows, setRows] = useState<CashCountPreviewRow[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isMutating, setIsMutating] = useState(false)
@@ -40,7 +41,6 @@ export function CashCountsManagementPage() {
   // ========== TAB: DEPOSITS ==========
   const [deposits, setDeposits] = useState<CashDeposit[]>([])
   const [depositsLoading, setDepositsLoading] = useState(false)
-  const [depositsPage, setDepositsPage] = useState(1)
   const [depositsTotal, setDepositsTotal] = useState(0)
   const depositsLimit = 20
 
