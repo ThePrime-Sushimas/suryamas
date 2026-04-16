@@ -10,6 +10,16 @@ import {
   updatePhysicalCountSchema, createDepositSchema, depositIdSchema,
   confirmDepositSchema, depositListQuerySchema, cashCountListQuerySchema,
 } from './cash-counts.schema'
+import multer from 'multer'
+
+const uploadMiddleware = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+    cb(null, allowed.includes(file.mimetype))
+  },
+})
 
 const router = Router()
 
@@ -24,7 +34,7 @@ router.get('/preview', canView('cash_counts'), validateSchema(previewSchema), ca
 router.get('/deposits', canView('cash_counts'), validateSchema(depositListQuerySchema), cashCountsController.listDeposits)
 router.post('/deposits', canInsert('cash_counts'), validateSchema(createDepositSchema), cashCountsController.createDeposit)
 router.get('/deposits/:id', canView('cash_counts'), validateSchema(depositIdSchema), cashCountsController.getDeposit)
-router.post('/deposits/:id/confirm', canUpdate('cash_counts'), validateSchema(confirmDepositSchema), cashCountsController.confirmDeposit)
+router.post('/deposits/:id/confirm', canUpdate('cash_counts'), uploadMiddleware.single('proof'), cashCountsController.confirmDeposit)
 router.delete('/deposits/:id', canDelete('cash_counts'), validateSchema(depositIdSchema), cashCountsController.deleteDeposit)
 
 // Cash counts

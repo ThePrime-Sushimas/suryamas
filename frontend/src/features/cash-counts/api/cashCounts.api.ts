@@ -1,5 +1,5 @@
 import api from '@/lib/axios'
-import type { CashCount, CashDeposit, CreateCashCountDto, UpdatePhysicalCountDto, CreateDepositDto, CashCountListFilter } from '../types'
+import type { CashCount, CashDeposit, CreateCashCountDto, UpdatePhysicalCountDto, CreateDepositDto, ConfirmDepositDto, CashCountListFilter } from '../types'
 
 export interface CashCountPreviewRow {
   branch_name: string
@@ -55,6 +55,11 @@ export const cashCountsApi = {
   // Deposits
   async createDeposit(dto: CreateDepositDto): Promise<CashDeposit> {
     const res = await api.post('/cash-counts/deposits', dto)
+    return res.data.data
+  },
+
+  async confirmDeposit(id: string, dto: ConfirmDepositDto): Promise<CashDeposit> {
+    const res = await api.post(`/cash-counts/deposits/${id}/confirm`, dto)
     return res.data.data
   },
 

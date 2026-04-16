@@ -4,6 +4,7 @@ import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { withValidated } from '../../utils/handler'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import { storageService } from '../../services/storage.service'
 import {
   previewSchema, createCashCountSchema, cashCountIdSchema,
   updatePhysicalCountSchema, createDepositSchema, depositIdSchema,
@@ -54,12 +55,21 @@ export class CashCountsController {
     } catch (error: any) { handleError(res, error) }
   })
 
-  confirmDeposit = withValidated(async (req: ValidatedAuthRequest<typeof confirmDepositSchema>, res: Response) => {
+  confirmDeposit = async (req: any, res: Response) => {
     try {
-      const result = await cashCountsService.confirmDeposit(req.validated.params.id, req.validated.body, req.context?.employee_id)
+      const id = req.params.id
+      const file = req.file as Express.Multer.File | undefined
+      if (!file) return res.status(400).json({ success: false, message: 'Bukti setoran wajib diupload' })
+
+      const ext = file.originalname.split('.').pop() || 'jpg'
+      const fileName = `${id}-${Date.now()}.${ext}`
+      const uploaded = await storageService.upload(file.buffer, fileName, file.mimetype)
+
+      const depositedAt = req.body?.deposited_at || new Date().toISOString().split('T')[0]
+      const result = await cashCountsService.confirmDeposit(id, { proof_url: uploaded.publicUrl, deposited_at: depositedAt }, req.context?.employee_id)
       sendSuccess(res, result, 'Deposit confirmed')
     } catch (error: any) { handleError(res, error) }
-  })
+  }
 
   getDeposit = withValidated(async (req: ValidatedAuthRequest<typeof depositIdSchema>, res: Response) => {
     try {

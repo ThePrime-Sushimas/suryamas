@@ -1,5 +1,5 @@
 export type CashCountStatus = 'OPEN' | 'COUNTED' | 'DEPOSITED' | 'CLOSED'
-export type CashDepositStatus = 'PENDING' | 'RECONCILED'
+export type CashDepositStatus = 'PENDING' | 'DEPOSITED' | 'RECONCILED'
 
 export interface CashCount {
   id: string
@@ -46,6 +46,9 @@ export interface CashDeposit {
   period_end: string | null
   item_count: number
   notes: string | null
+  proof_url: string | null
+  deposited_at: string | null
+  deposited_by: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -76,6 +79,11 @@ export interface CreateDepositDto {
   bank_account_id: number
   reference?: string
   notes?: string
+}
+
+export interface ConfirmDepositDto {
+  proof_url: string
+  deposited_at?: string
 }
 
 export interface CashCountListFilter {

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
-import { Coins, Search, RefreshCw, Loader2, AlertTriangle, Check, X, ChevronDown, ChevronUp, Building, Banknote, Trash2 } from 'lucide-react'
+import { Coins, Search, RefreshCw, Loader2, AlertTriangle, Check, X, ChevronDown, ChevronUp, Building, Banknote, Trash2, Upload } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
@@ -7,6 +7,7 @@ import { cashCountsApi, type CashCountPreviewRow } from '../api/cashCounts.api'
 import { CashCountStatusBadge } from '../components/CashCountStatusBadge'
 import { CashCountDetailPanel } from '../components/CashCountDetailPanel'
 import { DepositModal } from '../components/DepositModal'
+import { ConfirmDepositModal } from '../components/ConfirmDepositModal'
 import type { CashCount, CashCountStatus, UpdatePhysicalCountDto, CashDeposit } from '../types'
 import api from '@/lib/axios'
 
@@ -46,6 +47,7 @@ export function CashCountsManagementPage() {
   const [expandedDepositId, setExpandedDepositId] = useState<string | null>(null)
   const [expandedDepositDetail, setExpandedDepositDetail] = useState<CashDeposit | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<CashDeposit | null>(null)
+  const [confirmTarget, setConfirmTarget] = useState<CashDeposit | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
   // ========== Reference Data ==========
@@ -198,6 +200,12 @@ export function CashCountsManagementPage() {
       setIsDeleting(false)
     }
   }, [deleteTarget, toast, fetchDeposits])
+
+  const handleConfirmDeposit = useCallback(async () => {
+    toast.success('Setoran berhasil dikonfirmasi')
+    setConfirmTarget(null)
+    fetchDeposits()
+  }, [toast, fetchDeposits])
 
   const totalDepositsPages = Math.ceil(depositsTotal / depositsLimit)
 
@@ -566,9 +574,11 @@ export function CashCountsManagementPage() {
                                 <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
                                   dep.status === 'RECONCILED'
                                     ? 'text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-900/20'
+                                    : dep.status === 'DEPOSITED'
+                                    ? 'text-blue-700 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20'
                                     : 'text-amber-700 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/20'
                                 }`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${dep.status === 'RECONCILED' ? 'bg-green-500' : 'bg-amber-500'}`} />
+                                  <span className={`w-1.5 h-1.5 rounded-full ${dep.status === 'RECONCILED' ? 'bg-green-500' : dep.status === 'DEPOSITED' ? 'bg-blue-500' : 'bg-amber-500'}`} />
                                   {dep.status}
                                 </span>
                               </div>
@@ -577,9 +587,14 @@ export function CashCountsManagementPage() {
                                   {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                                 </button>
                                 {dep.status === 'PENDING' && (
-                                  <button onClick={() => setDeleteTarget(dep)} className="p-1 text-gray-400 hover:text-red-600 rounded">
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  <>
+                                    <button onClick={() => setConfirmTarget(dep)} className="p-1 text-gray-400 hover:text-green-600 rounded" title="Konfirmasi Setoran">
+                                      <Upload className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button onClick={() => setDeleteTarget(dep)} className="p-1 text-gray-400 hover:text-red-600 rounded">
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </div>
@@ -606,6 +621,16 @@ export function CashCountsManagementPage() {
                                     </p>
                                   </div>
                                 </div>
+
+                                {expandedDepositDetail.proof_url && (
+                                  <div className="mb-3">
+                                    <span className="text-xs text-gray-400 uppercase">Bukti Setoran</span>
+                                    <a href={expandedDepositDetail.proof_url} target="_blank" rel="noopener noreferrer"
+                                      className="mt-1 block w-fit">
+                                      <img src={expandedDepositDetail.proof_url} alt="Bukti setoran" className="h-24 rounded-lg border border-gray-200 dark:border-gray-700 object-cover hover:opacity-80 transition-opacity" />
+                                    </a>
+                                  </div>
+                                )}
 
                                 {expandedDepositDetail.notes && (
                                   <p className="text-[10px] text-gray-500 mb-3">Catatan: {expandedDepositDetail.notes}</p>
@@ -716,6 +741,15 @@ export function CashCountsManagementPage() {
         confirmText="Hapus"
         variant="danger"
         isLoading={isDeleting}
+      />
+
+      {/* Confirm Deposit */}
+      <ConfirmDepositModal
+        isOpen={!!confirmTarget}
+        onClose={() => setConfirmTarget(null)}
+        onConfirm={handleConfirmDeposit}
+        deposit={confirmTarget}
+        isLoading={isMutating}
       />
     </div>
   )

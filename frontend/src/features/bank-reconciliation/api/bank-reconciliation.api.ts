@@ -128,6 +128,13 @@ export const bankReconciliationApi = {
   },
 
   /**
+   * Manually link a bank statement to a cash deposit
+   */
+  async manualReconcileCashDeposit(payload: { cashDepositId: string; statementId: string; notes?: string }): Promise<void> {
+    await api.post("/reconciliation/bank/manual-cash-deposit", payload);
+  },
+
+  /**
    * Revert a reconciliation
    */
   async undo(statementId: string): Promise<void> {
