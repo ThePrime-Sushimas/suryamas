@@ -256,6 +256,20 @@ export class CashCountsRepository {
       status: 'RECONCILED', bank_statement_id: bankStatementId, updated_at: new Date().toISOString(),
     }).eq('id', depositId)
     if (error) throw new CashCountOperationError('reconcile_deposit', error.message)
+
+    // Sync aggregated_transactions + pos_sync_aggregates via RPC (atomic)
+    await supabase.rpc('sync_cash_deposit_reconciliation', {
+      p_deposit_id: depositId,
+      p_is_reconciled: true,
+    })
+  }
+
+  async unreconciledDeposit(depositId: string): Promise<void> {
+    // Sync aggregated_transactions + pos_sync_aggregates back to unreconciled via RPC (atomic)
+    await supabase.rpc('sync_cash_deposit_reconciliation', {
+      p_deposit_id: depositId,
+      p_is_reconciled: false,
+    })
   }
 
   async getDepositedForMatch(startDate: string, endDate: string, bankAccountId?: number): Promise<CashDeposit[]> {

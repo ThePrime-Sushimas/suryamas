@@ -355,6 +355,7 @@ export class BankReconciliationService {
   
     // ── Cash deposit undo ──
     if (statement.cash_deposit_id) {
+      await cashCountsRepository.unreconciledDeposit(statement.cash_deposit_id);
       await this.repository.undoCashDepositReconciliation(statementId, statement.cash_deposit_id, userId);
 
       await this.repository.logAction({
