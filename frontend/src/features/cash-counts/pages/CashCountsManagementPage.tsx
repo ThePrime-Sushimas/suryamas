@@ -16,8 +16,10 @@ const fmt = (n: number) => n.toLocaleString('id-ID', { style: 'currency', curren
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 
 function CapitalReportTab() {
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 8) + '01')
-  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10))
+  const {
+    reportStartDate: startDate, setReportStartDate: setStartDate,
+    reportEndDate: endDate, setReportEndDate: setEndDate,
+  } = useCashCountsStore()
   const [report, setReport] = useState<any>(null)
   const [loading, setLoading] = useState(false)
 
