@@ -3,7 +3,7 @@ import { X, Loader2, Banknote, Info } from 'lucide-react'
 import type { CashCountPreviewRow } from '../api/cashCounts.api'
 
 const fmt = (n: number) => n.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
-const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
+const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 
 interface Props {
   isOpen: boolean
