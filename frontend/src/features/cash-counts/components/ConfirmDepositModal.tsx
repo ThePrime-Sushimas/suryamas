@@ -74,9 +74,21 @@ export function ConfirmDepositModal({ isOpen, onClose, onConfirm, deposit, isLoa
               <span className="text-gray-500">Bank Tujuan</span>
               <span className="font-medium text-gray-900 dark:text-white">{deposit.bank_account_name || '-'}</span>
             </div>
-            <div className="flex justify-between text-sm border-t border-green-200 dark:border-green-700 pt-2">
-              <span className="text-gray-500 font-semibold">Jumlah Setoran</span>
-              <span className="font-mono font-bold text-base text-green-700 dark:text-green-300">{fmt(deposit.deposit_amount)}</span>
+            <div className="border-t border-green-200 dark:border-green-700 pt-2 space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Pecahan Besar (Kasir)</span>
+                <span className="font-mono text-gray-700 dark:text-gray-300">{fmt(deposit.large_amount ?? deposit.deposit_amount)}</span>
+              </div>
+              {(deposit.owner_top_up ?? 0) > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Top Up Owner</span>
+                  <span className="font-mono text-orange-600 dark:text-orange-400">{fmt(deposit.owner_top_up!)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm font-semibold border-t border-green-200 dark:border-green-700 pt-1.5">
+                <span className="text-gray-700 dark:text-gray-200">Total Setor ke Bank</span>
+                <span className="font-mono text-green-700 dark:text-green-300">{fmt(deposit.deposit_amount)}</span>
+              </div>
             </div>
           </div>
 

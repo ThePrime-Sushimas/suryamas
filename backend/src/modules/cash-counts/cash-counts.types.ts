@@ -37,6 +37,8 @@ export interface CashDeposit {
   id: string
   company_id: string
   deposit_amount: number
+  large_amount: number | null
+  owner_top_up: number | null
   deposit_date: string
   bank_account_id: number
   reference: string | null

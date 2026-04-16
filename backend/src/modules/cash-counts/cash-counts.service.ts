@@ -104,9 +104,12 @@ export class CashCountsService {
       if (cc.cash_deposit_id) throw new CashCountOperationError('deposit', `Cash count ${cc.id} sudah ada deposit`)
     }
 
-    // Calculate deposit amount = SUM(large_denomination)
-    const depositAmount = cashCounts.reduce((s, cc) => s + (cc!.large_denomination || 0), 0)
-    if (depositAmount <= 0) throw new CashCountOperationError('deposit', 'Total pecahan besar harus > 0')
+    // Calculate deposit amounts
+    const largeAmount = cashCounts.reduce((s, cc) => s + (cc!.large_denomination || 0), 0)
+    const smallAmount = cashCounts.reduce((s, cc) => s + (cc!.small_denomination || 0), 0)
+    const depositAmount = largeAmount + smallAmount  // total yang masuk ke bank
+
+    if (largeAmount <= 0) throw new CashCountOperationError('deposit', 'Total pecahan besar harus > 0')
 
     const dates = cashCounts.map((cc) => cc!.start_date).sort()
     const branchNames = [...new Set(cashCounts.map((cc) => cc!.branch_name).filter(Boolean))]
@@ -114,7 +117,9 @@ export class CashCountsService {
     const pmId = cashCounts[0]!.payment_method_id
 
     const deposit = await cashCountsRepository.createDeposit({
-      company_id: companyId, deposit_amount: depositAmount, deposit_date: dto.deposit_date,
+      company_id: companyId, deposit_amount: depositAmount,
+      large_amount: largeAmount, owner_top_up: smallAmount,
+      deposit_date: dto.deposit_date,
       bank_account_id: dto.bank_account_id, reference: dto.reference,
       branch_name: branchName || undefined, payment_method_id: pmId,
       period_start: dates[0], period_end: dates[dates.length - 1],
@@ -125,7 +130,8 @@ export class CashCountsService {
 
     if (userId) {
       await AuditService.log('CREATE', 'cash_deposit', deposit.id, userId, null, {
-        deposit_amount: depositAmount, cash_count_ids: dto.cash_count_ids, bank_account_id: dto.bank_account_id,
+        deposit_amount: depositAmount, large_amount: largeAmount, owner_top_up: smallAmount,
+        cash_count_ids: dto.cash_count_ids, bank_account_id: dto.bank_account_id,
       })
     }
 

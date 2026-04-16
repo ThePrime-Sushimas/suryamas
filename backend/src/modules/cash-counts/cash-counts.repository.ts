@@ -118,21 +118,22 @@ export class CashCountsRepository {
 
   // ── Find by ID ──
   async findById(id: string): Promise<CashCountWithRelations | null> {
-    const { data, error } = await supabase
-      .from('cash_counts')
-      .select('*, payment_methods:payment_method_id(name), employees:responsible_employee_id(full_name)')
-      .eq('id', id).is('deleted_at', null).maybeSingle()
+    const { data, error } = await supabase.from('cash_counts').select('*').eq('id', id).is('deleted_at', null).maybeSingle()
     if (error) throw new CashCountOperationError('find', error.message)
     if (!data) return null
 
-    return {
-      ...data,
-      branch_name: data.branch_name || null,
-      payment_method_name: (data.payment_methods as any)?.name || null,
-      responsible_employee_name: (data.employees as any)?.full_name || null,
-      payment_methods: undefined,
-      employees: undefined,
+    let pmName: string | null = null
+    if (data.payment_method_id) {
+      const { data: pm } = await supabase.from('payment_methods').select('name').eq('id', data.payment_method_id).maybeSingle()
+      pmName = pm?.name || null
     }
+    let empName: string | null = null
+    if (data.responsible_employee_id) {
+      const { data: emp } = await supabase.from('employees').select('full_name').eq('id', data.responsible_employee_id).maybeSingle()
+      empName = emp?.full_name || null
+    }
+
+    return { ...data, branch_name: data.branch_name || null, payment_method_name: pmName, responsible_employee_name: empName }
   }
 
   // ── List ──
@@ -205,12 +206,15 @@ export class CashCountsRepository {
   // ════════════════════════════════════════════
 
   async createDeposit(data: {
-    company_id: string; deposit_amount: number; deposit_date: string; bank_account_id: number;
+    company_id: string; deposit_amount: number; large_amount?: number; owner_top_up?: number;
+    deposit_date: string; bank_account_id: number;
     reference?: string; branch_name?: string; payment_method_id?: number;
     period_start?: string; period_end?: string; item_count: number; notes?: string; created_by?: string;
   }): Promise<CashDeposit> {
     const { data: dep, error } = await supabase.from('cash_deposits').insert({
-      company_id: data.company_id, deposit_amount: data.deposit_amount, deposit_date: data.deposit_date,
+      company_id: data.company_id, deposit_amount: data.deposit_amount,
+      large_amount: data.large_amount ?? null, owner_top_up: data.owner_top_up ?? 0,
+      deposit_date: data.deposit_date,
       bank_account_id: data.bank_account_id, reference: data.reference || null,
       status: 'PENDING', branch_name: data.branch_name || null, payment_method_id: data.payment_method_id || null,
       period_start: data.period_start || null, period_end: data.period_end || null,
@@ -270,11 +274,11 @@ export class CashCountsRepository {
   async getDepositedForMatch(startDate: string, endDate: string, bankAccountId?: number): Promise<CashDeposit[]> {
     let query = supabase.from('cash_deposits').select('*')
       .eq('status', 'DEPOSITED')
-      .gte('deposit_date', startDate)
-      .lte('deposit_date', endDate)
+      .gte('deposited_at', startDate)
+      .lte('deposited_at', endDate)
       .is('deleted_at', null)
     if (bankAccountId) query = query.eq('bank_account_id', bankAccountId)
-    const { data, error } = await query.order('deposit_date', { ascending: true })
+    const { data, error } = await query.order('deposited_at', { ascending: true })
     if (error) throw new CashCountOperationError('get_deposited_for_match', error.message)
     return data || []
   }

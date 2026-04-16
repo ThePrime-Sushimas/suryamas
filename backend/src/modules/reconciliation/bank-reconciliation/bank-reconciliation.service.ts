@@ -536,7 +536,7 @@ export class BankReconciliationService {
         const stmtDate = new Date(stmt.transaction_date).getTime();
 
         const depIdx = deposits.findIndex((dep) => {
-          const depDate = new Date(dep.deposit_date).getTime();
+          const depDate = new Date(dep.deposited_at || dep.deposit_date).getTime();
           const dayDiff = Math.abs(stmtDate - depDate) / (1000 * 3600 * 24);
           return (
             Math.abs(stmtAmount - dep.deposit_amount) <= matchingCriteria.amountTolerance &&
@@ -656,7 +656,7 @@ export class BankReconciliationService {
         const stmtDate = new Date(stmt.transaction_date).getTime();
 
         const depIdx = remainingDeposits.findIndex((dep) => {
-          const depDate = new Date(dep.deposit_date).getTime();
+          const depDate = new Date(dep.deposited_at || dep.deposit_date).getTime();
           const dayDiff = Math.abs(stmtDate - depDate) / (1000 * 3600 * 24);
           const cashTolerance = Math.max(matchingCriteria.amountTolerance, dep.deposit_amount * 0.005);
           return (
@@ -867,7 +867,7 @@ export class BankReconciliationService {
         const stmtDate = new Date(stmt.transaction_date).getTime();
 
         const depIdx = deposits.findIndex((dep) => {
-          const depDate = new Date(dep.deposit_date).getTime();
+          const depDate = new Date(dep.deposited_at || dep.deposit_date).getTime();
           const dayDiff = Math.abs(stmtDate - depDate) / (1000 * 3600 * 24);
           const cashTolerance = Math.max(matchingCriteria.amountTolerance, dep.deposit_amount * 0.005);
           return Math.abs(stmtAmount - dep.deposit_amount) <= cashTolerance && dayDiff <= matchingCriteria.dateBufferDays;

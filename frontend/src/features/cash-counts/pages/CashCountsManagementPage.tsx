@@ -329,6 +329,12 @@ export function CashCountsManagementPage() {
                 <Banknote className="w-4 h-4 text-purple-600" />
                 <span className="text-purple-700 dark:text-purple-300 font-medium">{selectedForDeposit.size} item dipilih</span>
                 <span className="text-purple-500">· Besar: {fmt(selectedDepositRows.reduce((s, r) => s + (r.large_denomination || 0), 0))}</span>
+                {selectedDepositRows.some(r => r.small_denomination) && (
+                  <span className="text-orange-500">· Owner: {fmt(selectedDepositRows.reduce((s, r) => s + (r.small_denomination || 0), 0))}</span>
+                )}
+                <span className="text-purple-700 dark:text-purple-300 font-semibold">
+                  · Total: {fmt(selectedDepositRows.reduce((s, r) => s + (r.large_denomination || 0) + (r.small_denomination || 0), 0))}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => setSelectedForDeposit(new Set())}
@@ -607,7 +613,17 @@ export function CashCountsManagementPage() {
                                     <p className="font-medium text-gray-900 dark:text-white">{fmtDateFull(expandedDepositDetail.deposit_date)}</p>
                                   </div>
                                   <div>
-                                    <span className="text-sm text-gray-400 uppercase">Jumlah Setor</span>
+                                    <span className="text-sm text-gray-400 uppercase">Pecahan Besar</span>
+                                    <p className="font-mono font-semibold text-gray-700 dark:text-gray-300">{fmt(expandedDepositDetail.large_amount ?? expandedDepositDetail.deposit_amount)}</p>
+                                  </div>
+                                  {(expandedDepositDetail.owner_top_up ?? 0) > 0 && (
+                                    <div>
+                                      <span className="text-sm text-gray-400 uppercase">Top Up Owner</span>
+                                      <p className="font-mono font-semibold text-orange-600 dark:text-orange-400">{fmt(expandedDepositDetail.owner_top_up!)}</p>
+                                    </div>
+                                  )}
+                                  <div>
+                                    <span className="text-sm text-gray-400 uppercase">Total Setor ke Bank</span>
                                     <p className="font-mono font-semibold text-purple-700 dark:text-purple-300">{fmt(expandedDepositDetail.deposit_amount)}</p>
                                   </div>
                                   <div>
