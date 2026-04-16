@@ -5,4 +5,4 @@ ALTER TABLE public.cash_deposits
 COMMENT ON COLUMN public.cash_deposits.large_amount 
   IS 'Total large_denomination dari semua cash counts — uang fisik kasir yang disetor';
 COMMENT ON COLUMN public.cash_deposits.owner_top_up 
-  IS 'Total small_denomination — ditransfer owner lalu ditarik tunai untuk genapi setoran. Utang perusahaan ke owner.';
+  IS 'Total small_denomination — dana tambahan untuk melengkapi setoran. Piutang perusahaan.';

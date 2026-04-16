@@ -81,7 +81,7 @@ export function ConfirmDepositModal({ isOpen, onClose, onConfirm, deposit, isLoa
               </div>
               {(deposit.owner_top_up ?? 0) > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Top Up Owner</span>
+                  <span className="text-gray-500">Top Up Modal</span>
                   <span className="font-mono text-orange-600 dark:text-orange-400">{fmt(deposit.owner_top_up!)}</span>
                 </div>
               )}

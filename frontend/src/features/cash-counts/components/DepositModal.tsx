@@ -66,8 +66,8 @@ export function DepositModal({ isOpen, onClose, onConfirm, selectedRows, bankAcc
               {totalSmall > 0 && (
                 <div className="flex justify-between text-sm">
                   <div className="flex items-center gap-1">
-                    <span className="text-gray-500">Top Up Owner</span>
-                    <span title="Owner transfer ke kasir, ditarik tunai, lalu ikut disetor ke bank. Tercatat sebagai utang perusahaan ke owner.">
+                    <span className="text-gray-500">Top Up Modal</span>
+                    <span title="Dana tambahan yang ditransfer untuk melengkapi setoran. Tercatat sebagai piutang perusahaan.">
                       <Info className="w-3 h-3 text-gray-400 cursor-help" />
                     </span>
                   </div>
@@ -88,7 +88,7 @@ export function DepositModal({ isOpen, onClose, onConfirm, selectedRows, bankAcc
                 <tr className="bg-gray-50 dark:bg-gray-800/50 text-gray-400">
                   <th className="px-2 py-1.5 text-left">Tanggal</th>
                   <th className="px-2 py-1.5 text-right">Besar</th>
-                  <th className="px-2 py-1.5 text-right">Kecil (Owner)</th>
+                  <th className="px-2 py-1.5 text-right">Top Up Modal</th>
                   <th className="px-2 py-1.5 text-right font-semibold">Total Setor</th>
                 </tr>
               </thead>
@@ -107,13 +107,13 @@ export function DepositModal({ isOpen, onClose, onConfirm, selectedRows, bankAcc
             </table>
           </div>
 
-          {/* Owner top up info box */}
+          {/* Tambahan modal info box */}
           {totalSmall > 0 && (
             <div className="flex items-start gap-2 p-2.5 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
               <Info className="w-3.5 h-3.5 text-orange-500 mt-0.5 shrink-0" />
               <p className="text-xs text-orange-700 dark:text-orange-300">
-                {fmt(totalSmall)} merupakan top up dari owner yang ditransfer ke kasir dan ditarik tunai untuk melengkapi setoran.
-                Jumlah ini tercatat sebagai <strong>utang perusahaan ke owner</strong> dan akan menjadi modal cabang dalam bentuk uang kecil.
+                {fmt(totalSmall)} merupakan dana tambahan yang ditransfer untuk melengkapi setoran ke bank.
+                Jumlah ini tercatat sebagai <strong>piutang perusahaan</strong> dan akan menjadi modal cabang dalam bentuk uang kecil.
               </p>
             </div>
           )}

@@ -330,7 +330,7 @@ export function CashCountsManagementPage() {
                 <span className="text-purple-700 dark:text-purple-300 font-medium">{selectedForDeposit.size} item dipilih</span>
                 <span className="text-purple-500">· Besar: {fmt(selectedDepositRows.reduce((s, r) => s + (r.large_denomination || 0), 0))}</span>
                 {selectedDepositRows.some(r => r.small_denomination) && (
-                  <span className="text-orange-500">· Owner: {fmt(selectedDepositRows.reduce((s, r) => s + (r.small_denomination || 0), 0))}</span>
+                  <span className="text-orange-500">· Top Up: {fmt(selectedDepositRows.reduce((s, r) => s + (r.small_denomination || 0), 0))}</span>
                 )}
                 <span className="text-purple-700 dark:text-purple-300 font-semibold">
                   · Total: {fmt(selectedDepositRows.reduce((s, r) => s + (r.large_denomination || 0) + (r.small_denomination || 0), 0))}
@@ -634,7 +634,7 @@ export function CashCountsManagementPage() {
                                   </div>
                                   {(expandedDepositDetail.owner_top_up ?? 0) > 0 && (
                                     <div>
-                                      <span className="text-sm text-gray-400 uppercase">Top Up Owner</span>
+                                      <span className="text-sm text-gray-400 uppercase">Top Up Modal</span>
                                       <p className="font-mono font-semibold text-orange-600 dark:text-orange-400">{fmt(expandedDepositDetail.owner_top_up!)}</p>
                                     </div>
                                   )}
