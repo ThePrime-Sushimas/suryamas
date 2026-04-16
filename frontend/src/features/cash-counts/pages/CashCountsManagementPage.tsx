@@ -111,7 +111,7 @@ export function CashCountsManagementPage() {
     const total = large + small
     if (total <= 0) { toast.error('Total harus > 0'); return }
     const diff = total - row.system_balance
-    if (diff < 0 && !editEmployeeId) { toast.error('Deficit wajib mengisi PIC'); return }
+    if (diff < 0 && !editEmployeeId) { toast.error('Minus wajib mengisi nama karyawan'); return }
 
     setIsMutating(true)
     try {
@@ -376,7 +376,7 @@ export function CashCountsManagementPage() {
                         <th className="px-3 py-2 text-right font-semibold">Total Fisik</th>
                         <th className="px-3 py-2 text-right font-semibold">Selisih</th>
                         <th className="px-3 py-2 text-center font-semibold">Status</th>
-                        <th className="px-3 py-2 text-left font-semibold">PIC</th>
+                        <th className="px-3 py-2 text-left font-semibold">Nama Staff</th>
                         <th className="px-3 py-2 w-16"></th>
                       </tr>
                     </thead>
@@ -463,7 +463,7 @@ export function CashCountsManagementPage() {
                               {isEditing && editTotal < row.system_balance ? (
                                 <select value={editEmployeeId} onChange={(e) => setEditEmployeeId(e.target.value)}
                                   className="w-full px-2 py-1 border border-red-300 dark:border-red-600 rounded text-xs bg-white dark:bg-gray-700 dark:text-white">
-                                  <option value="">PIC *</option>
+                                  <option value="">Staff *</option>
                                   {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
                                 </select>
                               ) : row.responsible_employee_id ? (
