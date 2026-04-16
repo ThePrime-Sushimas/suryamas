@@ -93,8 +93,10 @@ export class CashCountsService {
 
   // ── Create deposit (COUNTED → DEPOSITED) ──
   async createDeposit(dto: CreateDepositDto, companyId: string, userId?: string): Promise<CashDepositWithRelations> {
-    // Validate all cash counts
-    const cashCounts = await Promise.all(dto.cash_count_ids.map((id) => cashCountsRepository.findById(id)))
+    // Validate all cash counts (batch fetch instead of N individual queries)
+    const allCashCounts = await cashCountsRepository.findByIds(dto.cash_count_ids)
+    const cashCountMap = new Map(allCashCounts.map((cc) => [cc.id, cc]))
+    const cashCounts = dto.cash_count_ids.map((id) => cashCountMap.get(id) || null)
     for (let i = 0; i < cashCounts.length; i++) {
       const cc = cashCounts[i]
       if (!cc) throw new CashCountNotFoundError(dto.cash_count_ids[i])
