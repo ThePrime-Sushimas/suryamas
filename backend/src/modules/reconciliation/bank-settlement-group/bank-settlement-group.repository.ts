@@ -644,8 +644,8 @@ export class SettlementGroupRepository {
             is_reconciled: false,
             bank_statement_id: null,
             reconciled_at: null,
-            actual_fee_amount: null,
-            fee_discrepancy: null,
+            actual_fee_amount: 0,
+            fee_discrepancy: 0,
             fee_discrepancy_note: null,
             updated_at: new Date().toISOString(),
           })

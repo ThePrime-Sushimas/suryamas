@@ -337,8 +337,8 @@ export const posSyncAggregatesRepository = {
       .update({
         is_reconciled: false,
         bank_statement_id: null,
-        actual_fee_amount: null,
-        fee_discrepancy: null,
+        actual_fee_amount: 0,
+        fee_discrepancy: 0,
         fee_discrepancy_note: null,
         reconciled_at: null,
         reconciled_by: null,
@@ -397,8 +397,8 @@ export const posSyncAggregatesRepository = {
       .from("aggregated_transactions")
       .update({
         is_reconciled: false,
-        actual_fee_amount: null,
-        fee_discrepancy: null,
+        actual_fee_amount: 0,
+        fee_discrepancy: 0,
         fee_discrepancy_note: null,
         updated_at: new Date().toISOString(),
       })

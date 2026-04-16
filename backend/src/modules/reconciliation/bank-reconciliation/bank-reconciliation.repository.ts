@@ -931,8 +931,8 @@ export class BankReconciliationRepository {
               .update({
                 is_reconciled: false,
                 bank_statement_id: null,
-                actual_fee_amount: null,
-                fee_discrepancy: null,
+                actual_fee_amount: 0,
+                fee_discrepancy: 0,
                 fee_discrepancy_note: null,
                 reconciled_at: null,
                 reconciled_by: null,
@@ -1179,8 +1179,8 @@ export class BankReconciliationRepository {
               .update({
                 is_reconciled: false,
                 bank_statement_id: null,
-                actual_fee_amount: null,
-                fee_discrepancy: null,
+                actual_fee_amount: 0,
+                fee_discrepancy: 0,
                 fee_discrepancy_note: null,
                 reconciled_at: null,
                 reconciled_by: null,
