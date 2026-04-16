@@ -663,7 +663,7 @@ function StepManualMatch({
   useEffect(() => {
     setIsLoadingAgg(true);
     posAggregatesApi
-      .list(1, 500, null, { is_reconciled: false } as AggregatedTransactionFilterParams)
+      .list(1, 10000, null, { is_reconciled: false } as AggregatedTransactionFilterParams)
       .then((r) => setAggregates(r.data))
       .catch(console.error)
       .finally(() => setIsLoadingAgg(false));

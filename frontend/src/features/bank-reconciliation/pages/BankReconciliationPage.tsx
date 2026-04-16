@@ -237,7 +237,7 @@ export function BankReconciliationPage() {
           .filter((s) => normalizedIds.includes(String(s.id)))
           .reduce((sum, s) => sum + (s.credit_amount || 0) - (s.debit_amount || 0), 0);
 
-        const result = await posAggregatesApi.list(1, 100, null, {
+        const result = await posAggregatesApi.list(1, 10000, null, {
           is_reconciled: false,
         } as AggregatedTransactionFilterParams);
 
@@ -256,7 +256,7 @@ export function BankReconciliationPage() {
 
   const handleLoadAggregates = useCallback(async (): Promise<AggregatedTransactionListItem[]> => {
     try {
-      const result = await posAggregatesApi.list(1, 100, null, {
+      const result = await posAggregatesApi.list(1, 10000, null, {
         is_reconciled: false,
       } as AggregatedTransactionFilterParams);
       return result.data;
