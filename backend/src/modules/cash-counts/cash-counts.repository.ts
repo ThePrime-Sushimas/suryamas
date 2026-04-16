@@ -224,11 +224,32 @@ export class CashCountsRepository {
     return { data: data || [], total: count || 0 }
   }
 
+  async confirmDeposit(depositId: string, proofUrl: string, depositedAt: string, userId?: string): Promise<CashDeposit> {
+    const { data, error } = await supabase.from('cash_deposits').update({
+      status: 'DEPOSITED', proof_url: proofUrl, deposited_at: depositedAt,
+      deposited_by: userId || null, updated_at: new Date().toISOString(),
+    }).eq('id', depositId).is('deleted_at', null).select().single()
+    if (error) throw new CashCountOperationError('confirm_deposit', error.message)
+    return data
+  }
+
   async reconcileDeposit(depositId: string, bankStatementId: string): Promise<void> {
     const { error } = await supabase.from('cash_deposits').update({
       status: 'RECONCILED', bank_statement_id: bankStatementId, updated_at: new Date().toISOString(),
     }).eq('id', depositId)
     if (error) throw new CashCountOperationError('reconcile_deposit', error.message)
+  }
+
+  async getDepositedForMatch(startDate: string, endDate: string, bankAccountId?: number): Promise<CashDeposit[]> {
+    let query = supabase.from('cash_deposits').select('*')
+      .eq('status', 'DEPOSITED')
+      .gte('deposit_date', startDate)
+      .lte('deposit_date', endDate)
+      .is('deleted_at', null)
+    if (bankAccountId) query = query.eq('bank_account_id', bankAccountId)
+    const { data, error } = await query.order('deposit_date', { ascending: true })
+    if (error) throw new CashCountOperationError('get_deposited_for_match', error.message)
+    return data || []
   }
 
   async closeCashCountsByDeposit(depositId: string, userId?: string): Promise<void> {

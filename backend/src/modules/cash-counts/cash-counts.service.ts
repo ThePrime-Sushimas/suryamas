@@ -1,7 +1,7 @@
 import { cashCountsRepository } from './cash-counts.repository'
 import type {
   CashCountWithRelations, CreateCashCountDto, UpdatePhysicalCountDto,
-  CreateDepositDto, CashDepositWithRelations, CashCountListQuery,
+  CreateDepositDto, ConfirmDepositDto, CashDepositWithRelations, CashCountListQuery,
 } from './cash-counts.types'
 import {
   CashCountNotFoundError, CashCountDuplicatePeriodError,
@@ -128,6 +128,24 @@ export class CashCountsService {
     }
 
     return (await cashCountsRepository.findDepositById(deposit.id))!
+  }
+
+  // ── Confirm deposit (PENDING → DEPOSITED) ──
+  async confirmDeposit(id: string, dto: ConfirmDepositDto, userId?: string): Promise<CashDepositWithRelations> {
+    const dep = await cashCountsRepository.findDepositById(id)
+    if (!dep) throw new CashCountNotFoundError(id)
+    if (dep.status !== 'PENDING') throw new CashCountOperationError('confirm_deposit', `Deposit status ${dep.status}, harus PENDING`)
+
+    const depositedAt = dto.deposited_at || new Date().toISOString()
+    await cashCountsRepository.confirmDeposit(id, dto.proof_url, depositedAt, userId)
+
+    if (userId) {
+      await AuditService.log('UPDATE', 'cash_deposit', id, userId,
+        { status: 'PENDING' },
+        { status: 'DEPOSITED', proof_url: dto.proof_url, deposited_at: depositedAt },
+      )
+    }
+    return (await cashCountsRepository.findDepositById(id))!
   }
 
   // ── Close (DEPOSITED → CLOSED) ──
