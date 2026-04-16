@@ -687,13 +687,31 @@ export class BankReconciliationService {
       }
     }
 
+    // Merge cash deposit matches into matches array with unified format
+    const mergedCashDepositMatches = cashDepositMatches.map((m: any) => ({
+      statementId: m.statementId,
+      statement: m.statement,
+      aggregate: {
+        id: m.cashDeposit.id,
+        transaction_date: m.cashDeposit.deposit_date,
+        nett_amount: m.cashDeposit.deposit_amount,
+        payment_method_name: "Setoran Tunai",
+        branch_name: m.cashDeposit.branch_name,
+        gross_amount: m.cashDeposit.deposit_amount,
+      },
+      matchScore: m.matchScore,
+      matchCriteria: 'CASH_DEPOSIT',
+      difference: m.difference,
+    }));
+
+    const allMatches = [...result.matches, ...mergedCashDepositMatches];
+
     return {
-      matches: result.matches,
-      cashDepositMatches,
+      matches: allMatches,
       summary: {
         ...result.summary,
         matchedCashDeposits: cashDepositMatches.length,
-        matchedStatements: (result.summary?.matchedStatements || 0) + cashDepositMatches.length,
+        matchedStatements: allMatches.length,
         unmatchedStatements: remainingStmts.length,
       },
       unmatchedStatements: remainingStmts,
@@ -831,8 +849,56 @@ export class BankReconciliationService {
       }
     }
 
+    // ── Cash Deposit matching for remaining statements ──
+    const remainingStatements = statements.filter(
+      (s: any) => !successMatches.find((m) => m.statementId === String(s.id))
+    );
+
+    let cashDepositMatched = 0;
+    if (remainingStatements.length > 0) {
+      const startDateStr = bufferStart.toISOString().split("T")[0];
+      const endDateStr = bufferEnd.toISOString().split("T")[0];
+      const deposits = await cashCountsRepository.getDepositedForMatch(startDateStr, endDateStr);
+
+      for (let i = remainingStatements.length - 1; i >= 0; i--) {
+        const stmt = remainingStatements[i];
+        const stmtAmount = (stmt.credit_amount || 0) - (stmt.debit_amount || 0);
+        if (stmtAmount <= 0) continue;
+        const stmtDate = new Date(stmt.transaction_date).getTime();
+
+        const depIdx = deposits.findIndex((dep) => {
+          const depDate = new Date(dep.deposit_date).getTime();
+          const dayDiff = Math.abs(stmtDate - depDate) / (1000 * 3600 * 24);
+          const cashTolerance = Math.max(matchingCriteria.amountTolerance, dep.deposit_amount * 0.005);
+          return Math.abs(stmtAmount - dep.deposit_amount) <= cashTolerance && dayDiff <= matchingCriteria.dateBufferDays;
+        });
+
+        if (depIdx !== -1) {
+          const dep = deposits[depIdx];
+          try {
+            await this.repository.markAsReconciledCashDeposit(String(stmt.id), dep.id, userId);
+            await cashCountsRepository.reconcileDeposit(dep.id, String(stmt.id));
+            await this.repository.logAction({
+              companyId: companyId || "",
+              userId,
+              action: "AUTO_MATCH_CASH_DEPOSIT",
+              statementId: String(stmt.id),
+              details: { cashDepositId: dep.id, depositAmount: dep.deposit_amount },
+            });
+            cashDepositMatched++;
+            deposits.splice(depIdx, 1);
+            remainingStatements.splice(i, 1);
+          } catch (err: any) {
+            logError("Cash deposit confirm match failed", { statementId: stmt.id, depositId: dep.id, error: err.message });
+          }
+        }
+      }
+    }
+
     return {
-      matched: successMatches.length,
+      matched: successMatches.length + cashDepositMatched,
+      matchedAggregates: successMatches.length,
+      matchedCashDeposits: cashDepositMatched,
       failed: matches.length - successMatches.length,
       matches: successMatches,
     };

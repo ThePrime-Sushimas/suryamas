@@ -21,7 +21,8 @@ export type MatchCriteriaType =
   | "EXACT_AMOUNT_DATE"
   | "FUZZY_AMOUNT_DATE"
   | "AMOUNT_ONLY"
-  | "KEYWORD_DESC";
+  | "KEYWORD_DESC"
+  | "CASH_DEPOSIT";
 
 /**
  * Configuration for matching logic

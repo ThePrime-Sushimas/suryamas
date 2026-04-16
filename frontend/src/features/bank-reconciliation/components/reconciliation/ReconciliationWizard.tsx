@@ -322,6 +322,7 @@ function StepAutoMatch({
     exact_amount: previewData?.matches.filter((m) => m.matchCriteria === "EXACT_AMOUNT_DATE").length || 0,
     keyword: previewData?.matches.filter((m) => m.matchCriteria === "KEYWORD_DESC").length || 0,
     fuzzy: previewData?.matches.filter((m) => m.matchCriteria === "FUZZY_AMOUNT_DATE").length || 0,
+    cash_deposit: previewData?.matches.filter((m) => m.matchCriteria === "CASH_DEPOSIT").length || 0,
   };
 
   const filteredMatches = useMemo(
@@ -333,6 +334,7 @@ function StepAutoMatch({
           exact_amount: "EXACT_AMOUNT_DATE",
           keyword: "KEYWORD_DESC",
           fuzzy: "FUZZY_AMOUNT_DATE",
+          cash_deposit: "CASH_DEPOSIT",
         };
         return m.matchCriteria === map[activeTab];
       }),
@@ -348,6 +350,7 @@ function StepAutoMatch({
       EXACT_AMOUNT_DATE: { text: "Amount + Tanggal", color: "text-blue-700 bg-blue-50" },
       KEYWORD_DESC: { text: "Keyword", color: "text-purple-700 bg-purple-50" },
       FUZZY_AMOUNT_DATE: { text: "Fuzzy", color: "text-amber-700 bg-amber-50" },
+      CASH_DEPOSIT: { text: "Setoran", color: "text-teal-700 bg-teal-50" },
     };
     return map[c] || { text: c, color: "text-gray-600 bg-gray-50" };
   };
@@ -444,6 +447,7 @@ function StepAutoMatch({
               { key: "exact_amount", label: "Amount+Tgl", count: tabCounts.exact_amount },
               { key: "keyword", label: "Keyword", count: tabCounts.keyword },
               { key: "fuzzy", label: "Fuzzy", count: tabCounts.fuzzy },
+              { key: "cash_deposit", label: "Setoran", count: tabCounts.cash_deposit },
             ].map((tab) => (
               <button
                 key={tab.key}
