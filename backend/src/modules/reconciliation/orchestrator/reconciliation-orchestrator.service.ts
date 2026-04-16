@@ -191,6 +191,23 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
         );
       }
 
+      // Sync to pos_sync_aggregates if linked
+      const { data: aggTx } = await supabase
+        .from("aggregated_transactions")
+        .select("pos_sync_aggregate_id")
+        .eq("id", aggregateId)
+        .maybeSingle();
+
+      if (aggTx?.pos_sync_aggregate_id) {
+        await supabase
+          .from("pos_sync_aggregates")
+          .update({
+            is_reconciled: status === "RECONCILED",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", aggTx.pos_sync_aggregate_id);
+      }
+
       logInfo(
         "Successfully updated aggregated transaction reconciliation status",
         {
@@ -483,6 +500,30 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
 
       if (errors.length > 0) {
         throw new Error(`Failed to update ${errors.length} records`);
+      }
+
+      // Sync to pos_sync_aggregates
+      const aggIds = updates.map((u) => u.aggregateId);
+      const { data: aggTxs } = await supabase
+        .from("aggregated_transactions")
+        .select("id, pos_sync_aggregate_id")
+        .in("id", aggIds)
+        .not("pos_sync_aggregate_id", "is", null);
+
+      if (aggTxs && aggTxs.length > 0) {
+        const syncMap = new Map(aggTxs.map((a) => [a.id, a.pos_sync_aggregate_id]));
+        const syncPromises = updates
+          .filter((u) => syncMap.has(u.aggregateId))
+          .map((u) =>
+            supabase
+              .from("pos_sync_aggregates")
+              .update({
+                is_reconciled: u.status === "RECONCILED",
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", syncMap.get(u.aggregateId)!)
+          );
+        await Promise.allSettled(syncPromises);
       }
     } catch (error) {
       logError("Failed bulk update", {
