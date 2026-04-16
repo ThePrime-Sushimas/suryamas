@@ -10,6 +10,7 @@ import type {
 import type { ValidatedAuthRequest } from "../../../middleware/validation.middleware";
 import {
   manualReconcileSchema,
+  manualReconcileCashDepositSchema,
   autoMatchSchema,
   autoMatchPreviewSchema,
   autoMatchConfirmSchema,
@@ -30,6 +31,32 @@ import { logError } from "../../../config/logger";
 
 export class BankReconciliationController {
   constructor(private readonly service: BankReconciliationService) {}
+
+  async reconcileCashDeposit(
+    req: ValidatedAuthRequest<typeof manualReconcileCashDepositSchema>,
+    res: Response,
+  ): Promise<void> {
+    try {
+      const validated = req.validated.body;
+      const userId = req.user?.id;
+      const companyId = (req as any).context?.company_id;
+
+      const result = await this.service.reconcileCashDeposit(
+        validated.cashDepositId,
+        validated.statementId,
+        userId,
+        companyId,
+        validated.notes,
+      );
+
+      res.status(200).json({ success: true, data: result });
+    } catch (error: any) {
+      let status = 400;
+      if (error instanceof AlreadyReconciledError) status = 409;
+      logError("Reconcile cash deposit error", { error: error.message });
+      res.status(status).json({ success: false, message: error.message, code: "RECONCILE_CASH_DEPOSIT_FAILED" });
+    }
+  }
 
   async reconcile(
     req: ValidatedAuthRequest<typeof manualReconcileSchema>,

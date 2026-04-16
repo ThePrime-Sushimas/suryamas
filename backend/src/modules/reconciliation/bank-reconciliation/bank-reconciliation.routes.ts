@@ -12,6 +12,7 @@ import { validateSchema } from "../../../middleware/validation.middleware";
 import { PermissionService } from "../../../services/permission.service";
 import {
   manualReconcileSchema,
+  manualReconcileCashDepositSchema,
   autoMatchSchema,
   autoMatchPreviewSchema,
   autoMatchConfirmSchema,
@@ -63,6 +64,22 @@ router.post(
   (req, res) =>
     bankReconciliationController.reconcile(
       req as ValidatedAuthRequest<typeof manualReconcileSchema>,
+      res,
+    ),
+);
+
+/**
+ * @route POST /api/v1/reconciliation/bank/manual-cash-deposit
+ * @desc Manually reconcile a cash deposit with a bank statement
+ */
+router.post(
+  "/manual-cash-deposit",
+  canInsert("bank_reconciliation"),
+  createRateLimit,
+  validateSchema(manualReconcileCashDepositSchema),
+  (req, res) =>
+    bankReconciliationController.reconcileCashDeposit(
+      req as ValidatedAuthRequest<typeof manualReconcileCashDepositSchema>,
       res,
     ),
 );

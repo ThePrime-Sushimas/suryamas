@@ -248,6 +248,43 @@ export class BankReconciliationService {
   ) {}
 
 
+  async reconcileCashDeposit(
+    cashDepositId: string,
+    statementId: string,
+    userId?: string,
+    companyId?: string,
+    notes?: string,
+  ): Promise<any> {
+    const statement = await this.repository.findById(statementId);
+    if (!statement) throw new Error("Bank statement not found");
+    if (statement.is_reconciled) throw new AlreadyReconciledError(statementId);
+
+    const deposit = await cashCountsRepository.findDepositById(cashDepositId);
+    if (!deposit) throw new Error("Cash deposit not found");
+    if (deposit.status === 'RECONCILED') throw new Error("Cash deposit sudah reconciled");
+    if (deposit.status !== 'DEPOSITED') throw new Error(`Cash deposit status ${deposit.status}, harus DEPOSITED`);
+
+    await this.repository.markAsReconciledCashDeposit(statementId, cashDepositId, userId);
+    await cashCountsRepository.reconcileDeposit(cashDepositId, statementId);
+
+    await this.repository.logAction({
+      companyId: companyId || statement.company_id,
+      userId,
+      action: "AUTO_MATCH_CASH_DEPOSIT",
+      statementId,
+      details: { cashDepositId, depositAmount: deposit.deposit_amount, notes },
+    });
+
+    if (userId) {
+      await AuditService.log('CREATE', 'bank_reconciliation', statementId, userId,
+        { is_reconciled: false },
+        { is_reconciled: true, cashDepositId, notes },
+      );
+    }
+
+    return { success: true, statementId, cashDepositId, notes };
+  }
+
   async reconcile(
     aggregateId: string,
     statementId: string,
