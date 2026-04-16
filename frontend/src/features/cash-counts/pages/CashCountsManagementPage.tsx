@@ -364,7 +364,23 @@ export function CashCountsManagementPage() {
                     <span className="text-sm font-semibold text-gray-900 dark:text-white">{group.name}</span>
                     <span className="text-xs text-gray-400">{group.counted}/{group.items.length}</span>
                     {countedInGroup.length > 0 && (
-                      <span className="text-xs text-purple-500 font-medium">{countedInGroup.length} siap setor</span>
+                      <>
+                        <span className="text-xs text-purple-500 font-medium">{countedInGroup.length} siap setor</span>
+                        <span onClick={(e) => {
+                          e.stopPropagation()
+                          const selectableKeys = countedInGroup.map((r) => rk(r))
+                          const allSelected = selectableKeys.every((k) => selectedForDeposit.has(k))
+                          setSelectedForDeposit((prev) => {
+                            const next = new Set(prev)
+                            selectableKeys.forEach((k) => allSelected ? next.delete(k) : next.add(k))
+                            return next
+                          })
+                        }}>
+                          <input type="checkbox" readOnly
+                            checked={countedInGroup.length > 0 && countedInGroup.every((r) => selectedForDeposit.has(rk(r)))}
+                            className="rounded border-purple-300 text-purple-600 focus:ring-purple-500 cursor-pointer" />
+                        </span>
+                      </>
                     )}
                   </div>
                   <div className="flex items-center gap-4">
