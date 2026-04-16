@@ -31,6 +31,7 @@ import {
   ChevronUp,
   Building,
   AlertTriangle,
+  Banknote,
 } from "lucide-react";
 
 import { DEFAULT_MATCHING_CRITERIA } from "../../constants/reconciliation.config";
@@ -56,7 +57,7 @@ import type {
 // Types
 // ─────────────────────────────────────────────
 
-export type ReconciliationMode = "auto" | "manual" | "multi" | "settlement";
+export type ReconciliationMode = "auto" | "manual" | "multi" | "settlement" | "cash_deposit";
 
 export interface ReconciliationWizardProps {
   isOpen: boolean;
@@ -102,6 +103,12 @@ export interface ReconciliationWizardProps {
     notes: string,
     overrideDifference: boolean
   ) => Promise<CreateSettlementGroupResultDto>;
+
+  // Cash Deposit mode handler
+  onCashDepositConfirm?: (
+    cashDepositId: string,
+    statementId: string,
+  ) => Promise<void>;
 }
 
 // ─────────────────────────────────────────────
@@ -212,6 +219,14 @@ function StepSelectMode({
       desc: "1 bank statement besar dicocokkan ke banyak transaksi POS aggregate sekaligus",
       color: "bg-amber-600 text-white",
       ring: "ring-amber-200",
+    },
+    {
+      id: "cash_deposit",
+      icon: <Banknote className="w-6 h-6" />,
+      title: "Cash Deposit",
+      desc: "Cocokkan setoran tunai ke bank statement secara manual",
+      color: "bg-teal-600 text-white",
+      ring: "ring-teal-200",
     },
   ];
 
@@ -1560,6 +1575,158 @@ interface ReviewData {
   settlementAggregates?: AggregateSelection[];
   settlementNotes?: string;
   settlementOverride?: boolean;
+  // Cash Deposit
+  cashDepositId?: string;
+  cashDepositStatementId?: string;
+  cashDepositData?: { id: string; deposit_amount: number; deposit_date: string; branch_name: string | null };
+  cashDepositStatementData?: { id: string; transaction_date: string; description: string; amount: number };
+}
+
+// ─────────────────────────────────────────────
+// STEP 2E — Cash Deposit Match
+// ─────────────────────────────────────────────
+
+function StepCashDeposit({
+  statements,
+  onNext,
+}: {
+  statements: BankStatementWithMatch[];
+  onNext: (
+    cashDepositId: string,
+    cashDepositData: { id: string; deposit_amount: number; deposit_date: string; branch_name: string | null },
+    statementId: string,
+    statementData: { id: string; transaction_date: string; description: string; amount: number },
+  ) => void;
+}) {
+  const [deposits, setDeposits] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedDeposit, setSelectedDeposit] = useState<any | null>(null);
+  const [selectedStatement, setSelectedStatement] = useState<BankStatementWithMatch | null>(null);
+  const [depSearch, setDepSearch] = useState("");
+  const [stmtSearch, setStmtSearch] = useState("");
+
+  useEffect(() => {
+    import("@/features/cash-counts/api/cashCounts.api").then(({ cashCountsApi }) => {
+      cashCountsApi.listDeposits(1, 100).then((r) => {
+        setDeposits(r.data.filter((d: any) => d.status === 'DEPOSITED'));
+      }).finally(() => setIsLoading(false));
+    });
+  }, []);
+
+  const unreconciledStatements = useMemo(
+    () => statements.filter((s) => !s.is_reconciled && (s.credit_amount || 0) - (s.debit_amount || 0) > 0),
+    [statements]
+  );
+
+  const filteredDeposits = useMemo(() => {
+    if (!depSearch) return deposits;
+    const q = depSearch.toLowerCase();
+    return deposits.filter((d) => d.branch_name?.toLowerCase().includes(q) || String(d.deposit_amount).includes(q));
+  }, [deposits, depSearch]);
+
+  const filteredStatements = useMemo(() => {
+    if (!stmtSearch) return unreconciledStatements;
+    const q = stmtSearch.toLowerCase();
+    return unreconciledStatements.filter((s) => s.description?.toLowerCase().includes(q) || s.transaction_date?.includes(q));
+  }, [unreconciledStatements, stmtSearch]);
+
+  const bankAmount = selectedStatement ? (selectedStatement.credit_amount || 0) - (selectedStatement.debit_amount || 0) : 0;
+  const diff = selectedDeposit ? bankAmount - selectedDeposit.deposit_amount : 0;
+  const canProceed = selectedDeposit && selectedStatement;
+
+  return (
+    <div className="flex h-full">
+      {/* Left: Cash Deposits */}
+      <div className="w-1/2 border-r border-gray-100 dark:border-gray-800 flex flex-col">
+        <div className="p-4 border-b border-gray-100 dark:border-gray-800">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Cash Deposit (DEPOSITED)</p>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <input value={depSearch} onChange={(e) => setDepSearch(e.target.value)} placeholder="Cari deposit..."
+              className="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs border-none focus:ring-2 focus:ring-teal-500 outline-none" />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-32"><Loader2 className="w-5 h-5 animate-spin text-teal-400" /></div>
+          ) : filteredDeposits.length === 0 ? (
+            <div className="flex items-center justify-center h-32 text-gray-400 text-xs">Tidak ada deposit DEPOSITED</div>
+          ) : filteredDeposits.map((dep) => {
+            const isSelected = selectedDeposit?.id === dep.id;
+            return (
+              <div key={dep.id} onClick={() => setSelectedDeposit(dep)}
+                className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                  isSelected ? "border-teal-400 bg-teal-50 dark:bg-teal-900/20" : "border-gray-100 dark:border-gray-800 hover:border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                }`}>
+                <div className="flex justify-between items-start">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] text-gray-400">{dep.deposit_date}</p>
+                    <p className="text-xs text-gray-700 dark:text-gray-300 mt-0.5">{dep.branch_name || '-'}</p>
+                    <p className="text-[11px] text-gray-400">{dep.bank_account_name || `Bank #${dep.bank_account_id}`}</p>
+                  </div>
+                  {isSelected && <CheckCircle2 className="w-4 h-4 text-teal-500 shrink-0 ml-2" />}
+                </div>
+                <p className="text-sm font-bold text-gray-900 dark:text-white mt-1.5">{fmt(dep.deposit_amount)}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Right: Bank Statements */}
+      <div className="w-1/2 flex flex-col">
+        <div className="p-4 border-b border-gray-100 dark:border-gray-800">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Bank Statement (Credit)</p>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <input value={stmtSearch} onChange={(e) => setStmtSearch(e.target.value)} placeholder="Cari statement..."
+              className="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs border-none focus:ring-2 focus:ring-teal-500 outline-none" />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {filteredStatements.map((s) => {
+            const amt = (s.credit_amount || 0) - (s.debit_amount || 0);
+            const isSelected = selectedStatement?.id === s.id;
+            return (
+              <div key={s.id} onClick={() => setSelectedStatement(s)}
+                className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                  isSelected ? "border-teal-400 bg-teal-50 dark:bg-teal-900/20" : "border-gray-100 dark:border-gray-800 hover:border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                }`}>
+                <div className="flex justify-between items-start">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] text-gray-400">{s.transaction_date}</p>
+                    <p className="text-xs text-gray-700 dark:text-gray-300 mt-0.5">{s.description}</p>
+                  </div>
+                  {isSelected && <CheckCircle2 className="w-4 h-4 text-teal-500 shrink-0 ml-2" />}
+                </div>
+                <p className="text-sm font-bold text-gray-900 dark:text-white mt-1.5">{fmt(amt)}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Summary + CTA */}
+        {selectedDeposit && selectedStatement && (
+          <div className="p-4 border-t border-gray-100 dark:border-gray-800 space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">Selisih:</span>
+              <span className={`font-bold ${Math.abs(diff) < 1 ? "text-green-600" : "text-amber-600"}`}>{fmt(diff)}</span>
+            </div>
+            <button disabled={!canProceed}
+              onClick={() => onNext(
+                selectedDeposit.id,
+                { id: selectedDeposit.id, deposit_amount: selectedDeposit.deposit_amount, deposit_date: selectedDeposit.deposit_date, branch_name: selectedDeposit.branch_name },
+                selectedStatement.id,
+                { id: selectedStatement.id, transaction_date: selectedStatement.transaction_date, description: selectedStatement.description || '', amount: bankAmount },
+              )}
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-bold hover:bg-teal-700 disabled:opacity-40 transition-all">
+              Review Match <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function StepReview({
@@ -1582,6 +1749,7 @@ function StepReview({
     if (data.mode === "auto") return { label: "Auto-Match", color: "bg-blue-100 text-blue-700" };
     if (data.mode === "manual") return { label: "Manual Match", color: "bg-emerald-100 text-emerald-700" };
     if (data.mode === "settlement") return { label: "Bulk Settlement", color: "bg-amber-100 text-amber-700" };
+    if (data.mode === "cash_deposit") return { label: "Cash Deposit", color: "bg-teal-100 text-teal-700" };
     return { label: "Multi-Match", color: "bg-violet-100 text-violet-700" };
   };
 
@@ -1767,6 +1935,42 @@ function StepReview({
         );
       })()}
 
+      {data.mode === "cash_deposit" && (() => {
+        const dep = data.cashDepositData;
+        const stmt = data.cashDepositStatementData;
+        const diff = stmt && dep ? stmt.amount - dep.deposit_amount : 0;
+        return (
+          <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-100 dark:border-teal-800 rounded-2xl p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[11px] font-bold text-teal-600 uppercase tracking-widest mb-1">Cash Deposit</p>
+                {dep && (
+                  <>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">{dep.deposit_date}</p>
+                    <p className="text-xs text-gray-700 dark:text-gray-300">{dep.branch_name || '-'}</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white mt-1">{fmt(dep.deposit_amount)}</p>
+                  </>
+                )}
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-teal-600 uppercase tracking-widest mb-1">Bank Statement</p>
+                {stmt && (
+                  <>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">{stmt.transaction_date}</p>
+                    <p className="text-xs text-gray-700 dark:text-gray-300">{stmt.description}</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white mt-1">{fmt(stmt.amount)}</p>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-between items-center text-sm pt-2 border-t border-teal-200 dark:border-teal-700">
+              <span className="text-gray-500">Selisih:</span>
+              <span className={`font-bold ${Math.abs(diff) < 1 ? "text-green-600" : "text-amber-600"}`}>{fmt(diff)}</span>
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="flex justify-end pt-2">
         <button
           onClick={onConfirm}
@@ -1803,6 +2007,7 @@ export function ReconciliationWizard({
   onFindAggregate,
   onLoadAggregates,
   onSettlementConfirm,
+  onCashDepositConfirm,
 }: ReconciliationWizardProps) {
   const [step, setStep] = useState(0); // 0=mode, 1=config, 2=review
   const [mode, setMode] = useState<ReconciliationMode | null>(null);
@@ -1883,6 +2088,22 @@ export function ReconciliationWizard({
     setStep(2);
   };
 
+  const handleCashDepositNext = (
+    cashDepositId: string,
+    cashDepositData: { id: string; deposit_amount: number; deposit_date: string; branch_name: string | null },
+    statementId: string,
+    statementData: { id: string; transaction_date: string; description: string; amount: number },
+  ) => {
+    setReviewData({
+      mode: "cash_deposit",
+      cashDepositId,
+      cashDepositStatementId: statementId,
+      cashDepositData,
+      cashDepositStatementData: statementData,
+    });
+    setStep(2);
+  };
+
   const handleConfirm = async () => {
     if (!reviewData) return;
     setIsConfirming(true);
@@ -1911,6 +2132,11 @@ export function ReconciliationWizard({
           reviewData.settlementNotes || "",
           reviewData.settlementOverride || false
         );
+      } else if (reviewData.mode === "cash_deposit" && onCashDepositConfirm) {
+        await onCashDepositConfirm(
+          reviewData.cashDepositId!,
+          reviewData.cashDepositStatementId!,
+        );
       }
       onClose();
     } catch (err) {
@@ -1926,6 +2152,7 @@ export function ReconciliationWizard({
     manual: "from-emerald-600 to-teal-700",
     multi: "from-violet-600 to-purple-700",
     settlement: "from-amber-600 to-orange-700",
+    cash_deposit: "from-teal-600 to-cyan-700",
   };
   const headerGradient = mode ? modeColors[mode] : "from-gray-700 to-gray-800";
 
@@ -1964,6 +2191,7 @@ export function ReconciliationWizard({
                       {step === 1 && mode === "manual" && "Pilih transaksi"}
                       {step === 1 && mode === "multi" && "Multi-Statement Match"}
                       {step === 1 && mode === "settlement" && "Bulk Settlement"}
+                      {step === 1 && mode === "cash_deposit" && "Cash Deposit Match"}
                       {step === 2 && "Review & Konfirmasi"}
                     </p>
                   </div>
@@ -2018,6 +2246,12 @@ export function ReconciliationWizard({
               {step === 1 && mode === "settlement" && (
                 <div className="flex-1 overflow-hidden flex flex-col min-h-0">
                   <StepSettlement onNext={handleSettlementNext} />
+                </div>
+              )}
+
+              {step === 1 && mode === "cash_deposit" && (
+                <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                  <StepCashDeposit statements={statements} onNext={handleCashDepositNext} />
                 </div>
               )}
 

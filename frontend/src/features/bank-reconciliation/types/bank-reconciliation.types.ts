@@ -143,11 +143,36 @@ export interface AutoMatchPreviewMatch {
   difference: number;
 }
 
+export interface CashDepositPreviewMatch {
+  statementId: string;
+  statement: {
+    id: string;
+    transaction_date: string;
+    description: string;
+    reference_number?: string;
+    debit_amount: number;
+    credit_amount: number;
+    amount: number;
+  };
+  cashDeposit: {
+    id: string;
+    deposit_date: string;
+    deposit_amount: number;
+    branch_name: string | null;
+    bank_account_id: number;
+  };
+  matchScore: number;
+  matchCriteria: 'CASH_DEPOSIT';
+  difference: number;
+}
+
 export interface AutoMatchPreviewResponse {
   matches: AutoMatchPreviewMatch[];
+  cashDepositMatches?: CashDepositPreviewMatch[];
   summary: {
     totalStatements: number;
     matchedStatements: number;
+    matchedCashDeposits?: number;
     unmatchedStatements: number;
   };
   unmatchedStatements: Array<{

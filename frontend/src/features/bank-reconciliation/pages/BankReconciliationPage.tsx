@@ -37,6 +37,7 @@ import type {
 // ← NEW: unified wizard
 import { ReconciliationWizard } from "../components/reconciliation/ReconciliationWizard";
 import { settlementGroupsApi } from "../settlement-groups/api/settlement-groups.api";
+import { bankReconciliationApi } from "../api/bank-reconciliation.api";
 import type { CreateSettlementGroupResultDto } from "../settlement-groups/types/settlement-groups.types";
 
 type DateRange = {
@@ -284,6 +285,14 @@ export function BankReconciliationPage() {
     [refreshData]
   );
 
+  const handleCashDepositConfirm = useCallback(
+    async (cashDepositId: string, statementId: string) => {
+      await bankReconciliationApi.manualReconcileCashDeposit({ cashDepositId, statementId });
+      refreshData();
+    },
+    [refreshData]
+  );
+
   // Undo remains outside wizard (row-level action)
   const handleUndo = async (statementId: string) => {
     if (confirm("Apakah Anda yakin ingin membatalkan rekonsiliasi ini?")) {
@@ -420,6 +429,7 @@ export function BankReconciliationPage() {
         onFindAggregate={handleFindAggregateForMultiMatch}
         onLoadAggregates={handleLoadAggregates}
         onSettlementConfirm={handleSettlementConfirm}
+        onCashDepositConfirm={handleCashDepositConfirm}
       />
     </div>
   );

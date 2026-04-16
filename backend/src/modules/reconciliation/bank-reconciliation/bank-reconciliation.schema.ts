@@ -72,7 +72,7 @@ export const manualReconcileSchema = z.object({
 export const manualReconcileCashDepositSchema = z.object({
   body: z.object({
     cashDepositId: z.string().uuid("Cash Deposit ID is required"),
-    statementId: z.string().uuid("Statement ID is required"),
+    statementId: z.coerce.string().min(1, "Statement ID is required"),
     notes: z.string().max(500).optional(),
   }),
 });

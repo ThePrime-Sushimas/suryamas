@@ -636,10 +636,67 @@ export class BankReconciliationService {
       'preview'
     ) as Extract<MatchingEngineResult, { mode: 'preview' }>;
 
+    // ── Cash Deposit Preview Matching ──
+    const remainingStmts = result.unmatchedStatements || [];
+    const cashDepositMatches: any[] = [];
+
+    if (remainingStmts.length > 0) {
+      const startDateStr = bufferStart.toISOString().split("T")[0];
+      const endDateStr = bufferEnd.toISOString().split("T")[0];
+      const deposits = await cashCountsRepository.getDepositedForMatch(
+        startDateStr, endDateStr, bankAccountId,
+      );
+
+      const remainingDeposits = [...deposits];
+      for (let i = remainingStmts.length - 1; i >= 0; i--) {
+        const stmt = remainingStmts[i];
+        const stmtAmount = stmt.amount ?? ((stmt.credit_amount || 0) - (stmt.debit_amount || 0));
+        if (stmtAmount <= 0) continue;
+
+        const stmtDate = new Date(stmt.transaction_date).getTime();
+
+        const depIdx = remainingDeposits.findIndex((dep) => {
+          const depDate = new Date(dep.deposit_date).getTime();
+          const dayDiff = Math.abs(stmtDate - depDate) / (1000 * 3600 * 24);
+          const cashTolerance = Math.max(matchingCriteria.amountTolerance, dep.deposit_amount * 0.005);
+          return (
+            Math.abs(stmtAmount - dep.deposit_amount) <= cashTolerance &&
+            dayDiff <= matchingCriteria.dateBufferDays
+          );
+        });
+
+        if (depIdx !== -1) {
+          const dep = remainingDeposits[depIdx];
+          cashDepositMatches.push({
+            statementId: stmt.id,
+            statement: stmt,
+            cashDeposit: {
+              id: dep.id,
+              deposit_date: dep.deposit_date,
+              deposit_amount: dep.deposit_amount,
+              branch_name: dep.branch_name,
+              bank_account_id: dep.bank_account_id,
+            },
+            matchScore: 90,
+            matchCriteria: 'CASH_DEPOSIT',
+            difference: Math.abs(stmtAmount - dep.deposit_amount),
+          });
+          remainingDeposits.splice(depIdx, 1);
+          remainingStmts.splice(i, 1);
+        }
+      }
+    }
+
     return {
       matches: result.matches,
-      summary: result.summary,
-      unmatchedStatements: result.unmatchedStatements
+      cashDepositMatches,
+      summary: {
+        ...result.summary,
+        matchedCashDeposits: cashDepositMatches.length,
+        matchedStatements: (result.summary?.matchedStatements || 0) + cashDepositMatches.length,
+        unmatchedStatements: remainingStmts.length,
+      },
+      unmatchedStatements: remainingStmts,
     };
   }
 
