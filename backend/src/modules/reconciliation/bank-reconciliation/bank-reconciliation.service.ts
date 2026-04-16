@@ -316,6 +316,28 @@ export class BankReconciliationService {
     const statement = await this.repository.findById(statementId);
     if (!statement) throw new Error("Bank statement not found");
   
+    // ── Cash deposit undo ──
+    if (statement.cash_deposit_id) {
+      await this.repository.undoCashDepositReconciliation(statementId, statement.cash_deposit_id, userId);
+
+      await this.repository.logAction({
+        companyId: companyId || statement.company_id,
+        userId,
+        action: "UNDO_CASH_DEPOSIT",
+        statementId,
+        details: { cashDepositId: statement.cash_deposit_id },
+      });
+
+      if (userId) {
+        await AuditService.log('DELETE', 'bank_reconciliation', statementId, userId,
+          { is_reconciled: true, cash_deposit_id: statement.cash_deposit_id },
+          { is_reconciled: false }
+        );
+      }
+      return;
+    }
+
+    // ── Aggregate undo (existing logic) ──
     let aggregateId = statement.reconciliation_id;
     let isMultiMatch = false;
   
@@ -455,9 +477,80 @@ export class BankReconciliationService {
       );
     }
 
+    // ── Cash Deposit Matching ──────────────────────────────────────
+    // Match remaining unreconciled statements against DEPOSITED cash deposits
+    const remainingStatements = statements.filter(
+      (s: any) => !matches.find((m) => m.statementId === s.id)
+    );
+
+    let cashDepositMatches = 0;
+    if (remainingStatements.length > 0) {
+      const startDateStr = bufferStart.toISOString().split("T")[0];
+      const endDateStr = bufferEnd.toISOString().split("T")[0];
+      const deposits = await cashCountsRepository.getDepositedForMatch(
+        startDateStr, endDateStr, bankAccountId,
+      );
+
+      for (let i = remainingStatements.length - 1; i >= 0; i--) {
+        const stmt = remainingStatements[i];
+        const stmtAmount = stmt.credit_amount - stmt.debit_amount;
+        if (stmtAmount <= 0) continue; // Cash deposit = credit only
+
+        const stmtDate = new Date(stmt.transaction_date).getTime();
+
+        const depIdx = deposits.findIndex((dep) => {
+          const depDate = new Date(dep.deposit_date).getTime();
+          const dayDiff = Math.abs(stmtDate - depDate) / (1000 * 3600 * 24);
+          return (
+            Math.abs(stmtAmount - dep.deposit_amount) <= matchingCriteria.amountTolerance &&
+            dayDiff <= matchingCriteria.dateBufferDays
+          );
+        });
+
+        if (depIdx !== -1) {
+          const dep = deposits[depIdx];
+          try {
+            await this.repository.markAsReconciledCashDeposit(stmt.id, dep.id, userId);
+            await cashCountsRepository.reconcileDeposit(dep.id, stmt.id);
+
+            await this.repository.logAction({
+              companyId: companyId || "",
+              userId,
+              action: "AUTO_MATCH_CASH_DEPOSIT",
+              statementId: stmt.id,
+              details: { cashDepositId: dep.id, depositAmount: dep.deposit_amount },
+            });
+
+            if (userId) {
+              await AuditService.log('CREATE', 'bank_reconciliation', stmt.id, userId,
+                { is_reconciled: false },
+                { is_reconciled: true, cashDepositId: dep.id },
+              );
+            }
+
+            cashDepositMatches++;
+            deposits.splice(depIdx, 1);
+            remainingStatements.splice(i, 1);
+          } catch (err: any) {
+            logError("Cash deposit auto-match failed", {
+              statementId: stmt.id, depositId: dep.id, error: err.message,
+            });
+          }
+        }
+      }
+
+      if (cashDepositMatches > 0) {
+        logInfo("Cash deposit auto-match complete", {
+          matched: cashDepositMatches, remaining: remainingStatements.length,
+        });
+      }
+    }
+
     return {
-      matched: matches.length,
-      unmatched: statements.length - matches.length,
+      matched: matches.length + cashDepositMatches,
+      matchedAggregates: matches.length,
+      matchedCashDeposits: cashDepositMatches,
+      unmatched: remainingStatements.length,
       matches,
     };
   }

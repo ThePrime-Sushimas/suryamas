@@ -787,7 +787,9 @@ export class BankReconciliationRepository {
     action:
       | "MANUAL_RECONCILE"
       | "AUTO_MATCH"
+      | "AUTO_MATCH_CASH_DEPOSIT"
       | "UNDO"
+      | "UNDO_CASH_DEPOSIT"
       | "CREATE_MULTI_MATCH"
       | "UNDO_MULTI_MATCH";
     statementId?: string;
@@ -1365,6 +1367,57 @@ export class BankReconciliationRepository {
         error.message,
       );
     }
+  }
+
+  async markAsReconciledCashDeposit(
+    statementId: string,
+    cashDepositId: string,
+    userId?: string,
+  ): Promise<void> {
+    const updateData: any = {
+      is_reconciled: true,
+      cash_deposit_id: cashDepositId,
+      updated_at: new Date().toISOString(),
+    };
+    if (userId) updateData.updated_by = userId;
+
+    const { error } = await supabase
+      .from("bank_statements")
+      .update(updateData)
+      .eq("id", statementId);
+
+    if (error) throw error;
+  }
+
+  async undoCashDepositReconciliation(
+    statementId: string,
+    cashDepositId: string,
+    userId?: string,
+  ): Promise<void> {
+    // 1. Reset bank statement
+    const updateData: any = {
+      is_reconciled: false,
+      cash_deposit_id: null,
+      updated_at: new Date().toISOString(),
+    };
+    if (userId) updateData.updated_by = userId;
+
+    const { error: stmtErr } = await supabase
+      .from("bank_statements")
+      .update(updateData)
+      .eq("id", statementId);
+    if (stmtErr) throw stmtErr;
+
+    // 2. Reset cash deposit → DEPOSITED (bukan PENDING, karena bukti setoran masih ada)
+    const { error: depErr } = await supabase
+      .from("cash_deposits")
+      .update({
+        status: "DEPOSITED",
+        bank_statement_id: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", cashDepositId);
+    if (depErr) throw depErr;
   }
 }
 
