@@ -88,27 +88,26 @@ export class CashCountsRepository {
     return cc
   }
 
-  async findByIds(ids: string[]): Promise<CashCountWithRelations[]> {
-    if (ids.length === 0) return []
-    const { data, error } = await supabase.from('cash_counts').select('*').in('id', ids).is('deleted_at', null)
-    if (error) throw new CashCountOperationError('find_batch', error.message)
-    if (!data || data.length === 0) return []
+  // ── Shared relation loader (avoid N+1) ──
+  private async enrichRelations(rows: any[]): Promise<CashCountWithRelations[]> {
+    if (!rows.length) return []
 
-    const pmIds = [...new Set(data.map((r: any) => r.payment_method_id).filter(Boolean))]
-    const empIds = [...new Set(data.map((r: any) => r.responsible_employee_id).filter(Boolean))]
+    const pmIds = [...new Set(rows.map(r => r.payment_method_id).filter(Boolean))]
+    const empIds = [...new Set(rows.map(r => r.responsible_employee_id).filter(Boolean))]
 
-    let pmMap: Record<number, string> = {}
-    if (pmIds.length > 0) {
-      const { data: pms } = await supabase.from('payment_methods').select('id, name').in('id', pmIds)
-      if (pms) pmMap = pms.reduce((a: any, p: any) => { a[p.id] = p.name; return a }, {})
-    }
-    let empMap: Record<string, string> = {}
-    if (empIds.length > 0) {
-      const { data: emps } = await supabase.from('employees').select('id, full_name').in('id', empIds)
-      if (emps) empMap = emps.reduce((a: any, e: any) => { a[e.id] = e.full_name; return a }, {})
-    }
+    const [pmRes, empRes] = await Promise.all([
+      pmIds.length
+        ? supabase.from('payment_methods').select('id, name').in('id', pmIds)
+        : { data: [] },
+      empIds.length
+        ? supabase.from('employees').select('id, full_name').in('id', empIds)
+        : { data: [] },
+    ])
 
-    return data.map((row: any) => ({
+    const pmMap = Object.fromEntries((pmRes.data || []).map((p: any) => [p.id, p.name]))
+    const empMap = Object.fromEntries((empRes.data || []).map((e: any) => [e.id, e.full_name]))
+
+    return rows.map(row => ({
       ...row,
       branch_name: row.branch_name || null,
       payment_method_name: row.payment_method_id ? pmMap[row.payment_method_id] || null : null,
@@ -116,24 +115,16 @@ export class CashCountsRepository {
     }))
   }
 
-  // ── Find by ID ──
+  async findByIds(ids: string[]): Promise<CashCountWithRelations[]> {
+    if (ids.length === 0) return []
+    const { data, error } = await supabase.from('cash_counts').select('*').in('id', ids).is('deleted_at', null)
+    if (error) throw new CashCountOperationError('find_batch', error.message)
+    return this.enrichRelations(data || [])
+  }
+
   async findById(id: string): Promise<CashCountWithRelations | null> {
-    const { data, error } = await supabase.from('cash_counts').select('*').eq('id', id).is('deleted_at', null).maybeSingle()
-    if (error) throw new CashCountOperationError('find', error.message)
-    if (!data) return null
-
-    let pmName: string | null = null
-    if (data.payment_method_id) {
-      const { data: pm } = await supabase.from('payment_methods').select('name').eq('id', data.payment_method_id).maybeSingle()
-      pmName = pm?.name || null
-    }
-    let empName: string | null = null
-    if (data.responsible_employee_id) {
-      const { data: emp } = await supabase.from('employees').select('full_name').eq('id', data.responsible_employee_id).maybeSingle()
-      empName = emp?.full_name || null
-    }
-
-    return { ...data, branch_name: data.branch_name || null, payment_method_name: pmName, responsible_employee_name: empName }
+    const rows = await this.findByIds([id])
+    return rows[0] || null
   }
 
   // ── List ──
@@ -149,25 +140,8 @@ export class CashCountsRepository {
     const { data, error, count } = await dbQuery.range(pagination.offset, pagination.offset + pagination.limit - 1)
     if (error) throw new CashCountOperationError('list', error.message)
 
-    const pmIds = [...new Set((data || []).map((r: any) => r.payment_method_id).filter(Boolean))]
-    let pmMap: Record<number, string> = {}
-    if (pmIds.length > 0) {
-      const { data: pms } = await supabase.from('payment_methods').select('id, name').in('id', pmIds)
-      if (pms) pmMap = pms.reduce((a: any, p: any) => { a[p.id] = p.name; return a }, {})
-    }
-    const empIds = [...new Set((data || []).map((r: any) => r.responsible_employee_id).filter(Boolean))]
-    let empMap: Record<string, string> = {}
-    if (empIds.length > 0) {
-      const { data: emps } = await supabase.from('employees').select('id, full_name').in('id', empIds)
-      if (emps) empMap = emps.reduce((a: any, e: any) => { a[e.id] = e.full_name; return a }, {})
-    }
-
     return {
-      data: (data || []).map((row: any) => ({
-        ...row, branch_name: row.branch_name || null,
-        payment_method_name: row.payment_method_id ? pmMap[row.payment_method_id] || null : null,
-        responsible_employee_name: row.responsible_employee_id ? empMap[row.responsible_employee_id] || null : null,
-      })),
+      data: await this.enrichRelations(data || []),
       total: count || 0,
     }
   }
