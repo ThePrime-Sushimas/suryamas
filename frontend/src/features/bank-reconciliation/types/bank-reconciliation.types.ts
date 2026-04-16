@@ -90,6 +90,8 @@ export interface BankStatementWithMatch {
     // Cash deposit data
     is_cash_deposit?: boolean;
     branch_name?: string;
+    proof_url?: string;
+    deposited_at?: string;
   };
 }
 

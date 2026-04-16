@@ -382,7 +382,7 @@ export class BankReconciliationRepository {
         try {
           const { data: deposits, error: depError } = await supabase
             .from("cash_deposits")
-            .select("id, deposit_amount, deposit_date, branch_name, bank_account_id, status")
+            .select("id, deposit_amount, deposit_date, branch_name, bank_account_id, status, proof_url, deposited_at")
             .in("id", cashDepositIds);
 
           if (depError) {
@@ -467,6 +467,8 @@ export class BankReconciliationRepository {
               payment_method_name: "Setoran Tunai",
               is_cash_deposit: true,
               branch_name: dep.branch_name,
+              proof_url: dep.proof_url,
+              deposited_at: dep.deposited_at,
             },
           };
         }

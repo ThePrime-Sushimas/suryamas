@@ -221,6 +221,7 @@ export function BankMutationTable({
   activeBankAccountIds = [],
 }: BankMutationTableProps) {
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
+  const [expandedCashDepositId, setExpandedCashDepositId] = useState<string | null>(null);
 
   const statementGroupMap = useMemo(() => {
     const map: Record<string, ReconciliationGroup> = {};
@@ -488,13 +489,28 @@ export function BankMutationTable({
 
                       {/* Sudah rekonsiliasi, bukan grup */}
                       {item.is_reconciled && !isInGroup && (
-                        <button
-                          onClick={() => onUndo(item.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-md transition-colors"
-                          title="Undo rekonsiliasi"
-                        >
-                          <Undo2 className="w-3.5 h-3.5" />
-                        </button>
+                        <>
+                          {item.matched_aggregate?.is_cash_deposit && (
+                            <button
+                              onClick={() => setExpandedCashDepositId(
+                                expandedCashDepositId === item.id ? null : item.id
+                              )}
+                              className="p-1.5 text-gray-400 hover:text-teal-600 rounded-md transition-colors"
+                              title="Detail setoran"
+                            >
+                              {expandedCashDepositId === item.id
+                                ? <ChevronUp className="w-3.5 h-3.5" />
+                                : <ChevronDown className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => onUndo(item.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-md transition-colors"
+                            title="Undo rekonsiliasi"
+                          >
+                            <Undo2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
                       )}
 
                       {/* Bagian dari grup */}
@@ -545,6 +561,40 @@ export function BankMutationTable({
                 {/* Group Detail Row */}
                 {isGroupExpanded && groupInfo && (
                   <GroupDetailRow group={groupInfo} />
+                )}
+
+                {/* Cash Deposit Detail Row */}
+                {expandedCashDepositId === item.id && item.matched_aggregate?.is_cash_deposit && (
+                  <div className="px-4 py-3 bg-teal-50/50 dark:bg-teal-900/10 border-t border-teal-100 dark:border-teal-800">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                      <div>
+                        <span className="text-gray-400 uppercase text-[10px] font-semibold">Cabang</span>
+                        <p className="font-medium text-gray-900 dark:text-white">{item.matched_aggregate.branch_name || '-'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-400 uppercase text-[10px] font-semibold">Tanggal Setor</span>
+                        <p className="font-medium text-gray-900 dark:text-white">{item.matched_aggregate.deposited_at ? new Date(item.matched_aggregate.deposited_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-400 uppercase text-[10px] font-semibold">Jumlah Setoran</span>
+                        <p className="font-mono font-semibold text-teal-700 dark:text-teal-300">{formatNumber(item.matched_aggregate.nett_amount)}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-400 uppercase text-[10px] font-semibold">Selisih</span>
+                        <p className={`font-mono font-semibold ${Math.abs((item.credit_amount - item.debit_amount) - item.matched_aggregate.nett_amount) < 1 ? 'text-green-600' : 'text-amber-600'}`}>
+                          {formatNumber((item.credit_amount - item.debit_amount) - item.matched_aggregate.nett_amount)}
+                        </p>
+                      </div>
+                    </div>
+                    {item.matched_aggregate.proof_url && (
+                      <div className="mt-2">
+                        <span className="text-gray-400 uppercase text-[10px] font-semibold">Bukti Setoran</span>
+                        <a href={item.matched_aggregate.proof_url} target="_blank" rel="noopener noreferrer" className="mt-1 block w-fit">
+                          <img src={item.matched_aggregate.proof_url} alt="Bukti setoran" className="h-20 rounded-lg border border-teal-200 dark:border-teal-700 object-cover hover:opacity-80 transition-opacity" />
+                        </a>
+                      </div>
+                    )}
+                  </div>
                 )}
               </React.Fragment>
             );
