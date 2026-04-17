@@ -236,11 +236,9 @@ export function BankMutationTable({
     return map;
   }, [reconciliationGroups]);
 
-  const activeBankAccount = useMemo(() => {
-    if (activeBankAccountIds.length === 1) {
-      return bankAccounts.find((a) => a.id === activeBankAccountIds[0]) || null;
-    }
-    return null;
+  const activeBankAccounts = useMemo(() => {
+    if (activeBankAccountIds.length === 0) return [];
+    return bankAccounts.filter((a) => activeBankAccountIds.includes(a.id));
   }, [bankAccounts, activeBankAccountIds]);
 
   const calculateDifference = useCallback(
@@ -272,19 +270,23 @@ export function BankMutationTable({
             </h3>
           </div>
 
-          {activeBankAccount && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-full text-[11px]">
-              <Building className="w-3 h-3 text-blue-500 shrink-0" />
-              <span className="text-blue-700 dark:text-blue-300 font-medium">
-                {activeBankAccount.banks.bank_name}
-              </span>
-              <span className="text-blue-300 dark:text-blue-600">·</span>
-              <span className="text-blue-600 dark:text-blue-300 max-w-[180px]">
-                {activeBankAccount.account_name}
-              </span>
-              <span className="text-blue-400 dark:text-blue-500 font-mono tracking-tight">
-                ···{activeBankAccount.account_number}
-              </span>
+          {activeBankAccounts.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {activeBankAccounts.map((acc) => (
+                <div key={acc.id} className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-full text-[11px]">
+                  <Building className="w-3 h-3 text-blue-500 shrink-0" />
+                  <span className="text-blue-700 dark:text-blue-300 font-medium">
+                    {acc.banks.bank_name}
+                  </span>
+                  <span className="text-blue-300 dark:text-blue-600">·</span>
+                  <span className="text-blue-600 dark:text-blue-300 max-w-[180px]">
+                    {acc.account_name}
+                  </span>
+                  <span className="text-blue-400 dark:text-blue-500 font-mono tracking-tight">
+                    ···{acc.account_number}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </div>
