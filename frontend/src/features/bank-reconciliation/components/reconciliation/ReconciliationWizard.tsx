@@ -668,7 +668,7 @@ function StepManualMatch({
     posAggregatesApi
       .list(1, 10000, null, { is_reconciled: false } as AggregatedTransactionFilterParams)
       .then((r) => setAggregates(r.data))
-      .catch(console.error)
+      .catch(() => {}) // silently ignore cancellation from StrictMode
       .finally(() => setIsLoadingAgg(false));
   }, []);
 
