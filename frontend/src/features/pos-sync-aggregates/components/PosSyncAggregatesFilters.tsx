@@ -19,11 +19,6 @@ const RECONCILED_OPTIONS: { value: string; label: string }[] = [
   { value: "false", label: "Belum Direkonsiliasi" },
 ];
 
-const JOURNAL_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "Semua" },
-  { value: "true", label: "Sudah Punya Jurnal" },
-  { value: "false", label: "Belum Punya Jurnal" },
-];
 
 export const PosSyncAggregatesFilters: React.FC = () => {
   const { filter, setFilter, clearFilter, fetchTransactions } =
@@ -115,7 +110,6 @@ export const PosSyncAggregatesFilters: React.FC = () => {
     filter.search ||
     filter.status ||
     filter.is_reconciled !== undefined ||
-    filter.has_journal !== undefined ||
     filter.date_from ||
     filter.date_to ||
     selectedBranchIds.length > 0 ||
@@ -323,33 +317,6 @@ export const PosSyncAggregatesFilters: React.FC = () => {
               className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               {RECONCILED_OPTIONS.map((option) => (
-                <option key={option.value || "all"} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Journal Status */}
-          <div className="w-40">
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Jurnal
-            </label>
-            <select
-              value={
-                filter.has_journal === undefined
-                  ? ""
-                  : filter.has_journal.toString()
-              }
-              onChange={(e) =>
-                setFilter({
-                  has_journal:
-                    e.target.value === "" ? undefined : e.target.value === "true",
-                })
-              }
-              className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              {JOURNAL_OPTIONS.map((option) => (
                 <option key={option.value || "all"} value={option.value}>
                   {option.label}
                 </option>

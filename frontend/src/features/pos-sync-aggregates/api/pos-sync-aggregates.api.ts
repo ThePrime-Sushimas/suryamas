@@ -55,8 +55,4 @@ export const posSyncAggregatesApi = {
       notes,
     });
   },
-
-  undoReconcile: async (id: string): Promise<void> => {
-    await api.post(`/pos-sync-aggregates/${id}/undo-reconcile`);
-  },
 };

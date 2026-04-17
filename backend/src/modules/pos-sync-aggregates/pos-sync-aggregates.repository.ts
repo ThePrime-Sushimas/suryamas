@@ -12,7 +12,6 @@ export const posSyncAggregatesRepository = {
       payment_method_ids,
       status,
       is_reconciled,
-      has_journal,
       search,
       page = 1,
       limit = 50,
@@ -56,15 +55,6 @@ export const posSyncAggregatesRepository = {
     if (is_reconciled !== undefined && is_reconciled !== "") {
       const boolVal = is_reconciled === "true" || is_reconciled === true;
       query = query.eq("is_reconciled", boolVal);
-    }
-
-    if (has_journal !== undefined && has_journal !== "") {
-      const boolVal = has_journal === "true" || has_journal === true;
-      if (boolVal) {
-        query = query.not("journal_id", "is", null);
-      } else {
-        query = query.is("journal_id", null);
-      }
     }
 
     if (search) {
@@ -318,48 +308,6 @@ export const posSyncAggregatesRepository = {
     return data;
   },
 
-  async markPosSyncReconciled(id: string, update: {
-    bank_statement_id: number;
-    actual_fee_amount: number;
-    fee_discrepancy: number;
-    fee_discrepancy_note: string | null;
-    reconciled_by: string | null;
-  }) {
-    const now = new Date().toISOString();
-    const { error } = await supabase
-      .from("pos_sync_aggregates")
-      .update({
-        is_reconciled: true,
-        bank_statement_id: update.bank_statement_id,
-        actual_fee_amount: update.actual_fee_amount,
-        fee_discrepancy: update.fee_discrepancy,
-        fee_discrepancy_note: update.fee_discrepancy_note,
-        reconciled_at: now,
-        reconciled_by: update.reconciled_by,
-        updated_at: now,
-      })
-      .eq("id", id);
-
-    if (error) throw error;
-  },
-
-  async resetPosSyncReconciliation(id: string) {
-    const { error } = await supabase
-      .from("pos_sync_aggregates")
-      .update({
-        is_reconciled: false,
-        bank_statement_id: null,
-        actual_fee_amount: 0,
-        fee_discrepancy: 0,
-        fee_discrepancy_note: null,
-        reconciled_at: null,
-        reconciled_by: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
-
-    if (error) throw error;
-  },
 
   async markBankStatementReconciled(statementId: number, reconciliationId: string) {
     const { error } = await supabase

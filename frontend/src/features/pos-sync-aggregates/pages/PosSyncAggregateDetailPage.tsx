@@ -38,12 +38,12 @@ function toModalAggregate(
     fixed_fee_amount: Number(agg.fixed_fee_amount_calc),
     total_fee_amount: Number(agg.total_fee_amount),
     nett_amount: Number(agg.nett_amount),
-    actual_nett_amount: Number(agg.nett_amount) - Number(agg.fee_discrepancy ?? 0),
-    actual_fee_amount: agg.actual_fee_amount,
-    fee_discrepancy: agg.fee_discrepancy,
-    fee_discrepancy_note: agg.fee_discrepancy_note,
+    actual_nett_amount: Number(agg.nett_amount),
+    actual_fee_amount: null,
+    fee_discrepancy: null,
+    fee_discrepancy_note: null,
     currency: "IDR",
-    journal_id: agg.journal_id,
+    journal_id: null,
     is_reconciled: agg.is_reconciled,
     status: "READY",
     created_at: agg.created_at,
@@ -137,7 +137,7 @@ export default function PosSyncAggregateDetailPage() {
         ? `Ya (${aggregate.recalculated_count}x)`
         : "Tidak",
     ],
-    ["Journal ID", aggregate.journal_id ?? "—"],
+    ["Journal ID", "—"],
     ["Skip Reason", aggregate.skip_reason ?? "—"],
     ["Synced At", new Date(aggregate.synced_at).toLocaleString("id-ID")],
   ];
@@ -164,25 +164,6 @@ export default function PosSyncAggregateDetailPage() {
   const reconRows = aggregate.is_reconciled
     ? [
         ["Status", "Sudah Direkonsiliasi ✓"],
-        ["Bank Statement ID", aggregate.bank_statement_id ?? "—"],
-        [
-          "Rekonsiliasi Pada",
-          aggregate.reconciled_at
-            ? new Date(aggregate.reconciled_at).toLocaleString("id-ID")
-            : "—",
-        ],
-        ["Aktual Fee", `Rp ${fmt(aggregate.actual_fee_amount ?? 0)}`],
-        [
-          "Selisih Fee",
-          aggregate.fee_discrepancy != null
-            ? aggregate.fee_discrepancy === 0
-              ? "✓ Tidak ada selisih"
-              : aggregate.fee_discrepancy > 0
-                ? `-Rp ${fmt(aggregate.fee_discrepancy)} (bank kurang bayar)`
-                : `+Rp ${fmt(Math.abs(aggregate.fee_discrepancy))} (bank lebih bayar)`
-            : "—",
-        ],
-        ["Catatan", aggregate.fee_discrepancy_note ?? "—"],
       ]
     : null;
 

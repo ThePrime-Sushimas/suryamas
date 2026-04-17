@@ -13,7 +13,6 @@ const initialFilter: ListAggregatesParams = {
   branch_ids: undefined,
   payment_method_ids: undefined,
   is_reconciled: undefined,
-  has_journal: undefined,
   search: undefined,
 };
 

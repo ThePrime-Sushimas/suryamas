@@ -201,8 +201,6 @@ export default function PosSyncAggregatesPage() {
                   "Grand Total",
                   "Fee",
                   "Nett",
-                  "Aktual Fee",
-                  "Selisih Fee",
                   "Status",
                   "Rekon",
                   "",
@@ -220,7 +218,7 @@ export default function PosSyncAggregatesPage() {
               {loading ? (
                 <tr>
                   <td
-                    colSpan={12}
+                    colSpan={10}
                     className="px-4 py-10 text-center text-sm text-gray-400"
                   >
                     <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mb-2" />
@@ -230,7 +228,7 @@ export default function PosSyncAggregatesPage() {
               ) : rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={12}
+                    colSpan={10}
                     className="px-4 py-10 text-center text-sm text-gray-400"
                   >
                     Tidak ada data
@@ -286,40 +284,6 @@ export default function PosSyncAggregatesPage() {
                     </td>
                     <td className="px-3 py-2.5 text-sm text-right text-green-600 dark:text-green-400 whitespace-nowrap font-medium">
                       Rp {fmt(row.nett_amount)}
-                    </td>
-                    <td className="px-3 py-2.5 text-sm text-right whitespace-nowrap">
-                      {row.is_reconciled && row.actual_fee_amount != null ? (
-                        <span className="text-gray-700 dark:text-gray-300">
-                          Rp {fmt(row.actual_fee_amount)}
-                        </span>
-                      ) : (
-                        <span className="text-gray-300 dark:text-gray-600">
-                          —
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 text-sm text-right whitespace-nowrap">
-                      {row.is_reconciled && row.fee_discrepancy != null ? (
-                        <span
-                          className={
-                            row.fee_discrepancy === 0
-                              ? "text-green-600 dark:text-green-400"
-                              : row.fee_discrepancy > 0
-                                ? "text-red-600 dark:text-red-400"
-                                : "text-blue-600 dark:text-blue-400"
-                          }
-                        >
-                          {row.fee_discrepancy === 0
-                            ? "✓ 0"
-                            : row.fee_discrepancy > 0
-                              ? `-Rp ${fmt(row.fee_discrepancy)}`
-                              : `+Rp ${fmt(Math.abs(row.fee_discrepancy))}`}
-                        </span>
-                      ) : (
-                        <span className="text-gray-300 dark:text-gray-600">
-                          —
-                        </span>
-                      )}
                     </td>
                     <td className="px-3 py-2.5">
                       <span

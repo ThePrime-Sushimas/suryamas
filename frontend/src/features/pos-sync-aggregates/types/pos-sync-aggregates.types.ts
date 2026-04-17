@@ -39,18 +39,11 @@ export interface PosSyncAggregate {
   nett_amount: number;
   status: AggregateStatus;
   skip_reason: string | null;
-  journal_id: string | null;
   recalculated: boolean;
   recalculated_count: number;
   recalculated_at: string | null;
   // Reconciliation fields
   is_reconciled: boolean;
-  bank_statement_id: number | null;
-  reconciled_at: string | null;
-  reconciled_by: string | null;
-  actual_fee_amount: number | null;
-  fee_discrepancy: number | null;
-  fee_discrepancy_note: string | null;
   synced_at: string;
   created_at: string;
   updated_at: string;
@@ -81,7 +74,6 @@ export interface ListAggregatesParams {
   payment_method_ids?: string | string[];
   status?: string;
   is_reconciled?: boolean | string;
-  has_journal?: boolean | string;
   search?: string;
   page?: number;
   limit?: number;

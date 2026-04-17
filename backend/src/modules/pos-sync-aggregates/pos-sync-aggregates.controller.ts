@@ -5,7 +5,6 @@ import {
   ListAggregatesParams,
   ReconcilePosSyncAggregateDto,
 } from "./pos-sync-aggregates.types";
-import { marketingFeeService } from "../reconciliation/fee-reconciliation/marketing-fee.service";
 import { logError, logInfo, logWarn } from "../../config/logger";
 import { AuditService } from "../monitoring/monitoring.service";
 
@@ -21,7 +20,6 @@ export const posSyncAggregatesController = {
         payment_method_ids: req.query.payment_method_ids as string,
         status: req.query.status as string,
         is_reconciled: req.query.is_reconciled as string,
-        has_journal: req.query.has_journal as string,
         search: req.query.search as string,
         page: req.query.page ? Number(req.query.page) : 1,
         limit: req.query.limit ? Number(req.query.limit) : 50,
@@ -112,65 +110,26 @@ export const posSyncAggregatesController = {
       const actualFromBank = (stmt.credit_amount || 0) - (stmt.debit_amount || 0);
       const expectedNet = Number(aggregate.nett_amount);
       const expectedFee = Number(aggregate.total_fee_amount);
-
-      const feeResult = marketingFeeService.identifyMarketingFee({
-        expectedNet,
-        actualFromBank,
-        paymentMethodCode: String(aggregate.payment_method_id),
-        transactionDate: new Date(),
-      });
-
-      const feeDiscrepancy = feeResult.difference;
+      const feeDiscrepancy = actualFromBank - expectedNet;
       const actualFeeAmount = expectedFee + feeDiscrepancy;
 
       let feeDiscrepancyNote: string | null = null;
       if (Math.abs(feeDiscrepancy) >= 1) {
         feeDiscrepancyNote =
           feeDiscrepancy > 0
-            ? `Bank bayar kurang Rp ${feeDiscrepancy.toLocaleString("id-ID")} dari expected`
-            : `Bank bayar lebih Rp ${Math.abs(feeDiscrepancy).toLocaleString("id-ID")} dari expected`;
+            ? `Bank bayar lebih Rp ${feeDiscrepancy.toLocaleString("id-ID")} dari expected`
+            : `Bank bayar kurang Rp ${Math.abs(feeDiscrepancy).toLocaleString("id-ID")} dari expected`;
       }
 
-      // 5. Update pos_sync_aggregates
-      await posSyncAggregatesRepository.markPosSyncReconciled(id, {
-        bank_statement_id: statementId,
+      // 5. Mark bank statement reconciled
+      await posSyncAggregatesRepository.markBankStatementReconciled(statementId, aggTx.id);
+
+      // 6. Update aggregated_transactions (trigger otomatis sync is_reconciled ke pos_sync_aggregates)
+      await posSyncAggregatesRepository.markAggregatedTxReconciled(aggTx.id, {
         actual_fee_amount: actualFeeAmount,
         fee_discrepancy: feeDiscrepancy,
         fee_discrepancy_note: feeDiscrepancyNote,
-        reconciled_by: userId ?? null,
       });
-
-      // 6. Mark bank statement reconciled via unified path
-      try {
-        await posSyncAggregatesRepository.markBankStatementReconciled(statementId, aggTx.id);
-      } catch (stmtUpdateErr: any) {
-        logError("Failed to mark bank statement as reconciled", {
-          statementId,
-          error: stmtUpdateErr.message,
-        });
-        // Rollback pos_sync_aggregates
-        await posSyncAggregatesRepository.resetPosSyncReconciliation(id);
-        throw stmtUpdateErr;
-      }
-
-      // 7. Update aggregated_transactions
-      try {
-        await posSyncAggregatesRepository.markAggregatedTxReconciled(aggTx.id, {
-          actual_fee_amount: actualFeeAmount,
-          fee_discrepancy: feeDiscrepancy,
-          fee_discrepancy_note: feeDiscrepancyNote,
-        });
-      } catch (aggTxUpdateErr: any) {
-        logError("Failed to update aggregated_transaction", {
-          aggTxId: aggTx.id,
-          error: aggTxUpdateErr.message,
-        });
-        // Rollback all three tables
-        await posSyncAggregatesRepository.resetAggregatedTxReconciliation(id);
-        await posSyncAggregatesRepository.resetBankStatementReconciliation(statementId);
-        await posSyncAggregatesRepository.resetPosSyncReconciliation(id);
-        throw aggTxUpdateErr;
-      }
 
       logInfo("pos_sync_aggregate reconciled (unified)", {
         id,
@@ -187,7 +146,6 @@ export const posSyncAggregatesController = {
         { is_reconciled: false },
         {
           is_reconciled: true,
-          bank_statement_id: statementId,
           aggregated_transaction_id: aggTx.id,
           fee_discrepancy: feeDiscrepancy,
         },
