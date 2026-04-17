@@ -224,6 +224,7 @@ export function BankMutationTable({
 }: BankMutationTableProps) {
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
   const [expandedCashDepositId, setExpandedCashDepositId] = useState<string | null>(null);
+  const [hideDebit, setHideDebit] = useState(true);
 
   const statementGroupMap = useMemo(() => {
     const map: Record<string, ReconciliationGroup> = {};
@@ -287,6 +288,16 @@ export function BankMutationTable({
             </div>
           )}
         </div>
+        <button
+          onClick={() => setHideDebit(!hideDebit)}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            hideDebit
+              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700'
+              : 'bg-red-100 dark:bg-red-800 text-red-500 dark:text-red-400 border border-red-200 dark:border-red-700'
+          }`}
+        >
+          {hideDebit ? 'Show Credit Only' : 'Show All' }
+        </button>
       </div>
 
       {/* ── Grid Table ── */
@@ -314,7 +325,9 @@ export function BankMutationTable({
             </div>
           </div>
         ) : (
-          items.map((item) => {
+          items
+          .filter((item) => !hideDebit || item.credit_amount > 0 || item.is_reconciled)
+          .map((item) => {
             const groupInfo = statementGroupMap[item.id];
             const isInGroup = !!groupInfo;
             const hasPotentialMatch =
