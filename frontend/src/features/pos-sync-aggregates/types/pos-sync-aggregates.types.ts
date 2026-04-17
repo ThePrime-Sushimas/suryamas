@@ -2,7 +2,6 @@ export type AggregateStatus =
   | "PENDING" 
   | "READY" 
   | "FAILED" 
-  | "JOURNALED" 
   | "RECALCULATED" 
   | "PENDING_MAPPING" 
   | "INVALID"

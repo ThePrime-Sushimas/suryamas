@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   AlertTriangle,
   Building2,
-  Loader2,
 } from "lucide-react";
 import { posSyncAggregatesApi } from "../api/pos-sync-aggregates.api";
 import { BankMutationSelectorModal } from "@/features/pos-aggregates/components/BankMutationSelectorModal";
@@ -137,9 +136,6 @@ export default function PosSyncAggregateDetailPage() {
         ? `Ya (${aggregate.recalculated_count}x)`
         : "Tidak",
     ],
-    ["Journal ID", "—"],
-    ["Skip Reason", aggregate.skip_reason ?? "—"],
-    ["Synced At", new Date(aggregate.synced_at).toLocaleString("id-ID")],
   ];
 
   const amountRows = [

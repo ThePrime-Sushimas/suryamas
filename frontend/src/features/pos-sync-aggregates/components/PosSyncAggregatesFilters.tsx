@@ -10,7 +10,6 @@ const STATUS_OPTIONS: { value: AggregateStatus | ""; label: string }[] = [
   { value: "READY", label: "READY" },
   { value: "PENDING", label: "PENDING" },
   { value: "FAILED", label: "FAILED" },
-  { value: "JOURNALED", label: "JOURNALED" },
 ];
 
 const RECONCILED_OPTIONS: { value: string; label: string }[] = [
