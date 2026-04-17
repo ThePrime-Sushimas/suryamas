@@ -7,7 +7,7 @@
 
 import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, FileText, CheckCircle, Database } from "lucide-react";
+import { Plus, FileText, CheckCircle, Database, Calculator } from "lucide-react";
 import { usePosAggregatesStore } from "../store/posAggregates.store";
 import { useToast } from "@/contexts/ToastContext";
 import { useBranchContextStore } from "@/features/branch_context";
@@ -19,6 +19,7 @@ import { GenerateFromImportModal } from "../components/GenerateFromImportModal";
 import { GenerateJournalModal } from "../components/GenerateJournalModal";
 import { BankMutationSelectorModal } from "../components/BankMutationSelectorModal";
 import { bankReconciliationApi } from "@/features/bank-reconciliation/api/bank-reconciliation.api";
+import { posAggregatesApi } from "../api/posAggregates.api";
 import { POS_AGGREGATES_MESSAGES } from "@/utils/messages";
 import type {
   CreateAggregatedTransactionDto,
@@ -239,6 +240,8 @@ export const PosAggregatesPage: React.FC = () => {
     useState<AggregatedTransactionListItem | null>(null);
   const [showMutationSelector, setShowMutationSelector] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
+  const [recalcDate, setRecalcDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isRecalculating, setIsRecalculating] = useState(false);
 
   // Handle select bank mutation
   const handleSelectBankMutation = useCallback(
@@ -300,6 +303,35 @@ export const PosAggregatesPage: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           {/* Generate from POS Import Button */}
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={recalcDate}
+              onChange={(e) => setRecalcDate(e.target.value)}
+              className="px-2 py-2 text-sm border rounded-lg dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300"
+            />
+            <button
+              onClick={async () => {
+                if (!recalcDate) return
+                setIsRecalculating(true)
+                try {
+                  const result = await posAggregatesApi.recalculateFee(recalcDate)
+                  toast.success(`Fee recalculated: ${result.updated} updated, ${result.skipped} skipped`)
+                  fetchTransactions()
+                } catch (err: any) {
+                  toast.error(err?.message || 'Gagal recalculate fee')
+                } finally {
+                  setIsRecalculating(false)
+                }
+              }}
+              disabled={isRecalculating}
+              className="px-3 py-2 text-orange-700 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 flex items-center gap-2 text-sm disabled:opacity-50"
+            >
+              <Calculator className={`w-4 h-4 ${isRecalculating ? 'animate-spin' : ''}`} />
+              Recalc Fee
+            </button>
+          </div>
+
           <button
             onClick={() => setShowGenerateFromImportModal(true)}
             className="px-3 py-2 text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"

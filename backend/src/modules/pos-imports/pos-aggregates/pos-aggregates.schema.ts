@@ -235,3 +235,9 @@ export const batchAssignJournalSchema = z.object({
     journal_id: z.string().uuid('Journal ID must be a valid UUID'),
   }),
 })
+
+export const recalculateFeeSchema = z.object({
+  body: z.object({
+    transaction_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD'),
+  }),
+})

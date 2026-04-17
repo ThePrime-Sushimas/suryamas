@@ -15,6 +15,7 @@ import {
   batchReconcileSchema,
   createBatchSchema,
   batchAssignJournalSchema,
+  recalculateFeeSchema,
 } from './pos-aggregates.schema'
 import { AuthRequest } from '../../../types/common.types'
 
@@ -376,6 +377,22 @@ export class PosAggregatesController {
       const employeeId = req.context?.employee_id
       await posAggregatesService.deleteFailedTransaction(id, employeeId)
       sendSuccess(res, null, 'Failed transaction deleted permanently')
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  })
+
+  /**
+   * Recalculate fee for POS Import records by date
+   * POST /aggregated-transactions/recalculate-fee
+   */
+  recalculateFee = withValidated(async (req: ValidatedAuthRequest<typeof recalculateFeeSchema>, res: Response): Promise<void> => {
+    try {
+      const result = await posAggregatesService.recalculateFeeByDate(
+        req.validated.body.transaction_date,
+        req.context?.employee_id,
+      )
+      sendSuccess(res, result, `Fee recalculated: ${result.updated} updated, ${result.skipped} skipped`)
     } catch (error: any) {
       handleError(res, error)
     }

@@ -1190,6 +1190,95 @@ if (!existing.journal_id) {
       await AuditService.log('DELETE', 'aggregated_transaction', id, deletedBy, existing, null);
     }
   }
+
+  /**
+   * Recalculate fee for POS Import records by date
+   * Ambil fee config terbaru dari payment_methods, hitung ulang fee
+   * Skip records yang sudah reconciled
+   */
+  async recalculateFeeByDate(
+    transactionDate: string,
+    userId?: string,
+  ): Promise<{ updated: number; skipped: number; errors: string[] }> {
+    // 1. Get all POS records for this date that are NOT reconciled
+    const { data: records, error: fetchErr } = await supabase
+      .from('aggregated_transactions')
+      .select('id, payment_method_id, gross_amount, bill_after_discount, is_reconciled, source_type')
+      .eq('transaction_date', transactionDate)
+      .eq('source_type', 'POS')
+      .is('deleted_at', null)
+      .is('superseded_by', null)
+
+    if (fetchErr) throw new Error(`Failed to fetch records: ${fetchErr.message}`)
+    if (!records || records.length === 0) return { updated: 0, skipped: 0, errors: [] }
+
+    // 2. Get fee config for all payment methods
+    const pmIds = [...new Set(records.map(r => r.payment_method_id).filter(Boolean))]
+    const feeMap = new Map<number, { fee_percentage: number; fee_fixed_amount: number; fee_fixed_per_transaction: boolean }>()
+
+    if (pmIds.length > 0) {
+      const { data: pmRows } = await supabase
+        .from('payment_methods')
+        .select('id, fee_percentage, fee_fixed_amount, fee_fixed_per_transaction')
+        .in('id', pmIds)
+
+      for (const pm of pmRows ?? []) {
+        feeMap.set(pm.id, {
+          fee_percentage: Number(pm.fee_percentage ?? 0),
+          fee_fixed_amount: Number(pm.fee_fixed_amount ?? 0),
+          fee_fixed_per_transaction: pm.fee_fixed_per_transaction ?? false,
+        })
+      }
+    }
+
+    // 3. Recalculate each record
+    let updated = 0
+    let skipped = 0
+    const errors: string[] = []
+
+    for (const record of records) {
+      if (record.is_reconciled) {
+        skipped++
+        continue
+      }
+
+      const fee = record.payment_method_id ? feeMap.get(record.payment_method_id) : null
+      if (!fee) {
+        skipped++
+        continue
+      }
+
+      const billAfterDiscount = Number(record.bill_after_discount || record.gross_amount || 0)
+      const percentageFee = billAfterDiscount * (fee.fee_percentage / 100)
+      const fixedFee = fee.fee_fixed_amount
+      const totalFee = percentageFee + fixedFee
+      const nettAmount = billAfterDiscount - totalFee
+
+      const { error: updateErr } = await supabase
+        .from('aggregated_transactions')
+        .update({
+          percentage_fee_amount: percentageFee,
+          fixed_fee_amount: fixedFee,
+          total_fee_amount: totalFee,
+          nett_amount: nettAmount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', record.id)
+
+      if (updateErr) {
+        errors.push(`${record.id}: ${updateErr.message}`)
+      } else {
+        updated++
+      }
+    }
+
+    if (userId && updated > 0) {
+      await AuditService.log('UPDATE', 'aggregated_transaction', transactionDate, userId,
+        null, { action: 'recalculate_fee', date: transactionDate, updated, skipped })
+    }
+
+    return { updated, skipped, errors }
+  }
 }
 
 export const posAggregatesService = new PosAggregatesService();

@@ -970,6 +970,16 @@ export const posAggregatesApi = {
   },
 
   /**
+   * Recalculate fee for POS Import records by date
+   */
+  recalculateFee: async (transactionDate: string): Promise<{ updated: number; skipped: number; errors: string[] }> => {
+    return handleApiCall(async () => {
+      const res = await api.post('/aggregated-transactions/recalculate-fee', { transaction_date: transactionDate })
+      return res.data.data
+    }, 'Gagal recalculate fee', 'recalculateFee')
+  },
+
+  /**
    * Cleanup all pending requests (call on unmount)
    */
   cleanup: () => {

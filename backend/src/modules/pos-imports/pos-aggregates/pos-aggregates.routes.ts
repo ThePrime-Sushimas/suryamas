@@ -14,6 +14,7 @@ import {
   batchReconcileSchema,
   createBatchSchema,
   batchAssignJournalSchema,
+  recalculateFeeSchema,
 } from './pos-aggregates.schema'
 
 // Register module permissions
@@ -76,6 +77,18 @@ router.post(
   '/failed/batch-fix',
   canUpdate('pos_aggregates'),
   posAggregatesController.batchFixFailed
+)
+
+/**
+ * @route POST /recalculate-fee
+ * @desc Recalculate fee for POS Import records by date
+ * @access Private
+ */
+router.post(
+  '/recalculate-fee',
+  canUpdate('pos_aggregates'),
+  validateSchema(recalculateFeeSchema),
+  posAggregatesController.recalculateFee
 )
 
 /**
