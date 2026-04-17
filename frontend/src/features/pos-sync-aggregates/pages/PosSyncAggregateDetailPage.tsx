@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   AlertTriangle,
   Building2,
-  RotateCcw,
   Loader2,
 } from "lucide-react";
 import { posSyncAggregatesApi } from "../api/pos-sync-aggregates.api";
@@ -66,7 +65,6 @@ export default function PosSyncAggregateDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showMutationSelector, setShowMutationSelector] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
-  const [isUndoing, setIsUndoing] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -108,21 +106,6 @@ export default function PosSyncAggregateDetailPage() {
     [id, loadData, toast],
   );
 
-  const handleUndoReconcile = useCallback(async () => {
-    if (!id) return;
-    setIsUndoing(true);
-    try {
-      await posSyncAggregatesApi.undoReconcile(id);
-      toast.success("Rekonsiliasi dibatalkan");
-      await loadData();
-    } catch (err: any) {
-      toast.error(
-        err?.response?.data?.message || "Gagal membatalkan rekonsiliasi",
-      );
-    } finally {
-      setIsUndoing(false);
-    }
-  }, [id, loadData, toast]);
 
   if (loading)
     return (
@@ -414,22 +397,7 @@ export default function PosSyncAggregateDetailPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {/* Undo reconcile */}
-            {aggregate.is_reconciled && aggregate.status !== "JOURNALED" && (
-              <button
-                onClick={handleUndoReconcile}
-                disabled={isUndoing}
-                className="px-3 py-2 text-sm text-gray-700 bg-gray-100 dark:text-gray-300 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center gap-2"
-              >
-                {isUndoing ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <RotateCcw size={14} />
-                )}
-                Batal Rekon
-              </button>
-            )}
-            {/* Reconcile button */}
+            {/* Reconcile button — undo hanya bisa dari halaman Bank Reconciliation */}
             {!aggregate.is_reconciled && aggregate.status !== "PENDING" && (
               <button
                 onClick={() => setShowMutationSelector(true)}

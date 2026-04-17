@@ -295,6 +295,18 @@ export const posSyncAggregatesRepository = {
     return data;
   },
 
+  async findBankStatementByReconciliationId(aggregatedTxId: string) {
+    const { data, error } = await supabase
+      .from("bank_statements")
+      .select("id")
+      .eq("reconciliation_id", aggregatedTxId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  },
+
   async getBankStatementById(statementId: number) {
     const { data, error } = await supabase
       .from("bank_statements")

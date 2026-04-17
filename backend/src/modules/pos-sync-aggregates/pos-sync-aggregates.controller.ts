@@ -6,6 +6,7 @@ import {
   ReconcilePosSyncAggregateDto,
 } from "./pos-sync-aggregates.types";
 import { marketingFeeService } from "../reconciliation/fee-reconciliation/marketing-fee.service";
+import { bankReconciliationService } from "../reconciliation/bank-reconciliation/bank-reconciliation.service";
 import { logError, logInfo, logWarn } from "../../config/logger";
 import { AuditService } from "../monitoring/monitoring.service";
 
@@ -207,6 +208,8 @@ export const posSyncAggregatesController = {
 
   undoReconcile: async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
+    const userId = (req as any).user?.id;
+    const companyId = (req as any).user?.company_id;
 
     try {
       // 1. Validate aggregate
@@ -224,45 +227,31 @@ export const posSyncAggregatesController = {
         return;
       }
 
-      const statementId = aggregate.bank_statement_id;
+      // Cari bank_statement via 2 jalur:
+      // 1. pos_sync_aggregates.bank_statement_id (reconcile dari halaman POS Sync)
+      // 2. bank_statements.reconciliation_id → aggregated_transactions (reconcile dari halaman Bank Recon)
+      let statementId: string | null = aggregate.bank_statement_id
+        ? String(aggregate.bank_statement_id)
+        : null;
 
-      // Best-effort reset all three tables — collect errors instead of throwing sequentially
-      const undoErrors: string[] = [];
-
-      await posSyncAggregatesRepository.resetPosSyncReconciliation(id)
-        .catch((e: any) => undoErrors.push(`pos_sync_aggregates: ${e.message}`));
-
-      if (statementId) {
-        await posSyncAggregatesRepository.resetBankStatementReconciliation(statementId)
-          .catch((e: any) => undoErrors.push(`bank_statements: ${e.message}`));
+      if (!statementId) {
+        // Cari via aggregated_transactions
+        const aggTx = await posSyncAggregatesRepository.findAggregatedTxByPosSyncId(id);
+        if (aggTx) {
+          const stmt = await posSyncAggregatesRepository.findBankStatementByReconciliationId(aggTx.id);
+          if (stmt) statementId = String(stmt.id);
+        }
       }
 
-      await posSyncAggregatesRepository.resetAggregatedTxReconciliation(id)
-        .catch((e: any) => undoErrors.push(`aggregated_transactions: ${e.message}`));
-
-      if (undoErrors.length > 0) {
-        logError("undoReconcile partial failure", { id, statementId, errors: undoErrors });
-        // Partial undo — some tables may still be reconciled
-        res.status(500).json({
-          success: false,
-          message: `Undo sebagian gagal: ${undoErrors.join("; ")}. Periksa data secara manual.`,
-        });
+      if (!statementId) {
+        res.status(400).json({ success: false, message: "Bank statement tidak ditemukan untuk aggregate ini" });
         return;
       }
 
-      logInfo("pos_sync_aggregate reconciliation undone (unified)", { id, statementId });
+      // Delegate ke bank-reconciliation service — single source of truth untuk undo
+      await bankReconciliationService.undo(statementId, userId, companyId);
 
-      const userId = (req as any).user?.id;
-      await AuditService.log(
-        "UNDO_RECONCILE",
-        "pos_sync_aggregate",
-        id,
-        userId,
-        { is_reconciled: true, bank_statement_id: statementId },
-        { is_reconciled: false, bank_statement_id: null },
-        req.ip,
-        req.get("user-agent"),
-      );
+      logInfo("pos_sync_aggregate undo delegated to bank-reconciliation", { id, statementId });
 
       res.json({ success: true });
     } catch (err: any) {

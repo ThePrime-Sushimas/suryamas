@@ -25,14 +25,5 @@ router.post(
   posSyncAggregatesController.reconcile,
 );
 
-router.post(
-  "/:id/undo-reconcile",
-  authenticate,
-  resolveBranchContext,
-  canUpdate('pos_sync_aggregates'),
-  posSyncAggregatesController.undoReconcile,
-);
-
-
 export default router;
 
