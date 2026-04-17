@@ -736,7 +736,7 @@ export function CashCountsManagementPage() {
                                 {dep.status === 'DEPOSITED' && (
                                   <button
                                     onClick={async () => {
-                                      if (!confirm('Batalkan konfirmasi setoran? Status akan kembali ke PENDING.')) return
+                                      if (!confirm('Hapus setoran ini? Cash counts akan kembali ke status COUNTED.')) return
                                       try {
                                         await cashCountsApi.revertDeposit(dep.id)
                                         fetchDeposits()

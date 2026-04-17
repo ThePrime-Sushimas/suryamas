@@ -63,9 +63,8 @@ export const confirmDepositSchema = z.object({
     id: z.string().uuid('Invalid deposit ID'),
   }),
   body: z.object({
-    proof_url: z.string().min(1, 'Bukti setoran wajib diisi'),
     deposited_at: z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'Format tanggal harus YYYY-MM-DD').optional(),
-  }),
+  }).optional(),
 })
 
 export const depositListQuerySchema = z.object({
