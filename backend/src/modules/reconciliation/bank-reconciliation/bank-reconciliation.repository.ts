@@ -84,7 +84,7 @@ export class BankReconciliationRepository {
   async getByDateRange(
     startDate?: Date,
     endDate?: Date,
-    bankAccountId?: number,
+    bankAccountIds?: number[],
     options?: {
       status?: "RECONCILED" | "UNRECONCILED";
       search?: string;
@@ -130,8 +130,10 @@ export class BankReconciliationRepository {
       }
 
       // Apply bank account filter
-      if (bankAccountId) {
-        baseQuery = baseQuery.eq("bank_account_id", bankAccountId);
+      if (bankAccountIds && bankAccountIds.length > 0) {
+        baseQuery = bankAccountIds.length === 1
+          ? baseQuery.eq("bank_account_id", bankAccountIds[0])
+          : baseQuery.in("bank_account_id", bankAccountIds);
       }
 
       // Apply status filter
@@ -172,8 +174,10 @@ export class BankReconciliationRepository {
           endDate.toISOString().split("T")[0],
         );
       }
-      if (bankAccountId) {
-        countQuery = countQuery.eq("bank_account_id", bankAccountId);
+      if (bankAccountIds && bankAccountIds.length > 0) {
+        countQuery = bankAccountIds.length === 1
+          ? countQuery.eq("bank_account_id", bankAccountIds[0])
+          : countQuery.in("bank_account_id", bankAccountIds);
       }
       if (options?.status === "RECONCILED") {
         countQuery = countQuery.eq("is_reconciled", true);

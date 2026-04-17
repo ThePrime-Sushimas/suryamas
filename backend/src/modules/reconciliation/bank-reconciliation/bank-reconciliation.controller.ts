@@ -266,7 +266,7 @@ export class BankReconciliationController {
       const result = await this.service.getStatements(
         startDate ? new Date(startDate) : undefined,
         endDate ? new Date(endDate) : undefined,
-        bankAccountId ? parseInt(bankAccountId) : undefined,
+        bankAccountId,  // already transformed to number[] | undefined by schema
         {
           status,
           search,

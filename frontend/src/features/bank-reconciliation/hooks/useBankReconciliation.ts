@@ -160,7 +160,7 @@ async (filters: BankStatementFilter, resetPagination = true) => {
       setIsLoading(true);
       try {
         const bankAccountId = filters.bankAccountIds && filters.bankAccountIds.length > 0
-          ? filters.bankAccountIds[0]
+          ? filters.bankAccountIds.join(',')
           : undefined;
 
         const validStatuses = ['RECONCILED', 'UNRECONCILED'] as const;

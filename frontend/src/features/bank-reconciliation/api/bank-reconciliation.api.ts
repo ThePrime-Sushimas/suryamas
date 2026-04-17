@@ -21,7 +21,7 @@ import type {
 export interface BankStatementFilterParams {
   startDate?: string;
   endDate?: string;
-  bankAccountId?: number;
+  bankAccountId?: number | string;  // single ID or comma-separated IDs
   status?: 'RECONCILED' | 'UNRECONCILED';
   search?: string;
   isReconciled?: boolean;

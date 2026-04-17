@@ -104,8 +104,12 @@ export const getStatementsQuerySchema = z.object({
     // Optional date range - queries overall date range when not provided
     startDate: datetimeFormat.optional().or(z.literal('').transform(() => undefined)),
     endDate: datetimeFormat.optional().or(z.literal('').transform(() => undefined)),
-    // Bank account filter
-    bankAccountId: z.coerce.number().int().positive().optional(),
+    // Bank account filter (single or comma-separated IDs)
+    bankAccountId: z.string().optional().transform(val => {
+      if (!val) return undefined
+      const ids = val.split(',').map(Number).filter(n => !isNaN(n) && n > 0)
+      return ids.length > 0 ? ids : undefined
+    }),
     // Status filter (RECONCILED, UNRECONCILED, DISCREPANCY)
     status: z.enum(['RECONCILED', 'UNRECONCILED', 'DISCREPANCY']).optional(),
     // Search filter

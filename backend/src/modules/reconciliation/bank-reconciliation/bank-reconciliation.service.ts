@@ -910,7 +910,7 @@ export class BankReconciliationService {
   async getStatements(
     startDate?: Date,
     endDate?: Date,
-    bankAccountId?: number,
+    bankAccountIds?: number[],
     options?: {
       status?: "RECONCILED" | "UNRECONCILED";
       search?: string;
@@ -924,7 +924,7 @@ export class BankReconciliationService {
     const { data: statements, total } = await this.repository.getByDateRange(
       startDate,
       endDate,
-      bankAccountId,
+      bankAccountIds,
       options,
     );
 
