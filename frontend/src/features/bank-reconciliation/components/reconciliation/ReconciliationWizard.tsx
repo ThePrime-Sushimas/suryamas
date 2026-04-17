@@ -280,7 +280,7 @@ function StepAutoMatch({
 }: {
   dateRange: { startDate: string; endDate: string };
   onPreview: (criteria?: Partial<MatchingCriteria>) => Promise<AutoMatchPreviewResponse>;
-  onNext: (selectedIds: string[], criteria: Partial<MatchingCriteria>) => void;
+  onNext: (selectedIds: string[], criteria: Partial<MatchingCriteria>, matches: any[]) => void;
 }) {
   const [criteria, setCriteria] = useState<MatchingCriteria>(DEFAULT_MATCHING_CRITERIA);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -298,7 +298,6 @@ function StepAutoMatch({
       const result = await onPreview({
         amountTolerance: criteria.amountTolerance,
         dateBufferDays: criteria.dateBufferDays,
-        differenceThreshold: criteria.differenceThreshold,
       });
       setPreviewData(result);
       setSelectedIds(new Set(result.matches.map((m) => m.statementId)));
@@ -379,12 +378,11 @@ function StepAutoMatch({
 
         {showAdvanced && (
           <div className="mt-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {(
                 [
                   ["amountTolerance", "Toleransi Nominal (IDR)"],
                   ["dateBufferDays", "Buffer Hari"],
-                  ["differenceThreshold", "Threshold Selisih"],
                 ] as [keyof MatchingCriteria, string][]
               ).map(([key, label]) => (
                 <div key={key}>
@@ -602,8 +600,7 @@ function StepAutoMatch({
             onNext(Array.from(selectedIds), {
               amountTolerance: criteria.amountTolerance,
               dateBufferDays: criteria.dateBufferDays,
-              differenceThreshold: criteria.differenceThreshold,
-            })
+            }, previewData?.matches || [])
           }
           className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 disabled:opacity-40 transition-all"
         >
@@ -623,7 +620,7 @@ function StepManualMatch({
   onNext,
 }: {
   statements: BankStatementWithMatch[];
-  onNext: (statementId: string, aggregateId: string, overrideDifference: boolean) => void;
+  onNext: (statementId: string, aggregateId: string, overrideDifference: boolean, aggregate?: AggregateDetail, statementData?: { transaction_date: string; description: string; amount: number; reference_number?: string }) => void;
 }) {
   const [selectedStatement, setSelectedStatement] = useState<BankStatementWithMatch | null>(null);
   const [statementSearch, setStatementSearch] = useState("");
@@ -859,7 +856,23 @@ function StepManualMatch({
               onClick={() =>
                 selectedStatement &&
                 selectedAggId &&
-                onNext(selectedStatement.id, selectedAggId, overrideDifference)
+                onNext(selectedStatement.id, selectedAggId, overrideDifference, selectedAgg ? {
+                  id: selectedAgg.id,
+                  transaction_date: selectedAgg.transaction_date,
+                  nett_amount: selectedAgg.nett_amount,
+                  gross_amount: selectedAgg.gross_amount,
+                  payment_method_name: selectedAgg.payment_method_name,
+                  branch_name: selectedAgg.branch_name,
+                  source_ref: selectedAgg.source_ref,
+                  percentage_fee_amount: selectedAgg.percentage_fee_amount,
+                  fixed_fee_amount: selectedAgg.fixed_fee_amount,
+                  total_fee_amount: selectedAgg.total_fee_amount,
+                } : undefined, {
+                  transaction_date: selectedStatement.transaction_date,
+                  description: selectedStatement.description || '',
+                  amount: bankAmount,
+                  reference_number: selectedStatement.reference_number || undefined,
+                })
               }
               className="w-full flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 disabled:opacity-40 transition-all"
             >
@@ -887,7 +900,7 @@ function StepMultiMatch({
   initialStatements: BankStatementWithMatch[];
   onFindAggregate?: (ids: string[]) => Promise<AggregatedTransactionListItem | null>;
   onLoadAggregates?: () => Promise<AggregatedTransactionListItem[]>;
-  onNext: (aggregateId: string, statementIds: string[], overrideDifference: boolean) => void;
+  onNext: (aggregateId: string, statementIds: string[], overrideDifference: boolean, aggregate?: AggregateDetail) => void;
 }) {
   const [selectedIds, setSelectedIds] = useState<string[]>(
     initialStatements.map((s) => normalizeId(s.id))
@@ -1206,7 +1219,18 @@ function StepMultiMatch({
               disabled={!canProceed}
               onClick={() =>
                 aggregate &&
-                onNext(aggregate.id, selectedIds, overrideDifference)
+                onNext(aggregate.id, selectedIds, overrideDifference, {
+                  id: aggregate.id,
+                  transaction_date: aggregate.transaction_date,
+                  nett_amount: aggregate.nett_amount,
+                  gross_amount: aggregate.gross_amount,
+                  payment_method_name: aggregate.payment_method_name,
+                  branch_name: aggregate.branch_name,
+                  source_ref: aggregate.source_ref,
+                  percentage_fee_amount: aggregate.percentage_fee_amount,
+                  fixed_fee_amount: aggregate.fixed_fee_amount,
+                  total_fee_amount: aggregate.total_fee_amount,
+                })
               }
               className="w-full flex items-center justify-center gap-2 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-bold hover:bg-violet-700 disabled:opacity-40 transition-all"
             >
@@ -1560,19 +1584,45 @@ function StepSettlement({
 // STEP 3 — Review & Confirm
 // ─────────────────────────────────────────────
 
+interface MatchDetail {
+  statementId: string;
+  statement: { transaction_date: string; description: string; amount: number; reference_number?: string };
+  aggregate: { transaction_date: string; nett_amount: number; payment_method_name?: string; branch_name?: string; gross_amount?: number };
+  matchScore?: number;
+  matchCriteria?: string;
+  difference?: number;
+}
+
+interface AggregateDetail {
+  id: string;
+  transaction_date: string;
+  nett_amount: number;
+  gross_amount?: number;
+  payment_method_name?: string;
+  branch_name?: string | null;
+  source_ref?: string;
+  percentage_fee_amount?: number;
+  fixed_fee_amount?: number;
+  total_fee_amount?: number;
+}
+
 interface ReviewData {
   mode: ReconciliationMode;
   // Auto
   autoStatementIds?: string[];
   autoCriteria?: Partial<MatchingCriteria>;
+  autoMatches?: MatchDetail[];
   // Manual
   manualStatementId?: string;
   manualAggregateId?: string;
   manualOverride?: boolean;
+  manualAggregate?: AggregateDetail;
+  manualStatement?: { transaction_date: string; description: string; amount: number; reference_number?: string };
   // Multi
   multiAggregateId?: string;
   multiStatementIds?: string[];
   multiOverride?: boolean;
+  multiAggregate?: AggregateDetail;
   // Settlement
   settlementBankStatementId?: string;
   settlementBankStatementData?: { id: string; transaction_date: string; description: string; amount: number };
@@ -1771,58 +1821,119 @@ function StepReview({
         <p className="text-sm text-gray-500">Periksa detail sebelum menyimpan</p>
       </div>
 
-      {data.mode === "auto" && (
-        <div className="space-y-3">
-          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-800">
-            <p className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2">
-              {data.autoStatementIds?.length} transaksi akan dicocokkan otomatis
-            </p>
-            <div className="space-y-1 max-h-48 overflow-y-auto">
-              {data.autoStatementIds?.map((id) => {
-                const s = statMap.get(id);
-                if (!s) return null;
-                const amt = (s.credit_amount || 0) - (s.debit_amount || 0);
+      {data.mode === "auto" && (() => {
+        const matches = data.autoMatches || [];
+        const totalBank = matches.reduce((s, m) => s + m.statement.amount, 0);
+        const totalAgg = matches.reduce((s, m) => s + m.aggregate.nett_amount, 0);
+        const getLabel = (c: string) => {
+          const map: Record<string, { text: string; color: string }> = {
+            EXACT_REF: { text: "Ref", color: "text-green-700 bg-green-50 dark:text-green-300 dark:bg-green-900/30" },
+            EXACT_AMOUNT_DATE: { text: "Amount+Tgl", color: "text-blue-700 bg-blue-50 dark:text-blue-300 dark:bg-blue-900/30" },
+            KEYWORD_DESC: { text: "Keyword", color: "text-purple-700 bg-purple-50 dark:text-purple-300 dark:bg-purple-900/30" },
+            FUZZY_AMOUNT_DATE: { text: "Fuzzy", color: "text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-900/30" },
+            CASH_DEPOSIT: { text: "Setoran", color: "text-teal-700 bg-teal-50 dark:text-teal-300 dark:bg-teal-900/30" },
+          };
+          return map[c] || { text: c, color: "text-gray-600 bg-gray-50" };
+        };
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl p-3 text-center">
+                <p className="text-xs text-blue-600 dark:text-blue-400">Matches</p>
+                <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{matches.length}</p>
+              </div>
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800 rounded-xl p-3 text-center">
+                <p className="text-xs text-green-600 dark:text-green-400">Total Bank</p>
+                <p className="text-sm font-bold text-green-700 dark:text-green-300">{fmt(totalBank)}</p>
+              </div>
+              <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 rounded-xl p-3 text-center">
+                <p className="text-xs text-purple-600 dark:text-purple-400">Total Aggregate</p>
+                <p className="text-sm font-bold text-purple-700 dark:text-purple-300">{fmt(totalAgg)}</p>
+              </div>
+            </div>
+            <div className="max-h-64 overflow-y-auto space-y-2">
+              {matches.map((m) => {
+                const label = getLabel(m.matchCriteria || '');
                 return (
-                  <div key={id} className="flex items-center justify-between py-1.5 border-b border-blue-100 dark:border-blue-800 last:border-0">
-                    <div>
-                      <p className="text-xs font-medium text-blue-800 dark:text-blue-300">{s.transaction_date}</p>
-                      <p className="text-xs text-blue-600 dark:text-blue-400 max-w-lg">{s.description}</p>
+                  <div key={m.statementId} className="p-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${label.color}`}>{label.text}</span>
+                        <span className="text-xs font-bold text-blue-600">{m.matchScore}%</span>
+                      </div>
+                      {m.difference !== undefined && (
+                        <span className={`text-xs font-medium ${Math.abs(m.difference) < 1 ? 'text-green-600' : 'text-amber-600'}`}>
+                          Δ {fmt(m.difference)}
+                        </span>
+                      )}
                     </div>
-                    <p className="text-sm font-bold text-blue-700 dark:text-blue-300">{fmt(amt)}</p>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Bank</p>
+                        <p className="text-gray-500">{m.statement.transaction_date}</p>
+                        <p className="text-gray-700 dark:text-gray-300 truncate">{m.statement.description}</p>
+                        <p className="font-bold text-gray-900 dark:text-white mt-0.5">{fmt(m.statement.amount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Aggregate</p>
+                        <p className="text-gray-500">{m.aggregate.transaction_date}</p>
+                        <p className="text-gray-700 dark:text-gray-300 truncate">{m.aggregate.branch_name || 'N/A'} · {m.aggregate.payment_method_name || 'N/A'}</p>
+                        <p className="font-bold text-gray-900 dark:text-white mt-0.5">{fmt(m.aggregate.nett_amount)}</p>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {data.mode === "manual" && (() => {
-        const s = data.manualStatementId ? statMap.get(data.manualStatementId) : null;
-        const amt = s ? (s.credit_amount || 0) - (s.debit_amount || 0) : 0;
+        const stmt = data.manualStatement;
+        const amt = stmt?.amount || 0;
+        const agg = data.manualAggregate;
+        const diff = agg ? amt - agg.nett_amount : 0;
         return (
-          <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-2xl p-4 space-y-3">
+          <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest mb-1">
-                  Bank Statement
-                </p>
-                {s ? (
-                  <>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">{s.transaction_date}</p>
-                    <p className="text-xs text-gray-700 dark:text-gray-300">{s.description}</p>
-                    <p className="text-sm font-bold text-gray-900 dark:text-white mt-1">{fmt(amt)}</p>
-                  </>
-                ) : (
-                  <p className="text-xs text-gray-400">—</p>
-                )}
+              {/* Bank Statement */}
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-2xl p-4">
+                <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest mb-2">Bank Statement</p>
+                {stmt ? (
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between"><span className="text-gray-500">Tanggal</span><span className="font-semibold text-gray-900 dark:text-white">{stmt.transaction_date}</span></div>
+                    <p className="text-gray-700 dark:text-gray-300 mt-1">{stmt.description}</p>
+                    {stmt.reference_number && <p className="text-[10px] text-emerald-600 font-mono">Ref: {stmt.reference_number}</p>}
+                    <p className="text-base font-bold text-gray-900 dark:text-white mt-2">{fmt(amt)}</p>
+                  </div>
+                ) : <p className="text-xs text-gray-400">—</p>}
               </div>
-              <div>
-                <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest mb-1">
-                  POS Aggregate
-                </p>
-                <p className="text-xs text-gray-500">ID: {data.manualAggregateId?.slice(0, 8)}…</p>
+              {/* POS Aggregate */}
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-2xl p-4">
+                <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest mb-2">POS Aggregate</p>
+                {agg ? (
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between"><span className="text-gray-500">Tanggal</span><span className="font-semibold text-gray-900 dark:text-white">{agg.transaction_date}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Cabang</span><span className="font-semibold text-gray-900 dark:text-white">{agg.branch_name || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Payment</span><span className="font-semibold text-gray-900 dark:text-white">{agg.payment_method_name || 'N/A'}</span></div>
+                    {(agg.total_fee_amount ?? 0) > 0 && (
+                      <div className="pt-1 mt-1 border-t border-emerald-200 dark:border-emerald-700 space-y-0.5">
+                        <div className="flex justify-between"><span className="text-gray-500">Gross</span><span className="text-gray-700 dark:text-gray-300">{fmt(agg.gross_amount || 0)}</span></div>
+                        {(agg.percentage_fee_amount ?? 0) > 0 && <div className="flex justify-between"><span className="text-gray-500">% Fee</span><span className="text-red-500">-{fmt(agg.percentage_fee_amount || 0)}</span></div>}
+                        {(agg.fixed_fee_amount ?? 0) > 0 && <div className="flex justify-between"><span className="text-gray-500">Fixed Fee</span><span className="text-red-500">-{fmt(agg.fixed_fee_amount || 0)}</span></div>}
+                        <div className="flex justify-between"><span className="text-gray-500 font-bold">Total Fee</span><span className="font-bold text-red-500">-{fmt(agg.total_fee_amount || 0)}</span></div>
+                      </div>
+                    )}
+                    <p className="text-base font-bold text-gray-900 dark:text-white mt-2">{fmt(agg.nett_amount)}</p>
+                  </div>
+                ) : <p className="text-xs text-gray-400">—</p>}
               </div>
+            </div>
+            {/* Selisih */}
+            <div className="flex justify-between items-center text-sm p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+              <span className="text-gray-500">Selisih:</span>
+              <span className={`font-bold ${Math.abs(diff) < 1 ? 'text-green-600' : 'text-amber-600'}`}>{fmt(diff)}</span>
             </div>
             {data.manualOverride && (
               <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg border border-amber-200 dark:border-amber-700">
@@ -1838,36 +1949,60 @@ function StepReview({
         const selectedStatements = (data.multiStatementIds || [])
           .map((id) => statMap.get(id))
           .filter(Boolean) as BankStatementWithMatch[];
-        const total = selectedStatements.reduce(
-          (sum, s) => sum + (s.credit_amount || 0) - (s.debit_amount || 0),
-          0
+        const totalBank = selectedStatements.reduce(
+          (sum, s) => sum + (s.credit_amount || 0) - (s.debit_amount || 0), 0
         );
+        const agg = data.multiAggregate;
+        const aggAmount = agg?.nett_amount || 0;
+        const diff = totalBank - aggAmount;
+        const diffPct = aggAmount !== 0 ? (Math.abs(diff) / aggAmount) * 100 : 0;
         return (
-          <div className="bg-violet-50 dark:bg-violet-900/20 border border-violet-100 dark:border-violet-800 rounded-2xl p-4 space-y-3">
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <p className="font-bold text-violet-600 uppercase tracking-widest mb-1">
-                  Statements ({selectedStatements.length})
-                </p>
-                <p className="font-bold text-gray-900 dark:text-white text-sm">{fmt(total)}</p>
+          <div className="space-y-4">
+            {/* Aggregate detail */}
+            {agg && (
+              <div className="bg-violet-50 dark:bg-violet-900/20 border border-violet-100 dark:border-violet-800 rounded-2xl p-4">
+                <p className="text-[11px] font-bold text-violet-600 uppercase tracking-widest mb-2">POS Aggregate</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div><span className="text-gray-500">Tanggal</span><p className="font-semibold text-gray-900 dark:text-white">{agg.transaction_date}</p></div>
+                  <div><span className="text-gray-500">Cabang</span><p className="font-semibold text-gray-900 dark:text-white">{agg.branch_name || 'N/A'}</p></div>
+                  <div><span className="text-gray-500">Payment</span><p className="font-semibold text-gray-900 dark:text-white">{agg.payment_method_name || 'N/A'}</p></div>
+                  <div><span className="text-gray-500">Nett Amount</span><p className="text-base font-bold text-violet-600">{fmt(agg.nett_amount)}</p></div>
+                </div>
+                {(agg.total_fee_amount ?? 0) > 0 && (
+                  <div className="mt-2 pt-2 border-t border-violet-200 dark:border-violet-700 space-y-0.5 text-xs">
+                    <div className="flex justify-between"><span className="text-gray-500">Gross</span><span className="text-gray-700 dark:text-gray-300">{fmt(agg.gross_amount || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500 font-bold">Total Fee</span><span className="font-bold text-red-500">-{fmt(agg.total_fee_amount || 0)}</span></div>
+                  </div>
+                )}
               </div>
-              <div>
-                <p className="font-bold text-violet-600 uppercase tracking-widest mb-1">
-                  Aggregate
-                </p>
-                <p className="text-gray-500">ID: {data.multiAggregateId?.slice(0, 8)}…</p>
+            )}
+            {/* Statements */}
+            <div className="bg-violet-50 dark:bg-violet-900/20 border border-violet-100 dark:border-violet-800 rounded-2xl p-4">
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-[11px] font-bold text-violet-600 uppercase tracking-widest">Bank Statements ({selectedStatements.length})</p>
+                <p className="text-sm font-bold text-violet-700 dark:text-violet-300">{fmt(totalBank)}</p>
+              </div>
+              <div className="max-h-40 overflow-y-auto space-y-1">
+                {selectedStatements.map((s) => {
+                  const amt = (s.credit_amount || 0) - (s.debit_amount || 0);
+                  return (
+                    <div key={s.id} className="flex justify-between items-center py-1.5 border-b border-violet-100 dark:border-violet-800 last:border-0 text-xs">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-gray-500">{s.transaction_date}</p>
+                        <p className="text-gray-700 dark:text-gray-300 truncate">{s.description}</p>
+                      </div>
+                      <span className="font-medium text-gray-900 dark:text-white shrink-0 ml-3">{fmt(amt)}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-            <div className="max-h-40 overflow-y-auto space-y-1">
-              {selectedStatements.map((s) => {
-                const amt = (s.credit_amount || 0) - (s.debit_amount || 0);
-                return (
-                  <div key={s.id} className="flex justify-between items-center py-1 border-b border-violet-100 dark:border-violet-800 last:border-0 text-xs">
-                    <span className="text-gray-600 dark:text-gray-400 max-w-md">{s.description || s.transaction_date}</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{fmt(amt)}</span>
-                  </div>
-                );
-              })}
+            {/* Selisih */}
+            <div className="flex justify-between items-center text-sm p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+              <span className="text-gray-500">Selisih:</span>
+              <span className={`font-bold ${diffPct <= 5 ? 'text-green-600' : 'text-red-600'}`}>
+                {fmt(diff)} ({diffPct.toFixed(1)}%)
+              </span>
             </div>
             {data.multiOverride && (
               <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg border border-amber-200 dark:border-amber-700">
@@ -2049,27 +2184,51 @@ export function ReconciliationWizard({
   };
 
   // Step 2 → 3 bridges
-  const handleAutoNext = (ids: string[], criteria: Partial<MatchingCriteria>) => {
-    setReviewData({ mode: "auto", autoStatementIds: ids, autoCriteria: criteria });
+  const handleAutoNext = (ids: string[], criteria: Partial<MatchingCriteria>, matches?: any[]) => {
+    const matchDetails: MatchDetail[] = (matches || [])
+      .filter((m: any) => ids.includes(m.statementId))
+      .map((m: any) => ({
+        statementId: m.statementId,
+        statement: {
+          transaction_date: m.statement?.transaction_date || '',
+          description: m.statement?.description || '',
+          amount: m.statement?.amount || 0,
+          reference_number: m.statement?.reference_number,
+        },
+        aggregate: {
+          transaction_date: m.aggregate?.transaction_date || '',
+          nett_amount: m.aggregate?.nett_amount || 0,
+          payment_method_name: m.aggregate?.payment_method_name,
+          branch_name: m.aggregate?.branch_name,
+          gross_amount: m.aggregate?.gross_amount,
+        },
+        matchScore: m.matchScore,
+        matchCriteria: m.matchCriteria,
+        difference: m.difference,
+      }));
+    setReviewData({ mode: "auto", autoStatementIds: ids, autoCriteria: criteria, autoMatches: matchDetails });
     setStep(2);
   };
 
-  const handleManualNext = (statementId: string, aggregateId: string, override: boolean) => {
+  const handleManualNext = (statementId: string, aggregateId: string, override: boolean, aggregate?: AggregateDetail, statementData?: { transaction_date: string; description: string; amount: number; reference_number?: string }) => {
     setReviewData({
       mode: "manual",
       manualStatementId: statementId,
       manualAggregateId: aggregateId,
       manualOverride: override,
+      manualAggregate: aggregate,
+      manualStatement: statementData,
     });
     setStep(2);
   };
 
-  const handleMultiNext = (aggregateId: string, statementIds: string[], override: boolean) => {
+  const handleMultiNext = (aggregateId: string, statementIds: string[], override: boolean, aggregate?: AggregateDetail) => {
     setReviewData({
       mode: "multi",
       multiAggregateId: aggregateId,
       multiStatementIds: statementIds,
       multiOverride: override,
+      multiAggregate: aggregate,
     });
     setStep(2);
   };
