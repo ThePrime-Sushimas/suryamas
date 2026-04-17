@@ -111,6 +111,18 @@ export interface AggregatedTransactionWithDetails extends AggregatedTransaction 
     transaction_date: string | null;
     amount: number;
   }> | null;
+
+  // Cash deposit reconciliation
+  cash_deposit_id?: string | null;
+  cash_deposit_amount?: number | null;
+  cash_deposit_date?: string | null;
+  cash_deposit_branch_name?: string | null;
+  cash_deposit_status?: string | null;
+  cash_deposit_proof_url?: string | null;
+  cash_deposit_bank_statement_id?: string | null;
+  cash_deposit_bank_statement_date?: string | null;
+  cash_deposit_bank_statement_description?: string | null;
+  cash_deposit_bank_statement_amount?: number | null;
 }
 
 /**

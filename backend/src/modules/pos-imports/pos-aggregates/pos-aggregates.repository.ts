@@ -256,7 +256,65 @@ bill_after_discount,
       .is('deleted_at', null)
       .maybeSingle()
 
-    return this.mapToWithDetails(aggData, bankData || null, settlementAgg || null, multiMatchAgg || null)
+    // Query cash deposit match via cash_counts → cash_deposits
+    // aggregated_transactions matched by date/branch/payment_method to cash_counts
+    let cashDepositData: Record<string, unknown> | null = null
+    if (aggData.is_reconciled && !bankData && !settlementAgg) {
+      const { data: depositMatch } = await supabase
+        .from('bank_statements')
+        .select(`
+          id,
+          transaction_date,
+          description,
+          credit_amount,
+          debit_amount,
+          cash_deposit_id,
+          cash_deposits(
+            id, deposit_amount, deposit_date, branch_name, status, proof_url, deposited_at, bank_account_id
+          )
+        `)
+        .not('cash_deposit_id', 'is', null)
+        .is('deleted_at', null)
+        .limit(50)
+
+      // Find the cash deposit that matches this aggregate's date/branch/payment
+      if (depositMatch) {
+        for (const stmt of depositMatch) {
+          const dep = Array.isArray(stmt.cash_deposits) ? stmt.cash_deposits[0] : stmt.cash_deposits
+          if (dep && dep.branch_name === aggData.branch_name) {
+            // Verify via cash_counts link
+            const { data: ccMatch } = await supabase
+              .from('cash_counts')
+              .select('id')
+              .eq('cash_deposit_id', dep.id)
+              .eq('payment_method_id', aggData.payment_method_id)
+              .gte('start_date', aggData.transaction_date)
+              .lte('end_date', aggData.transaction_date)
+              .is('deleted_at', null)
+              .limit(1)
+
+            if (ccMatch && ccMatch.length > 0) {
+              cashDepositData = {
+                cash_deposit_id: dep.id,
+                deposit_amount: dep.deposit_amount,
+                deposit_date: dep.deposit_date,
+                deposit_branch_name: dep.branch_name,
+                deposit_status: dep.status,
+                deposit_proof_url: dep.proof_url,
+                deposit_deposited_at: dep.deposited_at,
+                bank_statement_id: stmt.id,
+                bank_statement_date: stmt.transaction_date,
+                bank_statement_description: stmt.description,
+                bank_statement_amount: (Number(stmt.credit_amount) || 0) - (Number(stmt.debit_amount) || 0),
+              }
+              break
+            }
+          }
+        }
+      }
+    }
+
+    return this.mapToWithDetails(aggData, bankData || null, settlementAgg || null, multiMatchAgg || null, cashDepositData)
   }
 
   /**
@@ -870,7 +928,8 @@ bill_after_discount: Number(row.bill_after_discount || 0),
     aggData: Record<string, unknown>, 
     bankData: Record<string, unknown> | null,
     settlementAgg: Record<string, unknown> | null = null,
-    multiMatchAgg: Record<string, unknown> | null = null
+    multiMatchAgg: Record<string, unknown> | null = null,
+    cashDepositData: Record<string, unknown> | null = null
   ): AggregatedTransactionWithDetails {
     const paymentMethod = Array.isArray(aggData.payment_methods) ? aggData.payment_methods[0] : aggData.payment_methods
     const journal = Array.isArray(aggData.journal) ? aggData.journal[0] : aggData.journal
@@ -961,6 +1020,18 @@ bill_after_discount: Number(row.bill_after_discount || 0),
       multi_match_difference: multiMatchAgg?.difference != null ? Number(multiMatchAgg.difference) : null,
       multi_match_total_bank_amount: multiMatchAgg?.total_bank_amount != null ? Number(multiMatchAgg.total_bank_amount) : null,
       multi_match_statements: multiMatchStatements.length > 0 ? multiMatchStatements : null,
+
+      // Cash deposit fields
+      cash_deposit_id: cashDepositData?.cash_deposit_id as string | null ?? null,
+      cash_deposit_amount: cashDepositData?.deposit_amount != null ? Number(cashDepositData.deposit_amount) : null,
+      cash_deposit_date: cashDepositData?.deposit_date as string | null ?? null,
+      cash_deposit_branch_name: cashDepositData?.deposit_branch_name as string | null ?? null,
+      cash_deposit_status: cashDepositData?.deposit_status as string | null ?? null,
+      cash_deposit_proof_url: cashDepositData?.deposit_proof_url as string | null ?? null,
+      cash_deposit_bank_statement_id: cashDepositData?.bank_statement_id as string | null ?? null,
+      cash_deposit_bank_statement_date: cashDepositData?.bank_statement_date as string | null ?? null,
+      cash_deposit_bank_statement_description: cashDepositData?.bank_statement_description as string | null ?? null,
+      cash_deposit_bank_statement_amount: cashDepositData?.bank_statement_amount != null ? Number(cashDepositData.bank_statement_amount) : null,
     }
   }
   /**

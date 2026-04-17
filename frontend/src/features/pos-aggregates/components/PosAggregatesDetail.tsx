@@ -385,10 +385,11 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({
   );
 
   // Determine reconciliation type
-  const reconciliationType: 'single' | 'settlement' | 'multi-match' | 'none' =
+  const reconciliationType: 'single' | 'settlement' | 'multi-match' | 'cash-deposit' | 'none' =
     transaction.bank_mutation_id ? 'single'
     : transaction.settlement_group_id ? 'settlement'
     : transaction.multi_match_group_id ? 'multi-match'
+    : transaction.cash_deposit_id ? 'cash-deposit'
     : 'none';
 
   return (
@@ -970,9 +971,14 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({
                 ? 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300'
                 : reconciliationType === 'settlement'
                 ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
+                : reconciliationType === 'cash-deposit'
+                ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300'
                 : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
             }`}>
-              {reconciliationType === 'single' ? '1:1 Match' : reconciliationType === 'settlement' ? 'Settlement Group' : 'Multi-Match'}
+              {reconciliationType === 'single' ? '1:1 Match'
+                : reconciliationType === 'settlement' ? 'Settlement Group'
+                : reconciliationType === 'cash-deposit' ? 'Cash Deposit'
+                : 'Multi-Match'}
             </span>
           )}
         </h3>
@@ -1162,6 +1168,79 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── CASH DEPOSIT ── */}
+        {reconciliationType === 'cash-deposit' && (
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-teal-50 dark:bg-teal-900/20 rounded-lg p-4 border border-teal-200 dark:border-teal-800">
+                <span className="text-xs font-bold text-teal-700 dark:text-teal-300 uppercase">Cash Deposit</span>
+                <div className="mt-3 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">Tanggal Setor</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{transaction.cash_deposit_date || '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">Cabang</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{transaction.cash_deposit_branch_name || '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">Jumlah Setoran</span>
+                    <span className="font-bold text-teal-700 dark:text-teal-300">
+                      {transaction.cash_deposit_amount != null
+                        ? `Rp ${Number(transaction.cash_deposit_amount).toLocaleString('id-ID')}`
+                        : '-'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">Status</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{transaction.cash_deposit_status || '-'}</span>
+                  </div>
+                  {transaction.cash_deposit_proof_url && (
+                    <div className="pt-2 border-t border-teal-200 dark:border-teal-700">
+                      <a href={transaction.cash_deposit_proof_url} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-teal-600 dark:text-teal-400 hover:underline">Lihat Bukti Setoran →</a>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4 border border-cyan-200 dark:border-cyan-800">
+                <span className="text-xs font-bold text-cyan-700 dark:text-cyan-300 uppercase">Bank Statement</span>
+                <div className="mt-3 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">Tanggal</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{transaction.cash_deposit_bank_statement_date || '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">Deskripsi</span>
+                    <span className="font-semibold text-gray-900 dark:text-white text-right max-w-[200px] truncate">
+                      {transaction.cash_deposit_bank_statement_description || '-'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">Amount</span>
+                    <span className="font-bold text-cyan-700 dark:text-cyan-300">
+                      {transaction.cash_deposit_bank_statement_amount != null
+                        ? `Rp ${Number(transaction.cash_deposit_bank_statement_amount).toLocaleString('id-ID')}`
+                        : '-'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {transaction.cash_deposit_amount != null && transaction.cash_deposit_bank_statement_amount != null && (
+              <div className="flex justify-between items-center text-sm p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                <span className="text-gray-500">Selisih:</span>
+                <span className={`font-bold ${
+                  Math.abs(transaction.cash_deposit_bank_statement_amount - transaction.cash_deposit_amount) < 1
+                    ? 'text-green-600' : 'text-amber-600'
+                }`}>
+                  Rp {(transaction.cash_deposit_bank_statement_amount - transaction.cash_deposit_amount).toLocaleString('id-ID')}
+                </span>
+              </div>
+            )}
           </div>
         )}
 
