@@ -251,6 +251,14 @@ export class CashCountsRepository {
     return data
   }
 
+  async revertDepositToPending(depositId: string): Promise<void> {
+    const { error } = await supabase.from('cash_deposits').update({
+      status: 'PENDING', proof_url: null, deposited_at: null, deposited_by: null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', depositId).eq('status', 'DEPOSITED')
+    if (error) throw new CashCountOperationError('revert_deposit', error.message)
+  }
+
   async reconcileDeposit(depositId: string, bankStatementId: string): Promise<void> {
     const { error } = await supabase.from('cash_deposits').update({
       status: 'RECONCILED', bank_statement_id: bankStatementId, updated_at: new Date().toISOString(),

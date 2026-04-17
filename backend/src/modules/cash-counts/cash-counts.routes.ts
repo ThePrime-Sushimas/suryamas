@@ -38,6 +38,7 @@ router.get('/deposits', canView('cash_counts'), validateSchema(depositListQueryS
 router.post('/deposits', canInsert('cash_counts'), validateSchema(createDepositSchema), cashCountsController.createDeposit)
 router.get('/deposits/:id', canView('cash_counts'), validateSchema(depositIdSchema), cashCountsController.getDeposit)
 router.post('/deposits/:id/confirm', canUpdate('cash_counts'), uploadMiddleware.single('proof'), cashCountsController.confirmDeposit)
+router.post('/deposits/:id/revert', canUpdate('cash_counts'), validateSchema(depositIdSchema), cashCountsController.revertDeposit)
 router.delete('/deposits/:id', canDelete('cash_counts'), validateSchema(depositIdSchema), cashCountsController.deleteDeposit)
 
 // Cash counts

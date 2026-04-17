@@ -156,6 +156,23 @@ export class CashCountsService {
     return (await cashCountsRepository.findDepositById(id))!
   }
 
+  // ── Revert deposit (DEPOSITED → PENDING) ──
+  async revertDeposit(id: string, userId?: string): Promise<CashDepositWithRelations> {
+    const dep = await cashCountsRepository.findDepositById(id)
+    if (!dep) throw new CashCountNotFoundError(id)
+    if (dep.status !== 'DEPOSITED') throw new CashCountOperationError('revert_deposit', `Deposit status ${dep.status}, harus DEPOSITED`)
+
+    await cashCountsRepository.revertDepositToPending(id)
+
+    if (userId) {
+      await AuditService.log('UPDATE', 'cash_deposit', id, userId,
+        { status: 'DEPOSITED' },
+        { status: 'PENDING' },
+      )
+    }
+    return (await cashCountsRepository.findDepositById(id))!
+  }
+
   // ── Close (DEPOSITED → CLOSED) ──
   async close(id: string, userId?: string): Promise<CashCountWithRelations> {
     const existing = await cashCountsRepository.findById(id)

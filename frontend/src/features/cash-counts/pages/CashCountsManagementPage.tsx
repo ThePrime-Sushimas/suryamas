@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
-import { Coins, Search, RefreshCw, Loader2, AlertTriangle, Check, X, ChevronDown, ChevronUp, Building, Banknote, Trash2, Upload } from 'lucide-react'
+import { Coins, Search, RefreshCw, Loader2, AlertTriangle, Check, X, ChevronDown, ChevronUp, Building, Banknote, Trash2, Upload, RotateCcw } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
@@ -732,6 +732,23 @@ export function CashCountsManagementPage() {
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                   </>
+                                )}
+                                {dep.status === 'DEPOSITED' && (
+                                  <button
+                                    onClick={async () => {
+                                      if (!confirm('Batalkan konfirmasi setoran? Status akan kembali ke PENDING.')) return
+                                      try {
+                                        await cashCountsApi.revertDeposit(dep.id)
+                                        fetchDeposits()
+                                      } catch (err: any) {
+                                        alert(err?.response?.data?.message || 'Gagal membatalkan')
+                                      }
+                                    }}
+                                    className="p-1 text-gray-400 hover:text-amber-600 rounded"
+                                    title="Batalkan Konfirmasi"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                  </button>
                                 )}
                               </div>
                             </div>

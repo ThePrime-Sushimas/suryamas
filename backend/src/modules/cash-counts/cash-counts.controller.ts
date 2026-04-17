@@ -55,9 +55,9 @@ export class CashCountsController {
     } catch (error: any) { handleError(res, error) }
   })
 
-  confirmDeposit = async (req: any, res: Response) => {
+  confirmDeposit = withValidated(async (req: ValidatedAuthRequest<typeof confirmDepositSchema>, res: Response) => {
     try {
-      const id = req.params.id
+      const id = req.validated.params.id
       const file = req.file as Express.Multer.File | undefined
       if (!file) return res.status(400).json({ success: false, message: 'Bukti setoran wajib diupload' })
 
@@ -69,7 +69,14 @@ export class CashCountsController {
       const result = await cashCountsService.confirmDeposit(id, { proof_url: uploaded.publicUrl, deposited_at: depositedAt }, req.context?.employee_id)
       sendSuccess(res, result, 'Deposit confirmed')
     } catch (error: any) { handleError(res, error) }
-  }
+  })
+
+  revertDeposit = withValidated(async (req: ValidatedAuthRequest<typeof depositIdSchema>, res: Response) => {
+    try {
+      const result = await cashCountsService.revertDeposit(req.validated.params.id, req.context?.employee_id)
+      sendSuccess(res, result, 'Deposit reverted to PENDING')
+    } catch (error: any) { handleError(res, error) }
+  })
 
   getDeposit = withValidated(async (req: ValidatedAuthRequest<typeof depositIdSchema>, res: Response) => {
     try {

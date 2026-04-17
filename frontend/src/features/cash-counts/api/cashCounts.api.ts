@@ -63,6 +63,11 @@ export const cashCountsApi = {
     return res.data.data
   },
 
+  async revertDeposit(id: string): Promise<CashDeposit> {
+    const res = await api.post(`/cash-counts/deposits/${id}/revert`)
+    return res.data.data
+  },
+
   async getDeposit(id: string): Promise<CashDeposit> {
     const res = await api.get(`/cash-counts/deposits/${id}`)
     return res.data.data
