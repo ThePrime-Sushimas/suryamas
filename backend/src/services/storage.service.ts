@@ -13,7 +13,7 @@
 import { supabase } from '../config/supabase'
 
 const PROVIDER = process.env.STORAGE_PROVIDER || 'supabase'
-const BUCKET = process.env.STORAGE_BUCKET || 'Bukti Setoran'
+const BUCKET = process.env.STORAGE_BUCKET || 'bukti_setoran'
 
 export interface UploadResult {
   path: string
