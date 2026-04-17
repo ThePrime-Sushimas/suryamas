@@ -71,6 +71,10 @@ export interface ReconciliationWizardProps {
   // Pre-selected statements (from BankMutationTable multi-select)
   initialStatements?: BankStatementWithMatch[];
 
+  // Skip to specific mode with pre-selected statement (from row click)
+  initialMode?: ReconciliationMode;
+  preSelectedStatement?: BankStatementWithMatch;
+
   // Handlers per mode
   onAutoMatchPreview: (
     criteria?: Partial<MatchingCriteria>
@@ -617,12 +621,14 @@ function StepAutoMatch({
 
 function StepManualMatch({
   statements,
+  preSelectedStatement,
   onNext,
 }: {
   statements: BankStatementWithMatch[];
+  preSelectedStatement?: BankStatementWithMatch;
   onNext: (statementId: string, aggregateId: string, overrideDifference: boolean, aggregate?: AggregateDetail, statementData?: { transaction_date: string; description: string; amount: number; reference_number?: string }) => void;
 }) {
-  const [selectedStatement, setSelectedStatement] = useState<BankStatementWithMatch | null>(null);
+  const [selectedStatement, setSelectedStatement] = useState<BankStatementWithMatch | null>(preSelectedStatement || null);
   const [statementSearch, setStatementSearch] = useState("");
   const [aggregates, setAggregates] = useState<AggregatedTransactionListItem[]>([]);
   const [aggSearch, setAggSearch] = useState("");
@@ -2139,6 +2145,8 @@ export function ReconciliationWizard({
   dateRange,
   isLoading = false,
   initialStatements = [],
+  initialMode,
+  preSelectedStatement,
   onAutoMatchPreview,
   onAutoMatchConfirm,
   onManualMatchConfirm,
@@ -2148,19 +2156,24 @@ export function ReconciliationWizard({
   onSettlementConfirm,
   onCashDepositConfirm,
 }: ReconciliationWizardProps) {
-  const [step, setStep] = useState(0); // 0=mode, 1=config, 2=review
+  const [step, setStep] = useState(0);
   const [mode, setMode] = useState<ReconciliationMode | null>(null);
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
 
-  // Reset on open
+  // Reset on open — if initialMode provided, skip to step 1
   useEffect(() => {
     if (isOpen) {
-      setStep(0);
-      setMode(null);
+      if (initialMode) {
+        setMode(initialMode);
+        setStep(1);
+      } else {
+        setStep(0);
+        setMode(null);
+      }
       setReviewData(null);
     }
-  }, [isOpen]);
+  }, [isOpen, initialMode]);
 
   // Escape key to close
   useEffect(() => {
@@ -2389,6 +2402,7 @@ export function ReconciliationWizard({
                 <div className="flex-1 overflow-hidden flex flex-col min-h-0">
                   <StepManualMatch
                     statements={statements}
+                    preSelectedStatement={preSelectedStatement}
                     onNext={handleManualNext}
                   />
                 </div>

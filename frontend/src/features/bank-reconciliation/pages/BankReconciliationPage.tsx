@@ -46,9 +46,11 @@ type DateRange = {
 };
 
 export function BankReconciliationPage() {
-  // ─── Wizard state (replaces 3 separate modal states) ───
+  // ─── Wizard state ───
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [wizardInitialStatements, setWizardInitialStatements] = useState<BankStatementWithMatch[]>([]);
+  const [wizardInitialMode, setWizardInitialMode] = useState<"auto" | "manual" | "multi" | "settlement" | "cash_deposit" | undefined>(undefined);
+  const [wizardPreSelectedStatement, setWizardPreSelectedStatement] = useState<BankStatementWithMatch | undefined>(undefined);
 
   // ─── Filter/page state ───
   const [filtersApplied, setFiltersApplied] = useState(false);
@@ -394,6 +396,12 @@ export function BankReconciliationPage() {
                   onUndoGroup={handleUndoMultiMatch}
                   bankAccounts={bankAccounts}
                   activeBankAccountIds={filter.bankAccountIds}
+                  onRowClick={(item) => {
+                    setWizardInitialMode("manual");
+                    setWizardPreSelectedStatement(item);
+                    setWizardInitialStatements([]);
+                    setIsWizardOpen(true);
+                  }}
                 />
             </ErrorBoundary>
           )}
@@ -417,11 +425,15 @@ export function BankReconciliationPage() {
         onClose={() => {
           setIsWizardOpen(false);
           setWizardInitialStatements([]);
+          setWizardInitialMode(undefined);
+          setWizardPreSelectedStatement(undefined);
         }}
         statements={unreconciledStatements}
         dateRange={dateRange}
         isLoading={isLoading}
         initialStatements={wizardInitialStatements}
+        initialMode={wizardInitialMode}
+        preSelectedStatement={wizardPreSelectedStatement}
         onAutoMatchPreview={handleAutoMatchPreviewApi}
         onAutoMatchConfirm={handleAutoMatchConfirm}
         onManualMatchConfirm={handleManualMatchConfirm}

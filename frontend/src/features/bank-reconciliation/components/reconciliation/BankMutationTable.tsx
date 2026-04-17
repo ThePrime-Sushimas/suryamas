@@ -187,6 +187,7 @@ interface BankMutationTableProps {
   onQuickMatch: (item: BankStatementWithMatch, aggregateId: string) => void;
   onCheckMatches?: (statementId: string) => void;
   onUndo: (statementId: string) => void;
+  onRowClick?: (item: BankStatementWithMatch) => void;
   reconciliationGroups?: ReconciliationGroup[];
   isTableLoading?: boolean;
   pagination?: {
@@ -211,6 +212,7 @@ export function BankMutationTable({
   onQuickMatch,
   onCheckMatches,
   onUndo,
+  onRowClick,
   reconciliationGroups = [],
   isTableLoading = false,
   pagination,
@@ -339,6 +341,8 @@ export function BankMutationTable({
                   onClick={() => {
                     if (isInGroup) {
                       setExpandedGroupId(isGroupExpanded ? null : groupInfo.id);
+                    } else if (!item.is_reconciled && onRowClick) {
+                      onRowClick(item);
                     }
                   }}
                 >
