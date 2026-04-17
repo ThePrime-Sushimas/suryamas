@@ -286,7 +286,7 @@ export async function processPosSyncAggregates(
     const { data: existingRows } = await supabase
       .from("pos_sync_aggregates")
       .select(
-        "id, status, recalculated_count, sales_date, branch_pos_id, payment_pos_id, grand_total, transaction_count, payment_method_id",
+        "id, status, recalculated_count, sales_date, branch_pos_id, payment_pos_id, grand_total, transaction_count, payment_method_id, total_fee_amount",
       )
       .in("sales_date", allDates);
 
@@ -299,6 +299,7 @@ export async function processPosSyncAggregates(
         grand_total: number;
         transaction_count: number;
         payment_method_id: number | null;
+        total_fee_amount: number;
       }
     >();
     for (const row of existingRows ?? []) {
@@ -310,6 +311,7 @@ export async function processPosSyncAggregates(
         grand_total: Number(row.grand_total),
         transaction_count: row.transaction_count,
         payment_method_id: row.payment_method_id,
+        total_fee_amount: Number(row.total_fee_amount ?? 0),
       });
     }
 
@@ -514,7 +516,9 @@ export async function processPosSyncAggregates(
           const countChanged = existing.transaction_count !== transaction_count;
           const methodChanged =
             existing.payment_method_id !== payment_method_id;
-          const dataChanged = amountChanged || countChanged || methodChanged;
+          const feeChanged =
+            Math.abs(existing.total_fee_amount - total_fee_amount) > 0.01;
+          const dataChanged = amountChanged || countChanged || methodChanged || feeChanged;
 
           if (!dataChanged) {
             result.skipped++;
