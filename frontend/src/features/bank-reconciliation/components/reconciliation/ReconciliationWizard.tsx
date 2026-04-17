@@ -924,9 +924,10 @@ function StepMultiMatch({
     const q = statSearch.toLowerCase();
     return statements.filter(
       (s) =>
-        !q ||
+        !s.is_reconciled &&
+        (!q ||
         s.description?.toLowerCase().includes(q) ||
-        s.transaction_date?.includes(q)
+        s.transaction_date?.includes(q))
     );
   }, [statements, statSearch]);
 
