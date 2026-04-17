@@ -148,13 +148,16 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
 
   // Net amount from backend (already calculated correctly)
 
-  // Fetch branches on mount
+  // Fetch branches on mount (skip if already loaded)
   useEffect(() => {
-    fetchBranches(1, 1000, { field: 'branch_name', order: 'asc' }, { status: 'active' })
-  }, [fetchBranches])
+    if (branches.length === 0) {
+      fetchBranches(1, 1000, { field: 'branch_name', order: 'asc' }, { status: 'active' })
+    }
+  }, [fetchBranches, branches.length])
 
-  // Fetch payment methods on mount
+  // Fetch payment methods on mount (skip if already loaded)
   useEffect(() => {
+    if (paymentMethods.length > 0) return
     const fetchPaymentMethods = async () => {
       try {
         const methods = await posAggregatesApi.getPaymentMethodOptions()
@@ -196,6 +199,14 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
       })
     }
   }, [transaction, reset])
+
+  // Resolve branch_id from branch_name when branch_id is null
+  useEffect(() => {
+    if (!transaction || transaction.branch_id || branches.length === 0) return
+    if (!transaction.branch_name) return
+    const found = branches.find(b => b.branch_name.trim().toLowerCase() === transaction.branch_name!.trim().toLowerCase())
+    if (found) setValue('branch_id', found.id, { shouldValidate: true, shouldDirty: true })
+  }, [transaction, branches, setValue])
 
   // Submit Handler
   const handleFormSubmit = useCallback(async (data: PosAggregatesFormData) => {
