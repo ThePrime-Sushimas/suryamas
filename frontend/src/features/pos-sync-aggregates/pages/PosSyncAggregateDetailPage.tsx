@@ -1,58 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import {
-  ArrowLeft,
-  AlertTriangle,
-  Building2,
-} from "lucide-react";
+import { ArrowLeft, AlertTriangle } from "lucide-react";
 import { posSyncAggregatesApi } from "../api/pos-sync-aggregates.api";
-import { BankMutationSelectorModal } from "@/features/pos-aggregates/components/BankMutationSelectorModal";
 import { useToast } from "@/contexts/ToastContext";
 import type {
   PosSyncAggregate,
   PosSyncAggregateLine,
 } from "../types/pos-sync-aggregates.types";
-import type { AggregatedTransactionListItem } from "@/features/pos-aggregates/types";
 
 const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(Number(n));
-
-// Adapter: convert PosSyncAggregate ke shape yang BankMutationSelectorModal expect
-function toModalAggregate(
-  agg: PosSyncAggregate,
-): AggregatedTransactionListItem {
-  return {
-    id: agg.id,
-    branch_name: agg.branch_name,
-    source_type: "POS_SYNC",
-    source_id: agg.id,
-    source_ref: `${agg.sales_date} · ${agg.branch_name} · ${agg.payment_methods?.name ?? ""}`,
-    transaction_date: agg.sales_date,
-    payment_method_id: agg.payment_method_id ?? 0,
-    gross_amount: Number(agg.gross_amount),
-    discount_amount: Number(agg.discount_amount),
-    tax_amount: Number(agg.tax_amount),
-    service_charge_amount: 0,
-    bill_after_discount: Number(agg.grand_total),
-    percentage_fee_amount: Number(agg.percentage_fee_amount),
-    fixed_fee_amount: Number(agg.fixed_fee_amount_calc),
-    total_fee_amount: Number(agg.total_fee_amount),
-    nett_amount: Number(agg.nett_amount),
-    actual_nett_amount: Number(agg.nett_amount),
-    actual_fee_amount: null,
-    fee_discrepancy: null,
-    fee_discrepancy_note: null,
-    currency: "IDR",
-    journal_id: null,
-    is_reconciled: agg.is_reconciled,
-    status: "READY",
-    created_at: agg.created_at,
-    updated_at: agg.updated_at,
-    deleted_at: null,
-    deleted_by: null,
-    version: 1,
-    payment_method_name: agg.payment_methods?.name,
-  };
-}
 
 export default function PosSyncAggregateDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -62,8 +18,6 @@ export default function PosSyncAggregateDetailPage() {
   const [aggregate, setAggregate] = useState<PosSyncAggregate | null>(null);
   const [lines, setLines] = useState<PosSyncAggregateLine[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showMutationSelector, setShowMutationSelector] = useState(false);
-  const [isMatching, setIsMatching] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -86,25 +40,6 @@ export default function PosSyncAggregateDetailPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  const handleConfirmMutation = useCallback(
-    async (statementId: string) => {
-      if (!id) return;
-      setIsMatching(true);
-      try {
-        await posSyncAggregatesApi.reconcile(id, Number(statementId));
-        toast.success("Rekonsiliasi berhasil");
-        setShowMutationSelector(false);
-        await loadData();
-      } catch (err: any) {
-        toast.error(err?.response?.data?.message || "Rekonsiliasi gagal");
-      } finally {
-        setIsMatching(false);
-      }
-    },
-    [id, loadData, toast],
-  );
-
 
   if (loading)
     return (
@@ -361,41 +296,6 @@ export default function PosSyncAggregateDetailPage() {
         </div>
       </div>
 
-      {/* Sticky action bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg">
-        <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between gap-3">
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            {aggregate.is_reconciled ? (
-              <span className="text-blue-600 dark:text-blue-400 font-medium">
-                ✓ Sudah direkonsiliasi
-              </span>
-            ) : (
-              <span>Belum direkonsiliasi</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Reconcile button — undo hanya bisa dari halaman Bank Reconciliation */}
-            {!aggregate.is_reconciled && aggregate.status !== "PENDING" && (
-              <button
-                onClick={() => setShowMutationSelector(true)}
-                className="px-3 py-2 text-sm text-blue-700 bg-blue-100 dark:text-blue-300 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 flex items-center gap-2"
-              >
-                <Building2 size={14} />
-                Pilih Mutasi Bank
-              </button>
-            )}
-          </div>
-        </div>
       </div>
-
-      {/* Bank Mutation Selector Modal */}
-      <BankMutationSelectorModal
-        isOpen={showMutationSelector}
-        onClose={() => setShowMutationSelector(false)}
-        onConfirm={handleConfirmMutation}
-        aggregate={toModalAggregate(aggregate)}
-        isLoading={isMatching}
-      />
-    </div>
-  );
+  )
 }

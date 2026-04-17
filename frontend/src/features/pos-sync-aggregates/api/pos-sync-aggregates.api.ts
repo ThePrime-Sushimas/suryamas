@@ -44,15 +44,4 @@ export const posSyncAggregatesApi = {
     const res = await api.get(`/pos-sync-aggregates/${id}/lines`);
     return res.data.data;
   },
-
-  reconcile: async (
-    id: string,
-    statementId: number,
-    notes?: string,
-  ): Promise<void> => {
-    await api.post(`/pos-sync-aggregates/${id}/reconcile`, {
-      statementId,
-      notes,
-    });
-  },
 };

@@ -17,13 +17,5 @@ router.get("/", authenticate, resolveBranchContext, canView('pos_sync_aggregates
 router.get("/:id", authenticate, resolveBranchContext, canView('pos_sync_aggregates'), posSyncAggregatesController.getById);
 router.get("/:id/lines", authenticate, resolveBranchContext, canView('pos_sync_aggregates'), posSyncAggregatesController.getLines);
 
-router.post(
-  "/:id/reconcile",
-  authenticate,
-  resolveBranchContext,
-  canUpdate('pos_sync_aggregates'),
-  posSyncAggregatesController.reconcile,
-);
-
 export default router;
 
