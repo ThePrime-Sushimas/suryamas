@@ -1070,7 +1070,7 @@ function StepMultiMatch({
         </div>
 
         {/* Right: Aggregate */}
-        <div className="w-1/2 flex flex-col">
+        <div className="w-1/2 flex flex-col min-h-0">
           <div className="p-4 border-b border-gray-100 dark:border-gray-800">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
               POS Aggregate
@@ -1129,7 +1129,7 @@ function StepMultiMatch({
 
           {/* Aggregate list (dropdown) */}
           {showAggList && (
-            <div className="border-b border-gray-100 dark:border-gray-800 flex flex-col max-h-48">
+            <div className="border-b border-gray-100 dark:border-gray-800 flex flex-col flex-2 min-h-0">
               <div className="p-3 border-b border-gray-100 dark:border-gray-700">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
@@ -1176,8 +1176,9 @@ function StepMultiMatch({
           )}
 
           {/* Summary */}
+          <div className="flex-1 overflow-y-auto">
           {selectedIds.length > 0 && (
-            <div className="p-4 space-y-3 flex-1">
+            <div className="p-4 space-y-3">
               <div className="text-xs space-y-1.5">
                 <div className="flex justify-between">
                   <span className="text-gray-500">Total dipilih:</span>
@@ -1219,6 +1220,7 @@ function StepMultiMatch({
               )}
             </div>
           )}
+          </div>
 
           {/* CTA */}
           <div className="p-4 border-t border-gray-100 dark:border-gray-800">
