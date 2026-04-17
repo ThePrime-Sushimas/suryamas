@@ -191,22 +191,8 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
         );
       }
 
-      // Sync to pos_sync_aggregates if linked
-      const { data: aggTx } = await supabase
-        .from("aggregated_transactions")
-        .select("pos_sync_aggregate_id")
-        .eq("id", aggregateId)
-        .maybeSingle();
-
-      if (aggTx?.pos_sync_aggregate_id) {
-        await supabase
-          .from("pos_sync_aggregates")
-          .update({
-            is_reconciled: status === "RECONCILED",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", aggTx.pos_sync_aggregate_id);
-      }
+      // pos_sync_aggregates sync dihandle otomatis oleh DB trigger
+      // trg_sync_pos_sync_reconciliation
 
       logInfo(
         "Successfully updated aggregated transaction reconciliation status",
@@ -481,50 +467,42 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     });
 
     try {
-      const updatePromises = updates.map((update) => {
-        return supabase
-          .from("aggregated_transactions")
-          .update({
-            is_reconciled: update.status === "RECONCILED",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", update.aggregateId);
-      });
+      // Batch by status untuk mengurangi jumlah query
+      const reconciled = updates.filter(u => u.status === "RECONCILED").map(u => u.aggregateId);
+      const unreconciled = updates.filter(u => u.status !== "RECONCILED").map(u => u.aggregateId);
 
-      const results = await Promise.allSettled(updatePromises);
+      const ops: Promise<void>[] = [];
 
-      const errors = results.filter(
-        (result): result is PromiseRejectedResult =>
-          result.status === "rejected",
-      );
-
-      if (errors.length > 0) {
-        throw new Error(`Failed to update ${errors.length} records`);
+      if (reconciled.length > 0) {
+        ops.push(
+          (async () => {
+            const { error } = await supabase.from("aggregated_transactions")
+              .update({ is_reconciled: true, updated_at: new Date().toISOString() })
+              .in("id", reconciled);
+            if (error) throw error;
+          })()
+        );
       }
 
-      // Sync to pos_sync_aggregates
-      const aggIds = updates.map((u) => u.aggregateId);
-      const { data: aggTxs } = await supabase
-        .from("aggregated_transactions")
-        .select("id, pos_sync_aggregate_id")
-        .in("id", aggIds)
-        .not("pos_sync_aggregate_id", "is", null);
-
-      if (aggTxs && aggTxs.length > 0) {
-        const syncMap = new Map(aggTxs.map((a) => [a.id, a.pos_sync_aggregate_id]));
-        const syncPromises = updates
-          .filter((u) => syncMap.has(u.aggregateId))
-          .map((u) =>
-            supabase
-              .from("pos_sync_aggregates")
-              .update({
-                is_reconciled: u.status === "RECONCILED",
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", syncMap.get(u.aggregateId)!)
-          );
-        await Promise.allSettled(syncPromises);
+      if (unreconciled.length > 0) {
+        ops.push(
+          (async () => {
+            const { error } = await supabase.from("aggregated_transactions")
+              .update({ is_reconciled: false, updated_at: new Date().toISOString() })
+              .in("id", unreconciled);
+            if (error) throw error;
+          })()
+        );
       }
+
+      const results = await Promise.allSettled(ops);
+      const failed = results.filter(r => r.status === "rejected");
+      if (failed.length > 0) {
+        throw new Error(`Failed to update ${failed.length} batch(es)`);
+      }
+
+      // pos_sync_aggregates sync dihandle otomatis oleh DB trigger
+      // trg_sync_pos_sync_reconciliation
     } catch (error) {
       logError("Failed bulk update", {
         error: (error as Error).message,

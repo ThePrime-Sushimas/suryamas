@@ -870,7 +870,8 @@ export class BankReconciliationRepository {
 
   /**
    * Undo reconciliation for a specific statement.
-   * Cascades reset to aggregated_transactions and pos_sync_aggregates if applicable.
+   * Cascades reset to aggregated_transactions.
+   * pos_sync_aggregates cascade dihandle otomatis oleh DB trigger trg_sync_pos_sync_reconciliation.
    */
   async undoReconciliation(
     statementId: string,
@@ -903,44 +904,19 @@ export class BankReconciliationRepository {
 
       if (error) throw error;
 
-      // 3. Reset aggregated_transactions + pos_sync_aggregates if linked
+      // 3. Reset aggregated_transactions if linked
+      //    pos_sync_aggregates akan otomatis di-reset oleh DB trigger
       if (reconciliationId) {
-        const { data: aggTx } = await supabase
+        await supabase
           .from("aggregated_transactions")
-          .select("id, pos_sync_aggregate_id, source_type")
-          .eq("id", reconciliationId)
-          .single();
-
-        if (aggTx) {
-          await supabase
-            .from("aggregated_transactions")
-            .update({
-              is_reconciled: false,
-              // Reset to schema defaults (NOT NULL default 0)
-              actual_fee_amount: 0,
-              fee_discrepancy: 0,
-              fee_discrepancy_note: null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", reconciliationId);
-
-          // If source is POS_SYNC, also reset pos_sync_aggregates
-          if (aggTx.source_type === "POS_SYNC" && aggTx.pos_sync_aggregate_id) {
-            await supabase
-              .from("pos_sync_aggregates")
-              .update({
-                is_reconciled: false,
-                bank_statement_id: null,
-                actual_fee_amount: 0,
-                fee_discrepancy: 0,
-                fee_discrepancy_note: null,
-                reconciled_at: null,
-                reconciled_by: null,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", aggTx.pos_sync_aggregate_id);
-          }
-        }
+          .update({
+            is_reconciled: false,
+            actual_fee_amount: 0,
+            fee_discrepancy: 0,
+            fee_discrepancy_note: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", reconciliationId);
       }
     } catch (error: any) {
       logError("Error undoing reconciliation", {
@@ -1151,44 +1127,19 @@ export class BankReconciliationRepository {
         if (error) throw error;
       }
 
-      // 2. Reset aggregated_transactions + pos_sync_aggregates if linked
+      // 2. Reset aggregated_transactions if linked
+      //    pos_sync_aggregates akan otomatis di-reset oleh DB trigger
       if (group.aggregate_id) {
-        const { data: aggTx } = await supabase
+        await supabase
           .from("aggregated_transactions")
-          .select("id, pos_sync_aggregate_id, source_type")
-          .eq("id", group.aggregate_id)
-          .single();
-
-        if (aggTx) {
-          await supabase
-            .from("aggregated_transactions")
-            .update({
-              is_reconciled: false,
-              // Reset to schema defaults (NOT NULL default 0)
-              actual_fee_amount: 0,
-              fee_discrepancy: 0,
-              fee_discrepancy_note: null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", group.aggregate_id);
-
-          // If POS_SYNC, cascade to pos_sync_aggregates
-          if (aggTx.source_type === "POS_SYNC" && aggTx.pos_sync_aggregate_id) {
-            await supabase
-              .from("pos_sync_aggregates")
-              .update({
-                is_reconciled: false,
-                bank_statement_id: null,
-                actual_fee_amount: 0,
-                fee_discrepancy: 0,
-                fee_discrepancy_note: null,
-                reconciled_at: null,
-                reconciled_by: null,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", aggTx.pos_sync_aggregate_id);
-          }
-        }
+          .update({
+            is_reconciled: false,
+            actual_fee_amount: 0,
+            fee_discrepancy: 0,
+            fee_discrepancy_note: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", group.aggregate_id);
       }
 
       // 3. Soft delete group
