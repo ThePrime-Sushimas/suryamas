@@ -6,7 +6,6 @@ import {
   ReconcilePosSyncAggregateDto,
 } from "./pos-sync-aggregates.types";
 import { marketingFeeService } from "../reconciliation/fee-reconciliation/marketing-fee.service";
-import { bankReconciliationService } from "../reconciliation/bank-reconciliation/bank-reconciliation.service";
 import { logError, logInfo, logWarn } from "../../config/logger";
 import { AuditService } from "../monitoring/monitoring.service";
 
@@ -202,60 +201,6 @@ export const posSyncAggregatesController = {
       });
     } catch (err: any) {
       logError("reconcile pos_sync_aggregate failed", { id, err });
-      res.status(500).json({ success: false, message: err?.message });
-    }
-  },
-
-  undoReconcile: async (req: Request, res: Response): Promise<void> => {
-    const id = req.params.id as string;
-    const userId = (req as any).user?.id;
-    const companyId = (req as any).user?.company_id;
-
-    try {
-      // 1. Validate aggregate
-      const aggregate = await posSyncAggregatesRepository.getById(id);
-      if (!aggregate) {
-        res.status(404).json({ success: false, message: "Aggregate not found" });
-        return;
-      }
-      if (!aggregate.is_reconciled) {
-        res.status(400).json({ success: false, message: "Aggregate belum direkonsiliasi" });
-        return;
-      }
-      if (aggregate.status === "JOURNALED") {
-        res.status(400).json({ success: false, message: "Tidak bisa undo — jurnal sudah dibuat" });
-        return;
-      }
-
-      // Cari bank_statement via 2 jalur:
-      // 1. pos_sync_aggregates.bank_statement_id (reconcile dari halaman POS Sync)
-      // 2. bank_statements.reconciliation_id → aggregated_transactions (reconcile dari halaman Bank Recon)
-      let statementId: string | null = aggregate.bank_statement_id
-        ? String(aggregate.bank_statement_id)
-        : null;
-
-      if (!statementId) {
-        // Cari via aggregated_transactions
-        const aggTx = await posSyncAggregatesRepository.findAggregatedTxByPosSyncId(id);
-        if (aggTx) {
-          const stmt = await posSyncAggregatesRepository.findBankStatementByReconciliationId(aggTx.id);
-          if (stmt) statementId = String(stmt.id);
-        }
-      }
-
-      if (!statementId) {
-        res.status(400).json({ success: false, message: "Bank statement tidak ditemukan untuk aggregate ini" });
-        return;
-      }
-
-      // Delegate ke bank-reconciliation service — single source of truth untuk undo
-      await bankReconciliationService.undo(statementId, userId, companyId);
-
-      logInfo("pos_sync_aggregate undo delegated to bank-reconciliation", { id, statementId });
-
-      res.json({ success: true });
-    } catch (err: any) {
-      logError("undoReconcile pos_sync_aggregate failed", { id, err });
       res.status(500).json({ success: false, message: err?.message });
     }
   },
