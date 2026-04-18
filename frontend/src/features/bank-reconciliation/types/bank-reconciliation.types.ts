@@ -121,6 +121,7 @@ export interface AutoMatchPreviewRequest {
 
 export interface AutoMatchConfirmRequest {
   statementIds: string[];
+  matches?: Array<{ statementId: string; aggregateId: string; matchCriteria?: string }>;
   matchingCriteria?: Partial<MatchingCriteria>;
 }
 

@@ -661,7 +661,6 @@ export class BankStatementImportRepository {
           actual_fee_amount: 0,
           fee_discrepancy: 0,
           fee_discrepancy_note: null,
-          reconciliation_status: 'PENDING',
           updated_at: new Date().toISOString(),
         })
         .in('id', uniqueAggregateIds)

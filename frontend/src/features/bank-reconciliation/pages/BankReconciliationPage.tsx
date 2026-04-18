@@ -196,8 +196,8 @@ export function BankReconciliationPage() {
   );
 
   const handleAutoMatchConfirm = useCallback(
-    async (statementIds: string[], criteria?: Partial<MatchingCriteria>) => {
-      await confirmAutoMatch({ statementIds, matchingCriteria: criteria });
+    async (statementIds: string[], criteria?: Partial<MatchingCriteria>, matches?: Array<{ statementId: string; aggregateId: string; matchCriteria?: string }>) => {
+      await confirmAutoMatch({ statementIds, matchingCriteria: criteria, matches });
       refreshData();
     },
     [confirmAutoMatch, refreshData]

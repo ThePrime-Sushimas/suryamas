@@ -215,6 +215,13 @@ export const autoMatchConfirmSchema = z.object({
       z.union([z.string(), z.number()]).transform(val => String(val)),
       { message: "Statement IDs are required" }
     ).min(1, "At least one statement ID is required"),
+    matches: z.array(
+      z.object({
+        statementId: z.union([z.string(), z.number()]).transform(val => String(val)),
+        aggregateId: z.union([z.string(), z.number()]).transform(val => String(val)),
+        matchCriteria: z.string().optional(),
+      })
+    ).optional(),
     matchingCriteria: z
       .object({
         amountTolerance: z.number().min(0).optional(),

@@ -223,6 +223,7 @@ export class BankReconciliationController {
         userId,
         companyId,
         validated.matchingCriteria,
+        validated.matches,
       );
 
       res.status(200).json({

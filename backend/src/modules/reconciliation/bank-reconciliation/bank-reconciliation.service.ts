@@ -728,6 +728,7 @@ export class BankReconciliationService {
     userId?: string,
     companyId?: string,
     criteria?: Partial<MatchingCriteria>,
+    preMatchedPairs?: Array<{ statementId: string; aggregateId: string; matchCriteria?: string }>,
   ): Promise<any> {
     const matchingCriteria = {
       amountTolerance: this.config.amountTolerance,
@@ -743,35 +744,49 @@ export class BankReconciliationService {
     if (statements.length === 0) {
       return { matched: 0, failed: 0, matches: [] };
     }
-  
-    // 2. Get aggregates (use date range from statements)
+
+    let matches: ReconciliationMatch[];
+
+    // Compute date buffer for cash deposit matching (needed regardless of path)
     const minDate = new Date(
-      Math.min(...statements.map((s) => new Date(s.transaction_date).getTime()))
+      Math.min(...statements.map((s: any) => new Date(s.transaction_date).getTime()))
     );
     const maxDate = new Date(
-      Math.max(...statements.map((s) => new Date(s.transaction_date).getTime()))
+      Math.max(...statements.map((s: any) => new Date(s.transaction_date).getTime()))
     );
-  
     const bufferStart = new Date(minDate);
     bufferStart.setDate(bufferStart.getDate() - matchingCriteria.dateBufferDays);
-  
     const bufferEnd = new Date(maxDate);
     bufferEnd.setDate(bufferEnd.getDate() + matchingCriteria.dateBufferDays);
-  
-    const aggregates = await this.orchestratorService.getAggregatesByDateRange(
-      bufferStart,
-      bufferEnd,
-    );
-  
-    // 🔥 REFACTORED: Use matching engine (execute mode)
-    const engineResult = this.runMatchingEngine(
-      statements,
-      aggregates,
-      matchingCriteria,
-      'execute'
-    ) as { matches: ReconciliationMatch[] };
-  
-    const matches = engineResult.matches;
+
+    if (preMatchedPairs && preMatchedPairs.length > 0) {
+      // Use pre-matched pairs from preview — skip re-matching
+      const validStatementIds = new Set(statements.map((s: any) => String(s.id)));
+      matches = preMatchedPairs
+        .filter((p) => validStatementIds.has(String(p.statementId)))
+        .map((p) => ({
+          statementId: String(p.statementId),
+          aggregateId: String(p.aggregateId),
+          matchScore: 100,
+          matchCriteria: (p.matchCriteria || 'EXACT_AMOUNT_DATE') as any,
+          difference: 0,
+        }));
+    } else {
+      // Fallback: re-run matching engine
+      const aggregates = await this.orchestratorService.getAggregatesByDateRange(
+        bufferStart,
+        bufferEnd,
+      );
+
+      const engineResult = this.runMatchingEngine(
+        statements,
+        aggregates,
+        matchingCriteria,
+        'execute'
+      ) as { matches: ReconciliationMatch[] };
+
+      matches = engineResult.matches;
+    }
   
     // Execute reconciliation for matches
     const successMatches: ReconciliationMatch[] = [];

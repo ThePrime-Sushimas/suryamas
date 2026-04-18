@@ -81,7 +81,8 @@ export interface ReconciliationWizardProps {
   ) => Promise<AutoMatchPreviewResponse>;
   onAutoMatchConfirm: (
     statementIds: string[],
-    criteria?: Partial<MatchingCriteria>
+    criteria?: Partial<MatchingCriteria>,
+    matches?: Array<{ statementId: string; aggregateId: string; matchCriteria?: string }>
   ) => Promise<void>;
   onManualMatchConfirm: (
     aggregateId: string,
@@ -2288,9 +2289,15 @@ export function ReconciliationWizard({
     setIsConfirming(true);
     try {
       if (reviewData.mode === "auto") {
+        const matchPairs = (reviewData.autoMatches || []).map((m) => ({
+          statementId: m.statementId,
+          aggregateId: (m as any).aggregate?.id || '',
+          matchCriteria: m.matchCriteria,
+        })).filter((p) => p.aggregateId);
         await onAutoMatchConfirm(
           reviewData.autoStatementIds || [],
-          reviewData.autoCriteria
+          reviewData.autoCriteria,
+          matchPairs,
         );
       } else if (reviewData.mode === "manual") {
         await onManualMatchConfirm(
