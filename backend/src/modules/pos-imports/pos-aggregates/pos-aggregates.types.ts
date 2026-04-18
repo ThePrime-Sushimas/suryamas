@@ -325,10 +325,9 @@ export interface GenerateJournalRequestDto {
   transaction_ids?: string[];
   branch_name?: string;
   payment_method_id?: number;
-  include_unreconciled_only?: boolean;
   total_amount?: number;
   _transactions?: AggregatedTransaction[];
-  company_id?: string; // Added: for journal creation
+  company_id?: string;
 }
 /**
  * INTERNAL DTO

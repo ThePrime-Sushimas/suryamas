@@ -30,8 +30,9 @@
  *   3. SAL-INV purpose not found or not active
  *   4. SAL-INV has no CREDIT REVENUE account
  *   5. tax_amount > 0 AND SAL-INV has no CREDIT LIABILITY account
- *   6. discount_amount > 0 AND SAL-INV has no DEBIT REVENUE account  ← NEW
- *   7. Total balance mismatch after line construction
+ *   6. discount_amount > 0 AND SAL-INV has no DEBIT REVENUE account
+ *   7. Any transaction in group is NOT reconciled (is_reconciled = false)
+ *   8. Total balance mismatch after line construction
  *
  * Special payment_type handling:
  *   COMPLIMENT    → CREDIT to coa_account_id (reduces revenue)
@@ -189,21 +190,10 @@ async function resolvePaymentMethods(
 }
 
 /**
- * Load SAL-INV purpose config once per processor run.
- *
- * CREDIT side:
- *   - REVENUE type  → gross sales revenue account
- *   - LIABILITY type → tax payable account (PB1/PPN)
- *
- * DEBIT side (NEW):
- *   - REVENUE type  → sales discount account (contra revenue, e.g. 410301)
+ * Load SAL-INV purpose config.
+ * Scoped as a factory — caller manages cache lifetime.
  */
-let salInvCache: { companyId: string; config: SalInvConfig } | null = null
-
-async function getSalInvConfig(companyId: string): Promise<SalInvConfig> {
-  if (salInvCache?.companyId === companyId) return salInvCache.config
-
-  // ── Get purpose id ───────────────────────────────────────────────────
+async function loadSalInvConfig(companyId: string): Promise<SalInvConfig> {
   const { data: purpose, error: purposeError } = await supabase
     .from('accounting_purposes')
     .select('id')
@@ -219,7 +209,6 @@ async function getSalInvConfig(companyId: string): Promise<SalInvConfig> {
     )
   }
 
-  // ── Get ALL accounts for SAL-INV (both DEBIT and CREDIT sides) ───────
   const { data: accounts, error: accountsError } = await supabase
     .from('accounting_purpose_accounts')
     .select('account_id, side, priority')
@@ -228,15 +217,9 @@ async function getSalInvConfig(companyId: string): Promise<SalInvConfig> {
     .is('deleted_at', null)
     .order('priority', { ascending: true })
 
-  if (accountsError) {
-    throw new Error(`Gagal load SAL-INV accounts: ${accountsError.message}`)
-  }
+  if (accountsError) throw new Error(`Gagal load SAL-INV accounts: ${accountsError.message}`)
+  if (!accounts || accounts.length === 0) throw new Error('SAL-INV tidak memiliki akun yang aktif')
 
-  if (!accounts || accounts.length === 0) {
-    throw new Error('SAL-INV tidak memiliki akun yang aktif')
-  }
-
-  // Separate by side
   const creditAccounts = accounts.filter(a => a.side === 'CREDIT')
   const debitAccounts  = accounts.filter(a => a.side === 'DEBIT')
 
@@ -244,40 +227,22 @@ async function getSalInvConfig(companyId: string): Promise<SalInvConfig> {
     throw new Error('SAL-INV tidak memiliki akun CREDIT yang aktif')
   }
 
-  // ── Get COA account types for all account IDs ────────────────────────
   const allCoaIds = [...new Set(accounts.map(a => a.account_id))]
-
-  const { data: allCoas, error: coaError } = await supabase
+  const { data: coas, error: coaError } = await supabase
     .from('chart_of_accounts')
     .select('id, account_type')
     .in('id', allCoaIds)
 
-  if (coaError) {
-    throw new Error(`Gagal load COA types untuk SAL-INV: ${coaError.message}`)
-  }
+  if (coaError) throw new Error(`Gagal load COA types untuk SAL-INV: ${coaError.message}`)
 
   const coaTypeMap = new Map<string, string>()
-  for (const coa of allCoas ?? []) {
-    coaTypeMap.set(coa.id, coa.account_type)
-  }
+  for (const coa of coas ?? []) coaTypeMap.set(coa.id, coa.account_type)
 
-  // ── CREDIT: find lowest priority REVENUE account (gross sales) ────────
-  const revenueAccount = creditAccounts.find(
-    a => coaTypeMap.get(a.account_id) === 'REVENUE'
-  )
-  if (!revenueAccount) {
-    throw new Error('SAL-INV tidak memiliki akun CREDIT dengan tipe REVENUE')
-  }
+  const revenueAccount = creditAccounts.find(a => coaTypeMap.get(a.account_id) === 'REVENUE')
+  if (!revenueAccount) throw new Error('SAL-INV tidak memiliki akun CREDIT dengan tipe REVENUE')
 
-  // ── CREDIT: find lowest priority LIABILITY account (tax/PB1) ──────────
-  const taxAccount = creditAccounts.find(
-    a => coaTypeMap.get(a.account_id) === 'LIABILITY'
-  ) ?? null
-
-  // ── DEBIT: find lowest priority REVENUE account (discount/contra) ─────
-  const discountAccount = debitAccounts.find(
-    a => coaTypeMap.get(a.account_id) === 'REVENUE'
-  ) ?? null
+  const taxAccount      = creditAccounts.find(a => coaTypeMap.get(a.account_id) === 'LIABILITY') ?? null
+  const discountAccount = debitAccounts.find(a => coaTypeMap.get(a.account_id) === 'REVENUE') ?? null
 
   const config: SalInvConfig = {
     revenueAccountId:  revenueAccount.account_id,
@@ -285,20 +250,8 @@ async function getSalInvConfig(companyId: string): Promise<SalInvConfig> {
     discountAccountId: discountAccount?.account_id ?? null,
   }
 
-  salInvCache = { companyId, config }
-
-  logInfo('SAL-INV config loaded', {
-    revenueAccountId:  config.revenueAccountId,
-    taxAccountId:      config.taxAccountId,
-    discountAccountId: config.discountAccountId,
-  })
-
+  logInfo('SAL-INV config loaded', config)
   return config
-}
-
-/** Clear caches — call between test runs */
-export function clearProcessorCaches(): void {
-  salInvCache = null
 }
 
 // ==============================
@@ -348,6 +301,13 @@ function findPeriodForDate(
 // JOURNAL CREATION WITH RETRY
 // ==============================
 
+interface JournalHeaderResult {
+  id: string
+  journalNumber: string
+  isExisting: boolean
+  status?: string
+}
+
 async function createJournalHeaderWithRetry(
   params: {
     companyId: string
@@ -359,7 +319,7 @@ async function createJournalHeaderWithRetry(
     totalAmount: number
   },
   attempt = 0
-): Promise<{ id: string } | null> {
+): Promise<JournalHeaderResult | null> {
   try {
     const { data, error } = await supabase.rpc('create_journal_header_atomic', {
       p_company_id:    params.companyId,
@@ -374,7 +334,15 @@ async function createJournalHeaderWithRetry(
     })
 
     if (error) throw new Error(error.message)
-    return (data as any)?.id ? { id: (data as any).id } : null
+
+    const row = Array.isArray(data) ? data[0] : data
+    if (!row?.id) return null
+
+    return {
+      id: row.id,
+      journalNumber: row.journal_number,
+      isExisting: row.is_existing ?? false,
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     const isRetryable =
@@ -482,18 +450,27 @@ function makeLine(
   description: string,
   debit: number,
   credit: number
-): JournalLineInput {
+): JournalLineInput | null {
+  const d = round2(debit)
+  const c = round2(credit)
+
+  // DB constraint: check_debit_or_credit — at least one must be > 0
+  if (d === 0 && c === 0) {
+    logWarn('makeLine: skipping zero-amount line', { accountId, description })
+    return null
+  }
+
   return {
     journal_header_id:  headerId,
     line_number:        lineNum,
     account_id:         accountId,
     description,
-    debit_amount:       round2(debit),
-    credit_amount:      round2(credit),
+    debit_amount:       d,
+    credit_amount:      c,
     currency:           'IDR',
     exchange_rate:      1,
-    base_debit_amount:  round2(debit),
-    base_credit_amount: round2(credit),
+    base_debit_amount:  d,
+    base_credit_amount: c,
     created_at:         new Date().toISOString(),
   }
 }
@@ -523,7 +500,7 @@ export async function generateJournalsOptimized(
 
   let salInvConfig: SalInvConfig
   try {
-    salInvConfig = await getSalInvConfig(companyId)
+    salInvConfig = await loadSalInvConfig(companyId)
   } catch (err) {
     throw new Error(
       `Konfigurasi akuntansi tidak lengkap: ${err instanceof Error ? err.message : err}`
@@ -594,6 +571,23 @@ export async function generateJournalsOptimized(
 
       // ── 5.2 Resolve branch ─────────────────────────────────────────
       const branchId = await resolveBranch(branchName, branchCache)
+      if (!branchId) {
+        failedResults.push({
+          date, branch: branchName,
+          error: `Branch "${branchName}" tidak ditemukan di database atau tidak aktif. Periksa nama branch di master data.`,
+        })
+        continue
+      }
+
+      // ── 5.2b Validate all transactions are reconciled ──────────────
+      const unreconciledTxs = groupTxs.filter(tx => !tx.is_reconciled)
+      if (unreconciledTxs.length > 0) {
+        failedResults.push({
+          date, branch: branchName,
+          error: `${unreconciledTxs.length} dari ${groupTxs.length} transaksi belum direkonsiliasi. Semua transaksi harus di-reconcile sebelum generate jurnal.`,
+        })
+        continue
+      }
 
       // ── 5.3 Validate all payment methods have required COA ─────────
       const validationErrors: string[] = []
@@ -721,18 +715,53 @@ export async function generateJournalsOptimized(
       if (!journalHeader) throw new Error('create_journal_header_atomic returned null')
 
       // ── 5.8 Idempotency check ──────────────────────────────────────
-      const linesExist = await checkJournalLinesExist(journalHeader.id)
-      if (linesExist) {
-        logInfo('Journal lines already exist, skipping insert', { journalId: journalHeader.id })
-        await updateTransactionsJournalId(groupTxs.map(t => t.id), journalHeader.id)
-        successResults.push({
-          date, branch_name: branchName,
-          transaction_ids: groupTxs.map(t => t.id),
-          journal_id:      journalHeader.id,
-          total_amount:    grandTotalDebit,
-          journal_number:  journalNumber,
+      if (journalHeader.isExisting) {
+        // Fetch status untuk cek apakah sudah POSTED
+        const { data: existingHeader } = await supabase
+          .from('journal_headers')
+          .select('status')
+          .eq('id', journalHeader.id)
+          .single()
+
+        if (existingHeader?.status === 'POSTED') {
+          // Jurnal sudah final — jangan sentuh apapun
+          logInfo('Journal already POSTED, skipping', {
+            journalId: journalHeader.id,
+            date,
+            branchName,
+          })
+          failedResults.push({
+            date,
+            branch: branchName,
+            error: `Jurnal ${journalHeader.journalNumber} sudah berstatus POSTED dan tidak bisa di-generate ulang. Lakukan reversal terlebih dahulu jika perlu koreksi.`,
+          })
+          continue
+        }
+
+        // Existing tapi belum POSTED — cek apakah lines sudah ada
+        const linesExist = await checkJournalLinesExist(journalHeader.id)
+        if (linesExist) {
+          logInfo('Journal lines already exist, skipping insert', {
+            journalId: journalHeader.id,
+          })
+          await updateTransactionsJournalId(groupTxs.map(t => t.id), journalHeader.id)
+          successResults.push({
+            date,
+            branch_name:     branchName,
+            transaction_ids: groupTxs.map(t => t.id),
+            journal_id:      journalHeader.id,
+            total_amount:    round2(grandGross),
+            journal_number:  journalHeader.journalNumber,
+          })
+          continue
+        }
+
+        // Existing header tapi tidak ada lines — lanjut insert lines (step 5.10)
+        logWarn('Journal header exists but no lines found, re-inserting lines', {
+          journalId: journalHeader.id,
+          date,
+          branchName,
         })
-        continue
       }
 
       // ── 5.9 Build journal lines ────────────────────────────────────
@@ -742,35 +771,34 @@ export async function generateJournalsOptimized(
       let checkDebit  = 0
       let checkCredit = 0
 
+      // Helper: push line only if non-zero, with consecutive line numbers
+      const pushLine = (accountId: string, desc: string, debit: number, credit: number) => {
+        const line = makeLine(journalHeader.id, lineNum, accountId, desc, debit, credit)
+        if (line) {
+          lines.push(line)
+          lineNum++
+          checkDebit  += debit    // raw accumulation — sama seperti sebelum refactor
+          checkCredit += credit
+        }
+      }
+
       // ── DEBIT lines: channel receivables / cash ────────────────────
       for (const agg of pmAggList) {
         const { pm, billTotal, feeTotal } = agg
         const pmDesc = pm.name
 
         if (pm.paymentType === 'COMPLIMENT') {
-          // COMPLIMENT reduces revenue → CREDIT channel account
-          lines.push(makeLine(journalHeader.id, lineNum++, pm.coaAccountId,
-            `POS Sales - ${pmDesc}`, 0, billTotal))
-          checkCredit = round2(checkCredit + billTotal)
+          pushLine(pm.coaAccountId, `POS Sales - ${pmDesc}`, 0, billTotal)
         } else {
-          // ASSET / LIABILITY / MEMBER_DEPOSIT → DEBIT channel account
-          lines.push(makeLine(journalHeader.id, lineNum++, pm.coaAccountId,
-            `POS Sales - ${pmDesc}`, billTotal, 0))
-          checkDebit = round2(checkDebit + billTotal)
+          pushLine(pm.coaAccountId, `POS Sales - ${pmDesc}`, billTotal, 0)
         }
 
-        // ── Fee lines: Full Accrual Model ──────────────────────────
-        // DEBIT  fee_coa_account_id          (MDR expense recognized now)
-        // CREDIT fee_liability_coa_account_id (MDR payable until bank settlement)
+        // Fee lines: Full Accrual Model
         if (feeTotal > 0 && pm.feeCoaAccountId) {
-          lines.push(makeLine(journalHeader.id, lineNum++, pm.feeCoaAccountId,
-            `Fee - ${pmDesc}`, feeTotal, 0))
-          checkDebit = round2(checkDebit + feeTotal)
+          pushLine(pm.feeCoaAccountId, `Fee - ${pmDesc}`, feeTotal, 0)
 
           if (pm.feeLiabilityCoaAccountId) {
-            lines.push(makeLine(journalHeader.id, lineNum++, pm.feeLiabilityCoaAccountId,
-              `MDR Payable - ${pmDesc}`, 0, feeTotal))
-            checkCredit = round2(checkCredit + feeTotal)
+            pushLine(pm.feeLiabilityCoaAccountId, `MDR Payable - ${pmDesc}`, 0, feeTotal)
           } else {
             logError('fee_liability_coa_account_id missing for accrual model', {
               payment_method: pm.name, fee_amount: feeTotal,
@@ -780,39 +808,16 @@ export async function generateJournalsOptimized(
       }
 
       // ── DEBIT: sales discount (contra revenue) ─────────────────────
-      // Represents discount given to customers.
-      // Normal balance DEBIT (contra to CREDIT revenue).
-      // Only posted if there is actual discount in this group.
       if (grandDiscount > 0 && salInvConfig.discountAccountId) {
-        lines.push(makeLine(
-          journalHeader.id, lineNum++,
-          salInvConfig.discountAccountId,
-          'Sales Discount',
-          grandDiscount, 0
-        ))
-        checkDebit = round2(checkDebit + grandDiscount)
+        pushLine(salInvConfig.discountAccountId, 'Sales Discount', grandDiscount, 0)
       }
 
       // ── CREDIT: gross sales revenue ────────────────────────────────
-      // gross_amount = revenue before discount & tax
-      // This is the full topline revenue figure.
-      lines.push(makeLine(
-        journalHeader.id, lineNum++,
-        salInvConfig.revenueAccountId,
-        'POS Sales Revenue',
-        0, grandGross
-      ))
-      checkCredit = round2(checkCredit + grandGross)
+      pushLine(salInvConfig.revenueAccountId, 'POS Sales Revenue', 0, grandGross)
 
       // ── CREDIT: PB1 / PPN tax payable ─────────────────────────────
       if (grandTax > 0 && salInvConfig.taxAccountId) {
-        lines.push(makeLine(
-          journalHeader.id, lineNum++,
-          salInvConfig.taxAccountId,
-          'PB1 Tax Payable',
-          0, grandTax
-        ))
-        checkCredit = round2(checkCredit + grandTax)
+        pushLine(salInvConfig.taxAccountId, 'PB1 Tax Payable', 0, grandTax)
       }
 
       // ── 5.10 Balance validation ────────────────────────────────────
@@ -875,8 +880,8 @@ export async function generateJournalsOptimized(
         date, branch_name: branchName,
         transaction_ids: groupTxs.map(t => t.id),
         journal_id:      journalHeader.id,
-        total_amount:    grandTotalDebit,
-        journal_number:  journalNumber,
+        total_amount:    round2(grandGross),
+        journal_number:  journalHeader.journalNumber,
       })
     } catch (err) {
       logError('Failed to generate journal for group', { date, branch: branchName, err })

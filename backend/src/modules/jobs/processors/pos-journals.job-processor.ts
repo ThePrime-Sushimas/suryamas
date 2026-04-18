@@ -11,10 +11,15 @@
  *   companyId: string,
  *   status?: 'READY' | 'PROCESSING' | 'MAPPED'  // Filter transactions by status
  * }
+ *
+ * Mandatory filters (applied to ALL query paths):
+ *   - is_reconciled = true   → only reconciled transactions
+ *   - superseded_by IS NULL  → exclude superseded (replaced by POS_SYNC)
+ *   - deleted_at IS NULL     → exclude soft-deleted
  */
 
 import { supabase } from '@/config/supabase'
-import { logInfo, logError } from '@/config/logger'
+import { logInfo, logError, logWarn } from '@/config/logger'
 import { jobsService, jobsRepository } from '@/modules/jobs'
 import { generateJournalsOptimized } from './pos-journals.processor'
 import { JobProcessor } from '../jobs.worker'
@@ -31,8 +36,14 @@ export interface PosJournalsJobMetadata {
   transaction_date_to?: string
   branch_name?: string
   payment_method_id?: number
-  include_unreconciled_only?: boolean
 }
+
+/** Apply mandatory filters to any aggregated_transactions query */
+const applyMandatoryFilters = (query: any) =>
+  query
+    .eq('is_reconciled', true)
+    .is('superseded_by', null)
+    .is('deleted_at', null)
 
 export const processPosJournals: JobProcessor<PosJournalsJobMetadata> = async (
   jobId: string,
@@ -60,32 +71,44 @@ export const processPosJournals: JobProcessor<PosJournalsJobMetadata> = async (
     if (metadata.transactionIds && metadata.transactionIds.length > 0) {
       // Direct transaction IDs provided
       await jobsService.updateProgress(jobId, 10, userId)
-      
-      const { data, error } = await supabase
-        .from('aggregated_transactions')
-        .select('*')
-        .in('id', metadata.transactionIds)
-        .is('deleted_at', null)
+
+      const { data, error } = await applyMandatoryFilters(
+        supabase
+          .from('aggregated_transactions')
+          .select('*')
+          .in('id', metadata.transactionIds)
+      )
 
       if (error) throw error
       transactions = data || []
+
+      // Log if any were skipped (not reconciled / superseded / deleted)
+      const skipped = metadata.transactionIds.length - transactions.length
+      if (skipped > 0) {
+        logWarn('Transactions skipped — not reconciled or superseded', {
+          job_id: jobId,
+          requested: metadata.transactionIds.length,
+          eligible: transactions.length,
+          skipped,
+        })
+      }
 
     } else if (metadata.posImportId) {
       // Get transactions from posImport
       await jobsService.updateProgress(jobId, 10, userId)
 
-      let query = supabase
-        .from('aggregated_transactions')
-        .select('*')
-        .eq('source_id', metadata.posImportId)
-        .eq('source_type', 'POS')
-        .is('deleted_at', null)
+      let query = applyMandatoryFilters(
+        supabase
+          .from('aggregated_transactions')
+          .select('*')
+          .eq('source_id', metadata.posImportId)
+          .eq('source_type', 'POS')
+      )
 
       // Filter by status if specified
       if (metadata.status) {
         query = query.eq('status', metadata.status)
       } else {
-        // Default to READY and PROCESSING
         query = query.in('status', ['READY', 'PROCESSING'])
       }
 
@@ -98,17 +121,16 @@ export const processPosJournals: JobProcessor<PosJournalsJobMetadata> = async (
       // Filter-based generation: query transactions based on filter criteria
       await jobsService.updateProgress(jobId, 10, userId)
 
-      // Build query for transactions based on filters
-      let query = supabase
-        .from('aggregated_transactions')
-        .select('*')
-        .is('deleted_at', null)
+      let query = applyMandatoryFilters(
+        supabase
+          .from('aggregated_transactions')
+          .select('*')
+      )
 
       // Apply status filter
       if (metadata.status) {
         query = query.eq('status', metadata.status)
       } else {
-        // Default to READY and PROCESSING
         query = query.in('status', ['READY', 'PROCESSING'])
       }
 
@@ -128,11 +150,6 @@ export const processPosJournals: JobProcessor<PosJournalsJobMetadata> = async (
       // Apply payment method filter
       if (metadata.payment_method_id) {
         query = query.eq('payment_method_id', metadata.payment_method_id)
-      }
-
-      // Apply unreconciled only filter
-      if (metadata.include_unreconciled_only) {
-        query = query.eq('is_reconciled', false)
       }
 
       const { data, error } = await query
@@ -204,4 +221,3 @@ export const processPosJournals: JobProcessor<PosJournalsJobMetadata> = async (
     throw error
   }
 }
-

@@ -142,7 +142,6 @@ export const generateJournalSchema = z.object({
     transaction_date_to: z.string().optional(),
     branch_name: z.string().optional(),
     payment_method_id: z.number().int().positive().optional(),
-    include_unreconciled_only: z.boolean().default(false),
     total_amount: z.number().optional(), // internal use only
   }),
 })

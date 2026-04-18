@@ -255,7 +255,6 @@ export interface GenerateJournalDto {
   transaction_date_to?: string;
   branch_name?: string;
   payment_method_id?: number;
-  include_unreconciled_only?: boolean;
 }
 
 /**

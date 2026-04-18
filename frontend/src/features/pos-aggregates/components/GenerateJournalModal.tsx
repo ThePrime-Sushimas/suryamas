@@ -71,7 +71,6 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
   const [dateTo, setDateTo] = useState<string>('')
   const [selectedBranch, setSelectedBranch] = useState<string>('')
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<number | ''>('')
-  const [includeUnreconciledOnly, setIncludeUnreconciledOnly] = useState<boolean>(true)
 
   // Fetch data on mount
   useEffect(() => {
@@ -230,7 +229,6 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
         transaction_date_to: dateTo,
         branch_name: selectedBranch || undefined,
         payment_method_id: selectedPaymentMethod || undefined,
-        include_unreconciled_only: includeUnreconciledOnly,
       }
 
       // Set initial progress
@@ -404,30 +402,16 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
                   </select>
                 </div>
 
-                {/* Options */}
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="unreconciledOnly"
-                    checked={includeUnreconciledOnly}
-                    onChange={(e) => setIncludeUnreconciledOnly(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
-                  />
-                  <label htmlFor="unreconciledOnly" className="text-sm text-gray-700 dark:text-gray-300">
-                    Hanya transaksi yang belum memiliki jurnal
-                  </label>
-                </div>
-
                 {/* Info Box */}
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
                   <div className="flex items-start gap-3">
-                    <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+                    <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium text-blue-900 dark:text-blue-300">
-                        Proses ini akan berjalan di background.
+                      <p className="text-sm font-medium text-amber-900 dark:text-amber-300">
+                        Hanya transaksi yang sudah direkonsiliasi yang akan diproses.
                       </p>
-                      <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
-                        Kamu bisa tutup modal ini dan cek status job di menu Jobs.
+                      <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
+                        Pastikan transaksi sudah di-reconcile di halaman Bank Reconciliation sebelum generate jurnal.
                       </p>
                     </div>
                   </div>
