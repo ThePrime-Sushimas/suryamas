@@ -11,61 +11,61 @@ interface SeedPurposeAccount {
 }
 
 const purposeAccountMappings: SeedPurposeAccount[] = [
-  // PUR-INV: Purchase Invoice (Pembelian)
-  { purpose_code: 'PUR-INV', account_code: '1131', side: 'DEBIT', priority: 1 },  // Persediaan Bahan Baku
-  { purpose_code: 'PUR-INV', account_code: '1141', side: 'DEBIT', priority: 2 },  // PPN Masukan
-  { purpose_code: 'PUR-INV', account_code: '2110', side: 'CREDIT', priority: 1 }, // Hutang Usaha
-  
-  // PUR-PAY: Purchase Payment (Bayar Hutang)
-  { purpose_code: 'PUR-PAY', account_code: '2110', side: 'DEBIT', priority: 1 },  // Hutang Usaha
-  { purpose_code: 'PUR-PAY', account_code: '11121', side: 'CREDIT', priority: 1 }, // Bank BCA
-  
-  // SAL-INV: Sales Invoice (Penjualan)
-  { purpose_code: 'SAL-INV', account_code: '1121', side: 'DEBIT', priority: 1 },  // Piutang Usaha
-  { purpose_code: 'SAL-INV', account_code: '41101', side: 'CREDIT', priority: 1 }, // Penjualan Sushi
-  { purpose_code: 'SAL-INV', account_code: '2130', side: 'CREDIT', priority: 2 }, // PPN Keluaran
-  
-  // SAL-REC: Sales Receipt (Terima Pembayaran)
-  { purpose_code: 'SAL-REC', account_code: '11112', side: 'DEBIT', priority: 1 }, // Kas Kasir
-  { purpose_code: 'SAL-REC', account_code: '1121', side: 'CREDIT', priority: 1 }, // Piutang Usaha
-  
-  // INV-ADJ: Inventory Adjustment (Penyesuaian Stok)
-  { purpose_code: 'INV-ADJ', account_code: '5300', side: 'DEBIT', priority: 1 },  // Selisih Persediaan
-  { purpose_code: 'INV-ADJ', account_code: '1131', side: 'CREDIT', priority: 1 }, // Persediaan Bahan Baku
-  
-  // EXP-SAL: Salary Expense (Gaji)
-  { purpose_code: 'EXP-SAL', account_code: '6110', side: 'DEBIT', priority: 1 },  // Gaji Chef
-  { purpose_code: 'EXP-SAL', account_code: '2120', side: 'CREDIT', priority: 1 }, // Hutang Gaji
-  { purpose_code: 'EXP-SAL', account_code: '11121', side: 'CREDIT', priority: 2 }, // Bank BCA
-  
-  // EXP-UTL: Utility Expense (Listrik, Air, Gas)
-  { purpose_code: 'EXP-UTL', account_code: '6300', side: 'DEBIT', priority: 1 },  // Beban Listrik & Air
-  { purpose_code: 'EXP-UTL', account_code: '6400', side: 'DEBIT', priority: 2 },  // Beban Gas
-  { purpose_code: 'EXP-UTL', account_code: '11121', side: 'CREDIT', priority: 1 }, // Bank BCA
-  
-  // EXP-RNT: Rent Expense (Sewa)
-  { purpose_code: 'EXP-RNT', account_code: '6200', side: 'DEBIT', priority: 1 },  // Beban Sewa
-  { purpose_code: 'EXP-RNT', account_code: '11121', side: 'CREDIT', priority: 1 }, // Bank BCA
-  
-  // CSH-IN: Cash In (Penerimaan Kas)
-  { purpose_code: 'CSH-IN', account_code: '11111', side: 'DEBIT', priority: 1 },  // Kas Kecil
-  { purpose_code: 'CSH-IN', account_code: '4300', side: 'CREDIT', priority: 1 },  // Pendapatan Lain-lain
-  
-  // CSH-OUT: Cash Out (Pengeluaran Kas)
-  { purpose_code: 'CSH-OUT', account_code: '6900', side: 'DEBIT', priority: 1 },  // Beban Lain-lain
-  { purpose_code: 'CSH-OUT', account_code: '11111', side: 'CREDIT', priority: 1 }, // Kas Kecil
-  
-  // BNK-TRF: Bank Transfer
-  { purpose_code: 'BNK-TRF', account_code: '11122', side: 'DEBIT', priority: 1 }, // Bank Mandiri
-  { purpose_code: 'BNK-TRF', account_code: '11121', side: 'CREDIT', priority: 1 }, // Bank BCA
-  
-  // AST-PUR: Asset Purchase (Beli Aset)
-  { purpose_code: 'AST-PUR', account_code: '1210', side: 'DEBIT', priority: 1 },  // Peralatan Restoran
-  { purpose_code: 'AST-PUR', account_code: '11121', side: 'CREDIT', priority: 1 }, // Bank BCA
-  
-  // AST-DEP: Asset Depreciation (Penyusutan)
-  { purpose_code: 'AST-DEP', account_code: '6800', side: 'DEBIT', priority: 1 },  // Beban Penyusutan
-  { purpose_code: 'AST-DEP', account_code: '1240', side: 'CREDIT', priority: 1 }, // Akumulasi Penyusutan
+  // PUR-INV: Purchase Invoice — DR Inventory, CR AP
+  { purpose_code: 'PUR-INV', account_code: '110501', side: 'DEBIT', priority: 1 },  // Raw material
+  { purpose_code: 'PUR-INV', account_code: '210101', side: 'CREDIT', priority: 1 }, // Account payable purchase
+
+  // PUR-PAY: Purchase Payment — DR AP, CR Bank
+  { purpose_code: 'PUR-PAY', account_code: '210101', side: 'DEBIT', priority: 1 },  // Account payable purchase
+  { purpose_code: 'PUR-PAY', account_code: '110201', side: 'CREDIT', priority: 1 }, // Bank BCA
+
+  // SAL-INV: Sales Invoice — DR Receivable + Discount, CR Revenue + CR PB1
+  { purpose_code: 'SAL-INV', account_code: '110301', side: 'DEBIT', priority: 1 },  // Cash sales receivable
+  { purpose_code: 'SAL-INV', account_code: '410301', side: 'DEBIT', priority: 2 },  // Bill Discount (contra-revenue)
+  { purpose_code: 'SAL-INV', account_code: '410101', side: 'CREDIT', priority: 1 }, // Sales - Food
+  { purpose_code: 'SAL-INV', account_code: '210206', side: 'CREDIT', priority: 2 }, // Pb1 payable
+
+  // SAL-REC: Sales Receipt — DR Cash/Bank, CR Receivable
+  { purpose_code: 'SAL-REC', account_code: '110102', side: 'DEBIT', priority: 1 },  // Petty cash outlet
+  { purpose_code: 'SAL-REC', account_code: '110301', side: 'CREDIT', priority: 1 }, // Cash sales receivable
+
+  // INV-ADJ: Inventory Adjustment — DR COGS Variance, CR Inventory
+  { purpose_code: 'INV-ADJ', account_code: '510301', side: 'DEBIT', priority: 1 },  // COGS Variance
+  { purpose_code: 'INV-ADJ', account_code: '110501', side: 'CREDIT', priority: 1 }, // Raw material
+
+  // EXP-SAL: Salary Expense — DR Salary, CR Salary payable
+  { purpose_code: 'EXP-SAL', account_code: '610201', side: 'DEBIT', priority: 1 },  // Salary
+  { purpose_code: 'EXP-SAL', account_code: '210301', side: 'CREDIT', priority: 1 }, // Salary payable
+
+  // EXP-UTL: Utility Expense — DR Electricity + Water + Gas, CR Utilities payable
+  { purpose_code: 'EXP-UTL', account_code: '610303', side: 'DEBIT', priority: 1 },  // Electricity Cost
+  { purpose_code: 'EXP-UTL', account_code: '610304', side: 'DEBIT', priority: 2 },  // Water Cost
+  { purpose_code: 'EXP-UTL', account_code: '610305', side: 'DEBIT', priority: 3 },  // Gas Cost
+  { purpose_code: 'EXP-UTL', account_code: '210302', side: 'CREDIT', priority: 1 }, // Utilities payable
+
+  // EXP-RNT: Rent Expense — DR Rent, CR Bank
+  { purpose_code: 'EXP-RNT', account_code: '610301', side: 'DEBIT', priority: 1 },  // Eating House Rental
+  { purpose_code: 'EXP-RNT', account_code: '110201', side: 'CREDIT', priority: 1 }, // Bank BCA
+
+  // CSH-IN: Cash In — DR Petty cash, CR Misc Income
+  { purpose_code: 'CSH-IN', account_code: '110101', side: 'DEBIT', priority: 1 },   // Petty cash HO
+  { purpose_code: 'CSH-IN', account_code: '710109', side: 'CREDIT', priority: 1 },  // Miscellaneous Income/(Expense)
+
+  // CSH-OUT: Cash Out — DR Misc Expense, CR Petty cash
+  { purpose_code: 'CSH-OUT', account_code: '610708', side: 'DEBIT', priority: 1 },  // Miscellaneous Expense
+  { purpose_code: 'CSH-OUT', account_code: '110101', side: 'CREDIT', priority: 1 }, // Petty cash HO
+
+  // BNK-TRF: Bank Transfer — DR Bank Mandiri, CR Bank BCA
+  { purpose_code: 'BNK-TRF', account_code: '110202', side: 'DEBIT', priority: 1 },  // Bank Mandiri
+  { purpose_code: 'BNK-TRF', account_code: '110201', side: 'CREDIT', priority: 1 }, // Bank BCA
+
+  // AST-PUR: Asset Purchase — DR Equipment, CR Bank
+  { purpose_code: 'AST-PUR', account_code: '120103', side: 'DEBIT', priority: 1 },  // Equipment
+  { purpose_code: 'AST-PUR', account_code: '110201', side: 'CREDIT', priority: 1 }, // Bank BCA
+
+  // AST-DEP: Asset Depreciation — DR Depr Expense, CR Acc Depr
+  { purpose_code: 'AST-DEP', account_code: '620103', side: 'DEBIT', priority: 1 },  // Depr - Equipment
+  { purpose_code: 'AST-DEP', account_code: '120203', side: 'CREDIT', priority: 1 }, // Acc. Depr - Equipment
 ]
 
 export async function seedAccountingPurposeAccounts() {
