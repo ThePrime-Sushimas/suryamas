@@ -78,6 +78,14 @@ export class DuplicateDetector {
       score += similarity * 10
     }
 
+    // Bonus: jika existing adalah PEND dan row adalah settled dengan tanggal sama
+    // Ini sinyal kuat bahwa ini adalah "upgrade" dari PEND
+    if ((existing as any).is_pending === true && !(row as any).is_pending) {
+      if (String(row.transaction_date) === existing.transaction_date) {
+        score += 20  // strong signal: settled version of PEND
+      }
+    }
+
     return Math.min(score, 100)
   }
 
@@ -163,17 +171,18 @@ export class DuplicateDetector {
 
     rows.forEach((row) => {
       existingStatements.forEach((existing) => {
-        // ✅ BALANCE INDICATOR: HARD REJECT + Scoring (per user request)
+        // ✅ BALANCE INDICATOR: Bonus Scoring (per user request)
         const rowBalance = typeof row.balance === 'number' ? row.balance : 0
         const existingBalance = existing.balance || 0
         
-        // ✅ STRICT BALANCE: exact match tolerance 0.01 (overlapping periods)
-        if (Math.abs(rowBalance - existingBalance) > 0.01) {
-          return 
+        let matchScore = 0
+
+        // Bonus kalau balance exact match
+        if (rowBalance > 0 && existingBalance > 0) {
+          if (Math.abs(rowBalance - existingBalance) <= 0.01) {
+            matchScore += 30 
+          }
         }
-        
-        // +30 points for exact balance match (ULTIMATE signal)
-        let matchScore = 30
 
         // Add entity + other scoring  
         matchScore += this.calculateMatchScore(row, existing)

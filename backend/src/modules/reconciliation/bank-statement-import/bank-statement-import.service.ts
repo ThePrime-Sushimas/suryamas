@@ -461,37 +461,76 @@ export class BankStatementImportService {
 
     let rowsToInsert = validRows;
 
-    // Filter duplicates if requested
-    if (skipDuplicates) {
-      // Check for duplicates against existing database records
-      const existingDuplicates = await this.detectDuplicates(
-        validRows,
-        companyId,
-        importRecord.bank_account_id,
-      );
+    // ALWAYS filter settled transactions yang match dengan existing PEND records
+    const existingDuplicates = await this.detectDuplicates(
+      validRows,
+      companyId,
+      importRecord.bank_account_id,
+    );
 
-      // No intra-file check - focus DB vs import only
-      const allDuplicates = [...existingDuplicates];
-
+    if (existingDuplicates.length > 0) {
       const duplicateKeys = new Set(
-        allDuplicates.map(
+        existingDuplicates.map(
           (d) =>
             `${d.transaction_date}-${d.reference_number || ""}-${d.debit_amount}-${d.credit_amount}`,
         ),
       );
 
-      rowsToInsert = validRows.filter((r) => {
-        const key = `${r.transaction_date}-${r.reference_number || ""}-${r.debit_amount}-${r.credit_amount}`;
-        return !duplicateKeys.has(key);
-      });
+      if (skipDuplicates) {
+        rowsToInsert = validRows.filter((r) => {
+          const key = `${r.transaction_date}-${r.reference_number || ""}-${r.debit_amount}-${r.credit_amount}`;
+          return !duplicateKeys.has(key);
+        });
 
-      logInfo("BankStatementImport: Duplicates filtered", {
-        import_id: importId,
-        original_count: validRows.length,
-        after_filter: rowsToInsert.length,
-        skipped: validRows.length - rowsToInsert.length,
-        existing_duplicates: existingDuplicates.length,
-      });
+        logInfo("BankStatementImport: Duplicates filtered", {
+          import_id: importId,
+          original_count: validRows.length,
+          after_filter: rowsToInsert.length,
+          skipped: validRows.length - rowsToInsert.length,
+          existing_duplicates: existingDuplicates.length,
+        });
+      }
+    }
+
+    const settledRows = rowsToInsert.filter((r: any) => !r.is_pending);
+    if (settledRows.length > 0) {
+      // Compute dateRangeStart and dateRangeEnd from settledRows
+      const dates = settledRows.map((r: any) => new Date(r.transaction_date));
+      const dateRangeStart = dates.length > 0 
+        ? new Date(Math.min(...dates.map((d: any) => d.getTime()))).toISOString().split("T")[0]
+        : null;
+      const dateRangeEnd = dates.length > 0 
+        ? new Date(Math.max(...dates.map((d: any) => d.getTime()))).toISOString().split("T")[0]
+        : null;
+
+      if (dateRangeStart && dateRangeEnd) {
+        // Cek dulu: apakah ada PEND di DB yang match?
+        const pendingInDb = await this.repository.findPendingByDateRange(
+          companyId,
+          importRecord.bank_account_id,
+          dateRangeStart,
+          dateRangeEnd
+        );
+
+        if (pendingInDb.length > 0) {
+          const replacedCount = await this.repository.replacePendingWithSettled(
+            companyId,
+            importRecord.bank_account_id,
+            settledRows.map((r: any) => ({
+              transaction_date: r.transaction_date,
+              debit_amount: r.debit_amount || 0,
+              credit_amount: r.credit_amount || 0,
+              description: r.description || ''
+            }))
+          );
+          if (replacedCount > 0) {
+            logInfo('BankStatementImport: Replaced PEND records with settled', {
+              import_id: importId,
+              replaced_count: replacedCount,
+            });
+          }
+        }
+      }
     }
 
     // Bulk insert in batches
@@ -532,6 +571,15 @@ export class BankStatementImportService {
       processed_rows: processedCount,
       failed_rows: invalidRows.length,
     });
+
+    // Cleanup stale PEND records (non-critical, fire and forget)
+    this.repository.cleanupStalePendingRecords(3).then((cleaned) => {
+      if (cleaned > 0) {
+        logInfo('BankStatementImport: Cleaned up stale PEND records', { cleaned })
+      }
+    }).catch(() => {
+      // Non-critical, ignore error
+    })
 
     // Clean up temporary data
     await this.cleanupTemporaryData(importId);
@@ -1420,6 +1468,45 @@ export class BankStatementImportService {
   }
 
   /**
+   * Extract tanggal dari description BCA untuk transaksi PEND
+   */
+  private extractDateFromDescription(description: string, fallbackYear?: number): string | null {
+    const year = fallbackYear || new Date().getFullYear()
+
+    // Pattern 1: DDMM/ di awal kode transfer, contoh "1804/FTSCY" atau "0104/FTSCY"
+    const transferMatch = description.match(/\b(\d{2})(\d{2})\/[A-Z]{2,}/)
+    if (transferMatch) {
+      const day = transferMatch[1]
+      const month = transferMatch[2]
+      const dayNum = parseInt(day)
+      const monthNum = parseInt(month)
+      if (dayNum >= 1 && dayNum <= 31 && monthNum >= 1 && monthNum <= 12) {
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+      }
+    }
+
+    // Pattern 2: "TANGGAL :DD/MM" atau "TANGGAL:DD/MM"
+    const tanggalMatch = description.match(/TANGGAL\s*:(\d{1,2})\/(\d{1,2})/i)
+    if (tanggalMatch) {
+      const day = tanggalMatch[1].padStart(2, '0')
+      const month = tanggalMatch[2].padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+
+    // Pattern 3: " DDMM " spasi-DDMM-spasi (4 digit), fallback
+    const shortMatch = description.match(/\s(\d{2})(\d{2})\s/)
+    if (shortMatch) {
+      const day = parseInt(shortMatch[1])
+      const month = parseInt(shortMatch[2])
+      if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      }
+    }
+
+    return null
+  }
+
+  /**
    * Parse single BCA Personal row
    */
   private parseBCAPersonalRow(
@@ -1442,19 +1529,33 @@ export class BankStatementImportService {
       if (!transactionDate) {
         // Check if it's pending (PEND)
         if (dateValue.toUpperCase().startsWith("PEND")) {
-          // Pending logic
+          // Coba extract tanggal dari description
+          const extractedDate = this.extractDateFromDescription(description);
+          const resolvedDate = extractedDate || new Date().toISOString().split("T")[0];
+
+          let debitAmountPend = 0;
+          let creditAmountPend = 0;
+          const amountNumPend = parseFloat(amountRaw.replace(/[,\s]/g, ""));
+          if (!isNaN(amountNumPend)) {
+            if (creditDebit === "CR") creditAmountPend = amountNumPend;
+            else if (creditDebit === "DB") debitAmountPend = amountNumPend;
+          }
+
+          const balance = this.parseAmount(balanceRaw);
+
           return {
             row_number: rowNumber,
             raw_line: rawLine,
             format: BANK_CSV_FORMAT.BCA_PERSONAL,
-            transaction_date: new Date().toISOString().split("T")[0],
+            transaction_date: resolvedDate,
             reference_number: "",
             description: description.substring(0, 1000),
-            debit_amount: 0,
-            credit_amount: 0,
+            debit_amount: debitAmountPend,
+            credit_amount: creditAmountPend,
+            balance: balance || undefined,
             is_pending: true,
             transaction_type: PENDING_TRANSACTION.TRANSACTION_TYPE,
-            raw_data: { columns },
+            raw_data: { columns, extractedDateFrom: extractedDate ? 'description' : 'fallback' },
           };
         }
         return null;
@@ -1549,7 +1650,40 @@ export class BankStatementImportService {
       const balanceRaw = columns[4]?.trim() || "";
 
       const transactionDate = this.parseDate(dateValue);
-      if (!transactionDate) return null;
+      if (!transactionDate) {
+        if (dateValue.toUpperCase().startsWith("PEND")) {
+          const extractedDate = this.extractDateFromDescription(description);
+          const resolvedDate = extractedDate || new Date().toISOString().split("T")[0];
+
+          let debitAmountPend = 0;
+          let creditAmountPend = 0;
+          const amountMatch = amountRaw.match(/^([\d,]+\.?\d*)\s*(DB|CR|DR)?/i);
+          if (amountMatch) {
+            const num = parseFloat(amountMatch[1].replace(/,/g, ""));
+            const type = (amountMatch[2] || "").toUpperCase();
+
+            if (type === "CR") creditAmountPend = num;
+            else if (type === "DB" || type === "DR") debitAmountPend = num;
+          }
+
+          const balance = this.parseAmount(balanceRaw);
+
+          return {
+            row_number: rowNumber,
+            raw_line: rawLine,
+            format: BANK_CSV_FORMAT.BCA_BUSINESS,
+            transaction_date: resolvedDate,
+            description: description.substring(0, 1000),
+            debit_amount: debitAmountPend,
+            credit_amount: creditAmountPend,
+            balance: balance || undefined,
+            is_pending: true,
+            transaction_type: PENDING_TRANSACTION.TRANSACTION_TYPE,
+            raw_data: { columns, branch, extractedDateFrom: extractedDate ? 'description' : 'fallback' },
+          };
+        }
+        return null;
+      }
 
       let debitAmount = 0;
       let creditAmount = 0;

@@ -659,6 +659,88 @@ export class BankStatementImportRepository {
   }
 
   /**
+   * Replace existing PEND records that match with settled rows
+   */
+  async replacePendingWithSettled(
+    companyId: string,
+    bankAccountId: number,
+    settledRows: Array<{
+      transaction_date: string
+      debit_amount: number
+      credit_amount: number
+      balance?: number
+      description: string
+    }>
+  ): Promise<number> {
+    let replacedCount = 0
+
+    for (const row of settledRows) {
+      const { data, error } = await supabase
+        .from('bank_statements')
+        .delete()
+        .eq('company_id', companyId)
+        .eq('bank_account_id', bankAccountId)
+        .eq('is_pending', true)
+        .eq('transaction_date', row.transaction_date)
+        .eq('debit_amount', row.debit_amount)
+        .eq('credit_amount', row.credit_amount)
+        .select('id')
+
+      if (!error && data?.length) {
+        replacedCount += data.length
+      }
+    }
+
+    return replacedCount
+  }
+
+  /**
+   * Find pending records by date range
+   */
+  async findPendingByDateRange(
+    companyId: string,
+    bankAccountId: number,
+    dateFrom: string,
+    dateTo: string
+  ): Promise<BankStatement[]> {
+    const { data, error } = await supabase
+      .from('bank_statements')
+      .select('*')
+      .eq('company_id', companyId)
+      .eq('bank_account_id', bankAccountId)
+      .eq('is_pending', true)
+      .gte('transaction_date', dateFrom)
+      .lte('transaction_date', dateTo)
+
+    if (error) {
+      logError('BankStatementImportRepository.findPendingByDateRange error', { companyId, bankAccountId, error: error.message })
+      return []
+    }
+    return (data || []) as BankStatement[]
+  }
+
+  /**
+   * Cleanup stale pending records
+   */
+  async cleanupStalePendingRecords(daysOld: number = 3): Promise<number> {
+    const cutoffDate = new Date()
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld)
+
+    const { data, error } = await supabase
+      .from('bank_statements')
+      .delete()
+      .eq('is_pending', true)
+      .lt('transaction_date', cutoffDate.toISOString().split('T')[0])
+      .select('id')
+
+    if (error) {
+      logError('BankStatementImportRepository.cleanupStalePendingRecords error', { error: error.message })
+      return 0
+    }
+    return data?.length || 0
+  }
+
+  /**
    * Count existing statements in a date range
    */
   async countExistingStatements(
@@ -856,34 +938,8 @@ export class BankStatementImportRepository {
       }
     })()
 
-    // Preflight: check bucket existence to make errors actionable
-    try {
-      const { data: buckets, error: bucketErr } = await supabase.storage.listBuckets()
-      if (bucketErr) {
-        logWarn('BankStatementImportRepository.downloadTemporaryData listBuckets error', {
-          importId,
-          bucket,
-          path: objectPath,
-          error_name: (bucketErr as any)?.name,
-          error_message: (bucketErr as any)?.message,
-          error: bucketErr
-        })
-      } else {
-        const exists = buckets?.some(b => b.name === bucket) ?? false
-        if (!exists) {
-          logError('BankStatementImportRepository.downloadTemporaryData bucket missing', { importId, bucket })
-          throw new Error(`Storage bucket not found: ${bucket}`)
-        }
-      }
-    } catch (e) {
-      // If listBuckets itself fails (permissions/env), keep original behavior but with better log
-      logWarn('BankStatementImportRepository.downloadTemporaryData bucket preflight failed', {
-        importId,
-        bucket,
-        path: objectPath,
-        error_string: String(e)
-      })
-    }
+    // Removed noisy listBuckets preflight check since it fails due to permissions
+    // while the actual download succeeds.
 
     const { data, error } = await supabase.storage
       .from(bucket)
