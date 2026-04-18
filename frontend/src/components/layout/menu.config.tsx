@@ -244,6 +244,13 @@ export const menuItems: MenuItem[] = [
             module: "bank_reconciliation",
           },
           {
+            id: "cash-flow",
+            name: "Cash Flow",
+            href: "/cash-flow",
+            icon: <Activity size={16} />,
+            module: "cash_flow",
+          },
+          {
             id: "settlement-groups",
             name: "Settlement Groups",
             href: "/bank-reconciliation/settlement-groups",

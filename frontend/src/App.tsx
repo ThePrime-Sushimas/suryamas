@@ -390,6 +390,12 @@ const PosSyncAggregatesPage = lazy(() =>
 const PosSyncAggregateDetailPage = lazy(() =>
   import('./features/pos-sync-aggregates').then(m => ({ default: m.PosSyncAggregateDetailPage }))
 )
+const CashFlowPage = lazy(() =>
+  import('./features/cash-flow').then(m => ({ default: m.CashFlowPage }))
+)
+const CashFlowSettingsPage = lazy(() =>
+  import('./features/cash-flow').then(m => ({ default: m.CashFlowSettingsPage }))
+)
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -1314,6 +1320,26 @@ function App() {
                       <ProtectedRoute>
                         <Suspense fallback={<LoadingFallback />}>
                           <CashCountsManagementPage />
+                        </Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="cash-flow"
+                    element={
+                      <ProtectedRoute>
+                        <Suspense fallback={<LoadingFallback />}>
+                          <CashFlowPage />
+                        </Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="cash-flow/settings"
+                    element={
+                      <ProtectedRoute>
+                        <Suspense fallback={<LoadingFallback />}>
+                          <CashFlowSettingsPage />
                         </Suspense>
                       </ProtectedRoute>
                     }
