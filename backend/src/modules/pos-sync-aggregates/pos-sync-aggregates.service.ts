@@ -64,6 +64,34 @@ export async function syncPosSyncToAggregated(
             error: supErr.message,
           });
         }
+
+        // Migrate reconciled POS twin → POS_SYNC (if POS was reconciled before POS_SYNC arrived)
+        try {
+          const reconciledTwin = await posSyncAggregatesRepository.findReconciledPosTwin({
+            transactionDate: p.sales_date,
+            paymentMethodId: p.payment_method_id,
+            branchName: p.branch_name,
+          });
+          if (reconciledTwin) {
+            const migrated = await posSyncAggregatesRepository.migrateReconciledPosToSync(
+              reconciledTwin.id,
+              upserted.id,
+            );
+            if (migrated) {
+              result.superseded++;
+              logInfo("syncPosSyncToAggregated: migrated reconciled POS → POS_SYNC", {
+                posId: reconciledTwin.id,
+                syncId: upserted.id,
+                sourceRef,
+              });
+            }
+          }
+        } catch (migErr: any) {
+          logWarn("syncPosSyncToAggregated: migrate reconciled failed", {
+            sourceRef,
+            error: migErr.message,
+          });
+        }
       }
     } catch (err: any) {
       logError("syncPosSyncToAggregated: upsert failed", {

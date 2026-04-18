@@ -203,6 +203,19 @@ export const posSyncAggregatesRepository = {
   },
 
   /**
+   * Migrate reconciliation from a reconciled POS record to its POS_SYNC twin.
+   * Handles bank_statements link migration and supersede atomically via RPC.
+   */
+  async migrateReconciledPosToSync(posId: string, syncId: string): Promise<boolean> {
+    const { data, error } = await supabase.rpc('migrate_reconciled_pos_to_sync', {
+      p_pos_id: posId,
+      p_sync_id: syncId,
+    });
+    if (error) throw error;
+    return data ?? false;
+  },
+
+  /**
    * Auto-supersede newly inserted manual (POS) entries if POS_SYNC already exists
    * for the same (date, branch, payment_method). Called after bulk CSV import.
    */
@@ -272,6 +285,32 @@ export const posSyncAggregatesRepository = {
    * Find aggregated_transactions record linked to a pos_sync_aggregate.
    * Returns null if not yet synced.
    */
+  /**
+   * Find reconciled POS record that matches a POS_SYNC record by date/branch/payment.
+   */
+  // pos-sync-aggregates.repository.ts
+async findReconciledPosTwin(params: {
+  transactionDate: string;
+  paymentMethodId: number;
+  branchName: string | null;
+}): Promise<{ id: string } | null> {
+  if (!params.branchName) return null;
+  const { data, error } = await supabase
+    .from('aggregated_transactions')
+    .select('id')
+    .eq('source_type', 'POS')
+    .eq('transaction_date', params.transactionDate)
+    .eq('payment_method_id', params.paymentMethodId)
+    .eq('branch_name', params.branchName)
+    .eq('is_reconciled', true)
+    .is('superseded_by', null)
+    .is('deleted_at', null)
+    .limit(1)          // ← tambahkan ini
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+},
+
   async findAggregatedTxByPosSyncId(posSyncAggregateId: string) {
     const { data, error } = await supabase
       .from("aggregated_transactions")
