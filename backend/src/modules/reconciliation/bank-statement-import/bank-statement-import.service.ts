@@ -864,6 +864,16 @@ export class BankStatementImportService {
       throw new Error("Cannot delete import while it is being processed");
     }
 
+    // Undo reconciliation for any reconciled statements before deleting
+    try {
+      await this.repository.undoReconciliationsForImport(importId);
+    } catch (error) {
+      logError(
+        "BankStatementImport: Could not undo reconciliations, continuing with delete",
+        { importId, error },
+      );
+    }
+
     // Delete associated statements (ignore errors if none exist)
     try {
       await this.repository.deleteByImportId(importId);

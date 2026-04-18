@@ -187,34 +187,16 @@ export class BankStatementImportRepository {
   }
 
   /**
-   * Soft delete import
+   * Hard delete import record
    */
-  async delete(id: number, userId: string): Promise<void> {
-    // Try to update with deleted_by first
+  async delete(id: number, _userId: string): Promise<void> {
     const { error } = await supabase
       .from('bank_statement_imports')
-      .update({ 
-        deleted_at: new Date().toISOString(),
-        deleted_by: userId 
-      })
+      .delete()
       .eq('id', id)
 
-    // If the update failed due to deleted_by column not existing, try without it
     if (error) {
       logError('BankStatementImportRepository.delete error', { id, error: error.message })
-      // Try again with just deleted_at if the error mentions deleted_by
-      if (error.message.includes('deleted_by')) {
-        const { error: retryError } = await supabase
-          .from('bank_statement_imports')
-          .update({ deleted_at: new Date().toISOString() })
-          .eq('id', id)
-        
-        if (retryError) {
-          logError('BankStatementImportRepository.delete retry error', { id, error: retryError.message })
-          throw BankStatementImportErrors.DELETE_FAILED(id)
-        }
-        return
-      }
       throw BankStatementImportErrors.DELETE_FAILED(id)
     }
   }
@@ -630,17 +612,108 @@ export class BankStatementImportRepository {
   }
 
   /**
-   * Delete statements by import ID
+   * Delete statements by import ID (hard delete)
    */
   async deleteByImportId(importId: number): Promise<void> {
     const { error } = await supabase
       .from('bank_statements')
-      .update({ deleted_at: new Date().toISOString() })
+      .delete()
       .eq('import_id', importId)
 
     if (error) {
       logError('BankStatementImportRepository.deleteByImportId error', { importId, error: error.message })
     }
+  }
+
+  /**
+   * Undo all reconciliations for statements in an import before deletion.
+   * Resets linked aggregated_transactions and clears reconciliation fields.
+   */
+  async undoReconciliationsForImport(importId: number): Promise<void> {
+    // 1. Find reconciled statements with their reconciliation links
+    const { data: reconciledStmts, error: fetchErr } = await supabase
+      .from('bank_statements')
+      .select('id, reconciliation_id, reconciliation_group_id, cash_deposit_id')
+      .eq('import_id', importId)
+      .eq('is_reconciled', true)
+      .is('deleted_at', null)
+
+    if (fetchErr) {
+      logError('undoReconciliationsForImport: fetch error', { importId, error: fetchErr.message })
+      throw fetchErr
+    }
+
+    if (!reconciledStmts || reconciledStmts.length === 0) return
+
+    // 2. Collect aggregate IDs to reset
+    const aggregateIds = reconciledStmts
+      .map((s: any) => s.reconciliation_id)
+      .filter(Boolean) as string[]
+
+    const uniqueAggregateIds = [...new Set(aggregateIds)]
+
+    // 3. Reset aggregated_transactions
+    if (uniqueAggregateIds.length > 0) {
+      const { error: aggErr } = await supabase
+        .from('aggregated_transactions')
+        .update({
+          is_reconciled: false,
+          actual_fee_amount: 0,
+          fee_discrepancy: 0,
+          fee_discrepancy_note: null,
+          reconciliation_status: 'PENDING',
+          updated_at: new Date().toISOString(),
+        })
+        .in('id', uniqueAggregateIds)
+
+      if (aggErr) {
+        logError('undoReconciliationsForImport: reset aggregates error', { importId, error: aggErr.message })
+      }
+    }
+
+    // 4. Reset cash deposits
+    const cashDepositIds = reconciledStmts
+      .map((s: any) => s.cash_deposit_id)
+      .filter(Boolean) as string[]
+
+    if (cashDepositIds.length > 0) {
+      const { error: depErr } = await supabase
+        .from('cash_deposits')
+        .update({
+          status: 'DEPOSITED',
+          bank_statement_id: null,
+          updated_at: new Date().toISOString(),
+        })
+        .in('id', [...new Set(cashDepositIds)])
+
+      if (depErr) {
+        logError('undoReconciliationsForImport: reset cash deposits error', { importId, error: depErr.message })
+      }
+    }
+
+    // 5. Reset reconciliation fields on statements
+    const stmtIds = reconciledStmts.map((s: any) => s.id)
+    const { error: resetErr } = await supabase
+      .from('bank_statements')
+      .update({
+        is_reconciled: false,
+        reconciliation_id: null,
+        reconciliation_group_id: null,
+        cash_deposit_id: null,
+        updated_at: new Date().toISOString(),
+      })
+      .in('id', stmtIds)
+
+    if (resetErr) {
+      logError('undoReconciliationsForImport: reset statements error', { importId, error: resetErr.message })
+    }
+
+    logInfo('undoReconciliationsForImport: completed', {
+      importId,
+      statementsReset: stmtIds.length,
+      aggregatesReset: uniqueAggregateIds.length,
+      cashDepositsReset: cashDepositIds.length,
+    })
   }
 
   /**
