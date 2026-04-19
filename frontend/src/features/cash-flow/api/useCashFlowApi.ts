@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import type {
   AccountPeriodBalance,
@@ -163,6 +163,23 @@ export const useCashFlowDaily = (params: GetRunningBalanceQuery) =>
     },
     enabled: !!params.bank_account_id && !!params.date_from && !!params.date_to,
   })
+
+export const useCashFlowDailyInfinite = (params: Omit<GetRunningBalanceQuery, 'page'> & { page?: number }) => {
+  const { page: _, ...baseParams } = params
+  return useInfiniteQuery({
+    queryKey: [...cashFlowKeys.all, 'daily-infinite', baseParams],
+    queryFn: async ({ pageParam = 1 }) => {
+      const { data } = await api.get('/cash-flow/daily', {
+        params: { ...baseParams, page: pageParam },
+      })
+      return data.data as CashFlowDailyResult
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.has_next ? lastPage.pagination.page + 1 : undefined,
+    enabled: !!baseParams.bank_account_id && !!baseParams.date_from && !!baseParams.date_to,
+  })
+}
 
 export const useBranches = () =>
   useQuery({

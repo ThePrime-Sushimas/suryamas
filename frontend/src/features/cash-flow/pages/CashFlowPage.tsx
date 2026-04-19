@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   RefreshCw, AlertTriangle, Clock, CheckCircle2,
   ChevronRight, ChevronDown, ChevronLeft, Wallet, Filter,
-  TrendingUp, TrendingDown, Settings2, Plus, Calendar
+  TrendingUp, TrendingDown, Settings2, Plus, Calendar, Loader2
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
@@ -13,7 +13,7 @@ import {
   useCreatePeriod,
   useUpdatePeriod,
   useDeletePeriod,
-  useCashFlowDaily,
+  useCashFlowDailyInfinite,
   useBranches,
 } from '../api/useCashFlowApi'
 import { CreatePeriodDialog, EditPeriodDialog } from '../components/PeriodBalanceForms'
@@ -368,29 +368,7 @@ const RunningBalanceTable = ({ rows, isLoading }: { rows: RunningBalanceRow[]; i
   )
 }
 
-// ============================================================
-// Pagination
-// ============================================================
-const Pagination = ({
-  page, totalPages, total, limit, onPage, onLimit
-}: {
-  page: number; totalPages: number; total: number; limit: number
-  onPage: (p: number) => void; onLimit: (l: number) => void
-}) => (
-  <div className="flex flex-col sm:flex-row justify-between items-center gap-3 mt-4 px-1">
-    <p className="text-xs text-gray-500">{(page - 1) * limit + 1}–{Math.min(page * limit, total)} dari {total} transaksi</p>
-    <div className="flex items-center gap-3">
-      <select value={limit} onChange={e => onLimit(Number(e.target.value))} className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none">
-        {[50, 100, 200, 500].map(v => <option key={v} value={v}>{v} / hal</option>)}
-      </select>
-      <div className="flex items-center gap-1">
-        <button disabled={page === 1} onClick={() => onPage(page - 1)} className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg disabled:opacity-30 hover:bg-gray-50">‹ Prev</button>
-        <span className="text-xs text-gray-500 px-2">{page} / {totalPages}</span>
-        <button disabled={page >= totalPages} onClick={() => onPage(page + 1)} className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg disabled:opacity-30 hover:bg-gray-50">Next ›</button>
-      </div>
-    </div>
-  </div>
-)
+
 
 // ============================================================
 // Main Page
@@ -403,8 +381,6 @@ export const CashFlowPage = () => {
   const [selectedBankId, setSelectedBankId] = useState<number | null>(null)
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0)
   const [selectedBranchId, setSelectedBranchId] = useState<string>('')
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(100)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
 
@@ -438,15 +414,48 @@ export const CashFlowPage = () => {
     fmtDateInput(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1))
   )
 
-  // Cash flow daily data
-  const { data: cashFlow, isLoading, isFetching, refetch } = useCashFlowDaily({
+  // Cash flow daily data (infinite scroll)
+  const {
+    data: cashFlowPages,
+    isLoading,
+    isFetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+  } = useCashFlowDailyInfinite({
     bank_account_id: selectedBankId || 0,
     date_from: startDate,
     date_to: endDate,
     branch_id: selectedBranchId || undefined,
-    page,
-    limit,
+    limit: 100,
   })
+
+  // Merge all pages
+  const cashFlow = useMemo(() => {
+    if (!cashFlowPages?.pages?.length) return null
+    const first = cashFlowPages.pages[0]
+    const allRows = cashFlowPages.pages.flatMap(p => p.rows)
+    return { ...first, rows: allRows }
+  }, [cashFlowPages])
+
+  // Infinite scroll observer
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+  const handleObserver = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage()
+      }
+    },
+    [hasNextPage, isFetchingNextPage, fetchNextPage],
+  )
+  useEffect(() => {
+    const el = loadMoreRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(handleObserver, { threshold: 0.1 })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [handleObserver])
 
   // Mutations
   const createMutation = useCreatePeriod()
@@ -489,8 +498,6 @@ export const CashFlowPage = () => {
     }
   }
 
-  const handleLimitChange = (l: number) => { setLimit(l); setPage(1) }
-
   const noPeriods = periods && periods.length === 0
 
   return (
@@ -517,7 +524,7 @@ export const CashFlowPage = () => {
         {accounts.map(acc => (
           <button
             key={acc.id}
-            onClick={() => { setSelectedBankId(acc.id); setPage(1) }}
+            onClick={() => { setSelectedBankId(acc.id) }}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
               selectedBankId === acc.id
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
@@ -556,7 +563,7 @@ export const CashFlowPage = () => {
           <PeriodNavigator
             periods={periods!}
             selectedIndex={selectedPeriodIndex}
-            onSelect={(idx) => { setSelectedPeriodIndex(idx); setPage(1) }}
+            onSelect={(idx) => { setSelectedPeriodIndex(idx) }}
             onEdit={() => setIsEditOpen(true)}
             onCreate={() => setIsCreateOpen(true)}
           />
@@ -568,7 +575,7 @@ export const CashFlowPage = () => {
                 <Filter className="w-3.5 h-3.5 text-gray-400" />
                 <select
                   value={selectedBranchId}
-                  onChange={e => { setSelectedBranchId(e.target.value); setPage(1) }}
+                  onChange={e => { setSelectedBranchId(e.target.value) }}
                   className="text-sm text-gray-700 outline-none bg-transparent"
                 >
                   <option value="">Semua Cabang</option>
@@ -594,14 +601,14 @@ export const CashFlowPage = () => {
           {/* ── Running balance table ── */}
           <RunningBalanceTable rows={cashFlow?.rows || []} isLoading={isLoading} />
 
-          {/* ── Pagination ── */}
-          {cashFlow && cashFlow.pagination.total_pages > 1 && (
-            <Pagination
-              page={page} totalPages={cashFlow.pagination.total_pages}
-              total={cashFlow.pagination.total} limit={limit}
-              onPage={setPage} onLimit={handleLimitChange}
-            />
-          )}
+          {/* ── Infinite scroll sentinel ── */}
+          <div ref={loadMoreRef} className="py-4 flex justify-center">
+            {isFetchingNextPage && (
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <Loader2 className="w-4 h-4 animate-spin" /> Memuat lebih banyak...
+              </div>
+            )}
+          </div>
         </>
       ) : null}
 
