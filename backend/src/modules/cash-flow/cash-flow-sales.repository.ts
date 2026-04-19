@@ -29,7 +29,7 @@ export class CashFlowSalesRepository {
   } | null> {
     const { data, error } = await supabase
       .from('bank_accounts')
-      .select('id, account_number, account_name, banks(bank_name)')
+      .select('id, account_number, account_name, banks!inner(bank_name)')
       .eq('id', bankAccountId)
       .eq('owner_id', companyId)
       .eq('owner_type', 'company')
@@ -37,10 +37,9 @@ export class CashFlowSalesRepository {
       .maybeSingle()
 
     if (error || !data) return null
-    const bank = Array.isArray(data.banks) ? data.banks[0] : data.banks
     return {
       id: data.id,
-      bank_name: (bank as any)?.bank_name || '',
+      bank_name: (data.banks as any)?.bank_name || '',
       account_number: data.account_number,
       account_name: data.account_name,
     }
@@ -295,12 +294,43 @@ export class CashFlowSalesRepository {
   }
 
   async reorderGroups(companyId: string, orderedIds: string[]): Promise<void> {
-    for (let i = 0; i < orderedIds.length; i++) {
-      await supabase
-        .from('payment_method_groups')
-        .update({ display_order: i })
-        .eq('id', orderedIds[i])
-        .eq('company_id', companyId)
+    if (orderedIds.length === 0) return
+
+    // Fetch current versions for optimistic locking
+    const { data: currentGroups, error: fetchError } = await supabase
+      .from('payment_method_groups')
+      .select('id, updated_at')
+      .eq('company_id', companyId)
+      .in('id', orderedIds)
+
+    if (fetchError) {
+      throw new DatabaseError('Failed to fetch current group versions', { cause: new Error(fetchError.message) })
+    }
+
+    const versionMap = new Map((currentGroups || []).map(g => [g.id, g.updated_at]))
+    const now = new Date().toISOString()
+
+    const results = await Promise.all(
+      orderedIds.map((id, i) =>
+        supabase
+          .from('payment_method_groups')
+          .update({ display_order: i, updated_at: now })
+          .eq('id', id)
+          .eq('company_id', companyId)
+          .eq('updated_at', versionMap.get(id) || '')
+      )
+    )
+
+    const failed = results.filter(r => r.error)
+    if (failed.length > 0) {
+      logError('CashFlowSalesRepository.reorderGroups failed', {
+        failedCount: failed.length,
+        errors: failed.map(f => f.error?.message),
+      })
+      throw new DatabaseError(
+        `Reorder failed: ${failed.length} groups were modified concurrently. Please try again.`,
+        { cause: new Error(failed[0].error?.message || 'Concurrent modification detected') }
+      )
     }
   }
 
@@ -318,17 +348,21 @@ export class CashFlowSalesRepository {
         .is('deleted_at', null)
         .order('name')
 
-      if (error || !pms) return []
+      if (error) {
+        logError('CashFlowSalesRepository.getAvailablePaymentMethods: query failed', { companyId, error: error.message })
+        throw new DatabaseError('Failed to fetch available payment methods', { cause: error })
+      }
+
+      if (!pms || pms.length === 0) return []
 
       const { data: mappings } = await supabase
         .from('payment_method_group_mappings')
-        .select('payment_method_id, group_id, payment_method_groups(id, name)')
+        .select('payment_method_id, group_id, payment_method_groups!inner(id, name)')
         .eq('company_id', companyId)
 
       const mappingMap = new Map<number, { id: string; name: string }>()
       for (const m of (mappings || []) as any[]) {
-        const g = Array.isArray(m.payment_method_groups) ? m.payment_method_groups[0] : m.payment_method_groups
-        if (g) mappingMap.set(m.payment_method_id, g)
+        if (m.payment_method_groups) mappingMap.set(m.payment_method_id, m.payment_method_groups)
       }
 
       return pms.map(pm => {
@@ -343,7 +377,7 @@ export class CashFlowSalesRepository {
       })
     } catch (error) {
       logError('CashFlowSalesRepository.getAvailablePaymentMethods error', { error })
-      return []
+      throw error
     }
   }
 
@@ -427,12 +461,18 @@ export class CashFlowSalesRepository {
       if (pmIds.length > 0) {
         const { data: mappings } = await supabase
           .from('payment_method_group_mappings')
-          .select('payment_method_id, group_id, payment_method_groups(id, name, color, display_order)')
+          .select('payment_method_id, group_id, payment_method_groups!inner(id, name, color, display_order)')
           .eq('company_id', params.company_id)
           .in('payment_method_id', pmIds)
         for (const m of (mappings || []) as any[]) {
-          const g = Array.isArray(m.payment_method_groups) ? m.payment_method_groups[0] : m.payment_method_groups
-          if (g) groupLookup.set(m.payment_method_id, { group_id: g.id, group_name: g.name, group_color: g.color, display_order: g.display_order ?? 0 })
+          if (m.payment_method_groups) {
+            groupLookup.set(m.payment_method_id, {
+              group_id: m.payment_method_groups.id,
+              group_name: m.payment_method_groups.name,
+              group_color: m.payment_method_groups.color,
+              display_order: m.payment_method_groups.display_order ?? 0,
+            })
+          }
         }
       }
 
@@ -445,7 +485,7 @@ export class CashFlowSalesRepository {
       }>()
 
       for (const row of (aggs || []) as any[]) {
-        const pm = Array.isArray(row.payment_methods) ? row.payment_methods[0] : row.payment_methods
+        const pm = row.payment_methods
         const grp = groupLookup.get(row.payment_method_id)
         const groupKey = grp?.group_id || 'UNGROUPED'
         const amount = Number(row.actual_nett_amount ?? row.nett_amount ?? 0)
@@ -553,173 +593,140 @@ export class CashFlowSalesRepository {
         branch_name: string | null
       }
 
-      // 1. Resolve 1:1 match via reconciliation_id → aggregated_transactions directly
+      // ── Step 1: Collect all IDs from different reconciliation paths ──
       const reconIds = rows.filter(r => r.reconciliation_id).map(r => r.reconciliation_id)
-      const aggregateMap = new Map<string, EnrichInfo>()
-      if (reconIds.length > 0) {
-        const { data: aggs } = await supabase
-          .from('aggregated_transactions')
-          .select('id, branch_name, payment_method_id, payment_methods!inner(name, payment_type)')
-          .in('id', reconIds)
-        // Fetch group mappings once for all
-        const allPmIds = (aggs || []).map((a: any) => a.payment_method_id).filter(Boolean)
-        const { data: allMappings } = allPmIds.length > 0
-          ? await supabase
+      const groupIds = [...new Set(rows.filter(r => r.reconciliation_group_id && !r.reconciliation_id).map(r => r.reconciliation_group_id))]
+      const settleStatementIds = rows
+        .filter(r => r.is_reconciled && !r.reconciliation_id && !r.reconciliation_group_id && !r.cash_deposit_id)
+        .map(r => String(r.id))
+      const cashDepositIds = rows.filter(r => r.cash_deposit_id).map(r => r.cash_deposit_id)
+
+      // ── Step 2: Resolve reconciliation_group_id → aggregate_id & settlement → aggregate_id in parallel ──
+      const [reconGroupsResult, settlementsResult, depositsResult] = await Promise.all([
+        groupIds.length > 0
+          ? supabase.from('bank_reconciliation_groups').select('id, aggregate_id').in('id', groupIds)
+          : { data: [] as any[] },
+        settleStatementIds.length > 0
+          ? supabase.from('bank_settlement_groups').select('bank_statement_id, bank_settlement_aggregates(aggregate_id)').in('bank_statement_id', settleStatementIds).is('deleted_at', null)
+          : { data: [] as any[] },
+        cashDepositIds.length > 0
+          ? supabase.from('cash_deposits').select('id, branch_name, payment_method_id').in('id', cashDepositIds)
+          : { data: [] as any[] },
+      ])
+
+      const reconGroups = (reconGroupsResult.data || []) as any[]
+      const settlements = (settlementsResult.data || []) as any[]
+      const deposits = (depositsResult.data || []) as any[]
+
+      const multiMatchAggIds = reconGroups.map(g => g.aggregate_id).filter(Boolean)
+      const settlementAggIds = settlements.flatMap(sg =>
+        (sg.bank_settlement_aggregates || []).map((a: any) => a.aggregate_id)
+      ).filter(Boolean)
+
+      // ── Step 3: Batch ALL aggregated_transactions in ONE query (deduplicated) ──
+      const allAggIds = [...new Set([...reconIds, ...multiMatchAggIds, ...settlementAggIds])]
+      const { data: allAggs } = allAggIds.length > 0
+        ? await supabase
+            .from('aggregated_transactions')
+            .select('id, branch_name, payment_method_id, payment_methods!inner(name, payment_type)')
+            .in('id', allAggIds)
+        : { data: [] as any[] }
+
+      // ── Step 4: Batch ALL payment_method_group_mappings in ONE query ──
+      const aggPmIds = (allAggs || []).map((a: any) => a.payment_method_id).filter(Boolean)
+      const depositPmIds = deposits.map(d => d.payment_method_id).filter(Boolean)
+      const allPmIds = [...new Set([...aggPmIds, ...depositPmIds])]
+
+      const [mappingsResult, depositPmsResult] = await Promise.all([
+        allPmIds.length > 0
+          ? supabase
               .from('payment_method_group_mappings')
-              .select('payment_method_id, payment_method_groups(name, color)')
+              .select('payment_method_id, payment_method_groups!inner(name, color)')
               .eq('company_id', params.company_id)
               .in('payment_method_id', allPmIds)
-          : { data: [] }
-        const groupLookup = new Map<number, { name: string; color: string }>()
-        for (const m of (allMappings || []) as any[]) {
-          const g = Array.isArray(m.payment_method_groups) ? m.payment_method_groups[0] : m.payment_method_groups
-          if (g) groupLookup.set(m.payment_method_id, { name: g.name, color: g.color })
-        }
-        for (const a of (aggs || []) as any[]) {
-          const pm = Array.isArray(a.payment_methods) ? a.payment_methods[0] : a.payment_methods
-          const grp = groupLookup.get(a.payment_method_id)
-          aggregateMap.set(String(a.id), {
-            payment_method_name: pm?.name || 'Lainnya',
-            payment_type: pm?.payment_type || 'OTHER',
-            group_name: grp?.name || null,
-            group_color: grp?.color || null,
-            branch_name: a.branch_name || null,
+          : { data: [] as any[] },
+        depositPmIds.length > 0
+          ? supabase.from('payment_methods').select('id, name').in('id', depositPmIds)
+          : { data: [] as any[] },
+      ])
+
+      // ── Step 5: Build shared lookup maps ──
+      const groupLookup = new Map<number, { name: string; color: string }>()
+      for (const m of (mappingsResult.data || []) as any[]) {
+        if (m.payment_method_groups) {
+          groupLookup.set(m.payment_method_id, {
+            name: m.payment_method_groups.name,
+            color: m.payment_method_groups.color,
           })
         }
       }
 
-      // 2. Resolve multi-match via reconciliation_group_id
-      const groupIds = [...new Set(rows.filter(r => r.reconciliation_group_id && !r.reconciliation_id).map(r => r.reconciliation_group_id))]
+      const buildEnrichInfo = (a: any): EnrichInfo => {
+        const pm = a.payment_methods
+        const grp = groupLookup.get(a.payment_method_id)
+        return {
+          payment_method_name: pm?.name || 'Lainnya',
+          payment_type: pm?.payment_type || 'OTHER',
+          group_name: grp?.name || null,
+          group_color: grp?.color || null,
+          branch_name: a.branch_name || null,
+        }
+      }
+
+      // Aggregate lookup (shared across all paths)
+      const aggLookup = new Map<string, EnrichInfo>()
+      for (const a of (allAggs || []) as any[]) {
+        aggLookup.set(String(a.id), buildEnrichInfo(a))
+      }
+
+      // 1:1 reconciliation_id → aggregate
+      const aggregateMap = new Map<string, EnrichInfo>()
+      for (const id of reconIds) {
+        const info = aggLookup.get(String(id))
+        if (info) aggregateMap.set(String(id), info)
+      }
+
+      // Multi-match reconciliation_group_id → aggregate
       const multiMatchMap = new Map<string, EnrichInfo>()
-      if (groupIds.length > 0) {
-        const { data: groups } = await supabase
-          .from('bank_reconciliation_groups')
-          .select('id, aggregate_id')
-          .in('id', groupIds)
-        const aggIdsFromGroups = (groups || []).map((g: any) => g.aggregate_id).filter(Boolean)
-        if (aggIdsFromGroups.length > 0) {
-          // Query aggregated_transactions directly (not via view) because aggregate may not be marked is_reconciled
-          const { data: aggs } = await supabase
-            .from('aggregated_transactions')
-            .select('id, branch_name, payment_method_id, payment_methods!inner(name, payment_type)')
-            .in('id', aggIdsFromGroups)
-          const { data: allMappings } = await supabase
-            .from('payment_method_group_mappings')
-            .select('payment_method_id, payment_method_groups(name, color)')
-            .eq('company_id', params.company_id)
-          const groupLookup = new Map<number, { name: string; color: string }>()
-          for (const m of (allMappings || []) as any[]) {
-            const g = Array.isArray(m.payment_method_groups) ? m.payment_method_groups[0] : m.payment_method_groups
-            if (g) groupLookup.set(m.payment_method_id, { name: g.name, color: g.color })
-          }
-          const aggLookup = new Map<string, EnrichInfo>()
-          for (const a of (aggs || []) as any[]) {
-            const pm = Array.isArray(a.payment_methods) ? a.payment_methods[0] : a.payment_methods
-            const grp = groupLookup.get(a.payment_method_id)
-            aggLookup.set(String(a.id), {
-              payment_method_name: pm?.name || 'Lainnya',
-              payment_type: pm?.payment_type || 'OTHER',
-              group_name: grp?.name || null,
-              group_color: grp?.color || null,
-              branch_name: a.branch_name || null,
-            })
-          }
-          for (const g of (groups || []) as any[]) {
-            const info = aggLookup.get(String(g.aggregate_id))
-            if (info) multiMatchMap.set(String(g.id), info)
-          }
-        }
+      for (const g of reconGroups) {
+        const info = aggLookup.get(String(g.aggregate_id))
+        if (info) multiMatchMap.set(String(g.id), info)
       }
 
-      // 3. Resolve settlement groups via bank_statement_id
-      const settleStatementIds = rows
-        .filter(r => r.is_reconciled && !r.reconciliation_id && !r.reconciliation_group_id && !r.cash_deposit_id)
-        .map(r => String(r.id))
+      // Settlement → aggregate
       const settlementMap = new Map<string, EnrichInfo>()
-      if (settleStatementIds.length > 0) {
-        const { data: settlements } = await supabase
-          .from('bank_settlement_groups')
-          .select('bank_statement_id, bank_settlement_aggregates(aggregate_id)')
-          .in('bank_statement_id', settleStatementIds)
-          .is('deleted_at', null)
-        if (settlements) {
-          const allAggIds = (settlements as any[]).flatMap(sg =>
-            (sg.bank_settlement_aggregates || []).map((a: any) => a.aggregate_id)
-          ).filter(Boolean)
-          if (allAggIds.length > 0) {
-            // Also query directly, not via view
-            const { data: aggs } = await supabase
-              .from('aggregated_transactions')
-              .select('id, branch_name, payment_method_id, payment_methods!inner(name, payment_type)')
-              .in('id', allAggIds)
-            const { data: allMappings } = await supabase
-              .from('payment_method_group_mappings')
-              .select('payment_method_id, payment_method_groups(name, color)')
-              .eq('company_id', params.company_id)
-            const groupLookup = new Map<number, { name: string; color: string }>()
-            for (const m of (allMappings || []) as any[]) {
-              const g = Array.isArray(m.payment_method_groups) ? m.payment_method_groups[0] : m.payment_method_groups
-              if (g) groupLookup.set(m.payment_method_id, { name: g.name, color: g.color })
-            }
-            const aggLookup = new Map<string, EnrichInfo>()
-            for (const a of (aggs || []) as any[]) {
-              const pm = Array.isArray(a.payment_methods) ? a.payment_methods[0] : a.payment_methods
-              const grp = groupLookup.get(a.payment_method_id)
-              aggLookup.set(String(a.id), {
-                payment_method_name: pm?.name || 'Lainnya',
-                payment_type: pm?.payment_type || 'OTHER',
-                group_name: grp?.name || null,
-                group_color: grp?.color || null,
-                branch_name: a.branch_name || null,
-              })
-            }
-            for (const sg of settlements as any[]) {
-              const firstAggId = sg.bank_settlement_aggregates?.[0]?.aggregate_id
-              const info = firstAggId ? aggLookup.get(String(firstAggId)) : null
-              if (info) settlementMap.set(String(sg.bank_statement_id), info)
-            }
-          }
-        }
+      for (const sg of settlements) {
+        const firstAggId = sg.bank_settlement_aggregates?.[0]?.aggregate_id
+        const info = firstAggId ? aggLookup.get(String(firstAggId)) : null
+        if (info) settlementMap.set(String(sg.bank_statement_id), info)
       }
 
-      // 4. Resolve cash deposits
-      const cashDepositIds = rows.filter(r => r.cash_deposit_id).map(r => r.cash_deposit_id)
+      // Cash deposits — merge PM name + group in one lookup
       const cashDepositMap = new Map<string, EnrichInfo>()
-      if (cashDepositIds.length > 0) {
-        const { data: deposits } = await supabase
-          .from('cash_deposits')
-          .select('id, branch_name, payment_method_id')
-          .in('id', cashDepositIds)
-        if (deposits) {
-          const pmIds = [...new Set((deposits as any[]).map(d => d.payment_method_id).filter(Boolean))]
-          let pmLookup = new Map<number, { name: string; group_name: string | null; group_color: string | null }>()
-          if (pmIds.length > 0) {
-            const { data: pms } = await supabase.from('payment_methods').select('id, name').in('id', pmIds)
-            const { data: mappings } = await supabase
-              .from('payment_method_group_mappings')
-              .select('payment_method_id, payment_method_groups(name, color)')
-              .in('payment_method_id', pmIds)
-            for (const pm of (pms || []) as any[]) pmLookup.set(pm.id, { name: pm.name, group_name: null, group_color: null })
-            for (const m of (mappings || []) as any[]) {
-              const g = Array.isArray(m.payment_method_groups) ? m.payment_method_groups[0] : m.payment_method_groups
-              const existing = pmLookup.get(m.payment_method_id)
-              if (existing && g) { existing.group_name = g.name; existing.group_color = g.color }
-            }
-          }
-          for (const d of deposits as any[]) {
-            const pm = d.payment_method_id ? pmLookup.get(d.payment_method_id) : null
-            cashDepositMap.set(String(d.id), {
-              payment_method_name: pm?.name || 'Setoran Tunai',
-              payment_type: 'CASH',
-              group_name: pm?.group_name || null,
-              group_color: pm?.group_color || null,
-              branch_name: d.branch_name || null,
-            })
-          }
+      if (deposits.length > 0) {
+        const depositPmLookup = new Map<number, { name: string; group_name: string | null; group_color: string | null }>()
+        for (const pm of (depositPmsResult.data || []) as any[]) {
+          const grp = groupLookup.get(pm.id)
+          depositPmLookup.set(pm.id, {
+            name: pm.name,
+            group_name: grp?.name || null,
+            group_color: grp?.color || null,
+          })
+        }
+
+        for (const d of deposits) {
+          const pm = d.payment_method_id ? depositPmLookup.get(d.payment_method_id) : null
+          cashDepositMap.set(String(d.id), {
+            payment_method_name: pm?.name || 'Setoran Tunai',
+            payment_type: 'CASH',
+            group_name: pm?.group_name || null,
+            group_color: pm?.group_color || null,
+            branch_name: d.branch_name || null,
+          })
         }
       }
 
-      // 5. Enrich rows
+      // ── Step 6: Enrich rows ──
       const enriched = rows.map((row) => {
         let info: EnrichInfo | null = null
 
@@ -856,57 +863,62 @@ export class CashFlowSalesRepository {
         .is('deleted_at', null)
 
       const { data: bsRows, error: bsError } = await bsQuery
-      if (bsError || !bsRows || bsRows.length === 0) return []
+      if (bsError) {
+        logError('CashFlowSalesRepository.getCashDepositBreakdown: bank statements query failed', { bsError, bankAccountId, companyId })
+        throw new DatabaseError('Failed to get bank statements for cash deposits', { cause: bsError })
+      }
+      if (!bsRows || bsRows.length === 0) return []
 
       const depositIds = bsRows.map(r => r.cash_deposit_id)
 
-      // Get cash_deposits with branch + payment_method info
-      const { data: deposits, error: depError } = await supabase
-        .from('cash_deposits')
-        .select('id, deposit_amount, deposit_date, branch_name, payment_method_id')
-        .in('id', depositIds)
-
-      if (depError || !deposits) return []
-
-      // Get branch_id from branches table by branch_name
-      const branchNames = [...new Set(deposits.map(d => d.branch_name).filter(Boolean))]
-      let branchMap = new Map<string, string>()
-      if (branchNames.length > 0) {
-        const { data: branches } = await supabase
+      // Parallel: fetch deposits + all company branches
+      const [depositsResult, branchesResult] = await Promise.all([
+        supabase
+          .from('cash_deposits')
+          .select('id, deposit_amount, deposit_date, branch_name, payment_method_id')
+          .in('id', depositIds),
+        supabase
           .from('branches')
           .select('id, branch_name')
-          .in('branch_name', branchNames)
-        for (const b of (branches || []) as any[]) {
-          branchMap.set(b.branch_name, b.id)
-        }
+          .eq('company_id', companyId)
+          .eq('status', 'active'),
+      ])
+
+      if (depositsResult.error) {
+        logError('CashFlowSalesRepository.getCashDepositBreakdown: deposits query failed', { error: depositsResult.error.message })
+        throw new DatabaseError('Failed to get cash deposits', { cause: depositsResult.error })
       }
 
-      // Get payment method + group info
+      const deposits = depositsResult.data || []
+      if (deposits.length === 0) return []
+
+      const branchMap = new Map<string, string>(
+        (branchesResult.data || []).map((b: any) => [b.branch_name, b.id])
+      )
+
+      // Parallel: fetch payment methods + group mappings
       const pmIds = [...new Set(deposits.map(d => d.payment_method_id).filter(Boolean))] as number[]
       let pmMap = new Map<number, { name: string; group_id: string | null; group_name: string | null; group_color: string | null; group_display_order: number | null }>()
       if (pmIds.length > 0) {
-        const { data: pms } = await supabase
-          .from('payment_methods')
-          .select('id, name')
-          .in('id', pmIds)
+        const [pmsResult, mappingsResult] = await Promise.all([
+          supabase.from('payment_methods').select('id, name').in('id', pmIds),
+          supabase
+            .from('payment_method_group_mappings')
+            .select('payment_method_id, group_id, payment_method_groups!inner(id, name, color, display_order)')
+            .eq('company_id', companyId)
+            .in('payment_method_id', pmIds),
+        ])
 
-        const { data: mappings } = await supabase
-          .from('payment_method_group_mappings')
-          .select('payment_method_id, group_id, payment_method_groups(id, name, color, display_order)')
-          .eq('company_id', companyId)
-          .in('payment_method_id', pmIds)
-
-        for (const pm of (pms || []) as any[]) {
+        for (const pm of (pmsResult.data || []) as any[]) {
           pmMap.set(pm.id, { name: pm.name, group_id: null, group_name: null, group_color: null, group_display_order: null })
         }
-        for (const m of (mappings || []) as any[]) {
-          const g = Array.isArray(m.payment_method_groups) ? m.payment_method_groups[0] : m.payment_method_groups
+        for (const m of (mappingsResult.data || []) as any[]) {
           const existing = pmMap.get(m.payment_method_id)
-          if (existing && g) {
-            existing.group_id = g.id
-            existing.group_name = g.name
-            existing.group_color = g.color
-            existing.group_display_order = g.display_order
+          if (existing && m.payment_method_groups) {
+            existing.group_id = m.payment_method_groups.id
+            existing.group_name = m.payment_method_groups.name
+            existing.group_color = m.payment_method_groups.color
+            existing.group_display_order = m.payment_method_groups.display_order
           }
         }
       }
