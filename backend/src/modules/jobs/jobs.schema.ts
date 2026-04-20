@@ -27,6 +27,7 @@ export const jobModuleEnum = zodBase.enum([
   'sub_categories',
   'pos_aggregates',
   'pos_journals',
+  'bank_rec_journals',
 ])
 
 // -----------------------------

@@ -17,6 +17,7 @@ import { processEmployeesImport } from './employees.import'
 import { processPosAggregates } from './pos-aggregates.job-processor'
 import { processPosJournals } from './pos-journals.job-processor'
 import { processBankStatementImport } from './bank-statement-import.processor'
+import { processBankRecJournals } from './bank-reconciliation-journal.job-processor'
 
 
 export interface ProcessorModule<M extends Record<string, any> = Record<string, any>> {
@@ -47,6 +48,9 @@ export const processorModules: ProcessorModule[] = [
 
   // Bank Statement Import processors
   { type: 'import', module: 'bank_statements', processor: processBankStatementImport as any },
+
+  // Bank Reconciliation Journal processors
+  { type: 'import', module: 'bank_rec_journals', processor: processBankRecJournals as any },
 ]
 
 /**

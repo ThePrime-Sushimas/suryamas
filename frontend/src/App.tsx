@@ -311,6 +311,11 @@ const JournalHeadersPage = lazy(() =>
     default: m.JournalHeadersPage,
   })),
 );
+const TrialBalancePage = lazy(() =>
+  import("./features/accounting/trial-balance").then((m) => ({
+    default: m.TrialBalancePage,
+  }))
+);
 const PosAggregatesPage = lazy(() =>
   import("./features/pos-aggregates").then((m) => ({
     default: m.PosAggregatesPage,
@@ -1204,6 +1209,16 @@ function App() {
                       <ProtectedRoute>
                         <Suspense fallback={<LoadingFallback />}>
                           <JournalHeadersPage />
+                        </Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="accounting/trial-balance"
+                    element={
+                      <ProtectedRoute>
+                        <Suspense fallback={<LoadingFallback />}>
+                          <TrialBalancePage />
                         </Suspense>
                       </ProtectedRoute>
                     }

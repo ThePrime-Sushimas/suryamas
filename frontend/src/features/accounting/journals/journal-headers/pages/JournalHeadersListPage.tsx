@@ -8,6 +8,7 @@ import { JournalHeaderFilters } from '../components/JournalHeaderFilters'
 import { JournalHeaderTable } from '../components/JournalHeaderTable'
 import { useJournalPermissions } from '../hooks/useJournalPermissions'
 import type { JournalHeader, JournalSortParams } from '../types/journal-header.types'
+import { GenerateBankRecJournalsButton } from '../components/GenerateBankRecJournalsButton'
 
 export function JournalHeadersListPage() {
   const navigate = useNavigate()
@@ -97,6 +98,7 @@ export function JournalHeadersListPage() {
             <Trash2 size={18} />
             <span className="hidden sm:inline">Journal Terhapus</span>
           </button>
+          <GenerateBankRecJournalsButton onAfterClose={() => fetchJournals()} />
           {permissions.canCreate && (
             <button
               onClick={() => navigate('/accounting/journals/new')}

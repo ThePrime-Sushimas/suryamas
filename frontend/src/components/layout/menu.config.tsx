@@ -16,6 +16,7 @@ import {
   Shield,
   Activity,
   Coins,
+  Scale
 } from "lucide-react";
 import type { MenuItem } from "./types";
 
@@ -171,6 +172,13 @@ export const menuItems: MenuItem[] = [
             icon: <Calculator size={16} />,
             module: "journals",
           },
+          {
+            id: "trial-balance",
+            name: "Neraca Saldo",
+            href: "/accounting/trial-balance",
+            icon: <Scale size={16} />,
+            module: "journals",  // reuse journals permission
+          }
         ],
       },
       // POS Management

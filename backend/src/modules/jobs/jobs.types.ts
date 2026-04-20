@@ -28,6 +28,7 @@ export type JobModule =
   | 'pos_aggregates'
   | 'pos_journals'
   | 'bank_statements'
+  | 'bank_rec_journals'
   // future modules can be added here without DB changes
   // | 'tax_reports' | 'journals' | 'inventory' | 'suppliers'
 

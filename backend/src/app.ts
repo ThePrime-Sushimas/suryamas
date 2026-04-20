@@ -30,6 +30,7 @@ import accountingPurposeAccountsRoutes from "./modules/accounting/accounting-pur
 import fiscalPeriodsRoutes from "./modules/accounting/fiscal-periods/fiscal-periods.routes";
 import journalHeadersRoutes from "./modules/accounting/journals/journal-headers/journal-headers.routes";
 import journalLinesRoutes from "./modules/accounting/journals/journal-lines/journal-lines.routes";
+import trialBalanceRoutes from "./modules/accounting/trial-balance/trial-balance.routes";
 import posImportsRoutes from "./modules/pos-imports/pos-imports/pos-imports.routes";
 import posAggregatesRoutes from "./modules/pos-imports/pos-aggregates/pos-aggregates.routes";
 import posTransactionsRoutes from "./modules/pos-imports/pos-transactions/pos-transactions.routes";
@@ -110,6 +111,7 @@ app.use("/api/v1/accounting-purpose-accounts", accountingPurposeAccountsRoutes);
 app.use("/api/v1/accounting/fiscal-periods", fiscalPeriodsRoutes);
 app.use("/api/v1/accounting/journals", journalHeadersRoutes);
 app.use("/api/v1/accounting/journal-lines", journalLinesRoutes);
+app.use("/api/v1/accounting/trial-balance", trialBalanceRoutes);
 app.use("/api/v1/pos-sync", posSyncRoutes);
 app.use("/api/v1/pos-sync-aggregates", posSyncAggregatesRoutes);
 app.use("/api/v1/pos-imports", posImportsRoutes);
@@ -223,6 +225,10 @@ const registerModules = async () => {
     await PermissionService.registerModule(
       "bank_settlement_group",
       "Bank Settlement Grouping",
+    );
+    await PermissionService.registerModule(
+      "bank_rec_journals",
+      "Bank Reconciliation Journals",
     );
     await PermissionService.registerModule(
       "monitoring",
