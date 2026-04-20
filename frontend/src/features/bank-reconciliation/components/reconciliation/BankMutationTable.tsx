@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
   Undo2,
   Sparkles,
@@ -25,6 +25,100 @@ import {
   getNetAmount,
 } from "../../utils/reconciliation.utils";
 import { Pagination } from "@/components/ui/Pagination";
+
+// ─── Match Button with Popover ───────────────────────────────────────────────
+
+function MatchButton({
+  potentialMatch,
+  bankAmount,
+  onConfirm,
+}: {
+  potentialMatch: PotentialMatch;
+  bankAmount: number;
+  onConfirm: () => void;
+}) {
+  const [showInfo, setShowInfo] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const diff = bankAmount - potentialMatch.nett_amount;
+
+  useEffect(() => {
+    if (!showInfo) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setShowInfo(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showInfo]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <div className="flex items-center gap-0.5">
+        <button
+          onClick={() => setShowInfo((v) => !v)}
+          className="px-2 py-1 bg-blue-600 text-white rounded-l-md text-[10px] font-medium hover:bg-blue-700 transition-colors"
+        >
+          Match
+        </button>
+        <button
+          onClick={() => setShowInfo((v) => !v)}
+          className="px-1 py-1 bg-blue-500 text-white rounded-r-md text-[10px] hover:bg-blue-600 transition-colors"
+          title="Lihat detail"
+        >
+          <ChevronDown className="w-3 h-3" />
+        </button>
+      </div>
+
+      {showInfo && (
+        <div className="absolute right-0 top-full mt-1 z-50 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 space-y-2 text-xs animate-in fade-in zoom-in-95 duration-150">
+          <span className="font-bold text-gray-500 uppercase text-[10px] tracking-wider">Potential Match</span>
+          <div className="space-y-1">
+            {potentialMatch.transaction_date && (
+              <div className="flex justify-between">
+                <span className="text-gray-400">Tanggal</span>
+                <span className="text-gray-700 dark:text-gray-300">{formatDate(potentialMatch.transaction_date)}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-gray-400">Payment</span>
+              <span className="text-gray-700 dark:text-gray-300 font-medium truncate ml-2 max-w-[140px]">
+                {potentialMatch.payment_method_name}
+              </span>
+            </div>
+            {potentialMatch.branch_name && (
+              <div className="flex justify-between">
+                <span className="text-gray-400">Cabang</span>
+                <span className="text-gray-700 dark:text-gray-300 font-medium truncate ml-2 max-w-[140px]">
+                  {potentialMatch.branch_name}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-gray-400">Nett Amount</span>
+              <span className="font-bold text-gray-900 dark:text-white">
+                {formatCurrency(potentialMatch.nett_amount)}
+              </span>
+            </div>
+            <div className="flex justify-between border-t border-gray-100 dark:border-gray-700 pt-1">
+              <span className="text-gray-400">Selisih</span>
+              <span className={`font-bold ${Math.abs(diff) < 1 ? 'text-green-600' : 'text-amber-600'}`}>
+                {formatCurrency(diff)}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setShowInfo(false);
+              onConfirm();
+            }}
+            className="w-full py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold hover:bg-blue-700 transition-colors"
+          >
+            Konfirmasi Match
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Status Badge ────────────────────────────────────────────────────────────
 
@@ -479,16 +573,12 @@ export function BankMutationTable({
                       {/* Belum direkonsiliasi & bukan grup */}
                       {!item.is_reconciled && !isInGroup && (
                         <>
-                          {hasPotentialMatch ? (
-                            <button
-                              onClick={() =>
-                                potentialMatch?.id &&
-                                onQuickMatch(item, potentialMatch.id)
-                              }
-                              className="px-2.5 py-1 bg-blue-600 text-white rounded-md text-[10px] font-medium hover:bg-blue-700 transition-colors"
-                            >
-                              Match
-                            </button>
+                          {hasPotentialMatch && potentialMatch ? (
+                            <MatchButton
+                              potentialMatch={potentialMatch}
+                              bankAmount={getNetAmount(item.credit_amount, item.debit_amount)}
+                              onConfirm={() => onQuickMatch(item, potentialMatch.id)}
+                            />
                           ) : (
                             <button
                               onClick={() => onCheckMatches?.(item.id)}

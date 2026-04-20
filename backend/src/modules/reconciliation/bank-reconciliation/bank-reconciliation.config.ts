@@ -12,8 +12,8 @@ export interface ReconciliationConfig {
 
 export function getReconciliationConfig(): ReconciliationConfig {
   return {
-    amountTolerance: parseFloat(process.env.RECONCILIATION_AMOUNT_TOLERANCE || '0.01'),
-    dateBufferDays: parseInt(process.env.RECONCILIATION_DATE_BUFFER_DAYS || '3'),
+    amountTolerance: parseFloat(process.env.RECONCILIATION_AMOUNT_TOLERANCE || '500'),
+    dateBufferDays: parseInt(process.env.RECONCILIATION_DATE_BUFFER_DAYS || '1'),
     differenceThreshold: parseFloat(process.env.RECONCILIATION_DIFFERENCE_THRESHOLD || '100'),
     autoMatchBatchSize: parseInt(process.env.RECONCILIATION_AUTO_MATCH_BATCH_SIZE || '500'),
     maxRetries: parseInt(process.env.RECONCILIATION_MAX_RETRIES || '3')

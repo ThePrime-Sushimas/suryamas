@@ -371,18 +371,15 @@ export function BankReconciliationPage() {
                   isLoadingMatches={isLoadingMatches}
                   onManualMatch={(item) => handleOpenWizard([item])}
                   onQuickMatch={async (item, aggregateId) => {
-                    const msg = `Cocokkan transaksi ini?`;
-                    if (confirm(msg)) {
-                      try {
-                        await manualReconcile({ aggregateId, statementId: item.id, overrideDifference: false });
+                    try {
+                      await manualReconcile({ aggregateId, statementId: item.id, overrideDifference: false });
+                      refreshData();
+                    } catch (err) {
+                      const axiosErr = err as { response?: { data?: { code?: string; message?: string }; status?: number }; message?: string };
+                      if (axiosErr.response?.data?.code === "ALREADY_RECONCILED" || axiosErr.response?.status === 409) {
                         refreshData();
-                      } catch (err) {
-                        const axiosErr = err as { response?: { data?: { code?: string; message?: string }; status?: number }; message?: string };
-                        if (axiosErr.response?.data?.code === "ALREADY_RECONCILED" || axiosErr.response?.status === 409) {
-                          refreshData();
-                        } else {
-                          setError(`Gagal: ${axiosErr.response?.data?.message || axiosErr.message || "Terjadi kesalahan"}`);
-                        }
+                      } else {
+                        setError(`Gagal: ${axiosErr.response?.data?.message || axiosErr.message || "Terjadi kesalahan"}`);
                       }
                     }
                   }}

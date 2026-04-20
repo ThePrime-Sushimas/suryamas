@@ -58,6 +58,7 @@ export interface PotentialMatch {
   payment_type: string;
   payment_method_name: string;
   branch_name?: string;
+  transaction_date?: string;
 }
 
 /**
