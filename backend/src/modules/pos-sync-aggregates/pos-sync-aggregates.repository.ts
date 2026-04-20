@@ -292,23 +292,33 @@ export const posSyncAggregatesRepository = {
 async findReconciledPosTwin(params: {
   transactionDate: string;
   paymentMethodId: number;
+  branchId: string | null;
   branchName: string | null;
 }): Promise<{ id: string } | null> {
-  if (!params.branchName) return null;
-  const { data, error } = await supabase
+  if (!params.branchName && !params.branchId) return null;
+
+  let query = supabase
     .from('aggregated_transactions')
     .select('id')
     .eq('source_type', 'POS')
     .eq('transaction_date', params.transactionDate)
     .eq('payment_method_id', params.paymentMethodId)
-    .eq('branch_name', params.branchName)
     .eq('is_reconciled', true)
+    .eq('status', 'READY')
     .is('superseded_by', null)
-    .is('deleted_at', null)
-    .limit(1)          // ← tambahkan ini
-    .maybeSingle();
+    .is('deleted_at', null);
+
+  if (params.branchId && params.branchName) {
+    query = query.or(`branch_id.eq.${params.branchId},branch_name.eq."${params.branchName}"`);
+  } else if (params.branchId) {
+    query = query.eq('branch_id', params.branchId);
+  } else {
+    query = query.eq('branch_name', params.branchName!);
+  }
+
+  const { data, error } = await query.limit(1);
   if (error) throw error;
-  return data;
+  return data?.[0] ?? null;
 },
 
   async findAggregatedTxByPosSyncId(posSyncAggregateId: string) {

@@ -44,7 +44,7 @@ export const salesService = {
         ),
       ];
       for (const date of dates) {
-        aggregateService
+        await aggregateService
           .recalculateByDate(date)
           .catch((err) =>
             logError("PosSyncAggregates trigger failed", { err, date }),

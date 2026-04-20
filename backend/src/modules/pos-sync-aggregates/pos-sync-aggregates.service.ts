@@ -70,6 +70,7 @@ export async function syncPosSyncToAggregated(
           const reconciledTwin = await posSyncAggregatesRepository.findReconciledPosTwin({
             transactionDate: p.sales_date,
             paymentMethodId: p.payment_method_id,
+            branchId: p.branch_id,
             branchName: p.branch_name,
           });
           if (reconciledTwin) {
@@ -80,6 +81,12 @@ export async function syncPosSyncToAggregated(
             if (migrated) {
               result.superseded++;
               logInfo("syncPosSyncToAggregated: migrated reconciled POS → POS_SYNC", {
+                posId: reconciledTwin.id,
+                syncId: upserted.id,
+                sourceRef,
+              });
+            } else {
+              logWarn("syncPosSyncToAggregated: migrate returned false (guard hit?)", {
                 posId: reconciledTwin.id,
                 syncId: upserted.id,
                 sourceRef,
