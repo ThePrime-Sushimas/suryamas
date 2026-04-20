@@ -60,7 +60,6 @@ export function BankReconciliationPage() {
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedAccountId] = useState<number | null>(null);
 
   const {
     statements,
@@ -133,18 +132,19 @@ export function BankReconciliationPage() {
     setIsRefreshing(true);
     setError(null);
     try {
-      const currentFilter = {
-        ...filter,
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        bankAccountIds: selectedAccountId ? [selectedAccountId] : undefined,
-      };
+      // Re-fetch with existing filter state — don't overwrite bankAccountIds
+      const currentFilter = { ...filter };
+      if (!currentFilter.startDate) currentFilter.startDate = dateRange.startDate;
+      if (!currentFilter.endDate) currentFilter.endDate = dateRange.endDate;
+
       await fetchStatementsWithFilters(currentFilter);
-      if (dateRange.startDate && dateRange.endDate) {
-        await fetchReconciliationGroups(dateRange.startDate, dateRange.endDate);
+      const start = currentFilter.startDate || dateRange.startDate;
+      const end = currentFilter.endDate || dateRange.endDate;
+      if (start && end) {
+        await fetchReconciliationGroups(start, end);
         await fetchSettlementGroups({
-          startDate: dateRange.startDate,
-          endDate: dateRange.endDate,
+          startDate: start,
+          endDate: end,
           limit: 50,
           offset: 0,
         });
@@ -159,7 +159,6 @@ export function BankReconciliationPage() {
     filter,
     dateRange.startDate,
     dateRange.endDate,
-    selectedAccountId,
     fetchStatementsWithFilters,
     fetchReconciliationGroups,
     fetchSettlementGroups,
