@@ -1,6 +1,3 @@
----
-trigger: always_on
----
 📜 Backend Engineering Standards — Suryamas ERP (Unified)
 🎯 Tujuan
 
