@@ -72,4 +72,7 @@ router.post('/:id/reverse', canRelease('journals'), validateSchema(reverseJourna
 router.post('/:id/restore', canInsert('journals'), validateSchema(journalIdSchema), (req, res) => 
   journalHeadersController.restore(req as AuthenticatedRequest, res))
 
+router.delete('/:id/force', canRelease('journals'), validateSchema(journalIdSchema), (req, res) => 
+  journalHeadersController.forceDelete(req as AuthenticatedRequest, res))
+
 export default router

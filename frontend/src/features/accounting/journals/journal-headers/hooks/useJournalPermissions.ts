@@ -25,6 +25,7 @@ export function useJournalPermissions() {
     canReject: hasPermission('journals', 'approve'),   // Manager can reject
     canPost: hasPermission('journals', 'release'),     // Director can post
     canReverse: hasPermission('journals', 'release'),  // ⚠️ Director can reverse (not delete!)
+    canForceDelete: hasPermission('journals', 'release'), // Director can force delete
     canRestore: hasPermission('journals', 'insert'),   // Anyone with insert
   }
 }

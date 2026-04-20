@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { 
   Edit, Trash2, Send, CheckCircle, XCircle, RotateCcw, 
   ArrowLeft, Copy, Printer, MoreHorizontal, Calendar, 
-  Building2, FileText, Banknote, Clock, Tag
+  Building2, FileText, Banknote, Clock, Tag, AlertOctagon
 } from 'lucide-react'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useJournalHeadersStore } from '../store/journalHeaders.store'
@@ -13,6 +13,7 @@ import { BalanceIndicator } from '../../journal-lines/components/BalanceIndicato
 import { formatCurrency, formatDateShort } from '../../shared/journal.utils'
 import { canTransitionTo } from '../../shared/journal.constants'
 import { useJournalPermissions } from '../hooks/useJournalPermissions'
+import api from '@/lib/axios'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useToast } from '@/contexts/ToastContext'
 import type { JournalLineWithDetails } from '../../shared/journal.types'
@@ -42,6 +43,7 @@ export function JournalHeaderDetailPage() {
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [showReverseModal, setShowReverseModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showForceDeleteModal, setShowForceDeleteModal] = useState(false)
   const [showPostModal, setShowPostModal] = useState(false)
   const [showRejectConfirmModal, setShowRejectConfirmModal] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -101,11 +103,20 @@ export function JournalHeaderDetailPage() {
     selectedJournal.status === 'POSTED' && 
     !selectedJournal.is_reversed &&
     !selectedJournal.reversal_of_journal_id
+  const canForceDelete = permissions.canForceDelete && 
+    selectedJournal.status === 'POSTED' &&
+    !selectedJournal.is_reversed
 
   const handleEdit = () => navigate(`/accounting/journals/${id}/edit`)
   
   const handleDelete = async () => {
     await deleteJournal(id!)
+    navigate('/accounting/journals')
+  }
+
+  const handleForceDelete = async () => {
+    await api.delete(`/accounting/journals/${id}/force`)
+    setShowForceDeleteModal(false)
     navigate('/accounting/journals')
   }
 
@@ -263,6 +274,15 @@ export function JournalHeaderDetailPage() {
                   >
                     <Trash2 size={18} />
                     Hapus
+                  </button>
+                )}
+                {canForceDelete && (
+                  <button
+                    onClick={() => setShowForceDeleteModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 border border-red-500 dark:border-red-600 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                  >
+                    <AlertOctagon size={18} />
+                    Force Delete
                   </button>
                 )}
               </div>
@@ -558,6 +578,17 @@ export function JournalHeaderDetailPage() {
         title="Hapus Jurnal"
         message="Apakah Anda yakin ingin menghapus jurnal ini? Tindakan ini tidak dapat dibatalkan."
         confirmText="Hapus"
+        cancelText="Batal"
+        variant="danger"
+      />
+
+      <ConfirmModal
+        isOpen={showForceDeleteModal}
+        onClose={() => setShowForceDeleteModal(false)}
+        onConfirm={handleForceDelete}
+        title="Force Delete Jurnal"
+        message="PERINGATAN: Ini akan menghapus jurnal secara permanen, mengembalikan status bank statement dan POS aggregate ke semula. Tindakan ini TIDAK DAPAT dibatalkan."
+        confirmText="Force Delete"
         cancelText="Batal"
         variant="danger"
       />

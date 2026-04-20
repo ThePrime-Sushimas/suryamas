@@ -533,6 +533,37 @@ export class JournalHeadersService {
 
     logInfo('Journal restored', { journal_id: id, user_id: userId })
   }
+
+  /**
+   * Force delete — hard delete journal regardless of status.
+   * Requires RELEASE permission. Clears all references.
+   */
+  async forceDelete(id: string, userId: string, companyId: string): Promise<void> {
+    const journal = await this.getById(id, companyId)
+
+    // Clear all references in parallel
+    await Promise.all([
+      supabase
+        .from('bank_statements')
+        .update({ journal_id: null, updated_at: new Date().toISOString() })
+        .eq('journal_id', id),
+      supabase
+        .from('aggregated_transactions')
+        .update({ journal_id: null, status: 'READY', updated_at: new Date().toISOString() })
+        .eq('journal_id', id),
+    ])
+
+    // Hard delete lines + header
+    await supabase.from('journal_lines').delete().eq('journal_header_id', id)
+    await supabase.from('journal_headers').delete().eq('id', id)
+
+    await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, {
+      journal_number: journal.journal_number,
+      status: journal.status,
+    })
+
+    logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
+  }
 }
 
 export const journalHeadersService = new JournalHeadersService()

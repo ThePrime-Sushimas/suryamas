@@ -218,6 +218,19 @@ export class JournalHeadersController {
       handleError(res, error)
     }
   }
+
+  async forceDelete(req: AuthenticatedRequest, res: Response) {
+    try {
+      requireEmployee(req)
+      const companyId = this.getCompanyId(req)
+      const employeeId = getEmployeeId(req)
+      
+      await journalHeadersService.forceDelete(getParamString(req.params.id), employeeId, companyId)
+      sendSuccess(res, null, 'Journal force deleted')
+    } catch (error) {
+      handleError(res, error)
+    }
+  }
 }
 
 export const journalHeadersController = new JournalHeadersController()
