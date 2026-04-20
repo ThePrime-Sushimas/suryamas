@@ -47,9 +47,17 @@ export class DuplicateDetector {
 
     // ✅ STEP 2: Original scoring (only if entity check passes)
     
-    // Date match (30 points)
+    // Date match (30 points) - with tolerance for PEND records
     if (String(row.transaction_date) === existing.transaction_date) {
       score += 30
+    } else if ((existing as any).is_pending === true || (row as any).is_pending) {
+      // PEND→settled: date can shift ±2 days, give partial score
+      const d1 = new Date(String(row.transaction_date))
+      const d2 = new Date(existing.transaction_date)
+      const diffDays = Math.abs(d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24)
+      if (diffDays <= 2) {
+        score += 25 // close enough for PEND
+      }
     }
 
     // Amount match (40 points)

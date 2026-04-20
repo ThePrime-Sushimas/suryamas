@@ -469,17 +469,28 @@ export class BankStatementImportService {
     );
 
     if (existingDuplicates.length > 0) {
+      // Build duplicate keys: exact date + amount-only (for PEND with shifted dates)
       const duplicateKeys = new Set(
         existingDuplicates.map(
           (d) =>
             `${d.transaction_date}-${d.reference_number || ""}-${d.debit_amount}-${d.credit_amount}`,
         ),
       );
+      // Amount keys scoped by bank_account_id for PEND records (date may differ ±2 days)
+      const pendAmountKeys = new Set(
+        existingDuplicates
+          .filter((d: any) => d.is_pending)
+          .map((d: any) => `${d.bank_account_id}-${d.debit_amount}-${d.credit_amount}`),
+      );
 
       if (skipDuplicates) {
         rowsToInsert = validRows.filter((r) => {
           const key = `${r.transaction_date}-${r.reference_number || ""}-${r.debit_amount}-${r.credit_amount}`;
-          return !duplicateKeys.has(key);
+          if (duplicateKeys.has(key)) return false;
+          // Also skip if a PEND record with same amount on same bank account exists (date shifted)
+          const amountKey = `${r.bank_account_id}-${r.debit_amount}-${r.credit_amount}`;
+          if (pendAmountKeys.has(amountKey)) return false;
+          return true;
         });
 
         logInfo("BankStatementImport: Duplicates filtered", {
@@ -488,6 +499,7 @@ export class BankStatementImportService {
           after_filter: rowsToInsert.length,
           skipped: validRows.length - rowsToInsert.length,
           existing_duplicates: existingDuplicates.length,
+          pend_amount_keys: pendAmountKeys.size,
         });
       }
     }

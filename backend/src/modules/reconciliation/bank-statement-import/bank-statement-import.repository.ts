@@ -475,6 +475,8 @@ export class BankStatementImportRepository {
   ): Promise<BankStatement[]> {
     if (transactions.length === 0) return []
 
+    const DATE_TOLERANCE_DAYS = 2
+
     const dateAmountPairs = transactions.map(t => ({
       transaction_date: t.transaction_date,
       debit_amount: t.debit_amount,
@@ -494,12 +496,12 @@ export class BankStatementImportRepository {
     const allDuplicates: BankStatement[] = []
     
     for (const pair of uniquePairs) {
-      // ✅ FIXED: Add bank_account_id filter + company isolation
+      // Query 1: Exact date match (normal duplicates)
       let query = supabase
         .from('bank_statements')
         .select(`
           id, reference_number, transaction_date, credit_amount, debit_amount, 
-          import_id, description, balance, bank_account_id
+          import_id, description, balance, bank_account_id, is_pending
         `)
         .eq('transaction_date', pair.transaction_date)
         .eq('debit_amount', pair.debit_amount)
@@ -508,11 +510,7 @@ export class BankStatementImportRepository {
         .is('deleted_at', null)
         .limit(20)
 
-
-      // Add description OR reference condition
-      // ✅ ENTITY FILTER: Skip noise keywords, use normalized desc
       if (pair.description && pair.description.trim()) {
-        // Extract keywords AFTER removing noise (like duplicate-detector)
         const normalizedDesc = pair.description.toUpperCase()
           .replace(/BI-FAST|DB|BIAYA|TXN?X?|KE|ADMIN|FEE|TRANSFER|SETTLEMENT|SYSTEM|TRF/gi, '')
           .substring(0, 100)
@@ -532,10 +530,42 @@ export class BankStatementImportRepository {
 
       if (error) {
         logError('BankStatementImportRepository.checkDuplicates error', { error: error.message, pair })
-        continue
+      } else {
+        allDuplicates.push(...(data as unknown as BankStatement[]))
       }
 
-      allDuplicates.push(...(data as BankStatement[]))
+      // Query 2: PEND records with date tolerance ±2 days (PEND→settled scenario)
+      const baseDate = new Date(pair.transaction_date)
+      const dateFrom = new Date(baseDate)
+      dateFrom.setDate(dateFrom.getDate() - DATE_TOLERANCE_DAYS)
+      const dateTo = new Date(baseDate)
+      dateTo.setDate(dateTo.getDate() + DATE_TOLERANCE_DAYS)
+
+      const { data: pendData, error: pendError } = await supabase
+        .from('bank_statements')
+        .select(`
+          id, reference_number, transaction_date, credit_amount, debit_amount, 
+          import_id, description, balance, bank_account_id, is_pending
+        `)
+        .eq('is_pending', true)
+        .gte('transaction_date', dateFrom.toISOString().split('T')[0])
+        .lte('transaction_date', dateTo.toISOString().split('T')[0])
+        .eq('debit_amount', pair.debit_amount)
+        .eq('credit_amount', pair.credit_amount)
+        .eq('bank_account_id', bankAccountId)
+        .is('deleted_at', null)
+        .limit(10)
+
+      if (pendError) {
+        logError('BankStatementImportRepository.checkDuplicates PEND query error', { error: pendError.message, pair })
+      } else if (pendData && pendData.length > 0) {
+        logInfo('checkDuplicates: found PEND match with date tolerance', {
+          settled_date: pair.transaction_date,
+          pend_dates: pendData.map((p: any) => p.transaction_date),
+          amount: `${pair.debit_amount}/${pair.credit_amount}`,
+        })
+        allDuplicates.push(...(pendData as unknown as BankStatement[]))
+      }
     }
 
     const uniqueDuplicates = allDuplicates.filter((dup, index, self) =>
@@ -732,6 +762,8 @@ export class BankStatementImportRepository {
 
   /**
    * Replace existing PEND records that match with settled rows
+   * Uses ±2 day date tolerance because PEND date (extracted from description)
+   * may differ from the actual settled date
    */
   async replacePendingWithSettled(
     companyId: string,
@@ -745,21 +777,37 @@ export class BankStatementImportRepository {
     }>
   ): Promise<number> {
     let replacedCount = 0
+    const DATE_TOLERANCE_DAYS = 2
 
     for (const row of settledRows) {
+      const baseDate = new Date(row.transaction_date)
+      const dateFrom = new Date(baseDate)
+      dateFrom.setDate(dateFrom.getDate() - DATE_TOLERANCE_DAYS)
+      const dateTo = new Date(baseDate)
+      dateTo.setDate(dateTo.getDate() + DATE_TOLERANCE_DAYS)
+
+      const dateFromStr = dateFrom.toISOString().split('T')[0]
+      const dateToStr = dateTo.toISOString().split('T')[0]
+
       const { data, error } = await supabase
         .from('bank_statements')
         .delete()
         .eq('company_id', companyId)
         .eq('bank_account_id', bankAccountId)
         .eq('is_pending', true)
-        .eq('transaction_date', row.transaction_date)
+        .gte('transaction_date', dateFromStr)
+        .lte('transaction_date', dateToStr)
         .eq('debit_amount', row.debit_amount)
         .eq('credit_amount', row.credit_amount)
         .select('id')
 
       if (!error && data?.length) {
         replacedCount += data.length
+        logInfo('replacePendingWithSettled: matched PEND with date tolerance', {
+          settled_date: row.transaction_date,
+          date_range: `${dateFromStr} ~ ${dateToStr}`,
+          matched_count: data.length,
+        })
       }
     }
 
