@@ -685,7 +685,7 @@ bill_after_discount: updates.bill_after_discount,
   /**
    * Mark transaction as reconciled
    */
-  async reconcileTransaction(id: string, reconciledBy: string): Promise<void> {
+  async reconcileTransaction(id: string, reconciledBy: string, reason?: string): Promise<void> {
     const existing = await posAggregatesRepository.findById(id);
     if (!existing) {
       throw AggregatedTransactionErrors.NOT_FOUND(id);
@@ -695,16 +695,16 @@ bill_after_discount: updates.bill_after_discount,
       throw AggregatedTransactionErrors.ALREADY_RECONCILED(id);
     }
 
-if (!existing.journal_id) {
-      throw AggregatedTransactionErrors.NO_JOURNAL_ASSIGNED();
-    }
-
-    logInfo("Reconciling transaction", { id, reconciled_by: reconciledBy });
+    logInfo("Reconciling transaction", { id, reconciled_by: reconciledBy, reason });
     await posAggregatesRepository.markReconciled([id], reconciledBy);
+
+    if (reason) {
+      await posAggregatesRepository.updateNote(id, reason);
+    }
 
     // Audit log for RECONCILE
     if (reconciledBy) {
-      await AuditService.log('RECONCILE', 'aggregated_transaction', id, reconciledBy, { is_reconciled: false }, { is_reconciled: true, journal_id: existing.journal_id });
+      await AuditService.log('RECONCILE', 'aggregated_transaction', id, reconciledBy, { is_reconciled: false }, { is_reconciled: true, reason });
     }
   }
 
@@ -720,7 +720,7 @@ if (!existing.journal_id) {
     for (const id of transactionIds) {
       try {
         const existing = await posAggregatesRepository.findById(id);
-        if (existing && !existing.is_reconciled && existing.journal_id) {
+        if (existing && !existing.is_reconciled) {
           await posAggregatesRepository.markReconciled([id], reconciledBy);
           reconciled++;
         }

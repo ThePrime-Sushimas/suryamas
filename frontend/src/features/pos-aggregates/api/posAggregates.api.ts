@@ -479,10 +479,11 @@ export const posAggregatesApi = {
   /**
    * Mark transaction as reconciled
    */
-  reconcile: async (id: string, reconciledBy: string): Promise<void> => {
+  reconcile: async (id: string, reconciledBy: string, reason?: string): Promise<void> => {
     return handleApiCall(async () => {
       const res = await api.post<BackendResponse<void>>(`/aggregated-transactions/${id}/reconcile`, {
         reconciled_by: reconciledBy,
+        reason,
       })
 
       if (!res.data.success) {

@@ -131,7 +131,8 @@ export class PosAggregatesController {
       if (!reconciledBy) {
         return handleError(res, new Error('reconciled_by is required'))
       }
-      await posAggregatesService.reconcileTransaction(id, reconciledBy)
+      const reason = req.body.reason as string | undefined
+      await posAggregatesService.reconcileTransaction(id, reconciledBy, reason)
       sendSuccess(res, null, 'Transaction reconciled successfully')
     } catch (error: any) {
       handleError(res, error)

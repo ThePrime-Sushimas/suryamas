@@ -123,12 +123,11 @@ export const PosAggregatesPage: React.FC = () => {
 
   // Handle reconcile single
   const handleReconcile = useCallback(
-    async (id: string) => {
+    async (id: string, reason?: string) => {
       try {
         const employeeId = currentBranch?.employee_id || "system";
-        await reconcileTransaction(id, employeeId);
+        await reconcileTransaction(id, employeeId, reason);
         toast.success(POS_AGGREGATES_MESSAGES.TRANSACTION_RECONCILED);
-        // Wait for both fetches to complete sequentially for UI consistency
         await fetchTransactions();
         await fetchSummary();
       } catch (error) {

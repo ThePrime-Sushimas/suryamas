@@ -83,7 +83,7 @@ interface PosAggregatesState {
   restoreTransaction: (id: string) => Promise<void>
   
   // Actions - Reconciliation
-  reconcileTransaction: (id: string, reconciledBy: string) => Promise<void>
+  reconcileTransaction: (id: string, reconciledBy: string, reason?: string) => Promise<void>
   batchReconcile: (ids: string[], reconciledBy: string) => Promise<number>
   
   // Actions - Journal
@@ -469,7 +469,7 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
         // Actions - Reconciliation (with rollback on error)
         // --------------------------------------------------------------------
         
-        reconcileTransaction: async (id: string, reconciledBy: string) => {
+        reconcileTransaction: async (id: string, reconciledBy: string, reason?: string) => {
           // Store previous state for rollback
           const previousTransactions = get().transactions
           
@@ -483,7 +483,7 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
           }))
           
           try {
-            await posAggregatesApi.reconcile(id, reconciledBy)
+            await posAggregatesApi.reconcile(id, reconciledBy, reason)
             set({ isMutating: false })
           } catch (error) {
             // Rollback on error

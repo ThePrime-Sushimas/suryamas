@@ -5,8 +5,8 @@
  * Features: selection, sorting, inline actions, loading states, empty states.
  */
 
-import React, { useState, useCallback, useMemo } from 'react'
-import { Edit2, Trash2, RotateCcw, CheckCircle, FileText, Eye, Building2 } from 'lucide-react'
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { Edit2, Trash2, RotateCcw, CheckCircle, FileText, Building2, ShieldCheck } from 'lucide-react'
 import { TableSkeleton } from '@/components/ui/Skeleton'
 import { Pagination } from '@/components/ui/Pagination'
 import { PosAggregatesStatusBadge } from './PosAggregatesStatusBadge'
@@ -80,7 +80,7 @@ interface PosAggregatesTableProps {
   onEdit: (id: string) => void
   onDelete: (id: string, sourceRef: string) => void
   onRestore: (id: string, sourceRef: string) => void
-  onReconcile: (id: string) => void
+  onReconcile: (id: string, reason?: string) => void
   onViewDetail: (id: string) => void
   onSelectBankMutation: (transaction: AggregatedTransactionListItem) => void
   onToggleSelection: (id: string) => void
@@ -115,10 +115,19 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
   onPageChange,
   onLimitChange,
 }) => {
+  const [reconcileId, setReconcileId] = useState<string | null>(null)
+  const [reconcilePaymentMethod, setReconcilePaymentMethod] = useState('')
+  const [reconcileReason, setReconcileReason] = useState('')
+  const reasonInputRef = useRef<HTMLTextAreaElement>(null)
+
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [restoreId, setRestoreId] = useState<string | null>(null)
 
-  // Check if all transactions are selected
+  useEffect(() => {
+    if (reconcileId && reasonInputRef.current) {
+      reasonInputRef.current.focus()
+    }
+  }, [reconcileId])
   const allSelected = useMemo(() => {
     if (transactions.length === 0) return false
     return transactions.every((tx) => selectedIds.has(tx.id))
@@ -437,25 +446,20 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                         </button>
                       )}
 
-                      {/* View Detail */}
-                      {!isDeleted && (
+                      {/* Manual Reconcile — untuk yang belum reconciled */}
+                      {!isDeleted && !transaction.is_reconciled && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            onViewDetail(transaction.id)
+                            setReconcileId(transaction.id)
+                            setReconcilePaymentMethod(transaction.payment_method_name || `ID: ${transaction.payment_method_id}`)
+                            setReconcileReason('')
                           }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              onViewDetail(transaction.id)
-                            }
-                          }}
-                          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          title="Lihat Detail"
-                          aria-label="Lihat detail transaksi"
+                          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-green-500"
+                          title="Reconcile Manual"
+                          aria-label="Reconcile manual"
                         >
-                          <Eye className="w-4 h-4" />
+                          <ShieldCheck className="w-4 h-4" />
                         </button>
                       )}
 
@@ -503,7 +507,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                         </button>
                       )}
 
-                      {/* Reconcile */}
+                      {/* Reconcile — tombol lama, hanya untuk yg sudah punya journal */}
                       {!isDeleted && !transaction.is_reconciled && transaction.journal_number && (
                         <button
                           onClick={(e) => {
@@ -554,6 +558,62 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
           </tbody>
         </table>
       </div>
+
+      {/* Manual Reconcile Reason Modal */}
+      {reconcileId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black/70 flex items-center justify-center z-50" role="dialog" aria-modal="true" aria-labelledby="reconcile-modal-title">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 id="reconcile-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Reconcile Manual</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4 text-sm">Tandai transaksi <span className="font-semibold text-gray-900 dark:text-white">{reconcilePaymentMethod}</span> sebagai reconciled tanpa mutasi bank.</p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {['BANK BRI', 'Compliment'].map((preset) => (
+                <button
+                  key={preset}
+                  onClick={() => setReconcileReason(preset)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                    reconcileReason === preset
+                      ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700'
+                      : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+            <textarea
+              ref={reasonInputRef}
+              value={reconcileReason}
+              onChange={(e) => setReconcileReason(e.target.value)}
+              placeholder="Atau ketik alasan manual..."
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 mb-4"
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => { setReconcileId(null); setReconcilePaymentMethod(''); setReconcileReason('') }}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  if (reconcileReason.trim()) {
+                    onReconcile(reconcileId, reconcileReason.trim())
+                    setReconcileId(null)
+                    setReconcilePaymentMethod('')
+                    setReconcileReason('')
+                  }
+                }}
+                disabled={!reconcileReason.trim()}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                Konfirmasi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteId && (

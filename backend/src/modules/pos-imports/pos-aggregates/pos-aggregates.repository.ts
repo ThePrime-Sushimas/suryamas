@@ -645,19 +645,26 @@ if (error) {
   /**
    * Mark transactions as reconciled
    */
-  async markReconciled(transactionIds: string[], reconciledBy: string): Promise<void> {
+  async markReconciled(transactionIds: string[], _reconciledBy: string): Promise<void> {
     const { error } = await supabase
       .from('aggregated_transactions')
       .update({
         is_reconciled: true,
-        reconciled_by: reconciledBy,
-        reconciled_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .in('id', transactionIds)
       .eq('is_reconciled', false)
 
     if (error) throw new DatabaseError('Failed to mark transactions as reconciled', { cause: error })
+  }
+
+  async updateNote(id: string, note: string): Promise<void> {
+    const { error } = await supabase
+      .from('aggregated_transactions')
+      .update({ fee_discrepancy_note: note, updated_at: new Date().toISOString() })
+      .eq('id', id)
+
+    if (error) throw new DatabaseError('Failed to update note', { cause: error })
   }
 
   /**
