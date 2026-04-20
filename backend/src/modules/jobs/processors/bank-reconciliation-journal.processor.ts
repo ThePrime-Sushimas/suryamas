@@ -640,21 +640,25 @@ export async function generateBankRecJournals(
           continue
         }
 
-        const linesExist = await checkJournalLinesExist(journalHeader.id)
-        if (linesExist) {
-          await updateStatementsJournalId(groupStmts.map(s => s.id), journalHeader.id)
-          successResults.push({
-            bank_account_id:     bankAccountId,
-            bank_account_number: bankAccount.account_number,
-            journal_date:        journalDate,
-            journal_id:          journalHeader.id,
-            journal_number:      journalHeader.journalNumber,
-            statement_ids:       groupStmts.map(s => s.id),
-            total_credit:        totalCredit,
-            total_debit:         totalDebit,
+        // DRAFT → replace: hapus lines lama, update header, lalu re-generate
+        await supabase
+          .from('journal_lines')
+          .delete()
+          .eq('journal_header_id', journalHeader.id)
+
+        await supabase
+          .from('journal_headers')
+          .update({
+            total_debit:  journalAmount,
+            total_credit: journalAmount,
+            description: isDebitOnly
+              ? `Bank Fee ${bankAccount.account_name} (${bankAccount.account_number}) - ${journalDate}`
+              : `Bank Reconciliation ${bankAccount.account_name} (${bankAccount.account_number}) - ${journalDate}`,
+            updated_at: new Date().toISOString(),
           })
-          continue
-        }
+          .eq('id', journalHeader.id)
+
+        logInfo('Replacing DRAFT journal', { journalId: journalHeader.id, journalNumber: journalHeader.journalNumber })
       }
 
       // ── 7.6 Build journal lines ──────────────────────────────────

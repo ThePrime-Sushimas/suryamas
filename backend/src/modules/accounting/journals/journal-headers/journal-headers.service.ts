@@ -207,6 +207,18 @@ export class JournalHeadersService {
       throw JournalErrors.CANNOT_DELETE_POSTED()
     }
 
+    // Clear journal references agar bisa di-generate ulang
+    await Promise.all([
+      supabase
+        .from('bank_statements')
+        .update({ journal_id: null, updated_at: new Date().toISOString() })
+        .eq('journal_id', id),
+      supabase
+        .from('aggregated_transactions')
+        .update({ journal_id: null, status: 'READY', updated_at: new Date().toISOString() })
+        .eq('journal_id', id),
+    ])
+
     await journalHeadersRepository.delete(id, userId)
     
     await AuditService.log('DELETE', 'journal_header', id, userId, {
@@ -276,6 +288,18 @@ export class JournalHeadersService {
       rejected_by: userId,
       rejection_reason: reason
     }, userId)
+
+    // Clear journal references agar bisa di-generate ulang
+    await Promise.all([
+      supabase
+        .from('bank_statements')
+        .update({ journal_id: null, updated_at: new Date().toISOString() })
+        .eq('journal_id', id),
+      supabase
+        .from('aggregated_transactions')
+        .update({ journal_id: null, status: 'READY', updated_at: new Date().toISOString() })
+        .eq('journal_id', id),
+    ])
 
     await AuditService.log('REJECT', 'journal_header', id, userId, {
       journal_number: journal.journal_number,
