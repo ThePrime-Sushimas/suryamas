@@ -102,14 +102,15 @@ export function BankReconciliationPage() {
         setError("Silakan pilih rentang tanggal terlebih dahulu");
         return;
       }
-      setFilter(filters);
+      const filtersWithDefaults = { ...filters, creditOnly: filters.creditOnly ?? true };
+      setFilter(filtersWithDefaults);
       setFiltersApplied(true);
       setError(null);
       setDateRange({
         startDate: filters.startDate || "",
         endDate: filters.endDate || "",
       });
-      fetchStatementsWithFilters(filters);
+      fetchStatementsWithFilters(filtersWithDefaults);
       fetchReconciliationGroups(filters.startDate, filters.endDate);
       fetchSettlementGroups({
         startDate: filters.startDate,

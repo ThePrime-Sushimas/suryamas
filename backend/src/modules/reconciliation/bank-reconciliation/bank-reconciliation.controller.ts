@@ -272,7 +272,7 @@ export class BankReconciliationController {
           status,
           search,
           isReconciled: isReconciled === 'true' ? true : isReconciled === 'false' ? false : undefined,
-          creditOnly: creditOnly === 'true' ? true : undefined,
+          creditOnly: creditOnly || undefined,
           sortField,
           sortOrder,
           limit,

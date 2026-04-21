@@ -414,6 +414,7 @@ export class CashFlowSalesRepository {
           .gte('transaction_date', params.date_from)
           .lte('transaction_date', params.date_to)
           .eq('is_reconciled', false)
+          .eq('is_pending', false)
           .is('deleted_at', null),
       ])
 
@@ -421,7 +422,6 @@ export class CashFlowSalesRepository {
 
       const allBs = reconResult.data || []
       const unreconRows = unreconResult.data || []
-      const unreconCount = unreconRows.length
       const unreconCreditRows = unreconRows.filter(r => (r.credit_amount || 0) > 0)
       const unreconDebitRows = unreconRows.filter(r => (r.debit_amount || 0) > 0)
 
@@ -460,7 +460,7 @@ export class CashFlowSalesRepository {
       const allAggIds = [...new Set([...reconAggIds, ...multiMatchAggIds, ...settlementAggIds])]
 
       if (allAggIds.length === 0 ) {
-        return { groups: [], total_income: 0, unreconciled_count: unreconCount, unreconciled_credit_count: unreconCreditRows.length, unreconciled_credit_amount: unreconCreditRows.reduce((s, r) => s + (r.credit_amount || 0), 0), unreconciled_debit_count: unreconDebitRows.length, unreconciled_debit_amount: unreconDebitRows.reduce((s, r) => s + (r.debit_amount || 0), 0) }
+        return { groups: [], total_income: 0, unreconciled_count: unreconRows.length, unreconciled_credit_count: unreconCreditRows.length, unreconciled_credit_amount: unreconCreditRows.reduce((s, r) => s + (r.credit_amount || 0), 0), unreconciled_debit_count: unreconDebitRows.length, unreconciled_debit_amount: unreconDebitRows.reduce((s, r) => s + (r.debit_amount || 0), 0) }
       }
 
       const BATCH_SIZE = 100
@@ -571,7 +571,7 @@ export class CashFlowSalesRepository {
       return {
         groups,
         total_income: groups.reduce((s, g) => s + g.subtotal, 0),
-        unreconciled_count: unreconCount,
+        unreconciled_count: unreconRows.length,
         unreconciled_credit_count: unreconCreditRows.length,
         unreconciled_credit_amount: unreconCreditRows.reduce((s, r) => s + (r.credit_amount || 0), 0),
         unreconciled_debit_count: unreconDebitRows.length,
