@@ -2,10 +2,9 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/features/auth'
 import { useBranchContext } from '@/features/branch_context'
-import { useEffect } from 'react'
 import {
   Activity, TrendingUp, Users, Package, Hash,
-  FileSpreadsheet, ShieldCheck, Building2, Coins, DollarSign,
+  FileSpreadsheet, ShieldCheck, Coins, DollarSign,
   ArrowRight, CheckCircle2, AlertTriangle, Clock,
 } from 'lucide-react'
 
