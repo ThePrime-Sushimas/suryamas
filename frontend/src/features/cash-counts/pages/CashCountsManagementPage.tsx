@@ -47,10 +47,10 @@ function CapitalReportTab() {
       {/* Filter */}
       <div className="flex items-center gap-3 flex-wrap">
         <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white" />
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white min-w-0" />
         <span className="text-gray-400">—</span>
         <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
-          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white" />
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white min-w-0" />
         <button onClick={fetchReport} disabled={loading}
           className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50 flex items-center gap-1.5">
           {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
@@ -62,7 +62,8 @@ function CapitalReportTab() {
         <>
           {/* Table */}
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[700px]">
               <thead>
                 <tr className="bg-gray-50 dark:bg-gray-800/50 text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700">
                   <th className="px-4 py-2.5 text-left">Cabang</th>
@@ -112,6 +113,7 @@ function CapitalReportTab() {
                 </tfoot>
               )}
             </table>
+            </div>
           </div>
         </>
       )}
@@ -370,18 +372,18 @@ export function CashCountsManagementPage() {
         <div className="space-y-4">
           {/* Filters */}
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-            <div className="flex flex-wrap gap-4 items-end">
-              <div className="w-40">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
+              <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Dari</label>
                 <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
-              <div className="w-40">
+              <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Sampai</label>
                 <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
-              <div className="w-52">
+              <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Payment Method *</label>
                 <select value={paymentMethodId} onChange={(e) => setPaymentMethodId(Number(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -390,7 +392,7 @@ export function CashCountsManagementPage() {
                 </select>
               </div>
               <button onClick={handlePreview} disabled={isLoading || !paymentMethodId}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
                 {isLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
                 Tampilkan
               </button>
@@ -439,19 +441,19 @@ export function CashCountsManagementPage() {
 
           {/* Deposit Action Bar */}
           {selectedForDeposit.size > 0 && (
-            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-3 text-xs">
-                <Banknote className="w-4 h-4 text-purple-600" />
+            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                <Banknote className="w-4 h-4 text-purple-600 hidden sm:block" />
                 <span className="text-purple-700 dark:text-purple-300 font-medium">{selectedForDeposit.size} item dipilih</span>
-                <span className="text-purple-500">· Besar: {fmt(selectedDepositRows.reduce((s, r) => s + (r.large_denomination || 0), 0))}</span>
+                <span className="text-purple-500">Besar: {fmt(selectedDepositRows.reduce((s, r) => s + (r.large_denomination || 0), 0))}</span>
                 {selectedDepositRows.some(r => r.small_denomination) && (
-                  <span className="text-orange-500">· Top Up: {fmt(selectedDepositRows.reduce((s, r) => s + (r.small_denomination || 0), 0))}</span>
+                  <span className="text-orange-500">Top Up: {fmt(selectedDepositRows.reduce((s, r) => s + (r.small_denomination || 0), 0))}</span>
                 )}
                 <span className="text-purple-700 dark:text-purple-300 font-semibold">
-                  · Total: {fmt(selectedDepositRows.reduce((s, r) => s + (r.large_denomination || 0) + (r.small_denomination || 0), 0))}
+                  Total: {fmt(selectedDepositRows.reduce((s, r) => s + (r.large_denomination || 0) + (r.small_denomination || 0), 0))}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <button onClick={() => setSelectedForDeposit(new Set())}
                   className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
                   Batal
@@ -473,11 +475,11 @@ export function CashCountsManagementPage() {
               <div key={group.name} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 {/* Branch Header */}
                 <button onClick={() => toggleBranch(group.name)}
-                  className="w-full px-4 py-2.5 flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <Building className="w-3.5 h-3.5 text-gray-400" />
-                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{group.name}</span>
-                    <span className="text-xs text-gray-400">{group.counted}/{group.items.length}</span>
+                  className="w-full px-3 sm:px-4 py-2.5 flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Building className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">{group.name}</span>
+                    <span className="text-xs text-gray-400 shrink-0">{group.counted}/{group.items.length}</span>
                     {countedInGroup.length > 0 && (
                       <>
                         <span className="text-xs text-purple-500 font-medium">{countedInGroup.length} siap setor</span>
@@ -510,7 +512,8 @@ export function CashCountsManagementPage() {
                 </button>
 
                 {!isCollapsed && (
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[800px]">
                     <thead>
                       <tr className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-800">
                         <th className="px-2 py-2 w-8"></th>
@@ -637,6 +640,7 @@ export function CashCountsManagementPage() {
                       })}
                     </tbody>
                   </table>
+                  </div>
                 )}
               </div>
             )
@@ -666,7 +670,7 @@ export function CashCountsManagementPage() {
 
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[800px]">
                 <thead>
                   <tr className="bg-gray-50 dark:bg-gray-800/50 text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
                     <th className="px-3 py-2.5 text-left font-semibold">Tanggal Setor</th>
@@ -696,7 +700,7 @@ export function CashCountsManagementPage() {
                       return (
                         <tr key={dep.id} className="border-b border-gray-100 dark:border-gray-800">
                           <td colSpan={9} className="p-0">
-                            <div className="grid grid-cols-[1fr_1fr_1fr_auto_1fr_1fr_auto_auto_auto] items-center cursor-pointer hover:bg-gray-50/70 dark:hover:bg-gray-800/40 transition-colors"
+                            <div className="grid grid-cols-[minmax(80px,1fr)_minmax(80px,1fr)_minmax(100px,1fr)_auto_minmax(80px,1fr)_minmax(70px,1fr)_auto_auto_auto] items-center cursor-pointer hover:bg-gray-50/70 dark:hover:bg-gray-800/40 transition-colors"
                               onClick={() => handleExpandDeposit(dep)}>
                               <div className="px-3 py-2.5 text-gray-700 dark:text-gray-300">{fmtDateFull(dep.deposit_date)}</div>
                               <div className="px-3 py-2.5 text-gray-700 dark:text-gray-300 truncate max-w-[180px]">{dep.branch_name || '-'}</div>

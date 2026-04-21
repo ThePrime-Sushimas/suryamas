@@ -189,3 +189,62 @@ Jelas mana yang WAJIB vs optional
 Controller = thin
 Service = brain
 Repository = data only
+
+🎨 Frontend Development Guidelines (frontend/FRONTEND_STANDARDS.md)
+markdown
+# Frontend Development Guidelines - Suryamas ERP
+Dokumen ini mendefinisikan standar pengembangan UI/UX dan arsitektur frontend untuk memastikan aplikasi tetap premium, responsif, dan mudah dipelihara.
+## 🏗️ Feature-Based Structure
+Kita menggunakan struktur berbasis **Features** di `src/features/*`. Setiap fitur harus mandiri:
+- `api/`: Custom hooks (React Query) untuk fetching data.
+- `components/`: Komponen UI khusus untuk fitur tersebut.
+- `store/`: State management menggunakan Zustand.
+- `pages/`: Halaman utama fitur.
+- `types/`: Definisi interface TypeScript.
+- `index.ts`: Public API untuk fitur (export yang dibutuhkan fitur lain).
+---
+## 📡 1. Data Fetching (`api/*.ts`)
+Kita menggunakan **TanStack Query (React Query)** untuk manajemen server-state.
+### Aturan:
+- **Query Keys**: Selalu definisikan objek `queryKeys` untuk konsistensi invalidasi data.
+- **Hook Pattern**: Bungkus `useQuery` atau `useMutation` dalam custom hooks.
+- **Error Handling**: Gunakan `toast` untuk memberitahukan error ke user.
+- **Invalidation**: Lakukan `qc.invalidateQueries` pada `onSuccess` saat melakukan mutasi (POST/PUT/DELETE).
+### Contoh:
+```typescript
+export const useCashFlowDaily = (params: QueryParams) =>
+  useQuery({
+    queryKey: ['cash-flow', 'daily', params],
+    queryFn: () => api.get('/cash-flow/daily', { params }).then(res => res.data.data),
+    enabled: !!params.bank_account_id
+  });
+🧠 2. State Management (store/*.ts)
+Gunakan Zustand untuk global state atau state yang perlu bertahan saat navigasi (seperti Filter).
+
+Aturan:
+Pemisahan Store: Buat store kecil yang spesifik (misal: useAuthStore, useFilterStore).
+Persistensi: Gunakan middleware persist jika data harus bertahan setelah refresh (seperti Token/Branch ID).
+🎨 3. UI & Styling
+Aplikasi ini harus terasa Premium dan Modern.
+
+Aturan:
+Design System: Gunakan komponen dari Shadcn UI sebagai basis.
+Consistency: Jangan membuat warna atau spacing ad-hoc. Gunakan utility classes dari Tailwind.
+Dark Mode: Pastikan semua komponen support dark mode menggunakan class dark:.
+Micro-animations: Gunakan Framer Motion untuk transisi halaman atau hover effect yang halus.
+No Placeholders: Gunakan data asli atau generated images yang terlihat profesional.
+🛠️ 4. Global Standards & Utilities
+Format Tanggal:
+Backend mengirim: YYYY-MM-DD atau ISO.
+Frontend menampilkan: dd-MMM-yyyy (Contoh: 20-Apr-2026). Gunakan formatDate utility.
+Pagination: Wajib menggunakan komponen pagination global untuk semua list API yang besar.
+Modal Konfirmasi: Gunakan pola global ConfirmModal sebelum aksi destruktif (Delete).
+Form Validation: Gunakan React Hook Form + Zod untuk semua input form.
+📋 5. AI Enforcement Rules
+AI WAJIB:
+
+Menggunakan TypeScript secara ketat (No any).
+Mengikuti struktur folder src/features.
+Selalu menambahkan state loading (skeleton/spinner) saat fetching data.
+Menambahkan dokumentasi JSDoc pada hooks atau utilitas yang kompleks.
+Memastikan responsivitas (Mobile-first approach).
