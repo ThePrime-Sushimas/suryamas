@@ -493,6 +493,30 @@ export class BankStatementImportRepository {
       )
     )
 
+    // Pre-fetch ALL pending records for this bank account in the relevant date range
+    // This avoids N+1 queries for PEND check
+    const allDates = uniquePairs.map(p => p.transaction_date)
+    const minDate = new Date(Math.min(...allDates.map(d => new Date(d).getTime())))
+    const maxDate = new Date(Math.max(...allDates.map(d => new Date(d).getTime())))
+    minDate.setDate(minDate.getDate() - DATE_TOLERANCE_DAYS)
+    maxDate.setDate(maxDate.getDate() + DATE_TOLERANCE_DAYS)
+
+    let pendingRecords: any[] = []
+    const { data: pendBatch, error: pendBatchErr } = await supabase
+      .from('bank_statements')
+      .select('id, reference_number, transaction_date, credit_amount, debit_amount, import_id, description, balance, bank_account_id, is_pending')
+      .eq('is_pending', true)
+      .eq('bank_account_id', bankAccountId)
+      .gte('transaction_date', minDate.toISOString().split('T')[0])
+      .lte('transaction_date', maxDate.toISOString().split('T')[0])
+      .is('deleted_at', null)
+
+    if (pendBatchErr) {
+      logError('checkDuplicates: batch PEND fetch error', { error: pendBatchErr.message })
+    } else {
+      pendingRecords = pendBatch || []
+    }
+
     const allDuplicates: BankStatement[] = []
     
     for (const pair of uniquePairs) {
@@ -534,37 +558,20 @@ export class BankStatementImportRepository {
         allDuplicates.push(...(data as unknown as BankStatement[]))
       }
 
-      // Query 2: PEND records with date tolerance ±2 days (PEND→settled scenario)
+      // PEND match: in-memory filter from pre-fetched batch (no extra DB query)
       const baseDate = new Date(pair.transaction_date)
-      const dateFrom = new Date(baseDate)
-      dateFrom.setDate(dateFrom.getDate() - DATE_TOLERANCE_DAYS)
-      const dateTo = new Date(baseDate)
-      dateTo.setDate(dateTo.getDate() + DATE_TOLERANCE_DAYS)
+      const dateFrom = baseDate.getTime() - DATE_TOLERANCE_DAYS * 86400000
+      const dateTo = baseDate.getTime() + DATE_TOLERANCE_DAYS * 86400000
 
-      const { data: pendData, error: pendError } = await supabase
-        .from('bank_statements')
-        .select(`
-          id, reference_number, transaction_date, credit_amount, debit_amount, 
-          import_id, description, balance, bank_account_id, is_pending
-        `)
-        .eq('is_pending', true)
-        .gte('transaction_date', dateFrom.toISOString().split('T')[0])
-        .lte('transaction_date', dateTo.toISOString().split('T')[0])
-        .eq('debit_amount', pair.debit_amount)
-        .eq('credit_amount', pair.credit_amount)
-        .eq('bank_account_id', bankAccountId)
-        .is('deleted_at', null)
-        .limit(10)
+      const pendMatches = pendingRecords.filter((p: any) => {
+        const pDate = new Date(p.transaction_date).getTime()
+        return pDate >= dateFrom && pDate <= dateTo &&
+          p.debit_amount === pair.debit_amount &&
+          p.credit_amount === pair.credit_amount
+      })
 
-      if (pendError) {
-        logError('BankStatementImportRepository.checkDuplicates PEND query error', { error: pendError.message, pair })
-      } else if (pendData && pendData.length > 0) {
-        logInfo('checkDuplicates: found PEND match with date tolerance', {
-          settled_date: pair.transaction_date,
-          pend_dates: pendData.map((p: any) => p.transaction_date),
-          amount: `${pair.debit_amount}/${pair.credit_amount}`,
-        })
-        allDuplicates.push(...(pendData as unknown as BankStatement[]))
+      if (pendMatches.length > 0) {
+        allDuplicates.push(...(pendMatches as unknown as BankStatement[]))
       }
     }
 
