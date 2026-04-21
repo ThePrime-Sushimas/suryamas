@@ -51,7 +51,7 @@ export default function HomePage() {
 
   const quickActions = useMemo(() => [
     { title: 'POS Aggregates', href: '/pos-aggregates', icon: FileSpreadsheet, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
-    { title: 'Bank Recon', href: '/bank-statement-import', icon: FileSpreadsheet, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+    { title: 'Trial Balance', href: '/accounting/trial-balance', icon: FileSpreadsheet, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
     { title: 'Cash Flow', href: '/cash-flow', icon: Activity, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
     { title: 'Cash Count', href: '/cash-counts', icon: Coins, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' },
     { title: 'Employees', href: '/employees', icon: Users, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20' },
