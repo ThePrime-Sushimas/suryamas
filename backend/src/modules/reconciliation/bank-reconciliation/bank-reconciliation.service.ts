@@ -23,6 +23,8 @@ import { logError, logInfo } from "../../../config/logger";
 import { createPaginatedResponse } from "../../../utils/pagination.util";
 import { AuditService } from "../../monitoring/monitoring.service";
 import { cashCountsRepository } from "../../cash-counts/cash-counts.repository";
+import { settlementGroupService } from "../bank-settlement-group/bank-settlement-group.service";
+import { settlementGroupRepository } from "../bank-settlement-group/bank-settlement-group.repository";
 import type {
   MatchingStrategy,
   MatchingEngineResult
@@ -369,6 +371,33 @@ export class BankReconciliationService {
       if (userId) {
         await AuditService.log('DELETE', 'bank_reconciliation', statementId, userId,
           { is_reconciled: true, cash_deposit_id: statement.cash_deposit_id },
+          { is_reconciled: false }
+        );
+      }
+      return;
+    }
+
+    // ── Settlement group undo ──
+    // Detect if this statement belongs to a settlement group (1 statement → many aggregates)
+    const settlementGroup = await settlementGroupRepository.findByBankStatementId(statementId);
+    if (settlementGroup) {
+      logInfo("Undo detected settlement group, delegating to deleteSettlementGroup", {
+        statementId,
+        settlementGroupId: settlementGroup.id,
+      });
+      await settlementGroupService.deleteSettlementGroup(settlementGroup.id, userId);
+
+      await this.repository.logAction({
+        companyId: companyId || statement.company_id,
+        userId,
+        action: "UNDO",
+        statementId,
+        details: { settlementGroupId: settlementGroup.id, undoType: "SETTLEMENT_GROUP" },
+      });
+
+      if (userId) {
+        await AuditService.log('DELETE', 'bank_reconciliation', statementId, userId,
+          { is_reconciled: true, settlement_group_id: settlementGroup.id },
           { is_reconciled: false }
         );
       }

@@ -1302,6 +1302,38 @@ export class SettlementGroupRepository {
   }
 
   /**
+   * Find active settlement group by bank_statement_id
+   * Used by undo() in bank-reconciliation to detect settlement groups
+   */
+  async findByBankStatementId(bankStatementId: string): Promise<{ id: string; status: string } | null> {
+    try {
+      const bankStatementIdNum = Number(bankStatementId);
+      if (isNaN(bankStatementIdNum)) return null;
+
+      const { data, error } = await supabase
+        .from("bank_settlement_groups")
+        .select("id, status")
+        .eq("bank_statement_id", bankStatementIdNum)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      if (error) {
+        logError("Error finding settlement group by bank_statement_id", {
+          bankStatementId,
+          error: error.message,
+        });
+        return null;
+      }
+
+      return data;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logError("Error in findByBankStatementId", { bankStatementId, error: errorMessage });
+      return null;
+    }
+  }
+
+  /**
    * Get bank statement ID directly from database for undo operation
    * Returns raw value without any transformation
    */
