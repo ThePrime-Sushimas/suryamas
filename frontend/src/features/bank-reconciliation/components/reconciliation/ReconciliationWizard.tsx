@@ -638,7 +638,7 @@ function StepManualMatch({
   const [isLoadingAgg, setIsLoadingAgg] = useState(false);
 
   const unreconciledStatements = useMemo(
-    () => statements.filter((s) => !s.is_reconciled),
+    () => statements.filter((s) => !s.is_reconciled && (s.credit_amount || 0) > 0),
     [statements]
   );
 
@@ -926,6 +926,7 @@ function StepMultiMatch({
     return statements.filter(
       (s) =>
         !s.is_reconciled &&
+        (s.credit_amount || 0) > 0 &&
         (!q ||
         s.description?.toLowerCase().includes(q) ||
         s.transaction_date?.includes(q))
@@ -1303,7 +1304,7 @@ function StepSettlement({
     setIsBankLoading(true);
     settlementGroupsApi
       .getAvailableBankStatements({ search: debouncedBankSearch || undefined, limit: 50 })
-      .then((r) => setBankStatements(r.data))
+      .then((r) => setBankStatements(r.data.filter((s) => s.amount > 0)))
       .catch(console.error)
       .finally(() => setIsBankLoading(false));
   }, [debouncedBankSearch]);
