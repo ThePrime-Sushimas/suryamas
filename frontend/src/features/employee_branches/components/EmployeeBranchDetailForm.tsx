@@ -12,6 +12,9 @@ interface Props {
   hasPrimaryBranch: boolean
 }
 
+const inputCls = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+const labelCls = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+
 export const EmployeeBranchDetailForm = ({ employeeId, assignment, assignedBranchIds, roles, branches, onSubmit, onCancel, hasPrimaryBranch }: Props) => {
   const [branchId, setBranchId] = useState(assignment?.branch_id || '')
   const [roleId, setRoleId] = useState(assignment?.role_id || '')
@@ -64,57 +67,55 @@ export const EmployeeBranchDetailForm = ({ employeeId, assignment, assignedBranc
     <form onSubmit={handleSubmit} className="space-y-4">
       {!assignment && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Branch <span className="text-red-500">*</span></label>
-          <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={submitting}>
+          <label className={labelCls}>Branch <span className="text-red-500">*</span></label>
+          <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className={inputCls} disabled={submitting}>
             <option value="">Select branch</option>
             {availableBranches.map((branch) => (
               <option key={branch.id} value={branch.id}>{branch.branch_name} ({branch.branch_code})</option>
             ))}
           </select>
-          {errors.branchId && <p className="mt-1 text-sm text-red-600">{errors.branchId}</p>}
+          {errors.branchId && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.branchId}</p>}
         </div>
       )}
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Role <span className="text-red-500">*</span></label>
-        <select value={roleId} onChange={(e) => setRoleId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={submitting}>
+        <label className={labelCls}>Role <span className="text-red-500">*</span></label>
+        <select value={roleId} onChange={(e) => setRoleId(e.target.value)} className={inputCls} disabled={submitting}>
           <option value="">Select role</option>
-          {roles.map((role) => (
-            <option key={role.id} value={role.id}>{role.name}</option>
-          ))}
+          {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
         </select>
-        {errors.roleId && <p className="mt-1 text-sm text-red-600">{errors.roleId}</p>}
+        {errors.roleId && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.roleId}</p>}
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Approval Limit (IDR) <span className="text-red-500">*</span></label>
-        <input type="number" value={approvalLimit} onChange={(e) => setApprovalLimit(e.target.value)} min="0" step="1000" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={submitting} />
-        {errors.approvalLimit && <p className="mt-1 text-sm text-red-600">{errors.approvalLimit}</p>}
+        <label className={labelCls}>Approval Limit (IDR) <span className="text-red-500">*</span></label>
+        <input type="number" value={approvalLimit} onChange={(e) => setApprovalLimit(e.target.value)} min="0" step="1000" className={inputCls} disabled={submitting} />
+        {errors.approvalLimit && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.approvalLimit}</p>}
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-        <select value={status} onChange={(e) => setStatus(e.target.value as BranchAssignmentStatus)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={submitting}>
+        <label className={labelCls}>Status</label>
+        <select value={status} onChange={(e) => setStatus(e.target.value as BranchAssignmentStatus)} className={inputCls} disabled={submitting}>
           <option value="active">Active</option>
           <option value="suspended">Suspended</option>
           <option value="inactive">Inactive</option>
         </select>
-        {errors.status && <p className="mt-1 text-sm text-red-600">{errors.status}</p>}
+        {errors.status && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.status}</p>}
       </div>
 
       <div className="flex items-center">
         <input type="checkbox" id="isPrimary" checked={isPrimary} onChange={(e) => setIsPrimary(e.target.checked)} className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" disabled={submitting} />
-        <label htmlFor="isPrimary" className="ml-2 block text-sm text-gray-900">Set as primary branch</label>
+        <label htmlFor="isPrimary" className="ml-2 block text-sm text-gray-900 dark:text-gray-200">Set as primary branch</label>
       </div>
 
       {isPrimary && hasPrimaryBranch && !assignment?.is_primary && (
-        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-          <p className="text-sm text-yellow-800">⚠️ Setting this as primary will remove the primary status from the current primary branch.</p>
+        <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <p className="text-sm text-yellow-800 dark:text-yellow-400">⚠️ Setting this as primary will remove the primary status from the current primary branch.</p>
         </div>
       )}
 
       <div className="flex justify-end gap-3 pt-4">
-        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50" disabled={submitting}>Cancel</button>
+        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600" disabled={submitting}>Cancel</button>
         <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50" disabled={submitting}>
           {submitting ? 'Saving...' : assignment ? 'Update' : 'Create'}
         </button>
