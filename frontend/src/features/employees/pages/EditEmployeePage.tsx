@@ -98,12 +98,12 @@ export default function EditEmployeePage() {
   if (isLoadingEmployee) {
     return (
       <div className="max-w-3xl mx-auto p-4">
-        <div className="bg-white shadow rounded-lg p-4 md:p-6">
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 md:p-6">
           <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
             <div className="space-y-3">
-              <div className="h-4 bg-gray-200 rounded"></div>
-              <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
             </div>
           </div>
         </div>
@@ -114,8 +114,8 @@ export default function EditEmployeePage() {
   if (!employee || !initialData) {
     return (
       <div className="max-w-3xl mx-auto p-4">
-        <div className="bg-white shadow rounded-lg p-4 md:p-6 text-center">
-          <p className="text-gray-600">Employee not found</p>
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 md:p-6 text-center">
+          <p className="text-gray-600 dark:text-gray-400">Employee not found</p>
         </div>
       </div>
     )
@@ -123,16 +123,16 @@ export default function EditEmployeePage() {
 
   return (
     <div className="max-w-3xl mx-auto p-4">
-      <div className="bg-white shadow rounded-lg p-4 md:p-6">
-        <h1 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">Edit Employee</h1>
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 md:p-6">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mb-4 md:mb-6">Edit Employee</h1>
         
         {employee.branch_name && (
-          <div className="border-b border-gray-200 pb-4 md:pb-6 mb-4 md:mb-6 bg-blue-50 p-4 rounded">
-            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Branch Assignment</h3>
+          <div className="border-b border-gray-200 dark:border-gray-700 pb-4 md:pb-6 mb-4 md:mb-6 bg-blue-50 dark:bg-blue-900/20 p-4 rounded">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-3 md:mb-4">Branch Assignment</h3>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
-                <p className="text-sm text-gray-600">Current Branch:</p>
-                <p className="text-base font-medium text-gray-900">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Current Branch:</p>
+                <p className="text-base font-medium text-gray-900 dark:text-white">
                   {employee.branch_name} {employee.branch_code && `(${employee.branch_code})`}
                 </p>
               </div>

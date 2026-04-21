@@ -27,8 +27,8 @@ export default function CreateEmployeePage() {
 
   return (
     <div className="max-w-3xl mx-auto p-4">
-      <div className="bg-white shadow rounded-lg p-4 md:p-6">
-        <h1 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">Create New Employee</h1>
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 md:p-6">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mb-4 md:mb-6">Create New Employee</h1>
         <EmployeeForm
           onSubmit={handleSubmit}
           onCancel={handleCancel}

@@ -14,8 +14,8 @@ export const EmployeeListItem = ({ employee, isSelected, isActive, onClick, onSe
     <div
       className={`flex items-center gap-3 p-3 cursor-pointer transition-colors border-l-4 ${
         isActive 
-          ? 'bg-blue-50 border-blue-600' 
-          : 'bg-white border-transparent hover:bg-gray-50'
+          ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-600' 
+          : 'bg-white dark:bg-gray-800 border-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50'
       }`}
       onClick={onClick}
     >
@@ -25,10 +25,10 @@ export const EmployeeListItem = ({ employee, isSelected, isActive, onClick, onSe
           e.stopPropagation()
           onSelect(employee.id)
         }}
-        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${
           isSelected 
             ? 'bg-blue-600 border-blue-600' 
-            : 'border-gray-300 hover:border-blue-400'
+            : 'border-gray-300 dark:border-gray-600 hover:border-blue-400'
         }`}
       >
         {isSelected && <Check className="w-3 h-3 text-white" />}
@@ -39,7 +39,7 @@ export const EmployeeListItem = ({ employee, isSelected, isActive, onClick, onSe
         <img
           src={employee.profile_picture}
           alt={employee.full_name}
-          className="w-10 h-10 rounded-full object-cover shrink-0 border-2 border-blue-100"
+          className="w-10 h-10 rounded-full object-cover shrink-0 border-2 border-blue-100 dark:border-blue-900"
           onError={(e) => {
             e.currentTarget.style.display = 'none'
             e.currentTarget.nextElementSibling?.classList.remove('hidden')
@@ -53,19 +53,19 @@ export const EmployeeListItem = ({ employee, isSelected, isActive, onClick, onSe
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="font-medium text-gray-900 truncate">{employee.full_name}</p>
+          <p className="font-medium text-gray-900 dark:text-white truncate">{employee.full_name}</p>
           {employee.deleted_at && (
-            <span className="px-1.5 py-0.5 text-xs bg-red-100 text-red-800 rounded shrink-0">
+            <span className="px-1.5 py-0.5 text-xs bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 rounded shrink-0">
               Deleted
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-500 truncate">{employee.job_position || 'No position'}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{employee.job_position || 'No position'}</p>
       </div>
 
       {/* Status */}
       <div className={`w-2 h-2 rounded-full shrink-0 ${
-        employee.is_active ? 'bg-green-500' : 'bg-gray-300'
+        employee.is_active ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
       }`} />
     </div>
   )
