@@ -177,7 +177,7 @@ export const EmployeeDetailPanel = ({ employee, onClose, onEdit, onDelete, onRes
               <MapPin className="w-5 h-5 text-gray-400 mt-0.5 shrink-0" />
               <div className="min-w-0">
                 <p className={labelCls}>Address</p>
-                <p className={`${infoCls} break-words`}>{employee.citizen_id_address}</p>
+                <p className={`${infoCls} wrap-break-word`}>{employee.citizen_id_address}</p>
               </div>
             </div>
           )}
