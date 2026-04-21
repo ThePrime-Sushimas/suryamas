@@ -4,6 +4,13 @@ import { usePermissionStore } from '@/features/branch_context/store/permission.s
 import { useToast } from '@/contexts/ToastContext'
 import api from '@/lib/axios'
 
+const inputCls = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+const labelCls = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+
+const permFields = ['can_view', 'can_insert', 'can_update', 'can_delete', 'can_approve', 'can_release'] as const
+type PermField = typeof permFields[number]
+const permLabels = ['View', 'Insert', 'Update', 'Delete', 'Approve', 'Release']
+
 export default function PermissionsPage() {
   const { modules, roles, permissions, pendingChanges, loading, saving, error: storeError, fetchModules, fetchRoles, fetchRolePermissions, updatePermissionLocal, savePermissions, discardChanges } = usePermissionsStore()
   const { reload: reloadUserPermissions } = usePermissionStore()
@@ -16,89 +23,46 @@ export default function PermissionsPage() {
   const [createSaving, setCreateSaving] = useState(false)
   const { success, error: showError } = useToast()
 
-  useEffect(() => {
-    fetchModules()
-    fetchRoles()
-  }, [fetchModules, fetchRoles])
+  useEffect(() => { fetchModules(); fetchRoles() }, [fetchModules, fetchRoles])
+  useEffect(() => { if (selectedRole) fetchRolePermissions(selectedRole) }, [selectedRole, fetchRolePermissions])
 
-  useEffect(() => {
-    if (selectedRole) {
-      fetchRolePermissions(selectedRole)
-    }
-  }, [selectedRole, fetchRolePermissions])
-
-  const handlePermissionChange = (moduleId: string, field: string, value: boolean) => {
-    updatePermissionLocal(moduleId, field, value)
-  }
+  const handlePermissionChange = (moduleId: string, field: PermField, value: boolean) => updatePermissionLocal(moduleId, field, value)
 
   const handleSave = async () => {
     if (!selectedRole) return
-    try {
-      await savePermissions(selectedRole)
-      await reloadUserPermissions()
-      success('Permissions saved successfully')
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to save permissions'
-      showError(message)
-    }
-  }
-
-  const handleDiscard = () => {
-    discardChanges()
+    try { await savePermissions(selectedRole); await reloadUserPermissions(); success('Permissions saved successfully') }
+    catch (err: unknown) { showError(err instanceof Error ? err.message : 'Failed to save permissions') }
   }
 
   const handleCreateRole = async () => {
-    if (!newRole.name.trim()) {
-      showError('Role name is required')
-      return
-    }
-    
+    if (!newRole.name.trim()) { showError('Role name is required'); return }
     setCreateSaving(true)
     try {
       await api.post('/permissions/roles', newRole)
-      setShowModal(false)
-      setNewRole({ name: '', description: '' })
-      await fetchRoles()
-      success('Role created successfully')
+      setShowModal(false); setNewRole({ name: '', description: '' }); await fetchRoles(); success('Role created successfully')
     } catch (err: unknown) {
       const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to create role'
       showError(message)
-    } finally {
-      setCreateSaving(false)
-    }
+    } finally { setCreateSaving(false) }
   }
 
   const handleEditRole = async () => {
-    if (!editRole.name.trim()) {
-      showError('Role name is required')
-      return
-    }
-    
+    if (!editRole.name.trim()) { showError('Role name is required'); return }
     setCreateSaving(true)
     try {
-      await api.put(`/permissions/roles/${editRole.id}`, {
-        name: editRole.name,
-        description: editRole.description
-      })
-      setEditModal(false)
-      await fetchRoles()
-      success('Role updated successfully')
+      await api.put(`/permissions/roles/${editRole.id}`, { name: editRole.name, description: editRole.description })
+      setEditModal(false); await fetchRoles(); success('Role updated successfully')
     } catch (err: unknown) {
       const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to update role'
       showError(message)
-    } finally {
-      setCreateSaving(false)
-    }
+    } finally { setCreateSaving(false) }
   }
 
   const handleDeleteRole = async (roleId: string, roleName: string) => {
     if (!confirm(`Delete role "${roleName}"? This cannot be undone.`)) return
-    
     try {
       await api.delete(`/permissions/roles/${roleId}`)
-      setSelectedRole('')
-      await fetchRoles()
-      success('Role deleted successfully')
+      setSelectedRole(''); await fetchRoles(); success('Role deleted successfully')
     } catch (err: unknown) {
       const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to delete role'
       showError(message)
@@ -116,78 +80,56 @@ export default function PermissionsPage() {
     module.description?.toLowerCase().includes(search.toLowerCase())
   )
 
-  const handleBulkChange = (field: string, value: boolean) => {
-    filteredModules.forEach(module => {
-      updatePermissionLocal(module.id, field, value)
-    })
+  const handleBulkChange = (field: PermField, value: boolean) => {
+    filteredModules.forEach(module => updatePermissionLocal(module.id, field, value))
   }
 
+
+
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 sm:p-6 min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 sm:mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Permissions Management</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Permissions Management</h1>
           {pendingChanges.size > 0 && (
-            <p className="text-sm text-orange-600 mt-1">
-              {pendingChanges.size} unsaved change{pendingChanges.size > 1 ? 's' : ''}
-            </p>
+            <p className="text-sm text-orange-600 dark:text-orange-400 mt-1">{pendingChanges.size} unsaved change{pendingChanges.size > 1 ? 's' : ''}</p>
           )}
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
+        <button onClick={() => setShowModal(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium shrink-0">
           + Add Role
         </button>
       </div>
 
       {storeError && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded">
-          {storeError}
-        </div>
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg">{storeError}</div>
       )}
-      
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
+        {/* Roles sidebar — horizontal scroll on mobile, vertical on lg */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow p-4">
-            <h2 className="font-semibold mb-4">Roles</h2>
-            <div className="space-y-2">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-4">
+            <h2 className="font-semibold text-gray-900 dark:text-white mb-3">Roles</h2>
+            <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0">
               {roles.map((role) => (
-                <div key={role.id} className="relative group">
+                <div key={role.id} className="relative shrink-0 lg:shrink">
                   <button
                     onClick={() => setSelectedRole(role.id)}
-                    className={`w-full text-left px-4 py-2 rounded transition ${
+                    className={`w-full text-left px-4 py-2 rounded-lg transition-colors min-w-[120px] lg:min-w-0 ${
                       selectedRole === role.id
                         ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100 hover:bg-gray-200'
-                    }`}
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600'
+                    } ${!role.is_system_role ? 'pr-16' : ''}`}
                   >
-                    <div className="font-medium">{role.name}</div>
-                    <div className="text-xs opacity-75">{role.description}</div>
+                    <div className="font-medium text-sm">{role.name}</div>
+                    <div className="text-xs opacity-75 truncate">{role.description}</div>
                   </button>
                   {!role.is_system_role && (
-                    <div className="absolute right-2 top-2 hidden group-hover:flex gap-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setEditRole({ id: role.id, name: role.name, description: role.description || '' })
-                          setEditModal(true)
-                        }}
-                        className="p-1 bg-white rounded hover:bg-gray-100 text-gray-600"
-                        title="Edit"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteRole(role.id, role.name)
-                        }}
-                        className="p-1 bg-white rounded hover:bg-red-100 text-red-600"
-                        title="Delete"
-                      >
-                        🗑️
-                      </button>
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1">
+                      <button onClick={(e) => { e.stopPropagation(); setEditRole({ id: role.id, name: role.name, description: role.description || '' }); setEditModal(true) }}
+                        className="p-1.5 bg-white/80 dark:bg-gray-600/80 rounded hover:bg-gray-100 dark:hover:bg-gray-500 text-xs" title="Edit">✏️</button>
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteRole(role.id, role.name) }}
+                        className="p-1.5 bg-white/80 dark:bg-gray-600/80 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-xs" title="Delete">🗑️</button>
                     </div>
                   )}
                 </div>
@@ -196,234 +138,105 @@ export default function PermissionsPage() {
           </div>
         </div>
 
+        {/* Permissions panel */}
         <div className="lg:col-span-3">
           {loading ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-8 text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading...</p>
+              <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
             </div>
           ) : selectedRole ? (
             <div className="space-y-4">
+              {/* Pending changes bar */}
               {pendingChanges.size > 0 && (
-                <div className="bg-white rounded-lg shadow p-4 flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    {pendingChanges.size} unsaved change{pendingChanges.size > 1 ? 's' : ''}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleDiscard}
-                      disabled={saving}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50"
-                    >
-                      Discard
-                    </button>
-                    <button
-                      onClick={handleSave}
-                      disabled={saving}
-                      className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
-                    >
-                      {saving ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          Saving...
-                        </>
-                      ) : (
-                        '💾 Save Changes'
-                      )}
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">{pendingChanges.size} unsaved change{pendingChanges.size > 1 ? 's' : ''}</div>
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={() => discardChanges()} disabled={saving} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 text-sm">Discard</button>
+                    <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2 text-sm">
+                      {saving ? <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>Saving...</> : '💾 Save'}
                     </button>
                   </div>
                 </div>
               )}
 
-              <div className="bg-white rounded-lg shadow p-4">
-                <input
-                  type="text"
-                  placeholder="🔍 Search modules..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+              {/* Search */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-4">
+                <input type="text" placeholder="🔍 Search modules..." value={search} onChange={(e) => setSearch(e.target.value)} className={inputCls} />
               </div>
 
-              {filteredModules.some(m => m.name === 'journals') && (
-                <div className="bg-linear-to-r from-blue-50 to-indigo-50 rounded-lg shadow p-6 border border-blue-200">
-                  <h3 className="font-semibold mb-4 text-blue-900">📊 Journal Workflow Permissions</h3>
-                  <div className="flex items-center justify-between text-sm">
-                    {(() => {
-                      const journalModule = modules.find(m => m.name === 'journals')
-                      const perm = journalModule ? getPermission(journalModule.id) : null
-                      return (
-                        <>
+              {/* Journal Workflow Visual */}
+              {filteredModules.some(m => m.name === 'journals') && (() => {
+                const journalModule = modules.find(m => m.name === 'journals')
+                const perm = journalModule ? getPermission(journalModule.id) : null
+                const steps = [
+                  { icon: '📝', label: 'Create/Edit', field: 'can_update' as PermField },
+                  { icon: '📤', label: 'Submit', field: 'can_update' as PermField },
+                  { icon: '👍', label: 'Approve', field: 'can_approve' as PermField },
+                  { icon: '📥', label: 'Post to GL', field: 'can_release' as PermField },
+                  { icon: '↩️', label: 'Reverse', field: 'can_release' as PermField },
+                ]
+                return (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg shadow border border-blue-200 dark:border-blue-800 p-4 sm:p-6">
+                    <h3 className="font-semibold mb-4 text-blue-900 dark:text-blue-300 text-sm">📊 Journal Workflow Permissions</h3>
+                    <div className="flex items-center justify-between text-sm overflow-x-auto gap-1 pb-2">
+                      {steps.map((step, i) => (
+                        <div key={i} className="flex items-center shrink-0">
                           <div className="text-center">
-                            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-2xl ${
-                              perm?.can_update ? 'bg-green-100 border-2 border-green-400' : 'bg-gray-100 border-2 border-gray-300'
-                            }`}>📝</div>
-                            <div className="font-medium">Create/Edit</div>
-                            <div className="text-xs text-gray-600 mt-1">can_update</div>
-                            <div className="text-xs">{perm?.can_update ? '✅' : '❌'}</div>
+                            <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center mx-auto mb-1 text-xl sm:text-2xl ${
+                              perm?.[step.field] ? 'bg-green-100 dark:bg-green-900/30 border-2 border-green-400 dark:border-green-600' : 'bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600'
+                            }`}>{step.icon}</div>
+                            <div className="font-medium text-[10px] sm:text-xs text-gray-900 dark:text-white">{step.label}</div>
+                            <div className="text-[10px] text-gray-500 dark:text-gray-400">{step.field}</div>
+                            <div className="text-[10px]">{perm?.[step.field] ? '✅' : '❌'}</div>
                           </div>
-                          <div className="flex-1 border-t-2 border-dashed border-gray-400 mx-2"></div>
-                          <div className="text-center">
-                            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-2xl ${
-                              perm?.can_update ? 'bg-green-100 border-2 border-green-400' : 'bg-gray-100 border-2 border-gray-300'
-                            }`}>📤</div>
-                            <div className="font-medium">Submit</div>
-                            <div className="text-xs text-gray-600 mt-1">can_update</div>
-                            <div className="text-xs">{perm?.can_update ? '✅' : '❌'}</div>
-                          </div>
-                          <div className="flex-1 border-t-2 border-dashed border-gray-400 mx-2"></div>
-                          <div className="text-center">
-                            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-2xl ${
-                              perm?.can_approve ? 'bg-green-100 border-2 border-green-400' : 'bg-gray-100 border-2 border-gray-300'
-                            }`}>👍</div>
-                            <div className="font-medium">Approve</div>
-                            <div className="text-xs text-gray-600 mt-1">can_approve</div>
-                            <div className="text-xs">{perm?.can_approve ? '✅' : '❌'}</div>
-                          </div>
-                          <div className="flex-1 border-t-2 border-dashed border-gray-400 mx-2"></div>
-                          <div className="text-center">
-                            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-2xl ${
-                              perm?.can_release ? 'bg-green-100 border-2 border-green-400' : 'bg-gray-100 border-2 border-gray-300'
-                            }`}>📥</div>
-                            <div className="font-medium">Post to GL</div>
-                            <div className="text-xs text-gray-600 mt-1">can_release</div>
-                            <div className="text-xs">{perm?.can_release ? '✅' : '❌'}</div>
-                          </div>
-                          <div className="flex-1 border-t-2 border-dashed border-gray-400 mx-2"></div>
-                          <div className="text-center">
-                            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-2xl ${
-                              perm?.can_release ? 'bg-green-100 border-2 border-green-400' : 'bg-gray-100 border-2 border-gray-300'
-                            }`}>↩️</div>
-                            <div className="font-medium">Reverse</div>
-                            <div className="text-xs text-gray-600 mt-1">can_release</div>
-                            <div className="text-xs">{perm?.can_release ? '✅' : '❌'}</div>
-                          </div>
-                        </>
-                      )
-                    })()}
+                          {i < steps.length - 1 && <div className="w-4 sm:w-8 border-t-2 border-dashed border-gray-400 dark:border-gray-600 mx-1"></div>}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
-              <div className="bg-white rounded-lg shadow overflow-hidden">
+              {/* Permissions table */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
+                  <table className="w-full min-w-[600px]">
+                    <thead className="bg-gray-50 dark:bg-gray-800/50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Module</th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                          <div>View</div>
-                          <div className="flex gap-1 justify-center mt-1">
-                            <button onClick={() => handleBulkChange('can_view', true)} className="text-xs text-blue-600 hover:underline">All</button>
-                            <span className="text-gray-400">|</span>
-                            <button onClick={() => handleBulkChange('can_view', false)} className="text-xs text-red-600 hover:underline">None</button>
-                          </div>
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                          <div>Insert</div>
-                          <div className="flex gap-1 justify-center mt-1">
-                            <button onClick={() => handleBulkChange('can_insert', true)} className="text-xs text-blue-600 hover:underline">All</button>
-                            <span className="text-gray-400">|</span>
-                            <button onClick={() => handleBulkChange('can_insert', false)} className="text-xs text-red-600 hover:underline">None</button>
-                          </div>
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                          <div>Update</div>
-                          <div className="flex gap-1 justify-center mt-1">
-                            <button onClick={() => handleBulkChange('can_update', true)} className="text-xs text-blue-600 hover:underline">All</button>
-                            <span className="text-gray-400">|</span>
-                            <button onClick={() => handleBulkChange('can_update', false)} className="text-xs text-red-600 hover:underline">None</button>
-                          </div>
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                          <div>Delete</div>
-                          <div className="flex gap-1 justify-center mt-1">
-                            <button onClick={() => handleBulkChange('can_delete', true)} className="text-xs text-blue-600 hover:underline">All</button>
-                            <span className="text-gray-400">|</span>
-                            <button onClick={() => handleBulkChange('can_delete', false)} className="text-xs text-red-600 hover:underline">None</button>
-                          </div>
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                          <div>Approve</div>
-                          <div className="flex gap-1 justify-center mt-1">
-                            <button onClick={() => handleBulkChange('can_approve', true)} className="text-xs text-blue-600 hover:underline">All</button>
-                            <span className="text-gray-400">|</span>
-                            <button onClick={() => handleBulkChange('can_approve', false)} className="text-xs text-red-600 hover:underline">None</button>
-                          </div>
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                          <div>Release</div>
-                          <div className="flex gap-1 justify-center mt-1">
-                            <button onClick={() => handleBulkChange('can_release', true)} className="text-xs text-blue-600 hover:underline">All</button>
-                            <span className="text-gray-400">|</span>
-                            <button onClick={() => handleBulkChange('can_release', false)} className="text-xs text-red-600 hover:underline">None</button>
-                          </div>
-                        </th>
+                        <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Module</th>
+                        {permLabels.map((label, i) => (
+                          <th key={label} className="px-2 sm:px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                            <div>{label}</div>
+                            <div className="flex gap-1 justify-center mt-1">
+                              <button onClick={() => handleBulkChange(permFields[i], true)} className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline">All</button>
+                              <span className="text-gray-400">|</span>
+                              <button onClick={() => handleBulkChange(permFields[i], false)} className="text-[10px] text-red-600 dark:text-red-400 hover:underline">None</button>
+                            </div>
+                          </th>
+                        ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {filteredModules.map(module => {
                         const perm = getPermission(module.id)
                         return (
-                          <tr key={module.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4">
-                              <div className="font-medium">{module.name}</div>
-                              <div className="text-sm text-gray-500">{module.description}</div>
+                          <tr key={module.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                            <td className="px-3 sm:px-6 py-3 sm:py-4">
+                              <div className="font-medium text-gray-900 dark:text-white text-sm">{module.name}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">{module.description}</div>
                             </td>
-                            <td className="px-6 py-4 text-center">
-                              <input
-                                type="checkbox"
-                                checked={perm?.can_view || false}
-                                onChange={e => handlePermissionChange(module.id, 'can_view', e.target.checked)}
-                                disabled={saving}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
-                              />
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <input
-                                type="checkbox"
-                                checked={perm?.can_insert || false}
-                                onChange={e => handlePermissionChange(module.id, 'can_insert', e.target.checked)}
-                                disabled={saving}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
-                              />
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <input
-                                type="checkbox"
-                                checked={perm?.can_update || false}
-                                onChange={e => handlePermissionChange(module.id, 'can_update', e.target.checked)}
-                                disabled={saving}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
-                              />
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <input
-                                type="checkbox"
-                                checked={perm?.can_delete || false}
-                                onChange={e => handlePermissionChange(module.id, 'can_delete', e.target.checked)}
-                                disabled={saving}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
-                              />
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <input
-                                type="checkbox"
-                                checked={perm?.can_approve || false}
-                                onChange={e => handlePermissionChange(module.id, 'can_approve', e.target.checked)}
-                                disabled={saving}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
-                              />
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <input
-                                type="checkbox"
-                                checked={perm?.can_release || false}
-                                onChange={e => handlePermissionChange(module.id, 'can_release', e.target.checked)}
-                                disabled={saving}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
-                              />
-                            </td>
+                            {permFields.map(field => (
+                              <td key={field} className="px-2 sm:px-4 py-3 sm:py-4 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={perm ? !!perm[field] : false}
+                                  onChange={e => handlePermissionChange(module.id, field, e.target.checked)}
+                                  disabled={saving}
+                                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
+                                />
+                              </td>
+                            ))}
                           </tr>
                         )
                       })}
@@ -433,58 +246,33 @@ export default function PermissionsPage() {
               </div>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-8 text-center text-gray-500 dark:text-gray-400">
               Select a role to manage permissions
             </div>
           )}
         </div>
       </div>
 
+      {/* Create Role Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Add New Role</h2>
-            
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md shadow-xl">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Add New Role</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Role Name</label>
-                <input
-                  type="text"
-                  value={newRole.name}
-                  onChange={(e) => setNewRole({ ...newRole, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g. Manager"
-                />
+                <label className={labelCls}>Role Name</label>
+                <input type="text" value={newRole.name} onChange={(e) => setNewRole({ ...newRole, name: e.target.value })} className={inputCls} placeholder="e.g. Manager" />
               </div>
-              
               <div>
-                <label className="block text-sm font-medium mb-1">Description</label>
-                <textarea
-                  value={newRole.description}
-                  onChange={(e) => setNewRole({ ...newRole, description: e.target.value })}
-                  className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                  placeholder="Role description..."
-                />
+                <label className={labelCls}>Description</label>
+                <textarea value={newRole.description} onChange={(e) => setNewRole({ ...newRole, description: e.target.value })} className={inputCls} rows={3} placeholder="Role description..." />
               </div>
             </div>
-
             <div className="flex gap-2 mt-6">
-              <button
-                onClick={handleCreateRole}
-                disabled={createSaving}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-              >
+              <button onClick={handleCreateRole} disabled={createSaving} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium">
                 {createSaving ? 'Creating...' : 'Create'}
               </button>
-              <button
-                onClick={() => {
-                  setShowModal(false)
-                  setNewRole({ name: '', description: '' })
-                }}
-                disabled={createSaving}
-                className="flex-1 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
-              >
+              <button onClick={() => { setShowModal(false); setNewRole({ name: '', description: '' }) }} disabled={createSaving} className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 text-sm font-medium">
                 Cancel
               </button>
             </div>
@@ -492,46 +280,26 @@ export default function PermissionsPage() {
         </div>
       )}
 
+      {/* Edit Role Modal */}
       {editModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Edit Role</h2>
-            
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md shadow-xl">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Edit Role</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Role Name</label>
-                <input
-                  type="text"
-                  value={editRole.name}
-                  onChange={(e) => setEditRole({ ...editRole, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500"
-                />
+                <label className={labelCls}>Role Name</label>
+                <input type="text" value={editRole.name} onChange={(e) => setEditRole({ ...editRole, name: e.target.value })} className={inputCls} />
               </div>
-              
               <div>
-                <label className="block text-sm font-medium mb-1">Description</label>
-                <textarea
-                  value={editRole.description}
-                  onChange={(e) => setEditRole({ ...editRole, description: e.target.value })}
-                  className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                />
+                <label className={labelCls}>Description</label>
+                <textarea value={editRole.description} onChange={(e) => setEditRole({ ...editRole, description: e.target.value })} className={inputCls} rows={3} />
               </div>
             </div>
-
             <div className="flex gap-2 mt-6">
-              <button
-                onClick={handleEditRole}
-                disabled={createSaving}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-              >
+              <button onClick={handleEditRole} disabled={createSaving} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium">
                 {createSaving ? 'Updating...' : 'Update'}
               </button>
-              <button
-                onClick={() => setEditModal(false)}
-                disabled={createSaving}
-                className="flex-1 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
-              >
+              <button onClick={() => setEditModal(false)} disabled={createSaving} className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 text-sm font-medium">
                 Cancel
               </button>
             </div>
