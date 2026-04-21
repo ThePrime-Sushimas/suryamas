@@ -393,21 +393,31 @@ export class CashFlowSalesRepository {
     unreconciled_count: number
   }> {
     try {
-      // 1. Get reconciled bank_statements in range to find linked aggregates
-      const { data: bsRows, error: bsError } = await supabase
-        .from('bank_statements')
-        .select('id, reconciliation_id, reconciliation_group_id, cash_deposit_id, is_reconciled, credit_amount')
-        .eq('bank_account_id', params.bank_account_id)
-        .gte('transaction_date', params.date_from)
-        .lte('transaction_date', params.date_to)
-        .is('deleted_at', null)
+      // 1. Get reconciled bank_statements (only reconciled ones needed for aggregate lookup)
+      const [reconResult, unreconCountResult] = await Promise.all([
+        supabase
+          .from('bank_statements')
+          .select('id, reconciliation_id, reconciliation_group_id, cash_deposit_id, credit_amount')
+          .eq('bank_account_id', params.bank_account_id)
+          .gte('transaction_date', params.date_from)
+          .lte('transaction_date', params.date_to)
+          .eq('is_reconciled', true)
+          .is('deleted_at', null),
+        supabase
+          .from('bank_statements')
+          .select('id', { count: 'exact', head: true })
+          .eq('bank_account_id', params.bank_account_id)
+          .gte('transaction_date', params.date_from)
+          .lte('transaction_date', params.date_to)
+          .eq('is_reconciled', false)
+          .is('deleted_at', null),
+      ])
 
-      if (bsError) throw new DatabaseError('Failed to get bank statements for sales', { cause: bsError })
+      if (reconResult.error) throw new DatabaseError('Failed to get bank statements for sales', { cause: reconResult.error })
 
-      const allBs = bsRows || []
-      const unreconCount = allBs.filter(r => !r.is_reconciled).length
+      const allBs = reconResult.data || []
+      const unreconCount = unreconCountResult.count || 0
 
-      // Collect all aggregate IDs from all reconciliation paths
       const reconAggIds = allBs.filter(r => r.reconciliation_id).map(r => r.reconciliation_id)
 
       const multiMatchGroupIds = [...new Set(allBs.filter(r => r.reconciliation_group_id && !r.reconciliation_id).map(r => r.reconciliation_group_id))]
@@ -421,39 +431,49 @@ export class CashFlowSalesRepository {
       }
 
       const settleStatementIds = allBs
-        .filter(r => r.is_reconciled && !r.reconciliation_id && !r.reconciliation_group_id && !r.cash_deposit_id)
+        .filter(r => !r.reconciliation_id && !r.reconciliation_group_id && !r.cash_deposit_id)
         .map(r => String(r.id))
       let settlementAggIds: string[] = []
       if (settleStatementIds.length > 0) {
-        const { data: settlements } = await supabase
-          .from('bank_settlement_groups')
-          .select('bank_settlement_aggregates(aggregate_id)')
-          .in('bank_statement_id', settleStatementIds)
-          .is('deleted_at', null)
-        settlementAggIds = (settlements as any[] || []).flatMap(sg =>
-          (sg.bank_settlement_aggregates || []).map((a: any) => a.aggregate_id)
-        ).filter(Boolean)
+        for (let i = 0; i < settleStatementIds.length; i += 100) {
+          const batch = settleStatementIds.slice(i, i + 100)
+          const { data: settlements } = await supabase
+            .from('bank_settlement_groups')
+            .select('bank_settlement_aggregates(aggregate_id)')
+            .in('bank_statement_id', batch)
+            .is('deleted_at', null)
+          const batchIds = (settlements as any[] || []).flatMap(sg =>
+            (sg.bank_settlement_aggregates || []).map((a: any) => a.aggregate_id)
+          ).filter(Boolean)
+          settlementAggIds.push(...batchIds)
+        }
       }
 
-      // 2. Fetch all aggregates at once
+      // 2. Fetch all aggregates in batches (avoid headers overflow with large IN clauses)
       const allAggIds = [...new Set([...reconAggIds, ...multiMatchAggIds, ...settlementAggIds])]
 
       if (allAggIds.length === 0 ) {
         return { groups: [], total_income: 0, unreconciled_count: unreconCount }
       }
 
-      let aggQuery = supabase
-        .from('aggregated_transactions')
-        .select('id, branch_id, branch_name, transaction_date, payment_method_id, actual_nett_amount, nett_amount, payment_methods!inner(name, payment_type)')
-        .in('id', allAggIds)
-        .is('deleted_at', null)
+      const BATCH_SIZE = 100
+      const aggs: any[] = []
+      for (let i = 0; i < allAggIds.length; i += BATCH_SIZE) {
+        const batch = allAggIds.slice(i, i + BATCH_SIZE)
+        let aggQuery = supabase
+          .from('aggregated_transactions')
+          .select('id, branch_id, branch_name, transaction_date, payment_method_id, actual_nett_amount, nett_amount, payment_methods!inner(name, payment_type)')
+          .in('id', batch)
+          .is('deleted_at', null)
 
-      if (params.branch_id) {
-        aggQuery = aggQuery.eq('branch_id', params.branch_id)
+        if (params.branch_id) {
+          aggQuery = aggQuery.eq('branch_id', params.branch_id)
+        }
+
+        const { data, error: aggError } = await aggQuery
+        if (aggError) throw new DatabaseError('Failed to get aggregates for sales', { cause: aggError })
+        if (data) aggs.push(...data)
       }
-
-      const { data: aggs, error: aggError } = await aggQuery
-      if (aggError) throw new DatabaseError('Failed to get aggregates for sales', { cause: aggError })
 
       // 3. Get group mappings
       const pmIds = [...new Set((aggs || []).map((a: any) => a.payment_method_id).filter(Boolean))]
