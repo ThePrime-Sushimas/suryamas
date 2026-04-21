@@ -1,196 +1,215 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/features/auth'
 import { useBranchContext } from '@/features/branch_context'
-import { Building2, Users, Shield, Package, CreditCard, FileText, Settings, BarChart3 } from 'lucide-react'
-import { useState, useEffect } from 'react'
-import api from '@/lib/axios'
+import { useEffect } from 'react'
+import {
+  Activity, TrendingUp, Users, Package, Hash,
+  FileSpreadsheet, ShieldCheck, Building2, Coins, DollarSign,
+  ArrowRight, CheckCircle2, AlertTriangle, Clock,
+} from 'lucide-react'
 
-interface DashboardStats {
-  companies: number
-  employees: number
-  products: number
-}
+import { usePosSalesToday, useReconSummary, useCashCountPending, useDashboardStats } from '@/features/dashboard/api/useDashboardApi'
+import { SalesOverview } from '@/features/dashboard/components/SalesOverview'
+
+const fmt = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)
+const fmtDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 export default function HomePage() {
   const { user } = useAuthStore()
   const currentBranch = useBranchContext()
-  const [stats, setStats] = useState<DashboardStats>({ companies: 0, employees: 0, products: 0 })
-  const [loading, setLoading] = useState(true)
+  const today = fmtDate(new Date())
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      if (!currentBranch?.company_id) return
-      
-      try {
-        const [companiesRes, employeesRes, productsRes] = await Promise.all([
-          api.get('/companies', { params: { limit: 1000 } }),
-          api.get('/employees', { params: { company_id: currentBranch.company_id, limit: 1000 } }),
-          api.get('/products', { params: { company_id: currentBranch.company_id, limit: 1000 } })
-        ])
-        
-        setStats({
-          companies: companiesRes.data.pagination?.total || companiesRes.data.data?.length || 0,
-          employees: employeesRes.data.pagination?.total || employeesRes.data.data?.length || 0,
-          products: productsRes.data.pagination?.total || productsRes.data.data?.length || 0
-        })
-      } catch (error) {
-        console.error('Failed to fetch dashboard stats:', error)
-      } finally {
-        setLoading(false)
+  const sales = usePosSalesToday(today, today)
+  const recon = useReconSummary()
+  const cashCount = useCashCountPending()
+  const stats = useDashboardStats(currentBranch?.company_id)
+
+  const totalSales = useMemo(() => sales.data?.reduce((s, r) => s + r.grand_total, 0) || 0, [sales.data])
+  const totalTrx = useMemo(() => sales.data?.reduce((s, r) => s + r.transaction_count, 0) || 0, [sales.data])
+  const reconPct = recon.data && recon.data.total_statements > 0
+    ? Math.round((recon.data.reconciled_count / recon.data.total_statements) * 100) : null
+
+  // Build status items for "Status Hari Ini"
+  const statusItems = useMemo(() => {
+    const items: Array<{ label: string; value: string; href: string; severity: 'ok' | 'warn' | 'danger' }> = []
+
+    if (recon.data) {
+      if (recon.data.unreconciled_count > 0) {
+        items.push({ label: 'Bank statement belum match', value: `${recon.data.unreconciled_count} item`, href: '/bank-reconciliation', severity: 'warn' })
+      }
+      if (recon.data.discrepancy_count > 0) {
+        items.push({ label: 'Discrepancy ditemukan', value: `${recon.data.discrepancy_count} item`, href: '/bank-reconciliation', severity: 'danger' })
       }
     }
+    if (cashCount.data && cashCount.data.pendingCount > 0) {
+      items.push({ label: 'Setoran kas pending', value: `${cashCount.data.pendingCount} setoran`, href: '/cash-counts', severity: 'warn' })
+    }
+    return items
+  }, [recon.data, cashCount.data])
 
-    fetchStats()
-  }, [currentBranch?.company_id])
+  const allClear = !recon.isLoading && !cashCount.isLoading && statusItems.length === 0
 
-  const quickActions = [
-    { title: 'Chart of Accounts', href: '/chart-of-accounts', icon: FileText, color: 'text-blue-600', bg: 'hover:bg-blue-50' },
-    { title: 'Products', href: '/products', icon: Package, color: 'text-green-600', bg: 'hover:bg-green-50' },
-    { title: 'Suppliers', href: '/suppliers', icon: Building2, color: 'text-purple-600', bg: 'hover:bg-purple-50' },
-    { title: 'Employees', href: '/employees', icon: Users, color: 'text-orange-600', bg: 'hover:bg-orange-50' },
-    { title: 'Companies', href: '/companies', icon: Building2, color: 'text-indigo-600', bg: 'hover:bg-indigo-50' },
-    { title: 'Pricelists', href: '/pricelists', icon: CreditCard, color: 'text-pink-600', bg: 'hover:bg-pink-50' },
-    { title: 'Permissions', href: '/permissions', icon: Shield, color: 'text-red-600', bg: 'hover:bg-red-50' },
-    { title: 'Settings', href: '/settings/banks', icon: Settings, color: 'text-gray-600', bg: 'hover:bg-gray-50' },
-  ]
+  const quickActions = useMemo(() => [
+    { title: 'POS Aggregates', href: '/pos-aggregates', icon: FileSpreadsheet, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+    { title: 'Bank Recon', href: '/bank-statement-import', icon: FileSpreadsheet, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+    { title: 'Cash Flow', href: '/cash-flow', icon: Activity, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+    { title: 'Cash Count', href: '/cash-counts', icon: Coins, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' },
+    { title: 'Employees', href: '/employees', icon: Users, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+    { title: 'Products', href: '/products', icon: Package, color: 'text-pink-600 dark:text-pink-400', bg: 'bg-pink-50 dark:bg-pink-900/20' },
+    { title: 'Pricelists', href: '/pricelists', icon: DollarSign, color: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-50 dark:bg-teal-900/20' },
+    { title: 'Reconciliation', href: '/bank-reconciliation', icon: ShieldCheck, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+  ], [])
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 sm:p-12 text-center max-w-md w-full">
+          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-2xl mx-auto mb-6">S</div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4">Suryamas</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-8">Finance Management System</p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Link to="/login" className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold text-center">Login</Link>
+            <Link to="/register" className="flex-1 px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-semibold text-center">Register</Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 flex flex-col">
-      {/* Container */}
-      <div className="grow max-w-7xl mx-auto w-full px-6 py-12">
-        
-        {/* Header */}
-        <div className="text-center mb-16">
-          <div className="flex justify-center items-center space-x-3 mb-4">
-            <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl">S</div>
-            <h1 className="text-5xl font-extrabold text-gray-900">Suryamas</h1>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
+      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
+
+        {/* Welcome */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+              Halo, {user.full_name?.split(' ')[0]}!
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {currentBranch?.branch_name || 'No branch'} · {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
           </div>
-          <p className="text-2xl text-gray-700 mb-2">Finance Management System</p>
-          <p className="text-gray-500">Comprehensive business management solution</p>
         </div>
 
-        {/* Main Section */}
-        {user ? (
-          <div className="space-y-8">
-            {/* Welcome Card */}
-            <div className="bg-white rounded-xl shadow-lg p-8">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-3xl font-bold mb-2">Welcome back, {user.full_name}!</h2>
-                  <p className="text-gray-600 text-lg">{user.job_position}</p>
-                  {currentBranch && (
-                    <p className="text-sm text-blue-600 mt-2">
-                      Current Branch: {currentBranch.branch_name}
-                    </p>
-                  )}
-                </div>
-                <div className="mt-4 md:mt-0">
-                  <Link
-                    to="/profile"
-                    className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold transition-colors"
-                  >
-                    <Users className="w-5 h-5 mr-2" />
-                    View Profile
-                  </Link>
-                </div>
-              </div>
+        {/* KPI Row */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+            <div className="flex items-center gap-1.5 mb-1">
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+              <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Penjualan Hari Ini</p>
             </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white rounded-xl shadow-lg p-8">
-              <h3 className="text-2xl font-bold mb-8 flex items-center">
-                <BarChart3 className="w-6 h-6 mr-3 text-blue-600" />
-                Quick Actions
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                {quickActions.map((action) => {
-                  const Icon = action.icon
-                  return (
-                    <Link
-                      key={action.href}
-                      to={action.href}
-                      className={`bg-white border-2 border-gray-100 rounded-xl p-6 flex flex-col items-center justify-center ${action.bg} hover:shadow-lg hover:border-gray-200 transform hover:-translate-y-1 transition-all duration-300`}
-                    >
-                      <Icon className={`w-8 h-8 ${action.color} mb-3`} />
-                      <span className="text-sm font-semibold text-gray-800 text-center">{action.title}</span>
-                    </Link>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <div className="flex items-center">
-                  <div className="p-4 bg-blue-100 rounded-full">
-                    <Building2 className="w-8 h-8 text-blue-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm text-gray-600 font-medium">Active Companies</p>
-                    <p className="text-3xl font-bold text-gray-900">
-                      {loading ? '...' : stats.companies.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <div className="flex items-center">
-                  <div className="p-4 bg-green-100 rounded-full">
-                    <Users className="w-8 h-8 text-green-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm text-gray-600 font-medium">Total Employees</p>
-                    <p className="text-3xl font-bold text-gray-900">
-                      {loading ? '...' : stats.employees.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <div className="flex items-center">
-                  <div className="p-4 bg-purple-100 rounded-full">
-                    <Package className="w-8 h-8 text-purple-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm text-gray-600 font-medium">Total Products</p>
-                    <p className="text-3xl font-bold text-gray-900">
-                      {loading ? '...' : stats.products.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <p className="text-base sm:text-lg font-bold text-emerald-700 dark:text-emerald-400">
+              {sales.isLoading ? '...' : fmt(totalSales)}
+            </p>
           </div>
-        ) : (
-          <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-            <div className="mb-8">
-              <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-2xl mx-auto mb-6">S</div>
-              <h2 className="text-3xl font-bold mb-4">Welcome to Suryamas</h2>
-              <p className="text-gray-600 text-lg mb-8">Please login or register to access the finance management system</p>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Hash className="w-3.5 h-3.5 text-blue-600" />
+              <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Transaksi</p>
             </div>
-            <div className="flex flex-col sm:flex-row justify-center gap-6">
-              <Link
-                to="/login"
-                className="bg-blue-600 text-white px-10 py-4 rounded-lg hover:bg-blue-700 font-semibold transition-colors text-lg"
-              >
-                Login to Continue
-              </Link>
-              <Link
-                to="/register"
-                className="bg-gray-600 text-white px-10 py-4 rounded-lg hover:bg-gray-700 font-semibold transition-colors text-lg"
-              >
-                Create Account
-              </Link>
-            </div>
+            <p className="text-base sm:text-lg font-bold text-blue-700 dark:text-blue-400">
+              {sales.isLoading ? '...' : totalTrx.toLocaleString()}
+            </p>
           </div>
-        )}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Users className="w-3.5 h-3.5 text-orange-600" />
+              <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Karyawan</p>
+            </div>
+            <p className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
+              {stats.isLoading ? '...' : stats.data?.employees.toLocaleString() || 0}
+            </p>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Package className="w-3.5 h-3.5 text-purple-600" />
+              <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Produk</p>
+            </div>
+            <p className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
+              {stats.isLoading ? '...' : stats.data?.products.toLocaleString() || 0}
+            </p>
+          </div>
+        </div>
+
+        {/* Status Hari Ini */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-4 sm:px-5 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wide">Status Hari Ini</h3>
+            {reconPct !== null && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">Rekon</span>
+                <div className="w-20 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 rounded-full" style={{ width: `${reconPct}%` }} />
+                </div>
+                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">{reconPct}%</span>
+              </div>
+            )}
+          </div>
+
+          {(recon.isLoading || cashCount.isLoading) ? (
+            <div className="p-4 space-y-2">
+              {[1, 2].map(i => <div key={i} className="h-10 bg-gray-50 dark:bg-gray-700 rounded-lg animate-pulse" />)}
+            </div>
+          ) : allClear ? (
+            <div className="px-4 sm:px-5 py-6 flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="w-5 h-5" />
+              <span className="text-sm font-medium">Semua tugas harian selesai — tidak ada item pending!</span>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50 dark:divide-gray-700">
+              {statusItems.map((item, i) => (
+                <Link key={i} to={item.href} className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group">
+                  <div className={`p-1.5 rounded-lg shrink-0 ${
+                    item.severity === 'danger' ? 'bg-rose-100 dark:bg-rose-900/30' :
+                    item.severity === 'warn' ? 'bg-amber-100 dark:bg-amber-900/30' :
+                    'bg-emerald-100 dark:bg-emerald-900/30'
+                  }`}>
+                    {item.severity === 'danger' ? <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" /> :
+                     item.severity === 'warn' ? <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" /> :
+                     <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{item.label}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{item.value}</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-blue-500 transition-colors shrink-0" />
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Live Sales */}
+        <SalesOverview
+          data={sales.data || []}
+          isLoading={sales.isLoading}
+          isFetching={sales.isFetching}
+          onRefresh={() => sales.refetch()}
+        />
+
+        {/* Quick Actions */}
+        <div>
+          <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wide mb-3">Quick Actions</h3>
+          <div className="grid grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-3">
+            {quickActions.map((action) => {
+              const Icon = action.icon
+              return (
+                <Link key={action.href} to={action.href}
+                  className={`${action.bg} rounded-xl p-3 sm:p-4 flex flex-col items-center justify-center hover:shadow-md transition-all text-center`}>
+                  <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${action.color} mb-1.5`} />
+                  <span className="text-[10px] sm:text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{action.title}</span>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+
+        <footer className="pt-4 pb-2 text-center text-xs text-gray-400 dark:text-gray-500">
+          © {new Date().getFullYear()} CV Suryamas Pangan
+        </footer>
       </div>
-
-      {/* Footer */}
-      <footer className="py-6 text-center text-gray-500 text-sm">
-        © {new Date().getFullYear()} CV Suryamas Pangan. All rights reserved.
-      </footer>
     </div>
   )
 }

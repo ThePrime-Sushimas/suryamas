@@ -35,7 +35,10 @@ export const MenuItemComponent = ({
   }, [hasSubmenu, isActive]);
 
   const handleClick = () => {
-    if (hasSubmenu) setIsOpen((prev) => !prev);
+    if (hasSubmenu) {
+      setIsOpen((prev) => !prev);
+      return; // Don't close sidebar when toggling submenu
+    }
     onNavigate?.();
   };
 
