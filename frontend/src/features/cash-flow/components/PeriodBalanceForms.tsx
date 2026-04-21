@@ -36,6 +36,11 @@ const updatePeriodSchema = z.object({
   notes: z.string().optional(),
 });
 
+// --- Shared class constants ---
+const inputCls = "w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none";
+const labelCls = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1";
+const btnSecondaryCls = "px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors";
+
 // --- Modal Wrapper ---
 
 const Modal: React.FC<{
@@ -48,10 +53,10 @@ const Modal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div className="flex justify-between items-center p-6 border-b border-gray-100">
-          <h2 className="text-xl font-bold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="flex justify-between items-center p-6 border-b border-gray-100 dark:border-gray-700">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">{title}</h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -115,7 +120,7 @@ export const CreatePeriodDialog: React.FC<{
     <Modal isOpen={isOpen} onClose={onClose} title="Buat Periode Baru">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Sumber Saldo Awal</label>
+          <label className={labelCls}>Sumber Saldo Awal</label>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -123,8 +128,8 @@ export const CreatePeriodDialog: React.FC<{
               disabled={!suggestion}
               className={`px-4 py-2 text-sm rounded-lg border transition-colors ${
                 selectedSource === 'AUTO_PREV_PERIOD' 
-                  ? 'bg-blue-50 border-blue-200 text-blue-700 font-semibold' 
-                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-400 font-semibold' 
+                  : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
               } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               Otomatis (Prev)
@@ -134,8 +139,8 @@ export const CreatePeriodDialog: React.FC<{
               onClick={() => setValue('source', 'MANUAL')}
               className={`px-4 py-2 text-sm rounded-lg border transition-colors ${
                 selectedSource === 'MANUAL' 
-                  ? 'bg-blue-50 border-blue-200 text-blue-700 font-semibold' 
-                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-400 font-semibold' 
+                  : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
               }`}
             >
               Manual
@@ -145,34 +150,26 @@ export const CreatePeriodDialog: React.FC<{
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Mulai</label>
-            <input
-              type="date"
-              {...register('period_start')}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-            />
+            <label className={labelCls}>Tanggal Mulai</label>
+            <input type="date" {...register('period_start')} className={inputCls} />
             {errors.period_start && <p className="text-xs text-red-500 mt-1">{errors.period_start.message}</p>}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Akhir</label>
-            <input
-              type="date"
-              {...register('period_end')}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-            />
+            <label className={labelCls}>Tanggal Akhir</label>
+            <input type="date" {...register('period_end')} className={inputCls} />
             {errors.period_end && <p className="text-xs text-red-500 mt-1">{errors.period_end.message}</p>}
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Saldo Awal</label>
+          <label className={labelCls}>Saldo Awal</label>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">Rp</span>
             <input
               type="number"
               step="any"
               {...register('opening_balance', { valueAsNumber: true })}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              className={`pl-10 pr-4 ${inputCls.replace('px-4', '')}`}
               placeholder="0"
             />
           </div>
@@ -180,20 +177,16 @@ export const CreatePeriodDialog: React.FC<{
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Catatan (Opsional)</label>
+          <label className={labelCls}>Catatan (Opsional)</label>
           <textarea
             {...register('notes')}
-            className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none min-h-[80px]"
+            className={`${inputCls} min-h-[80px]`}
             placeholder="Tambahkan catatan jika perlu..."
           />
         </div>
 
         <div className="flex justify-end gap-3 pt-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          >
+          <button type="button" onClick={onClose} className={btnSecondaryCls}>
             Batal
           </button>
           <button
@@ -247,34 +240,26 @@ export const EditPeriodDialog: React.FC<{
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Mulai</label>
-            <input
-              type="date"
-              {...register('period_start')}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-            />
+            <label className={labelCls}>Tanggal Mulai</label>
+            <input type="date" {...register('period_start')} className={inputCls} />
             {errors.period_start && <p className="text-xs text-red-500 mt-1">{errors.period_start.message}</p>}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Akhir</label>
-            <input
-              type="date"
-              {...register('period_end')}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-            />
+            <label className={labelCls}>Tanggal Akhir</label>
+            <input type="date" {...register('period_end')} className={inputCls} />
             {errors.period_end && <p className="text-xs text-red-500 mt-1">{errors.period_end.message}</p>}
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Saldo Awal</label>
+          <label className={labelCls}>Saldo Awal</label>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">Rp</span>
             <input
               type="number"
               step="any"
               {...register('opening_balance', { valueAsNumber: true })}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              className={`pl-10 pr-4 ${inputCls.replace('px-4', '')}`}
               placeholder="0"
             />
           </div>
@@ -282,10 +267,10 @@ export const EditPeriodDialog: React.FC<{
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Catatan (Opsional)</label>
+          <label className={labelCls}>Catatan (Opsional)</label>
           <textarea
             {...register('notes')}
-            className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none min-h-[80px]"
+            className={`${inputCls} min-h-[80px]`}
             placeholder="Tambahkan catatan jika perlu..."
           />
         </div>
@@ -295,7 +280,7 @@ export const EditPeriodDialog: React.FC<{
             <div>
               {showDeleteConfirm ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-red-600">Yakin hapus?</span>
+                  <span className="text-xs text-red-600 dark:text-red-400">Yakin hapus?</span>
                   <button
                     type="button"
                     onClick={onDelete}
@@ -308,7 +293,7 @@ export const EditPeriodDialog: React.FC<{
                   <button
                     type="button"
                     onClick={() => setShowDeleteConfirm(false)}
-                    className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   >
                     Batal
                   </button>
@@ -317,7 +302,7 @@ export const EditPeriodDialog: React.FC<{
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                 >
                   Hapus Periode
                 </button>
@@ -325,11 +310,7 @@ export const EditPeriodDialog: React.FC<{
             </div>
           )}
           <div className="flex gap-3 ml-auto">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            >
+            <button type="button" onClick={onClose} className={btnSecondaryCls}>
               Batal
             </button>
             <button

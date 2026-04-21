@@ -65,28 +65,28 @@ const PeriodNavigator = ({
   const hasNext = selectedIndex > 0
 
   return (
-    <div className="flex items-center gap-3 mb-6 p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
+    <div className="flex items-center gap-3 mb-6 p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
       {/* Nav prev (older) */}
       <button
         onClick={() => hasPrev && onSelect(selectedIndex + 1)}
         disabled={!hasPrev}
-        className="p-1.5 rounded-lg border border-gray-200 disabled:opacity-20 hover:bg-gray-50 transition-colors"
+        className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-600 disabled:opacity-20 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
         title="Periode sebelumnya"
       >
-        <ChevronLeft className="w-4 h-4 text-gray-600" />
+        <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-gray-300" />
       </button>
 
       {/* Current period info */}
       <div className="flex-1 flex flex-wrap items-center gap-x-4 gap-y-1">
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-indigo-500" />
-          <span className="text-sm font-semibold text-gray-900">
+          <span className="text-sm font-semibold text-gray-900 dark:text-white">
             {fmtDate(current.period_start)} — {fmtDate(current.period_end)}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-gray-500">Saldo Awal:</span>
-          <span className="text-sm font-semibold text-gray-800">{fmt(current.opening_balance)}</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Saldo Awal:</span>
+          <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{fmt(current.opening_balance)}</span>
         </div>
       </div>
 
@@ -94,14 +94,14 @@ const PeriodNavigator = ({
       <button
         onClick={() => hasNext && onSelect(selectedIndex - 1)}
         disabled={!hasNext}
-        className="p-1.5 rounded-lg border border-gray-200 disabled:opacity-20 hover:bg-gray-50 transition-colors"
+        className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-600 disabled:opacity-20 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
         title="Periode berikutnya"
       >
-        <ChevronRight className="w-4 h-4 text-gray-600" />
+        <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-300" />
       </button>
 
       {/* Actions */}
-      <div className="flex items-center gap-1.5 ml-2 border-l border-gray-100 pl-3">
+      <div className="flex items-center gap-1.5 ml-2 border-l border-gray-100 dark:border-gray-700 pl-3">
         <button
           onClick={onEdit}
           className="text-xs text-indigo-600 hover:underline whitespace-nowrap"
@@ -124,19 +124,19 @@ const PeriodNavigator = ({
 // ============================================================
 const SummaryCards = ({ summary }: { summary: CashFlowSummary }) => {
   const cards = [
-    { label: 'Saldo Awal', value: summary.opening_balance, color: 'text-gray-700', bg: 'bg-gray-50' },
-    { label: 'Total Masuk', value: summary.total_income, color: 'text-emerald-700', bg: 'bg-emerald-50', icon: TrendingUp },
-    { label: 'Total Keluar', value: summary.total_expense, color: 'text-rose-700', bg: 'bg-rose-50', icon: TrendingDown },
-    { label: 'Saldo Akhir', value: summary.closing_balance, color: 'text-blue-700', bg: 'bg-blue-50' },
+    { label: 'Saldo Awal', value: summary.opening_balance, color: 'text-gray-700 dark:text-gray-200', bg: 'bg-gray-50 dark:bg-gray-800' },
+    { label: 'Total Masuk', value: summary.total_income, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/30', icon: TrendingUp },
+    { label: 'Total Keluar', value: summary.total_expense, color: 'text-rose-700 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-900/30', icon: TrendingDown },
+    { label: 'Saldo Akhir', value: summary.closing_balance, color: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/30' },
   ]
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
       {cards.map((c, i) => (
-        <div key={i} className={`${c.bg} rounded-xl p-4 border border-white/60`}>
+        <div key={i} className={`${c.bg} rounded-xl p-4 border border-white/60 dark:border-gray-700`}>
           <div className="flex items-center gap-1.5 mb-1">
             {c.icon && <c.icon className={`w-3.5 h-3.5 ${c.color}`} />}
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{c.label}</p>
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{c.label}</p>
           </div>
           <p className={`text-lg font-bold ${c.color}`}>{fmt(c.value)}</p>
         </div>
@@ -163,9 +163,9 @@ const SalesGroupSection = ({ groups }: { groups: SalesGroup[] }) => {
   if (groups.length === 0) return null
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm mb-6 overflow-hidden">
-      <div className="px-5 py-3 border-b border-gray-50 flex items-center justify-between">
-        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Rekap Penjualan</h3>
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm mb-6 overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-50 dark:border-gray-700 flex items-center justify-between">
+        <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wide">Rekap Penjualan</h3>
         <span className="text-xs text-gray-400">Terrekonsiliasi</span>
       </div>
 
@@ -174,15 +174,15 @@ const SalesGroupSection = ({ groups }: { groups: SalesGroup[] }) => {
         const isOpen = openGroups.has(key)
 
         return (
-          <div key={key} className="border-b border-gray-50 last:border-0">
+          <div key={key} className="border-b border-gray-50 dark:border-gray-700 last:border-0">
             <button
               onClick={() => toggle(group.group_id)}
-              className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors text-left"
+              className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
             >
               <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: group.group_color }} />
-              <span className="flex-1 text-sm font-semibold text-gray-800">{group.group_name}</span>
+              <span className="flex-1 text-sm font-semibold text-gray-800 dark:text-gray-200">{group.group_name}</span>
               <span className="text-xs text-gray-400 mr-2">{group.transaction_count} transaksi</span>
-              <span className="text-sm font-bold text-emerald-700">{fmt(group.subtotal)}</span>
+              <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{fmt(group.subtotal)}</span>
               {isOpen ? <ChevronDown className="w-4 h-4 text-gray-400 ml-2" /> : <ChevronRight className="w-4 h-4 text-gray-400 ml-2" />}
             </button>
 
@@ -190,9 +190,9 @@ const SalesGroupSection = ({ groups }: { groups: SalesGroup[] }) => {
               <div className="px-5 pb-3 space-y-1">
                 {group.items.map(item => (
                   <div key={item.payment_method_name} className="flex items-center gap-2 py-1.5 pl-6">
-                    <span className="flex-1 text-sm text-gray-600">{item.payment_method_name}</span>
+                    <span className="flex-1 text-sm text-gray-600 dark:text-gray-400">{item.payment_method_name}</span>
                     <span className="text-xs text-gray-400">{item.transaction_count} trx</span>
-                    <span className="text-sm font-medium text-gray-800 w-32 text-right">{fmt(item.total_amount)}</span>
+                    <span className="text-sm font-medium text-gray-800 dark:text-gray-200 w-32 text-right">{fmt(item.total_amount)}</span>
                   </div>
                 ))}
               </div>
@@ -201,9 +201,9 @@ const SalesGroupSection = ({ groups }: { groups: SalesGroup[] }) => {
         )
       })}
 
-      <div className="px-5 py-3 bg-emerald-50 flex items-center justify-between">
-        <span className="text-sm font-bold text-emerald-800">Total Penjualan</span>
-        <span className="text-base font-bold text-emerald-800">
+      <div className="px-5 py-3 bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-between">
+        <span className="text-sm font-bold text-emerald-800 dark:text-emerald-400">Total Penjualan</span>
+        <span className="text-base font-bold text-emerald-800 dark:text-emerald-400">
           {fmt(groups.reduce((s, g) => s + g.subtotal, 0))}
         </span>
       </div>
@@ -221,13 +221,13 @@ const WarningsBar = ({ summary }: { summary: CashFlowSummary }) => {
   return (
     <div className="flex flex-wrap gap-3 mb-5">
       {summary.pending_count > 0 && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+        <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-xs text-amber-700 dark:text-amber-400">
           <Clock className="w-3.5 h-3.5" />
           <span><strong>{summary.pending_count}</strong> transaksi pending — masuk: {fmt(summary.pending_income_estimate)}{summary.pending_expense_estimate > 0 ? ` · keluar: ${fmt(summary.pending_expense_estimate)}` : ''}</span>
         </div>
       )}
       {summary.unreconciled_count > 0 && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700">
+        <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg text-xs text-orange-700 dark:text-orange-400">
           <AlertTriangle className="w-3.5 h-3.5" />
           <span>
             <strong>{summary.unreconciled_count}</strong> belum direkonsiliasi
@@ -273,51 +273,51 @@ const RunningBalanceTable = ({ rows, isLoading }: { rows: RunningBalanceRow[]; i
   const collapseAll = () => setOpenDates(new Set())
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-gray-50 flex items-center justify-between">
-        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Mutasi Harian</h3>
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-50 dark:border-gray-700 flex items-center justify-between">
+        <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wide">Mutasi Harian</h3>
         {dateGroups.length > 0 && (
           <div className="flex items-center gap-2">
-            <button onClick={expandAll} className="text-xs text-indigo-600 hover:underline">Buka Semua</button>
-            <span className="text-gray-300">|</span>
-            <button onClick={collapseAll} className="text-xs text-indigo-600 hover:underline">Tutup Semua</button>
+            <button onClick={expandAll} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">Buka Semua</button>
+            <span className="text-gray-300 dark:text-gray-600">|</span>
+            <button onClick={collapseAll} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">Tutup Semua</button>
           </div>
         )}
       </div>
 
       {isLoading ? (
         <div className="p-5 space-y-3">
-          {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-gray-50 rounded-lg animate-pulse" />)}
+          {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-gray-50 dark:bg-gray-700 rounded-lg animate-pulse" />)}
         </div>
       ) : dateGroups.length === 0 ? (
-        <div className="px-5 py-16 text-center text-gray-400 text-sm italic">Tidak ada transaksi untuk periode ini.</div>
+        <div className="px-5 py-16 text-center text-gray-400 dark:text-gray-500 text-sm italic">Tidak ada transaksi untuk periode ini.</div>
       ) : (
         <div>
           {dateGroups.map(([date, group]) => {
             const isOpen = openDates.has(date)
             return (
-              <div key={date} className="border-b border-gray-50 last:border-0">
+              <div key={date} className="border-b border-gray-50 dark:border-gray-700 last:border-0">
                 {/* Date header row */}
                 <button
                   onClick={() => toggleDate(date)}
-                  className="w-full flex items-center px-5 py-3 hover:bg-gray-50/50 transition-colors text-left"
+                  className="w-full flex items-center px-5 py-3 hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors text-left"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     {isOpen
                       ? <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
                       : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
                     }
-                    <span className="text-sm font-semibold text-gray-800 whitespace-nowrap">{fmtDate(date)}</span>
+                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 whitespace-nowrap">{fmtDate(date)}</span>
                     <span className="text-xs text-gray-400 whitespace-nowrap">{group.rows.length} trx</span>
                   </div>
                   <div className="flex-1" />
-                  <span className={`text-sm font-semibold text-right w-32 shrink-0 ${group.totalCredit > 0 ? 'text-emerald-600' : 'text-gray-300'}`}>
+                  <span className={`text-sm font-semibold text-right w-32 shrink-0 ${group.totalCredit > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-300 dark:text-gray-600'}`}>
                     {group.totalCredit > 0 ? fmt(group.totalCredit) : '—'}
                   </span>
-                  <span className={`text-sm font-semibold text-right w-32 shrink-0 ${group.totalDebit > 0 ? 'text-rose-500' : 'text-gray-300'}`}>
+                  <span className={`text-sm font-semibold text-right w-32 shrink-0 ${group.totalDebit > 0 ? 'text-rose-500 dark:text-rose-400' : 'text-gray-300 dark:text-gray-600'}`}>
                     {group.totalDebit > 0 ? fmt(group.totalDebit) : '—'}
                   </span>
-                  <span className="text-sm font-bold text-gray-900 text-right w-36 shrink-0">
+                  <span className="text-sm font-bold text-gray-900 dark:text-white text-right w-36 shrink-0">
                     {fmt(group.lastBalance)}
                   </span>
                 </button>
@@ -326,26 +326,26 @@ const RunningBalanceTable = ({ rows, isLoading }: { rows: RunningBalanceRow[]; i
                 {isOpen && (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
-                      <tbody className="divide-y divide-gray-50">
+                      <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
                         {group.rows.map(row => (
-                          <tr key={row.id} className={`hover:bg-gray-50/50 transition-colors ${row.is_pending ? 'bg-amber-50/30' : ''}`}>
+                          <tr key={row.id} className={`hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors ${row.is_pending ? 'bg-amber-50/30 dark:bg-amber-900/10' : ''}`}>
                             <td className="pl-12 pr-2 py-2.5 w-28" />
                             <td className="px-3 py-2.5">
                               <div className="flex items-center gap-2">
                                 {row.group_color && <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.group_color }} />}
                                 <div>
-                                  <p className="text-sm text-gray-800 font-medium leading-tight">{row.description}</p>
-                                  {row.group_name && <p className="text-xs text-gray-400 mt-0.5">{row.group_name}</p>}
+                                  <p className="text-sm text-gray-800 dark:text-gray-200 font-medium leading-tight">{row.description}</p>
+                                  {row.group_name && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{row.group_name}</p>}
                                 </div>
                               </div>
                             </td>
-                            <td className="px-3 py-2.5 text-sm font-semibold text-emerald-600 text-right whitespace-nowrap w-32">
+                            <td className="px-3 py-2.5 text-sm font-semibold text-emerald-600 dark:text-emerald-400 text-right whitespace-nowrap w-32">
                               {row.credit_amount > 0 ? fmt(row.credit_amount) : '—'}
                             </td>
-                            <td className="px-3 py-2.5 text-sm font-semibold text-rose-500 text-right whitespace-nowrap w-32">
+                            <td className="px-3 py-2.5 text-sm font-semibold text-rose-500 dark:text-rose-400 text-right whitespace-nowrap w-32">
                               {row.debit_amount > 0 ? fmt(row.debit_amount) : '—'}
                             </td>
-                            <td className="px-3 py-2.5 text-sm font-bold text-gray-900 text-right whitespace-nowrap w-36">
+                            <td className="px-3 py-2.5 text-sm font-bold text-gray-900 dark:text-white text-right whitespace-nowrap w-36">
                               {fmt(row.running_balance)}
                             </td>
                             <td className="px-3 py-2.5 text-center w-16">
@@ -505,19 +505,19 @@ export const CashFlowPage = () => {
   const noPeriods = periods && periods.length === 0
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-4 py-8 dark:bg-gray-900 min-h-screen">
 
       {/* ── Header ── */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Cash Flow</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Pergerakan kas harian per rekening bank</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Cash Flow</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Pergerakan kas harian per rekening bank</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link to="/cash-flow/settings" className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+          <Link to="/cash-flow/settings" className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
             <Settings2 className="w-4 h-4" /> Konfigurasi
           </Link>
-          <button onClick={() => refetch()} disabled={isFetching} className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+          <button onClick={() => refetch()} disabled={isFetching} className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
             <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
           </button>
         </div>
@@ -531,30 +531,30 @@ export const CashFlowPage = () => {
             onClick={() => { setSelectedBankId(acc.id) }}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
               selectedBankId === acc.id
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-200 hover:text-indigo-600'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:shadow-indigo-900/50'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:border-indigo-200 dark:hover:border-indigo-600 hover:text-indigo-600 dark:hover:text-indigo-400'
             }`}
           >
             <Wallet className="w-4 h-4" />
             <span>{acc.bank_name}</span>
-            <span className={`text-xs ${selectedBankId === acc.id ? 'text-indigo-200' : 'text-gray-400'}`}>{acc.account_number}</span>
+            <span className={`text-xs ${selectedBankId === acc.id ? 'text-indigo-200' : 'text-gray-400 dark:text-gray-500'}`}>{acc.account_number}</span>
           </button>
         ))}
       </div>
 
       {!selectedBankId ? (
-        <div className="text-center py-20 text-gray-400">
+        <div className="text-center py-20 text-gray-400 dark:text-gray-500">
           <Wallet className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p>Pilih rekening bank di atas</p>
         </div>
       ) : noPeriods ? (
         /* ── No period ── */
-        <div className="text-center py-20 border-2 border-dashed border-gray-200 rounded-xl">
-          <div className="w-14 h-14 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4">
+        <div className="text-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
+          <div className="w-14 h-14 bg-indigo-50 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
             <Calendar className="w-7 h-7 text-indigo-400" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-800 mb-1">Belum ada periode untuk rekening ini</h3>
-          <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-1">Belum ada periode untuk rekening ini</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
             Buat periode dengan saldo awal terlebih dahulu untuk mulai tracking cash flow.
           </p>
           <button onClick={() => setIsCreateOpen(true)} className="px-6 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 inline-flex items-center gap-2">
@@ -575,12 +575,12 @@ export const CashFlowPage = () => {
           {/* ── Branch filter ── */}
           {branches && branches.length > 0 && (
             <div className="flex flex-wrap items-center gap-3 mb-6">
-              <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm">
+              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
                 <Filter className="w-3.5 h-3.5 text-gray-400" />
                 <select
                   value={selectedBranchId}
                   onChange={e => { setSelectedBranchId(e.target.value) }}
-                  className="text-sm text-gray-700 outline-none bg-transparent"
+                  className="text-sm text-gray-700 dark:text-gray-300 outline-none bg-transparent"
                 >
                   <option value="">Semua Cabang</option>
                   {branches.map(b => (

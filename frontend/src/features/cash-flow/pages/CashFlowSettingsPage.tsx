@@ -47,7 +47,7 @@ const PaymentMethodChip = ({
     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
       selected
         ? 'text-white shadow-sm'
-        : 'bg-gray-50 text-gray-600 border border-gray-200 hover:border-gray-300'
+        : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
     }`}
     style={selected ? { backgroundColor: color } : {}}
   >
@@ -103,17 +103,17 @@ const GroupCard = ({
   const assignedNames = allMethods.filter(m => selectedIds.includes(m.id)).map(m => m.name)
 
   return (
-    <div className={`rounded-xl border-2 transition-all ${editing ? 'border-indigo-300 bg-white shadow-lg' : 'border-gray-100 bg-white shadow-sm'}`}>
+    <div className={`rounded-xl border-2 transition-all ${editing ? 'border-indigo-300 dark:border-indigo-600 bg-white dark:bg-gray-800 shadow-lg' : 'border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm'}`}>
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3.5 cursor-pointer" onClick={() => !editing && setOpen(!open)}>
         <div className="w-3.5 h-3.5 rounded-full flex-shrink-0" style={{ backgroundColor: group.color }} />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900 truncate">{group.name}</p>
-          <p className="text-xs text-gray-400 truncate">
+          <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{group.name}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
             {assignedNames.length > 0 ? assignedNames.join(', ') : 'Belum ada metode pembayaran'}
           </p>
         </div>
-        <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full flex-shrink-0">
+        <span className="text-xs text-gray-400 bg-gray-50 dark:bg-gray-700 px-2 py-0.5 rounded-full flex-shrink-0">
           {group.mappings?.length || 0}
         </span>
         {!editing && (
@@ -129,28 +129,28 @@ const GroupCard = ({
 
       {/* Body */}
       {open && (
-        <div className="px-4 pb-4 space-y-4 border-t border-gray-50 pt-4">
+        <div className="px-4 pb-4 space-y-4 border-t border-gray-50 dark:border-gray-700 pt-4">
           {editing ? (
             <>
               {/* Name */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Nama Group</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Nama Group</label>
                 <input
                   value={name} onChange={e => setName(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
                   autoFocus
                 />
               </div>
 
               {/* Color */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-2">Warna</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Warna</label>
                 <ColorPicker value={color} onChange={setColor} />
               </div>
 
               {/* Payment methods */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-2">
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
                   Metode Pembayaran — klik untuk assign/unassign
                 </label>
                 {eligible.length > 0 ? (
@@ -259,23 +259,23 @@ const CreateGroupInline = ({
   const toggle = (id: number) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
 
   return (
-    <div className="bg-indigo-50/70 border-2 border-indigo-200 rounded-xl p-5 space-y-4">
-      <p className="text-sm font-bold text-indigo-900">Buat Group Baru</p>
+    <div className="bg-indigo-50/70 dark:bg-indigo-900/20 border-2 border-indigo-200 dark:border-indigo-700 rounded-xl p-5 space-y-4">
+      <p className="text-sm font-bold text-indigo-900 dark:text-indigo-300">Buat Group Baru</p>
 
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Nama Group</label>
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Nama Group</label>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="cth: Penjualan Online"
-          className="w-full px-3 py-2 text-sm border border-indigo-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-indigo-500" autoFocus />
+          className="w-full px-3 py-2 text-sm border border-indigo-200 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" autoFocus />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-2">Warna</label>
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Warna</label>
         <ColorPicker value={color} onChange={setColor} />
       </div>
 
       {unassigned.length > 0 && (
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-2">Metode Pembayaran (opsional)</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Metode Pembayaran (opsional)</label>
           <div className="flex flex-wrap gap-2">
             {unassigned.map(m => (
               <PaymentMethodChip key={m.id} pm={m} selected={selectedIds.includes(m.id)} onClick={() => toggle(m.id)} color={color} />
@@ -320,27 +320,27 @@ export const CashFlowSettingsPage = () => {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="max-w-2xl mx-auto px-4 py-8 dark:bg-gray-900 min-h-screen">
       {/* Back + Header */}
       <div className="mb-8">
-        <Link to="/cash-flow" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 mb-4 transition-colors">
+        <Link to="/cash-flow" className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 mb-4 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Kembali ke Cash Flow
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900">Konfigurasi Cash Flow</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Konfigurasi Cash Flow</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Buat group lalu assign metode pembayaran ke dalamnya. Group ini akan muncul sebagai kategori di halaman Cash Flow.
         </p>
       </div>
 
       {isLoading ? (
         <div className="space-y-4">
-          {[...Array(3)].map((_, i) => <div key={i} className="h-20 bg-gray-100 rounded-xl animate-pulse" />)}
+          {[...Array(3)].map((_, i) => <div key={i} className="h-20 bg-gray-100 dark:bg-gray-700 rounded-xl animate-pulse" />)}
         </div>
       ) : (
         <>
           {/* Guide for first-time users */}
           {groups.length === 0 && !showCreate && (
-            <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl mb-4">
+            <div className="text-center py-16 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl mb-4">
               <Palette className="w-10 h-10 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500 text-sm mb-1">Belum ada group.</p>
               <p className="text-gray-400 text-xs mb-5">Buat group pertama untuk mengelompokkan metode pembayaran.</p>
@@ -353,8 +353,8 @@ export const CashFlowSettingsPage = () => {
 
           {/* Unassigned warning */}
           {groups.length > 0 && unassignedCount > 0 && (
-            <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-              <p className="text-sm font-medium text-amber-800 mb-1.5">
+            <div className="mb-5 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-400 mb-1.5">
                 {unassignedCount} metode pembayaran belum masuk group manapun
               </p>
               <div className="flex flex-wrap gap-1.5">
@@ -375,7 +375,7 @@ export const CashFlowSettingsPage = () => {
             <CreateGroupInline allMethods={allMethods} onSubmit={handleCreate} onCancel={() => setShowCreate(false)} isLoading={createMutation.isPending} />
           ) : groups.length > 0 && (
             <button onClick={() => setShowCreate(true)}
-              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm font-medium text-gray-500 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all">
+              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-500 hover:border-indigo-300 dark:hover:border-indigo-600 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all">
               <Plus className="w-4 h-4" /> Tambah Group
             </button>
           )}
