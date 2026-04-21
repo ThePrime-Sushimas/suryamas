@@ -545,29 +545,22 @@ export class SettlementGroupRepository {
   /**
    * Mark bank statement as reconciled
    */
-  async markBankStatementAsReconciled(statementId: string): Promise<void> {
-    // Handle different formats of statementId (string, number, bigint)
-    let statementIdNum: number;
-    if (typeof statementId === 'string') {
-      statementIdNum = parseInt(statementId, 10);
-    } else if (typeof statementId === 'number') {
-      statementIdNum = statementId;
-    } else {
-      statementIdNum = Number(statementId);
-    }
-
-    // Check if valid number
+  async markBankStatementAsReconciled(statementId: string, userId?: string): Promise<void> {
+    const statementIdNum = Number(statementId);
     if (isNaN(statementIdNum)) {
       logError('Invalid statement ID for markBankStatementAsReconciled', { statementId });
       throw new Error(`Invalid statement ID: ${statementId}`);
     }
 
+    const updateData: Record<string, unknown> = {
+      is_reconciled: true,
+      updated_at: new Date().toISOString(),
+    };
+    if (userId) updateData.updated_by = userId;
+
     const { error } = await supabase
       .from('bank_statements')
-      .update({
-        is_reconciled: true,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', statementIdNum);
 
     if (error) {
@@ -598,29 +591,22 @@ export class SettlementGroupRepository {
   /**
    * Mark bank statement as unreconciled
    */
-  async markBankStatementAsUnreconciled(statementId: string): Promise<void> {
-    // Handle different formats of statementId (string, number, bigint)
-    let statementIdNum: number;
-    if (typeof statementId === 'string') {
-      statementIdNum = parseInt(statementId, 10);
-    } else if (typeof statementId === 'number') {
-      statementIdNum = statementId;
-    } else {
-      statementIdNum = Number(statementId);
-    }
-
-    // Check if valid number
+  async markBankStatementAsUnreconciled(statementId: string, userId?: string): Promise<void> {
+    const statementIdNum = Number(statementId);
     if (isNaN(statementIdNum)) {
       logError('Invalid statement ID for markBankStatementAsUnreconciled', { statementId });
       throw new Error(`Invalid statement ID: ${statementId}`);
     }
 
+    const updateData: Record<string, unknown> = {
+      is_reconciled: false,
+      updated_at: new Date().toISOString(),
+    };
+    if (userId) updateData.updated_by = userId;
+
     const { error } = await supabase
       .from('bank_statements')
-      .update({
-        is_reconciled: false,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', statementIdNum);
 
     if (error) {

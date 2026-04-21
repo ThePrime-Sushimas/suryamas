@@ -174,6 +174,7 @@ export class SettlementGroupService {
       try {
         await this.repository.markBankStatementAsReconciled(
           dto.bankStatementId,
+          dto.userId,
         );
       } catch (error) {
         logError(
@@ -318,7 +319,7 @@ export class SettlementGroupService {
     // Revert bank statement is_reconciled to false
     if (bankStatementId !== null) {
       try {
-        await this.repository.markBankStatementAsUnreconciled(bankStatementId);
+        await this.repository.markBankStatementAsUnreconciled(bankStatementId, userId);
         logInfo("Bank statement marked as unreconciled after hard delete", {
           groupId,
           bank_statement_id: bankStatementId,
