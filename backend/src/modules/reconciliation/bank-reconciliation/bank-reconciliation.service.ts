@@ -930,6 +930,7 @@ export class BankReconciliationService {
       status?: "RECONCILED" | "UNRECONCILED";
       search?: string;
       isReconciled?: boolean;
+      creditOnly?: boolean;
       sortField?: string;
       sortOrder?: "asc" | "desc";
       limit?: number;

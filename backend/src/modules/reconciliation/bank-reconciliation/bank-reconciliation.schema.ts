@@ -116,6 +116,7 @@ export const getStatementsQuerySchema = z.object({
     search: z.string().optional(),
     // Reconciliation status filter (alias for status)
     isReconciled: z.coerce.boolean().optional(),
+    creditOnly: z.string().optional(),
     // Pagination - allow larger limit for showing all data
     limit: z.coerce.number().int().min(1).max(50000).optional().default(10000),
     offset: z.coerce.number().int().min(0).optional().default(0),

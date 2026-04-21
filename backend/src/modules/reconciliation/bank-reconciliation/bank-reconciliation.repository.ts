@@ -89,6 +89,7 @@ export class BankReconciliationRepository {
       status?: "RECONCILED" | "UNRECONCILED";
       search?: string;
       isReconciled?: boolean;
+      creditOnly?: boolean;
       sortField?: string;
       sortOrder?: "asc" | "desc";
       limit?: number;
@@ -156,6 +157,11 @@ export class BankReconciliationRepository {
         );
       }
 
+      // Apply credit-only filter
+      if (options?.creditOnly) {
+        baseQuery = baseQuery.gt('credit_amount', 0);
+      }
+
       // Get count query first (same filters as main query)
       let countQuery = supabase
         .from("bank_statements")
@@ -192,6 +198,9 @@ export class BankReconciliationRepository {
         countQuery = countQuery.or(
           `description.ilike.${searchTerm},reference_number.ilike.${searchTerm}`,
         );
+      }
+      if (options?.creditOnly) {
+        countQuery = countQuery.gt('credit_amount', 0);
       }
 
       // Apply sorting

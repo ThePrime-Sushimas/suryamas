@@ -159,7 +159,12 @@ export interface CashFlowSummary {
   net_change: number
   pending_count: number
   pending_income_estimate: number
+  pending_expense_estimate: number
   unreconciled_count: number
+  unreconciled_credit_count: number
+  unreconciled_credit_amount: number
+  unreconciled_debit_count: number
+  unreconciled_debit_amount: number
 }
 
 export interface CashFlowDailyResult {

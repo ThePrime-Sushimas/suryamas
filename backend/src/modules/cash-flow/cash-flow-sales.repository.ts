@@ -391,10 +391,14 @@ export class CashFlowSalesRepository {
     groups: SalesGroup[]
     total_income: number
     unreconciled_count: number
+    unreconciled_credit_count: number
+    unreconciled_credit_amount: number
+    unreconciled_debit_count: number
+    unreconciled_debit_amount: number
   }> {
     try {
-      // 1. Get reconciled bank_statements (only reconciled ones needed for aggregate lookup)
-      const [reconResult, unreconCountResult] = await Promise.all([
+      // 1. Get reconciled bank_statements + unreconciled breakdown
+      const [reconResult, unreconResult] = await Promise.all([
         supabase
           .from('bank_statements')
           .select('id, reconciliation_id, reconciliation_group_id, cash_deposit_id, credit_amount')
@@ -405,7 +409,7 @@ export class CashFlowSalesRepository {
           .is('deleted_at', null),
         supabase
           .from('bank_statements')
-          .select('id', { count: 'exact', head: true })
+          .select('credit_amount, debit_amount')
           .eq('bank_account_id', params.bank_account_id)
           .gte('transaction_date', params.date_from)
           .lte('transaction_date', params.date_to)
@@ -416,7 +420,10 @@ export class CashFlowSalesRepository {
       if (reconResult.error) throw new DatabaseError('Failed to get bank statements for sales', { cause: reconResult.error })
 
       const allBs = reconResult.data || []
-      const unreconCount = unreconCountResult.count || 0
+      const unreconRows = unreconResult.data || []
+      const unreconCount = unreconRows.length
+      const unreconCreditRows = unreconRows.filter(r => (r.credit_amount || 0) > 0)
+      const unreconDebitRows = unreconRows.filter(r => (r.debit_amount || 0) > 0)
 
       const reconAggIds = allBs.filter(r => r.reconciliation_id).map(r => r.reconciliation_id)
 
@@ -453,7 +460,7 @@ export class CashFlowSalesRepository {
       const allAggIds = [...new Set([...reconAggIds, ...multiMatchAggIds, ...settlementAggIds])]
 
       if (allAggIds.length === 0 ) {
-        return { groups: [], total_income: 0, unreconciled_count: unreconCount }
+        return { groups: [], total_income: 0, unreconciled_count: unreconCount, unreconciled_credit_count: unreconCreditRows.length, unreconciled_credit_amount: unreconCreditRows.reduce((s, r) => s + (r.credit_amount || 0), 0), unreconciled_debit_count: unreconDebitRows.length, unreconciled_debit_amount: unreconDebitRows.reduce((s, r) => s + (r.debit_amount || 0), 0) }
       }
 
       const BATCH_SIZE = 100
@@ -565,6 +572,10 @@ export class CashFlowSalesRepository {
         groups,
         total_income: groups.reduce((s, g) => s + g.subtotal, 0),
         unreconciled_count: unreconCount,
+        unreconciled_credit_count: unreconCreditRows.length,
+        unreconciled_credit_amount: unreconCreditRows.reduce((s, r) => s + (r.credit_amount || 0), 0),
+        unreconciled_debit_count: unreconDebitRows.length,
+        unreconciled_debit_amount: unreconDebitRows.reduce((s, r) => s + (r.debit_amount || 0), 0),
       }
     } catch (error) {
       logError('CashFlowSalesRepository.getSalesBreakdown error', { params, error })
@@ -832,10 +843,10 @@ export class CashFlowSalesRepository {
   async getPendingCount(
     bankAccountId: number, companyId: string,
     dateFrom: string, dateTo: string
-  ): Promise<{ count: number; estimated_credit: number }> {
+  ): Promise<{ count: number; estimated_credit: number; estimated_debit: number }> {
     const { data } = await supabase
       .from('bank_statements')
-      .select('credit_amount')
+      .select('credit_amount, debit_amount')
       .eq('bank_account_id', bankAccountId).eq('company_id', companyId)
       .gte('transaction_date', dateFrom).lte('transaction_date', dateTo)
       .eq('is_pending', true).is('deleted_at', null)
@@ -844,6 +855,7 @@ export class CashFlowSalesRepository {
     return {
       count: rows.length,
       estimated_credit: rows.reduce((s, r) => s + (r.credit_amount || 0), 0),
+      estimated_debit: rows.reduce((s, r) => s + (r.debit_amount || 0), 0),
     }
   }
 

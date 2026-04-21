@@ -167,7 +167,8 @@ export class CashFlowSalesService {
         summary: {
           opening_balance: 0, total_income: 0, income_by_group: [],
           total_expense: 0, closing_balance: 0, net_change: 0,
-          pending_count: 0, pending_income_estimate: 0, unreconciled_count: 0,
+          pending_count: 0, pending_income_estimate: 0, pending_expense_estimate: 0, unreconciled_count: 0,
+          unreconciled_credit_count: 0, unreconciled_credit_amount: 0, unreconciled_debit_count: 0, unreconciled_debit_amount: 0,
         },
         rows: [],
         pagination: { page, limit, total: 0, total_pages: 0, has_next: false, has_prev: false },
@@ -243,7 +244,12 @@ export class CashFlowSalesService {
       net_change: totalIncome - totalExpense,
       pending_count: pendingInfo.count,
       pending_income_estimate: pendingInfo.estimated_credit,
+      pending_expense_estimate: pendingInfo.estimated_debit,
       unreconciled_count: salesResult.unreconciled_count,
+      unreconciled_credit_count: salesResult.unreconciled_credit_count,
+      unreconciled_credit_amount: salesResult.unreconciled_credit_amount,
+      unreconciled_debit_count: salesResult.unreconciled_debit_count,
+      unreconciled_debit_amount: salesResult.unreconciled_debit_amount,
     }
 
     const totalPages = Math.ceil(total / limit)

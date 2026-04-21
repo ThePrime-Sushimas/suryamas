@@ -223,13 +223,17 @@ const WarningsBar = ({ summary }: { summary: CashFlowSummary }) => {
       {summary.pending_count > 0 && (
         <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
           <Clock className="w-3.5 h-3.5" />
-          <span><strong>{summary.pending_count}</strong> transaksi pending (est. {fmt(summary.pending_income_estimate)})</span>
+          <span><strong>{summary.pending_count}</strong> transaksi pending — masuk: {fmt(summary.pending_income_estimate)}{summary.pending_expense_estimate > 0 ? ` · keluar: ${fmt(summary.pending_expense_estimate)}` : ''}</span>
         </div>
       )}
       {summary.unreconciled_count > 0 && (
         <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700">
           <AlertTriangle className="w-3.5 h-3.5" />
-          <span><strong>{summary.unreconciled_count}</strong> transaksi belum direkonsiliasi</span>
+          <span>
+            <strong>{summary.unreconciled_count}</strong> belum direkonsiliasi
+            {summary.unreconciled_credit_count > 0 && <> — <strong>{summary.unreconciled_credit_count}</strong> kredit ({fmt(summary.unreconciled_credit_amount)})</>}
+            {summary.unreconciled_debit_count > 0 && <> · <strong>{summary.unreconciled_debit_count}</strong> debit ({fmt(summary.unreconciled_debit_amount)})</>}
+          </span>
         </div>
       )}
     </div>

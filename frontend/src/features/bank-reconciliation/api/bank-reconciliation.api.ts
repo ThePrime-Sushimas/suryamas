@@ -21,10 +21,11 @@ import type {
 export interface BankStatementFilterParams {
   startDate?: string;
   endDate?: string;
-  bankAccountId?: number | string;  // single ID or comma-separated IDs
+  bankAccountId?: number | string;
   status?: 'RECONCILED' | 'UNRECONCILED';
   search?: string;
   isReconciled?: boolean;
+  creditOnly?: boolean;
   sort?: string;
   order?: 'asc' | 'desc';
   page?: number;

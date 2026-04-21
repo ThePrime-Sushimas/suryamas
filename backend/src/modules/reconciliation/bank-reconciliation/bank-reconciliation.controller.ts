@@ -253,7 +253,7 @@ export class BankReconciliationController {
   ): Promise<void> {
     try {
       const validated = (req as any).validated?.query || req.query;
-      const { startDate, endDate, bankAccountId, status, search, isReconciled, limit: queryLimit } = validated;
+      const { startDate, endDate, bankAccountId, status, search, isReconciled, limit: queryLimit, creditOnly } = validated;
 
       // Get sort params from query middleware
       const sortField = req.sort?.field || 'transaction_date';
@@ -267,11 +267,12 @@ export class BankReconciliationController {
       const result = await this.service.getStatements(
         startDate ? new Date(startDate) : undefined,
         endDate ? new Date(endDate) : undefined,
-        bankAccountId,  // already transformed to number[] | undefined by schema
+        bankAccountId,
         {
           status,
           search,
           isReconciled: isReconciled === 'true' ? true : isReconciled === 'false' ? false : undefined,
+          creditOnly: creditOnly === 'true' ? true : undefined,
           sortField,
           sortOrder,
           limit,

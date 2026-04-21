@@ -386,6 +386,12 @@ export function BankReconciliationPage() {
                   onUndo={handleUndo}
                   reconciliationGroups={reconciliationGroups}
                   isTableLoading={isLoading}
+                  creditOnly={filter.creditOnly ?? true}
+                  onCreditOnlyChange={(value) => {
+                    const updated = { ...filter, creditOnly: value };
+                    setFilter(updated);
+                    fetchStatementsWithFilters(updated);
+                  }}
                   pagination={pagination}
                   onPageChange={setPage}
                   onLimitChange={setPageSize}

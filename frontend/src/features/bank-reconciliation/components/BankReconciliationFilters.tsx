@@ -24,6 +24,7 @@ export interface BankStatementFilter {
   endDate?: string;
   status?: BankStatementFilterStatus;
   isReconciled?: boolean;
+  creditOnly?: boolean;
   bankAccountIds?: number[];
   sort?: string;
   order?: "asc" | "desc";
