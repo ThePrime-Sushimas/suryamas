@@ -461,7 +461,61 @@ export class BankStatementImportService {
 
     let rowsToInsert = validRows;
 
-    // ALWAYS filter settled transactions yang match dengan existing PEND records
+    // STEP 1: Delete/handle PEND records before duplicate detection
+    const allSettledRows = validRows.filter((r: any) => !r.is_pending);
+    let handledSettledKeys = new Set<string>();
+
+    if (allSettledRows.length > 0) {
+      const dates = allSettledRows.map((r: any) => new Date(r.transaction_date));
+      const dateRangeStart = dates.length > 0 
+        ? new Date(Math.min(...dates.map((d: any) => d.getTime()))).toISOString().split("T")[0]
+        : null;
+      const dateRangeEnd = dates.length > 0 
+        ? new Date(Math.max(...dates.map((d: any) => d.getTime()))).toISOString().split("T")[0]
+        : null;
+
+      if (dateRangeStart && dateRangeEnd) {
+        const pendingInDb = await this.repository.findPendingByDateRange(
+          companyId,
+          importRecord.bank_account_id,
+          dateRangeStart,
+          dateRangeEnd
+        );
+
+        if (pendingInDb.length > 0) {
+          const result = await this.repository.replacePendingWithSettled(
+            companyId,
+            importRecord.bank_account_id,
+            allSettledRows.map((r: any) => ({
+              transaction_date: r.transaction_date,
+              transaction_time: r.transaction_time,
+              reference_number: r.reference_number,
+              description: r.description || '',
+              debit_amount: r.debit_amount || 0,
+              credit_amount: r.credit_amount || 0,
+              balance: r.balance,
+              company_id: r.company_id,
+              bank_account_id: r.bank_account_id,
+              import_id: r.import_id,
+              row_number: r.row_number,
+              source_file: r.source_file,
+            }))
+          );
+
+          handledSettledKeys = result.handledSettledKeys;
+
+          if (result.replacedCount > 0) {
+            logInfo('BankStatementImport: Replaced PEND records with settled', {
+              import_id: importId,
+              replaced_count: result.replacedCount,
+              kasus_b_count: handledSettledKeys.size,
+            });
+          }
+        }
+      }
+    }
+
+    // STEP 2: Detect duplicates AFTER PEND cleanup
     const existingDuplicates = await this.detectDuplicates(
       validRows,
       companyId,
@@ -469,27 +523,17 @@ export class BankStatementImportService {
     );
 
     if (existingDuplicates.length > 0) {
-      // Build duplicate keys: exact date + amount-only (for PEND with shifted dates)
       const duplicateKeys = new Set(
         existingDuplicates.map(
           (d) =>
             `${d.transaction_date}-${d.reference_number || ""}-${d.debit_amount}-${d.credit_amount}`,
         ),
       );
-      // Amount keys scoped by bank_account_id for PEND records (date may differ ±2 days)
-      const pendAmountKeys = new Set(
-        existingDuplicates
-          .filter((d: any) => d.is_pending)
-          .map((d: any) => `${d.bank_account_id}-${d.debit_amount}-${d.credit_amount}`),
-      );
 
       if (skipDuplicates) {
         rowsToInsert = validRows.filter((r) => {
           const key = `${r.transaction_date}-${r.reference_number || ""}-${r.debit_amount}-${r.credit_amount}`;
           if (duplicateKeys.has(key)) return false;
-          // Also skip if a PEND record with same amount on same bank account exists (date shifted)
-          const amountKey = `${r.bank_account_id}-${r.debit_amount}-${r.credit_amount}`;
-          if (pendAmountKeys.has(amountKey)) return false;
           return true;
         });
 
@@ -499,50 +543,16 @@ export class BankStatementImportService {
           after_filter: rowsToInsert.length,
           skipped: validRows.length - rowsToInsert.length,
           existing_duplicates: existingDuplicates.length,
-          pend_amount_keys: pendAmountKeys.size,
         });
       }
     }
 
-    const settledRows = rowsToInsert.filter((r: any) => !r.is_pending);
-    if (settledRows.length > 0) {
-      // Compute dateRangeStart and dateRangeEnd from settledRows
-      const dates = settledRows.map((r: any) => new Date(r.transaction_date));
-      const dateRangeStart = dates.length > 0 
-        ? new Date(Math.min(...dates.map((d: any) => d.getTime()))).toISOString().split("T")[0]
-        : null;
-      const dateRangeEnd = dates.length > 0 
-        ? new Date(Math.max(...dates.map((d: any) => d.getTime()))).toISOString().split("T")[0]
-        : null;
-
-      if (dateRangeStart && dateRangeEnd) {
-        // Cek dulu: apakah ada PEND di DB yang match?
-        const pendingInDb = await this.repository.findPendingByDateRange(
-          companyId,
-          importRecord.bank_account_id,
-          dateRangeStart,
-          dateRangeEnd
-        );
-
-        if (pendingInDb.length > 0) {
-          const replacedCount = await this.repository.replacePendingWithSettled(
-            companyId,
-            importRecord.bank_account_id,
-            settledRows.map((r: any) => ({
-              transaction_date: r.transaction_date,
-              debit_amount: r.debit_amount || 0,
-              credit_amount: r.credit_amount || 0,
-              description: r.description || ''
-            }))
-          );
-          if (replacedCount > 0) {
-            logInfo('BankStatementImport: Replaced PEND records with settled', {
-              import_id: importId,
-              replaced_count: replacedCount,
-            });
-          }
-        }
-      }
+    // STEP 3: Exclude Kasus B rows (already inserted by replacePendingWithSettled)
+    if (handledSettledKeys.size > 0) {
+      rowsToInsert = rowsToInsert.filter((r: any) => {
+        const key = `${r.transaction_date}-${r.debit_amount}-${r.credit_amount}`;
+        return !handledSettledKeys.has(key);
+      });
     }
 
     // Bulk insert in batches

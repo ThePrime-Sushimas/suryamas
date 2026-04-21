@@ -781,9 +781,17 @@ export class BankStatementImportRepository {
       credit_amount: number
       balance?: number
       description: string
+      company_id?: string
+      bank_account_id?: number
+      import_id?: number
+      row_number?: number
+      transaction_time?: string
+      reference_number?: string
+      source_file?: string
     }>
-  ): Promise<number> {
+  ): Promise<{ replacedCount: number; handledSettledKeys: Set<string> }> {
     let replacedCount = 0
+    const handledSettledKeys = new Set<string>()
     const DATE_TOLERANCE_DAYS = 2
 
     for (const row of settledRows) {
@@ -796,9 +804,9 @@ export class BankStatementImportRepository {
       const dateFromStr = dateFrom.toISOString().split('T')[0]
       const dateToStr = dateTo.toISOString().split('T')[0]
 
-      const { data, error } = await supabase
+      const { data: matchedPends, error: fetchErr } = await supabase
         .from('bank_statements')
-        .delete()
+        .select('id, is_reconciled, reconciliation_id, reconciliation_group_id')
         .eq('company_id', companyId)
         .eq('bank_account_id', bankAccountId)
         .eq('is_pending', true)
@@ -806,19 +814,79 @@ export class BankStatementImportRepository {
         .lte('transaction_date', dateToStr)
         .eq('debit_amount', row.debit_amount)
         .eq('credit_amount', row.credit_amount)
-        .select('id')
+        .is('deleted_at', null)
 
-      if (!error && data?.length) {
-        replacedCount += data.length
-        logInfo('replacePendingWithSettled: matched PEND with date tolerance', {
-          settled_date: row.transaction_date,
-          date_range: `${dateFromStr} ~ ${dateToStr}`,
-          matched_count: data.length,
-        })
+      if (fetchErr || !matchedPends?.length) continue
+
+      for (const pend of matchedPends) {
+        if (!pend.is_reconciled) {
+          // Kasus A: PEND belum reconciled → delete, settled masuk via batch insert
+          const { data: deleted, error: delErr } = await supabase
+            .from('bank_statements')
+            .delete()
+            .eq('id', pend.id)
+            .select('id')
+
+          if (!delErr && deleted?.length) {
+            replacedCount++
+            logInfo('replacePendingWithSettled: Kasus A - deleted unreconciled PEND', {
+              pend_id: pend.id,
+              settled_date: row.transaction_date,
+            })
+          }
+        } else {
+          // Kasus B: PEND sudah reconciled → insert settled row dengan copy reconciliation context
+          const { data: newRow, error: insertErr } = await supabase
+            .from('bank_statements')
+            .insert({
+              company_id: row.company_id || companyId,
+              bank_account_id: row.bank_account_id || bankAccountId,
+              transaction_date: row.transaction_date,
+              transaction_time: row.transaction_time || null,
+              reference_number: row.reference_number || null,
+              description: row.description,
+              debit_amount: row.debit_amount,
+              credit_amount: row.credit_amount,
+              balance: row.balance || null,
+              import_id: row.import_id || null,
+              row_number: row.row_number || null,
+              source_file: row.source_file || null,
+              is_pending: false,
+              is_reconciled: true,
+              reconciliation_id: pend.reconciliation_id || null,
+              reconciliation_group_id: pend.reconciliation_group_id || null,
+            })
+            .select('id')
+            .single()
+
+          if (insertErr || !newRow) {
+            logError('replacePendingWithSettled: Kasus B - failed to insert settled row', {
+              pend_id: pend.id,
+              error: insertErr?.message,
+            })
+            continue
+          }
+
+          // Update PEND lama: is_pending = false (bukan delete, audit trail tetap)
+          await supabase
+            .from('bank_statements')
+            .update({ is_pending: false, updated_at: new Date().toISOString() })
+            .eq('id', pend.id)
+
+          handledSettledKeys.add(`${row.transaction_date}-${row.debit_amount}-${row.credit_amount}`)
+          replacedCount++
+
+          logInfo('replacePendingWithSettled: Kasus B - settled inserted, PEND updated', {
+            pend_id: pend.id,
+            new_settled_id: newRow.id,
+            reconciliation_id: pend.reconciliation_id,
+            reconciliation_group_id: pend.reconciliation_group_id,
+          })
+        }
       }
     }
 
-    return replacedCount
+    return { replacedCount, handledSettledKeys }
   }
 
   /**

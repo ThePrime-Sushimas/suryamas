@@ -63,6 +63,9 @@ export interface BankStatement {
   is_reconciled: boolean
   reconciled_at?: string
   reconciliation_id?: string
+  reconciliation_group_id?: string
+  cash_deposit_id?: string
+  is_pending?: boolean
   
   // Import metadata
   source_file?: string
