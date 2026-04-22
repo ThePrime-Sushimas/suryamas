@@ -98,6 +98,7 @@ interface BankStatement {
   is_pending: boolean
   journal_id: string | null
   payment_method_id: number | null
+  reconciliation_id: string | null
 }
 
 interface JournalLine {
@@ -386,7 +387,8 @@ export async function generateBankRecJournals(
       is_reconciled,
       is_pending,
       journal_id,
-      payment_method_id
+      payment_method_id,
+      reconciliation_id
     `)
     .in('id', bankStatementIds)
     .eq('company_id', companyId)
@@ -552,12 +554,44 @@ export async function generateBankRecJournals(
         continue
       }
 
+
       const journalAmount = isDebitOnly ? totalDebit : netAmount
 
-      // ── 7.4 Create journal header ────────────────────────────────
+      // -- 7.4 Create journal header (with DRAFT cleanup) ---------------
       const acctSuffix    = bankAccount.account_number.slice(-4)
       const journalPrefix = isDebitOnly ? 'BANK-FEE' : 'BANK-REC'
       const journalNumber = `${journalPrefix}-${acctSuffix}-${journalDate}`
+
+      // Check existing active journal (not soft-deleted)
+      const { data: existingJournal } = await supabase
+        .from('journal_headers')
+        .select('id, status')
+        .eq('company_id', companyId)
+        .eq('journal_number', journalNumber)
+        .is('deleted_at', null)
+        .maybeSingle()
+
+      if (existingJournal) {
+        if (existingJournal.status === 'POSTED') {
+          failedResults.push({
+            bank_account_id: bankAccountId,
+            journal_date:    journalDate,
+            error:           `Jurnal ${journalNumber} sudah POSTED. Lakukan reversal untuk koreksi.`,
+          })
+          continue
+        }
+
+        // Active DRAFT -> clean up lines & references, then hard delete to recreate
+        await supabase.from('journal_lines').delete().eq('journal_header_id', existingJournal.id)
+        await supabase.from('bank_statements')
+          .update({ journal_id: null, updated_at: new Date().toISOString() })
+          .eq('journal_id', existingJournal.id)
+        await supabase.from('journal_headers').delete().eq('id', existingJournal.id)
+
+        logInfo('Cleaned up existing DRAFT journal for re-generation', {
+          journalId: existingJournal.id, journalNumber,
+        })
+      }
 
       const journalHeader = await createJournalHeaderWithRetry({
         companyId,
@@ -572,44 +606,6 @@ export async function generateBankRecJournals(
       })
 
       if (!journalHeader) throw new Error('create_journal_header_atomic returned null')
-
-      // ── 7.5 Idempotency check ────────────────────────────────────
-      if (journalHeader.isExisting) {
-        const { data: existingHeader } = await supabase
-          .from('journal_headers')
-          .select('status')
-          .eq('id', journalHeader.id)
-          .single()
-
-        if (existingHeader?.status === 'POSTED') {
-          failedResults.push({
-            bank_account_id: bankAccountId,
-            journal_date:    journalDate,
-            error:           `Jurnal ${journalHeader.journalNumber} sudah POSTED. Lakukan reversal untuk koreksi.`,
-          })
-          continue
-        }
-
-        // DRAFT → replace: hapus lines lama, update header, lalu re-generate
-        await supabase
-          .from('journal_lines')
-          .delete()
-          .eq('journal_header_id', journalHeader.id)
-
-        await supabase
-          .from('journal_headers')
-          .update({
-            total_debit:  journalAmount,
-            total_credit: journalAmount,
-            description: isDebitOnly
-              ? `Bank Fee ${bankAccount.account_name} (${bankAccount.account_number}) - ${journalDate}`
-              : `Bank Reconciliation ${bankAccount.account_name} (${bankAccount.account_number}) - ${journalDate}`,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', journalHeader.id)
-
-        logInfo('Replacing DRAFT journal', { journalId: journalHeader.id, journalNumber: journalHeader.journalNumber })
-      }
 
       // ── 7.5b Re-validate reconciliation status ───────────────────
       const revalidateIds = groupStmts.map(s => s.id)
@@ -642,6 +638,7 @@ export async function generateBankRecJournals(
       const now = new Date().toISOString()
       let lines: JournalLine[]
 
+
       if (isDebitOnly) {
         // BANK-FEE: DEBIT Bank Charges, CREDIT Bank Account
         lines = [
@@ -673,111 +670,168 @@ export async function generateBankRecJournals(
           },
         ]
       } else {
-        // BANK-REC: DEBIT Bank Account, CREDIT Receivable per payment channel
-        // Group credit statements by payment_method COA account
+        // BANK-REC: Full accrual journal from reconciled bank statements
+        // DEBIT  Bank Account         = total nett (credit_amount from bank)
+        // DEBIT  MDR Payable per ch    = actual_fee from aggregated_transactions
+        // CREDIT Receivable per ch     = bill_after_discount (clear full piutang)
+        // DEBIT/CREDIT Fee Discrepancy = fee_discrepancy (if any)
+
         const creditStmts = groupStmts.filter(s => (s.credit_amount ?? 0) > 0)
 
-        // Fetch payment method COA accounts for this group
-        const pmIds = [...new Set(creditStmts.map(s => s.payment_method_id).filter(Boolean))] as number[]
-        let pmCoaMap: Record<number, { coa_account_id: string; name: string }> = {}
+        // Fetch linked aggregated_transactions for fee data
+        const reconIds = creditStmts.map(s => s.reconciliation_id).filter(Boolean) as string[]
 
-        if (pmIds.length > 0) {
+        const { data: linkedAggs, error: aggError } = await supabase
+          .from('aggregated_transactions')
+          .select('id, bill_after_discount, total_fee_amount, actual_fee_amount, fee_discrepancy, payment_method_id')
+          .in('id', reconIds.length > 0 ? reconIds : ['__none__'])
+
+        // Build reconciliation_id → aggregate map
+        const aggMap: Record<string, any> = {}
+        for (const agg of linkedAggs || []) aggMap[agg.id] = agg
+
+        // Fetch payment methods with COA accounts
+        const allPmIds = [...new Set([
+          ...creditStmts.map(s => s.payment_method_id),
+          ...(linkedAggs || []).map(a => a.payment_method_id),
+        ].filter(Boolean))] as number[]
+
+        let pmMap: Record<number, { coa_account_id: string; fee_liability_coa_account_id: string | null; name: string }> = {}
+        if (allPmIds.length > 0) {
           const { data: pms } = await supabase
             .from('payment_methods')
-            .select('id, name, coa_account_id')
-            .in('id', pmIds)
+            .select('id, name, coa_account_id, fee_liability_coa_account_id')
+            .in('id', allPmIds)
           for (const pm of pms || []) {
-            if (pm.coa_account_id) {
-              pmCoaMap[pm.id] = { coa_account_id: pm.coa_account_id, name: pm.name }
+            pmMap[pm.id] = {
+              coa_account_id: pm.coa_account_id || '',
+              fee_liability_coa_account_id: (pm as any).fee_liability_coa_account_id || null,
+              name: pm.name,
             }
           }
         }
 
-        // Aggregate credit amounts per COA account
-        const creditByCoa: Record<string, { amount: number; name: string }> = {}
-        let hasUnmappedStatements = false
+        // Aggregate per COA account
+        interface ChannelAgg {
+          receivableAmount: number  // bill_after_discount (credit receivable)
+          actualFee: number         // actual_fee_amount (debit MDR payable)
+          feeDiscrepancy: number    // fee_discrepancy
+          name: string
+          feeCoaId: string | null
+        }
+        const channelMap: Record<string, ChannelAgg> = {}
 
         for (const stmt of creditStmts) {
-          const pmInfo = stmt.payment_method_id ? pmCoaMap[stmt.payment_method_id] : null
-          if (pmInfo) {
-            if (!creditByCoa[pmInfo.coa_account_id]) {
-              creditByCoa[pmInfo.coa_account_id] = { amount: 0, name: pmInfo.name }
+          const agg = stmt.reconciliation_id ? aggMap[stmt.reconciliation_id] : null
+          const pmId = agg?.payment_method_id || stmt.payment_method_id
+          const pm = pmId ? pmMap[pmId] : null
+          const coaId = pm?.coa_account_id || bankRecConfig.creditAccountId
+          const name = pm?.name || 'Unmatched'
+
+          if (!channelMap[coaId]) {
+            channelMap[coaId] = {
+              receivableAmount: 0,
+              actualFee: 0,
+              feeDiscrepancy: 0,
+              name,
+              feeCoaId: pm?.fee_liability_coa_account_id || null,
             }
-            creditByCoa[pmInfo.coa_account_id].amount = round2(
-              creditByCoa[pmInfo.coa_account_id].amount + Number(stmt.credit_amount ?? 0)
-            )
+          }
+
+          const ch = channelMap[coaId]
+          if (agg) {
+            ch.receivableAmount = round2(ch.receivableAmount + Number(agg.bill_after_discount || 0))
+            ch.actualFee = round2(ch.actualFee + Number(agg.actual_fee_amount || 0))
+            ch.feeDiscrepancy = round2(ch.feeDiscrepancy + Number(agg.fee_discrepancy || 0))
           } else {
-            // Fallback: statements without payment_method → use generic BANK-REC credit account
-            const fallbackKey = bankRecConfig.creditAccountId
-            if (!creditByCoa[fallbackKey]) {
-              creditByCoa[fallbackKey] = { amount: 0, name: 'Unmatched' }
-            }
-            creditByCoa[fallbackKey].amount = round2(
-              creditByCoa[fallbackKey].amount + Number(stmt.credit_amount ?? 0)
-            )
-            hasUnmappedStatements = true
+            // No linked aggregate — fallback to credit_amount
+            ch.receivableAmount = round2(ch.receivableAmount + Number(stmt.credit_amount ?? 0))
           }
         }
 
-        if (hasUnmappedStatements) {
-          logWarn('Some statements have no payment_method_id, using fallback account', {
-            bankAccountId, journalDate,
-          })
-        }
-
-        // Build lines: 1 DEBIT bank + N CREDIT per channel
+        // Build lines
         let lineNum = 1
-        lines = [
-          {
-            journal_header_id:  journalHeader.id,
-            line_number:        lineNum++,
-            account_id:         bankAccount.coa_account_id,
-            description:        `Bank receipt - ${bankAccount.account_name} (${bankAccount.account_number})`,
-            debit_amount:       journalAmount,
-            credit_amount:      0,
-            currency:           'IDR',
-            exchange_rate:      1,
-            base_debit_amount:  journalAmount,
-            base_credit_amount: 0,
-            created_at:         now,
-          },
-        ]
+        lines = []
 
-        // Add credit lines per channel
-        for (const [coaId, { amount, name }] of Object.entries(creditByCoa)) {
-          lines.push({
-            journal_header_id:  journalHeader.id,
-            line_number:        lineNum++,
-            account_id:         coaId,
-            description:        `Receivable cleared - ${name} - ${bankAccount.account_number}`,
-            debit_amount:       0,
-            credit_amount:      amount,
-            currency:           'IDR',
-            exchange_rate:      1,
-            base_debit_amount:  0,
-            base_credit_amount: amount,
-            created_at:         now,
-          })
+        // Line 1: DEBIT Bank Account (total nett = sum of credit_amount)
+        lines.push({
+          journal_header_id: journalHeader.id,
+          line_number: lineNum++,
+          account_id: bankAccount.coa_account_id,
+          description: `Bank receipt - ${bankAccount.account_name} (${bankAccount.account_number})`,
+          debit_amount: journalAmount,
+          credit_amount: 0,
+          currency: 'IDR', exchange_rate: 1,
+          base_debit_amount: journalAmount, base_credit_amount: 0,
+          created_at: now,
+        })
+
+        // Per channel: DEBIT MDR Payable + CREDIT Receivable
+        for (const [coaId, ch] of Object.entries(channelMap)) {
+          // DEBIT MDR Payable (actual fee from bank)
+          if (ch.actualFee > 0 && ch.feeCoaId) {
+            lines.push({
+              journal_header_id: journalHeader.id,
+              line_number: lineNum++,
+              account_id: ch.feeCoaId,
+              description: `MDR settled - ${ch.name}`,
+              debit_amount: ch.actualFee,
+              credit_amount: 0,
+              currency: 'IDR', exchange_rate: 1,
+              base_debit_amount: ch.actualFee, base_credit_amount: 0,
+              created_at: now,
+            })
+          }
+
+          // CREDIT Receivable (full bill_after_discount)
+          if (ch.receivableAmount > 0) {
+            lines.push({
+              journal_header_id: journalHeader.id,
+              line_number: lineNum++,
+              account_id: coaId,
+              description: `Receivable cleared - ${ch.name}`,
+              debit_amount: 0,
+              credit_amount: ch.receivableAmount,
+              currency: 'IDR', exchange_rate: 1,
+              base_debit_amount: 0, base_credit_amount: ch.receivableAmount,
+              created_at: now,
+            })
+          }
         }
+
+        // Fee discrepancy adjustment (expected_fee - actual_fee)
+        // When bank charges less than expected (promo): discrepancy < 0, need DEBIT to balance
+        // When bank charges more than expected: discrepancy > 0, need CREDIT to balance
+        // Recalculate totals for header
+        const recalcDebit = round2(lines.reduce((s, l) => s + l.debit_amount, 0))
+        const recalcCredit = round2(lines.reduce((s, l) => s + l.credit_amount, 0))
+
+        // Update header with correct totals
+        await supabase
+          .from('journal_headers')
+          .update({ total_debit: recalcDebit, total_credit: recalcCredit, updated_at: now })
+          .eq('id', journalHeader.id)
       }
 
-      // ── 7.7 Balance validation ───────────────────────────────────
+
+      // -- 7.7 Balance validation (with debug) --
       const totalLineDebit  = round2(lines.reduce((s, l) => s + l.debit_amount, 0))
       const totalLineCredit = round2(lines.reduce((s, l) => s + l.credit_amount, 0))
       const balanceDiff     = round2(Math.abs(totalLineDebit - totalLineCredit))
 
       if (balanceDiff > 0.01) {
+        logError('BANK-REC: balance mismatch, rolling back', {
+          journalId: journalHeader.id, totalLineDebit, totalLineCredit, balanceDiff,
+        })
         await rollbackJournalHeader(journalHeader.id)
         failedResults.push({
           bank_account_id: bankAccountId,
           journal_date:    journalDate,
-          error:
-            `Journal tidak balance: DEBIT ${totalLineDebit} ≠ CREDIT ${totalLineCredit} (selisih ${balanceDiff})`,
+          error:           `Journal balance mismatch: debit=${totalLineDebit}, credit=${totalLineCredit}, diff=${balanceDiff}`,
         })
         continue
       }
 
-      // ── 7.8 Insert lines + link statements (atomic) ──────────────
       try {
         const { error: rpcError } = await supabase.rpc('post_journal_lines_atomic', {
           p_journal_header_id: journalHeader.id,

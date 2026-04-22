@@ -33,7 +33,8 @@ const fmt = (v: number) =>
   new Intl.NumberFormat('id-ID', {
     style: 'currency',
     currency: 'IDR',
-    minimumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(v)
 
 // ============================================================
@@ -46,9 +47,11 @@ async function pollJobStatus(jobId: string, maxAttempts = 60): Promise<JobResult
 
     const { data } = await api.get(`/jobs/${jobId}`)
     const job = data?.data || data
+    const status = (job?.status || '').toUpperCase()
 
-    if (job?.status === 'COMPLETED') {
-      const results = job?.result?.importResults || job?.importResults || {}
+    if (status === 'COMPLETED') {
+      const meta = job?.metadata || {}
+      const results = meta?.importResults || job?.result?.importResults || job?.importResults || {}
       return {
         success: results.success || [],
         failed: results.failed || [],
@@ -57,12 +60,12 @@ async function pollJobStatus(jobId: string, maxAttempts = 60): Promise<JobResult
       }
     }
 
-    if (job?.status === 'FAILED') {
-      throw new Error(job?.error || 'Job gagal')
+    if (status === 'FAILED') {
+      throw new Error(job?.error_message || job?.error || 'Job failed')
     }
   }
 
-  throw new Error('Timeout: job tidak selesai dalam 2 menit')
+  throw new Error('Timeout: job did not complete within 2 minutes')
 }
 
 // ============================================================

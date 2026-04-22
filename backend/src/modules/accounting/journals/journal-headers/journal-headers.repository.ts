@@ -383,13 +383,12 @@ export class JournalHeadersRepository {
     if (error) throw new Error(error.message)
   }
 
-  async delete(id: string, userId: string): Promise<void> {
+  async delete(id: string, _userId: string): Promise<void> {
+    await supabase.from('journal_lines').delete().eq('journal_header_id', id)
+
     const { error } = await supabase
       .from('journal_headers')
-      .update({
-        deleted_at: new Date().toISOString(),
-        deleted_by: userId
-      })
+      .delete()
       .eq('id', id)
 
     if (error) throw new Error(error.message)

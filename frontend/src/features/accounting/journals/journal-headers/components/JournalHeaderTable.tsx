@@ -1,13 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Eye, Edit, Trash2, RotateCcw, ChevronUp, ChevronDown, ArrowUpDown, AlertTriangle } from 'lucide-react'
+import { Eye, Edit, Trash2, RotateCcw, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react'
 import { JournalStatusBadge } from './JournalStatusBadge'
 import { formatCurrency, formatDate } from '../../shared/journal.utils'
 import type { JournalHeader, JournalSortParams } from '../types/journal-header.types'
-import api from '@/lib/axios'
-
-// Module-level cache — persists across strict mode remounts
-let _lastCheckedKey = ''
-let _lastCheckedResult = new Set<string>()
 
 interface Props {
   journals: JournalHeader[]
@@ -27,50 +21,6 @@ export function JournalHeaderTable({
   journals, onView, onEdit, onDelete, onRestore,
   onSort, sortBy = 'journal_date', sortOrder = 'desc', showDeleted
 }: Props) {
-  const [incompleteIds, setIncompleteIds] = useState<Set<string>>(new Set())
-
-  const journalIdString = journals
-    .filter(j => j.status === 'DRAFT' &&
-      (j.source_module === 'POS_AGGREGATES' || j.journal_number?.startsWith('RCP-')))
-    .map(j => j.id)
-    .sort()
-    .join(',')
-
-  useEffect(() => {
-    if (!journalIdString) { setIncompleteIds(new Set()); return }
-
-    if (_lastCheckedKey === journalIdString) {
-      setIncompleteIds(_lastCheckedResult)
-      return
-    }
-
-    // Claim this key immediately to prevent duplicate runs
-    _lastCheckedKey = journalIdString
-
-    let cancelled = false
-    const checkAll = async () => {
-      const ids = new Set<string>()
-      const journalIds = journalIdString.split(',')
-      const CHUNK_SIZE = 5
-      for (let i = 0; i < journalIds.length; i += CHUNK_SIZE) {
-        if (cancelled) return
-        const chunk = journalIds.slice(i, i + CHUNK_SIZE)
-        await Promise.all(chunk.map(async (id) => {
-          try {
-            const res = await api.get(`/accounting/journals/${id}/completeness`)
-            if (!res.data.data.is_complete) ids.add(id)
-          } catch { /* ignore */ }
-        }))
-      }
-      if (!cancelled) {
-        _lastCheckedResult = ids
-        setIncompleteIds(ids)
-      }
-    }
-    checkAll()
-    return () => { cancelled = true }
-  }, [journalIdString])
-
   if (journals.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
@@ -178,14 +128,7 @@ export function JournalHeaderTable({
 
                 {/* Status + Warning */}
                 <td className="px-3 py-2 whitespace-nowrap">
-                  <div className="flex items-center gap-1.5">
-                    <JournalStatusBadge status={journal.status} />
-                    {incompleteIds.has(journal.id) && (
-                      <span title="Incomplete — some payment channels not yet reconciled">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-                      </span>
-                    )}
-                  </div>
+                  <JournalStatusBadge status={journal.status} />
                 </td>
 
                 {/* Actions */}
