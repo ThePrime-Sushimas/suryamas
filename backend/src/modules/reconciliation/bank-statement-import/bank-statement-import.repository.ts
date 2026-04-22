@@ -467,119 +467,85 @@ export class BankStatementImportRepository {
 
   /**
    * Check for duplicate transactions
-   * Improved to handle empty reference_numbers and match by date + amount + description similarity
+   * Single batch fetch + in-memory matching
+   * - Non-PEND: exact date + amount + description similarity ≥70%
+   * - PEND: ±2 day date tolerance + amount match
    */
- async checkDuplicates(
-    transactions: { reference_number?: string; transaction_date: string; debit_amount: number; credit_amount: number; description?: string; balance?: number; bank_account_id: number }[], 
+  async checkDuplicates(
+    transactions: { reference_number?: string; transaction_date: string; debit_amount: number; credit_amount: number; description?: string; balance?: number; bank_account_id: number }[],
     bankAccountId: number
   ): Promise<BankStatement[]> {
     if (transactions.length === 0) return []
 
     const DATE_TOLERANCE_DAYS = 2
+    const DESC_SIMILARITY_THRESHOLD = 0.7
 
-    const dateAmountPairs = transactions.map(t => ({
-      transaction_date: t.transaction_date,
-      debit_amount: t.debit_amount,
-      credit_amount: t.credit_amount,
-      description: t.description || '',
-      reference_number: t.reference_number || ''
-    }))
-
-    const uniquePairs = dateAmountPairs.filter((pair, index, self) =>
-      index === self.findIndex(p => 
+    const uniquePairs = transactions.filter((pair, index, self) =>
+      index === self.findIndex(p =>
         p.transaction_date === pair.transaction_date &&
         p.debit_amount === pair.debit_amount &&
-        p.credit_amount === pair.credit_amount
+        p.credit_amount === pair.credit_amount &&
+        (p.description || '') === (pair.description || '')
       )
     )
 
-    // Pre-fetch ALL pending records for this bank account in the relevant date range
-    // This avoids N+1 queries for PEND check
-    const allDates = uniquePairs.map(p => p.transaction_date)
-    const minDate = new Date(Math.min(...allDates.map(d => new Date(d).getTime())))
-    const maxDate = new Date(Math.max(...allDates.map(d => new Date(d).getTime())))
+    const allDates = uniquePairs.map(p => new Date(p.transaction_date).getTime())
+    const minDate = new Date(Math.min(...allDates))
+    const maxDate = new Date(Math.max(...allDates))
     minDate.setDate(minDate.getDate() - DATE_TOLERANCE_DAYS)
     maxDate.setDate(maxDate.getDate() + DATE_TOLERANCE_DAYS)
 
-    let pendingRecords: any[] = []
-    const { data: pendBatch, error: pendBatchErr } = await supabase
+    // Single batch fetch
+    const { data: existingBatch, error: batchErr } = await supabase
       .from('bank_statements')
       .select('id, reference_number, transaction_date, credit_amount, debit_amount, import_id, description, balance, bank_account_id, is_pending')
-      .eq('is_pending', true)
       .eq('bank_account_id', bankAccountId)
       .gte('transaction_date', minDate.toISOString().split('T')[0])
       .lte('transaction_date', maxDate.toISOString().split('T')[0])
       .is('deleted_at', null)
 
-    if (pendBatchErr) {
-      logError('checkDuplicates: batch PEND fetch error', { error: pendBatchErr.message })
-    } else {
-      pendingRecords = pendBatch || []
+    if (batchErr) {
+      logError('checkDuplicates: batch fetch error', { error: batchErr.message })
+      return []
     }
 
+    const existing = existingBatch || []
     const allDuplicates: BankStatement[] = []
-    
+
     for (const pair of uniquePairs) {
-      // Query 1: Exact date match (normal duplicates)
-      let query = supabase
-        .from('bank_statements')
-        .select(`
-          id, reference_number, transaction_date, credit_amount, debit_amount, 
-          import_id, description, balance, bank_account_id, is_pending
-        `)
-        .eq('transaction_date', pair.transaction_date)
-        .eq('debit_amount', pair.debit_amount)
-        .eq('credit_amount', pair.credit_amount)
-        .eq('bank_account_id', bankAccountId)
-        .is('deleted_at', null)
-        .limit(20)
+      const baseDate = new Date(pair.transaction_date).getTime()
+      const dateFrom = baseDate - DATE_TOLERANCE_DAYS * 86400000
+      const dateTo = baseDate + DATE_TOLERANCE_DAYS * 86400000
 
-      if (pair.description && pair.description.trim()) {
-        const normalizedDesc = pair.description.toUpperCase()
-          .replace(/BI-FAST|DB|BIAYA|TXN?X?|KE|ADMIN|FEE|TRANSFER|SETTLEMENT|SYSTEM|TRF/gi, '')
-          .substring(0, 100)
-        
-        const descKeywords = normalizedDesc.split(' ').filter(Boolean).slice(0, 3)
-        if (descKeywords.length > 0) {
-          query = query.or(
-            `description.ilike.%${descKeywords.join('%')}%,
-             reference_number.eq.${pair.reference_number || ''}`
-          )
+      const matches = (existing as any[]).filter(ex => {
+        const amountMatch = Number(ex.debit_amount) === Number(pair.debit_amount) &&
+          Number(ex.credit_amount) === Number(pair.credit_amount)
+        if (!amountMatch) return false
+
+        if (ex.is_pending) {
+          // PEND: ±2 day tolerance, amount saja cukup
+          const exDate = new Date(ex.transaction_date).getTime()
+          return exDate >= dateFrom && exDate <= dateTo
         }
-      } else if (pair.reference_number) {
-        query = query.eq('reference_number', pair.reference_number)
-      }
 
-      const { data, error } = await query
+        // Non-PEND: exact date required
+        if (ex.transaction_date !== pair.transaction_date) return false
 
-      if (error) {
-        logError('BankStatementImportRepository.checkDuplicates error', { error: error.message, pair })
-      } else {
-        allDuplicates.push(...(data as unknown as BankStatement[]))
-      }
+        // Description similarity check to distinguish legitimate same-amount transactions
+        if (pair.description && ex.description) {
+          return this.calculateDescriptionSimilarity(pair.description, ex.description) >= DESC_SIMILARITY_THRESHOLD
+        }
 
-      // PEND match: in-memory filter from pre-fetched batch (no extra DB query)
-      const baseDate = new Date(pair.transaction_date)
-      const dateFrom = baseDate.getTime() - DATE_TOLERANCE_DAYS * 86400000
-      const dateTo = baseDate.getTime() + DATE_TOLERANCE_DAYS * 86400000
-
-      const pendMatches = pendingRecords.filter((p: any) => {
-        const pDate = new Date(p.transaction_date).getTime()
-        return pDate >= dateFrom && pDate <= dateTo &&
-          p.debit_amount === pair.debit_amount &&
-          p.credit_amount === pair.credit_amount
+        // Fallback: no description to compare → treat as duplicate
+        return true
       })
 
-      if (pendMatches.length > 0) {
-        allDuplicates.push(...(pendMatches as unknown as BankStatement[]))
-      }
+      allDuplicates.push(...(matches as unknown as BankStatement[]))
     }
 
-    const uniqueDuplicates = allDuplicates.filter((dup, index, self) =>
+    return allDuplicates.filter((dup, index, self) =>
       index === self.findIndex(d => d.id === dup.id)
     )
-
-    return uniqueDuplicates
   }
 
   /**

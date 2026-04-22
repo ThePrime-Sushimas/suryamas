@@ -2647,6 +2647,7 @@ export class BankStatementImportService {
       transaction_date: r.transaction_date,
       debit_amount: r.debit_amount,
       credit_amount: r.credit_amount,
+      description: r.description,
       bank_account_id: bankAccountId
     }));
 
