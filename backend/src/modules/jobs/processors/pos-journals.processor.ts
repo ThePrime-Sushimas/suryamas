@@ -50,7 +50,6 @@ import type {
 // ==============================
 // CONFIGURATION
 // ==============================
-const CHUNK_SIZE = 500
 const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 1000
 const SAL_INV_PURPOSE_CODE = 'SAL-INV'
@@ -359,60 +358,12 @@ async function createJournalHeaderWithRetry(
   }
 }
 
-async function insertJournalLinesWithRetry(
-  journalHeaderId: string,
-  lines: any[],
-  attempt = 0
-): Promise<void> {
-  if (lines.length === 0) return
-
-  for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
-    const chunk = lines.slice(i, i + CHUNK_SIZE)
-    try {
-      const { error } = await supabase.from('journal_lines').insert(chunk)
-      if (error) throw new Error(error.message)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error'
-      const isRetryable =
-        attempt < MAX_RETRIES &&
-        (msg.includes('connection') ||
-          msg.includes('timeout') ||
-          msg.includes('rate limit'))
-
-      if (isRetryable) {
-        await sleep(getRetryDelay(attempt + 1))
-        return insertJournalLinesWithRetry(journalHeaderId, lines, attempt + 1)
-      }
-      throw err
-    }
-  }
-}
-
 async function rollbackJournalHeader(journalHeaderId: string): Promise<void> {
   try {
     await supabase.from('journal_headers').delete().eq('id', journalHeaderId)
     logInfo('Rolled back journal header', { journalHeaderId })
   } catch (err) {
     logError('Rollback failed', { journalHeaderId, err })
-  }
-}
-
-async function updateTransactionsJournalId(
-  transactionIds: string[],
-  journalId: string
-): Promise<void> {
-  const { error } = await supabase
-    .from('aggregated_transactions')
-    .update({
-      journal_id: journalId,
-      status: 'PROCESSING' as const,
-      updated_at: new Date().toISOString(),
-    })
-    .in('id', transactionIds)
-
-  if (error) {
-    logError('updateTransactionsJournalId failed', { transactionIds, journalId, error })
-    throw error
   }
 }
 
@@ -840,16 +791,21 @@ export async function generateJournalsOptimized(
         continue
       }
 
-      // ── 5.11 Insert lines ──────────────────────────────────────────
+      // ── 5.11 Insert lines + link transactions (atomic) ────────────
       try {
-        await insertJournalLinesWithRetry(journalHeader.id, lines)
-      } catch (insertErr) {
-        await rollbackJournalHeader(journalHeader.id)
-        throw insertErr
-      }
+        const { error: rpcError } = await supabase.rpc('post_journal_lines_atomic', {
+          p_journal_header_id: journalHeader.id,
+          p_lines: JSON.stringify(lines.map(({ journal_header_id: _, created_at: __, ...rest }) => rest)),
+          p_bank_statement_ids: [],
+          p_aggregate_ids: groupTxs.map(t => t.id),
+          p_set_processing: true,
+        })
 
-      // ── 5.12 Update transaction status ────────────────────────────
-      await updateTransactionsJournalId(groupTxs.map(t => t.id), journalHeader.id)
+        if (rpcError) throw new Error(rpcError.message)
+      } catch (postErr) {
+        await rollbackJournalHeader(journalHeader.id)
+        throw postErr
+      }
 
       logInfo('Journal created', {
         journalId:      journalHeader.id,

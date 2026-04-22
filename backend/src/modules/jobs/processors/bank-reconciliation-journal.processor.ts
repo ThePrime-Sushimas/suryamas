@@ -30,7 +30,6 @@ import { logInfo, logError, logWarn } from '@/config/logger'
 // ============================================================
 // CONFIGURATION
 // ============================================================
-const CHUNK_SIZE = 500
 const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 1000
 const BANK_REC_PURPOSE_CODE = 'BANK-REC'
@@ -308,56 +307,12 @@ async function createJournalHeaderWithRetry(
   }
 }
 
-async function insertJournalLinesWithRetry(lines: JournalLine[], attempt = 0): Promise<void> {
-  if (lines.length === 0) return
-
-  for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
-    const chunk = lines.slice(i, i + CHUNK_SIZE)
-    try {
-      const { error } = await supabase.from('journal_lines').insert(chunk)
-      if (error) throw new Error(error.message)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error'
-      const isRetryable =
-        attempt < MAX_RETRIES &&
-        (msg.includes('connection') || msg.includes('timeout') || msg.includes('rate limit'))
-
-      if (isRetryable) {
-        await sleep(getRetryDelay(attempt + 1))
-        return insertJournalLinesWithRetry(lines, attempt + 1)
-      }
-      throw err
-    }
-  }
-}
-
 async function rollbackJournalHeader(journalHeaderId: string): Promise<void> {
   try {
     await supabase.from('journal_headers').delete().eq('id', journalHeaderId)
     logInfo('Rolled back journal header', { journalHeaderId })
   } catch (err) {
     logError('Rollback failed', { journalHeaderId, err })
-  }
-}
-
-/**
- * Update bank_statements with journal_id after successful posting
- */
-async function updateStatementsJournalId(
-  statementIds: string[],
-  journalId: string
-): Promise<void> {
-  const { error } = await supabase
-    .from('bank_statements')
-    .update({
-      journal_id: journalId,
-      updated_at: new Date().toISOString(),
-    })
-    .in('id', statementIds)
-
-  if (error) {
-    logError('updateStatementsJournalId failed', { statementIds, journalId, error })
-    throw error
   }
 }
 
@@ -763,16 +718,26 @@ export async function generateBankRecJournals(
         continue
       }
 
-      // ── 7.8 Insert lines ─────────────────────────────────────────
+      // ── 7.8 Insert lines + link statements (atomic) ──────────────
       try {
-        await insertJournalLinesWithRetry(lines)
-      } catch (insertErr) {
-        await rollbackJournalHeader(journalHeader.id)
-        throw insertErr
-      }
+        const { error: rpcError } = await supabase.rpc('post_journal_lines_atomic', {
+          p_journal_header_id: journalHeader.id,
+          p_lines: JSON.stringify(lines.map(({ journal_header_id: _, created_at: __, ...rest }) => rest)),
+          p_bank_statement_ids: groupStmts.map(s => Number(s.id)),
+          p_aggregate_ids: [],
+          p_set_processing: false,
+        })
 
-      // ── 7.9 Update bank statements ───────────────────────────────
-      await updateStatementsJournalId(groupStmts.map(s => s.id), journalHeader.id)
+        if (rpcError) throw new Error(rpcError.message)
+      } catch (postErr) {
+        await rollbackJournalHeader(journalHeader.id)
+        failedResults.push({
+          bank_account_id: bankAccountId,
+          journal_date: journalDate,
+          error: `Gagal insert lines: ${postErr instanceof Error ? postErr.message : 'Unknown error'}`,
+        })
+        continue
+      }
 
       logInfo('Bank reconciliation journal created', {
         journalId:     journalHeader.id,
