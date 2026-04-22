@@ -6,23 +6,29 @@ export class TrialBalanceRepository {
   async getTrialBalance(params: TrialBalanceParams): Promise<TrialBalanceRow[]> {
     try {
       const values: any[] = [params.companyId, params.dateFrom, params.dateTo]
-      let branchFilter = ''
+      const hasBranch = params.branchIds && params.branchIds.length > 0
 
-      if (params.branchIds && params.branchIds.length > 0) {
+      let branchFilter = ''
+      if (hasBranch) {
         values.push(params.branchIds)
         branchFilter = `AND glv.branch_id = ANY($${values.length}::uuid[])`
       }
+
+      const branchCol = hasBranch ? 'glv.branch_id' : 'NULL::uuid AS branch_id'
+      const groupCols = hasBranch ? 'account_id, branch_id' : 'account_id'
+      const joinBranch = hasBranch
+        ? 'AND o.branch_id IS NOT DISTINCT FROM c.branch_id'
+        : ''
+      const joinBranchP = hasBranch
+        ? 'AND p.branch_id IS NOT DISTINCT FROM c.branch_id'
+        : ''
 
       const { rows } = await pool.query(
         `
         WITH
         all_lines AS (
-          SELECT
-            glv.account_id,
-            glv.branch_id,
-            glv.journal_date,
-            glv.debit_amount,
-            glv.credit_amount
+          SELECT glv.account_id, ${branchCol}, glv.journal_date,
+            glv.debit_amount, glv.credit_amount
           FROM general_ledger_view glv
           JOIN chart_of_accounts coa_check ON coa_check.id = glv.account_id
           WHERE glv.company_id = $1::uuid
@@ -30,25 +36,23 @@ export class TrialBalanceRepository {
             ${branchFilter}
         ),
         opening AS (
-          SELECT account_id, branch_id,
+          SELECT ${groupCols},
             SUM(debit_amount) AS opening_debit,
             SUM(credit_amount) AS opening_credit
-          FROM all_lines
-          WHERE journal_date < $2::date
-          GROUP BY account_id, branch_id
+          FROM all_lines WHERE journal_date < $2::date
+          GROUP BY ${groupCols}
         ),
         period AS (
-          SELECT account_id, branch_id,
+          SELECT ${groupCols},
             SUM(debit_amount) AS period_debit,
             SUM(credit_amount) AS period_credit
-          FROM all_lines
-          WHERE journal_date >= $2::date AND journal_date <= $3::date
-          GROUP BY account_id, branch_id
+          FROM all_lines WHERE journal_date >= $2::date AND journal_date <= $3::date
+          GROUP BY ${groupCols}
         ),
         combined AS (
-          SELECT account_id, branch_id FROM opening
+          SELECT account_id${hasBranch ? ', branch_id' : ''} FROM opening
           UNION
-          SELECT account_id, branch_id FROM period
+          SELECT account_id${hasBranch ? ', branch_id' : ''} FROM period
         )
         SELECT
           c.account_id,
@@ -57,22 +61,30 @@ export class TrialBalanceRepository {
           coa.account_type,
           parent.account_code AS parent_account_code,
           parent.account_name AS parent_account_name,
-          c.branch_id,
-          b.branch_name,
+          ${hasBranch ? 'c.branch_id' : 'NULL::uuid AS branch_id'},
+          ${hasBranch ? 'b.branch_name' : "NULL AS branch_name"},
           'IDR' AS currency,
-          COALESCE(o.opening_debit, 0)::numeric AS opening_debit,
-          COALESCE(o.opening_credit, 0)::numeric AS opening_credit,
           COALESCE(p.period_debit, 0)::numeric AS period_debit,
           COALESCE(p.period_credit, 0)::numeric AS period_credit,
-          (COALESCE(o.opening_debit, 0) + COALESCE(p.period_debit, 0))::numeric AS closing_debit,
-          (COALESCE(o.opening_credit, 0) + COALESCE(p.period_credit, 0))::numeric AS closing_credit
+          -- Opening nett: debit - credit, split into debit/credit side
+          GREATEST(COALESCE(o.opening_debit, 0) - COALESCE(o.opening_credit, 0), 0)::numeric AS opening_debit,
+          GREATEST(COALESCE(o.opening_credit, 0) - COALESCE(o.opening_debit, 0), 0)::numeric AS opening_credit,
+          -- Ending nett: (opening + mutation), split into debit/credit side
+          GREATEST(
+            (COALESCE(o.opening_debit, 0) + COALESCE(p.period_debit, 0)) -
+            (COALESCE(o.opening_credit, 0) + COALESCE(p.period_credit, 0)),
+          0)::numeric AS closing_debit,
+          GREATEST(
+            (COALESCE(o.opening_credit, 0) + COALESCE(p.period_credit, 0)) -
+            (COALESCE(o.opening_debit, 0) + COALESCE(p.period_debit, 0)),
+          0)::numeric AS closing_credit
         FROM combined c
         JOIN chart_of_accounts coa ON coa.id = c.account_id
         LEFT JOIN chart_of_accounts parent ON parent.id = coa.parent_account_id
-        LEFT JOIN branches b ON b.id = c.branch_id
-        LEFT JOIN opening o ON o.account_id = c.account_id AND o.branch_id IS NOT DISTINCT FROM c.branch_id
-        LEFT JOIN period p ON p.account_id = c.account_id AND p.branch_id IS NOT DISTINCT FROM c.branch_id
-        ORDER BY coa.account_code, b.branch_name NULLS LAST
+        ${hasBranch ? 'LEFT JOIN branches b ON b.id = c.branch_id' : ''}
+        LEFT JOIN opening o ON o.account_id = c.account_id ${joinBranch}
+        LEFT JOIN period p ON p.account_id = c.account_id ${joinBranchP}
+        ORDER BY coa.account_code${hasBranch ? ', b.branch_name NULLS LAST' : ''}
         `,
         values
       )

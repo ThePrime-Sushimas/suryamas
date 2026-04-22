@@ -78,7 +78,7 @@ function exportCsv(rows: TrialBalanceRow[], dateFrom: string, dateTo: string) {
 export default function TrialBalancePage() {
   const { branches, currentBranch } = useBranchContextStore()
   const { filter, setFilter } = useTrialBalanceStore()
-  const [shouldFetch, setShouldFetch] = useState(false)
+  const [fetchKey, setFetchKey] = useState(0)
 
   const companyId = currentBranch?.company_id ?? ''
   const companyBranches = useMemo(
@@ -91,15 +91,17 @@ export default function TrialBalancePage() {
     [filter, companyId]
   )
 
-  const { data: rows = [], isLoading, isError, error } = useTrialBalance(activeFilter, shouldFetch)
+  const { data: rows = [], isLoading, isError, error, refetch } = useTrialBalance(activeFilter, fetchKey > 0)
 
   const groups = useMemo(() => groupRows(rows), [rows])
   const summary = useMemo(() => buildSummary(rows), [rows])
 
-  const handleShow = useCallback(() => setShouldFetch(true), [])
+  const handleShow = useCallback(() => {
+    if (fetchKey > 0) { refetch() } else { setFetchKey(1) }
+  }, [fetchKey, refetch])
   const handleFilterChange = useCallback((patch: Partial<typeof filter>) => {
     setFilter(patch)
-    setShouldFetch(false)
+    setFetchKey(0)
   }, [setFilter])
 
   const toggleBranch = useCallback((branchId: string) => {
@@ -184,7 +186,7 @@ export default function TrialBalancePage() {
       </div>
 
       {/* Content */}
-      {!shouldFetch ? (
+      {fetchKey === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
           <Search className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <p className="text-gray-500 dark:text-gray-400 font-medium">Set filter lalu klik "Show Report"</p>
