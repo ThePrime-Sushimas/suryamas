@@ -8,6 +8,7 @@ type PaymentMethodFormData = Omit<CreatePaymentMethodDto, 'company_id'> & {
   bank_account_id?: number | null | undefined
   coa_account_id?: string | null | undefined
   fee_coa_account_id?: string | null | undefined
+  fee_liability_coa_account_id?: string | null | undefined
 }
 
 interface PaymentMethodFormProps {
@@ -52,6 +53,8 @@ export const PaymentMethodForm = ({
   const [coaSearch, setCOASearch] = useState('')
   const [feeCOASearch, setFeeCOASearch] = useState('')
   const [showFeeCOADropdown, setShowFeeCOADropdown] = useState(false)
+  const [feeLiabilityCOASearch, setFeeLiabilityCOASearch] = useState('')
+  const [showFeeLiabilityCOADropdown, setShowFeeLiabilityCOADropdown] = useState(false)
 
   const [showCOADropdown, setShowCOADropdown] = useState(false)
   const currentBranch = useBranchContextStore(s => s.currentBranch)
@@ -72,15 +75,23 @@ export const PaymentMethodForm = ({
       fee_fixed_amount: 0,
       fee_fixed_per_transaction: false,
       fee_coa_account_id: undefined,
+      fee_liability_coa_account_id: undefined,
     }
   })
   const selectedFeeCOAId = watch('fee_coa_account_id')
   const selectedFeeCOA = coaAccounts.find(coa => coa.id === selectedFeeCOAId)
   const filteredFeeCOA = coaAccounts.filter(coa =>
     feeCOASearch === '' ||
-  coa.account_code.toLowerCase().includes(feeCOASearch.toLowerCase()) ||
-  coa.account_name.toLowerCase().includes(feeCOASearch.toLowerCase())
-)
+    coa.account_code.toLowerCase().includes(feeCOASearch.toLowerCase()) ||
+    coa.account_name.toLowerCase().includes(feeCOASearch.toLowerCase())
+  )
+  const selectedFeeLiabilityCOAId = watch('fee_liability_coa_account_id')
+  const selectedFeeLiabilityCOA = coaAccounts.find(coa => coa.id === selectedFeeLiabilityCOAId)
+  const filteredFeeLiabilityCOA = coaAccounts.filter(coa =>
+    feeLiabilityCOASearch === '' ||
+    coa.account_code.toLowerCase().includes(feeLiabilityCOASearch.toLowerCase()) ||
+    coa.account_name.toLowerCase().includes(feeLiabilityCOASearch.toLowerCase())
+  )
   const requiresBankAccount = watch('requires_bank_account')
   const selectedCOAId = watch('coa_account_id')
   
@@ -145,7 +156,8 @@ export const PaymentMethodForm = ({
         fee_percentage: paymentMethod.fee_percentage || 0,
         fee_fixed_amount: paymentMethod.fee_fixed_amount || 0,
         fee_fixed_per_transaction: paymentMethod.fee_fixed_per_transaction || false,
-        fee_coa_account_id: paymentMethod.fee_coa_account_id || undefined
+        fee_coa_account_id: paymentMethod.fee_coa_account_id || undefined,
+        fee_liability_coa_account_id: paymentMethod.fee_liability_coa_account_id || undefined
 
       })
     } else {
@@ -163,7 +175,8 @@ export const PaymentMethodForm = ({
         fee_percentage: 0,
         fee_fixed_amount: 0,
         fee_fixed_per_transaction: false,
-        fee_coa_account_id: undefined
+        fee_coa_account_id: undefined,
+        fee_liability_coa_account_id: undefined
 
       })
     }
@@ -184,6 +197,7 @@ export const PaymentMethodForm = ({
       coa_account_id: data.coa_account_id || null,
       description: data.description || null,
       fee_coa_account_id: data.fee_coa_account_id || null,
+      fee_liability_coa_account_id: data.fee_liability_coa_account_id || null,
     }
     
     console.log('Submitting payment method:', submitData)
@@ -511,6 +525,52 @@ export const PaymentMethodForm = ({
             <input type="hidden" {...register('fee_coa_account_id')} />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Akun biaya untuk jurnal fee (contoh: Biaya Admin QRIS)
+            </p>
+          </div>
+          {/* Fee Liability COA Account */}
+          <div className="md:col-span-3 relative">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Fee Liability Account (COA)
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={selectedFeeLiabilityCOA
+                  ? `${selectedFeeLiabilityCOA.account_code} - ${selectedFeeLiabilityCOA.account_name}`
+                  : feeLiabilityCOASearch}
+                onChange={(e) => {
+                  setFeeLiabilityCOASearch(e.target.value)
+                  setShowFeeLiabilityCOADropdown(true)
+                  if (!e.target.value) setValue('fee_liability_coa_account_id', '')
+                }}
+                onFocus={() => setShowFeeLiabilityCOADropdown(true)}
+                placeholder="Search fee liability account..."
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                disabled={loadingOptions}
+              />
+              {showFeeLiabilityCOADropdown && filteredFeeLiabilityCOA.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {filteredFeeLiabilityCOA.map(coa => (
+                    <button
+                      key={coa.id}
+                      type="button"
+                      onClick={() => {
+                        setValue('fee_liability_coa_account_id', coa.id)
+                        setFeeLiabilityCOASearch('')
+                        setShowFeeLiabilityCOADropdown(false)
+                      }}
+                      className="w-full px-3 py-2 text-left hover:bg-blue-50 dark:hover:bg-blue-900/30 focus:outline-none"
+                    >
+                      <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{coa.account_code}</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-300">{coa.account_name}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <input type="hidden" {...register('fee_liability_coa_account_id')} />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Akun hutang MDR untuk neraca (contoh: MDR Payable - GrabFood)
             </p>
           </div>
           {/* Per Transaction Toggle */}

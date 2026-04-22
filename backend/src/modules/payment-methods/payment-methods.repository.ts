@@ -85,7 +85,8 @@ export class PaymentMethodsRepository {
           banks(id, bank_code, bank_name)
         ),
         chart_of_accounts!coa_account_id(id, account_code, account_name, account_type),
-        fee_coa:chart_of_accounts!fee_coa_account_id(id, account_code, account_name, account_type)
+        fee_coa:chart_of_accounts!fee_coa_account_id(id, account_code, account_name, account_type),
+        fee_liability_coa:chart_of_accounts!fee_liability_coa_account_id(id, account_code, account_name)
       `, { count: 'exact' })
       .eq('company_id', companyId)
       .is('deleted_at', null)
@@ -138,6 +139,7 @@ export class PaymentMethodsRepository {
       const bank = bankAccount ? (Array.isArray(bankAccount.banks) ? bankAccount.banks[0] : bankAccount.banks) : null
       const coa = Array.isArray(item.chart_of_accounts) ? item.chart_of_accounts[0] : item.chart_of_accounts
       const feeCoa = Array.isArray(item.fee_coa) ? item.fee_coa[0] : item.fee_coa
+      const feeLiabilityCoa = Array.isArray(item.fee_liability_coa) ? item.fee_liability_coa[0] : item.fee_liability_coa
 
       return {
         ...item,
@@ -148,12 +150,15 @@ export class PaymentMethodsRepository {
         coa_code: coa?.account_code,
         coa_name: coa?.account_name,
         coa_type: coa?.account_type,
-        fee_coa_code: feeCoa?.account_code,   // tambah
-        fee_coa_name: feeCoa?.account_name,   // tambah
-        fee_coa_type: feeCoa?.account_type,   // tambah
+        fee_coa_code: feeCoa?.account_code,
+        fee_coa_name: feeCoa?.account_name,
+        fee_coa_type: feeCoa?.account_type,
+        fee_liability_coa_code: feeLiabilityCoa?.account_code,
+        fee_liability_coa_name: feeLiabilityCoa?.account_name,
         bank_accounts: undefined,
         chart_of_accounts: undefined,
-        fee_coa: undefined,                   // cleanup
+        fee_coa: undefined,
+        fee_liability_coa: undefined,
       }
     })
     
@@ -170,7 +175,8 @@ export class PaymentMethodsRepository {
           banks(id, bank_code, bank_name)
         ),
         chart_of_accounts!coa_account_id(id, account_code, account_name, account_type),
-        fee_coa:chart_of_accounts!fee_coa_account_id(id, account_code, account_name, account_type)
+        fee_coa:chart_of_accounts!fee_coa_account_id(id, account_code, account_name, account_type),
+        fee_liability_coa:chart_of_accounts!fee_liability_coa_account_id(id, account_code, account_name)
       `)
       .eq('id', id)
       .is('deleted_at', null)
@@ -184,6 +190,7 @@ export class PaymentMethodsRepository {
     const bank = bankAccount ? (Array.isArray(bankAccount.banks) ? bankAccount.banks[0] : bankAccount.banks) : null
     const coa = Array.isArray(data.chart_of_accounts) ? data.chart_of_accounts[0] : data.chart_of_accounts
     const feeCoa = Array.isArray(data.fee_coa) ? data.fee_coa[0] : data.fee_coa
+    const feeLiabilityCoa = Array.isArray(data.fee_liability_coa) ? data.fee_liability_coa[0] : data.fee_liability_coa
     
     return {
       ...data,
@@ -197,7 +204,10 @@ export class PaymentMethodsRepository {
       fee_coa_code: feeCoa?.account_code,
       fee_coa_name: feeCoa?.account_name,
       fee_coa_type: feeCoa?.account_type,
+      fee_liability_coa_code: feeLiabilityCoa?.account_code,
+      fee_liability_coa_name: feeLiabilityCoa?.account_name,
       fee_coa: undefined,
+      fee_liability_coa: undefined,
       bank_accounts: undefined,
       chart_of_accounts: undefined,
     }
@@ -445,7 +455,8 @@ export class PaymentMethodsRepository {
           banks(id, bank_code, bank_name)
         ),
         chart_of_accounts!coa_account_id(id, account_code, account_name),
-        fee_coa:chart_of_accounts!fee_coa_account_id(id, account_code, account_name)
+        fee_coa:chart_of_accounts!fee_coa_account_id(id, account_code, account_name),
+        fee_liability_coa:chart_of_accounts!fee_liability_coa_account_id(id, account_code, account_name)
       `)
       .eq('company_id', companyId)
       .is('deleted_at', null)
@@ -467,6 +478,7 @@ export class PaymentMethodsRepository {
       const bank = bankAccount ? (Array.isArray(bankAccount.banks) ? bankAccount.banks[0] : bankAccount.banks) : null
       const coa = Array.isArray(item.chart_of_accounts) ? item.chart_of_accounts[0] : item.chart_of_accounts
       const feeCoa = Array.isArray(item.fee_coa) ? item.fee_coa[0] : item.fee_coa
+      const feeLiabilityCoa = Array.isArray(item.fee_liability_coa) ? item.fee_liability_coa[0] : item.fee_liability_coa
 
       return {
         ...item,
@@ -480,6 +492,9 @@ export class PaymentMethodsRepository {
         fee_coa_code: feeCoa?.account_code,
         fee_coa_name: feeCoa?.account_name,
         fee_coa: undefined,
+        fee_liability_coa_code: feeLiabilityCoa?.account_code,
+        fee_liability_coa_name: feeLiabilityCoa?.account_name,
+        fee_liability_coa: undefined,
         chart_of_accounts: undefined,
       }
     })
@@ -498,7 +513,8 @@ export class PaymentMethodsRepository {
           banks(id, bank_code, bank_name)
         ),
         chart_of_accounts!coa_account_id(id, account_code, account_name, account_type),
-        fee_coa:chart_of_accounts!fee_coa_account_id(id, account_code, account_name, account_type)
+        fee_coa:chart_of_accounts!fee_coa_account_id(id, account_code, account_name, account_type),
+        fee_liability_coa:chart_of_accounts!fee_liability_coa_account_id(id, account_code, account_name)
       `)
       .eq('company_id', companyId)
       .eq('is_active', true)
@@ -512,7 +528,8 @@ export class PaymentMethodsRepository {
         const bankAccount = Array.isArray(item.bank_accounts) ? item.bank_accounts[0] : item.bank_accounts
         const bank = bankAccount ? (Array.isArray(bankAccount.banks) ? bankAccount.banks[0] : bankAccount.banks) : null
         const coa = Array.isArray(item.chart_of_accounts) ? item.chart_of_accounts[0] : item.chart_of_accounts
-        const feeCoa = Array.isArray(item.fee_coa) ? item.fee_coa[0] : item.fee_coa  // ← tambah ini
+        const feeCoa = Array.isArray(item.fee_coa) ? item.fee_coa[0] : item.fee_coa
+        const feeLiabilityCoa = Array.isArray(item.fee_liability_coa) ? item.fee_liability_coa[0] : item.fee_liability_coa
       
       return {
         ...item,
@@ -523,12 +540,15 @@ export class PaymentMethodsRepository {
         coa_code: coa?.account_code,
         coa_name: coa?.account_name,
         coa_type: coa?.account_type,
-        fee_coa_code: feeCoa?.account_code,   // ← tambah
-        fee_coa_name: feeCoa?.account_name,   // ← tambah
-        fee_coa_type: feeCoa?.account_type,   // ← tambah
+        fee_coa_code: feeCoa?.account_code,
+        fee_coa_name: feeCoa?.account_name,
+        fee_coa_type: feeCoa?.account_type,
+        fee_liability_coa_code: feeLiabilityCoa?.account_code,
+        fee_liability_coa_name: feeLiabilityCoa?.account_name,
         bank_accounts: undefined,
         chart_of_accounts: undefined,
-        fee_coa: undefined,                   // ← tambah cleanup
+        fee_coa: undefined,
+        fee_liability_coa: undefined,
       }
     })
   }

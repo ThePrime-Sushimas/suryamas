@@ -50,6 +50,7 @@ export const createPaymentMethodSchema = z.object({
       .optional()
       .default(false),
     fee_coa_account_id: uuidSchema.nullable().optional(), 
+    fee_liability_coa_account_id: uuidSchema.nullable().optional(),
   }),
 })
 
@@ -87,6 +88,7 @@ export const updatePaymentMethodSchema = z.object({
     fee_fixed_per_transaction: z.boolean()
       .optional(),
     fee_coa_account_id: uuidSchema.nullable().optional(),
+    fee_liability_coa_account_id: uuidSchema.nullable().optional(),
   }),
 })
 

@@ -13,7 +13,7 @@ export class JournalHeadersRepository {
   ): Promise<{ data: JournalHeader[]; total: number }> {
     let query = supabase
       .from('journal_headers')
-      .select('*, branches(branch_name)', { count: 'exact' })
+      .select('*, branches(branch_name), companies(company_name)', { count: 'exact' })
       .eq('company_id', companyId)
     
     let countQuery = supabase
@@ -76,7 +76,7 @@ export class JournalHeadersRepository {
     // Map branch_name from nested object
     const mappedData = (data || []).map(item => ({
       ...item,
-      branch_name: (item as any).branches?.branch_name || null
+      branch_name: (item as any).branches?.branch_name || (item as any).companies?.company_name || null
     }))
     
     return { data: await this.populateNames(mappedData), total: count || 0 }
@@ -93,6 +93,7 @@ export class JournalHeadersRepository {
       .select(`
         *,
         branches(branch_name),
+        companies(company_name),
         journal_lines (
           *,
           chart_of_accounts!inner(
@@ -163,7 +164,7 @@ export class JournalHeadersRepository {
     
     // Process and flatten the data
     const mappedData = (data || []).map((item: any) => {
-      const branchName = item.branches?.branch_name || null
+      const branchName = item.branches?.branch_name || item.companies?.company_name || null
       const lines = (item.journal_lines || []).map((line: any) => ({
         ...line,
         account_code: line.chart_of_accounts?.account_code,
@@ -184,7 +185,7 @@ export class JournalHeadersRepository {
   async findById(id: string, includeDeleted: boolean = false): Promise<JournalHeaderWithLines | null> {
     let query = supabase
       .from('journal_headers')
-      .select('*, branches(branch_name)')
+      .select('*, branches(branch_name), companies(company_name)')
       .eq('id', id)
     
     if (!includeDeleted) {
@@ -224,7 +225,7 @@ export class JournalHeadersRepository {
 
     const result = { 
       ...header, 
-      branch_name: (header as any).branches?.branch_name || null,
+      branch_name: (header as any).branches?.branch_name || (header as any).companies?.company_name || null,
       lines: linesWithAccounts
     }
 

@@ -22,12 +22,15 @@ export interface PaymentMethod {
   account_name?: string
   coa_account_id: string | null
   fee_coa_account_id: string | null
+  fee_liability_coa_account_id: string | null
   coa_code?: string
   coa_name?: string
   coa_type?: string
   fee_coa_code?: string
   fee_coa_name?: string
   fee_coa_type?: string
+  fee_liability_coa_code?: string
+  fee_liability_coa_name?: string
   is_active: boolean
   is_default: boolean
   requires_bank_account: boolean
@@ -51,6 +54,8 @@ export interface CreatePaymentMethodDto {
   payment_type: PaymentType
   bank_account_id?: number | null
   coa_account_id?: string | null
+  fee_coa_account_id?: string | null
+  fee_liability_coa_account_id?: string | null
   is_default?: boolean
   requires_bank_account?: boolean
   sort_order?: number

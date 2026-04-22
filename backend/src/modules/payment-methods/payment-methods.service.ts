@@ -93,6 +93,9 @@ export class PaymentMethodsService {
         if (data.fee_coa_account_id) {
           await this.validateCoaAccount(data.fee_coa_account_id, data.company_id, trx)
         }
+        if (data.fee_liability_coa_account_id) {
+          await this.validateCoaAccount(data.fee_liability_coa_account_id, data.company_id, trx)
+        }
 
         // === 🔥 VALIDATE FEE CONFIGURATION ===
         this.validateFeeConfig({
@@ -167,6 +170,9 @@ export class PaymentMethodsService {
         }
         if (data.fee_coa_account_id) {
           await this.validateCoaAccount(data.fee_coa_account_id, existing.company_id, trx)
+        }
+        if (data.fee_liability_coa_account_id) {
+          await this.validateCoaAccount(data.fee_liability_coa_account_id, existing.company_id, trx)
         }
 
         // === 🔥 VALIDATE FEE CONFIGURATION ===

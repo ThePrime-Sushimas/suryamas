@@ -595,7 +595,7 @@ export async function generateBankRecJournals(
 
       const journalHeader = await createJournalHeaderWithRetry({
         companyId,
-        branchId: branchId ?? null,
+        branchId: null,
         journalNumber,
         journalDate,
         period:      period.period,
