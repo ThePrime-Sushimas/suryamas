@@ -793,9 +793,11 @@ export async function generateJournalsOptimized(
 
       // ── 5.11 Insert lines + link transactions (atomic) ────────────
       try {
+        const linesPayload = lines.map(({ journal_header_id: _, created_at: __, ...rest }) => rest)
+
         const { error: rpcError } = await supabase.rpc('post_journal_lines_atomic', {
           p_journal_header_id: journalHeader.id,
-          p_lines: JSON.stringify(lines.map(({ journal_header_id: _, created_at: __, ...rest }) => rest)),
+          p_lines: linesPayload,
           p_bank_statement_ids: [],
           p_aggregate_ids: groupTxs.map(t => t.id),
           p_set_processing: true,

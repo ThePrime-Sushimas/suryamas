@@ -722,7 +722,7 @@ export async function generateBankRecJournals(
       try {
         const { error: rpcError } = await supabase.rpc('post_journal_lines_atomic', {
           p_journal_header_id: journalHeader.id,
-          p_lines: JSON.stringify(lines.map(({ journal_header_id: _, created_at: __, ...rest }) => rest)),
+          p_lines: lines.map(({ journal_header_id: _, created_at: __, ...rest }) => rest),
           p_bank_statement_ids: groupStmts.map(s => Number(s.id)),
           p_aggregate_ids: [],
           p_set_processing: false,
