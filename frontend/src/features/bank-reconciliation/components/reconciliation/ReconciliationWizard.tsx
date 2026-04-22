@@ -2286,7 +2286,7 @@ export function ReconciliationWizard({
   };
 
   const handleConfirm = async () => {
-    if (!reviewData) return;
+    if (!reviewData || isConfirming) return;
     setIsConfirming(true);
     try {
       if (reviewData.mode === "auto") {

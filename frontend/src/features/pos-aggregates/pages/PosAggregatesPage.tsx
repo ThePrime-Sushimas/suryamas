@@ -5,7 +5,7 @@
  * Features: list view, filters, pagination, bulk actions, summary.
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, FileText, CheckCircle, Database, Calculator } from "lucide-react";
 import { usePosAggregatesStore } from "../store/posAggregates.store";
@@ -18,6 +18,7 @@ import { PosAggregatesSummary } from "../components/PosAggregatesSummary";
 import { GenerateFromImportModal } from "../components/GenerateFromImportModal";
 import { GenerateJournalModal } from "../components/GenerateJournalModal";
 import { BankMutationSelectorModal } from "../components/BankMutationSelectorModal";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { bankReconciliationApi } from "@/features/bank-reconciliation/api/bank-reconciliation.api";
 import { posAggregatesApi } from "../api/posAggregates.api";
 import { POS_AGGREGATES_MESSAGES } from "@/utils/messages";
@@ -150,12 +151,21 @@ export const PosAggregatesPage: React.FC = () => {
   // Handle batch reconcile
   // Note: batchReconcile already handles optimistic update, clearSelection, and refresh internally
   // So we don't need to call fetchTransactions/fetchSummary here - it would cause redundant API calls
+  const [showBatchConfirm, setShowBatchConfirm] = useState(false);
+  const batchInFlight = useRef(false);
+
   const handleBatchReconcile = useCallback(async () => {
     if (selectedIds.size === 0) {
       toast.warning(POS_AGGREGATES_MESSAGES.SELECT_TRANSACTIONS_TO_RECONCILE);
       return;
     }
+    setShowBatchConfirm(true);
+  }, [selectedIds, toast]);
 
+  const executeBatchReconcile = useCallback(async () => {
+    if (batchInFlight.current) return;
+    batchInFlight.current = true;
+    setShowBatchConfirm(false);
     try {
       const employeeId = currentBranch?.employee_id || "system";
       // batchReconcile already:
@@ -173,6 +183,8 @@ export const PosAggregatesPage: React.FC = () => {
           ? error.message
           : POS_AGGREGATES_MESSAGES.TRANSACTION_BATCH_RECONCILE_FAILED,
       );
+    } finally {
+      batchInFlight.current = false;
     }
   }, [selectedIds, batchReconcile, toast, currentBranch]);
 
@@ -377,7 +389,8 @@ export const PosAggregatesPage: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={handleBatchReconcile}
-              className="px-3 py-1.5 text-sm text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-1"
+              disabled={batchInFlight.current}
+              className="px-3 py-1.5 text-sm text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-1 disabled:opacity-50"
             >
               <CheckCircle className="w-4 h-4" />
               Rekonsiliasi Terpilih
@@ -485,6 +498,18 @@ export const PosAggregatesPage: React.FC = () => {
         onConfirm={handleConfirmMutationMatch}
         aggregate={selectedTransactionForMatch}
         isLoading={isMatching}
+      />
+
+      {/* Batch Reconcile Confirm Modal */}
+      <ConfirmModal
+        isOpen={showBatchConfirm}
+        onClose={() => setShowBatchConfirm(false)}
+        onConfirm={executeBatchReconcile}
+        title="Rekonsiliasi Terpilih"
+        message={`Anda akan merekonsiliasi ${selectedIds.size} transaksi. Lanjutkan?`}
+        confirmText="Ya, Rekonsiliasi"
+        cancelText="Batal"
+        variant="info"
       />
     </div>
   );
