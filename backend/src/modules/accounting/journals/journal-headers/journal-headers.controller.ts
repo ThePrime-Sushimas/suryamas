@@ -90,8 +90,8 @@ export class JournalHeadersController {
       const companyId = this.getCompanyId(req as any)
       const employeeId = getEmployeeId(req as any)
       
-      // Priority: context branch_id > body branch_id > null
-      const branchId = (req as any).context?.branch_id || req.validated.body.branch_id || null
+      // Priority: body branch_id (user selection) > context branch_id
+      const branchId = req.validated.body.branch_id || (req as any).context?.branch_id || null
       
       const journal = await journalHeadersService.create({
         ...req.validated.body,

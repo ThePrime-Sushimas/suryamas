@@ -18,12 +18,18 @@ interface Props {
 }
 
 export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
-  const currentBranch = useBranchContextStore((state) => state.currentBranch)
+  const { currentBranch, branches } = useBranchContextStore()
   const hasLoadedDraft = useRef(false)
+
+  const companyBranches = useMemo(
+    () => branches.filter(b => b.company_id === currentBranch?.company_id),
+    [branches, currentBranch?.company_id]
+  )
   
   const [draftLoaded, setDraftLoaded] = useState(false)
   const [journalDate, setJournalDate] = useState(initialData?.journal_date || new Date().toISOString().split('T')[0])
   const [journalType, setJournalType] = useState(initialData?.journal_type || 'GENERAL')
+  const [branchId, setBranchId] = useState(initialData?.branch_id || currentBranch?.branch_id || '')
   const [description, setDescription] = useState(initialData?.description || '')
   const [lines, setLines] = useState<JournalLine[]>(
     initialData?.lines?.map(l => ({
@@ -182,7 +188,7 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
             lines: linesForSubmit,
           }
         : {
-            branch_id: currentBranch?.branch_id,
+            branch_id: branchId || currentBranch?.branch_id,
             journal_date: journalDate,
             journal_type: journalType as JournalType,
             description,
@@ -202,7 +208,24 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Header Fields - Single Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Branch <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={branchId}
+            onChange={(e) => setBranchId(e.target.value)}
+            disabled={!!initialData}
+            required
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-colors"
+          >
+            {companyBranches.map(b => (
+              <option key={b.branch_id} value={b.branch_id}>{b.branch_name}</option>
+            ))}
+          </select>
+        </div>
+
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Tanggal <span className="text-red-500">*</span>
