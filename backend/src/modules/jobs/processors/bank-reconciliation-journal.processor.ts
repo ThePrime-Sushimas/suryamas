@@ -223,7 +223,8 @@ async function loadBankFeeConfig(companyId: string): Promise<BankFeeConfig | nul
  * Resolve bank accounts with their COA account_id
  */
 async function resolveBankAccounts(
-  bankAccountIds: number[]
+  bankAccountIds: number[],
+  companyId: string
 ): Promise<Map<number, BankAccountResolved>> {
   const result = new Map<number, BankAccountResolved>()
   if (bankAccountIds.length === 0) return result
@@ -232,6 +233,7 @@ async function resolveBankAccounts(
     .from('bank_accounts')
     .select('id, account_number, account_name, coa_account_id, owner_id')
     .in('id', bankAccountIds)
+    .eq('owner_id', companyId)
     .eq('is_active', true)
     .is('deleted_at', null)
 
@@ -336,15 +338,6 @@ async function rollbackJournalHeader(journalHeaderId: string): Promise<void> {
   } catch (err) {
     logError('Rollback failed', { journalHeaderId, err })
   }
-}
-
-async function checkJournalLinesExist(journalHeaderId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from('journal_lines')
-    .select('id')
-    .eq('journal_header_id', journalHeaderId)
-    .limit(1)
-  return (data?.length ?? 0) > 0
 }
 
 /**
@@ -500,7 +493,7 @@ export async function generateBankRecJournals(
   onProgress?.({ current: 30, total: 100, phase: 'lookup', message: 'Resolving bank accounts...' })
 
   const uniqueBankIds = [...new Set(eligible.map(s => s.bank_account_id))]
-  const bankAccountMap = await resolveBankAccounts(uniqueBankIds)
+  const bankAccountMap = await resolveBankAccounts(uniqueBankIds, companyId)
 
   // ── PHASE 7: Process each group ───────────────────────────────────────
   onProgress?.({ current: 35, total: 100, phase: 'processing', message: 'Generating journals...' })
@@ -659,6 +652,33 @@ export async function generateBankRecJournals(
           .eq('id', journalHeader.id)
 
         logInfo('Replacing DRAFT journal', { journalId: journalHeader.id, journalNumber: journalHeader.journalNumber })
+      }
+
+      // ── 7.5b Re-validate reconciliation status ───────────────────
+      const revalidateIds = groupStmts.map(s => s.id)
+      const { data: revalidated } = await supabase
+        .from('bank_statements')
+        .select('id, is_reconciled')
+        .in('id', revalidateIds)
+        .eq('is_reconciled', true)
+        .is('deleted_at', null)
+
+      const stillReconciledIds = new Set((revalidated || []).map((r: any) => String(r.id)))
+      const invalidated = groupStmts.filter(s => !stillReconciledIds.has(String(s.id)))
+
+      if (invalidated.length > 0) {
+        logWarn('Some statements were unreconciled since fetch, skipping group', {
+          bank_account_id: bankAccountId,
+          journal_date: journalDate,
+          invalidated_ids: invalidated.map(s => s.id),
+        })
+        failedResults.push({
+          bank_account_id: bankAccountId,
+          journal_date: journalDate,
+          error: `${invalidated.length} statement tidak lagi reconciled saat journal akan dibuat. Silakan generate ulang.`,
+        })
+        await rollbackJournalHeader(journalHeader.id)
+        continue
       }
 
       // ── 7.6 Build journal lines ──────────────────────────────────
