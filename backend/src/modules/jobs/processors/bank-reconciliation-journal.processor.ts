@@ -97,6 +97,7 @@ interface BankStatement {
   is_reconciled: boolean
   is_pending: boolean
   journal_id: string | null
+  payment_method_id: number | null
 }
 
 interface JournalLine {
@@ -384,7 +385,8 @@ export async function generateBankRecJournals(
       debit_amount,
       is_reconciled,
       is_pending,
-      journal_id
+      journal_id,
+      payment_method_id
     `)
     .in('id', bankStatementIds)
     .eq('company_id', companyId)
@@ -671,11 +673,64 @@ export async function generateBankRecJournals(
           },
         ]
       } else {
-        // BANK-REC: DEBIT Bank Account, CREDIT Cash Sales Receivable
+        // BANK-REC: DEBIT Bank Account, CREDIT Receivable per payment channel
+        // Group credit statements by payment_method COA account
+        const creditStmts = groupStmts.filter(s => (s.credit_amount ?? 0) > 0)
+
+        // Fetch payment method COA accounts for this group
+        const pmIds = [...new Set(creditStmts.map(s => s.payment_method_id).filter(Boolean))] as number[]
+        let pmCoaMap: Record<number, { coa_account_id: string; name: string }> = {}
+
+        if (pmIds.length > 0) {
+          const { data: pms } = await supabase
+            .from('payment_methods')
+            .select('id, name, coa_account_id')
+            .in('id', pmIds)
+          for (const pm of pms || []) {
+            if (pm.coa_account_id) {
+              pmCoaMap[pm.id] = { coa_account_id: pm.coa_account_id, name: pm.name }
+            }
+          }
+        }
+
+        // Aggregate credit amounts per COA account
+        const creditByCoa: Record<string, { amount: number; name: string }> = {}
+        let hasUnmappedStatements = false
+
+        for (const stmt of creditStmts) {
+          const pmInfo = stmt.payment_method_id ? pmCoaMap[stmt.payment_method_id] : null
+          if (pmInfo) {
+            if (!creditByCoa[pmInfo.coa_account_id]) {
+              creditByCoa[pmInfo.coa_account_id] = { amount: 0, name: pmInfo.name }
+            }
+            creditByCoa[pmInfo.coa_account_id].amount = round2(
+              creditByCoa[pmInfo.coa_account_id].amount + Number(stmt.credit_amount ?? 0)
+            )
+          } else {
+            // Fallback: statements without payment_method → use generic BANK-REC credit account
+            const fallbackKey = bankRecConfig.creditAccountId
+            if (!creditByCoa[fallbackKey]) {
+              creditByCoa[fallbackKey] = { amount: 0, name: 'Unmatched' }
+            }
+            creditByCoa[fallbackKey].amount = round2(
+              creditByCoa[fallbackKey].amount + Number(stmt.credit_amount ?? 0)
+            )
+            hasUnmappedStatements = true
+          }
+        }
+
+        if (hasUnmappedStatements) {
+          logWarn('Some statements have no payment_method_id, using fallback account', {
+            bankAccountId, journalDate,
+          })
+        }
+
+        // Build lines: 1 DEBIT bank + N CREDIT per channel
+        let lineNum = 1
         lines = [
           {
             journal_header_id:  journalHeader.id,
-            line_number:        1,
+            line_number:        lineNum++,
             account_id:         bankAccount.coa_account_id,
             description:        `Bank receipt - ${bankAccount.account_name} (${bankAccount.account_number})`,
             debit_amount:       journalAmount,
@@ -686,20 +741,24 @@ export async function generateBankRecJournals(
             base_credit_amount: 0,
             created_at:         now,
           },
-          {
+        ]
+
+        // Add credit lines per channel
+        for (const [coaId, { amount, name }] of Object.entries(creditByCoa)) {
+          lines.push({
             journal_header_id:  journalHeader.id,
-            line_number:        2,
-            account_id:         bankRecConfig.creditAccountId,
-            description:        `Cash sales receivable cleared - ${bankAccount.account_number}`,
+            line_number:        lineNum++,
+            account_id:         coaId,
+            description:        `Receivable cleared - ${name} - ${bankAccount.account_number}`,
             debit_amount:       0,
-            credit_amount:      journalAmount,
+            credit_amount:      amount,
             currency:           'IDR',
             exchange_rate:      1,
             base_debit_amount:  0,
-            base_credit_amount: journalAmount,
+            base_credit_amount: amount,
             created_at:         now,
-          },
-        ]
+          })
+        }
       }
 
       // ── 7.7 Balance validation ───────────────────────────────────
