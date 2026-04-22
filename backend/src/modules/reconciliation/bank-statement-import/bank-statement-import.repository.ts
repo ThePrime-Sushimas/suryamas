@@ -484,8 +484,7 @@ export class BankStatementImportRepository {
       index === self.findIndex(p =>
         p.transaction_date === pair.transaction_date &&
         p.debit_amount === pair.debit_amount &&
-        p.credit_amount === pair.credit_amount &&
-        (p.description || '') === (pair.description || '')
+        p.credit_amount === pair.credit_amount
       )
     )
 
@@ -495,7 +494,6 @@ export class BankStatementImportRepository {
     minDate.setDate(minDate.getDate() - DATE_TOLERANCE_DAYS)
     maxDate.setDate(maxDate.getDate() + DATE_TOLERANCE_DAYS)
 
-    // Single batch fetch
     const { data: existingBatch, error: batchErr } = await supabase
       .from('bank_statements')
       .select('id, reference_number, transaction_date, credit_amount, debit_amount, import_id, description, balance, bank_account_id, is_pending')
@@ -523,20 +521,18 @@ export class BankStatementImportRepository {
         if (!amountMatch) return false
 
         if (ex.is_pending) {
-          // PEND: ±2 day tolerance, amount saja cukup
           const exDate = new Date(ex.transaction_date).getTime()
           return exDate >= dateFrom && exDate <= dateTo
         }
 
-        // Non-PEND: exact date required
-        if (ex.transaction_date !== pair.transaction_date) return false
+        const exDate = ex.transaction_date.split('T')[0]
+        const pairDate = pair.transaction_date.split('T')[0]
+        if (exDate !== pairDate) return false
 
-        // Description similarity check to distinguish legitimate same-amount transactions
         if (pair.description && ex.description) {
           return this.calculateDescriptionSimilarity(pair.description, ex.description) >= DESC_SIMILARITY_THRESHOLD
         }
 
-        // Fallback: no description to compare → treat as duplicate
         return true
       })
 

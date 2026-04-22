@@ -35,7 +35,6 @@ import {
   BANK_PARSING_CONFIG,
   PENDING_TRANSACTION,
 } from "./bank-statement-import.constants";
-import { duplicateDetector } from "./utils/duplicate-detector";
 import { AuditService } from "../../monitoring/monitoring.service";
 import * as XLSX from "xlsx";
 import fs from "fs/promises";
@@ -2651,25 +2650,33 @@ export class BankStatementImportService {
       bank_account_id: bankAccountId
     }));
 
-    // ✅ FIXED: Pass bankAccountId to repository
     const existingStatements = await this.repository.checkDuplicates(
-      transactions, 
+      transactions,
       bankAccountId
     );
 
-    // Use the duplicate detector for more robust matching
-    const parsedRows = rows.map((r) => ({
-      row_number: r.row_number,
-      transaction_date: r.transaction_date,
-      reference_number: r.reference_number,
-      description: r.description,
-      debit_amount: r.debit_amount,
-      credit_amount: r.credit_amount,
-      balance: r.balance, // Pass actual balance
-      is_valid: true,
+    if (existingStatements.length === 0) return [];
+
+    // Convert existing matches to BankStatementDuplicate format
+    // checkDuplicates already handles date+amount+description similarity
+    const duplicates: BankStatementDuplicate[] = existingStatements.map((ex: any) => ({
+      reference_number: ex.reference_number || undefined,
+      transaction_date: String(ex.transaction_date),
+      debit_amount: Number(ex.debit_amount),
+      credit_amount: Number(ex.credit_amount),
+      existing_import_id: ex.import_id || 0,
+      existing_statement_id: ex.id,
+      row_numbers: [],
     }));
 
-    return duplicateDetector.detectDuplicates(parsedRows, existingStatements);
+    // Deduplicate by date+amount
+    return duplicates.filter((dup, index, self) =>
+      index === self.findIndex((d) =>
+        d.transaction_date === dup.transaction_date &&
+        d.debit_amount === dup.debit_amount &&
+        d.credit_amount === dup.credit_amount
+      )
+    );
   }
 
   /**
