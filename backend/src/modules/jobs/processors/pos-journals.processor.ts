@@ -397,15 +397,6 @@ async function rollbackJournalHeader(journalHeaderId: string): Promise<void> {
   }
 }
 
-async function checkJournalLinesExist(journalHeaderId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from('journal_lines')
-    .select('id')
-    .eq('journal_header_id', journalHeaderId)
-    .limit(1)
-  return (data?.length ?? 0) > 0
-}
-
 async function updateTransactionsJournalId(
   transactionIds: string[],
   journalId: string
