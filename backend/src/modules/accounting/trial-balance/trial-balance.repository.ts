@@ -5,19 +5,21 @@ import { TrialBalanceRow, TrialBalanceParams } from './trial-balance.types'
 export class TrialBalanceRepository {
   async getTrialBalance(params: TrialBalanceParams): Promise<TrialBalanceRow[]> {
     try {
+      const values: any[] = [params.companyId, params.dateFrom, params.dateTo]
+      let branchFilter = ''
+
+      if (params.branchIds && params.branchIds.length > 0) {
+        values.push(params.branchIds)
+        branchFilter = `AND glv.branch_id = ANY($${values.length}::uuid[])`
+      }
+
       const { rows } = await pool.query(
         `
         WITH
         all_lines AS (
           SELECT
             glv.account_id,
-            glv.account_code,
-            glv.account_name,
-            glv.account_type,
-            glv.account_subtype,
-            glv.normal_balance,
-            glv.parent_account_id,
-            glv.account_level,
+            glv.branch_id,
             glv.journal_date,
             glv.debit_amount,
             glv.credit_amount
@@ -25,58 +27,54 @@ export class TrialBalanceRepository {
           JOIN chart_of_accounts coa_check ON coa_check.id = glv.account_id
           WHERE glv.company_id = $1::uuid
             AND coa_check.company_id = $1::uuid
-            AND ($4::uuid IS NULL OR glv.branch_id = $4::uuid)
+            ${branchFilter}
         ),
         opening AS (
-          SELECT
-            account_id,
-            SUM(debit_amount)  AS opening_debit,
+          SELECT account_id, branch_id,
+            SUM(debit_amount) AS opening_debit,
             SUM(credit_amount) AS opening_credit
           FROM all_lines
           WHERE journal_date < $2::date
-          GROUP BY account_id
+          GROUP BY account_id, branch_id
         ),
         period AS (
-          SELECT
-            account_id,
-            SUM(debit_amount)  AS period_debit,
+          SELECT account_id, branch_id,
+            SUM(debit_amount) AS period_debit,
             SUM(credit_amount) AS period_credit
           FROM all_lines
-          WHERE journal_date >= $2::date
-            AND journal_date <= $3::date
-          GROUP BY account_id
+          WHERE journal_date >= $2::date AND journal_date <= $3::date
+          GROUP BY account_id, branch_id
         ),
-        coa_base AS (
-          SELECT DISTINCT account_id, account_code, account_name,
-            account_type, account_subtype, normal_balance,
-            parent_account_id, account_level
-          FROM all_lines
+        combined AS (
+          SELECT account_id, branch_id FROM opening
+          UNION
+          SELECT account_id, branch_id FROM period
         )
         SELECT
-          cb.account_id,
-          cb.account_code,
-          cb.account_name,
-          cb.account_type,
-          cb.account_subtype,
-          cb.normal_balance,
-          cb.parent_account_id,
-          cb.account_level,
-          COALESCE(o.opening_debit, 0)::numeric  AS opening_debit,
+          c.account_id,
+          coa.account_code,
+          coa.account_name,
+          coa.account_type,
+          parent.account_code AS parent_account_code,
+          parent.account_name AS parent_account_name,
+          c.branch_id,
+          b.branch_name,
+          'IDR' AS currency,
+          COALESCE(o.opening_debit, 0)::numeric AS opening_debit,
           COALESCE(o.opening_credit, 0)::numeric AS opening_credit,
-          (COALESCE(o.opening_debit, 0) - COALESCE(o.opening_credit, 0))::numeric AS opening_balance,
-          COALESCE(p.period_debit, 0)::numeric  AS period_debit,
+          COALESCE(p.period_debit, 0)::numeric AS period_debit,
           COALESCE(p.period_credit, 0)::numeric AS period_credit,
-          (COALESCE(p.period_debit, 0) - COALESCE(p.period_credit, 0))::numeric AS period_net,
-          (COALESCE(o.opening_debit, 0) + COALESCE(p.period_debit, 0))::numeric  AS closing_debit,
-          (COALESCE(o.opening_credit, 0) + COALESCE(p.period_credit, 0))::numeric AS closing_credit,
-          ((COALESCE(o.opening_debit, 0) + COALESCE(p.period_debit, 0)) -
-           (COALESCE(o.opening_credit, 0) + COALESCE(p.period_credit, 0)))::numeric AS closing_balance
-        FROM coa_base cb
-        LEFT JOIN opening o ON o.account_id = cb.account_id
-        LEFT JOIN period p  ON p.account_id = cb.account_id
-        ORDER BY cb.account_code ASC
+          (COALESCE(o.opening_debit, 0) + COALESCE(p.period_debit, 0))::numeric AS closing_debit,
+          (COALESCE(o.opening_credit, 0) + COALESCE(p.period_credit, 0))::numeric AS closing_credit
+        FROM combined c
+        JOIN chart_of_accounts coa ON coa.id = c.account_id
+        LEFT JOIN chart_of_accounts parent ON parent.id = coa.parent_account_id
+        LEFT JOIN branches b ON b.id = c.branch_id
+        LEFT JOIN opening o ON o.account_id = c.account_id AND o.branch_id IS NOT DISTINCT FROM c.branch_id
+        LEFT JOIN period p ON p.account_id = c.account_id AND p.branch_id IS NOT DISTINCT FROM c.branch_id
+        ORDER BY coa.account_code, b.branch_name NULLS LAST
         `,
-        [params.companyId, params.dateFrom, params.dateTo, params.branchId ?? null]
+        values
       )
       return rows as TrialBalanceRow[]
     } catch (error: any) {

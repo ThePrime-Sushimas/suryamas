@@ -7,27 +7,26 @@ import { trialBalanceQuerySchema } from './trial-balance.schema'
 import type { AuthenticatedRequest } from '../../../types/request.types'
 
 export class TrialBalanceController {
-  
   private getCompanyId(req: AuthenticatedRequest): string {
     const companyId = (req as any).context?.company_id
-    if (!companyId) {
-      throw new Error('Branch context required - no company access')
-    }
+    if (!companyId) throw new Error('Branch context required - no company access')
     return companyId
   }
 
   async get(req: ValidatedAuthRequest<typeof trialBalanceQuerySchema>, res: Response) {
     try {
-      // Mengambil company_id yang aman dari branch context
       const companyId = this.getCompanyId(req as any)
-      
-      const { date_from, date_to, branch_id } = req.validated.query
+      const { date_from, date_to, branch_ids } = req.validated.query
+
+      const branchIds = branch_ids
+        ? branch_ids.split(',').map(s => s.trim()).filter(Boolean)
+        : undefined
 
       const rows = await trialBalanceService.getTrialBalance({
         companyId,
         dateFrom: date_from,
         dateTo: date_to,
-        branchId: branch_id
+        branchIds,
       })
 
       sendSuccess(res, rows, 'Trial balance retrieved', 200)

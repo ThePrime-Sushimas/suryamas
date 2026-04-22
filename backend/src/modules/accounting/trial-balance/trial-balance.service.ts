@@ -8,18 +8,12 @@ export class TrialBalanceService {
       company_id: params.companyId,
       date_from: params.dateFrom,
       date_to: params.dateTo,
-      branch_id: params.branchId,
+      branch_count: params.branchIds?.length ?? 0,
     })
 
     const rows = await trialBalanceRepository.getTrialBalance(params)
 
-    logInfo('Trial balance fetched', {
-      company_id: params.companyId,
-      date_from: params.dateFrom,
-      date_to: params.dateTo,
-      row_count: rows.length,
-    })
-
+    logInfo('Trial balance fetched', { row_count: rows.length })
     return rows
   }
 }
