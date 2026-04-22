@@ -22,7 +22,9 @@ export class TrialBalanceRepository {
             glv.debit_amount,
             glv.credit_amount
           FROM general_ledger_view glv
+          JOIN chart_of_accounts coa_check ON coa_check.id = glv.account_id
           WHERE glv.company_id = $1::uuid
+            AND coa_check.company_id = $1::uuid
             AND ($4::uuid IS NULL OR glv.branch_id = $4::uuid)
         ),
         opening AS (

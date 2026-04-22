@@ -259,19 +259,22 @@ async function loadSalInvConfig(companyId: string): Promise<SalInvConfig> {
 
 async function resolveBranch(
   branchName: string,
+  companyId: string,
   cache: Map<string, string | null>
 ): Promise<string | null> {
-  if (cache.has(branchName)) return cache.get(branchName)!
+  const key = `${companyId}|${branchName}`
+  if (cache.has(key)) return cache.get(key)!
 
   const { data, error } = await supabase
     .from('branches')
     .select('id')
     .ilike('branch_name', branchName.trim())
+    .eq('company_id', companyId)
     .eq('status', 'active')
     .maybeSingle()
 
   const id = error || !data ? null : data.id
-  cache.set(branchName, id)
+  cache.set(key, id)
   return id
 }
 
@@ -512,7 +515,7 @@ export async function generateJournalsOptimized(
       }
 
       // ── 5.2 Resolve branch ─────────────────────────────────────────
-      const branchId = await resolveBranch(branchName, branchCache)
+      const branchId = await resolveBranch(branchName, companyId, branchCache)
       if (!branchId) {
         failedResults.push({
           date, branch: branchName,
