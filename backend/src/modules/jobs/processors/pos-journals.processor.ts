@@ -738,27 +738,27 @@ export async function generateJournalsOptimized(
           continue
         }
 
-        // Existing tapi belum POSTED — cek apakah lines sudah ada
-        const linesExist = await checkJournalLinesExist(journalHeader.id)
-        if (linesExist) {
-          logInfo('Journal lines already exist, skipping insert', {
-            journalId: journalHeader.id,
-          })
-          await updateTransactionsJournalId(groupTxs.map(t => t.id), journalHeader.id)
-          successResults.push({
-            date,
-            branch_name:     branchName,
-            transaction_ids: groupTxs.map(t => t.id),
-            journal_id:      journalHeader.id,
-            total_amount:    round2(grandGross),
-            journal_number:  journalHeader.journalNumber,
-          })
-          continue
-        }
+        // Existing tapi belum POSTED — hapus lines lama dan re-generate
+        // Ini mencegah stale lines dari run sebelumnya yang mungkin sudah tidak akurat
+        // (misal: amount berubah karena re-reconciliation)
+        await supabase
+          .from('journal_lines')
+          .delete()
+          .eq('journal_header_id', journalHeader.id)
 
-        // Existing header tapi tidak ada lines — lanjut insert lines (step 5.10)
-        logWarn('Journal header exists but no lines found, re-inserting lines', {
+        await supabase
+          .from('journal_headers')
+          .update({
+            total_debit:  grandTotalDebit,
+            total_credit: grandTotalDebit,
+            description:  `POS Sales ${date} - ${branchName}`,
+            updated_at:   new Date().toISOString(),
+          })
+          .eq('id', journalHeader.id)
+
+        logInfo('Replacing DRAFT journal lines', {
           journalId: journalHeader.id,
+          journalNumber: journalHeader.journalNumber,
           date,
           branchName,
         })

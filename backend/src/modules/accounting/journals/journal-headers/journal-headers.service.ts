@@ -337,8 +337,8 @@ export class JournalHeadersService {
       throw JournalErrors.PERIOD_CLOSED(journal.period)
     }
 
-    // TODO: Post to general ledger
-    // await generalLedgerService.postFromJournal(journal)
+    // Trial balance computed via general_ledger_view (DB view over journal_headers + journal_lines)
+    // No separate GL posting needed
 
     await journalHeadersRepository.updateStatus(id, 'POSTED', userId, {
       posted_at: new Date().toISOString(),
