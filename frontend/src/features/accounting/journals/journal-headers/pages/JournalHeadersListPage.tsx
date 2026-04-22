@@ -88,7 +88,7 @@ export function JournalHeadersListPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Journal Entries</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Kelola entri journal dan transaksi</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Manage journal entries and transactions</p>
         </div>
         <div className="flex gap-3">
           <button
@@ -96,7 +96,7 @@ export function JournalHeadersListPage() {
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
           >
             <Trash2 size={18} />
-            <span className="hidden sm:inline">Journal Terhapus</span>
+            <span className="hidden sm:inline">Deleted Journals</span>
           </button>
           <GenerateBankRecJournalsButton onAfterClose={() => fetchJournals()} />
           {permissions.canCreate && (
@@ -105,7 +105,7 @@ export function JournalHeadersListPage() {
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
             >
               <Plus size={20} />
-              <span className="hidden sm:inline">Journal Baru</span>
+              <span className="hidden sm:inline">New Journal</span>
             </button>
           )}
         </div>
@@ -152,10 +152,10 @@ export function JournalHeadersListPage() {
               <ArrowUpDown className="w-10 h-10 text-blue-500" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              Mulai Mencari Journal
+              Start Searching
             </h3>
             <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-              Gunakan filter di atas untuk mencari journal berdasarkan branch, tipe, status, atau rentang tanggal.
+              Use the filters above to search journals by branch, type, status, or date range.
             </p>
           </div>
         </div>
@@ -166,10 +166,10 @@ export function JournalHeadersListPage() {
               <ArrowUpDown className="w-10 h-10 text-gray-400" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              Tidak Ada Journal Ditemukan
+              No Journals Found
             </h3>
             <p className="text-gray-500 dark:text-gray-400">
-              Coba ubah kriteria pencarian atau buat journal baru.
+              Try adjusting your search criteria or create a new journal.
             </p>
           </div>
         </div>
@@ -211,10 +211,10 @@ export function JournalHeadersListPage() {
         isOpen={deleteConfirm.isOpen}
         onClose={handleCloseDeleteConfirm}
         onConfirm={handleConfirmDelete}
-        title="Hapus Journal"
-        message="Apakah Anda yakin ingin menghapus journal ini? Tindakan ini tidak dapat dibatalkan."
-        confirmText="Hapus"
-        cancelText="Batal"
+        title="Delete Journal"
+        message="Are you sure you want to delete this journal? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
         variant="danger"
       />
     </div>

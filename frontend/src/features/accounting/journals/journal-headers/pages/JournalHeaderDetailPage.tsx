@@ -69,18 +69,20 @@ export function JournalHeaderDetailPage() {
     }
   }, [id, fetchJournalById])
 
-  useEffect(() => {
-    const isPosJournal = selectedJournal?.source_module === 'POS_AGGREGATES' ||
-      selectedJournal?.journal_number?.startsWith('RCP-')
+  const completenessKey = selectedJournal?.status === 'DRAFT' &&
+    (selectedJournal?.source_module === 'POS_AGGREGATES' || selectedJournal?.journal_number?.startsWith('RCP-'))
+    ? id || ''
+    : ''
 
-    if (id && selectedJournal?.status === 'DRAFT' && isPosJournal) {
-      api.get(`/accounting/journals/${id}/completeness`)
-        .then(res => setCompleteness(res.data.data))
-        .catch(() => null)
-    } else {
-      setCompleteness(null)
-    }
-  }, [id, selectedJournal])
+  useEffect(() => {
+    if (!completenessKey) { setCompleteness(null); return }
+
+    let cancelled = false
+    api.get(`/accounting/journals/${completenessKey}/completeness`)
+      .then(res => { if (!cancelled) setCompleteness(res.data.data) })
+      .catch(() => { if (!cancelled) setCompleteness(null) })
+    return () => { cancelled = true }
+  }, [completenessKey])
 
   if (loading) {
     return (
@@ -455,18 +457,18 @@ export function JournalHeaderDetailPage() {
                               )}
                             </td>
                             <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{line.description || '-'}</td>
-                            <td className="px-4 py-3 text-right whitespace-nowrap font-medium">
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
                               {line.debit_amount > 0 ? (
-                                <span className="text-gray-900 dark:text-white">{formatCurrency(line.debit_amount, selectedJournal.currency)}</span>
+                                <span className="text-sm font-mono text-gray-900 dark:text-white">{formatCurrency(line.debit_amount, selectedJournal.currency)}</span>
                               ) : (
-                                <span className="text-gray-400 dark:text-gray-500">-</span>
+                                <span className="text-gray-300 dark:text-gray-600">-</span>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-right whitespace-nowrap font-medium">
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
                               {line.credit_amount > 0 ? (
-                                <span className="text-gray-900 dark:text-white">{formatCurrency(line.credit_amount, selectedJournal.currency)}</span>
+                                <span className="text-sm font-mono text-gray-900 dark:text-white">{formatCurrency(line.credit_amount, selectedJournal.currency)}</span>
                               ) : (
-                                <span className="text-gray-400 dark:text-gray-500">-</span>
+                                <span className="text-gray-300 dark:text-gray-600">-</span>
                               )}
                             </td>
                           </tr>
@@ -486,10 +488,10 @@ export function JournalHeaderDetailPage() {
                   <tfoot className="bg-gray-100 dark:bg-gray-700 border-t dark:border-gray-600 font-semibold">
                     <tr>
                       <td colSpan={3} className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">Total:</td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap text-gray-900 dark:text-white">
+                      <td className="px-4 py-3 text-right whitespace-nowrap font-mono text-gray-900 dark:text-white">
                         {formatCurrency(selectedJournal.total_debit || 0, selectedJournal.currency)}
                       </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap text-gray-900 dark:text-white">
+                      <td className="px-4 py-3 text-right whitespace-nowrap font-mono text-gray-900 dark:text-white">
                         {formatCurrency(selectedJournal.total_credit || 0, selectedJournal.currency)}
                       </td>
                     </tr>

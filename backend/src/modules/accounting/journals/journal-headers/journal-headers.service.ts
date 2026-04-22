@@ -590,14 +590,6 @@ export class JournalHeadersService {
       .is('superseded_by', null)          // ← tambah
       .is('deleted_at', null)
 
-    logInfo('getCompleteness debug', {
-      journal_id: id,
-      branch_id: journal.branch_id,
-      journal_date: journal.journal_date,
-      query_error: queryError?.message || null,
-      result_count: data?.length ?? 0,
-    })
-
     if (queryError) {
       logError('getCompleteness query failed', { id, error: queryError.message })
       return { is_complete: true, total_channels: 0, reconciled_channels: 0, unreconciled: [] }
