@@ -520,20 +520,40 @@ export class BankStatementImportRepository {
           Number(ex.credit_amount) === Number(pair.credit_amount)
         if (!amountMatch) return false
 
-        if (ex.is_pending) {
-          const exDate = new Date(ex.transaction_date).getTime()
-          return exDate >= dateFrom && exDate <= dateTo
+        // Early reject: different reference numbers = different transactions
+        if (pair.reference_number && ex.reference_number &&
+            pair.reference_number !== ex.reference_number) {
+          return false
         }
 
         const exDate = ex.transaction_date.split('T')[0]
         const pairDate = pair.transaction_date.split('T')[0]
-        if (exDate !== pairDate) return false
+        const exDateTime = new Date(exDate).getTime()
+        const isExactDate = exDate === pairDate
+        const isNearDate = !isExactDate && exDateTime >= dateFrom && exDateTime <= dateTo
 
-        if (pair.description && ex.description) {
-          return this.calculateDescriptionSimilarity(pair.description, ex.description) >= DESC_SIMILARITY_THRESHOLD
+        if (ex.is_pending) {
+          // PEND: ±2 day tolerance, amount saja cukup
+          return isExactDate || isNearDate
         }
 
-        return true
+        if (isExactDate) {
+          // Exact date: description similarity ≥70% to distinguish legitimate same-amount txns
+          if (pair.description && ex.description) {
+            return this.calculateDescriptionSimilarity(pair.description, ex.description) >= DESC_SIMILARITY_THRESHOLD
+          }
+          return true
+        }
+
+        if (isNearDate && pair.description && ex.description) {
+          // Near date (±1 day only): only match if description nearly identical (≥95%)
+          // Handles BCA posting date shift (value date vs posting date)
+          const dayDiff = Math.abs(exDateTime - new Date(pairDate).getTime()) / 86400000
+          if (dayDiff > 1) return false
+          return this.calculateDescriptionSimilarity(pair.description, ex.description) >= 0.95
+        }
+
+        return false
       })
 
       allDuplicates.push(...(matches as unknown as BankStatement[]))
@@ -569,7 +589,9 @@ export class BankStatementImportRepository {
 
     if (shorter.length === 0) return 0
 
-    // Check if shorter is contained in longer
+    // Too short for meaningful comparison
+    if (shorter.length < 10) return 0
+
     if (longer.includes(shorter)) return 0.9
 
     // Calculate word overlap
@@ -768,7 +790,7 @@ export class BankStatementImportRepository {
 
       const { data: matchedPends, error: fetchErr } = await supabase
         .from('bank_statements')
-        .select('id, is_reconciled, reconciliation_id, reconciliation_group_id')
+        .select('id, is_reconciled, reconciliation_id, reconciliation_group_id, payment_method_id')
         .eq('company_id', companyId)
         .eq('bank_account_id', bankAccountId)
         .eq('is_pending', true)
@@ -817,6 +839,7 @@ export class BankStatementImportRepository {
               is_reconciled: true,
               reconciliation_id: pend.reconciliation_id || null,
               reconciliation_group_id: pend.reconciliation_group_id || null,
+              payment_method_id: (pend as any).payment_method_id || null,
             })
             .select('id')
             .single()
