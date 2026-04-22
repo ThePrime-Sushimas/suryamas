@@ -51,12 +51,36 @@ export function JournalHeaderDetailPage() {
   // Loading states for modal operations
   const [isPosting, setIsPosting] = useState(false)
   const [isReversing, setIsReversing] = useState(false)
+  const [completeness, setCompleteness] = useState<{
+    is_complete: boolean
+    total_channels: number
+    reconciled_channels: number
+    unreconciled: Array<{
+      payment_method_id: number
+      payment_method_name: string
+      nett_amount: number
+      status: string
+    }>
+  } | null>(null)
 
   useEffect(() => {
     if (id) {
       fetchJournalById(id)
     }
   }, [id, fetchJournalById])
+
+  useEffect(() => {
+    const isPosJournal = selectedJournal?.source_module === 'POS_AGGREGATES' ||
+      selectedJournal?.journal_number?.startsWith('RCP-')
+
+    if (id && selectedJournal?.status === 'DRAFT' && isPosJournal) {
+      api.get(`/accounting/journals/${id}/completeness`)
+        .then(res => setCompleteness(res.data.data))
+        .catch(() => null)
+    } else {
+      setCompleteness(null)
+    }
+  }, [id, selectedJournal])
 
   if (loading) {
     return (
@@ -241,6 +265,38 @@ export function JournalHeaderDetailPage() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         
+        {/* Completeness Warning Banner */}
+        {completeness && !completeness.is_complete && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4 flex gap-3">
+            <AlertOctagon className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-1">
+                Jurnal belum mencakup semua channel pembayaran
+              </p>
+              <p className="text-sm text-amber-700 dark:text-amber-400 mb-2">
+                {completeness.reconciled_channels} dari {completeness.total_channels} channel sudah direkonsiliasi.
+                Channel berikut belum masuk ke jurnal ini:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {completeness.unreconciled.map(u => (
+                  <span
+                    key={u.payment_method_id}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 rounded-lg text-xs font-medium"
+                  >
+                    {u.payment_method_name}
+                    <span className="text-amber-600 dark:text-amber-400">
+                      {formatCurrency(u.nett_amount)}
+                    </span>
+                  </span>
+                ))}
+              </div>
+              <p className="text-xs text-amber-600 dark:text-amber-500 mt-2">
+                Generate ulang jurnal setelah semua channel selesai direkonsiliasi agar pembukuan lengkap.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Header Card */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="p-6">

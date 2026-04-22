@@ -71,6 +71,19 @@ export class JournalHeadersController {
     }
   }
 
+  async getCompleteness(req: AuthenticatedRequest, res: Response) {
+    try {
+      const companyId = this.getCompanyId(req)
+      const result = await journalHeadersService.getCompleteness(
+        getParamString(req.params.id),
+        companyId
+      )
+      sendSuccess(res, result)
+    } catch (error) {
+      handleError(res, error)
+    }
+  }
+
   async create(req: ValidatedAuthRequest<typeof createJournalSchema>, res: Response) {
     try {
       requireEmployee(req as any)

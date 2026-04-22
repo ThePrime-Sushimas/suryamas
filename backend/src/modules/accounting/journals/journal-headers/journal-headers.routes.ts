@@ -36,6 +36,10 @@ router.get('/with-lines', canView('journals'), queryMiddleware({
 }), (req, res) => 
   journalHeadersController.listWithLines(req as AuthenticatedQueryRequest, res))
 
+// Get journal completeness (unreconciled channels)
+router.get('/:id/completeness', canView('journals'), validateSchema(journalIdSchema), (req, res) =>
+  journalHeadersController.getCompleteness(req as AuthenticatedRequest, res))
+
 // Get journal by ID
 router.get('/:id', canView('journals'), validateSchema(journalIdSchema), (req, res) => 
   journalHeadersController.getById(req as AuthenticatedRequest, res))

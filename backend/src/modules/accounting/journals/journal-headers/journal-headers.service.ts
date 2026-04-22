@@ -564,6 +564,71 @@ export class JournalHeadersService {
 
     logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
   }
+
+  async getCompleteness(id: string, companyId: string): Promise<{
+    is_complete: boolean
+    total_channels: number
+    reconciled_channels: number
+    unreconciled: Array<{
+      payment_method_id: number
+      payment_method_name: string
+      nett_amount: number
+      status: string
+    }>
+  }> {
+    const journal = await this.getById(id, companyId)
+
+    if (journal.source_module !== 'POS_AGGREGATES' || !journal.branch_id) {
+      return { is_complete: true, total_channels: 0, reconciled_channels: 0, unreconciled: [] }
+    }
+
+    const { data, error: queryError } = await supabase
+      .from('aggregated_transactions')
+      .select('id, payment_method_id, nett_amount, is_reconciled, status')
+      .eq('branch_id', journal.branch_id)
+      .eq('transaction_date', journal.journal_date)
+      .is('superseded_by', null)          // ← tambah
+      .is('deleted_at', null)
+
+    logInfo('getCompleteness debug', {
+      journal_id: id,
+      branch_id: journal.branch_id,
+      journal_date: journal.journal_date,
+      query_error: queryError?.message || null,
+      result_count: data?.length ?? 0,
+    })
+
+    if (queryError) {
+      logError('getCompleteness query failed', { id, error: queryError.message })
+      return { is_complete: true, total_channels: 0, reconciled_channels: 0, unreconciled: [] }
+    }
+
+    const all = data || []
+    const unreconciled = all.filter((t: any) => !t.is_reconciled)
+
+    const pmIds = [...new Set(unreconciled.map((t: any) => t.payment_method_id).filter(Boolean))]
+    const pmNames: Record<number, string> = {}
+
+    if (pmIds.length > 0) {
+      const { data: pms } = await supabase
+        .from('payment_methods')
+        .select('id, name')
+        .in('id', pmIds)
+      for (const pm of pms || []) pmNames[pm.id] = pm.name
+    }
+
+    return {
+      is_complete: unreconciled.length === 0,
+      total_channels: all.length,
+      reconciled_channels: all.length - unreconciled.length,
+      unreconciled: unreconciled.map((t: any) => ({
+        payment_method_id: t.payment_method_id,
+        payment_method_name: pmNames[t.payment_method_id] || `PM ${t.payment_method_id}`,
+        nett_amount: Number(t.nett_amount),
+        status: t.status,
+      })),
+    }
+  }
 }
 
 export const journalHeadersService = new JournalHeadersService()
