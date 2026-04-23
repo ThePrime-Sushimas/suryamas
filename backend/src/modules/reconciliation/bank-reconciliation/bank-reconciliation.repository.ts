@@ -680,6 +680,7 @@ export class BankReconciliationRepository {
       // Update statement - only use fields that are confirmed to exist
       const updateData: any = {
         is_reconciled: true,
+        is_pending: false,
         reconciliation_id: aggregateId,
         updated_at: new Date().toISOString(),
       };
@@ -1079,6 +1080,7 @@ export class BankReconciliationRepository {
     try {
       const updateData: any = {
         is_reconciled: true,
+        is_pending: false,
         reconciliation_group_id: groupId,
         updated_at: new Date().toISOString(),
       };
@@ -1390,6 +1392,7 @@ export class BankReconciliationRepository {
   ): Promise<void> {
     const updateData: any = {
       is_reconciled: true,
+      is_pending: false,
       cash_deposit_id: cashDepositId,
       updated_at: new Date().toISOString(),
     };
