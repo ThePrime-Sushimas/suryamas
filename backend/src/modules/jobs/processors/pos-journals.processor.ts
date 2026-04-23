@@ -7,19 +7,21 @@
  * - DEBIT sales discount     → SAL-INV field_mapping: bill_discount (410301)
  * - DEBIT promo discount     → SAL-INV field_mapping: promotion_discount (410304)
  * - DEBIT voucher discount   → SAL-INV field_mapping: voucher_discount (410305)
- * - DEBIT rounding (+)       → SAL-INV field_mapping: rounding_expense (610801)
  * - CREDIT revenue (gross)   → SAL-INV field_mapping: gross_revenue (410101)
+ *     (rounding absorbed here — not journaled separately)
  * - CREDIT tax (PB1)         → SAL-INV field_mapping: tax_payable (210206)
  * - CREDIT service charge    → SAL-INV field_mapping: service_charge_payable (210209)
  * - CREDIT other VAT         → SAL-INV field_mapping: other_vat_payable (210210)
  * - CREDIT order fee revenue → SAL-INV field_mapping: order_fee_revenue (410202)
  * - CREDIT delivery revenue  → SAL-INV field_mapping: delivery_revenue (410203)
- * - CREDIT rounding (-)      → SAL-INV field_mapping: rounding_expense (610801)
  * - CREDIT fee liability     → payment_methods.fee_liability_coa_account_id
  *
+ * Note: rounding is absorbed in gross revenue (not journaled separately)
+ *       because bill_after_discount = grand_total POS which already includes rounding.
+ *
  * Balance formula:
- *   DEBIT  = bill + fee + discount + promoDiscount + voucherDiscount + rounding(+)
- *   CREDIT = gross + tax + fee_liability + SC + otherVat + orderFee + delivery + rounding(-)
+ *   DEBIT  = bill + fee + discount + promoDiscount + voucherDiscount
+ *   CREDIT = gross + tax + fee_liability + SC + otherVat + orderFee + delivery
  *
  * Special payment_type handling:
  *   COMPLIMENT     → CREDIT to coa_account_id (reduces revenue)
@@ -657,10 +659,7 @@ export async function generateJournalsOptimized(
         [grandPromoDiscount,   salInvConfig.promoDiscountAccountId,   'promotion_discount (410304)'],
         [grandVoucherDiscount, salInvConfig.voucherDiscountAccountId, 'voucher_discount (410305)'],
       ]
-      // Rounding bisa negatif, cek abs
-      if (Math.abs(grandRounding) > 0 && !salInvConfig.roundingAccountId) {
-        configChecks.push([Math.abs(grandRounding), null, 'rounding_expense (610801)'])
-      }
+      // Rounding: no configCheck needed — absorbed in revenue, not journaled separately
 
       const missingConfigs = configChecks
         .filter(([amount, accountId]) => amount > 0 && !accountId)
@@ -675,14 +674,15 @@ export async function generateJournalsOptimized(
       }
 
       // ── 5.7 Create journal header ──────────────────────────────────
-      // Balance formula:
-      //   DEBIT  = bill + fee + discount + promoDiscount + voucherDiscount + rounding(+)
-      //   CREDIT = gross + tax + fee_liability + SC + otherVat + orderFee + delivery + rounding(-)
-      const roundingDebit  = grandRounding > 0 ? grandRounding : 0
-      const roundingCredit = grandRounding < 0 ? Math.abs(grandRounding) : 0
+      // Balance formula (Simple — rounding terserap di revenue):
+      //   DEBIT  = bill + fee + discount + promoDiscount + voucherDiscount
+      //   CREDIT = gross + tax + fee_liability + SC + otherVat + orderFee + delivery
+      //
+      // Rounding sudah termasuk di bill_after_discount (= grand_total POS)
+      // dan terserap di gross revenue line. Tidak dijurnal terpisah.
       const grandTotalDebit = round2(
         grandBill + grandFee + grandDiscount +
-        grandPromoDiscount + grandVoucherDiscount + roundingDebit
+        grandPromoDiscount + grandVoucherDiscount
       )
 
       const branchSlug    = branchName.replace(/\s+/g, '-').toUpperCase()
@@ -805,13 +805,11 @@ export async function generateJournalsOptimized(
         pushLine(salInvConfig.voucherDiscountAccountId, 'Voucher Discount', grandVoucherDiscount, 0)
       }
 
-      // ── DEBIT/CREDIT: rounding (bisa positif atau negatif) ─────────
-      if (grandRounding !== 0 && salInvConfig.roundingAccountId) {
-        if (grandRounding > 0) {
-          pushLine(salInvConfig.roundingAccountId, 'Rounding', grandRounding, 0)
-        } else {
-          pushLine(salInvConfig.roundingAccountId, 'Rounding', 0, Math.abs(grandRounding))
-        }
+      // Rounding: skip — already absorbed in bill_after_discount / gross revenue
+      if (Math.abs(grandRounding) > 0) {
+        logInfo('Rounding absorbed in revenue (not journaled separately)', {
+          date, branchName, grandRounding,
+        })
       }
 
       // ── CREDIT: gross sales revenue ────────────────────────────────

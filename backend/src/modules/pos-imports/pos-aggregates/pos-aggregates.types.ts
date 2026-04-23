@@ -194,24 +194,30 @@ export interface AggregatedTransactionListItem extends Pick<
  * payment_method_id can be either a numeric ID or string name
  */
 export interface CreateAggregatedTransactionDto {
-  branch_id?: string | null; // UUID reference to branches
-  branch_name?: string | null; // branch name from pos_import_lines.branch
-  source_type: AggregatedTransactionSourceType; // Always 'POS'
-  source_id: string; // pos_import_id from pos_import_lines
-  source_ref: string; // bill_number from pos_import_lines
-  transaction_date: string; // sales_date from pos_import_lines
-  payment_method_id: number | string | null; // Numeric ID or string name (will be resolved)
-  gross_amount: number; // subtotal from pos_import_lines
-  discount_amount?: number; // discount + bill_discount from pos_import_lines
-  tax_amount?: number; // tax from pos_import_lines
-  service_charge_amount?: number; // service_charge from pos_import_lines
-  bill_after_discount?: number; // Calculated: gross + tax - discount
-  percentage_fee_amount?: number; // Calculated from payment method
-  fixed_fee_amount?: number; // Calculated from payment method
-  total_fee_amount?: number; // Sum of percentage and fixed fees
-  nett_amount: number; // Calculated: bill_after_discount - total_fee
-  currency?: string; // Default: 'IDR'
-  status?: AggregatedTransactionStatus; // Default: 'READY'
+  branch_id?: string | null;
+  branch_name?: string | null;
+  source_type: AggregatedTransactionSourceType;
+  source_id: string;
+  source_ref: string;
+  transaction_date: string;
+  payment_method_id: number | string | null;
+  gross_amount: number;
+  discount_amount?: number;
+  tax_amount?: number;
+  service_charge_amount?: number;
+  other_vat_amount?: number;
+  bill_after_discount?: number;
+  rounding_amount?: number;
+  delivery_cost?: number;
+  order_fee?: number;
+  promotion_discount_amount?: number;
+  voucher_discount_amount?: number;
+  percentage_fee_amount?: number;
+  fixed_fee_amount?: number;
+  total_fee_amount?: number;
+  nett_amount: number;
+  currency?: string;
+  status?: AggregatedTransactionStatus;
 }
 
 /**
@@ -225,12 +231,18 @@ export interface UpdateAggregatedTransactionDto {
   source_id?: string;
   source_ref?: string;
   transaction_date?: string;
-  payment_method_id?: number | string; // Numeric ID or string name (will be resolved)
+  payment_method_id?: number | string;
   gross_amount?: number;
   discount_amount?: number;
   tax_amount?: number;
   service_charge_amount?: number;
+  other_vat_amount?: number;
   bill_after_discount?: number;
+  rounding_amount?: number;
+  delivery_cost?: number;
+  order_fee?: number;
+  promotion_discount_amount?: number;
+  voucher_discount_amount?: number;
   percentage_fee_amount?: number;
   fixed_fee_amount?: number;
   total_fee_amount?: number;

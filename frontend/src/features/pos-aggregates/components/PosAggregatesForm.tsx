@@ -108,6 +108,7 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
       discount_amount: 0,
       tax_amount: 0,
       service_charge_amount: 0,
+      other_vat_amount: 0,
       bill_after_discount: 0,
       rounding_amount: 0,
       delivery_cost: 0,
@@ -129,6 +130,12 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
   const discountAmount = watch("discount_amount", 0)
   const taxAmount = watch("tax_amount", 0)
   const serviceChargeAmount = watch("service_charge_amount", 0)
+  const otherVatAmount = watch("other_vat_amount", 0)
+  const promoDiscountAmount = watch("promotion_discount_amount", 0)
+  const voucherDiscountAmount = watch("voucher_discount_amount", 0)
+  const roundingAmount = watch("rounding_amount", 0)
+  const deliveryCost = watch("delivery_cost", 0)
+  const orderFee = watch("order_fee", 0)
 
 // Removed manual watch/parseCurrency - using Controller for number fields handles this
 
@@ -144,12 +151,13 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
 
   // Reactive calculation for Bill After Discount and Nett Amount
   useEffect(() => {
-    const billAfterDiscount = grossAmount + taxAmount + serviceChargeAmount - discountAmount
+    const billAfterDiscount = grossAmount + taxAmount + serviceChargeAmount + otherVatAmount + deliveryCost + orderFee
+      - discountAmount - promoDiscountAmount - voucherDiscountAmount + roundingAmount
     const newNettAmount = billAfterDiscount - totalFeeAmount
     
     setValue("nett_amount", newNettAmount)
     setValue("bill_after_discount", billAfterDiscount)
-  }, [grossAmount, taxAmount, serviceChargeAmount, discountAmount, totalFeeAmount, setValue])
+  }, [grossAmount, taxAmount, serviceChargeAmount, otherVatAmount, discountAmount, promoDiscountAmount, voucherDiscountAmount, roundingAmount, deliveryCost, orderFee, totalFeeAmount, setValue])
 
   // Net amount from backend (already calculated correctly)
 
@@ -193,6 +201,7 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
         discount_amount: transaction.discount_amount ?? 0,
         tax_amount: transaction.tax_amount ?? 0,
         service_charge_amount: transaction.service_charge_amount ?? 0,
+        other_vat_amount: transaction.other_vat_amount ?? 0,
         bill_after_discount: transaction.bill_after_discount ?? 0,
         rounding_amount: transaction.rounding_amount ?? 0,
         delivery_cost: transaction.delivery_cost ?? 0,
@@ -594,6 +603,20 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
                 )} />
             </div>
           </div>
+
+          {/* Other VAT */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Other VAT</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
+              <Controller name="other_vat_amount" control={control}
+                render={({ field }) => (
+                  <input type="number" {...field} step="0.01" min="0"
+                    onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                )} />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -662,7 +685,7 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
               <input
                 type="text"
-                value={formatRupiah(grossAmount + taxAmount + serviceChargeAmount - discountAmount)}
+                value={formatRupiah(watch("bill_after_discount"))}
                 readOnly
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300"
               />

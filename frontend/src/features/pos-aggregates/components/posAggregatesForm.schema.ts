@@ -8,6 +8,7 @@ const statusValues = [
   "CANCELLED",
   "FAILED",
   "SUPERSEDED",
+  "VOID",
 ] as const
 
 export const posAggregatesFormSchema = z.object({
@@ -36,7 +37,8 @@ export const posAggregatesFormSchema = z.object({
   discount_amount: z.number().min(0),
   tax_amount: z.number().min(0),
   service_charge_amount: z.number().min(0),
-  bill_after_discount: z.number().min(0),
+  other_vat_amount: z.number().min(0),
+  bill_after_discount: z.number(),
   rounding_amount: z.number(),
   delivery_cost: z.number().min(0),
   order_fee: z.number().min(0),
@@ -45,7 +47,7 @@ export const posAggregatesFormSchema = z.object({
   percentage_fee_amount: z.number().min(0),
   fixed_fee_amount: z.number().min(0),
   total_fee_amount: z.number().min(0),
-  nett_amount: z.number().min(0),
+  nett_amount: z.number(),
 
   currency: z
     .string()

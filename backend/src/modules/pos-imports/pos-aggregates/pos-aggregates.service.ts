@@ -260,12 +260,19 @@ export class PosAggregatesService {
     AggregatedTransaction,
     "id" | "created_at" | "updated_at" | "version"
   > {
-    // Calculate bill after discount = gross + tax + service_charge - discount
+    // Calculate bill after discount = gross + tax + SC + otherVat + delivery + orderFee
+    //                                  - discount - promoDiscount - voucherDiscount ± rounding
     const billAfterDiscount =
       Number(data.gross_amount) +
       Number(data.tax_amount ?? 0) +
-      Number(data.service_charge_amount ?? 0) -
-      Number(data.discount_amount ?? 0)
+      Number(data.service_charge_amount ?? 0) +
+      Number(data.other_vat_amount ?? 0) +
+      Number(data.delivery_cost ?? 0) +
+      Number(data.order_fee ?? 0) -
+      Number(data.discount_amount ?? 0) -
+      Number(data.promotion_discount_amount ?? 0) -
+      Number(data.voucher_discount_amount ?? 0) +
+      Number(data.rounding_amount ?? 0)
 
     // Calculate percentage fee from payment method configuration
     // percentage_fee = bill_after_discount × fee_percentage / 100
@@ -306,14 +313,14 @@ export class PosAggregatesService {
       fixed_fee_amount: fixedFeeAmount,
       total_fee_amount: totalFeeAmount,
       nett_amount: nettAmount,
-      rounding_amount: 0,
-      delivery_cost: 0,
-      order_fee: 0,
-      voucher_discount_amount: 0,
-      promotion_discount_amount: 0,
+      rounding_amount: data.rounding_amount ?? 0,
+      delivery_cost: data.delivery_cost ?? 0,
+      order_fee: data.order_fee ?? 0,
+      voucher_discount_amount: data.voucher_discount_amount ?? 0,
+      promotion_discount_amount: data.promotion_discount_amount ?? 0,
       menu_discount_amount: 0,
       voucher_payment_amount: 0,
-      other_vat_amount: 0,
+      other_vat_amount: data.other_vat_amount ?? 0,
       pax_total: 0,
       currency: data.currency ?? "IDR",
       journal_id: null,

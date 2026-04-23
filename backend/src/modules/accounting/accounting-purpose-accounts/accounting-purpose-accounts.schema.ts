@@ -22,6 +22,7 @@ export const createAccountingPurposeAccountSchema = z.object({
     priority: z.number().int().min(AccountingPurposeAccountsConfig.VALIDATION.MIN_PRIORITY)
                     .max(AccountingPurposeAccountsConfig.VALIDATION.MAX_PRIORITY)
                     .optional(),
+    field_mapping: z.string().max(50).nullable().optional(),
   }),
 })
 
@@ -37,6 +38,7 @@ export const updateAccountingPurposeAccountSchema = z.object({
     priority: z.number().int().min(AccountingPurposeAccountsConfig.VALIDATION.MIN_PRIORITY)
                     .max(AccountingPurposeAccountsConfig.VALIDATION.MAX_PRIORITY)
                     .optional(),
+    field_mapping: z.string().max(50).nullable().optional(),
   }),
 })
 
@@ -51,6 +53,7 @@ export const bulkCreateAccountingPurposeAccountSchema = z.object({
       priority: z.number().int().min(AccountingPurposeAccountsConfig.VALIDATION.MIN_PRIORITY)
                       .max(AccountingPurposeAccountsConfig.VALIDATION.MAX_PRIORITY)
                       .optional(),
+      field_mapping: z.string().max(50).nullable().optional(),
     }))
     .min(1)
     .max(AccountingPurposeAccountsConfig.VALIDATION.MAX_BULK_OPERATIONS),

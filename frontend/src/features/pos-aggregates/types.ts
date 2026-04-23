@@ -206,6 +206,7 @@ export interface CreateAggregatedTransactionDto {
   discount_amount?: number;
   tax_amount?: number;
   service_charge_amount?: number;
+  other_vat_amount?: number;
   bill_after_discount?: number;
   rounding_amount?: number;
   delivery_cost?: number;
@@ -236,6 +237,7 @@ export interface UpdateAggregatedTransactionDto {
   discount_amount?: number;
   tax_amount?: number;
   service_charge_amount?: number;
+  other_vat_amount?: number;
   bill_after_discount?: number;
   rounding_amount?: number;
   delivery_cost?: number;

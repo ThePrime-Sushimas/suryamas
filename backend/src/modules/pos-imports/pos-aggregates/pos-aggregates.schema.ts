@@ -25,8 +25,8 @@ const paymentMethodIdSchema = z.union([
 
 export const createAggregatedTransactionSchema = z.object({
   body: z.object({
-    branch_id: z.string().uuid('Branch ID must be a valid UUID').nullable().optional(), // UUID reference to branches
-    branch_name: z.string().nullable().optional(),  // branch name from pos_import_lines
+    branch_id: z.string().uuid('Branch ID must be a valid UUID').nullable().optional(),
+    branch_name: z.string().nullable().optional(),
     source_type: z.enum(['POS']).default('POS'),
     source_id: z.string().min(1, 'Source ID is required').max(100, 'Source ID must not exceed 100 characters'),
     source_ref: z.string().min(1, 'Source reference is required').max(100, 'Source reference must not exceed 100 characters'),
@@ -35,13 +35,19 @@ export const createAggregatedTransactionSchema = z.object({
     }),
     payment_method_id: paymentMethodIdSchema,
     gross_amount: z.number().min(0, 'Gross amount must be non-negative'),
-discount_amount: z.number().min(0, 'Discount amount must be non-negative').default(0),
+    discount_amount: z.number().min(0, 'Discount amount must be non-negative').default(0),
     tax_amount: z.number().min(0, 'Tax amount must be non-negative').default(0),
     service_charge_amount: z.number().min(0, 'Service charge amount must be non-negative').default(0),
-    bill_after_discount: z.number().min(0, 'Bill after discount must be non-negative').optional(),
-    nett_amount: z.number().min(0, 'Nett amount must be non-negative'),
+    other_vat_amount: z.number().min(0).default(0),
+    bill_after_discount: z.number().optional(),
+    rounding_amount: z.number().default(0),
+    delivery_cost: z.number().min(0).default(0),
+    order_fee: z.number().min(0).default(0),
+    promotion_discount_amount: z.number().min(0).default(0),
+    voucher_discount_amount: z.number().min(0).default(0),
+    nett_amount: z.number(),
     currency: z.string().min(1, 'Currency is required').max(10).default('IDR'),
-    status: z.enum(['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED'])
+    status: z.enum(['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED', 'VOID', 'SUPERSEDED'])
       .default('READY'),
   }),
 })
@@ -64,12 +70,18 @@ export const updateAggregatedTransactionSchema = z.object({
     payment_method_id: z.number().int().positive().optional(),
     gross_amount: z.number().min(0).optional(),
     discount_amount: z.number().min(0).optional(),
-tax_amount: z.number().min(0).optional(),
+    tax_amount: z.number().min(0).optional(),
     service_charge_amount: z.number().min(0).optional(),
-    bill_after_discount: z.number().min(0).optional(),
-    nett_amount: z.number().min(0).optional(),
+    other_vat_amount: z.number().min(0).optional(),
+    bill_after_discount: z.number().optional(),
+    rounding_amount: z.number().optional(),
+    delivery_cost: z.number().min(0).optional(),
+    order_fee: z.number().min(0).optional(),
+    promotion_discount_amount: z.number().min(0).optional(),
+    voucher_discount_amount: z.number().min(0).optional(),
+    nett_amount: z.number().optional(),
     currency: z.string().min(1).max(10).optional(),
-    status: z.enum(['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED'])
+    status: z.enum(['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED', 'VOID', 'SUPERSEDED'])
       .optional(),
     is_reconciled: z.boolean().optional(),
     version: z.number().int().positive().optional(),
