@@ -722,7 +722,9 @@ if (error) {
     dateFrom?: string,
     dateTo?: string,
     branchNames?: string[],
-    paymentMethodIds?: number[]
+    paymentMethodIds?: number[],
+    status?: string,
+    isReconciled?: boolean,
   ): Promise<{
     total_count: number
     total_gross_amount: number
@@ -735,63 +737,42 @@ if (error) {
     total_fee_amount: number
     total_nett_amount: number
   }> {
-    let dbQuery = supabase
+    const applyFilters = (query: any) => {
+      query = query.is('deleted_at', null).is('superseded_by', null)
+      // Exclude VOID by default unless explicitly filtering for it
+      if (status) {
+        query = query.eq('status', status)
+      } else {
+        query = query.not('status', 'in', '(VOID,SUPERSEDED)')
+      }
+      if (isReconciled !== undefined) query = query.eq('is_reconciled', isReconciled)
+      if (dateFrom) query = query.gte('transaction_date', dateFrom)
+      if (dateTo) query = query.lte('transaction_date', dateTo)
+      if (branchNames && branchNames.length > 0) {
+        query = query.or(branchNames.map(b => `branch_name.ilike.%${b}%`).join(','))
+      }
+      if (paymentMethodIds && paymentMethodIds.length > 0) {
+        query = query.in('payment_method_id', paymentMethodIds)
+      }
+      return query
+    }
+
+    // Count query
+    let countQuery = supabase
       .from('aggregated_transactions')
       .select('*', { count: 'exact', head: true })
-      .is('deleted_at', null)
-      .is('superseded_by', null)
+    countQuery = applyFilters(countQuery)
+    const { count, error: countError } = await countQuery
+    if (countError) throw new DatabaseError('Failed to get summary count', { cause: countError })
 
-    if (dateFrom) dbQuery = dbQuery.gte('transaction_date', dateFrom)
-    if (dateTo) dbQuery = dbQuery.lte('transaction_date', dateTo)
-
-    // Use case-insensitive ilike for branch names
-    if (branchNames && branchNames.length > 0) {
-      const orConditions = branchNames.map(b => `branch_name.ilike.%${b}%`).join(',')
-      dbQuery = dbQuery.or(orConditions)
-    }
-
-    // Filter by payment method IDs
-    if (paymentMethodIds && paymentMethodIds.length > 0) {
-      dbQuery = dbQuery.in('payment_method_id', paymentMethodIds)
-    }
-
-    // First get the count
-    const { count, error: countError } = await dbQuery
-
-    if (countError) {
-      console.error('getSummary count error:', countError)
-      throw new DatabaseError('Failed to get summary count', { cause: countError })
-    }
-
-    // Then get the sum aggregations
-    let allDataQuery = supabase
+    // Data query
+    let dataQuery = supabase
       .from('aggregated_transactions')
       .select('gross_amount, discount_amount, tax_amount, service_charge_amount, bill_after_discount, percentage_fee_amount, fixed_fee_amount, total_fee_amount, nett_amount')
-      .is('deleted_at', null)
-      .is('superseded_by', null)
+    dataQuery = applyFilters(dataQuery)
+    const { data: allData, error: dataError } = await dataQuery
+    if (dataError) throw new DatabaseError('Failed to get summary data', { cause: dataError })
 
-    if (dateFrom) allDataQuery = allDataQuery.gte('transaction_date', dateFrom)
-    if (dateTo) allDataQuery = allDataQuery.lte('transaction_date', dateTo)
-
-    // Use case-insensitive ilike for branch names
-    if (branchNames && branchNames.length > 0) {
-      const orConditions = branchNames.map(b => `branch_name.ilike.%${b}%`).join(',')
-      allDataQuery = allDataQuery.or(orConditions)
-    }
-
-    // Filter by payment method IDs
-    if (paymentMethodIds && paymentMethodIds.length > 0) {
-      allDataQuery = allDataQuery.in('payment_method_id', paymentMethodIds)
-    }
-
-    const { data: allData, error: allDataError } = await allDataQuery
-
-    if (allDataError) {
-      console.error('getSummary sum error:', allDataError)
-      throw new DatabaseError('Failed to get summary data', { cause: allDataError })
-    }
-
-    // Calculate sums in JavaScript
     const totals = (allData || []).reduce((acc, row) => ({
       gross_amount: (acc.gross_amount || 0) + Number(row.gross_amount || 0),
       discount_amount: (acc.discount_amount || 0) + Number(row.discount_amount || 0),
@@ -803,15 +784,9 @@ if (error) {
       total_fee_amount: (acc.total_fee_amount || 0) + Number(row.total_fee_amount || 0),
       nett_amount: (acc.nett_amount || 0) + Number(row.nett_amount || 0),
     }), {
-      gross_amount: 0,
-      discount_amount: 0,
-      tax_amount: 0,
-      service_charge_amount: 0,
-      bill_after_discount: 0,
-      percentage_fee_amount: 0,
-      fixed_fee_amount: 0,
-      total_fee_amount: 0,
-      nett_amount: 0
+      gross_amount: 0, discount_amount: 0, tax_amount: 0, service_charge_amount: 0,
+      bill_after_discount: 0, percentage_fee_amount: 0, fixed_fee_amount: 0,
+      total_fee_amount: 0, nett_amount: 0,
     })
 
     return {

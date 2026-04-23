@@ -523,21 +523,16 @@ export const posAggregatesApi = {
       const params: Record<string, unknown> = {}
       // Only add filter params if they have values (not undefined/null)
       if (filter) {
-        // branch_id filter for UUID-based filtering
         if (filter.branch_id !== undefined && filter.branch_id !== null) {
           params.branch_id = filter.branch_id
         }
-        // branch_name filter for name-based filtering
         if (filter.branch_name !== undefined && filter.branch_name !== null) {
           params.branch_name = filter.branch_name
         }
-        // Handle branch_names (can be array or comma-separated string)
         if (filter.branch_names) {
-          if (Array.isArray(filter.branch_names)) {
-            params.branch_names = filter.branch_names.join(',')
-          } else {
-            params.branch_names = filter.branch_names
-          }
+          params.branch_names = Array.isArray(filter.branch_names)
+            ? filter.branch_names.join(',')
+            : filter.branch_names
         }
         if (filter.transaction_date_from) {
           params.transaction_date_from = filter.transaction_date_from
@@ -545,13 +540,16 @@ export const posAggregatesApi = {
         if (filter.transaction_date_to) {
           params.transaction_date_to = filter.transaction_date_to
         }
-        // Handle payment_method_ids (can be array or comma-separated string)
         if (filter.payment_method_ids) {
-          if (Array.isArray(filter.payment_method_ids)) {
-            params.payment_method_ids = filter.payment_method_ids.join(',')
-          } else {
-            params.payment_method_ids = filter.payment_method_ids
-          }
+          params.payment_method_ids = Array.isArray(filter.payment_method_ids)
+            ? filter.payment_method_ids.join(',')
+            : filter.payment_method_ids
+        }
+        if (filter.status) {
+          params.status = filter.status
+        }
+        if (filter.is_reconciled !== undefined) {
+          params.is_reconciled = filter.is_reconciled
         }
       }
 

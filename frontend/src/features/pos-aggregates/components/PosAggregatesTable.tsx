@@ -261,6 +261,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
               const deletedAt = transaction.deleted_at
               const isDeleted = deletedAt !== null && deletedAt !== undefined && deletedAt !== ''
               const isSelected = selectedIds.has(transaction.id)
+                  const isVoid = transaction.status === 'VOID'
               
               return (
                 <tr
@@ -268,7 +269,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                   onClick={() => onViewDetail(transaction.id)}
                   className={`
                     cursor-pointer transition-colors
-                    ${isDeleted ? 'bg-red-50 dark:bg-red-900/20 opacity-100' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}
+                    ${isDeleted ? 'bg-red-50 dark:bg-red-900/20 opacity-100' : isVoid ? 'bg-red-50/50 dark:bg-red-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}
                     ${isSelected ? 'bg-blue-100 dark:bg-blue-900/30' : ''}
                   `}
                 >
@@ -309,7 +310,9 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
 
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {transaction.payment_method_name || `ID: ${transaction.payment_method_id}`}
+                      {transaction.status === 'VOID'
+                        ? <span className="text-red-600 dark:text-red-400 font-medium">VOID</span>
+                        : transaction.payment_method_name || (transaction.payment_method_id ? `ID: ${transaction.payment_method_id}` : '—')}
                     </span>
                   </td>
 
@@ -492,7 +495,7 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                           onClick={(e) => {
                             e.stopPropagation()
                             setReconcileId(transaction.id)
-                            setReconcilePaymentMethod(transaction.payment_method_name || `ID: ${transaction.payment_method_id}`)
+                            setReconcilePaymentMethod(transaction.payment_method_name || (transaction.payment_method_id ? `ID: ${transaction.payment_method_id}` : 'VOID'))
                             setReconcileReason('')
                           }}
                           className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-green-500"

@@ -756,15 +756,18 @@ bill_after_discount: updates.bill_after_discount,
     dateTo?: string,
     branchNames?: string[],
     paymentMethodIds?: number[],
+    status?: string,
+    isReconciled?: boolean,
   ): Promise<AggregatedTransactionSummary> {
     const summary = await posAggregatesRepository.getSummary(
       dateFrom,
       dateTo,
       branchNames,
       paymentMethodIds,
+      status,
+      isReconciled,
     );
 
-    // Pass filters to getStatusCounts so counts match filtered data
     const statusCounts = await posAggregatesRepository.getStatusCounts(
       dateFrom,
       dateTo,
