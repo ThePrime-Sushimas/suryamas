@@ -110,7 +110,6 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
       service_charge_amount: 0,
       other_vat_amount: 0,
       bill_after_discount: 0,
-      rounding_amount: 0,
       delivery_cost: 0,
       order_fee: 0,
       promotion_discount_amount: 0,
@@ -133,7 +132,6 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
   const otherVatAmount = watch("other_vat_amount", 0)
   const promoDiscountAmount = watch("promotion_discount_amount", 0)
   const voucherDiscountAmount = watch("voucher_discount_amount", 0)
-  const roundingAmount = watch("rounding_amount", 0)
   const deliveryCost = watch("delivery_cost", 0)
   const orderFee = watch("order_fee", 0)
 
@@ -152,12 +150,12 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
   // Reactive calculation for Bill After Discount and Nett Amount
   useEffect(() => {
     const billAfterDiscount = grossAmount + taxAmount + serviceChargeAmount + otherVatAmount + deliveryCost + orderFee
-      - discountAmount - promoDiscountAmount - voucherDiscountAmount + roundingAmount
+      - discountAmount - promoDiscountAmount - voucherDiscountAmount
     const newNettAmount = billAfterDiscount - totalFeeAmount
     
     setValue("nett_amount", newNettAmount)
     setValue("bill_after_discount", billAfterDiscount)
-  }, [grossAmount, taxAmount, serviceChargeAmount, otherVatAmount, discountAmount, promoDiscountAmount, voucherDiscountAmount, roundingAmount, deliveryCost, orderFee, totalFeeAmount, setValue])
+  }, [grossAmount, taxAmount, serviceChargeAmount, otherVatAmount, discountAmount, promoDiscountAmount, voucherDiscountAmount, deliveryCost, orderFee, totalFeeAmount, setValue])
 
   // Net amount from backend (already calculated correctly)
 
@@ -203,7 +201,6 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
         service_charge_amount: transaction.service_charge_amount ?? 0,
         other_vat_amount: transaction.other_vat_amount ?? 0,
         bill_after_discount: transaction.bill_after_discount ?? 0,
-        rounding_amount: transaction.rounding_amount ?? 0,
         delivery_cost: transaction.delivery_cost ?? 0,
         order_fee: transaction.order_fee ?? 0,
         promotion_discount_amount: transaction.promotion_discount_amount ?? 0,
@@ -559,21 +556,6 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
                     className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                 )} />
             </div>
-          </div>
-
-          {/* Rounding */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Rounding</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
-              <Controller name="rounding_amount" control={control}
-                render={({ field }) => (
-                  <input type="number" {...field} step="0.01"
-                    onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                )} />
-            </div>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Bisa negatif</p>
           </div>
 
           {/* Delivery Cost */}

@@ -39,7 +39,6 @@ export const posAggregatesFormSchema = z.object({
   service_charge_amount: z.number().min(0),
   other_vat_amount: z.number().min(0),
   bill_after_discount: z.number(),
-  rounding_amount: z.number(),
   delivery_cost: z.number().min(0),
   order_fee: z.number().min(0),
   promotion_discount_amount: z.number().min(0),
