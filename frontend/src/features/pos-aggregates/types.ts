@@ -375,6 +375,8 @@ export interface AggregatedTransactionSummary {
   total_fixed_fee_amount: number;
   total_fee_amount: number;
   total_nett_amount: number;
+  total_actual_nett_amount: number;
+  total_fee_discrepancy: number;
   by_status?: Record<AggregatedTransactionStatus, number>;
   by_payment_method?: Record<number, number>;
 }

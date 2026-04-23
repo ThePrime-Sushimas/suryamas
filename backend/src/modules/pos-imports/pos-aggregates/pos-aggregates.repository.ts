@@ -736,6 +736,8 @@ if (error) {
     total_fixed_fee_amount: number
     total_fee_amount: number
     total_nett_amount: number
+    total_actual_nett_amount: number
+    total_fee_discrepancy: number
   }> {
     const applyFilters = (query: any) => {
       query = query.is('deleted_at', null).is('superseded_by', null)
@@ -768,7 +770,7 @@ if (error) {
     // Data query
     let dataQuery = supabase
       .from('aggregated_transactions')
-      .select('gross_amount, discount_amount, tax_amount, service_charge_amount, bill_after_discount, percentage_fee_amount, fixed_fee_amount, total_fee_amount, nett_amount')
+      .select('gross_amount, discount_amount, tax_amount, service_charge_amount, bill_after_discount, percentage_fee_amount, fixed_fee_amount, total_fee_amount, nett_amount, actual_nett_amount, fee_discrepancy')
     dataQuery = applyFilters(dataQuery)
     const { data: allData, error: dataError } = await dataQuery
     if (dataError) throw new DatabaseError('Failed to get summary data', { cause: dataError })
@@ -783,10 +785,12 @@ if (error) {
       fixed_fee_amount: (acc.fixed_fee_amount || 0) + Number(row.fixed_fee_amount || 0),
       total_fee_amount: (acc.total_fee_amount || 0) + Number(row.total_fee_amount || 0),
       nett_amount: (acc.nett_amount || 0) + Number(row.nett_amount || 0),
+      actual_nett_amount: (acc.actual_nett_amount || 0) + Number(row.actual_nett_amount || 0),
+      fee_discrepancy: (acc.fee_discrepancy || 0) + Number(row.fee_discrepancy || 0),
     }), {
       gross_amount: 0, discount_amount: 0, tax_amount: 0, service_charge_amount: 0,
       bill_after_discount: 0, percentage_fee_amount: 0, fixed_fee_amount: 0,
-      total_fee_amount: 0, nett_amount: 0,
+      total_fee_amount: 0, nett_amount: 0, actual_nett_amount: 0, fee_discrepancy: 0,
     })
 
     return {
@@ -800,6 +804,8 @@ if (error) {
       total_fixed_fee_amount: totals.fixed_fee_amount,
       total_fee_amount: totals.total_fee_amount,
       total_nett_amount: totals.nett_amount,
+      total_actual_nett_amount: totals.actual_nett_amount,
+      total_fee_discrepancy: totals.fee_discrepancy,
     }
   }
 

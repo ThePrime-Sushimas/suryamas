@@ -60,11 +60,13 @@ const SummarySkeleton: React.FC = () => (
           <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Fixed Fee</th>
           <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Fee</th>
           <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Nett Amount</th>
+          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Selisih Fee</th>
+          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Nett Aktual</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
         <tr>
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
             <td key={i} className="px-4 py-3">
               <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-full animate-pulse" />
             </td>
@@ -132,6 +134,12 @@ export const PosAggregatesSummary: React.FC<PosAggregatesSummaryProps> = ({
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Nett Amount
               </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Selisih Fee
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Nett Aktual
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -184,6 +192,22 @@ export const PosAggregatesSummary: React.FC<PosAggregatesSummaryProps> = ({
               <td className="px-4 py-3 whitespace-nowrap text-right">
                 <span className="text-sm font-bold text-green-700 dark:text-green-400">
                   {formatCurrency(summary.total_nett_amount)}
+                </span>
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-right">
+                <span className={`text-sm font-bold ${
+                  summary.total_fee_discrepancy > 0
+                    ? 'text-red-600 dark:text-red-400'
+                    : summary.total_fee_discrepancy < 0
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-gray-500 dark:text-gray-400'
+                }`}>
+                  {summary.total_fee_discrepancy !== 0 ? formatCurrency(summary.total_fee_discrepancy) : '-'}
+                </span>
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-right">
+                <span className="text-sm font-bold text-blue-700 dark:text-blue-400">
+                  {formatCurrency(summary.total_actual_nett_amount)}
                 </span>
               </td>
             </tr>
