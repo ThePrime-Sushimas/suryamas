@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Loader2, Banknote, Info } from 'lucide-react'
+import { X, Loader2, Banknote } from 'lucide-react'
 import type { CashCountPreviewRow } from '../api/cashCounts.api'
 
 const fmt = (n: number) => n.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
@@ -8,7 +8,7 @@ const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2
 interface Props {
   isOpen: boolean
   onClose: () => void
-  onConfirm: (depositDate: string, bankAccountId: number, reference: string, notes: string) => Promise<void>
+  onConfirm: (depositDate: string, bankAccountId: number, reference: string, notes: string, depositAmount?: number) => Promise<void>
   selectedRows: CashCountPreviewRow[]
   bankAccounts: { id: number; account_name: string; account_number: string; bank_name: string; bank_code: string }[]
   isLoading: boolean
@@ -19,14 +19,23 @@ export function DepositModal({ isOpen, onClose, onConfirm, selectedRows, bankAcc
   const [bankAccountId, setBankAccountId] = useState(0)
   const [reference, setReference] = useState('')
   const [notes, setNotes] = useState('')
+  const [manualAmount, setManualAmount] = useState('')
 
   if (!isOpen) return null
 
   const totalLarge = selectedRows.reduce((s, r) => s + (r.large_denomination || 0), 0)
   const totalSmall = selectedRows.reduce((s, r) => s + (r.small_denomination || 0), 0)
-  const totalDeposit = totalLarge + totalSmall
+  const totalPhysical = totalLarge + totalSmall
   const branchName = selectedRows[0]?.branch_name || ''
-  const canSubmit = depositDate && bankAccountId > 0 && totalLarge > 0
+
+  // Manual override or auto
+  const manualNum = Number(manualAmount) || 0
+  const isManual = manualAmount !== '' && manualNum > 0
+  const depositAmount = isManual ? manualNum : totalPhysical
+  const uangKecil = isManual ? totalPhysical - manualNum : totalSmall
+  const isOverLimit = isManual && manualNum > totalPhysical
+
+  const canSubmit = depositDate && bankAccountId > 0 && depositAmount > 0 && !isOverLimit
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70" onClick={onClose}>
@@ -57,26 +66,10 @@ export function DepositModal({ isOpen, onClose, onConfirm, selectedRows, bankAcc
               </span>
             </div>
 
-            {/* Breakdown */}
             <div className="border-t border-purple-200 dark:border-purple-700 pt-2 space-y-1.5">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Pecahan Besar (Kasir)</span>
-                <span className="font-mono text-gray-700 dark:text-gray-300">{fmt(totalLarge)}</span>
-              </div>
-              {totalSmall > 0 && (
-                <div className="flex justify-between text-sm">
-                  <div className="flex items-center gap-1">
-                    <span className="text-gray-500">Top Up Modal</span>
-                    <span title="Dana tambahan yang ditransfer untuk melengkapi setoran. Tercatat sebagai piutang perusahaan.">
-                      <Info className="w-3 h-3 text-gray-400 cursor-help" />
-                    </span>
-                  </div>
-                  <span className="font-mono text-orange-600 dark:text-orange-400">{fmt(totalSmall)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-sm font-semibold border-t border-purple-200 dark:border-purple-700 pt-1.5">
-                <span className="text-gray-700 dark:text-gray-200">Total Setor ke Bank</span>
-                <span className="font-mono text-purple-700 dark:text-purple-300">{fmt(totalDeposit)}</span>
+                <span className="text-gray-500">Total Fisik</span>
+                <span className="font-mono text-gray-700 dark:text-gray-300">{fmt(totalPhysical)}</span>
               </div>
             </div>
           </div>
@@ -88,8 +81,8 @@ export function DepositModal({ isOpen, onClose, onConfirm, selectedRows, bankAcc
                 <tr className="bg-gray-50 dark:bg-gray-800/50 text-gray-400">
                   <th className="px-2 py-1.5 text-left">Tanggal</th>
                   <th className="px-2 py-1.5 text-right">Besar</th>
-                  <th className="px-2 py-1.5 text-right">Top Up Modal</th>
-                  <th className="px-2 py-1.5 text-right font-semibold">Total Setor</th>
+                  <th className="px-2 py-1.5 text-right">Kecil</th>
+                  <th className="px-2 py-1.5 text-right font-semibold">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -107,19 +100,38 @@ export function DepositModal({ isOpen, onClose, onConfirm, selectedRows, bankAcc
             </table>
           </div>
 
-          {/* Tambahan modal info box */}
-          {totalSmall > 0 && (
-            <div className="flex items-start gap-2 p-2.5 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
-              <Info className="w-3.5 h-3.5 text-orange-500 mt-0.5 shrink-0" />
-              <p className="text-xs text-orange-700 dark:text-orange-300">
-                {fmt(totalSmall)} merupakan dana tambahan yang ditransfer untuk melengkapi setoran ke bank.
-                Jumlah ini tercatat sebagai <strong>piutang perusahaan</strong> dan akan menjadi modal cabang dalam bentuk uang kecil.
-              </p>
-            </div>
-          )}
-
           {/* Form */}
           <div className="space-y-3">
+            {/* Manual deposit amount */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                Jumlah Setor ke Bank
+                <span className="normal-case font-normal text-gray-400 ml-1">(kosongkan = otomatis {fmt(totalPhysical)})</span>
+              </label>
+              <input type="number" value={manualAmount} onChange={(e) => setManualAmount(e.target.value)}
+                min={0} max={totalPhysical} placeholder={totalPhysical.toString()}
+                className={`w-full px-3 py-2.5 border rounded-lg bg-white dark:bg-gray-700 text-sm font-mono text-gray-900 dark:text-white focus:outline-none focus:ring-2 ${
+                  isOverLimit ? 'border-red-400 focus:ring-red-500' : 'border-gray-300 dark:border-gray-600 focus:ring-purple-500'
+                }`} />
+              {isOverLimit && (
+                <p className="text-xs text-red-500 mt-1">Tidak boleh melebihi total fisik ({fmt(totalPhysical)})</p>
+              )}
+            </div>
+
+            {/* Breakdown result */}
+            <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg space-y-1.5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Setor ke Bank</span>
+                <span className="font-mono font-semibold text-purple-700 dark:text-purple-300">{fmt(depositAmount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Sisa (Uang Kecil / Modal)</span>
+                <span className={`font-mono font-medium ${uangKecil > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-400'}`}>
+                  {fmt(Math.max(0, uangKecil))}
+                </span>
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Tanggal Setor *</label>
               <input type="date" value={depositDate} onChange={(e) => setDepositDate(e.target.value)}
@@ -148,10 +160,10 @@ export function DepositModal({ isOpen, onClose, onConfirm, selectedRows, bankAcc
 
         <div className="flex justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
           <button onClick={onClose} className="px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Batal</button>
-          <button onClick={() => onConfirm(depositDate, bankAccountId, reference, notes)} disabled={!canSubmit || isLoading}
+          <button onClick={() => onConfirm(depositDate, bankAccountId, reference, notes, isManual ? manualNum : undefined)} disabled={!canSubmit || isLoading}
             className="px-5 py-2.5 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1.5">
             {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Banknote className="w-3.5 h-3.5" />}
-            Setor {fmt(totalDeposit)}
+            Setor {fmt(depositAmount)}
           </button>
         </div>
       </div>

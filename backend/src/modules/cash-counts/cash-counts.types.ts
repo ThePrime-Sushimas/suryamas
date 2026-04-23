@@ -83,6 +83,7 @@ export interface CreateDepositDto {
   cash_count_ids: string[]
   deposit_date: string
   bank_account_id: number
+  deposit_amount?: number
   reference?: string
   notes?: string
 }

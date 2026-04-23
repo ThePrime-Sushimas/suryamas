@@ -47,6 +47,7 @@ export const createDepositSchema = z.object({
     cash_count_ids: z.array(z.string().uuid()).min(1, 'Pilih minimal 1 cash count'),
     deposit_date: z.string().regex(DATE_REGEX, 'Format tanggal harus YYYY-MM-DD'),
     bank_account_id: z.coerce.number().int().positive(),
+    deposit_amount: z.coerce.number().min(0).optional(),
     reference: z.string().optional(),
     notes: z.string().optional(),
   }),

@@ -105,11 +105,30 @@ export class CashCountsService {
     }
 
     // Calculate deposit amounts
-    const largeAmount = cashCounts.reduce((s, cc) => s + (cc!.large_denomination || 0), 0)
-    const smallAmount = cashCounts.reduce((s, cc) => s + (cc!.small_denomination || 0), 0)
-    const depositAmount = largeAmount + smallAmount  // total yang masuk ke bank
+    const totalLarge = cashCounts.reduce((s, cc) => s + (cc!.large_denomination || 0), 0)
+    const totalSmall = cashCounts.reduce((s, cc) => s + (cc!.small_denomination || 0), 0)
+    const totalPhysical = totalLarge + totalSmall
 
-    if (largeAmount <= 0) throw new CashCountOperationError('deposit', 'Total pecahan besar harus > 0')
+    // Manual override: user specifies exact deposit amount (rounded to large bills)
+    // owner_top_up = totalPhysical - depositAmount (remainder = uang kecil kept as modal)
+    let depositAmount: number
+    let largeAmount: number
+    let smallAmount: number
+
+    if (dto.deposit_amount != null && dto.deposit_amount > 0) {
+      depositAmount = dto.deposit_amount
+      if (depositAmount > totalPhysical) {
+        throw new CashCountOperationError('deposit', `Jumlah setor (${depositAmount}) tidak boleh melebihi total fisik (${totalPhysical})`)
+      }
+      largeAmount = depositAmount
+      smallAmount = totalPhysical - depositAmount
+    } else {
+      largeAmount = totalLarge
+      smallAmount = totalSmall
+      depositAmount = largeAmount + smallAmount
+    }
+
+    if (depositAmount <= 0) throw new CashCountOperationError('deposit', 'Total setoran harus > 0')
 
     const dates = cashCounts.map((cc) => cc!.start_date).sort()
     const branchNames = [...new Set(cashCounts.map((cc) => cc!.branch_name).filter(Boolean))]

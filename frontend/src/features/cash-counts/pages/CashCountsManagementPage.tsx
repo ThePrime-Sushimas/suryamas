@@ -255,12 +255,12 @@ export function CashCountsManagementPage() {
   const handleCount = useCallback(async (id: string, dto: UpdatePhysicalCountDto) => { await cashCountsApi.updatePhysicalCount(id, dto); toast.success('Disimpan'); setShowDetail(false); handlePreview() }, [toast, handlePreview])
   const handleClose = useCallback(async (id: string) => { await cashCountsApi.close(id); toast.success('Ditutup'); setShowDetail(false); handlePreview() }, [toast, handlePreview])
 
-  const handleCreateDeposit = useCallback(async (depositDate: string, bankAccountId: number, reference: string, notes: string) => {
+  const handleCreateDeposit = useCallback(async (depositDate: string, bankAccountId: number, reference: string, notes: string, depositAmount?: number) => {
     const ids = selectedDepositRows.map((r) => r.cash_count_id!).filter(Boolean)
     if (ids.length === 0) return
     setIsMutating(true)
     try {
-      await cashCountsApi.createDeposit({ cash_count_ids: ids, deposit_date: depositDate, bank_account_id: bankAccountId, reference: reference || undefined, notes: notes || undefined })
+      await cashCountsApi.createDeposit({ cash_count_ids: ids, deposit_date: depositDate, bank_account_id: bankAccountId, deposit_amount: depositAmount, reference: reference || undefined, notes: notes || undefined })
       toast.success(`Setoran ${selectedDepositRows.length} item berhasil dibuat`)
       setShowDepositModal(false)
       setSelectedForDeposit(new Set())
