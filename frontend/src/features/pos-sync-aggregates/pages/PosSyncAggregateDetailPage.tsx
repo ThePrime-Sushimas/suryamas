@@ -65,6 +65,7 @@ export default function PosSyncAggregateDetailPage() {
     ["Jumlah Transaksi", aggregate.status === "VOID"
       ? `${aggregate.void_transaction_count ?? 0} (VOID)`
       : aggregate.transaction_count],
+    ["Pax Total", aggregate.pax_total ?? 0],
     [
       "Recalculated",
       aggregate.recalculated
@@ -76,9 +77,17 @@ export default function PosSyncAggregateDetailPage() {
   const amountRows = [
     ["Gross Amount", aggregate.gross_amount],
     ["Discount", aggregate.discount_amount],
+    ["Menu Discount", aggregate.menu_discount_amount],
+    ["Promo Discount", aggregate.promotion_discount_amount],
+    ["Voucher Discount", aggregate.voucher_discount_amount],
     ["Tax (PPN)", aggregate.tax_amount],
-    ["Other Tax", aggregate.other_tax_amount],
+    ["Other Tax (SC)", aggregate.other_tax_amount],
+    ["Other VAT", aggregate.other_vat_amount],
     ["Grand Total", aggregate.grand_total],
+    ["Rounding", aggregate.rounding_amount],
+    ["Delivery Cost", aggregate.delivery_cost],
+    ["Order Fee", aggregate.order_fee],
+    ["Voucher Payment", aggregate.voucher_payment_amount],
     ["Payment Amount", aggregate.payment_amount],
   ];
 
@@ -226,7 +235,10 @@ export default function PosSyncAggregateDetailPage() {
                   "Sales Num",
                   "Subtotal",
                   "Discount",
+                  "Promo",
+                  "Voucher Disc",
                   "Tax",
+                  "Rounding",
                   "Grand Total",
                   "Payment",
                 ].map((h) => (
@@ -257,7 +269,22 @@ export default function PosSyncAggregateDetailPage() {
                       : "—"}
                   </td>
                   <td className="px-3 py-2 text-sm text-right text-gray-700 dark:text-gray-300">
+                    {Number(line.promotion_discount) > 0
+                      ? `Rp ${fmt(line.promotion_discount)}`
+                      : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-right text-gray-700 dark:text-gray-300">
+                    {Number(line.voucher_discount_total) > 0
+                      ? `Rp ${fmt(line.voucher_discount_total)}`
+                      : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-right text-gray-700 dark:text-gray-300">
                     Rp {fmt(line.vat_total)}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-right text-gray-700 dark:text-gray-300">
+                    {Number(line.rounding_total) !== 0
+                      ? `Rp ${fmt(line.rounding_total)}`
+                      : "—"}
                   </td>
                   <td className="px-3 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
                     Rp {fmt(line.grand_total)}
@@ -277,18 +304,25 @@ export default function PosSyncAggregateDetailPage() {
                   Rp {fmt(lines.reduce((s, l) => s + Number(l.subtotal), 0))}
                 </td>
                 <td className="px-3 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
-                  Rp{" "}
-                  {fmt(lines.reduce((s, l) => s + Number(l.discount_total), 0))}
+                  Rp {fmt(lines.reduce((s, l) => s + Number(l.discount_total), 0))}
+                </td>
+                <td className="px-3 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
+                  Rp {fmt(lines.reduce((s, l) => s + Number(l.promotion_discount), 0))}
+                </td>
+                <td className="px-3 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
+                  Rp {fmt(lines.reduce((s, l) => s + Number(l.voucher_discount_total), 0))}
                 </td>
                 <td className="px-3 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
                   Rp {fmt(lines.reduce((s, l) => s + Number(l.vat_total), 0))}
                 </td>
                 <td className="px-3 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
+                  Rp {fmt(lines.reduce((s, l) => s + Number(l.rounding_total), 0))}
+                </td>
+                <td className="px-3 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
                   Rp {fmt(lines.reduce((s, l) => s + Number(l.grand_total), 0))}
                 </td>
                 <td className="px-3 py-2 text-sm text-right font-medium text-green-600 dark:text-green-400">
-                  Rp{" "}
-                  {fmt(lines.reduce((s, l) => s + Number(l.payment_amount), 0))}
+                  Rp {fmt(lines.reduce((s, l) => s + Number(l.payment_amount), 0))}
                 </td>
               </tr>
             </tfoot>

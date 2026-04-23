@@ -48,6 +48,11 @@ const STATUS_CONFIG: Record<AggregatedTransactionStatus, { label: string; colorC
     colorClass: 'text-slate-600 dark:text-slate-400',
     bgClass: 'bg-slate-100 dark:bg-slate-800',
   },
+  VOID: {
+    label: 'VOID',
+    colorClass: 'text-gray-100 dark:text-gray-100',
+    bgClass: 'bg-red-800 dark:bg-red-800',
+  },
 }
 
 // =============================================================================

@@ -206,7 +206,22 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                 Discount
               </th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Promo Disc
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Voucher Disc
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Bill After Discount
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Rounding
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Delivery
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Order Fee
               </th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Fee (%)
@@ -319,8 +334,33 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right">
+                    <span className="text-sm text-red-600 dark:text-red-400">
+                      {transaction.promotion_discount_amount ? `-${formatCurrency(transaction.promotion_discount_amount)}` : '—'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-right">
+                    <span className="text-sm text-red-600 dark:text-red-400">
+                      {transaction.voucher_discount_amount ? `-${formatCurrency(transaction.voucher_discount_amount)}` : '—'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-right">
                     <span className="text-sm font-bold text-gray-900 dark:text-white">
                       {formatCurrency(transaction.bill_after_discount)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-right">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {transaction.rounding_amount ? formatCurrency(transaction.rounding_amount) : '—'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-right">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {transaction.delivery_cost ? formatCurrency(transaction.delivery_cost) : '—'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-right">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {transaction.order_fee ? formatCurrency(transaction.order_fee) : '—'}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right">

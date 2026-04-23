@@ -8,7 +8,11 @@ import type { AggregateStatus } from "../types/pos-sync-aggregates.types";
 const STATUS_OPTIONS: { value: AggregateStatus | ""; label: string }[] = [
   { value: "", label: "ALL STATUS" },
   { value: "READY", label: "READY" },
+  { value: "RECALCULATED", label: "RECALCULATED" },
   { value: "PENDING", label: "PENDING" },
+  { value: "PENDING_MAPPING", label: "PENDING MAPPING" },
+  { value: "INVALID", label: "INVALID" },
+  { value: "VOID", label: "VOID" },
   { value: "FAILED", label: "FAILED" },
 ];
 

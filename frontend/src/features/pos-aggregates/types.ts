@@ -21,6 +21,7 @@ export type AggregatedTransactionStatus =
   | "COMPLETED"
   | "CANCELLED"
   | "FAILED"
+  | "VOID"
   | "SUPERSEDED";
 
 /**
@@ -53,6 +54,15 @@ export interface AggregatedTransaction {
   total_fee_amount: number;
   nett_amount: number;
   actual_nett_amount: number;
+  rounding_amount: number;
+  delivery_cost: number;
+  order_fee: number;
+  voucher_discount_amount: number;
+  promotion_discount_amount: number;
+  menu_discount_amount: number;
+  voucher_payment_amount: number;
+  other_vat_amount: number;
+  pax_total: number;
   currency: string;
   journal_id: string | null;
   is_reconciled: boolean;
@@ -148,6 +158,15 @@ export interface AggregatedTransactionListItem {
   total_fee_amount: number;
   nett_amount: number;
   actual_nett_amount: number;
+  rounding_amount: number;
+  delivery_cost: number;
+  order_fee: number;
+  voucher_discount_amount: number;
+  promotion_discount_amount: number;
+  menu_discount_amount: number;
+  voucher_payment_amount: number;
+  other_vat_amount: number;
+  pax_total: number;
   actual_fee_amount?: number | null;
   fee_discrepancy?: number | null;
   fee_discrepancy_note?: string | null;
@@ -510,6 +529,15 @@ export function mapToAggregatedTransactionListItem(
     total_fee_amount: transaction.total_fee_amount,
     nett_amount: transaction.nett_amount,
     actual_nett_amount: transaction.actual_nett_amount,
+    rounding_amount: transaction.rounding_amount,
+    delivery_cost: transaction.delivery_cost,
+    order_fee: transaction.order_fee,
+    voucher_discount_amount: transaction.voucher_discount_amount,
+    promotion_discount_amount: transaction.promotion_discount_amount,
+    menu_discount_amount: transaction.menu_discount_amount,
+    voucher_payment_amount: transaction.voucher_payment_amount,
+    other_vat_amount: transaction.other_vat_amount,
+    pax_total: transaction.pax_total,
     // TAMBAH INI ↓
     actual_fee_amount: transaction.actual_fee_amount ?? null,
     fee_discrepancy: transaction.fee_discrepancy ?? null,

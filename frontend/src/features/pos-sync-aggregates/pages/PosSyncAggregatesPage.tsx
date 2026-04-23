@@ -198,6 +198,9 @@ export default function PosSyncAggregatesPage() {
                   "Payment Method",
                   "Transaksi",
                   "Grand Total",
+                  "Rounding",
+                  "Delivery",
+                  "Order Fee",
                   "Fee",
                   "Nett",
                   "Status",
@@ -217,7 +220,7 @@ export default function PosSyncAggregatesPage() {
               {loading ? (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={13}
                     className="px-4 py-10 text-center text-sm text-gray-400"
                   >
                     <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mb-2" />
@@ -227,7 +230,7 @@ export default function PosSyncAggregatesPage() {
               ) : rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={13}
                     className="px-4 py-10 text-center text-sm text-gray-400"
                   >
                     Tidak ada data
@@ -275,6 +278,21 @@ export default function PosSyncAggregatesPage() {
                     </td>
                     <td className="px-3 py-2.5 text-sm text-right text-gray-900 dark:text-white whitespace-nowrap">
                       Rp {fmt(row.grand_total)}
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-right text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                      {Number(row.rounding_amount) !== 0
+                        ? `Rp ${fmt(row.rounding_amount)}`
+                        : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-right text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                      {Number(row.delivery_cost) > 0
+                        ? `Rp ${fmt(row.delivery_cost)}`
+                        : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-right text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                      {Number(row.order_fee) > 0
+                        ? `Rp ${fmt(row.order_fee)}`
+                        : "—"}
                     </td>
                     <td className="px-3 py-2.5 text-sm text-right text-red-600 dark:text-red-400 whitespace-nowrap">
                       {Number(row.total_fee_amount) > 0
