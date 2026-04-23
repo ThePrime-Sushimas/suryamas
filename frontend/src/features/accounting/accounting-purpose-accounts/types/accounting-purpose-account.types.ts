@@ -8,6 +8,7 @@ export interface AccountingPurposeAccount {
   account_id: string
   side: Side
   priority: number
+  field_mapping: string | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -31,11 +32,13 @@ export interface CreateAccountingPurposeAccountDto {
   account_id: string
   side: Side
   priority?: number
+  field_mapping?: string | null
 }
 
 export interface UpdateAccountingPurposeAccountDto {
   side?: Side
   priority?: number
+  field_mapping?: string | null
   is_active?: boolean
 }
 

@@ -2,7 +2,7 @@ import { useForm, useWatch } from 'react-hook-form'
 import { useMemo, useEffect } from 'react'
 import type { CreateAccountingPurposeAccountDto, UpdateAccountingPurposeAccountDto } from '../types/accounting-purpose-account.types'
 import { useAccountingPurposeAccountsStore } from '../store/accountingPurposeAccounts.store'
-import { SIDES } from '../constants/accounting-purpose-account.constants'
+import { SIDES, FIELD_MAPPING_OPTIONS } from '../constants/accounting-purpose-account.constants'
 import { validateSideBalance } from '../utils/validation'
 import { useBranchContext } from '@/features/branch_context/hooks/useBranchContext'
 
@@ -167,6 +167,24 @@ export const AccountingPurposeAccountForm = ({
         {errors.priority && (
           <p className="mt-1 text-sm text-red-600">{String(errors.priority.message || 'Invalid priority')}</p>
         )}
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Field Mapping (Optional)</label>
+        <select
+          {...register('field_mapping', {
+            setValueAs: (value) => value === '' ? null : value
+          })}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+        >
+          <option value="">No mapping</option>
+          {FIELD_MAPPING_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Used by journal processor to map POS fields to COA accounts</p>
       </div>
 
       {isEdit && (

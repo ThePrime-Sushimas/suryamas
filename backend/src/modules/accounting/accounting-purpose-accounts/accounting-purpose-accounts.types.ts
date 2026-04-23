@@ -11,6 +11,7 @@ export interface AccountingPurposeAccount {
   is_required: boolean
   is_auto: boolean
   priority: number
+  field_mapping: string | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -27,6 +28,7 @@ export interface CreateAccountingPurposeAccountDTO {
   is_required?: boolean
   is_auto?: boolean
   priority?: number
+  field_mapping?: string | null
 }
 
 export interface UpdateAccountingPurposeAccountDTO {
@@ -34,6 +36,7 @@ export interface UpdateAccountingPurposeAccountDTO {
   is_required?: boolean
   is_auto?: boolean
   priority?: number
+  field_mapping?: string | null
   is_active?: boolean
 }
 

@@ -174,6 +174,9 @@ export const AccountingPurposeAccountTable = ({
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">
                       Tipe
                     </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-40">
+                      Field Mapping
+                    </th>
                     <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
                       Priority
                     </th>
@@ -217,6 +220,15 @@ export const AccountingPurposeAccountTable = ({
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                           {account.account_type}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {account.field_mapping ? (
+                          <span className="inline-flex px-2 py-0.5 rounded text-xs font-mono font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                            {account.field_mapping}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-center">
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
@@ -273,7 +285,7 @@ export const AccountingPurposeAccountTable = ({
                 {/* Total row for each purpose group */}
                 <tfoot className="bg-gray-100 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
                   <tr>
-                    <td colSpan={5} className="px-4 py-2 text-right text-xs font-bold text-gray-600 dark:text-gray-400 uppercase">
+                    <td colSpan={6} className="px-4 py-2 text-right text-xs font-bold text-gray-600 dark:text-gray-400 uppercase">
                       Total Akun:
                     </td>
                     <td className="px-4 py-2 text-center text-xs font-bold text-blue-600 dark:text-blue-400">
