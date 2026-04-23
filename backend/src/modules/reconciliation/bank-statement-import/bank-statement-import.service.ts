@@ -522,41 +522,38 @@ export class BankStatementImportService {
     );
 
     if (existingDuplicates.length > 0) {
-      // Build duplicate lookup keys (hybrid: works for BCA + Mandiri)
+      // Build duplicate lookup keys
       const normalizeDesc = (s: string) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
 
-      // Key 1: description + amount (date-independent, catches BCA date-shifted)
+      // Key 1 (PRIMARY): balance — unique per row in bank statement
+      const duplicateBalanceKeys = new Set(
+        existingDuplicates
+          .filter((d: any) => d.balance != null && Number(d.balance) !== 0)
+          .map((d: any) => Number(d.balance).toFixed(2)),
+      );
+      // Key 2: description + amount (fallback for rows without balance)
       const duplicateDescKeys = new Set(
         existingDuplicates.map(
           (d) => `${normalizeDesc((d as any).description || '')}-${d.debit_amount}-${d.credit_amount}`,
         ),
       );
-      // Key 2: date + amount (general fallback)
+      // Key 3: date + amount (general fallback)
       const duplicateDateKeys = new Set(
         existingDuplicates.map(
           (d) => `${d.transaction_date}-${d.debit_amount}-${d.credit_amount}`,
         ),
       );
-      // Key 3: reference_number + date + amount (catches Mandiri where desc varies)
-      const duplicateRefKeys = new Set(
-        existingDuplicates
-          .filter((d) => d.reference_number)
-          .map(
-            (d) => `${d.reference_number}-${d.transaction_date}-${d.debit_amount}-${d.credit_amount}`,
-          ),
-      );
 
-      // ALWAYS filter duplicates — duplikat bukan fitur, ini data protection
-      // skipDuplicates flag hanya untuk logging/audit, filtering selalu aktif
+      // ALWAYS filter duplicates
       rowsToInsert = validRows.filter((r) => {
+        // Balance check first
+        if (r.balance != null && Number(r.balance) !== 0) {
+          if (duplicateBalanceKeys.has(Number(r.balance).toFixed(2))) return false;
+        }
         const descKey = `${normalizeDesc(r.description || '')}-${r.debit_amount}-${r.credit_amount}`;
         if (duplicateDescKeys.has(descKey)) return false;
         const dateKey = `${r.transaction_date}-${r.debit_amount}-${r.credit_amount}`;
         if (duplicateDateKeys.has(dateKey)) return false;
-        if (r.reference_number) {
-          const refKey = `${r.reference_number}-${r.transaction_date}-${r.debit_amount}-${r.credit_amount}`;
-          if (duplicateRefKeys.has(refKey)) return false;
-        }
         return true;
       });
 
@@ -1161,6 +1158,35 @@ export class BankStatementImportService {
       total_rows: rows.length,
       pending_rows: rows.filter((r) => r.is_pending).length,
     });
+
+    // Post-process: assign PEND rows the next business day after latest settled date
+    // PEND rows settle on T+1 from the latest settled transaction in the file
+    const pendingRows = rows.filter(r => r.is_pending)
+    if (pendingRows.length > 0) {
+      const settledDates = rows
+        .filter(r => !r.is_pending && r.transaction_date)
+        .map(r => r.transaction_date)
+        .sort()
+      
+      let pendDate: string
+      if (settledDates.length > 0) {
+        const latest = new Date(settledDates[settledDates.length - 1])
+        latest.setDate(latest.getDate() + 1)
+        pendDate = latest.toISOString().split('T')[0]
+      } else {
+        pendDate = new Date().toISOString().split('T')[0]
+      }
+
+      for (const row of pendingRows) {
+        row.transaction_date = pendDate
+      }
+
+      logInfo('BankStatementImport: PEND rows assigned settlement date (T+1)', {
+        pending_count: pendingRows.length,
+        latest_settled: settledDates[settledDates.length - 1] || 'none',
+        pend_date: pendDate,
+      })
+    }
 
     return { rows, formatDetection };
   }

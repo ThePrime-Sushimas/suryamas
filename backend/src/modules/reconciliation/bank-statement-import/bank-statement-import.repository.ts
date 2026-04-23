@@ -467,10 +467,8 @@ export class BankStatementImportRepository {
 
   /**
    * Check for duplicate transactions
-   * Hybrid strategy:
-   *  1. normalized_description + amount (date-independent) → catches BCA date-shifted
-   *  2. reference_number + amount + exact_date → catches Mandiri (ref available, desc may vary)
-   *  3. exact_date + amount + description_similarity ≥70% → general fallback
+   * Primary: balance match (unique per row in bank statement)
+   * Fallback: normalized_description + amount (for rows without balance)
    */
   async checkDuplicates(
     transactions: { reference_number?: string; transaction_date: string; debit_amount: number; credit_amount: number; description?: string; balance?: number; bank_account_id: number }[],
@@ -509,9 +507,32 @@ export class BankStatementImportRepository {
     }
 
     const existing = existingBatch || []
+
+    // Build balance lookup from existing DB rows
+    const existingBalanceSet = new Set(
+      existing
+        .filter((ex: any) => ex.balance != null && Number(ex.balance) !== 0)
+        .map((ex: any) => Number(ex.balance).toFixed(2))
+    )
+
     const allDuplicates: BankStatement[] = []
 
     for (const pair of uniquePairs) {
+      // PRIMARY: balance match — if balance exists and matches, it's a duplicate
+      if (pair.balance != null && Number(pair.balance) !== 0) {
+        const pairBalanceKey = Number(pair.balance).toFixed(2)
+        if (existingBalanceSet.has(pairBalanceKey)) {
+          const match = (existing as any[]).find(ex =>
+            ex.balance != null && Number(ex.balance).toFixed(2) === pairBalanceKey
+          )
+          if (match) {
+            allDuplicates.push(match as unknown as BankStatement)
+            continue
+          }
+        }
+      }
+
+      // FALLBACK: for rows without balance
       const pairDescNorm = normalize(pair.description || '')
       const pairDate = (pair.transaction_date || '').split('T')[0]
 
@@ -520,40 +541,23 @@ export class BankStatementImportRepository {
           Number(ex.credit_amount) === Number(pair.credit_amount)
         if (!amountMatch) return false
 
-        // Early reject: both have ref but different → definitely different txn
         if (pair.reference_number && ex.reference_number &&
-            pair.reference_number !== ex.reference_number) {
-          return false
-        }
+            pair.reference_number !== ex.reference_number) return false
 
-        // PEND records: amount match is enough
         if (ex.is_pending) return true
 
-        // STRATEGY 1: normalized description + amount (date-independent)
-        // Catches BCA date-shifted duplicates where description is identical
+        // Normalized description + amount (date-independent)
         const exDescNorm = normalize(ex.description || '')
-        if (pairDescNorm && exDescNorm && pairDescNorm === exDescNorm) {
-          return true
-        }
+        if (pairDescNorm && exDescNorm && pairDescNorm === exDescNorm) return true
 
+        // Reference + date + amount
         const exDate = (ex.transaction_date || '').split('T')[0]
-
-        // STRATEGY 2: reference_number + amount + exact date
-        // Catches Mandiri duplicates where ref is stable but description may vary
         if (pair.reference_number && ex.reference_number &&
-            pair.reference_number === ex.reference_number && exDate === pairDate) {
-          return true
-        }
+            pair.reference_number === ex.reference_number && exDate === pairDate) return true
 
-        // STRATEGY 3: exact date + amount + description similarity ≥70%
-        // General fallback for banks where description varies slightly
+        // Exact date + description similarity
         if (exDate === pairDate && pairDescNorm && exDescNorm) {
           return this.calculateDescriptionSimilarity(pair.description || '', ex.description || '') >= 0.7
-        }
-
-        // exact date + amount, no description available
-        if (exDate === pairDate && !pairDescNorm && !exDescNorm) {
-          return true
         }
 
         return false
