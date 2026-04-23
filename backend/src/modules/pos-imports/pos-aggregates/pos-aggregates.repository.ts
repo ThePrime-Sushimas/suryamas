@@ -839,7 +839,7 @@ if (error) {
     paymentMethodIds?: number[]
   ): Promise<Record<AggregatedTransactionStatus, number>> {
     // Fallback: get counts individually for each status
-    const statuses: AggregatedTransactionStatus[] = ['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED']
+    const statuses: AggregatedTransactionStatus[] = ['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED', 'VOID', 'SUPERSEDED']
     const counts: Record<AggregatedTransactionStatus, number> = {
       READY: 0,
       PENDING: 0,
@@ -847,6 +847,8 @@ if (error) {
       COMPLETED: 0,
       CANCELLED: 0,
       FAILED: 0,
+      VOID: 0,
+      SUPERSEDED: 0,
     }
 
     for (const status of statuses) {

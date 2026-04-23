@@ -41,9 +41,18 @@ interface RawSaleRow {
   status_id: number;
   subtotal: number;
   discount_total: number;
+  menu_discount_total: number;
+  promotion_discount: number;
+  voucher_discount_total: number;
   other_tax_total: number;
   vat_total: number;
+  other_vat_total: number;
   grand_total: number;
+  rounding_total: number;
+  delivery_cost: number;
+  order_fee: number;
+  voucher_total: number;
+  pax_total: number;
 }
 
 interface VoidAggregateGroup {
@@ -56,6 +65,15 @@ interface VoidAggregateGroup {
   tax_amount: number;
   other_tax_amount: number;
   grand_total: number;
+  rounding_amount: number;
+  delivery_cost: number;
+  order_fee: number;
+  voucher_discount_amount: number;
+  promotion_discount_amount: number;
+  menu_discount_amount: number;
+  voucher_payment_amount: number;
+  other_vat_amount: number;
+  pax_total: number;
 }
 
 const VOID_STATUS_ID = 12;
@@ -74,10 +92,19 @@ interface AggregateGroup {
     sales_num: string;
     subtotal: number;
     discount_total: number;
+    menu_discount_total: number;
+    promotion_discount: number;
+    voucher_discount_total: number;
     other_tax_total: number;
     vat_total: number;
+    other_vat_total: number;
     grand_total: number;
+    rounding_total: number;
+    delivery_cost: number;
+    order_fee: number;
+    voucher_total: number;
     payment_amount: number;
+    pax_total: number;
   }>;
 }
 
@@ -113,7 +140,7 @@ export async function processPosSyncAggregates(
     let salesQuery = supabase
       .from("tr_saleshead")
       .select(
-        "sales_num, sales_date, branch_id, status_id, subtotal, discount_total, other_tax_total, vat_total, grand_total",
+        "sales_num, sales_date, branch_id, status_id, subtotal, discount_total, menu_discount_total, promotion_discount, voucher_discount_total, other_tax_total, vat_total, other_vat_total, grand_total, rounding_total, delivery_cost, order_fee, voucher_total, pax_total",
       );
 
     if (salesNums && salesNums.length > 0) {
@@ -201,6 +228,15 @@ export async function processPosSyncAggregates(
             tax_amount: 0,
             other_tax_amount: 0,
             grand_total: 0,
+            rounding_amount: 0,
+            delivery_cost: 0,
+            order_fee: 0,
+            voucher_discount_amount: 0,
+            promotion_discount_amount: 0,
+            menu_discount_amount: 0,
+            voucher_payment_amount: 0,
+            other_vat_amount: 0,
+            pax_total: 0,
           });
         }
         const voidGroup = voidGroups.get(voidKey)!;
@@ -211,6 +247,15 @@ export async function processPosSyncAggregates(
         voidGroup.tax_amount += Number(sale.vat_total ?? 0);
         voidGroup.other_tax_amount += Number(sale.other_tax_total ?? 0);
         voidGroup.grand_total += Number(sale.grand_total ?? 0);
+        voidGroup.rounding_amount += Number(sale.rounding_total ?? 0);
+        voidGroup.delivery_cost += Number(sale.delivery_cost ?? 0);
+        voidGroup.order_fee += Number(sale.order_fee ?? 0);
+        voidGroup.voucher_discount_amount += Number(sale.voucher_discount_total ?? 0);
+        voidGroup.promotion_discount_amount += Number(sale.promotion_discount ?? 0);
+        voidGroup.menu_discount_amount += Number(sale.menu_discount_total ?? 0);
+        voidGroup.voucher_payment_amount += Number(sale.voucher_total ?? 0);
+        voidGroup.other_vat_amount += Number(sale.other_vat_total ?? 0);
+        voidGroup.pax_total += Number(sale.pax_total ?? 0);
         logWarn("PosSyncAggregates: VOID transaction detected", {
           sales_num: sale.sales_num,
           sales_date: sale.sales_date,
@@ -236,6 +281,15 @@ export async function processPosSyncAggregates(
       const saleDiscount = Number(sale.discount_total ?? 0);
       const saleOtherTax = Number(sale.other_tax_total ?? 0);
       const saleGrandTotal = Number(sale.grand_total ?? 0);
+      const saleMenuDiscount = Number(sale.menu_discount_total ?? 0);
+      const salePromotionDiscount = Number(sale.promotion_discount ?? 0);
+      const saleVoucherDiscount = Number(sale.voucher_discount_total ?? 0);
+      const saleOtherVat = Number(sale.other_vat_total ?? 0);
+      const saleRounding = Number(sale.rounding_total ?? 0);
+      const saleDeliveryCost = Number(sale.delivery_cost ?? 0);
+      const saleOrderFee = Number(sale.order_fee ?? 0);
+      const saleVoucherTotal = Number(sale.voucher_total ?? 0);
+      const salePaxTotal = Number(sale.pax_total ?? 0);
 
       for (let i = 0; i < payments.length; i++) {
         const pay = payments[i];
@@ -262,10 +316,19 @@ export async function processPosSyncAggregates(
           sales_num: sale.sales_num,
           subtotal: Math.round(saleSubtotal * ratio),
           discount_total: Math.round(saleDiscount * ratio),
+          menu_discount_total: Math.round(saleMenuDiscount * ratio),
+          promotion_discount: Math.round(salePromotionDiscount * ratio),
+          voucher_discount_total: Math.round(saleVoucherDiscount * ratio),
           other_tax_total: Math.round(saleOtherTax * ratio),
           vat_total: Math.round(saleVat * ratio),
+          other_vat_total: Math.round(saleOtherVat * ratio),
           grand_total: allocated,
-          payment_amount: allocated, // Simpan nilai payment efektif
+          rounding_total: Math.round(saleRounding * ratio),
+          delivery_cost: Math.round(saleDeliveryCost * ratio),
+          order_fee: Math.round(saleOrderFee * ratio),
+          voucher_total: Math.round(saleVoucherTotal * ratio),
+          payment_amount: allocated,
+          pax_total: salePaxTotal, // not ratio-split, full per line
         });
       }
     }
@@ -337,12 +400,21 @@ export async function processPosSyncAggregates(
         payment_method_id: null,
         gross_amount: voidGroup.gross_amount,
         discount_amount: voidGroup.discount_amount,
+        menu_discount_amount: voidGroup.menu_discount_amount,
+        promotion_discount_amount: voidGroup.promotion_discount_amount,
+        voucher_discount_amount: voidGroup.voucher_discount_amount,
         tax_amount: voidGroup.tax_amount,
         other_tax_amount: voidGroup.other_tax_amount,
+        other_vat_amount: voidGroup.other_vat_amount,
         grand_total: voidGroup.grand_total,
+        rounding_amount: voidGroup.rounding_amount,
+        delivery_cost: voidGroup.delivery_cost,
+        order_fee: voidGroup.order_fee,
+        voucher_payment_amount: voidGroup.voucher_payment_amount,
         payment_amount: 0,
         transaction_count: 0,
         void_transaction_count: void_count,
+        pax_total: voidGroup.pax_total,
         fee_percentage: 0,
         fee_fixed_amount: 0,
         percentage_fee_amount: 0,
@@ -413,13 +485,22 @@ export async function processPosSyncAggregates(
         // Sum amounts
         const gross_amount = lines.reduce((s, l) => s + l.subtotal, 0);
         const discount_amount = lines.reduce((s, l) => s + l.discount_total, 0);
+        const menu_discount_amount = lines.reduce((s, l) => s + l.menu_discount_total, 0);
+        const promotion_discount_amount = lines.reduce((s, l) => s + l.promotion_discount, 0);
+        const voucher_discount_amount = lines.reduce((s, l) => s + l.voucher_discount_total, 0);
         const tax_amount = lines.reduce((s, l) => s + l.vat_total, 0);
-        const other_tax_amount = lines.reduce(
-          (s, l) => s + l.other_tax_total,
-          0,
-        );
+        const other_tax_amount = lines.reduce((s, l) => s + l.other_tax_total, 0);
+        const other_vat_amount = lines.reduce((s, l) => s + l.other_vat_total, 0);
         const grand_total = lines.reduce((s, l) => s + l.grand_total, 0);
+        const rounding_amount = lines.reduce((s, l) => s + l.rounding_total, 0);
+        const delivery_cost = lines.reduce((s, l) => s + l.delivery_cost, 0);
+        const order_fee = lines.reduce((s, l) => s + l.order_fee, 0);
+        const voucher_payment_amount = lines.reduce((s, l) => s + l.voucher_total, 0);
         const payment_amount = lines.reduce((s, l) => s + l.payment_amount, 0);
+        // pax_total: count unique sales_nums then sum pax per unique sale
+        const paxBySale = new Map<string, number>();
+        for (const l of lines) paxBySale.set(l.sales_num, l.pax_total);
+        const pax_total = [...paxBySale.values()].reduce((s, p) => s + p, 0);
 
         const uniqueSales = new Set(lines.map((l) => l.sales_num));
         const transaction_count = uniqueSales.size;
@@ -469,12 +550,21 @@ export async function processPosSyncAggregates(
           payment_method_id,
           gross_amount,
           discount_amount,
+          menu_discount_amount,
+          promotion_discount_amount,
+          voucher_discount_amount,
           tax_amount,
           other_tax_amount,
+          other_vat_amount,
           grand_total,
+          rounding_amount,
+          delivery_cost,
+          order_fee,
+          voucher_payment_amount,
           payment_amount,
           transaction_count,
           void_transaction_count: 0,
+          pax_total,
           fee_percentage,
           fee_fixed_amount,
           percentage_fee_amount,
@@ -495,9 +585,17 @@ export async function processPosSyncAggregates(
           payment_pos_id,
           subtotal: l.subtotal,
           discount_total: l.discount_total,
+          menu_discount_total: l.menu_discount_total,
+          promotion_discount: l.promotion_discount,
+          voucher_discount_total: l.voucher_discount_total,
           other_tax_total: l.other_tax_total,
           vat_total: l.vat_total,
+          other_vat_total: l.other_vat_total,
           grand_total: l.grand_total,
+          rounding_total: l.rounding_total,
+          delivery_cost: l.delivery_cost,
+          order_fee: l.order_fee,
+          voucher_total: l.voucher_total,
           payment_amount: l.payment_amount,
           created_at: now,
         }));

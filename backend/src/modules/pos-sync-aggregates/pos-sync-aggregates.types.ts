@@ -8,12 +8,21 @@ export interface PosSyncAggregate {
   payment_method_id: number | null;
   gross_amount: number;
   discount_amount: number;
+  menu_discount_amount: number;
+  promotion_discount_amount: number;
+  voucher_discount_amount: number;
   tax_amount: number;
   other_tax_amount: number;
+  other_vat_amount: number;
   grand_total: number;
+  rounding_amount: number;
+  delivery_cost: number;
+  order_fee: number;
+  voucher_payment_amount: number;
   payment_amount: number;
   transaction_count: number;
   void_transaction_count: number;
+  pax_total: number;
   fee_percentage: number;
   fee_fixed_amount: number;
   percentage_fee_amount: number;
@@ -25,7 +34,6 @@ export interface PosSyncAggregate {
   recalculated: boolean;
   recalculated_count: number;
   recalculated_at: string | null;
-  // Reconciliation fields
   is_reconciled: boolean;
   synced_at: string;
   created_at: string;
@@ -40,9 +48,17 @@ export interface PosSyncAggregateLine {
   branch_pos_id: number;
   subtotal: number;
   discount_total: number;
+  menu_discount_total: number;
+  promotion_discount: number;
+  voucher_discount_total: number;
   other_tax_total: number;
   vat_total: number;
+  other_vat_total: number;
   grand_total: number;
+  rounding_total: number;
+  delivery_cost: number;
+  order_fee: number;
+  voucher_total: number;
   payment_pos_id: number;
   payment_amount: number;
   created_at: string;

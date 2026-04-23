@@ -119,6 +119,17 @@ export const posSyncAggregatesRepository = {
     return data ?? [];
   },
 
+  async getVoidBySalesDate(salesDate: string) {
+    const { data, error } = await supabase
+      .from("pos_sync_aggregates")
+      .select("*")
+      .eq("sales_date", salesDate)
+      .eq("status", "VOID");
+
+    if (error) throw error;
+    return data ?? [];
+  },
+
   async upsertToAggregatedTransactions(row: {
     source_type: string;
     source_id: string;
@@ -135,6 +146,16 @@ export const posSyncAggregatesRepository = {
     percentage_fee_amount: number;
     fixed_fee_amount: number;
     bill_after_discount: number;
+    rounding_amount: number;
+    delivery_cost: number;
+    order_fee: number;
+    voucher_discount_amount: number;
+    promotion_discount_amount: number;
+    menu_discount_amount: number;
+    voucher_payment_amount: number;
+    other_vat_amount: number;
+    service_charge_amount: number;
+    pax_total: number;
     pos_sync_aggregate_id: string;
     status: string;
   }) {

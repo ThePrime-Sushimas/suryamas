@@ -230,7 +230,9 @@ export class PosAggregatesService {
       PROCESSING: ["COMPLETED", "CANCELLED"],
       COMPLETED: [],
       CANCELLED: [],
-      FAILED: ["READY", "CANCELLED"], // FAILED can be retried or cancelled
+      FAILED: ["READY", "CANCELLED"],
+      VOID: [],
+      SUPERSEDED: [],
     };
 
     if (!validTransitions[currentStatus].includes(newStatus)) {

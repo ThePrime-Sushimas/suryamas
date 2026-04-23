@@ -10,7 +10,9 @@ export type AggregatedTransactionStatus =
   | "PROCESSING"
   | "COMPLETED"
   | "CANCELLED"
-  | "FAILED";
+  | "FAILED"
+  | "VOID"
+  | "SUPERSEDED";
 
 /**
  * Source types for aggregated transactions
