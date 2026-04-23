@@ -522,28 +522,52 @@ export class BankStatementImportService {
     );
 
     if (existingDuplicates.length > 0) {
-      const duplicateKeys = new Set(
+      // Build duplicate lookup keys (hybrid: works for BCA + Mandiri)
+      const normalizeDesc = (s: string) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+      // Key 1: description + amount (date-independent, catches BCA date-shifted)
+      const duplicateDescKeys = new Set(
         existingDuplicates.map(
-          (d) =>
-            `${d.transaction_date}-${d.reference_number || ""}-${d.debit_amount}-${d.credit_amount}`,
+          (d) => `${normalizeDesc((d as any).description || '')}-${d.debit_amount}-${d.credit_amount}`,
         ),
       );
+      // Key 2: date + amount (general fallback)
+      const duplicateDateKeys = new Set(
+        existingDuplicates.map(
+          (d) => `${d.transaction_date}-${d.debit_amount}-${d.credit_amount}`,
+        ),
+      );
+      // Key 3: reference_number + date + amount (catches Mandiri where desc varies)
+      const duplicateRefKeys = new Set(
+        existingDuplicates
+          .filter((d) => d.reference_number)
+          .map(
+            (d) => `${d.reference_number}-${d.transaction_date}-${d.debit_amount}-${d.credit_amount}`,
+          ),
+      );
 
-      if (skipDuplicates) {
-        rowsToInsert = validRows.filter((r) => {
-          const key = `${r.transaction_date}-${r.reference_number || ""}-${r.debit_amount}-${r.credit_amount}`;
-          if (duplicateKeys.has(key)) return false;
-          return true;
-        });
+      // ALWAYS filter duplicates — duplikat bukan fitur, ini data protection
+      // skipDuplicates flag hanya untuk logging/audit, filtering selalu aktif
+      rowsToInsert = validRows.filter((r) => {
+        const descKey = `${normalizeDesc(r.description || '')}-${r.debit_amount}-${r.credit_amount}`;
+        if (duplicateDescKeys.has(descKey)) return false;
+        const dateKey = `${r.transaction_date}-${r.debit_amount}-${r.credit_amount}`;
+        if (duplicateDateKeys.has(dateKey)) return false;
+        if (r.reference_number) {
+          const refKey = `${r.reference_number}-${r.transaction_date}-${r.debit_amount}-${r.credit_amount}`;
+          if (duplicateRefKeys.has(refKey)) return false;
+        }
+        return true;
+      });
 
-        logInfo("BankStatementImport: Duplicates filtered", {
-          import_id: importId,
-          original_count: validRows.length,
-          after_filter: rowsToInsert.length,
-          skipped: validRows.length - rowsToInsert.length,
-          existing_duplicates: existingDuplicates.length,
-        });
-      }
+      logInfo("BankStatementImport: Duplicates filtered", {
+        import_id: importId,
+        original_count: validRows.length,
+        after_filter: rowsToInsert.length,
+        skipped: validRows.length - rowsToInsert.length,
+        existing_duplicates: existingDuplicates.length,
+        skip_duplicates_flag: skipDuplicates,
+      });
     }
 
     // STEP 3: Exclude Kasus B rows (already inserted by replacePendingWithSettled)
@@ -2662,6 +2686,7 @@ export class BankStatementImportService {
     const duplicates: BankStatementDuplicate[] = existingStatements.map((ex: any) => ({
       reference_number: ex.reference_number || undefined,
       transaction_date: String(ex.transaction_date),
+      description: ex.description || '',
       debit_amount: Number(ex.debit_amount),
       credit_amount: Number(ex.credit_amount),
       existing_import_id: ex.import_id || 0,

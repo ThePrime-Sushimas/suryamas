@@ -281,6 +281,7 @@ export interface BankStatementDuplicate {
 
   reference_number?: string
   transaction_date: string
+  description?: string
   debit_amount: number
   credit_amount: number
   existing_import_id: number

@@ -467,9 +467,10 @@ export class BankStatementImportRepository {
 
   /**
    * Check for duplicate transactions
-   * Single batch fetch + in-memory matching
-   * - Non-PEND: exact date + amount + description similarity ≥70%
-   * - PEND: ±2 day date tolerance + amount match
+   * Hybrid strategy:
+   *  1. normalized_description + amount (date-independent) → catches BCA date-shifted
+   *  2. reference_number + amount + exact_date → catches Mandiri (ref available, desc may vary)
+   *  3. exact_date + amount + description_similarity ≥70% → general fallback
    */
   async checkDuplicates(
     transactions: { reference_number?: string; transaction_date: string; debit_amount: number; credit_amount: number; description?: string; balance?: number; bank_account_id: number }[],
@@ -477,8 +478,8 @@ export class BankStatementImportRepository {
   ): Promise<BankStatement[]> {
     if (transactions.length === 0) return []
 
-    const DATE_TOLERANCE_DAYS = 2
-    const DESC_SIMILARITY_THRESHOLD = 0.7
+    const DATE_TOLERANCE_DAYS = 3
+    const normalize = (s: string) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase()
 
     const uniquePairs = transactions.filter((pair, index, self) =>
       index === self.findIndex(p =>
@@ -511,46 +512,48 @@ export class BankStatementImportRepository {
     const allDuplicates: BankStatement[] = []
 
     for (const pair of uniquePairs) {
-      const baseDate = new Date(pair.transaction_date).getTime()
-      const dateFrom = baseDate - DATE_TOLERANCE_DAYS * 86400000
-      const dateTo = baseDate + DATE_TOLERANCE_DAYS * 86400000
+      const pairDescNorm = normalize(pair.description || '')
+      const pairDate = (pair.transaction_date || '').split('T')[0]
 
       const matches = (existing as any[]).filter(ex => {
         const amountMatch = Number(ex.debit_amount) === Number(pair.debit_amount) &&
           Number(ex.credit_amount) === Number(pair.credit_amount)
         if (!amountMatch) return false
 
-        // Early reject: different reference numbers = different transactions
+        // Early reject: both have ref but different → definitely different txn
         if (pair.reference_number && ex.reference_number &&
             pair.reference_number !== ex.reference_number) {
           return false
         }
 
-        const exDate = ex.transaction_date.split('T')[0]
-        const pairDate = pair.transaction_date.split('T')[0]
-        const exDateTime = new Date(exDate).getTime()
-        const isExactDate = exDate === pairDate
-        const isNearDate = !isExactDate && exDateTime >= dateFrom && exDateTime <= dateTo
+        // PEND records: amount match is enough
+        if (ex.is_pending) return true
 
-        if (ex.is_pending) {
-          // PEND: ±2 day tolerance, amount saja cukup
-          return isExactDate || isNearDate
-        }
-
-        if (isExactDate) {
-          // Exact date: description similarity ≥70% to distinguish legitimate same-amount txns
-          if (pair.description && ex.description) {
-            return this.calculateDescriptionSimilarity(pair.description, ex.description) >= DESC_SIMILARITY_THRESHOLD
-          }
+        // STRATEGY 1: normalized description + amount (date-independent)
+        // Catches BCA date-shifted duplicates where description is identical
+        const exDescNorm = normalize(ex.description || '')
+        if (pairDescNorm && exDescNorm && pairDescNorm === exDescNorm) {
           return true
         }
 
-        if (isNearDate && pair.description && ex.description) {
-          // Near date (±1 day only): only match if description nearly identical (≥95%)
-          // Handles BCA posting date shift (value date vs posting date)
-          const dayDiff = Math.abs(exDateTime - new Date(pairDate).getTime()) / 86400000
-          if (dayDiff > 1) return false
-          return this.calculateDescriptionSimilarity(pair.description, ex.description) >= 0.95
+        const exDate = (ex.transaction_date || '').split('T')[0]
+
+        // STRATEGY 2: reference_number + amount + exact date
+        // Catches Mandiri duplicates where ref is stable but description may vary
+        if (pair.reference_number && ex.reference_number &&
+            pair.reference_number === ex.reference_number && exDate === pairDate) {
+          return true
+        }
+
+        // STRATEGY 3: exact date + amount + description similarity ≥70%
+        // General fallback for banks where description varies slightly
+        if (exDate === pairDate && pairDescNorm && exDescNorm) {
+          return this.calculateDescriptionSimilarity(pair.description || '', ex.description || '') >= 0.7
+        }
+
+        // exact date + amount, no description available
+        if (exDate === pairDate && !pairDescNorm && !exDescNorm) {
+          return true
         }
 
         return false
