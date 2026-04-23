@@ -137,13 +137,21 @@ export function JournalHeaderDetailPage() {
   
   const handleDelete = async () => {
     await deleteJournal(id!)
+    toast.success('Jurnal berhasil dihapus')
     navigate('/accounting/journals')
   }
 
   const handleForceDelete = async () => {
-    await api.delete(`/accounting/journals/${id}/force`)
-    setShowForceDeleteModal(false)
-    navigate('/accounting/journals')
+    try {
+      await api.delete(`/accounting/journals/${id}/force`)
+      setShowForceDeleteModal(false)
+      // Refresh store list with current filters before navigating
+      await useJournalHeadersStore.getState().fetchJournals()
+      toast.success('Jurnal berhasil dihapus (force delete)')
+      navigate('/accounting/journals')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal menghapus jurnal')
+    }
   }
 
   const handleSubmit = async () => {
