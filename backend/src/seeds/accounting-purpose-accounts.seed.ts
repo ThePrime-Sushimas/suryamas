@@ -22,8 +22,15 @@ const purposeAccountMappings: SeedPurposeAccount[] = [
   // SAL-INV: Sales Invoice — DR Receivable + Discount, CR Revenue + CR PB1
   { purpose_code: 'SAL-INV', account_code: '110301', side: 'DEBIT', priority: 1 },  // Cash sales receivable
   { purpose_code: 'SAL-INV', account_code: '410301', side: 'DEBIT', priority: 2 },  // Bill Discount (contra-revenue)
+  { purpose_code: 'SAL-INV', account_code: '410304', side: 'DEBIT', priority: 3 },  // Promotion Discount
+  { purpose_code: 'SAL-INV', account_code: '410305', side: 'DEBIT', priority: 4 },  // Voucher Discount
+  { purpose_code: 'SAL-INV', account_code: '610801', side: 'DEBIT', priority: 5 },  // Rounding Expense
   { purpose_code: 'SAL-INV', account_code: '410101', side: 'CREDIT', priority: 1 }, // Sales - Food
   { purpose_code: 'SAL-INV', account_code: '210206', side: 'CREDIT', priority: 2 }, // Pb1 payable
+  { purpose_code: 'SAL-INV', account_code: '210209', side: 'CREDIT', priority: 3 }, // SC Payable
+  { purpose_code: 'SAL-INV', account_code: '210210', side: 'CREDIT', priority: 4 }, // Other VAT Payable
+  { purpose_code: 'SAL-INV', account_code: '410202', side: 'CREDIT', priority: 5 }, // Order Fee Revenue
+  { purpose_code: 'SAL-INV', account_code: '410203', side: 'CREDIT', priority: 6 }, // Delivery Revenue
 
   // SAL-REC: Sales Receipt — DR Cash/Bank, CR Receivable
   { purpose_code: 'SAL-REC', account_code: '110102', side: 'DEBIT', priority: 1 },  // Petty cash outlet

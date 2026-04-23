@@ -1,43 +1,30 @@
 /**
- * POS Journal Generation Processor — Rewrite v2
+ * POS Journal Generation Processor — v3 (Extended Fields)
  *
  * Architecture:
- * - DEBIT per channel        → payment_methods.coa_account_id (ASSET or LIABILITY)
+ * - DEBIT per channel        → payment_methods.coa_account_id
  * - DEBIT fee expense        → payment_methods.fee_coa_account_id
- * - DEBIT sales discount     → SAL-INV purpose accounts (DEBIT side, REVENUE type) ← NEW
- * - CREDIT revenue (gross)   → SAL-INV purpose accounts (CREDIT side, REVENUE type, lowest priority)
- * - CREDIT tax               → SAL-INV purpose accounts (CREDIT side, LIABILITY type, lowest priority)
+ * - DEBIT sales discount     → SAL-INV field_mapping: bill_discount (410301)
+ * - DEBIT promo discount     → SAL-INV field_mapping: promotion_discount (410304)
+ * - DEBIT voucher discount   → SAL-INV field_mapping: voucher_discount (410305)
+ * - DEBIT rounding (+)       → SAL-INV field_mapping: rounding_expense (610801)
+ * - CREDIT revenue (gross)   → SAL-INV field_mapping: gross_revenue (410101)
+ * - CREDIT tax (PB1)         → SAL-INV field_mapping: tax_payable (210206)
+ * - CREDIT service charge    → SAL-INV field_mapping: service_charge_payable (210209)
+ * - CREDIT other VAT         → SAL-INV field_mapping: other_vat_payable (210210)
+ * - CREDIT order fee revenue → SAL-INV field_mapping: order_fee_revenue (410202)
+ * - CREDIT delivery revenue  → SAL-INV field_mapping: delivery_revenue (410203)
+ * - CREDIT rounding (-)      → SAL-INV field_mapping: rounding_expense (610801)
  * - CREDIT fee liability     → payment_methods.fee_liability_coa_account_id
  *
- * Journal balance formula (strict):
- *   Σ DEBIT  = Σ(bill_after_discount per channel) + Σ(fee_amount) + Σ(discount_amount)
- *   Σ CREDIT = Σ(gross_amount) + Σ(tax_amount) + Σ(fee_liability)
- *            = Σ(bill + discount - discount) + Σ(tax) + Σ(fee)
- *            = Σ(gross) + Σ(tax) + Σ(fee)
- *
- * Proof:
- *   gross + tax - discount = bill_after_discount
- *   → gross = bill_after_discount + discount - tax
- *
- *   DEBIT  = bill + fee + discount
- *   CREDIT = gross + tax + fee
- *          = (bill + discount - tax) + tax + fee
- *          = bill + discount + fee  ✓
- *
- * BLOCK conditions (journal not created, goes to failed[]):
- *   1. fee_amount > 0 AND fee_coa_account_id IS NULL
- *   2. fee_amount > 0 AND fee_liability_coa_account_id IS NULL
- *   3. SAL-INV purpose not found or not active
- *   4. SAL-INV has no CREDIT REVENUE account
- *   5. tax_amount > 0 AND SAL-INV has no CREDIT LIABILITY account
- *   6. discount_amount > 0 AND SAL-INV has no DEBIT REVENUE account
- *   7. Any transaction in group is NOT reconciled (is_reconciled = false)
- *   8. Total balance mismatch after line construction
+ * Balance formula:
+ *   DEBIT  = bill + fee + discount + promoDiscount + voucherDiscount + rounding(+)
+ *   CREDIT = gross + tax + fee_liability + SC + otherVat + orderFee + delivery + rounding(-)
  *
  * Special payment_type handling:
- *   COMPLIMENT    → CREDIT to coa_account_id (reduces revenue)
+ *   COMPLIMENT     → CREDIT to coa_account_id (reduces revenue)
  *   MEMBER_DEPOSIT → DEBIT to coa_account_id (reduces liability)
- *   ASSET types   → DEBIT to coa_account_id
+ *   ASSET types    → DEBIT to coa_account_id
  */
 
 import { supabase } from '../../../config/supabase'
@@ -87,9 +74,16 @@ interface PaymentMethodResolved {
 }
 
 interface SalInvConfig {
-  revenueAccountId: string    // CREDIT REVENUE lowest priority (gross sales)
-  taxAccountId: string | null // CREDIT LIABILITY lowest priority (PB1/PPN)
-  discountAccountId: string | null // DEBIT REVENUE lowest priority (contra revenue) ← NEW
+  revenueAccountId: string              // gross_revenue          → 410101
+  taxAccountId: string | null           // tax_payable            → 210206
+  discountAccountId: string | null      // bill_discount          → 410301
+  serviceChargeAccountId: string | null // service_charge_payable → 210209
+  otherVatAccountId: string | null      // other_vat_payable      → 210210
+  orderFeeAccountId: string | null      // order_fee_revenue      → 410202
+  deliveryAccountId: string | null      // delivery_revenue       → 410203
+  promoDiscountAccountId: string | null // promotion_discount     → 410304
+  voucherDiscountAccountId: string | null // voucher_discount     → 410305
+  roundingAccountId: string | null      // rounding_expense       → 610801
 }
 
 // ==============================
@@ -210,7 +204,7 @@ async function loadSalInvConfig(companyId: string): Promise<SalInvConfig> {
 
   const { data: accounts, error: accountsError } = await supabase
     .from('accounting_purpose_accounts')
-    .select('account_id, side, priority')
+    .select('account_id, side, priority, field_mapping')
     .eq('purpose_id', purpose.id)
     .eq('is_active', true)
     .is('deleted_at', null)
@@ -219,37 +213,62 @@ async function loadSalInvConfig(companyId: string): Promise<SalInvConfig> {
   if (accountsError) throw new Error(`Gagal load SAL-INV accounts: ${accountsError.message}`)
   if (!accounts || accounts.length === 0) throw new Error('SAL-INV tidak memiliki akun yang aktif')
 
+  // Build field_mapping lookup
+  const byField = new Map<string, string>()
+  for (const a of accounts) {
+    if (a.field_mapping) byField.set(a.field_mapping, a.account_id)
+  }
+
+  // If field_mapping populated, use it directly
+  if (byField.size > 0) {
+    const revenueAccountId = byField.get('gross_revenue')
+    if (!revenueAccountId) throw new Error('SAL-INV tidak memiliki field_mapping gross_revenue')
+
+    const config: SalInvConfig = {
+      revenueAccountId,
+      taxAccountId:             byField.get('tax_payable')            ?? null,
+      discountAccountId:        byField.get('bill_discount')          ?? null,
+      serviceChargeAccountId:   byField.get('service_charge_payable') ?? null,
+      otherVatAccountId:        byField.get('other_vat_payable')      ?? null,
+      orderFeeAccountId:        byField.get('order_fee_revenue')      ?? null,
+      deliveryAccountId:        byField.get('delivery_revenue')       ?? null,
+      promoDiscountAccountId:   byField.get('promotion_discount')     ?? null,
+      voucherDiscountAccountId: byField.get('voucher_discount')       ?? null,
+      roundingAccountId:        byField.get('rounding_expense')       ?? null,
+    }
+    logInfo('SAL-INV config loaded (field_mapping)', config)
+    return config
+  }
+
+  // Fallback: legacy logic (no field_mapping yet)
   const creditAccounts = accounts.filter(a => a.side === 'CREDIT')
   const debitAccounts  = accounts.filter(a => a.side === 'DEBIT')
-
-  if (creditAccounts.length === 0) {
-    throw new Error('SAL-INV tidak memiliki akun CREDIT yang aktif')
-  }
+  if (creditAccounts.length === 0) throw new Error('SAL-INV tidak memiliki akun CREDIT yang aktif')
 
   const allCoaIds = [...new Set(accounts.map(a => a.account_id))]
   const { data: coas, error: coaError } = await supabase
-    .from('chart_of_accounts')
-    .select('id, account_type')
-    .in('id', allCoaIds)
-
-  if (coaError) throw new Error(`Gagal load COA types untuk SAL-INV: ${coaError.message}`)
+    .from('chart_of_accounts').select('id, account_type').in('id', allCoaIds)
+  if (coaError) throw new Error(`Gagal load COA types: ${coaError.message}`)
 
   const coaTypeMap = new Map<string, string>()
   for (const coa of coas ?? []) coaTypeMap.set(coa.id, coa.account_type)
 
-  const revenueAccount = creditAccounts.find(a => coaTypeMap.get(a.account_id) === 'REVENUE')
-  if (!revenueAccount) throw new Error('SAL-INV tidak memiliki akun CREDIT dengan tipe REVENUE')
-
-  const taxAccount      = creditAccounts.find(a => coaTypeMap.get(a.account_id) === 'LIABILITY') ?? null
-  const discountAccount = debitAccounts.find(a => coaTypeMap.get(a.account_id) === 'REVENUE') ?? null
+  const revenueAccount  = creditAccounts.find(a => coaTypeMap.get(a.account_id) === 'REVENUE')
+  if (!revenueAccount) throw new Error('SAL-INV tidak memiliki akun CREDIT REVENUE')
 
   const config: SalInvConfig = {
-    revenueAccountId:  revenueAccount.account_id,
-    taxAccountId:      taxAccount?.account_id ?? null,
-    discountAccountId: discountAccount?.account_id ?? null,
+    revenueAccountId:         revenueAccount.account_id,
+    taxAccountId:             creditAccounts.find(a => coaTypeMap.get(a.account_id) === 'LIABILITY')?.account_id ?? null,
+    discountAccountId:        debitAccounts.find(a => coaTypeMap.get(a.account_id) === 'REVENUE')?.account_id ?? null,
+    serviceChargeAccountId:   null,
+    otherVatAccountId:        null,
+    orderFeeAccountId:        null,
+    deliveryAccountId:        null,
+    promoDiscountAccountId:   null,
+    voucherDiscountAccountId: null,
+    roundingAccountId:        null,
   }
-
-  logInfo('SAL-INV config loaded', config)
+  logInfo('SAL-INV config loaded (legacy fallback)', config)
   return config
 }
 
@@ -570,11 +589,18 @@ export async function generateJournalsOptimized(
       // ── 5.4 Build aggregated data per payment method ───────────────
       interface PmAgg {
         pm: PaymentMethodResolved
-        billTotal:     number  // bill_after_discount
-        grossTotal:    number  // gross_amount (revenue before discount & tax)
-        discountTotal: number  // discount_amount
-        taxTotal:      number  // tax_amount (PB1/PPN)
-        feeTotal:      number  // total_fee_amount
+        billTotal:            number
+        grossTotal:           number
+        discountTotal:        number
+        taxTotal:             number
+        feeTotal:             number
+        serviceChargeTotal:   number
+        otherVatTotal:        number
+        orderFeeTotal:        number
+        deliveryTotal:        number
+        promoDiscountTotal:   number
+        voucherDiscountTotal: number
+        roundingTotal:        number
       }
 
       const pmAggMap = new Map<number, PmAgg>()
@@ -584,64 +610,80 @@ export async function generateJournalsOptimized(
         if (!pmAggMap.has(pm.id)) {
           pmAggMap.set(pm.id, {
             pm,
-            billTotal:     0,
-            grossTotal:    0,
-            discountTotal: 0,
-            taxTotal:      0,
-            feeTotal:      0,
+            billTotal: 0, grossTotal: 0, discountTotal: 0, taxTotal: 0, feeTotal: 0,
+            serviceChargeTotal: 0, otherVatTotal: 0, orderFeeTotal: 0,
+            deliveryTotal: 0, promoDiscountTotal: 0, voucherDiscountTotal: 0, roundingTotal: 0,
           })
         }
         const agg = pmAggMap.get(pm.id)!
-        agg.billTotal     = round2(agg.billTotal     + Number(tx.bill_after_discount))
-        agg.grossTotal    = round2(agg.grossTotal    + Number(tx.gross_amount))
-        agg.discountTotal = round2(agg.discountTotal + Number(tx.discount_amount ?? 0))
-        agg.taxTotal      = round2(agg.taxTotal      + Number(tx.tax_amount ?? 0))
-        agg.feeTotal      = round2(agg.feeTotal      + Number(tx.total_fee_amount ?? 0))
+        agg.billTotal            = round2(agg.billTotal            + Number(tx.bill_after_discount))
+        agg.grossTotal           = round2(agg.grossTotal           + Number(tx.gross_amount))
+        agg.discountTotal        = round2(agg.discountTotal        + Number(tx.discount_amount ?? 0))
+        agg.taxTotal             = round2(agg.taxTotal             + Number(tx.tax_amount ?? 0))
+        agg.feeTotal             = round2(agg.feeTotal             + Number(tx.total_fee_amount ?? 0))
+        agg.serviceChargeTotal   = round2(agg.serviceChargeTotal   + Number(tx.service_charge_amount ?? 0))
+        agg.otherVatTotal        = round2(agg.otherVatTotal        + Number(tx.other_vat_amount ?? 0))
+        agg.orderFeeTotal        = round2(agg.orderFeeTotal        + Number(tx.order_fee ?? 0))
+        agg.deliveryTotal        = round2(agg.deliveryTotal        + Number(tx.delivery_cost ?? 0))
+        agg.promoDiscountTotal   = round2(agg.promoDiscountTotal   + Number(tx.promotion_discount_amount ?? 0))
+        agg.voucherDiscountTotal = round2(agg.voucherDiscountTotal + Number(tx.voucher_discount_amount ?? 0))
+        agg.roundingTotal        = round2(agg.roundingTotal        + Number(tx.rounding_amount ?? 0))
       }
 
       const pmAggList = Array.from(pmAggMap.values())
 
       // ── 5.5 Compute group totals ───────────────────────────────────
-      const grandBill     = round2(pmAggList.reduce((s, a) => s + a.billTotal,     0))
-      const grandGross    = round2(pmAggList.reduce((s, a) => s + a.grossTotal,    0))
-      const grandDiscount = round2(pmAggList.reduce((s, a) => s + a.discountTotal, 0))
-      const grandTax      = round2(pmAggList.reduce((s, a) => s + a.taxTotal,      0))
-      const grandFee      = round2(pmAggList.reduce((s, a) => s + a.feeTotal,      0))
+      const grandBill            = round2(pmAggList.reduce((s, a) => s + a.billTotal,            0))
+      const grandGross           = round2(pmAggList.reduce((s, a) => s + a.grossTotal,           0))
+      const grandDiscount        = round2(pmAggList.reduce((s, a) => s + a.discountTotal,        0))
+      const grandTax             = round2(pmAggList.reduce((s, a) => s + a.taxTotal,             0))
+      const grandFee             = round2(pmAggList.reduce((s, a) => s + a.feeTotal,             0))
+      const grandServiceCharge   = round2(pmAggList.reduce((s, a) => s + a.serviceChargeTotal,   0))
+      const grandOtherVat        = round2(pmAggList.reduce((s, a) => s + a.otherVatTotal,        0))
+      const grandOrderFee        = round2(pmAggList.reduce((s, a) => s + a.orderFeeTotal,        0))
+      const grandDelivery        = round2(pmAggList.reduce((s, a) => s + a.deliveryTotal,        0))
+      const grandPromoDiscount   = round2(pmAggList.reduce((s, a) => s + a.promoDiscountTotal,   0))
+      const grandVoucherDiscount = round2(pmAggList.reduce((s, a) => s + a.voucherDiscountTotal, 0))
+      const grandRounding        = round2(pmAggList.reduce((s, a) => s + a.roundingTotal,        0))
 
-      // Sanity check: gross + tax - discount should equal bill
-      // gross_amount in aggregated_transactions is already net of discount
-      // Formula: bill_after_discount = gross_amount + tax_amount - discount_amount
-      // (this depends on how POS system computes it — log a warning if off)
-      const expectedBill = round2(grandGross + grandTax - grandDiscount)
-      if (Math.abs(expectedBill - grandBill) > 1) {
-        logWarn('Bill amount mismatch — check aggregation formula', {
-          date, branchName,
-          grandBill, grandGross, grandTax, grandDiscount,
-          expectedBill,
-        })
+      // ── 5.6 Validate config for non-zero amounts ────────────────────
+      const configChecks: Array<[number, string | null, string]> = [
+        [grandTax,             salInvConfig.taxAccountId,             'tax_payable (210206)'],
+        [grandDiscount,        salInvConfig.discountAccountId,        'bill_discount (410301)'],
+        [grandServiceCharge,   salInvConfig.serviceChargeAccountId,   'service_charge_payable (210209)'],
+        [grandOtherVat,        salInvConfig.otherVatAccountId,        'other_vat_payable (210210)'],
+        [grandOrderFee,        salInvConfig.orderFeeAccountId,        'order_fee_revenue (410202)'],
+        [grandDelivery,        salInvConfig.deliveryAccountId,        'delivery_revenue (410203)'],
+        [grandPromoDiscount,   salInvConfig.promoDiscountAccountId,   'promotion_discount (410304)'],
+        [grandVoucherDiscount, salInvConfig.voucherDiscountAccountId, 'voucher_discount (410305)'],
+      ]
+      // Rounding bisa negatif, cek abs
+      if (Math.abs(grandRounding) > 0 && !salInvConfig.roundingAccountId) {
+        configChecks.push([Math.abs(grandRounding), null, 'rounding_expense (610801)'])
       }
 
-      // ── 5.6 Validate tax & discount config ────────────────────────
-      if (grandTax > 0 && !salInvConfig.taxAccountId) {
-        failedResults.push({
-          date, branch: branchName,
-          error: 'Ada tax_amount > 0 tapi SAL-INV tidak memiliki akun LIABILITY untuk pajak. Tambahkan akun PB1 Payable ke SAL-INV purpose (CREDIT side, account_type LIABILITY).',
-        })
-        continue
-      }
+      const missingConfigs = configChecks
+        .filter(([amount, accountId]) => amount > 0 && !accountId)
+        .map(([, , label]) => label)
 
-      if (grandDiscount > 0 && !salInvConfig.discountAccountId) {
+      if (missingConfigs.length > 0) {
         failedResults.push({
           date, branch: branchName,
-          error: 'Ada discount_amount > 0 tapi SAL-INV tidak memiliki akun REVENUE untuk diskon. Tambahkan akun 410301 (Bill Discount) ke SAL-INV purpose (DEBIT side, account_type REVENUE).',
+          error: `SAL-INV field_mapping belum dikonfigurasi untuk: ${missingConfigs.join(', ')}. Jalankan migration_coa_field_mapping.sql.`,
         })
         continue
       }
 
       // ── 5.7 Create journal header ──────────────────────────────────
-      // total_amount = total DEBIT = total CREDIT of all journal lines
-      // = grandBill + grandFee + grandDiscount
-      const grandTotalDebit = round2(grandBill + grandFee + grandDiscount)
+      // Balance formula:
+      //   DEBIT  = bill + fee + discount + promoDiscount + voucherDiscount + rounding(+)
+      //   CREDIT = gross + tax + fee_liability + SC + otherVat + orderFee + delivery + rounding(-)
+      const roundingDebit  = grandRounding > 0 ? grandRounding : 0
+      const roundingCredit = grandRounding < 0 ? Math.abs(grandRounding) : 0
+      const grandTotalDebit = round2(
+        grandBill + grandFee + grandDiscount +
+        grandPromoDiscount + grandVoucherDiscount + roundingDebit
+      )
 
       const branchSlug    = branchName.replace(/\s+/g, '-').toUpperCase()
       const journalNumber = `RCP-${branchSlug}-${date}`
@@ -756,6 +798,21 @@ export async function generateJournalsOptimized(
       if (grandDiscount > 0 && salInvConfig.discountAccountId) {
         pushLine(salInvConfig.discountAccountId, 'Sales Discount', grandDiscount, 0)
       }
+      if (grandPromoDiscount > 0 && salInvConfig.promoDiscountAccountId) {
+        pushLine(salInvConfig.promoDiscountAccountId, 'Promotion Discount', grandPromoDiscount, 0)
+      }
+      if (grandVoucherDiscount > 0 && salInvConfig.voucherDiscountAccountId) {
+        pushLine(salInvConfig.voucherDiscountAccountId, 'Voucher Discount', grandVoucherDiscount, 0)
+      }
+
+      // ── DEBIT/CREDIT: rounding (bisa positif atau negatif) ─────────
+      if (grandRounding !== 0 && salInvConfig.roundingAccountId) {
+        if (grandRounding > 0) {
+          pushLine(salInvConfig.roundingAccountId, 'Rounding', grandRounding, 0)
+        } else {
+          pushLine(salInvConfig.roundingAccountId, 'Rounding', 0, Math.abs(grandRounding))
+        }
+      }
 
       // ── CREDIT: gross sales revenue ────────────────────────────────
       pushLine(salInvConfig.revenueAccountId, 'POS Sales Revenue', 0, grandGross)
@@ -763,6 +820,26 @@ export async function generateJournalsOptimized(
       // ── CREDIT: PB1 / PPN tax payable ─────────────────────────────
       if (grandTax > 0 && salInvConfig.taxAccountId) {
         pushLine(salInvConfig.taxAccountId, 'PB1 Tax Payable', 0, grandTax)
+      }
+
+      // ── CREDIT: service charge payable ─────────────────────────────
+      if (grandServiceCharge > 0 && salInvConfig.serviceChargeAccountId) {
+        pushLine(salInvConfig.serviceChargeAccountId, 'Service Charge Payable', 0, grandServiceCharge)
+      }
+
+      // ── CREDIT: other VAT payable ──────────────────────────────────
+      if (grandOtherVat > 0 && salInvConfig.otherVatAccountId) {
+        pushLine(salInvConfig.otherVatAccountId, 'Other VAT Payable', 0, grandOtherVat)
+      }
+
+      // ── CREDIT: order fee revenue ──────────────────────────────────
+      if (grandOrderFee > 0 && salInvConfig.orderFeeAccountId) {
+        pushLine(salInvConfig.orderFeeAccountId, 'Order Fee Revenue', 0, grandOrderFee)
+      }
+
+      // ── CREDIT: delivery revenue ───────────────────────────────────
+      if (grandDelivery > 0 && salInvConfig.deliveryAccountId) {
+        pushLine(salInvConfig.deliveryAccountId, 'Delivery Revenue', 0, grandDelivery)
       }
 
       // ── 5.10 Balance validation ────────────────────────────────────
@@ -820,11 +897,9 @@ export async function generateJournalsOptimized(
         lines:          lines.length,
         debit:          checkDebit,
         credit:         checkCredit,
-        grandBill,
-        grandGross,
-        grandDiscount,
-        grandTax,
-        grandFee,
+        grandBill, grandGross, grandDiscount, grandTax, grandFee,
+        grandServiceCharge, grandOtherVat, grandOrderFee, grandDelivery,
+        grandPromoDiscount, grandVoucherDiscount, grandRounding,
         grandTotalDebit,
       })
 

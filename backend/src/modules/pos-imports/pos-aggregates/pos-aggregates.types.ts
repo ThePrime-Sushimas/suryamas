@@ -70,6 +70,15 @@ export interface AggregatedTransaction {
   total_fee_amount: number; // Total fee (percentage_fee + fixed_fee)
   nett_amount: number; // bill_after_discount - total_fee_amount (final amount after fee)
   actual_nett_amount?: number; // GENERATED: nett_amount - fee_discrepancy (real amount after actual bank fee) — DB computed, never set manually
+  rounding_amount: number;
+  delivery_cost: number;
+  order_fee: number;
+  voucher_discount_amount: number;
+  promotion_discount_amount: number;
+  menu_discount_amount: number;
+  voucher_payment_amount: number;
+  other_vat_amount: number;
+  pax_total: number;
   currency: string; // Default: 'IDR'
   journal_id: string | null;
   is_reconciled: boolean; // Default: false
