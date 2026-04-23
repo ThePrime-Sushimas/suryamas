@@ -207,6 +207,11 @@ export interface CreateAggregatedTransactionDto {
   tax_amount?: number;
   service_charge_amount?: number;
   bill_after_discount?: number;
+  rounding_amount?: number;
+  delivery_cost?: number;
+  order_fee?: number;
+  promotion_discount_amount?: number;
+  voucher_discount_amount?: number;
   percentage_fee_amount?: number;
   fixed_fee_amount?: number;
   total_fee_amount?: number;
@@ -232,6 +237,11 @@ export interface UpdateAggregatedTransactionDto {
   tax_amount?: number;
   service_charge_amount?: number;
   bill_after_discount?: number;
+  rounding_amount?: number;
+  delivery_cost?: number;
+  order_fee?: number;
+  promotion_discount_amount?: number;
+  voucher_discount_amount?: number;
   percentage_fee_amount?: number;
   fixed_fee_amount?: number;
   total_fee_amount?: number;

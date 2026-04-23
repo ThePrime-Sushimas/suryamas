@@ -14,6 +14,8 @@ export const AccountingPurposeAccountFormPage = () => {
   
   const {
     selectedAccount,
+    postableAccounts,
+    activePurposes,
     loading,
     error: storeError,
     getAccountById,
@@ -104,7 +106,16 @@ export const AccountingPurposeAccountFormPage = () => {
     account_id: selectedAccount.account_id,
     side: selectedAccount.side,
     priority: selectedAccount.priority,
+    field_mapping: selectedAccount.field_mapping ?? null,
     is_active: selectedAccount.is_active
+  } : undefined
+
+  const editInfo = isEdit && selectedAccount ? {
+    purpose_code: activePurposes.find(p => p.id === selectedAccount.purpose_id)?.purpose_code || '',
+    purpose_name: activePurposes.find(p => p.id === selectedAccount.purpose_id)?.purpose_name || '',
+    account_code: postableAccounts.find(a => a.id === selectedAccount.account_id)?.account_code || '',
+    account_name: postableAccounts.find(a => a.id === selectedAccount.account_id)?.account_name || '',
+    side: selectedAccount.side,
   } : undefined
 
   return (
@@ -125,6 +136,7 @@ export const AccountingPurposeAccountFormPage = () => {
             onSubmit={handleSubmit}
             onCancel={handleCancel}
             isEdit={isEdit}
+            editInfo={editInfo}
           />
         </div>
       </div>

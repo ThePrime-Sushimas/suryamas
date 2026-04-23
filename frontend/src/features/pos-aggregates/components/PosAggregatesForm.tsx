@@ -109,6 +109,11 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
       tax_amount: 0,
       service_charge_amount: 0,
       bill_after_discount: 0,
+      rounding_amount: 0,
+      delivery_cost: 0,
+      order_fee: 0,
+      promotion_discount_amount: 0,
+      voucher_discount_amount: 0,
       percentage_fee_amount: 0,
       fixed_fee_amount: 0,
       total_fee_amount: 0,
@@ -189,6 +194,11 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
         tax_amount: transaction.tax_amount ?? 0,
         service_charge_amount: transaction.service_charge_amount ?? 0,
         bill_after_discount: transaction.bill_after_discount ?? 0,
+        rounding_amount: transaction.rounding_amount ?? 0,
+        delivery_cost: transaction.delivery_cost ?? 0,
+        order_fee: transaction.order_fee ?? 0,
+        promotion_discount_amount: transaction.promotion_discount_amount ?? 0,
+        voucher_discount_amount: transaction.voucher_discount_amount ?? 0,
         percentage_fee_amount: transaction.percentage_fee_amount ?? 0,
         fixed_fee_amount: transaction.fixed_fee_amount ?? 0,
         total_fee_amount: transaction.total_fee_amount ?? 0,
@@ -506,6 +516,83 @@ export function PosAggregatesForm(props: PosAggregatesFormProps) {
               />
             </div>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Otomatis dihitung</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Additional Fields Section */}
+      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Detail Tambahan</h3>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {/* Promo Discount */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Promo Discount</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
+              <Controller name="promotion_discount_amount" control={control}
+                render={({ field }) => (
+                  <input type="number" {...field} step="0.01" min="0"
+                    onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                )} />
+            </div>
+          </div>
+
+          {/* Voucher Discount */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Voucher Discount</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
+              <Controller name="voucher_discount_amount" control={control}
+                render={({ field }) => (
+                  <input type="number" {...field} step="0.01" min="0"
+                    onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                )} />
+            </div>
+          </div>
+
+          {/* Rounding */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Rounding</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
+              <Controller name="rounding_amount" control={control}
+                render={({ field }) => (
+                  <input type="number" {...field} step="0.01"
+                    onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                )} />
+            </div>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Bisa negatif</p>
+          </div>
+
+          {/* Delivery Cost */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Delivery Cost</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
+              <Controller name="delivery_cost" control={control}
+                render={({ field }) => (
+                  <input type="number" {...field} step="0.01" min="0"
+                    onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                )} />
+            </div>
+          </div>
+
+          {/* Order Fee */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Order Fee</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
+              <Controller name="order_fee" control={control}
+                render={({ field }) => (
+                  <input type="number" {...field} step="0.01" min="0"
+                    onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                )} />
+            </div>
           </div>
         </div>
       </div>

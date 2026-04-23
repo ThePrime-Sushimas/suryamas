@@ -11,13 +11,21 @@ interface AccountingPurposeAccountFormProps {
   onSubmit: (data: CreateAccountingPurposeAccountDto | UpdateAccountingPurposeAccountDto) => Promise<void>
   onCancel: () => void
   isEdit?: boolean
+  editInfo?: {
+    purpose_code: string
+    purpose_name: string
+    account_code: string
+    account_name: string
+    side: string
+  }
 }
 
 export const AccountingPurposeAccountForm = ({ 
   initialData, 
   onSubmit, 
   onCancel, 
-  isEdit = false 
+  isEdit = false,
+  editInfo,
 }: AccountingPurposeAccountFormProps) => {
   const { postableAccounts, activePurposes, loading } = useAccountingPurposeAccountsStore()
   const branchContext = useBranchContext()
@@ -72,6 +80,26 @@ export const AccountingPurposeAccountForm = ({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {isEdit && editInfo && (
+        <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-4 space-y-2">
+          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Informasi Mapping</h3>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <span className="text-gray-500 dark:text-gray-400">Purpose: </span>
+              <span className="font-medium text-gray-900 dark:text-white">{editInfo.purpose_code} — {editInfo.purpose_name}</span>
+            </div>
+            <div>
+              <span className="text-gray-500 dark:text-gray-400">Side: </span>
+              <span className={`font-medium ${editInfo.side === 'DEBIT' ? 'text-blue-600 dark:text-blue-400' : 'text-green-600 dark:text-green-400'}`}>{editInfo.side}</span>
+            </div>
+            <div className="col-span-2">
+              <span className="text-gray-500 dark:text-gray-400">Account: </span>
+              <span className="font-mono font-medium text-gray-900 dark:text-white">{editInfo.account_code}</span>
+              <span className="text-gray-600 dark:text-gray-300 ml-1">— {editInfo.account_name}</span>
+            </div>
+          </div>
+        </div>
+      )}
       {!isEdit && (
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
