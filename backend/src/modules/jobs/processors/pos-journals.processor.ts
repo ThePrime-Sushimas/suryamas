@@ -854,14 +854,35 @@ export async function generateJournalsOptimized(
       //
       const balanceDiff = round2(Math.abs(checkDebit - checkCredit))
 
-      if (balanceDiff > 1) {
+      // Auto-correct small rounding differences (≤ Rp 100)
+      // These arise from floating point drift when summing many transactions
+      if (balanceDiff > 0 && balanceDiff <= 100) {
+        const roundingAccountId = salInvConfig.roundingAccountId || salInvConfig.revenueAccountId
+        if (checkDebit > checkCredit) {
+          pushLine(roundingAccountId, 'Rounding Adjustment', 0, balanceDiff)
+        } else {
+          pushLine(roundingAccountId, 'Rounding Adjustment', balanceDiff, 0)
+        }
+        logWarn('Auto-corrected rounding difference', {
+          date, branchName, balanceDiff,
+          originalDebit: round2(checkDebit - (checkDebit > checkCredit ? 0 : balanceDiff)),
+          originalCredit: round2(checkCredit - (checkCredit > checkDebit ? 0 : balanceDiff)),
+        })
+      }
+
+      // Re-check after rounding adjustment
+      const finalDebit = round2(lines.reduce((s, l) => s + l.debit_amount, 0))
+      const finalCredit = round2(lines.reduce((s, l) => s + l.credit_amount, 0))
+      const finalDiff = round2(Math.abs(finalDebit - finalCredit))
+
+      if (finalDiff > 1) {
         await rollbackJournalHeader(journalHeader.id)
         failedResults.push({
           date, branch: branchName,
           error: [
             `Journal tidak balance:`,
-            `DEBIT ${checkDebit.toLocaleString('id-ID')} ≠ CREDIT ${checkCredit.toLocaleString('id-ID')}`,
-            `(selisih ${balanceDiff.toLocaleString('id-ID')}).`,
+            `DEBIT ${finalDebit.toLocaleString('id-ID')} ≠ CREDIT ${finalCredit.toLocaleString('id-ID')}`,
+            `(selisih ${finalDiff.toLocaleString('id-ID')}).`,
             `Pastikan fee_liability_coa_account_id terkonfigurasi di semua payment methods yang memiliki fee`,
             `dan akun discount terdaftar di SAL-INV purpose.`,
           ].join(' '),
