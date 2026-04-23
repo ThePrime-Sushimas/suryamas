@@ -164,6 +164,8 @@ export function CashCountsManagementPage() {
   const [editLarge, setEditLarge] = useState('')
   const [editSmall, setEditSmall] = useState('')
   const [editEmployeeId, setEditEmployeeId] = useState('')
+  const [employeeSearch, setEmployeeSearch] = useState('')
+  const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false)
 
   useEffect(() => {
     api.get('/payment-methods/options').then((r) => {
@@ -182,12 +184,22 @@ export function CashCountsManagementPage() {
   const handlePreview = useCallback(async () => {
     if (!startDate || !endDate || !paymentMethodId) return
     setIsLoading(true)
-    try { setRows(await cashCountsApi.preview(startDate, endDate, paymentMethodId)); setCollapsedBranches(new Set()); setSelectedForDeposit(new Set()) }
+    try {
+      setRows(await cashCountsApi.preview(startDate, endDate, paymentMethodId))
+      setCollapsedBranches(new Set())
+      setSelectedForDeposit(new Set())
+    }
     catch (e) { toast.error(e instanceof Error ? e.message : 'Gagal memuat data') }
     finally { setIsLoading(false) }
   }, [startDate, endDate, paymentMethodId, toast])
 
   const rk = (r: CashCountPreviewRow) => `${r.branch_name}|${r.transaction_date}`
+
+  const filteredEmployees = useMemo(() => {
+    if (!employeeSearch.trim()) return employees
+    const q = employeeSearch.toLowerCase()
+    return employees.filter(e => e.full_name.toLowerCase().includes(q))
+  }, [employees, employeeSearch])
 
   const branchGroups = useMemo(() => {
     const map = new Map<string, CashCountPreviewRow[]>()
@@ -609,11 +621,30 @@ export function CashCountsManagementPage() {
 
                             <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                               {isEditing && editTotal < row.system_balance ? (
-                                <select value={editEmployeeId} onChange={(e) => setEditEmployeeId(e.target.value)}
-                                  className="w-full px-2 py-1 border border-red-300 dark:border-red-600 rounded text-xs bg-white dark:bg-gray-700 dark:text-white">
-                                  <option value="">Staff *</option>
-                                  {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
-                                </select>
+                                <div className="relative">
+                                  <input
+                                    type="text"
+                                    value={editEmployeeId ? (employees.find(e => e.id === editEmployeeId)?.full_name || employeeSearch) : employeeSearch}
+                                    onChange={(e) => { setEmployeeSearch(e.target.value); setEditEmployeeId(''); setShowEmployeeDropdown(true) }}
+                                    onFocus={() => setShowEmployeeDropdown(true)}
+                                    onBlur={() => setTimeout(() => setShowEmployeeDropdown(false), 200)}
+                                    placeholder="Cari staff..."
+                                    className="w-full px-2 py-1 border border-red-300 dark:border-red-600 rounded text-xs bg-white dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-red-500 outline-none"
+                                  />
+                                  {showEmployeeDropdown && filteredEmployees.length > 0 && (
+                                    <div className="absolute z-50 mt-1 w-48 max-h-40 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg">
+                                      {filteredEmployees.slice(0, 20).map(emp => (
+                                        <button key={emp.id} type="button"
+                                          onMouseDown={(e) => { e.preventDefault(); setEditEmployeeId(emp.id); setEmployeeSearch(''); setShowEmployeeDropdown(false) }}
+                                          className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                                            editEmployeeId === emp.id ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 font-medium' : 'text-gray-700 dark:text-gray-300'
+                                          }`}>
+                                          {emp.full_name}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               ) : row.responsible_employee_id ? (
                                 <span className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
                                   <AlertTriangle className="w-3 h-3" />
