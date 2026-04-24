@@ -753,12 +753,13 @@ export async function generateBankRecJournals(
         const stmtIdsForSettlement = stmtsWithoutLink.map(s => Number(s.id))
         let settlementAggIds: string[] = []
         const settlementMap: Record<string, string[]> = {} // statementId → aggregateIds[]
+        let settlementGroupDifference = 0 // total difference from settlement groups
 
         if (stmtIdsForSettlement.length > 0) {
           const { data: settlements } = await supabase
             .from('bank_settlement_groups')
             .select(`
-              id, bank_statement_id,
+              id, bank_statement_id, difference,
               bank_settlement_aggregates ( aggregate_id )
             `)
             .in('bank_statement_id', stmtIdsForSettlement)
@@ -769,6 +770,8 @@ export async function generateBankRecJournals(
             const aggIds = ((sg as any).bank_settlement_aggregates || []).map((a: any) => a.aggregate_id as string)
             settlementMap[bsId] = aggIds
             settlementAggIds.push(...aggIds)
+            // settlement group difference: positive = bank > aggregates = bank bayar lebih = fee disc negatif
+            settlementGroupDifference = round2(settlementGroupDifference - Number((sg as any).difference || 0))
           }
         }
 
@@ -920,10 +923,12 @@ export async function generateBankRecJournals(
         // Fee discrepancy adjustment via 610105 Fee Discrepancy
         // discrepancy > 0 (bank bayar kurang): DEBIT Fee Discrepancy (expense naik)
         // discrepancy < 0 (bank bayar lebih / kompensasi): CREDIT Fee Discrepancy (expense turun)
+        // Sources: per-aggregate fee_discrepancy + settlement group difference
         if (feeDiscConfig) {
-          const totalFeeDisc = round2(
+          const aggFeeDisc = round2(
             Object.values(channelMap).reduce((s, ch) => s + ch.feeDiscrepancy, 0)
           )
+          const totalFeeDisc = round2(aggFeeDisc + settlementGroupDifference)
           if (Math.abs(totalFeeDisc) >= 1) {
             lines.push({
               journal_header_id: journalHeader.id,
