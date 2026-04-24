@@ -16,6 +16,7 @@ import type {
   SettlementWizardStep,
   GetAvailableBankStatementsRequest,
   AvailableBankStatementsResponse,
+  AvailableAggregatesResponse,
 } from "../types/settlement-groups.types";
 
 // ==================== ZUSTAND STORE ====================
@@ -324,13 +325,36 @@ export const useAvailableBankStatements = (params?: Omit<GetAvailableBankStateme
 };
 
 /**
- * Hook for fetching available aggregates for settlement
+ * Hook for fetching available aggregates for settlement (infinite scroll)
  */
-export const useAvailableAggregatesForSettlement = (params?: GetAvailableAggregatesRequest) => {
-  return useQuery({
-    queryKey: ['available-aggregates-for-settlement', params],
-    queryFn: () => settlementGroupsApi.getAvailableAggregates(params || {}),
-    staleTime: 0, // Always refetch to get latest unreconciled status
+export const useAvailableAggregatesForSettlement = (params?: Omit<GetAvailableAggregatesRequest, 'offset' | 'limit'> & { limit?: number }) => {
+  const pageSize = params?.limit || 100;
+
+  const query = useInfiniteQuery({
+    queryKey: ['available-aggregates-for-settlement', params?.search, params?.startDate, params?.endDate],
+    queryFn: ({ pageParam = 0 }) =>
+      settlementGroupsApi.getAvailableAggregates({
+        ...params,
+        limit: pageSize,
+        offset: pageParam as number,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, _allPages, lastPageParam) => {
+      if (lastPage.data.length < pageSize) return undefined;
+      return (lastPageParam as number) + lastPage.data.length;
+    },
+    staleTime: 0,
   });
+
+  const flatData = query.data?.pages.flatMap((p) => p.data) || [];
+  const total = query.data?.pages[0]?.total || flatData.length;
+
+  return {
+    data: { data: flatData, total } as AvailableAggregatesResponse,
+    isLoading: query.isLoading,
+    isFetchingNextPage: query.isFetchingNextPage,
+    hasNextPage: query.hasNextPage,
+    fetchNextPage: query.fetchNextPage,
+  };
 };
 
