@@ -34,6 +34,7 @@ const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 1000
 const BANK_REC_PURPOSE_CODE = 'BANK-REC'
 const BANK_FEE_PURPOSE_CODE = 'BANK-FEE'
+const FEE_DISC_PURPOSE_CODE = 'FEE-DISC'
 
 // ============================================================
 // TYPES
@@ -78,6 +79,10 @@ interface BankFeeConfig {
   debitAccountId: string // 610104 Bank Charges
 }
 
+interface FeeDiscConfig {
+  accountId: string // 610105 Fee Discrepancy
+}
+
 interface FiscalPeriod {
   id: string
   period: string
@@ -99,6 +104,7 @@ interface BankStatement {
   journal_id: string | null
   payment_method_id: number | null
   reconciliation_id: string | null
+  reconciliation_group_id: string | null
 }
 
 interface JournalLine {
@@ -217,6 +223,38 @@ async function loadBankFeeConfig(companyId: string): Promise<BankFeeConfig | nul
   }
 
   logInfo('BANK-FEE config loaded', config)
+  return config
+}
+
+/**
+ * Load FEE-DISC purpose config for a company
+ * Returns the account_id (610105 Fee Discrepancy)
+ */
+async function loadFeeDiscConfig(companyId: string): Promise<FeeDiscConfig | null> {
+  const { data: purpose } = await supabase
+    .from('accounting_purposes')
+    .select('id')
+    .eq('purpose_code', FEE_DISC_PURPOSE_CODE)
+    .eq('company_id', companyId)
+    .eq('is_active', true)
+    .eq('is_deleted', false)
+    .maybeSingle()
+
+  if (!purpose) return null
+
+  const { data: accounts } = await supabase
+    .from('accounting_purpose_accounts')
+    .select('account_id, side')
+    .eq('purpose_id', purpose.id)
+    .eq('is_active', true)
+    .eq('is_deleted', false)
+    .order('priority', { ascending: true })
+    .limit(1)
+
+  if (!accounts || accounts.length === 0) return null
+
+  const config: FeeDiscConfig = { accountId: accounts[0].account_id as string }
+  logInfo('FEE-DISC config loaded', config)
   return config
 }
 
@@ -358,6 +396,13 @@ export async function generateBankRecJournals(
     logWarn('BANK-FEE config not found, debit-only statements will be skipped')
   }
 
+  const feeDiscConfig = await loadFeeDiscConfig(companyId)
+  if (feeDiscConfig) {
+    logInfo('FEE-DISC config available, fee discrepancy lines will be generated')
+  } else {
+    logWarn('FEE-DISC config not found, fee discrepancy lines will be skipped')
+  }
+
   // ── PHASE 2: Load fiscal periods ─────────────────────────────────────
   onProgress?.({ current: 10, total: 100, phase: 'fiscal', message: 'Loading fiscal periods...' })
 
@@ -388,7 +433,8 @@ export async function generateBankRecJournals(
       is_pending,
       journal_id,
       payment_method_id,
-      reconciliation_id
+      reconciliation_id,
+      reconciliation_group_id
     `)
     .in('id', bankStatementIds)
     .eq('company_id', companyId)
@@ -679,16 +725,69 @@ export async function generateBankRecJournals(
         const creditStmts = groupStmts.filter(s => (s.credit_amount ?? 0) > 0)
 
         // Fetch linked aggregated_transactions for fee data
+        // 1:1 match via reconciliation_id
         const reconIds = creditStmts.map(s => s.reconciliation_id).filter(Boolean) as string[]
+
+        // Multi-match via reconciliation_group_id → bank_reconciliation_groups → aggregate_id
+        const groupIds = creditStmts.map(s => s.reconciliation_group_id).filter(Boolean) as string[]
+        let groupAggIds: string[] = []
+        const groupAggMap: Record<string, string> = {} // groupId → aggregateId
+
+        if (groupIds.length > 0) {
+          const { data: groups } = await supabase
+            .from('bank_reconciliation_groups')
+            .select('id, aggregate_id')
+            .in('id', groupIds)
+            .is('deleted_at', null)
+
+          for (const g of groups || []) {
+            if (g.aggregate_id) {
+              groupAggIds.push(g.aggregate_id as string)
+              groupAggMap[g.id as string] = g.aggregate_id as string
+            }
+          }
+        }
+
+        // Settlement group: 1 statement → many aggregates via bank_settlement_groups
+        const stmtsWithoutLink = creditStmts.filter(s => !s.reconciliation_id && !s.reconciliation_group_id)
+        const stmtIdsForSettlement = stmtsWithoutLink.map(s => Number(s.id))
+        let settlementAggIds: string[] = []
+        const settlementMap: Record<string, string[]> = {} // statementId → aggregateIds[]
+
+        if (stmtIdsForSettlement.length > 0) {
+          const { data: settlements } = await supabase
+            .from('bank_settlement_groups')
+            .select(`
+              id, bank_statement_id,
+              bank_settlement_aggregates ( aggregate_id )
+            `)
+            .in('bank_statement_id', stmtIdsForSettlement)
+            .is('deleted_at', null)
+
+          for (const sg of settlements || []) {
+            const bsId = String(sg.bank_statement_id)
+            const aggIds = ((sg as any).bank_settlement_aggregates || []).map((a: any) => a.aggregate_id as string)
+            settlementMap[bsId] = aggIds
+            settlementAggIds.push(...aggIds)
+          }
+        }
+
+        const allAggIds = [...new Set([...reconIds, ...groupAggIds, ...settlementAggIds])]
 
         const { data: linkedAggs, error: aggError } = await supabase
           .from('aggregated_transactions')
           .select('id, bill_after_discount, total_fee_amount, actual_fee_amount, fee_discrepancy, payment_method_id')
-          .in('id', reconIds.length > 0 ? reconIds : ['__none__'])
+          .in('id', allAggIds.length > 0 ? allAggIds : ['__none__'])
 
-        // Build reconciliation_id → aggregate map
+        // Build aggregate map (by aggregate id)
         const aggMap: Record<string, any> = {}
         for (const agg of linkedAggs || []) aggMap[agg.id] = agg
+
+        // Build groupId → aggregate lookup for multi-match statements
+        const groupToAgg: Record<string, any> = {}
+        for (const [gId, aggId] of Object.entries(groupAggMap)) {
+          if (aggMap[aggId]) groupToAgg[gId] = aggMap[aggId]
+        }
 
         // Fetch payment methods with COA accounts
         const allPmIds = [...new Set([
@@ -714,38 +813,57 @@ export async function generateBankRecJournals(
         // Aggregate per COA account
         interface ChannelAgg {
           receivableAmount: number  // bill_after_discount (credit receivable)
-          actualFee: number         // actual_fee_amount (debit MDR payable)
+          actualFee: number         // total_fee_amount (expected fee, clear MDR payable penuh)
           feeDiscrepancy: number    // fee_discrepancy
           name: string
           feeCoaId: string | null
         }
         const channelMap: Record<string, ChannelAgg> = {}
+        const processedAggIds = new Set<string>() // prevent double-counting multi-match aggregates
 
         for (const stmt of creditStmts) {
-          const agg = stmt.reconciliation_id ? aggMap[stmt.reconciliation_id] : null
-          const pmId = agg?.payment_method_id || stmt.payment_method_id
-          const pm = pmId ? pmMap[pmId] : null
-          const coaId = pm?.coa_account_id || bankRecConfig.creditAccountId
-          const name = pm?.name || 'Unmatched'
+          // Resolve aggregates: 1:1 / multi-match / settlement group
+          let stmtAggs: any[] = []
 
-          if (!channelMap[coaId]) {
-            channelMap[coaId] = {
-              receivableAmount: 0,
-              actualFee: 0,
-              feeDiscrepancy: 0,
-              name,
-              feeCoaId: pm?.fee_liability_coa_account_id || null,
-            }
+          if (stmt.reconciliation_id && aggMap[stmt.reconciliation_id]) {
+            stmtAggs = [aggMap[stmt.reconciliation_id]]
+          } else if (stmt.reconciliation_group_id && groupToAgg[stmt.reconciliation_group_id]) {
+            stmtAggs = [groupToAgg[stmt.reconciliation_group_id]]
+          } else if (settlementMap[String(stmt.id)]) {
+            stmtAggs = settlementMap[String(stmt.id)]
+              .map(aggId => aggMap[aggId])
+              .filter(Boolean)
           }
 
-          const ch = channelMap[coaId]
-          if (agg) {
-            ch.receivableAmount = round2(ch.receivableAmount + Number(agg.bill_after_discount || 0))
-            ch.actualFee = round2(ch.actualFee + Number(agg.actual_fee_amount || 0))
-            ch.feeDiscrepancy = round2(ch.feeDiscrepancy + Number(agg.fee_discrepancy || 0))
+          if (stmtAggs.length > 0) {
+            for (const agg of stmtAggs) {
+              if (processedAggIds.has(agg.id)) continue
+              processedAggIds.add(agg.id)
+
+              const pmId = agg.payment_method_id || stmt.payment_method_id
+              const pm = pmId ? pmMap[pmId] : null
+              const coaId = pm?.coa_account_id || bankRecConfig.creditAccountId
+              const name = pm?.name || 'Unmatched'
+
+              if (!channelMap[coaId]) {
+                channelMap[coaId] = { receivableAmount: 0, actualFee: 0, feeDiscrepancy: 0, name, feeCoaId: pm?.fee_liability_coa_account_id || null }
+              }
+              const ch = channelMap[coaId]
+              ch.receivableAmount = round2(ch.receivableAmount + Number(agg.bill_after_discount || 0))
+              ch.actualFee = round2(ch.actualFee + Number(agg.total_fee_amount || 0))
+              ch.feeDiscrepancy = round2(ch.feeDiscrepancy + Number(agg.fee_discrepancy || 0))
+            }
           } else {
             // No linked aggregate — fallback to credit_amount
-            ch.receivableAmount = round2(ch.receivableAmount + Number(stmt.credit_amount ?? 0))
+            const pmId = stmt.payment_method_id
+            const pm = pmId ? pmMap[pmId] : null
+            const coaId = pm?.coa_account_id || bankRecConfig.creditAccountId
+            const name = pm?.name || 'Unmatched'
+
+            if (!channelMap[coaId]) {
+              channelMap[coaId] = { receivableAmount: 0, actualFee: 0, feeDiscrepancy: 0, name, feeCoaId: pm?.fee_liability_coa_account_id || null }
+            }
+            channelMap[coaId].receivableAmount = round2(channelMap[coaId].receivableAmount + Number(stmt.credit_amount ?? 0))
           }
         }
 
@@ -799,9 +917,31 @@ export async function generateBankRecJournals(
           }
         }
 
-        // Fee discrepancy adjustment (expected_fee - actual_fee)
-        // When bank charges less than expected (promo): discrepancy < 0, need DEBIT to balance
-        // When bank charges more than expected: discrepancy > 0, need CREDIT to balance
+        // Fee discrepancy adjustment via 610105 Fee Discrepancy
+        // discrepancy > 0 (bank bayar kurang): DEBIT Fee Discrepancy (expense naik)
+        // discrepancy < 0 (bank bayar lebih / kompensasi): CREDIT Fee Discrepancy (expense turun)
+        if (feeDiscConfig) {
+          const totalFeeDisc = round2(
+            Object.values(channelMap).reduce((s, ch) => s + ch.feeDiscrepancy, 0)
+          )
+          if (Math.abs(totalFeeDisc) >= 1) {
+            lines.push({
+              journal_header_id: journalHeader.id,
+              line_number: lineNum++,
+              account_id: feeDiscConfig.accountId,
+              description: totalFeeDisc > 0
+                ? `Fee discrepancy - bank bayar kurang`
+                : `Fee discrepancy - kompensasi/promo platform`,
+              debit_amount: totalFeeDisc > 0 ? totalFeeDisc : 0,
+              credit_amount: totalFeeDisc < 0 ? Math.abs(totalFeeDisc) : 0,
+              currency: 'IDR', exchange_rate: 1,
+              base_debit_amount: totalFeeDisc > 0 ? totalFeeDisc : 0,
+              base_credit_amount: totalFeeDisc < 0 ? Math.abs(totalFeeDisc) : 0,
+              created_at: now,
+            })
+          }
+        }
+
         // Recalculate totals for header
         const recalcDebit = round2(lines.reduce((s, l) => s + l.debit_amount, 0))
         const recalcCredit = round2(lines.reduce((s, l) => s + l.credit_amount, 0))
