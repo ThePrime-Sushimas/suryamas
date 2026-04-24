@@ -290,7 +290,7 @@ export const useDeleteSettlementGroup = () => {
  * Uses infinite query for "Load More" pagination
  */
 export const useAvailableBankStatements = (params?: Omit<GetAvailableBankStatementsRequest, 'offset' | 'limit'> & { limit?: number }) => {
-  const pageSize = params?.limit || 50;
+  const pageSize = params?.limit || 150;
 
   const query = useInfiniteQuery({
     queryKey: ['available-bank-statements', params?.search, params?.bankAccountId],

@@ -1286,6 +1286,10 @@ function StepSettlement({
   const [debouncedAggSearch, setDebouncedAggSearch] = useState("");
   const [aggregates, setAggregates] = useState<AvailableAggregateDto[]>([]);
   const [isAggLoading, setIsAggLoading] = useState(false);
+  const [aggOffset, setAggOffset] = useState(0);
+  const [aggHasMore, setAggHasMore] = useState(true);
+  const [isAggLoadingMore, setIsAggLoadingMore] = useState(false);
+  const aggSentinelRef = useRef<HTMLDivElement>(null);
 
   // Debounce bank search
   useEffect(() => {
@@ -1310,15 +1314,49 @@ function StepSettlement({
   }, [debouncedBankSearch]);
 
   // Fetch aggregates when on sub-step 1
+  const AGG_PAGE_SIZE = 100;
   useEffect(() => {
     if (subStep !== 1) return;
     setIsAggLoading(true);
+    setAggOffset(0);
+    setAggHasMore(true);
     settlementGroupsApi
-      .getAvailableAggregates({ search: debouncedAggSearch || undefined, limit: 100 })
-      .then((r) => setAggregates(r.data))
+      .getAvailableAggregates({ search: debouncedAggSearch || undefined, limit: AGG_PAGE_SIZE, offset: 0 })
+      .then((r) => {
+        setAggregates(r.data);
+        setAggHasMore(r.data.length >= AGG_PAGE_SIZE);
+        setAggOffset(r.data.length);
+      })
       .catch(console.error)
       .finally(() => setIsAggLoading(false));
   }, [subStep, debouncedAggSearch]);
+
+  // Load more aggregates
+  const loadMoreAggregates = useCallback(() => {
+    if (isAggLoading || isAggLoadingMore || !aggHasMore) return;
+    setIsAggLoadingMore(true);
+    settlementGroupsApi
+      .getAvailableAggregates({ search: debouncedAggSearch || undefined, limit: AGG_PAGE_SIZE, offset: aggOffset })
+      .then((r) => {
+        setAggregates((prev) => [...prev, ...r.data]);
+        setAggHasMore(r.data.length >= AGG_PAGE_SIZE);
+        setAggOffset((prev) => prev + r.data.length);
+      })
+      .catch(console.error)
+      .finally(() => setIsAggLoadingMore(false));
+  }, [aggOffset, aggHasMore, isAggLoading, isAggLoadingMore, debouncedAggSearch]);
+
+  // Infinite scroll observer for aggregates
+  useEffect(() => {
+    const sentinel = aggSentinelRef.current;
+    if (!sentinel || !aggHasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMoreAggregates(); },
+      { rootMargin: '200px' },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [aggHasMore, loadMoreAggregates]);
 
   const toggleAggregate = (agg: AvailableAggregateDto) => {
     const exists = selectedAggregates.some((a) => a.id === agg.id);
@@ -1424,9 +1462,9 @@ function StepSettlement({
 
   // Sub-step 1: Select Aggregates + Review summary
   return (
-    <div className="flex h-full">
+    <div className="flex h-full min-h-0">
       {/* Left: Aggregates list */}
-      <div className="w-1/2 border-r border-gray-100 dark:border-gray-800 flex flex-col">
+      <div className="w-1/2 border-r border-gray-100 dark:border-gray-800 flex flex-col min-h-0">
         <div className="p-4 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-between mb-2">
             <button
@@ -1447,7 +1485,7 @@ function StepSettlement({
             />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-3 space-y-1.5 min-h-0">
           {isAggLoading ? (
             <div className="flex items-center justify-center h-32">
               <Loader2 className="w-5 h-5 animate-spin text-amber-400" />
@@ -1492,6 +1530,15 @@ function StepSettlement({
               );
             })
           )}
+          {/* Sentinel for infinite scroll */}
+          <div ref={aggSentinelRef}>
+            {isAggLoadingMore && (
+              <div className="flex items-center justify-center py-3">
+                <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                <span className="ml-2 text-[11px] text-gray-400">Memuat lebih banyak...</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
