@@ -178,6 +178,13 @@ export const menuItems: MenuItem[] = [
             href: "/accounting/trial-balance",
             icon: <Scale size={16} />,
             module: "journals",  // reuse journals permission
+          },
+          {
+            id: "fee_discrepancy-review",
+            name: "Fee Discrepancy Review",
+            href: "bank-reconciliation/fee-discrepancy-review",
+            icon: <AlertTriangle size={16} />,
+            module: "fee_discrepancy_review",
           }
         ],
       },

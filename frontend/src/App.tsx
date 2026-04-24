@@ -388,6 +388,9 @@ const SettlementGroupDetailPage = lazy(() =>
 const MonitoringPage = lazy(() =>
   import("./features/monitoring").then((m) => ({ default: m.MonitoringPage })),
 );
+const FeeDiscrepancyReviewPage = lazy(() =>
+  import("./features/bank-reconciliation/fee-discrepancy-review").then((m) => ({ default: m.FeeDiscrepancyReviewPage })),
+);
 
 const PosSyncAggregatesPage = lazy(() =>
   import('./features/pos-sync-aggregates').then(m => ({ default: m.PosSyncAggregatesPage }))
@@ -1325,6 +1328,16 @@ function App() {
                       <ProtectedRoute>
                         <Suspense fallback={<LoadingFallback />}>
                           <SettlementGroupDetailPage />
+                        </Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="bank-reconciliation/fee-discrepancy-review"
+                    element={
+                      <ProtectedRoute>
+                        <Suspense fallback={<LoadingFallback />}>
+                          <FeeDiscrepancyReviewPage />
                         </Suspense>
                       </ProtectedRoute>
                     }

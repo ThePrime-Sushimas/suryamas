@@ -37,6 +37,7 @@ import posTransactionsRoutes from "./modules/pos-imports/pos-transactions/pos-tr
 import jobsRoutes from "./modules/jobs/jobs.routes";
 import monitoringRoutes from "./modules/monitoring/monitoring.routes";
 import bankStatementImportRoutes from "./modules/reconciliation/bank-statement-import/bank-statement-import.routes";
+import feeDiscrepancyReviewRoutes from "./modules/reconciliation/fee-discrepancy-review/fee-discrepancy-review.routes";
 import { setupBankReconciliationModule } from "./modules/reconciliation/bank-reconciliation";
 import { setupSettlementGroupModule } from "./modules/reconciliation/bank-settlement-group";
 import { errorHandler } from "./middleware/error.middleware";
@@ -120,6 +121,7 @@ app.use("/api/v1/pos-transactions", posTransactionsRoutes);
 app.use("/api/v1/jobs", jobsRoutes);
 app.use("/api/v1/monitoring", monitoringRoutes);
 app.use("/api/v1/bank-statement-imports", bankStatementImportRoutes);
+app.use("/api/v1/fee-discrepancy-review", feeDiscrepancyReviewRoutes);
 app.use("/api/v1/reconciliation/bank", setupBankReconciliationModule().router);
 app.use("/api/v1/settlement-group", setupSettlementGroupModule().router);
 app.use("/api/v1/cash-flow", cashFlowRoutes);
