@@ -66,7 +66,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
   error: null,
   pagination: {
     page: 1,
-    limit: 20,
+    limit: 50,
     total: 0,
     totalPages: 0,
     hasNext: false,

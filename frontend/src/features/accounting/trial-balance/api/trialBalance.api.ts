@@ -27,6 +27,12 @@ export const useTrialBalance = (filter: TrialBalanceFilter, enabled: boolean) =>
         period_credit: Number(row.period_credit),
         closing_debit: Number(row.closing_debit),
         closing_credit: Number(row.closing_credit),
+        pos_debit: Number(row.pos_debit ?? 0),
+        pos_credit: Number(row.pos_credit ?? 0),
+        bank_debit: Number(row.bank_debit ?? 0),
+        bank_credit: Number(row.bank_credit ?? 0),
+        other_debit: Number(row.other_debit ?? 0),
+        other_credit: Number(row.other_credit ?? 0),
       })) as TrialBalanceRow[]
     },
     enabled: enabled && !!filter.company_id && !!filter.date_from && !!filter.date_to,

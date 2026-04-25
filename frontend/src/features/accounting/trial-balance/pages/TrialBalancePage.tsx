@@ -89,6 +89,7 @@ export default function TrialBalancePage() {
   const { filter, setFilter } = useTrialBalanceStore()
   const [fetchKey, setFetchKey] = useState(0)
   const [sourceView, setSourceView] = useState<SourceView>('combined')
+  const [isStale, setIsStale] = useState(false)
 
   const companyId = currentBranch?.company_id ?? ''
   const companyBranches = useMemo(
@@ -101,18 +102,22 @@ export default function TrialBalancePage() {
     [filter, companyId]
   )
 
-  const { data: rows = [], isLoading, isError, error, refetch } = useTrialBalance(activeFilter, fetchKey > 0)
+  const [appliedFilter, setAppliedFilter] = useState(activeFilter)
+
+  const { data: rows = [], isLoading, isError, error } = useTrialBalance(appliedFilter, fetchKey > 0)
 
   const groups = useMemo(() => groupRows(rows), [rows])
   const summary = useMemo(() => buildSummary(rows), [rows])
 
   const handleShow = useCallback(() => {
-    if (fetchKey > 0) { refetch() } else { setFetchKey(1) }
-  }, [fetchKey, refetch])
+    setAppliedFilter({ ...activeFilter })
+    setFetchKey(prev => prev + 1)
+    setIsStale(false)
+  }, [activeFilter])
   const handleFilterChange = useCallback((patch: Partial<typeof filter>) => {
     setFilter(patch)
-    setFetchKey(0)
-  }, [setFilter])
+    if (fetchKey > 0) setIsStale(true)
+  }, [setFilter, fetchKey])
 
   const toggleBranch = useCallback((branchId: string) => {
     const current = filter.branch_ids
@@ -159,9 +164,11 @@ export default function TrialBalancePage() {
           <div className="flex-1" />
 
           <button onClick={handleShow} disabled={isLoading}
-            className="h-10 flex items-center gap-2 px-5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors font-medium text-sm shadow-sm">
+            className={`h-10 flex items-center gap-2 px-5 text-white rounded-lg disabled:opacity-50 transition-colors font-medium text-sm shadow-sm ${
+              isStale ? 'bg-amber-600 hover:bg-amber-700 animate-pulse' : 'bg-blue-600 hover:bg-blue-700'
+            }`}>
             <Search size={16} />
-            Show Report
+            {isStale ? 'Update Report' : 'Show Report'}
           </button>
 
           {rows.length > 0 && (

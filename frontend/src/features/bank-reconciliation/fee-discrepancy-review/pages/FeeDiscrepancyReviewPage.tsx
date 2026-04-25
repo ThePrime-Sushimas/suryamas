@@ -193,6 +193,13 @@ export const FeeDiscrepancyReviewPage = () => {
                           className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-red-500 hover:text-red-700"
                           title="Undo Koreksi"
                         ><Undo2 className="w-4 h-4" /></button>
+                      ) : (item.status === 'CONFIRMED' || item.status === 'DISMISSED') ? (
+                        <button
+                          onClick={() => { if (confirm(`Undo ${item.status.toLowerCase()}? Status akan kembali ke PENDING.`)) updateMutation.mutate({ source: item.source, sourceId: item.sourceId, status: 'CONFIRMED', notes: `Undo ${item.status.toLowerCase()}` }); setTimeout(() => updateMutation.mutate({ source: item.source, sourceId: item.sourceId, status: 'CONFIRMED' }), 0) }}
+                          disabled={updateMutation.isPending}
+                          className="p-1.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors text-amber-500 hover:text-amber-700"
+                          title={`Undo ${item.status.toLowerCase()}`}
+                        ><Undo2 className="w-4 h-4" /></button>
                       ) : <Eye className="w-4 h-4 text-gray-300 mx-auto" />}
                     </td>
                   </tr>
