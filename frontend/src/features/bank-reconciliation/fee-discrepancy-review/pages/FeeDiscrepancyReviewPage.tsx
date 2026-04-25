@@ -104,11 +104,19 @@ export const FeeDiscrepancyReviewPage = () => {
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Review selisih fee antara POS dan bank. Konfirmasi, dismiss, atau buat jurnal koreksi.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
           <SummaryCard label="Pending Review" value={summary?.totalPending || 0} icon={<AlertTriangle className="w-5 h-5 text-amber-500" />} />
           <SummaryCard label="Bank Bayar Kurang" value={fmt(summary?.sumPendingPositive || 0)} icon={<ArrowUpDown className="w-5 h-5 text-red-500" />} />
           <SummaryCard label="Bank Bayar Lebih" value={fmt(Math.abs(summary?.sumPendingNegative || 0))} icon={<ArrowUpDown className="w-5 h-5 text-green-500" />} />
           <SummaryCard label="Confirmed" value={summary?.totalConfirmed || 0} icon={<CheckCircle className="w-5 h-5 text-blue-500" />} />
+          <SummaryCard
+            label="Outstanding (Belum Koreksi)"
+            value={fmt(
+              (summary?.sumPendingPositive || 0) + (summary?.sumPendingNegative || 0) +
+              (summary?.sumConfirmedPositive || 0) + (summary?.sumConfirmedNegative || 0)
+            )}
+            icon={<AlertTriangle className="w-5 h-5 text-purple-500" />}
+          />
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">

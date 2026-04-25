@@ -37,6 +37,8 @@ export interface FeeDiscrepancySummary {
   totalDismissed: number
   sumPendingPositive: number
   sumPendingNegative: number
+  sumConfirmedPositive: number
+  sumConfirmedNegative: number
   count: number
 }
 

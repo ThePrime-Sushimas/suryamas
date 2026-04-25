@@ -221,7 +221,9 @@ export class FeeDiscrepancyReviewRepository {
 
     const summary: FeeDiscrepancySummary = {
       totalPending: 0, totalConfirmed: 0, totalCorrected: 0, totalDismissed: 0,
-      sumPendingPositive: 0, sumPendingNegative: 0, count: data.length,
+      sumPendingPositive: 0, sumPendingNegative: 0,
+      sumConfirmedPositive: 0, sumConfirmedNegative: 0,
+      count: data.length,
     }
 
     for (const item of data) {
@@ -231,7 +233,11 @@ export class FeeDiscrepancyReviewRepository {
           if (item.discrepancyAmount > 0) summary.sumPendingPositive += item.discrepancyAmount
           else summary.sumPendingNegative += item.discrepancyAmount
           break
-        case 'CONFIRMED': summary.totalConfirmed++; break
+        case 'CONFIRMED':
+          summary.totalConfirmed++
+          if (item.discrepancyAmount > 0) summary.sumConfirmedPositive += item.discrepancyAmount
+          else summary.sumConfirmedNegative += item.discrepancyAmount
+          break
         case 'CORRECTED': summary.totalCorrected++; break
         case 'DISMISSED': summary.totalDismissed++; break
       }

@@ -77,10 +77,10 @@ export default function Layout() {
               </Link>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1 sm:gap-2 md:gap-4 min-w-0">
               <BranchSwitcher />
               <button
-                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                className="hidden sm:block p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400"
                 aria-label="Search"
               >
                 <Search size={20} />

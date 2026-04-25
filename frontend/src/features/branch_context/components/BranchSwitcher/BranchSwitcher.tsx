@@ -30,7 +30,7 @@ export const BranchSwitcher = () => {
         value={currentBranch?.branch_id || ''}
         onChange={(e) => handleSwitch(e.target.value)}
         disabled={branches.length <= 1 || isLoading || !currentBranch}
-        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="max-w-[120px] sm:max-w-none px-2 sm:px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed truncate"
       >
         {branches.map((branch) => (
           <option key={branch.branch_id} value={branch.branch_id}>
@@ -49,7 +49,7 @@ export const BranchSwitcher = () => {
         </svg>
       </button>
       {currentBranch && (
-        <span className="text-xs text-gray-500 dark:text-gray-400">
+        <span className="hidden md:inline text-xs text-gray-500 dark:text-gray-400">
           Role: {currentBranch.role_name}
         </span>
       )}
