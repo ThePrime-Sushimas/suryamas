@@ -44,13 +44,13 @@ export const Sidebar = ({ isOpen, isCollapsed, onNavigate, sidebarRef }: Sidebar
     <div
       ref={sidebarRef}
       className={`
-        fixed inset-y-0 left-0 z-30 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-all duration-200 ease-in-out lg:static lg:translate-x-0 lg:shadow-none
+        fixed top-16 bottom-0 left-0 z-30 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-all duration-200 ease-in-out lg:static lg:translate-x-0 lg:shadow-none
         ${isOpen ? "translate-x-0 shadow-xl" : "-translate-x-full"}
         ${isCollapsed ? "lg:w-16" : "lg:w-64"}
         w-64
       `}
     >
-      <nav className="mt-8 px-4 h-[calc(100vh-8rem)] overflow-y-auto">
+      <nav className="mt-4 px-4 h-full overflow-y-auto">
         <div className="space-y-1">
           {filteredMenuItems.map((item) => (
             <MenuItemComponent

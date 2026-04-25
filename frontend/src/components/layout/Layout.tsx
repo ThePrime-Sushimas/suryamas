@@ -149,7 +149,7 @@ export default function Layout() {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden h-[calc(100vh-4rem)]">
         <Sidebar
           isOpen={isSidebarOpen}
           isCollapsed={isSidebarCollapsed}
