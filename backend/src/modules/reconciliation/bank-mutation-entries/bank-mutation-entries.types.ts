@@ -16,16 +16,16 @@ export const BANK_MUTATION_ENTRY_TYPE_CONFIG: Record<
   BankMutationEntryType,
   { label: string; defaultCoaHint: string; isDebit: boolean }
 > = {
-  BANK_FEE:         { label: 'Biaya Administrasi Bank', defaultCoaHint: 'Biaya Administrasi Bank', isDebit: true  },
-  INTEREST:         { label: 'Bunga / Jasa Giro',       defaultCoaHint: 'Pendapatan Bunga',         isDebit: false },
-  TRANSFER_IN:      { label: 'Transfer Masuk',           defaultCoaHint: 'Rekening Bank Lainnya',    isDebit: false },
-  TRANSFER_OUT:     { label: 'Transfer Keluar',          defaultCoaHint: 'Rekening Bank Lainnya',    isDebit: true  },
-  SUPPLIER_PAYMENT: { label: 'Pembayaran Supplier',      defaultCoaHint: 'Hutang Usaha',             isDebit: true  },
-  RECEIVABLE:       { label: 'Penerimaan Piutang',       defaultCoaHint: 'Piutang Usaha',            isDebit: false },
-  REFUND:           { label: 'Refund',                   defaultCoaHint: 'Pendapatan Lain-lain',     isDebit: false },
-  TAX_PAYMENT:      { label: 'Pembayaran Pajak',         defaultCoaHint: 'Hutang Pajak',             isDebit: true  },
-  PAYROLL:          { label: 'Penggajian',               defaultCoaHint: 'Hutang Gaji',              isDebit: true  },
-  OTHER:            { label: 'Lainnya',                  defaultCoaHint: '',                         isDebit: false },
+  BANK_FEE:         { label: 'Biaya Administrasi Bank', defaultCoaHint: 'Bank Charges',                isDebit: true  },
+  INTEREST:         { label: 'Bunga / Jasa Giro',       defaultCoaHint: 'Interest Income',              isDebit: false },
+  TRANSFER_IN:      { label: 'Transfer Masuk',           defaultCoaHint: 'Bank',                         isDebit: false },
+  TRANSFER_OUT:     { label: 'Transfer Keluar',          defaultCoaHint: 'Bank',                         isDebit: true  },
+  SUPPLIER_PAYMENT: { label: 'Pembayaran Supplier',      defaultCoaHint: 'Account payable purchase',     isDebit: true  },
+  RECEIVABLE:       { label: 'Penerimaan Piutang',       defaultCoaHint: 'receivable',                   isDebit: false },
+  REFUND:           { label: 'Refund',                   defaultCoaHint: 'Customer Refund',              isDebit: false },
+  TAX_PAYMENT:      { label: 'Pembayaran Pajak',         defaultCoaHint: 'tax',                          isDebit: true  },
+  PAYROLL:          { label: 'Penggajian',               defaultCoaHint: 'Salary payable',               isDebit: true  },
+  OTHER:            { label: 'Lainnya',                  defaultCoaHint: '',                             isDebit: false },
 }
 
 /** DB row shape */
