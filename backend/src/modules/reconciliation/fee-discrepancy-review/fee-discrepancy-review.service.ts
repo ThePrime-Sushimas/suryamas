@@ -238,10 +238,38 @@ export class FeeDiscrepancyReviewService {
   // ── Private helpers ──
 
   private async loadFeeDiscAccountId(companyId: string): Promise<string | null> {
+    return this.loadAccountByPurpose(companyId, FEE_DISC_PURPOSE_CODE)
+  }
+
+  private async getCorrectionAccountId(
+    correctionType: CorrectionType,
+    source: FeeDiscrepancySource,
+    sourceId: string,
+    companyId: string,
+  ): Promise<string | null> {
+    // POS_PENDING resolves from payment method receivable
+    if (correctionType === 'POS_PENDING') {
+      return this.getReceivableAccountId(source, sourceId, companyId)
+    }
+
+    // Other types resolve via accounting purposes
+    const purposeCodeMap: Record<Exclude<CorrectionType, 'POS_PENDING'>, string> = {
+      REFUND_CUSTOMER:       'FEE-CORR-REFUND',
+      PLATFORM_COMPENSATION: 'FEE-CORR-PLATFORM',
+      ROUNDING:              'FEE-CORR-ROUNDING',
+      STAFF_DEDUCTION:       'FEE-CORR-STAFF',
+    }
+
+    const purposeCode = purposeCodeMap[correctionType as Exclude<CorrectionType, 'POS_PENDING'>]
+    return this.loadAccountByPurpose(companyId, purposeCode)
+  }
+
+  /** Load account_id from accounting_purposes + accounting_purpose_accounts */
+  private async loadAccountByPurpose(companyId: string, purposeCode: string): Promise<string | null> {
     const { data: purpose } = await supabase
       .from('accounting_purposes')
       .select('id')
-      .eq('purpose_code', FEE_DISC_PURPOSE_CODE)
+      .eq('purpose_code', purposeCode)
       .eq('company_id', companyId)
       .eq('is_active', true)
       .eq('is_deleted', false)
@@ -259,35 +287,6 @@ export class FeeDiscrepancyReviewService {
       .limit(1)
 
     return (accounts?.[0]?.account_id as string) || null
-  }
-
-  private async getCorrectionAccountId(
-    correctionType: CorrectionType,
-    source: FeeDiscrepancySource,
-    sourceId: string,
-    companyId: string,
-  ): Promise<string | null> {
-    if (correctionType === 'POS_PENDING') {
-      return this.getReceivableAccountId(source, sourceId, companyId)
-    }
-
-    const accountCodeMap: Record<Exclude<CorrectionType, 'POS_PENDING'>, string> = {
-      REFUND_CUSTOMER:       '210501',
-      PLATFORM_COMPENSATION: '410401',
-      ROUNDING:              '610801',
-      STAFF_DEDUCTION:       '110403',
-    }
-
-    const code = accountCodeMap[correctionType as Exclude<CorrectionType, 'POS_PENDING'>]
-    const { data } = await supabase
-      .from('chart_of_accounts')
-      .select('id')
-      .eq('account_code', code)
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-      .limit(1)
-
-    return (data?.[0]?.id as string) || null
   }
 
   private async getReceivableAccountId(
