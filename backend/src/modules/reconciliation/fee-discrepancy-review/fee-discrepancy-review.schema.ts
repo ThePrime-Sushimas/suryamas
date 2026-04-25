@@ -37,6 +37,10 @@ export const feeDiscrepancyCreateCorrectionSchema = z.object({
     sourceId: z.string().uuid(),
   }),
   body: z.object({
+    lines: z.array(z.object({
+      correctionType: z.enum(['POS_PENDING', 'REFUND_CUSTOMER', 'PLATFORM_COMPENSATION', 'ROUNDING', 'STAFF_DEDUCTION']),
+      amount: z.number().positive(),
+    })).min(1),
     notes: z.string().optional(),
   }),
 })

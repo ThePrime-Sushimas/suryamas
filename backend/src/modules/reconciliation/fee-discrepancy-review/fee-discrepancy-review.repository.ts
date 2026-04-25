@@ -28,7 +28,6 @@ export class FeeDiscrepancyReviewRepository {
     return (data || []).map((b: { id: string }) => b.id)
   }
 
-  /** Load all review records for this company into a lookup map */
   private async getReviewMap(companyId: string): Promise<Record<string, ReviewRecord>> {
     const { data, error } = await supabase
       .from('fee_discrepancy_reviews')
@@ -48,6 +47,148 @@ export class FeeDiscrepancyReviewRepository {
     return map
   }
 
+  private applyReview(item: FeeDiscrepancyItem, review: ReviewRecord | undefined): FeeDiscrepancyItem {
+    if (!review) return item
+    return {
+      ...item,
+      status: review.status as FeeDiscrepancyStatus,
+      correctionJournalId: review.correction_journal_id,
+      notes: review.notes || item.notes,
+      reviewedBy: review.reviewed_by,
+      reviewedAt: review.reviewed_at,
+    }
+  }
+
+  /** Fetch single discrepancy item by source + sourceId — avoids full table scan */
+  async getDiscrepancyById(
+    companyId: string,
+    source: FeeDiscrepancySource,
+    sourceId: string,
+  ): Promise<FeeDiscrepancyItem | null> {
+    const reviewMap = await this.getReviewMap(companyId)
+    const review = reviewMap[`${source}_${sourceId}`]
+
+    if (source === 'SINGLE_MATCH') {
+      const branchIds = await this.getBranchIdsByCompany(companyId)
+      if (branchIds.length === 0) return null
+
+      const { data, error } = await supabase
+        .from('aggregated_transactions')
+        .select('id, transaction_date, fee_discrepancy, fee_discrepancy_note, nett_amount, payment_method_id, branch_name, payment_methods(name)')
+        .eq('id', sourceId)
+        .in('branch_id', branchIds)
+        .is('deleted_at', null)
+        .single()
+
+      if (error || !data) return null
+
+      const { data: stmts } = await supabase
+        .from('bank_statements')
+        .select('id, credit_amount, description')
+        .eq('reconciliation_id', sourceId)
+        .is('deleted_at', null)
+        .limit(1)
+
+      const stmt = stmts?.[0]
+      const pm = data.payment_methods as unknown as { name: string } | null
+
+      return this.applyReview({
+        id: `single_${data.id}`,
+        source: 'SINGLE_MATCH',
+        sourceId: data.id as string,
+        transactionDate: data.transaction_date as string,
+        bankStatementId: stmt?.id || '',
+        bankDescription: stmt?.description || null,
+        bankAmount: Number(stmt?.credit_amount || 0),
+        posNettAmount: Number(data.nett_amount),
+        discrepancyAmount: Number(data.fee_discrepancy),
+        paymentMethodName: pm?.name || null,
+        branchName: data.branch_name as string | null,
+        status: 'PENDING',
+        correctionJournalId: null,
+        reviewedBy: null,
+        reviewedAt: null,
+        notes: data.fee_discrepancy_note as string | null,
+      }, review)
+    }
+
+    if (source === 'MULTI_MATCH') {
+      const { data, error } = await supabase
+        .from('bank_reconciliation_groups')
+        .select('id, total_bank_amount, aggregate_amount, difference, aggregated_transactions(transaction_date, nett_amount, branch_name, payment_methods(name))')
+        .eq('id', sourceId)
+        .eq('company_id', companyId)
+        .is('deleted_at', null)
+        .single()
+
+      if (error || !data) return null
+
+      const { data: stmts } = await supabase
+        .from('bank_statements')
+        .select('id, credit_amount, description')
+        .eq('reconciliation_group_id', sourceId)
+        .is('deleted_at', null)
+        .limit(1)
+
+      const stmt = stmts?.[0]
+      const agg = data.aggregated_transactions as unknown as { transaction_date: string; nett_amount: number; branch_name: string | null; payment_methods: { name: string } | null } | null
+
+      return this.applyReview({
+        id: `multi_${data.id}`,
+        source: 'MULTI_MATCH',
+        sourceId: data.id as string,
+        transactionDate: agg?.transaction_date || '',
+        bankStatementId: stmt?.id || '',
+        bankDescription: stmt?.description || null,
+        bankAmount: Number(data.total_bank_amount),
+        posNettAmount: Number(data.aggregate_amount),
+        discrepancyAmount: -Number(data.difference),
+        paymentMethodName: agg?.payment_methods?.name || null,
+        branchName: agg?.branch_name || null,
+        status: 'PENDING',
+        correctionJournalId: null,
+        reviewedBy: null,
+        reviewedAt: null,
+        notes: null,
+      }, review)
+    }
+
+    if (source === 'SETTLEMENT_GROUP') {
+      const { data, error } = await supabase
+        .from('bank_settlement_groups')
+        .select('id, bank_statement_id, total_statement_amount, total_allocated_amount, difference, bank_statements(id, transaction_date, description, credit_amount)')
+        .eq('id', sourceId)
+        .eq('company_id', companyId)
+        .is('deleted_at', null)
+        .single()
+
+      if (error || !data) return null
+
+      const stmt = data.bank_statements as unknown as { id: string; transaction_date: string; description: string | null; credit_amount: number } | null
+
+      return this.applyReview({
+        id: `settlement_${data.id}`,
+        source: 'SETTLEMENT_GROUP',
+        sourceId: data.id as string,
+        transactionDate: stmt?.transaction_date || '',
+        bankStatementId: data.bank_statement_id as string,
+        bankDescription: stmt?.description || null,
+        bankAmount: Number(data.total_statement_amount),
+        posNettAmount: Number(data.total_allocated_amount),
+        discrepancyAmount: -Number(data.difference),
+        paymentMethodName: null,
+        branchName: null,
+        status: 'PENDING',
+        correctionJournalId: null,
+        reviewedBy: null,
+        reviewedAt: null,
+        notes: null,
+      }, review)
+    }
+
+    return null
+  }
+
   async getDiscrepancies(companyId: string, filter: FeeDiscrepancyFilter): Promise<{ data: FeeDiscrepancyItem[]; total: number }> {
     const limit = filter.limit || 50
     const offset = ((filter.page || 1) - 1) * limit
@@ -60,18 +201,9 @@ export class FeeDiscrepancyReviewRepository {
       this.getSettlementDiscrepancies(companyId, filter),
     ])
 
-    // Merge review status
-    const items = [...singleItems, ...multiItems, ...settlementItems].map(item => {
-      const review = reviewMap[`${item.source}_${item.sourceId}`]
-      if (review) {
-        item.status = review.status as FeeDiscrepancyStatus
-        item.correctionJournalId = review.correction_journal_id
-        item.notes = review.notes || item.notes
-        item.reviewedBy = review.reviewed_by
-        item.reviewedAt = review.reviewed_at
-      }
-      return item
-    })
+    const items = [...singleItems, ...multiItems, ...settlementItems].map(item =>
+      this.applyReview(item, reviewMap[`${item.source}_${item.sourceId}`])
+    )
 
     items.sort((a, b) => {
       const dateDiff = b.transactionDate.localeCompare(a.transactionDate)
@@ -108,7 +240,6 @@ export class FeeDiscrepancyReviewRepository {
     return summary
   }
 
-  /** Upsert review status */
   async updateStatus(
     companyId: string,
     source: FeeDiscrepancySource,
@@ -150,11 +281,7 @@ export class FeeDiscrepancyReviewRepository {
 
     let query = supabase
       .from('aggregated_transactions')
-      .select(`
-        id, transaction_date, fee_discrepancy, fee_discrepancy_note,
-        nett_amount, actual_nett_amount, payment_method_id, branch_name,
-        payment_methods ( name )
-      `)
+      .select('id, transaction_date, fee_discrepancy, fee_discrepancy_note, nett_amount, actual_nett_amount, payment_method_id, branch_name, payment_methods(name)')
       .in('branch_id', branchIds)
       .eq('is_reconciled', true)
       .neq('fee_discrepancy', 0)
@@ -203,12 +330,9 @@ export class FeeDiscrepancyReviewRepository {
   }
 
   private async getMultiMatchDiscrepancies(companyId: string, filter: FeeDiscrepancyFilter): Promise<FeeDiscrepancyItem[]> {
-    let query = supabase
+    const query = supabase
       .from('bank_reconciliation_groups')
-      .select(`
-        id, aggregate_id, total_bank_amount, aggregate_amount, difference,
-        aggregated_transactions ( transaction_date, nett_amount, payment_method_id, branch_name, payment_methods ( name ) )
-      `)
+      .select('id, aggregate_id, total_bank_amount, aggregate_amount, difference, aggregated_transactions(transaction_date, nett_amount, payment_method_id, branch_name, payment_methods(name))')
       .eq('company_id', companyId)
       .neq('difference', 0)
       .is('deleted_at', null)
@@ -262,13 +386,9 @@ export class FeeDiscrepancyReviewRepository {
   }
 
   private async getSettlementDiscrepancies(companyId: string, filter: FeeDiscrepancyFilter): Promise<FeeDiscrepancyItem[]> {
-    let query = supabase
+    const query = supabase
       .from('bank_settlement_groups')
-      .select(`
-        id, bank_statement_id, total_statement_amount, total_allocated_amount, difference,
-        bank_statements ( id, transaction_date, description, credit_amount ),
-        bank_settlement_aggregates ( aggregate_id )
-      `)
+      .select('id, bank_statement_id, total_statement_amount, total_allocated_amount, difference, bank_statements(id, transaction_date, description, credit_amount), bank_settlement_aggregates(aggregate_id)')
       .eq('company_id', companyId)
       .neq('difference', 0)
       .is('deleted_at', null)
@@ -276,7 +396,6 @@ export class FeeDiscrepancyReviewRepository {
     const { data, error } = await query
     if (error) { logError('getSettlementDiscrepancies error', { error: error.message }); return [] }
 
-    // Fetch aggregate details for payment method + branch
     const allAggIds = (data || []).flatMap((row: Record<string, unknown>) =>
       ((row.bank_settlement_aggregates as { aggregate_id: string }[]) || []).map(a => a.aggregate_id)
     )
@@ -284,7 +403,7 @@ export class FeeDiscrepancyReviewRepository {
     if (allAggIds.length > 0) {
       const { data: aggs } = await supabase
         .from('aggregated_transactions')
-        .select('id, branch_name, payment_methods ( name )')
+        .select('id, branch_name, payment_methods(name)')
         .in('id', allAggIds)
       for (const a of aggs || []) {
         aggDetailsMap[a.id as string] = {
@@ -305,8 +424,6 @@ export class FeeDiscrepancyReviewRepository {
       .map((row: Record<string, unknown>) => {
         const stmt = row.bank_statements as { id: string; transaction_date: string; description: string | null; credit_amount: number } | null
         const settleAggs = (row.bank_settlement_aggregates as { aggregate_id: string }[]) || []
-
-        // Collect unique payment methods and branches
         const pmNames = [...new Set(settleAggs.map(a => aggDetailsMap[a.aggregate_id]?.pm_name).filter(Boolean))]
         const branchNames = [...new Set(settleAggs.map(a => aggDetailsMap[a.aggregate_id]?.branch_name).filter(Boolean))]
 

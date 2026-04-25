@@ -1,13 +1,17 @@
 import { feeDiscrepancyReviewRepository } from './fee-discrepancy-review.repository'
-import type { FeeDiscrepancyFilter, FeeDiscrepancySource, FeeDiscrepancyStatus } from './fee-discrepancy-review.types'
+import type { FeeDiscrepancyFilter, FeeDiscrepancySource, FeeDiscrepancyStatus, CorrectionType } from './fee-discrepancy-review.types'
 import { BusinessRuleError } from '@/utils/errors.base'
 import { logInfo, logError } from '@/config/logger'
 import { supabase } from '@/config/supabase'
 
 const FEE_DISC_PURPOSE_CODE = 'FEE-DISC'
 
-function round2(n: number): number {
-  return Math.round(n * 100) / 100
+const CORRECTION_LABELS: Record<CorrectionType, string> = {
+  POS_PENDING: 'POS Belum Masuk',
+  REFUND_CUSTOMER: 'Refund Customer',
+  PLATFORM_COMPENSATION: 'Kompensasi/Promo Platform',
+  ROUNDING: 'Pembulatan',
+  STAFF_DEDUCTION: 'Potongan Staff',
 }
 
 export class FeeDiscrepancyReviewService {
@@ -36,58 +40,68 @@ export class FeeDiscrepancyReviewService {
 
     await this.repo.updateStatus(companyId, source, sourceId, status, userId, notes, correctionJournalId)
 
-    // Audit log
-    const auditPayload = {
-      user_id: userId,
-      action: 'UPDATE',
-      entity: 'fee_discrepancy_review',
-      entity_id: sourceId,
-      after: JSON.stringify({ source, sourceId, status, notes, correctionJournalId }),
-      timestamp: new Date().toISOString(),
-    }
-    try { await supabase.from('audit_logs').insert(auditPayload) } catch { /* fire-and-forget */ }
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: userId,
+        action: 'UPDATE',
+        entity: 'fee_discrepancy_review',
+        entity_id: sourceId,
+        after: JSON.stringify({ source, sourceId, status, notes, correctionJournalId }),
+        timestamp: new Date().toISOString(),
+      })
+    } catch { /* fire-and-forget */ }
 
     logInfo('Fee discrepancy status updated', { source, sourceId, status, userId })
   }
 
-  /**
-   * Create correction journal to reverse fee discrepancy
-   * DEBIT  610105 Fee Discrepancy  (reverse negative disc / bank bayar lebih)
-   * CREDIT Receivable per channel  (clear piutang dari POS baru)
-   * 
-   * Or vice versa for positive disc
-   */
   async createCorrectionJournal(
     companyId: string,
     source: FeeDiscrepancySource,
     sourceId: string,
     userId: string,
+    correctionLines: Array<{ correctionType: CorrectionType; amount: number }>,
     notes?: string,
   ): Promise<{ journalId: string; journalNumber: string }> {
-    // 1. Get discrepancy details
-    const discItem = await this.getDiscrepancyDetail(companyId, source, sourceId)
+    // 1. Get discrepancy detail — direct query, no full scan
+    const discItem = await this.repo.getDiscrepancyById(companyId, source, sourceId)
     if (!discItem) throw new BusinessRuleError('Fee discrepancy tidak ditemukan')
 
-    const amount = Math.abs(discItem.discrepancyAmount)
-    if (amount < 1) throw new BusinessRuleError('Selisih terlalu kecil untuk dikoreksi')
+    // 2. Guard: jangan koreksi item yang sudah dikoreksi
+    if (discItem.status === 'CORRECTED') {
+      throw new BusinessRuleError(`Fee discrepancy ini sudah dikoreksi (journal: ${discItem.correctionJournalId})`)
+    }
 
-    // 2. Load FEE-DISC account
+    // 3. Validate total amount matches discrepancy
+    const totalAmount = Math.round(correctionLines.reduce((s, l) => s + l.amount, 0) * 100) / 100
+    const discAmount = Math.round(Math.abs(discItem.discrepancyAmount) * 100) / 100
+    if (Math.abs(totalAmount - discAmount) > 0.01) {
+      throw new BusinessRuleError(`Total koreksi (${totalAmount}) tidak sama dengan selisih (${discAmount})`)
+    }
+    if (totalAmount < 1) throw new BusinessRuleError('Selisih terlalu kecil untuk dikoreksi (min. Rp 1)')
+
+    // 4. Load FEE-DISC account
     const feeDiscAccountId = await this.loadFeeDiscAccountId(companyId)
-    if (!feeDiscAccountId) throw new BusinessRuleError('Akun FEE-DISC belum dikonfigurasi')
+    if (!feeDiscAccountId) throw new BusinessRuleError('Akun FEE-DISC belum dikonfigurasi di Accounting Purposes')
 
-    // 3. Get receivable account from payment method
-    const receivableAccountId = await this.getReceivableAccountId(source, sourceId, companyId)
-    if (!receivableAccountId) throw new BusinessRuleError('Akun receivable tidak ditemukan untuk payment method ini')
+    // 5. Resolve all correction accounts
+    const resolvedLines: Array<{ correctionType: CorrectionType; amount: number; accountId: string; label: string }> = []
+    for (const line of correctionLines) {
+      const accountId = await this.getCorrectionAccountId(line.correctionType, source, sourceId, companyId)
+      if (!accountId) throw new BusinessRuleError(`Akun koreksi untuk tipe "${line.correctionType}" tidak ditemukan di Chart of Accounts`)
+      resolvedLines.push({ ...line, accountId, label: CORRECTION_LABELS[line.correctionType] })
+    }
 
-    // 4. Find fiscal period
+    // 6. Find fiscal period
     const journalDate = discItem.transactionDate
     const period = await this.findFiscalPeriod(companyId, journalDate)
     if (!period) throw new BusinessRuleError(`Tidak ada periode fiskal untuk tanggal ${journalDate}`)
     if (!period.is_open) throw new BusinessRuleError(`Periode ${period.period} sudah ditutup`)
 
-    // 5. Create journal header
-    const journalNumber = `FEE-CORR-${journalDate}-${sourceId.slice(0, 8)}`
+    // 7. Generate unique journal number
+    const journalNumber = `FEE-CORR-${journalDate}-${sourceId.slice(0, 8)}-${Date.now().toString(36).toUpperCase()}`
+    const descParts = resolvedLines.map(l => l.label).join(', ')
 
+    // 8. Create journal header
     const { data: headerData, error: headerError } = await supabase.rpc('create_journal_header_atomic', {
       p_company_id: companyId,
       p_branch_id: null,
@@ -95,51 +109,57 @@ export class FeeDiscrepancyReviewService {
       p_journal_type: 'GENERAL',
       p_journal_date: journalDate,
       p_period: period.period,
-      p_description: notes || `Koreksi fee discrepancy - ${discItem.paymentMethodName || source}`,
-      p_total_amount: amount,
+      p_description: notes || `Koreksi: ${descParts} - ${discItem.paymentMethodName || source}`,
+      p_total_amount: totalAmount,
       p_source_module: 'FEE_DISCREPANCY_CORRECTION',
     })
 
-    if (headerError) throw new Error(headerError.message)
+    if (headerError) {
+      logError('createCorrectionJournal: header RPC error', { error: headerError.message })
+      throw new Error(`Gagal membuat journal header: ${headerError.message}`)
+    }
     const header = Array.isArray(headerData) ? headerData[0] : headerData
-    if (!header?.id) throw new Error('Gagal membuat journal header')
+    if (!header?.id) throw new Error('Gagal membuat journal header: response kosong')
 
     const journalId = header.id as string
     const actualJournalNumber = header.journal_number as string
 
-    // 6. Build journal lines
-    // Original bank-rec journal had:
-    //   disc > 0 (bank kurang): DEBIT Fee Disc
-    //   disc < 0 (bank lebih):  CREDIT Fee Disc
-    // Correction reverses this:
+    // 9. Build journal lines
+    // disc > 0 = bank bayar kurang → asal: DR Fee Disc → reverse: CR Fee Disc, DR correction accounts
+    // disc < 0 = bank bayar lebih → asal: CR Fee Disc → reverse: DR Fee Disc, CR correction accounts
     const isPositiveDisc = discItem.discrepancyAmount > 0
+    let lineNum = 1
 
+    // Line 1: Fee Discrepancy (reverse full amount)
     const lines = [
       {
-        line_number: 1,
+        line_number: lineNum++,
         account_id: feeDiscAccountId,
-        description: `Koreksi fee discrepancy - ${discItem.paymentMethodName || source}`,
-        debit_amount: isPositiveDisc ? 0 : amount,
-        credit_amount: isPositiveDisc ? amount : 0,
-        currency: 'IDR',
-        exchange_rate: 1,
-        base_debit_amount: isPositiveDisc ? 0 : amount,
-        base_credit_amount: isPositiveDisc ? amount : 0,
-      },
-      {
-        line_number: 2,
-        account_id: receivableAccountId,
-        description: `Clear receivable - ${discItem.paymentMethodName || source}`,
-        debit_amount: isPositiveDisc ? amount : 0,
-        credit_amount: isPositiveDisc ? 0 : amount,
-        currency: 'IDR',
-        exchange_rate: 1,
-        base_debit_amount: isPositiveDisc ? amount : 0,
-        base_credit_amount: isPositiveDisc ? 0 : amount,
+        description: `Koreksi fee disc: ${descParts}`,
+        debit_amount:  isPositiveDisc ? 0 : totalAmount,
+        credit_amount: isPositiveDisc ? totalAmount : 0,
+        currency: 'IDR', exchange_rate: 1,
+        base_debit_amount:  isPositiveDisc ? 0 : totalAmount,
+        base_credit_amount: isPositiveDisc ? totalAmount : 0,
       },
     ]
 
-    // 7. Post lines
+    // Lines 2+: Per correction type
+    for (const rl of resolvedLines) {
+      const amt = Math.round(rl.amount * 100) / 100
+      lines.push({
+        line_number: lineNum++,
+        account_id: rl.accountId,
+        description: `${rl.label} - ${discItem.paymentMethodName || source}`,
+        debit_amount:  isPositiveDisc ? amt : 0,
+        credit_amount: isPositiveDisc ? 0 : amt,
+        currency: 'IDR', exchange_rate: 1,
+        base_debit_amount:  isPositiveDisc ? amt : 0,
+        base_credit_amount: isPositiveDisc ? 0 : amt,
+      })
+    }
+
+    // 10. Post lines
     const { error: linesError } = await supabase.rpc('post_journal_lines_atomic', {
       p_journal_header_id: journalId,
       p_lines: lines,
@@ -149,37 +169,28 @@ export class FeeDiscrepancyReviewService {
     })
 
     if (linesError) {
-      // Rollback header
-      await supabase.from('journal_headers').delete().eq('id', journalId)
+      logError('createCorrectionJournal: lines RPC error', { error: linesError.message, journalId })
+      await supabase.from('journal_headers').update({ deleted_at: new Date().toISOString() }).eq('id', journalId)
       throw new Error(`Gagal insert journal lines: ${linesError.message}`)
     }
 
-    // 8. Update review status to CORRECTED
+    // 11. Mark as CORRECTED
     await this.repo.updateStatus(companyId, source, sourceId, 'CORRECTED', userId, notes, journalId)
 
-    // 9. Audit log
+    // 12. Audit log
     try {
       await supabase.from('audit_logs').insert({
-        user_id: userId,
-        action: 'CREATE',
-        entity: 'fee_discrepancy_correction',
-        entity_id: journalId,
-        after: JSON.stringify({ source, sourceId, journalId, journalNumber: actualJournalNumber, amount }),
+        user_id: userId, action: 'CREATE', entity: 'fee_discrepancy_correction', entity_id: journalId,
+        after: JSON.stringify({ source, sourceId, journalId, journalNumber: actualJournalNumber, totalAmount, correctionLines }),
         timestamp: new Date().toISOString(),
       })
     } catch { /* fire-and-forget */ }
 
-    logInfo('Fee discrepancy correction journal created', { journalId, journalNumber: actualJournalNumber, source, sourceId, amount })
-
+    logInfo('Fee discrepancy correction journal created', { journalId, journalNumber: actualJournalNumber, source, sourceId, totalAmount, lineCount: resolvedLines.length })
     return { journalId, journalNumber: actualJournalNumber }
   }
 
-  // ── Helpers ──
-
-  private async getDiscrepancyDetail(companyId: string, source: FeeDiscrepancySource, sourceId: string) {
-    const { data } = await this.repo.getDiscrepancies(companyId, { page: 1, limit: 10000 })
-    return data.find(d => d.source === source && d.sourceId === sourceId) || null
-  }
+  // ── Private helpers ──
 
   private async loadFeeDiscAccountId(companyId: string): Promise<string | null> {
     const { data: purpose } = await supabase
@@ -202,10 +213,43 @@ export class FeeDiscrepancyReviewService {
       .order('priority', { ascending: true })
       .limit(1)
 
-    return accounts?.[0]?.account_id as string || null
+    return (accounts?.[0]?.account_id as string) || null
   }
 
-  private async getReceivableAccountId(source: FeeDiscrepancySource, sourceId: string, companyId: string): Promise<string | null> {
+  private async getCorrectionAccountId(
+    correctionType: CorrectionType,
+    source: FeeDiscrepancySource,
+    sourceId: string,
+    companyId: string,
+  ): Promise<string | null> {
+    if (correctionType === 'POS_PENDING') {
+      return this.getReceivableAccountId(source, sourceId, companyId)
+    }
+
+    const accountCodeMap: Record<Exclude<CorrectionType, 'POS_PENDING'>, string> = {
+      REFUND_CUSTOMER:       '210501',
+      PLATFORM_COMPENSATION: '410401',
+      ROUNDING:              '610801',
+      STAFF_DEDUCTION:       '110403',
+    }
+
+    const code = accountCodeMap[correctionType as Exclude<CorrectionType, 'POS_PENDING'>]
+    const { data } = await supabase
+      .from('chart_of_accounts')
+      .select('id')
+      .eq('account_code', code)
+      .eq('company_id', companyId)
+      .is('deleted_at', null)
+      .limit(1)
+
+    return (data?.[0]?.id as string) || null
+  }
+
+  private async getReceivableAccountId(
+    source: FeeDiscrepancySource,
+    sourceId: string,
+    companyId: string,
+  ): Promise<string | null> {
     let paymentMethodId: number | null = null
 
     if (source === 'SINGLE_MATCH') {
@@ -214,41 +258,41 @@ export class FeeDiscrepancyReviewService {
         .select('payment_method_id')
         .eq('id', sourceId)
         .maybeSingle()
-      paymentMethodId = data?.payment_method_id as number || null
+      paymentMethodId = (data?.payment_method_id as number) || null
+
     } else if (source === 'MULTI_MATCH') {
       const { data } = await supabase
         .from('bank_reconciliation_groups')
-        .select('aggregated_transactions ( payment_method_id )')
+        .select('aggregated_transactions(payment_method_id)')
         .eq('id', sourceId)
         .maybeSingle()
       paymentMethodId = (data?.aggregated_transactions as unknown as { payment_method_id: number })?.payment_method_id || null
+
     } else if (source === 'SETTLEMENT_GROUP') {
-      // Get first aggregate's payment method
-      const { data } = await supabase
+      const { data: settleAgg } = await supabase
         .from('bank_settlement_aggregates')
         .select('aggregate_id')
         .eq('settlement_group_id', sourceId)
         .limit(1)
-      if (data?.[0]) {
+      if (settleAgg?.[0]) {
         const { data: agg } = await supabase
           .from('aggregated_transactions')
           .select('payment_method_id')
-          .eq('id', data[0].aggregate_id)
+          .eq('id', settleAgg[0].aggregate_id)
           .maybeSingle()
-        paymentMethodId = agg?.payment_method_id as number || null
+        paymentMethodId = (agg?.payment_method_id as number) || null
       }
     }
 
     if (!paymentMethodId) return null
 
-    // Get receivable COA from payment method
     const { data: pm } = await supabase
       .from('payment_methods')
       .select('coa_account_id')
       .eq('id', paymentMethodId)
       .maybeSingle()
 
-    return pm?.coa_account_id as string || null
+    return (pm?.coa_account_id as string) || null
   }
 
   private async findFiscalPeriod(companyId: string, date: string) {

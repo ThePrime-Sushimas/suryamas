@@ -33,9 +33,10 @@ export const feeDiscrepancyApi = {
   async createCorrection(
     source: FeeDiscrepancySource,
     sourceId: string,
+    lines: Array<{ correctionType: string; amount: number }>,
     notes?: string
   ): Promise<{ journalId: string; journalNumber: string }> {
-    const res = await api.post(`/fee-discrepancy-review/${source}/${sourceId}/correct`, { notes })
+    const res = await api.post(`/fee-discrepancy-review/${source}/${sourceId}/correct`, { lines, notes })
     return res.data.data
   },
 }

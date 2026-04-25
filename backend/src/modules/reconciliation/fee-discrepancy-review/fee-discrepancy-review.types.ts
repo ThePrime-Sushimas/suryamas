@@ -45,3 +45,5 @@ export interface UpdateStatusRequest {
   notes?: string
   correctionJournalId?: string
 }
+
+export type CorrectionType = 'POS_PENDING' | 'REFUND_CUSTOMER' | 'PLATFORM_COMPENSATION' | 'ROUNDING' | 'STAFF_DEDUCTION'

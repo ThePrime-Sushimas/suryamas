@@ -63,10 +63,10 @@ class FeeDiscrepancyReviewController {
       if (!userId) throw new Error('User not authenticated')
 
       const { source, sourceId } = req.validated.params
-      const { notes } = req.validated.body
+      const { lines, notes } = req.validated.body
 
       const result = await feeDiscrepancyReviewService.createCorrectionJournal(
-        companyId, source, sourceId, userId, notes
+        companyId, source, sourceId, userId, lines, notes
       )
 
       sendSuccess(res, result, 'Jurnal koreksi berhasil dibuat')
