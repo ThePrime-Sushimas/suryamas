@@ -485,6 +485,20 @@ export class BankReconciliationRepository {
             },
           };
         }
+        // Bank mutation entry match
+        if (row.bank_mutation_entry_id) {
+          return {
+            ...row,
+            matched_aggregate: {
+              id: row.bank_mutation_entry_id,
+              transaction_date: row.transaction_date,
+              gross_amount: Math.abs((row.credit_amount || 0) - (row.debit_amount || 0)),
+              nett_amount: Math.abs((row.credit_amount || 0) - (row.debit_amount || 0)),
+              payment_method_name: "Manual Entry",
+              is_bank_mutation_entry: true,
+            },
+          };
+        }
         return { ...row, matched_aggregate: null };
       });
 

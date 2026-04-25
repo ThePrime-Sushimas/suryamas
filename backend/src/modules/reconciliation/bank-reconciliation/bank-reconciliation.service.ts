@@ -25,6 +25,7 @@ import { AuditService } from "../../monitoring/monitoring.service";
 import { cashCountsRepository } from "../../cash-counts/cash-counts.repository";
 import { settlementGroupService } from "../bank-settlement-group/bank-settlement-group.service";
 import { settlementGroupRepository } from "../bank-settlement-group/bank-settlement-group.repository";
+import { bankMutationEntriesService } from "../bank-mutation-entries/bank-mutation-entries.service";
 import type {
   MatchingStrategy,
   MatchingEngineResult
@@ -401,6 +402,21 @@ export class BankReconciliationService {
           { is_reconciled: false }
         );
       }
+      return;
+    }
+
+    // ── Bank mutation entry undo ──
+    if (statement.bank_mutation_entry_id) {
+      logInfo("Undo detected bank mutation entry, delegating to voidEntry", {
+        statementId,
+        mutationEntryId: statement.bank_mutation_entry_id,
+      });
+      await bankMutationEntriesService.voidEntry(
+        statement.bank_mutation_entry_id,
+        { voidReason: 'Undo dari halaman reconciliation' },
+        userId || '',
+        companyId || statement.company_id,
+      );
       return;
     }
 

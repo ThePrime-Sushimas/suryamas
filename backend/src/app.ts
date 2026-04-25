@@ -40,6 +40,7 @@ import bankStatementImportRoutes from "./modules/reconciliation/bank-statement-i
 import feeDiscrepancyReviewRoutes from "./modules/reconciliation/fee-discrepancy-review/fee-discrepancy-review.routes";
 import { setupBankReconciliationModule } from "./modules/reconciliation/bank-reconciliation";
 import { setupSettlementGroupModule } from "./modules/reconciliation/bank-settlement-group";
+import bankMutationEntriesRoutes from "./modules/reconciliation/bank-mutation-entries/bank-mutation-entries.routes";
 import { errorHandler } from "./middleware/error.middleware";
 import { requestLogger } from "./middleware/request-logger.middleware";
 import { generateOpenApiDocument } from "./config/openapi";
@@ -124,6 +125,7 @@ app.use("/api/v1/bank-statement-imports", bankStatementImportRoutes);
 app.use("/api/v1/fee-discrepancy-review", feeDiscrepancyReviewRoutes);
 app.use("/api/v1/reconciliation/bank", setupBankReconciliationModule().router);
 app.use("/api/v1/settlement-group", setupSettlementGroupModule().router);
+app.use("/api/v1/bank-mutation-entries", bankMutationEntriesRoutes);
 app.use("/api/v1/cash-flow", cashFlowRoutes);
 app.use("/api/v1", ownerBankAccountsRouter);
 
@@ -231,6 +233,10 @@ const registerModules = async () => {
     await PermissionService.registerModule(
       "bank_rec_journals",
       "Bank Reconciliation Journals",
+    );
+    await PermissionService.registerModule(
+      "bank_mutation_entries",
+      "Bank Mutation Entries (Non-POS Reconciliation)",
     );
     await PermissionService.registerModule(
       "monitoring",

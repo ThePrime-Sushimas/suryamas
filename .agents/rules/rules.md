@@ -92,7 +92,7 @@ Rules:
 ❌ Tidak boleh business logic
 ❌ Tidak boleh N+1 query
 ✅ Wajib:
-Filter company_id
+Filter company_id via branch context
 deleted_at IS NULL
 Gunakan:
 CTE / JOIN

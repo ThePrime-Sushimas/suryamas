@@ -31,3 +31,7 @@ export * from './review-approval/manual-review.controller';
 export * from './reports/reports.service';
 export * from './reports/reports.controller';
 
+// Bank Mutation Entries exports
+export * from './bank-mutation-entries/bank-mutation-entries.service';
+export * from './bank-mutation-entries/bank-mutation-entries.repository';
+
