@@ -159,7 +159,7 @@ export const FeeDiscrepancyReviewPage = () => {
                   <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                     <td className="px-4 py-3 text-sm text-gray-900 dark:text-white whitespace-nowrap">{formatDate(item.transactionDate)}</td>
                     <td className="px-4 py-3"><span className={`inline-flex px-2 py-0.5 text-[11px] font-medium rounded-full ${sourceBadge[item.source]}`}>{sourceLabel[item.source]}</span></td>
-                    <td className="px-4 py-3 text-sm"><div className="text-gray-900 dark:text-white">{item.paymentMethodName || '-'}</div>{item.branchName && <div className="text-[11px] text-gray-400">{item.branchName}</div>}</td>
+                    <td className="px-4 py-3 text-sm"><div className="text-gray-900 dark:text-white">{item.paymentMethodName || '-'}</div>{item.branchName && <BranchList branches={item.branchName} />}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white whitespace-nowrap">{fmt(item.posNettAmount)}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white whitespace-nowrap">{fmt(item.bankAmount)}</td>
                     <td className="px-4 py-3 text-sm text-right font-bold whitespace-nowrap">{(() => { const d = -item.discrepancyAmount; return <span className={d > 0 ? 'text-green-600' : d < 0 ? 'text-red-600' : 'text-gray-500'}>{d > 0 ? '+' : ''}{fmt(d)}</span> })()}</td>
@@ -299,6 +299,28 @@ function StatusBadge({ status }: { status: FeeDiscrepancyStatus }) {
     DISMISSED: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
   }
   return <span className={`inline-flex px-2 py-0.5 text-[11px] font-medium rounded-full ${styles[status]}`}>{status}</span>
+}
+
+function BranchList({ branches }: { branches: string }) {
+  const list = branches.split(', ').filter(Boolean)
+  const [expanded, setExpanded] = useState(false)
+
+  if (list.length <= 1) return <div className="text-[11px] text-gray-400">{branches}</div>
+
+  if (expanded) {
+    return (
+      <div className="text-[11px] text-gray-400">
+        {list.join(', ')}
+        <button onClick={() => setExpanded(false)} className="ml-1 text-blue-500 hover:text-blue-700">tutup</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="text-[11px] text-gray-400">
+      {list[0]} <button onClick={() => setExpanded(true)} className="text-blue-500 hover:text-blue-700">+{list.length - 1} lainnya</button>
+    </div>
+  )
 }
 
 export default FeeDiscrepancyReviewPage
