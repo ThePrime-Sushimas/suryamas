@@ -14,6 +14,13 @@ export interface TrialBalanceRow {
   period_credit: number
   closing_debit: number
   closing_credit: number
+  // Source breakdown for mutation period
+  pos_debit: number
+  pos_credit: number
+  bank_debit: number
+  bank_credit: number
+  other_debit: number
+  other_credit: number
 }
 
 export interface TrialBalanceParams {

@@ -28,7 +28,7 @@ export class TrialBalanceRepository {
         WITH
         all_lines AS (
           SELECT glv.account_id, ${branchCol}, glv.journal_date,
-            glv.debit_amount, glv.credit_amount
+            glv.debit_amount, glv.credit_amount, glv.source_module
           FROM general_ledger_view glv
           JOIN chart_of_accounts coa_check ON coa_check.id = glv.account_id
           WHERE glv.company_id = $1::uuid
@@ -45,7 +45,13 @@ export class TrialBalanceRepository {
         period AS (
           SELECT ${groupCols},
             SUM(debit_amount) AS period_debit,
-            SUM(credit_amount) AS period_credit
+            SUM(credit_amount) AS period_credit,
+            SUM(CASE WHEN source_module = 'POS_AGGREGATES' THEN debit_amount ELSE 0 END) AS pos_debit,
+            SUM(CASE WHEN source_module = 'POS_AGGREGATES' THEN credit_amount ELSE 0 END) AS pos_credit,
+            SUM(CASE WHEN source_module = 'BANK_RECONCILIATION' THEN debit_amount ELSE 0 END) AS bank_debit,
+            SUM(CASE WHEN source_module = 'BANK_RECONCILIATION' THEN credit_amount ELSE 0 END) AS bank_credit,
+            SUM(CASE WHEN source_module NOT IN ('POS_AGGREGATES', 'BANK_RECONCILIATION') OR source_module IS NULL THEN debit_amount ELSE 0 END) AS other_debit,
+            SUM(CASE WHEN source_module NOT IN ('POS_AGGREGATES', 'BANK_RECONCILIATION') OR source_module IS NULL THEN credit_amount ELSE 0 END) AS other_credit
           FROM all_lines WHERE journal_date >= $2::date AND journal_date <= $3::date
           GROUP BY ${groupCols}
         ),
@@ -66,6 +72,12 @@ export class TrialBalanceRepository {
           'IDR' AS currency,
           COALESCE(p.period_debit, 0)::numeric AS period_debit,
           COALESCE(p.period_credit, 0)::numeric AS period_credit,
+          COALESCE(p.pos_debit, 0)::numeric AS pos_debit,
+          COALESCE(p.pos_credit, 0)::numeric AS pos_credit,
+          COALESCE(p.bank_debit, 0)::numeric AS bank_debit,
+          COALESCE(p.bank_credit, 0)::numeric AS bank_credit,
+          COALESCE(p.other_debit, 0)::numeric AS other_debit,
+          COALESCE(p.other_credit, 0)::numeric AS other_credit,
           -- Opening nett: debit - credit, split into debit/credit side
           GREATEST(COALESCE(o.opening_debit, 0) - COALESCE(o.opening_credit, 0), 0)::numeric AS opening_debit,
           GREATEST(COALESCE(o.opening_credit, 0) - COALESCE(o.opening_debit, 0), 0)::numeric AS opening_credit,

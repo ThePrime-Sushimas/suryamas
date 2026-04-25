@@ -29,10 +29,13 @@ function buildSummary(rows: TrialBalanceRow[]): TrialBalanceSummary {
   }
 }
 
+type SourceView = 'combined' | 'split'
+
+
 interface GroupedRow {
   account_type: string
   rows: TrialBalanceRow[]
-  subtotals: { od: number; oc: number; pd: number; pc: number; cd: number; cc: number }
+  subtotals: { od: number; oc: number; pd: number; pc: number; cd: number; cc: number; posD: number; posC: number; bankD: number; bankC: number; otherD: number; otherC: number }
 }
 
 function groupRows(rows: TrialBalanceRow[]): GroupedRow[] {
@@ -52,6 +55,12 @@ function groupRows(rows: TrialBalanceRow[]): GroupedRow[] {
         pc: gr.reduce((s, r) => s + r.period_credit, 0),
         cd: gr.reduce((s, r) => s + r.closing_debit, 0),
         cc: gr.reduce((s, r) => s + r.closing_credit, 0),
+        posD: gr.reduce((s, r) => s + r.pos_debit, 0),
+        posC: gr.reduce((s, r) => s + r.pos_credit, 0),
+        bankD: gr.reduce((s, r) => s + r.bank_debit, 0),
+        bankC: gr.reduce((s, r) => s + r.bank_credit, 0),
+        otherD: gr.reduce((s, r) => s + r.other_debit, 0),
+        otherC: gr.reduce((s, r) => s + r.other_credit, 0),
       },
     }
   })
@@ -79,6 +88,7 @@ export default function TrialBalancePage() {
   const { branches, currentBranch } = useBranchContextStore()
   const { filter, setFilter } = useTrialBalanceStore()
   const [fetchKey, setFetchKey] = useState(0)
+  const [sourceView, setSourceView] = useState<SourceView>('combined')
 
   const companyId = currentBranch?.company_id ?? ''
   const companyBranches = useMemo(
@@ -155,10 +165,20 @@ export default function TrialBalancePage() {
           </button>
 
           {rows.length > 0 && (
-            <button onClick={() => exportCsv(rows, filter.date_from, filter.date_to)}
-              className="h-10 flex items-center gap-2 px-4 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-medium">
-              <Download size={16} /> Export
-            </button>
+            <>
+              <button onClick={() => setSourceView(v => v === 'combined' ? 'split' : 'combined')}
+                className={`h-10 flex items-center gap-2 px-4 border rounded-lg text-sm font-medium transition-colors ${
+                  sourceView === 'split'
+                    ? 'border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/20'
+                    : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}>
+                {sourceView === 'split' ? 'POS / Bank' : 'Combined'}
+              </button>
+              <button onClick={() => exportCsv(rows, filter.date_from, filter.date_to)}
+                className="h-10 flex items-center gap-2 px-4 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-medium">
+                <Download size={16} /> Export
+              </button>
+            </>
           )}
         </div>
 
@@ -220,14 +240,35 @@ export default function TrialBalancePage() {
                 <th rowSpan={2} className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase text-left">Branch</th>
                 <th rowSpan={2} className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase text-center w-16">Ccy</th>
                 <th colSpan={2} className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase text-center border-b border-gray-200 dark:border-gray-700">Opening Value</th>
-                <th colSpan={2} className="px-3 py-2 text-xs font-semibold text-indigo-500 dark:text-indigo-400 uppercase text-center border-b border-gray-200 dark:border-gray-700">Mutation Value</th>
+                {sourceView === 'split' ? (
+                  <>
+                    <th colSpan={2} className="px-3 py-2 text-xs font-semibold text-blue-500 dark:text-blue-400 uppercase text-center border-b border-gray-200 dark:border-gray-700">POS</th>
+                    <th colSpan={2} className="px-3 py-2 text-xs font-semibold text-amber-500 dark:text-amber-400 uppercase text-center border-b border-gray-200 dark:border-gray-700">Bank</th>
+                    <th colSpan={2} className="px-3 py-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase text-center border-b border-gray-200 dark:border-gray-700">Other</th>
+                  </>
+                ) : (
+                  <th colSpan={2} className="px-3 py-2 text-xs font-semibold text-indigo-500 dark:text-indigo-400 uppercase text-center border-b border-gray-200 dark:border-gray-700">Mutation Value</th>
+                )}
                 <th colSpan={2} className="px-3 py-2 text-xs font-semibold text-emerald-500 dark:text-emerald-400 uppercase text-center border-b border-gray-200 dark:border-gray-700">Ending Value</th>
               </tr>
               <tr>
                 <th className="px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 text-right">Debit</th>
                 <th className="px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 text-right">Credit</th>
-                <th className="px-3 py-1.5 text-xs font-semibold text-indigo-500 dark:text-indigo-400 text-right">Debit</th>
-                <th className="px-3 py-1.5 text-xs font-semibold text-indigo-500 dark:text-indigo-400 text-right">Credit</th>
+                {sourceView === 'split' ? (
+                  <>
+                    <th className="px-3 py-1.5 text-xs font-semibold text-blue-500 dark:text-blue-400 text-right">Debit</th>
+                    <th className="px-3 py-1.5 text-xs font-semibold text-blue-500 dark:text-blue-400 text-right">Credit</th>
+                    <th className="px-3 py-1.5 text-xs font-semibold text-amber-500 dark:text-amber-400 text-right">Debit</th>
+                    <th className="px-3 py-1.5 text-xs font-semibold text-amber-500 dark:text-amber-400 text-right">Credit</th>
+                    <th className="px-3 py-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 text-right">Debit</th>
+                    <th className="px-3 py-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 text-right">Credit</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="px-3 py-1.5 text-xs font-semibold text-indigo-500 dark:text-indigo-400 text-right">Debit</th>
+                    <th className="px-3 py-1.5 text-xs font-semibold text-indigo-500 dark:text-indigo-400 text-right">Credit</th>
+                  </>
+                )}
                 <th className="px-3 py-1.5 text-xs font-semibold text-emerald-500 dark:text-emerald-400 text-right">Debit</th>
                 <th className="px-3 py-1.5 text-xs font-semibold text-emerald-500 dark:text-emerald-400 text-right">Credit</th>
               </tr>
@@ -236,7 +277,7 @@ export default function TrialBalancePage() {
               {groups.map(g => (
                 <React.Fragment key={g.account_type}>
                   <tr className="bg-blue-50/50 dark:bg-blue-900/10">
-                    <td colSpan={13} className="px-3 py-2 font-bold text-xs uppercase tracking-wider text-blue-600 dark:text-blue-400 border-y border-blue-100 dark:border-blue-900/50">
+                    <td colSpan={sourceView === 'split' ? 17 : 13} className="px-3 py-2 font-bold text-xs uppercase tracking-wider text-blue-600 dark:text-blue-400 border-y border-blue-100 dark:border-blue-900/50">
                       {TYPE_LABELS[g.account_type] ?? g.account_type}
                     </td>
                   </tr>
@@ -253,8 +294,21 @@ export default function TrialBalancePage() {
                         <td className="px-3 py-2 text-center text-xs text-gray-400">{r.currency}</td>
                         <td className="px-3 py-2 text-right font-mono text-xs text-gray-600 dark:text-gray-300">{fmt(r.opening_debit)}</td>
                         <td className="px-3 py-2 text-right font-mono text-xs text-gray-600 dark:text-gray-300">{fmt(r.opening_credit)}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs text-indigo-600 dark:text-indigo-400">{fmt(r.period_debit)}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs text-indigo-600 dark:text-indigo-400">{fmt(r.period_credit)}</td>
+                        {sourceView === 'split' ? (
+                          <>
+                            <td className="px-3 py-2 text-right font-mono text-xs text-blue-600 dark:text-blue-400">{fmt(r.pos_debit)}</td>
+                            <td className="px-3 py-2 text-right font-mono text-xs text-blue-600 dark:text-blue-400">{fmt(r.pos_credit)}</td>
+                            <td className="px-3 py-2 text-right font-mono text-xs text-amber-600 dark:text-amber-400">{fmt(r.bank_debit)}</td>
+                            <td className="px-3 py-2 text-right font-mono text-xs text-amber-600 dark:text-amber-400">{fmt(r.bank_credit)}</td>
+                            <td className="px-3 py-2 text-right font-mono text-xs text-gray-400 dark:text-gray-500">{fmt(r.other_debit)}</td>
+                            <td className="px-3 py-2 text-right font-mono text-xs text-gray-400 dark:text-gray-500">{fmt(r.other_credit)}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-3 py-2 text-right font-mono text-xs text-indigo-600 dark:text-indigo-400">{fmt(r.period_debit)}</td>
+                            <td className="px-3 py-2 text-right font-mono text-xs text-indigo-600 dark:text-indigo-400">{fmt(r.period_credit)}</td>
+                          </>
+                        )}
                         <td className="px-3 py-2 text-right font-mono text-xs text-emerald-600 dark:text-emerald-400 font-medium">{fmt(r.closing_debit)}</td>
                         <td className="px-3 py-2 text-right font-mono text-xs text-emerald-600 dark:text-emerald-400 font-medium">{fmt(r.closing_credit)}</td>
                       </tr>
@@ -266,8 +320,21 @@ export default function TrialBalancePage() {
                     </td>
                     <td className="px-3 py-2.5 text-right font-bold text-xs text-gray-700 dark:text-gray-300 border-t border-gray-200 dark:border-gray-700">{fmt(g.subtotals.od)}</td>
                     <td className="px-3 py-2.5 text-right font-bold text-xs text-gray-700 dark:text-gray-300 border-t border-gray-200 dark:border-gray-700">{fmt(g.subtotals.oc)}</td>
-                    <td className="px-3 py-2.5 text-right font-bold text-xs text-indigo-700 dark:text-indigo-300 border-t border-indigo-200 dark:border-indigo-800/50">{fmt(g.subtotals.pd)}</td>
-                    <td className="px-3 py-2.5 text-right font-bold text-xs text-indigo-700 dark:text-indigo-300 border-t border-indigo-200 dark:border-indigo-800/50">{fmt(g.subtotals.pc)}</td>
+                    {sourceView === 'split' ? (
+                      <>
+                        <td className="px-3 py-2.5 text-right font-bold text-xs text-blue-700 dark:text-blue-300 border-t border-blue-200 dark:border-blue-800/50">{fmt(g.subtotals.posD)}</td>
+                        <td className="px-3 py-2.5 text-right font-bold text-xs text-blue-700 dark:text-blue-300 border-t border-blue-200 dark:border-blue-800/50">{fmt(g.subtotals.posC)}</td>
+                        <td className="px-3 py-2.5 text-right font-bold text-xs text-amber-700 dark:text-amber-300 border-t border-amber-200 dark:border-amber-800/50">{fmt(g.subtotals.bankD)}</td>
+                        <td className="px-3 py-2.5 text-right font-bold text-xs text-amber-700 dark:text-amber-300 border-t border-amber-200 dark:border-amber-800/50">{fmt(g.subtotals.bankC)}</td>
+                        <td className="px-3 py-2.5 text-right font-bold text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700">{fmt(g.subtotals.otherD)}</td>
+                        <td className="px-3 py-2.5 text-right font-bold text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700">{fmt(g.subtotals.otherC)}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-3 py-2.5 text-right font-bold text-xs text-indigo-700 dark:text-indigo-300 border-t border-indigo-200 dark:border-indigo-800/50">{fmt(g.subtotals.pd)}</td>
+                        <td className="px-3 py-2.5 text-right font-bold text-xs text-indigo-700 dark:text-indigo-300 border-t border-indigo-200 dark:border-indigo-800/50">{fmt(g.subtotals.pc)}</td>
+                      </>
+                    )}
                     <td className="px-3 py-2.5 text-right font-bold text-xs text-emerald-700 dark:text-emerald-300 border-t border-emerald-200 dark:border-emerald-800/50">{fmt(g.subtotals.cd)}</td>
                     <td className="px-3 py-2.5 text-right font-bold text-xs text-emerald-700 dark:text-emerald-300 border-t border-emerald-200 dark:border-emerald-800/50">{fmt(g.subtotals.cc)}</td>
                   </tr>
@@ -279,8 +346,21 @@ export default function TrialBalancePage() {
                 <td colSpan={7} className="px-3 py-3 text-right font-bold text-sm uppercase text-gray-900 dark:text-white">Grand Total</td>
                 <td className="px-3 py-3 text-right font-bold text-sm text-gray-900 dark:text-white">{fmt(summary.total_opening_debit)}</td>
                 <td className="px-3 py-3 text-right font-bold text-sm text-gray-900 dark:text-white">{fmt(summary.total_opening_credit)}</td>
-                <td className="px-3 py-3 text-right font-bold text-sm text-indigo-700 dark:text-indigo-400">{fmt(summary.total_period_debit)}</td>
-                <td className="px-3 py-3 text-right font-bold text-sm text-indigo-700 dark:text-indigo-400">{fmt(summary.total_period_credit)}</td>
+                {sourceView === 'split' ? (
+                  <>
+                    <td className="px-3 py-3 text-right font-bold text-sm text-blue-700 dark:text-blue-400">{fmt(rows.reduce((s, r) => s + r.pos_debit, 0))}</td>
+                    <td className="px-3 py-3 text-right font-bold text-sm text-blue-700 dark:text-blue-400">{fmt(rows.reduce((s, r) => s + r.pos_credit, 0))}</td>
+                    <td className="px-3 py-3 text-right font-bold text-sm text-amber-700 dark:text-amber-400">{fmt(rows.reduce((s, r) => s + r.bank_debit, 0))}</td>
+                    <td className="px-3 py-3 text-right font-bold text-sm text-amber-700 dark:text-amber-400">{fmt(rows.reduce((s, r) => s + r.bank_credit, 0))}</td>
+                    <td className="px-3 py-3 text-right font-bold text-sm text-gray-500 dark:text-gray-400">{fmt(rows.reduce((s, r) => s + r.other_debit, 0))}</td>
+                    <td className="px-3 py-3 text-right font-bold text-sm text-gray-500 dark:text-gray-400">{fmt(rows.reduce((s, r) => s + r.other_credit, 0))}</td>
+                  </>
+                ) : (
+                  <>
+                    <td className="px-3 py-3 text-right font-bold text-sm text-indigo-700 dark:text-indigo-400">{fmt(summary.total_period_debit)}</td>
+                    <td className="px-3 py-3 text-right font-bold text-sm text-indigo-700 dark:text-indigo-400">{fmt(summary.total_period_credit)}</td>
+                  </>
+                )}
                 <td className="px-3 py-3 text-right font-bold text-sm text-emerald-700 dark:text-emerald-400">{fmt(summary.total_closing_debit)}</td>
                 <td className="px-3 py-3 text-right font-bold text-sm text-emerald-700 dark:text-emerald-400">{fmt(summary.total_closing_credit)}</td>
               </tr>
