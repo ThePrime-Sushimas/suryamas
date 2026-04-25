@@ -284,6 +284,22 @@ export class FeeDiscrepancyReviewRepository {
     const branchIds = await this.getBranchIdsByCompany(companyId)
     if (branchIds.length === 0) return []
 
+    // Get aggregate IDs that belong to multi-match groups (to exclude from single match)
+    const { data: groupAggs } = await supabase
+      .from('bank_reconciliation_groups')
+      .select('aggregate_id')
+      .eq('company_id', companyId)
+      .is('deleted_at', null)
+    const multiMatchAggIds = new Set((groupAggs || []).map((g: { aggregate_id: string }) => g.aggregate_id))
+
+    // Get aggregate IDs that belong to settlement groups (to exclude from single match)
+    const { data: settlementAggs } = await supabase
+      .from('bank_settlement_aggregates')
+      .select('aggregate_id, bank_settlement_groups!inner(company_id)')
+      .eq('bank_settlement_groups.company_id', companyId)
+      .is('bank_settlement_groups.deleted_at', null)
+    const settlementAggIds = new Set((settlementAggs || []).map((s: { aggregate_id: string }) => s.aggregate_id))
+
     let query = supabase
       .from('aggregated_transactions')
       .select('id, transaction_date, fee_discrepancy, fee_discrepancy_note, nett_amount, actual_nett_amount, payment_method_id, branch_name, payment_methods(name)')
@@ -299,7 +315,12 @@ export class FeeDiscrepancyReviewRepository {
     const { data, error } = await query
     if (error) { logError('getSingleMatchDiscrepancies error', { error: error.message }); return [] }
 
-    const aggIds = (data || []).map((r: { id: string }) => r.id)
+    // Filter out aggregates that belong to multi-match or settlement groups
+    const filteredData = (data || []).filter((row: { id: string }) =>
+      !multiMatchAggIds.has(row.id) && !settlementAggIds.has(row.id)
+    )
+
+    const aggIds = filteredData.map((r: { id: string }) => r.id)
     let stmtMap: Record<string, { id: string; credit_amount: number; description: string | null }> = {}
     if (aggIds.length > 0) {
       const { data: stmts } = await supabase
@@ -310,7 +331,7 @@ export class FeeDiscrepancyReviewRepository {
       for (const s of stmts || []) stmtMap[s.reconciliation_id as string] = s as { id: string; credit_amount: number; description: string | null }
     }
 
-    return (data || []).map((row: Record<string, unknown>) => {
+    return filteredData.map((row: Record<string, unknown>) => {
       const stmt = stmtMap[row.id as string]
       const pm = row.payment_methods as { name: string } | null
       return {
