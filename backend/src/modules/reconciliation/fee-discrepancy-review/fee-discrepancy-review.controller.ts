@@ -1,7 +1,7 @@
 import type { Response } from 'express'
 import type { ValidatedAuthRequest } from '@/middleware/validation.middleware'
 import { feeDiscrepancyReviewService } from './fee-discrepancy-review.service'
-import type { feeDiscrepancyListSchema, feeDiscrepancySummarySchema, feeDiscrepancyUpdateStatusSchema, feeDiscrepancyCreateCorrectionSchema } from './fee-discrepancy-review.schema'
+import type { feeDiscrepancyListSchema, feeDiscrepancySummarySchema, feeDiscrepancyUpdateStatusSchema, feeDiscrepancyCreateCorrectionSchema, feeDiscrepancyUndoCorrectionSchema } from './fee-discrepancy-review.schema'
 import { sendSuccess } from '@/utils/response.util'
 import { handleError } from '@/utils/error-handler.util'
 
@@ -70,6 +70,21 @@ class FeeDiscrepancyReviewController {
       )
 
       sendSuccess(res, result, 'Jurnal koreksi berhasil dibuat')
+    } catch (error) {
+      await handleError(res, error)
+    }
+  }
+
+  async undoCorrection(req: ValidatedAuthRequest<typeof feeDiscrepancyUndoCorrectionSchema>, res: Response) {
+    try {
+      const companyId = this.getCompanyId(req)
+      const userId = req.user?.id
+      if (!userId) throw new Error('User not authenticated')
+
+      const { source, sourceId } = req.validated.params
+      await feeDiscrepancyReviewService.undoCorrection(companyId, source, sourceId, userId)
+
+      sendSuccess(res, { source, sourceId }, 'Koreksi berhasil di-undo')
     } catch (error) {
       await handleError(res, error)
     }

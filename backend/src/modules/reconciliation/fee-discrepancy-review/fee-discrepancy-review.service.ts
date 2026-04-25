@@ -190,6 +190,51 @@ export class FeeDiscrepancyReviewService {
     return { journalId, journalNumber: actualJournalNumber }
   }
 
+  async undoCorrection(
+    companyId: string,
+    source: FeeDiscrepancySource,
+    sourceId: string,
+    userId: string,
+  ): Promise<void> {
+    // 1. Get current review
+    const discItem = await this.repo.getDiscrepancyById(companyId, source, sourceId)
+    if (!discItem) throw new BusinessRuleError('Fee discrepancy tidak ditemukan')
+    if (discItem.status !== 'CORRECTED') throw new BusinessRuleError('Item ini belum dikoreksi')
+
+    const journalId = discItem.correctionJournalId
+    if (!journalId) throw new BusinessRuleError('Correction journal ID tidak ditemukan')
+
+    // 2. Check journal exists
+    const { data: journal } = await supabase
+      .from('journal_headers')
+      .select('id, status')
+      .eq('id', journalId)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    if (!journal) {
+      throw new BusinessRuleError('Journal koreksi tidak ditemukan atau sudah dihapus')
+    }
+
+    // 3. Hard delete journal lines + header
+    await supabase.from('journal_lines').delete().eq('journal_header_id', journalId)
+    await supabase.from('journal_headers').delete().eq('id', journalId)
+
+    // 4. Reset review status to PENDING
+    await this.repo.updateStatus(companyId, source, sourceId, 'PENDING', userId, 'Undo koreksi', undefined)
+
+    // 5. Audit log
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: userId, action: 'DELETE', entity: 'fee_discrepancy_correction', entity_id: journalId,
+        after: JSON.stringify({ source, sourceId, journalId, action: 'UNDO_CORRECTION' }),
+        timestamp: new Date().toISOString(),
+      })
+    } catch { /* fire-and-forget */ }
+
+    logInfo('Fee discrepancy correction undone', { source, sourceId, journalId, userId })
+  }
+
   // ── Private helpers ──
 
   private async loadFeeDiscAccountId(companyId: string): Promise<string | null> {

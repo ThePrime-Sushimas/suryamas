@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { feeDiscrepancyApi } from '../api/fee-discrepancy.api'
 import type { FeeDiscrepancyItem, FeeDiscrepancyStatus, FeeDiscrepancySource } from '../types/fee-discrepancy.types'
-import { AlertTriangle, CheckCircle, ArrowUpDown, Filter, MoreHorizontal, Check, X, Eye, FileEdit, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle, ArrowUpDown, Filter, MoreHorizontal, Check, X, Eye, FileEdit, Plus, Trash2, Undo2 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 
 const fmt = (n: number) =>
@@ -74,6 +74,11 @@ export const FeeDiscrepancyReviewPage = () => {
     onSuccess: (data) => { qc.invalidateQueries({ queryKey: ['fee-discrepancy-list'] }); qc.invalidateQueries({ queryKey: ['fee-discrepancy-summary'] }); toast.success(`Jurnal koreksi ${data?.journalNumber || 'berhasil'} dibuat`); setNotesModal(null); setNotesText('') },
     onError: (err: Error) => toast.error(err.message),
   })
+  const undoMutation = useMutation({
+    mutationFn: (p: { source: FeeDiscrepancySource; sourceId: string }) => feeDiscrepancyApi.undoCorrection(p.source, p.sourceId),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['fee-discrepancy-list'] }); qc.invalidateQueries({ queryKey: ['fee-discrepancy-summary'] }); toast.success('Koreksi berhasil di-undo') },
+    onError: (err: Error) => toast.error(err.message),
+  })
 
   const handleAction = (item: FeeDiscrepancyItem, action: 'CONFIRMED' | 'DISMISSED' | 'CORRECT') => {
     setNotesModal({ item, action }); setNotesText('')
@@ -89,7 +94,7 @@ export const FeeDiscrepancyReviewPage = () => {
   const items = listData?.data || []
   const total = listData?.pagination?.total || 0
   const summary = summaryData
-  const isPending = updateMutation.isPending || correctionMutation.isPending
+  const isPending = updateMutation.isPending || correctionMutation.isPending || undoMutation.isPending
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -173,6 +178,13 @@ export const FeeDiscrepancyReviewPage = () => {
                             </div>
                           )}
                         </div>
+                      ) : item.status === 'CORRECTED' ? (
+                        <button
+                          onClick={() => { if (confirm('Undo koreksi? Journal koreksi akan dihapus dan status kembali PENDING.')) undoMutation.mutate({ source: item.source, sourceId: item.sourceId }) }}
+                          disabled={undoMutation.isPending}
+                          className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-red-500 hover:text-red-700"
+                          title="Undo Koreksi"
+                        ><Undo2 className="w-4 h-4" /></button>
                       ) : <Eye className="w-4 h-4 text-gray-300 mx-auto" />}
                     </td>
                   </tr>

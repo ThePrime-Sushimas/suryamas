@@ -44,3 +44,10 @@ export const feeDiscrepancyCreateCorrectionSchema = z.object({
     notes: z.string().optional(),
   }),
 })
+
+export const feeDiscrepancyUndoCorrectionSchema = z.object({
+  params: z.object({
+    source: z.enum(['SINGLE_MATCH', 'MULTI_MATCH', 'SETTLEMENT_GROUP']),
+    sourceId: z.string().uuid(),
+  }),
+})

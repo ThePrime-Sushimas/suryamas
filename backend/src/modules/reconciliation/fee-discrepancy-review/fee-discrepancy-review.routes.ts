@@ -1,11 +1,11 @@
 import { Router } from 'express'
 import { feeDiscrepancyReviewController } from './fee-discrepancy-review.controller'
-import { feeDiscrepancyListSchema, feeDiscrepancySummarySchema, feeDiscrepancyUpdateStatusSchema, feeDiscrepancyCreateCorrectionSchema } from './fee-discrepancy-review.schema'
+import { feeDiscrepancyListSchema, feeDiscrepancySummarySchema, feeDiscrepancyUpdateStatusSchema, feeDiscrepancyCreateCorrectionSchema, feeDiscrepancyUndoCorrectionSchema } from './fee-discrepancy-review.schema'
 import type { ValidatedAuthRequest } from '@/middleware/validation.middleware'
 import { validateSchema } from '@/middleware/validation.middleware'
 import { authenticate } from '@/middleware/auth.middleware'
 import { resolveBranchContext } from '@/middleware/branch-context.middleware'
-import { canView, canUpdate, canInsert } from '@/middleware/permission.middleware'
+import { canView, canUpdate, canInsert, canDelete } from '@/middleware/permission.middleware'
 import { PermissionService } from '@/services/permission.service'
 
 const router = Router()
@@ -43,6 +43,13 @@ router.post(
   canInsert('fee_discrepancy_review'),
   validateSchema(feeDiscrepancyCreateCorrectionSchema),
   (req, res) => feeDiscrepancyReviewController.createCorrection(req as ValidatedAuthRequest<typeof feeDiscrepancyCreateCorrectionSchema>, res)
+)
+
+router.delete(
+  '/:source/:sourceId/correct',
+  canDelete('fee_discrepancy_review'),
+  validateSchema(feeDiscrepancyUndoCorrectionSchema),
+  (req, res) => feeDiscrepancyReviewController.undoCorrection(req as ValidatedAuthRequest<typeof feeDiscrepancyUndoCorrectionSchema>, res)
 )
 
 export default router

@@ -39,4 +39,8 @@ export const feeDiscrepancyApi = {
     const res = await api.post(`/fee-discrepancy-review/${source}/${sourceId}/correct`, { lines, notes })
     return res.data.data
   },
+
+  async undoCorrection(source: FeeDiscrepancySource, sourceId: string): Promise<void> {
+    await api.delete(`/fee-discrepancy-review/${source}/${sourceId}/correct`)
+  },
 }
