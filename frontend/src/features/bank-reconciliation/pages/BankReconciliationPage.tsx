@@ -36,6 +36,7 @@ import type {
 
 // ← NEW: unified wizard
 import { ReconciliationWizard } from "../components/reconciliation/ReconciliationWizard";
+import { NonPosReconcileModal } from "../components/reconciliation/NonPosReconcileModal";
 import { settlementGroupsApi } from "../settlement-groups/api/settlement-groups.api";
 import { bankReconciliationApi } from "../api/bank-reconciliation.api";
 import type { CreateSettlementGroupResultDto } from "../settlement-groups/types/settlement-groups.types";
@@ -51,6 +52,7 @@ export function BankReconciliationPage() {
   const [wizardInitialStatements, setWizardInitialStatements] = useState<BankStatementWithMatch[]>([]);
   const [wizardInitialMode, setWizardInitialMode] = useState<"auto" | "manual" | "multi" | "settlement" | "cash_deposit" | undefined>(undefined);
   const [wizardPreSelectedStatement, setWizardPreSelectedStatement] = useState<BankStatementWithMatch | undefined>(undefined);
+  const [nonPosStatement, setNonPosStatement] = useState<BankStatementWithMatch | null>(null);
 
   // ─── Filter/page state ───
   const [filtersApplied, setFiltersApplied] = useState(false);
@@ -303,6 +305,15 @@ export function BankReconciliationPage() {
     }
   };
 
+  const handleNonPosReconcile = useCallback((item: BankStatementWithMatch) => {
+    setNonPosStatement(item);
+  }, []);
+
+  const handleNonPosSuccess = useCallback(() => {
+    setNonPosStatement(null);
+    refreshData();
+  }, [refreshData]);
+
   return (
     <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950 p-4 lg:p-6 space-y-4 animate-in fade-in duration-500">
       
@@ -399,6 +410,7 @@ export function BankReconciliationPage() {
                   onUndoGroup={handleUndoMultiMatch}
                   bankAccounts={bankAccounts}
                   activeBankAccountIds={filter.bankAccountIds}
+                  onNonPosReconcile={handleNonPosReconcile}
                   onRowClick={(item) => {
                     setWizardInitialMode("manual");
                     setWizardPreSelectedStatement(item);
@@ -445,6 +457,15 @@ export function BankReconciliationPage() {
         onLoadAggregates={handleLoadAggregates}
         onSettlementConfirm={handleSettlementConfirm}
         onCashDepositConfirm={handleCashDepositConfirm}
+      />
+
+      {/* ─── Non-POS Reconcile Modal ─── */}
+      <NonPosReconcileModal
+        isOpen={nonPosStatement !== null}
+        onClose={() => setNonPosStatement(null)}
+        statement={nonPosStatement}
+        potentialMatchCount={nonPosStatement ? (potentialMatchesMap[nonPosStatement.id]?.length ?? 0) : 0}
+        onSuccess={handleNonPosSuccess}
       />
     </div>
   );

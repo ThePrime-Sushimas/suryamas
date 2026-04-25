@@ -10,6 +10,7 @@ import {
   Building,
   TrendingUp,
   Layers,
+  FileText,
 } from "lucide-react";
 import type {
   BankStatementWithMatch,
@@ -299,6 +300,7 @@ interface BankMutationTableProps {
   onUndoGroup?: (groupId: string) => Promise<void>;
   bankAccounts?: BankAccountStatus[];
   activeBankAccountIds?: number[];
+  onNonPosReconcile?: (item: BankStatementWithMatch) => void;
 }
 
 export function BankMutationTable({
@@ -319,6 +321,7 @@ export function BankMutationTable({
   onUndoGroup,
   bankAccounts = [],
   activeBankAccountIds = [],
+  onNonPosReconcile,
 }: BankMutationTableProps) {
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
   const [expandedCashDepositId, setExpandedCashDepositId] = useState<string | null>(null);
@@ -492,6 +495,12 @@ export function BankMutationTable({
                           settlement · {settlementAggCount}
                         </span>
                       )}
+                      {item.matched_aggregate?.is_bank_mutation_entry && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded text-[10px] font-medium shrink-0 whitespace-nowrap">
+                          <FileText className="w-2.5 h-2.5" />
+                          non-pos
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -531,6 +540,10 @@ export function BankMutationTable({
                     ) : isSettlement && item.matched_aggregate ? (
                       <span className="text-amber-600 dark:text-amber-400" title={`Settlement · ${settlementAggCount} aggregates`}>
                         {formatNumber(item.matched_aggregate.nett_amount)}
+                      </span>
+                    ) : item.matched_aggregate?.is_bank_mutation_entry ? (
+                      <span className="text-slate-500 dark:text-slate-400" title="Non-POS Entry">
+                        —
                       </span>
                     ) : item.matched_aggregate?.is_cash_deposit ? (
                       <span className="text-teal-600 dark:text-teal-400" title={`Setoran Tunai · ${item.matched_aggregate.branch_name || ''}`}>
@@ -593,6 +606,15 @@ export function BankMutationTable({
                               ) : (
                                 <Sparkles className="w-3.5 h-3.5" />
                               )}
+                            </button>
+                          )}
+                          {onNonPosReconcile && (
+                            <button
+                              onClick={() => onNonPosReconcile(item)}
+                              className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
+                              title="Reconcile sebagai Non-POS"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </>

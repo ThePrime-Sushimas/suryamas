@@ -93,6 +93,8 @@ export interface BankStatementWithMatch {
     branch_name?: string;
     proof_url?: string;
     deposited_at?: string;
+    // Bank mutation entry (non-POS)
+    is_bank_mutation_entry?: boolean;
   };
 }
 
