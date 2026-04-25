@@ -201,9 +201,14 @@ export const FeeDiscrepancyReviewPage = () => {
                       <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white whitespace-nowrap">{fmt(item.posNettAmount)}</td>
                       <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white whitespace-nowrap">{fmt(item.bankAmount)}</td>
                       <td className="px-4 py-3 text-sm text-right font-bold whitespace-nowrap">
-                        <span className={item.discrepancyAmount > 0 ? 'text-red-600' : 'text-green-600'}>
-                          {item.discrepancyAmount > 0 ? '+' : ''}{fmt(item.discrepancyAmount)}
-                        </span>
+                        {(() => {
+                          const display = -item.discrepancyAmount
+                          return (
+                            <span className={display > 0 ? 'text-green-600' : display < 0 ? 'text-red-600' : 'text-gray-500'}>
+                              {display > 0 ? '+' : ''}{fmt(display)}
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
                       <td className="px-4 py-3 text-xs text-gray-500 max-w-48 truncate">{item.notes || item.bankDescription || '-'}</td>
@@ -283,9 +288,14 @@ export const FeeDiscrepancyReviewPage = () => {
             <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 mb-4 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-500">Selisih</span>
-                <span className={`font-bold ${notesModal.item.discrepancyAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {fmt(notesModal.item.discrepancyAmount)}
-                </span>
+                {(() => {
+                  const display = -notesModal.item.discrepancyAmount
+                  return (
+                    <span className={`font-bold ${display > 0 ? 'text-green-600' : display < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                      {display > 0 ? '+' : ''}{fmt(display)}
+                    </span>
+                  )
+                })()}
               </div>
               <div className="flex justify-between mt-1">
                 <span className="text-gray-500">Tanggal</span>
