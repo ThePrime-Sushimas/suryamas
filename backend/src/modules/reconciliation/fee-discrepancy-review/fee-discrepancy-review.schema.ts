@@ -25,7 +25,7 @@ export const feeDiscrepancyUpdateStatusSchema = z.object({
     sourceId: z.string().uuid(),
   }),
   body: z.object({
-    status: z.enum(['CONFIRMED', 'CORRECTED', 'DISMISSED']),
+    status: z.enum(['PENDING', 'CONFIRMED', 'CORRECTED', 'DISMISSED']),
     notes: z.string().optional(),
     correctionJournalId: z.string().uuid().optional(),
   }),

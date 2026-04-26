@@ -43,7 +43,7 @@ export interface FeeDiscrepancySummary {
 }
 
 export interface UpdateStatusRequest {
-  status: 'CONFIRMED' | 'CORRECTED' | 'DISMISSED'
+  status: 'PENDING' | 'CONFIRMED' | 'CORRECTED' | 'DISMISSED'
   notes?: string
   correctionJournalId?: string
 }

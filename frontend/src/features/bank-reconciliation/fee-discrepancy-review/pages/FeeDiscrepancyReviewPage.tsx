@@ -195,7 +195,12 @@ export const FeeDiscrepancyReviewPage = () => {
                         ><Undo2 className="w-4 h-4" /></button>
                       ) : (item.status === 'CONFIRMED' || item.status === 'DISMISSED') ? (
                         <button
-                          onClick={() => { if (confirm(`Undo ${item.status.toLowerCase()}? Status akan kembali ke PENDING.`)) updateMutation.mutate({ source: item.source, sourceId: item.sourceId, status: 'CONFIRMED', notes: `Undo ${item.status.toLowerCase()}` }); setTimeout(() => updateMutation.mutate({ source: item.source, sourceId: item.sourceId, status: 'CONFIRMED' }), 0) }}
+                          onClick={() => {
+                            if (confirm(`Undo ${item.status.toLowerCase()}? Status akan kembali ke PENDING.`))
+                              feeDiscrepancyApi.updateStatus(item.source, item.sourceId, { status: 'PENDING' as any, notes: `Undo ${item.status.toLowerCase()}` })
+                                .then(() => { qc.invalidateQueries({ queryKey: ['fee-discrepancy-list'] }); qc.invalidateQueries({ queryKey: ['fee-discrepancy-summary'] }); toast.success('Status berhasil di-undo ke PENDING') })
+                                .catch((err: Error) => toast.error(err.message))
+                          }}
                           disabled={updateMutation.isPending}
                           className="p-1.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors text-amber-500 hover:text-amber-700"
                           title={`Undo ${item.status.toLowerCase()}`}
