@@ -166,6 +166,59 @@ export const bankStatementRowSchema = z.object({
 )
 
 // ============================================================================
+// MANUAL ENTRY SCHEMAS
+// ============================================================================
+
+const manualEntryItem = z.object({
+  transaction_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD'),
+  description: z.string().min(1, 'Deskripsi wajib diisi').max(1000),
+  debit_amount: z.number().min(0).default(0),
+  credit_amount: z.number().min(0).default(0),
+  reference_number: z.string().max(100).optional(),
+  balance: z.number().optional(),
+}).refine(
+  (d) => d.debit_amount > 0 || d.credit_amount > 0,
+  { message: 'Debit atau credit harus lebih dari 0', path: ['debit_amount'] }
+)
+
+/**
+ * Single manual entry
+ */
+export const manualEntrySchema = z.object({
+  body: z.object({
+    bank_account_id: z.coerce.number().int().positive('Bank account ID wajib'),
+  }).merge(manualEntryItem),
+})
+
+/**
+ * Bulk manual entry
+ */
+export const manualBulkEntrySchema = z.object({
+  body: z.object({
+    bank_account_id: z.coerce.number().int().positive('Bank account ID wajib'),
+    entries: z.array(manualEntryItem).min(1, 'Minimal 1 entry').max(500, 'Maksimal 500 entry per batch'),
+  }),
+})
+
+/**
+ * Hard delete single statement
+ */
+export const hardDeleteStatementSchema = z.object({
+  params: z.object({
+    id: z.string().regex(/^\d+$/, 'Statement ID harus angka'),
+  }),
+})
+
+/**
+ * Hard delete bulk statements
+ */
+export const hardDeleteBulkStatementsSchema = z.object({
+  body: z.object({
+    ids: z.array(z.coerce.number().int().positive()).min(1, 'Minimal 1 ID').max(500, 'Maksimal 500 ID'),
+  }),
+})
+
+// ============================================================================
 // TYPE EXPORTS
 // ============================================================================
 
@@ -174,3 +227,7 @@ export type ConfirmImportInput = z.infer<typeof confirmBankStatementImportSchema
 export type ListImportsQueryInput = z.infer<typeof listImportsQuerySchema>
 export type ListBankStatementsQueryInput = z.infer<typeof listBankStatementsQuerySchema>
 export type GetImportStatementsInput = z.infer<typeof getImportStatementsSchema>
+export type ManualEntryInput = z.infer<typeof manualEntrySchema>
+export type ManualBulkEntryInput = z.infer<typeof manualBulkEntrySchema>
+export type HardDeleteStatementInput = z.infer<typeof hardDeleteStatementSchema>
+export type HardDeleteBulkStatementsInput = z.infer<typeof hardDeleteBulkStatementsSchema>

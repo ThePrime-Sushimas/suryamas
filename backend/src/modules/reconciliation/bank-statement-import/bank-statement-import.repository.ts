@@ -1257,6 +1257,138 @@ export class BankStatementImportRepository {
 
     return false; // Failed but non-blocking
   }
+
+  // ============================================================================
+  // MANUAL ENTRY METHODS
+  // ============================================================================
+
+  /**
+   * Insert single manual bank statement
+   */
+  async insertManualStatement(data: CreateBankStatementDto): Promise<BankStatement> {
+    const { data: result, error } = await supabase
+      .from('bank_statements')
+      .insert({
+        ...data,
+        source_file: 'MANUAL_ENTRY',
+        import_id: null,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      logError('BankStatementImportRepository.insertManualStatement error', { error: error.message })
+      throw new Error(`Gagal menyimpan manual entry: ${error.message}`)
+    }
+
+    return result as BankStatement
+  }
+
+  /**
+   * Insert bulk manual bank statements
+   */
+  async insertManualStatements(statements: CreateBankStatementDto[]): Promise<{ inserted: number; ids: number[] }> {
+    if (statements.length === 0) return { inserted: 0, ids: [] }
+
+    const rows = statements.map(s => ({
+      ...s,
+      source_file: 'MANUAL_ENTRY',
+      import_id: null,
+    }))
+
+    const { data, error } = await supabase
+      .from('bank_statements')
+      .insert(rows)
+      .select('id')
+
+    if (error) {
+      logError('BankStatementImportRepository.insertManualStatements error', { error: error.message, count: rows.length })
+      throw new Error(`Gagal menyimpan bulk manual entry: ${error.message}`)
+    }
+
+    const ids = (data || []).map((r: { id: number }) => r.id)
+    return { inserted: ids.length, ids }
+  }
+
+  // ============================================================================
+  // HARD DELETE METHODS
+  // ============================================================================
+
+  /**
+   * Find single bank statement by ID + company_id
+   */
+  async findStatementById(id: number, companyId: string): Promise<BankStatement | null> {
+    const { data, error } = await supabase
+      .from('bank_statements')
+      .select('*')
+      .eq('id', id)
+      .eq('company_id', companyId)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    if (error) {
+      logError('BankStatementImportRepository.findStatementById error', { id, error: error.message })
+      return null
+    }
+
+    return data as BankStatement | null
+  }
+
+  /**
+   * Hard delete single bank statement (defense-in-depth: filter company_id)
+   */
+  async hardDeleteStatement(id: number, companyId: string): Promise<void> {
+    const { error } = await supabase
+      .from('bank_statements')
+      .delete()
+      .eq('id', id)
+      .eq('company_id', companyId)
+
+    if (error) {
+      logError('BankStatementImportRepository.hardDeleteStatement error', { id, companyId, error: error.message })
+      throw new Error(`Gagal menghapus statement: ${error.message}`)
+    }
+  }
+
+  /**
+   * Hard delete multiple bank statements (defense-in-depth: filter company_id)
+   */
+  async hardDeleteStatements(ids: number[], companyId: string): Promise<number> {
+    if (ids.length === 0) return 0
+
+    const { data, error } = await supabase
+      .from('bank_statements')
+      .delete()
+      .in('id', ids)
+      .eq('company_id', companyId)
+      .select('id')
+
+    if (error) {
+      logError('BankStatementImportRepository.hardDeleteStatements error', { ids, companyId, error: error.message })
+      throw new Error(`Gagal menghapus statements: ${error.message}`)
+    }
+
+    return (data || []).length
+  }
+
+  /**
+   * Find multiple statements by IDs + company_id
+   */
+  async findStatementsByIds(ids: number[], companyId: string): Promise<BankStatement[]> {
+    const { data, error } = await supabase
+      .from('bank_statements')
+      .select('*')
+      .in('id', ids)
+      .eq('company_id', companyId)
+      .is('deleted_at', null)
+
+    if (error) {
+      logError('BankStatementImportRepository.findStatementsByIds error', { error: error.message })
+      return []
+    }
+
+    return (data || []) as BankStatement[]
+  }
 }
 
 export const bankStatementImportRepository = new BankStatementImportRepository()

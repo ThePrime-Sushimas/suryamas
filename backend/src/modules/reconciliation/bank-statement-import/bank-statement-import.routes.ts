@@ -15,7 +15,7 @@ import { bankStatementImportController } from './bank-statement-import.controlle
 import { PermissionService } from '../../../services/permission.service'
 import type { AuthenticatedQueryRequest } from '../../../types/request.types'
 import { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
-import type { GetImportByIdReq } from './bank-statement-import.controller'
+import type { GetImportByIdReq, ManualEntryReq, ManualBulkEntryReq, HardDeleteStatementReq, HardDeleteBulkStatementsReq } from './bank-statement-import.controller'
 import {
   uploadBankStatementSchema,
   confirmBankStatementImportSchema,
@@ -23,6 +23,10 @@ import {
   deleteImportSchema,
   listImportsQuerySchema,
   getImportStatementsSchema,
+  manualEntrySchema,
+  manualBulkEntrySchema,
+  hardDeleteStatementSchema,
+  hardDeleteBulkStatementsSchema,
 } from './bank-statement-import.schema'
 import { FILE_UPLOAD } from './bank-statement-import.constants'
 
@@ -48,6 +52,46 @@ const router = Router()
 
 // All routes require authentication and branch context
 router.use(authenticate, resolveBranchContext)
+
+// ==================== MANUAL ENTRY ROUTES ====================
+
+// Single manual entry
+router.post(
+  '/manual',
+  canInsert('bank_statement_imports'),
+  createRateLimit,
+  validateSchema(manualEntrySchema),
+  (req, res) => bankStatementImportController.manualEntry(req as ManualEntryReq, res)
+)
+
+// Bulk manual entry
+router.post(
+  '/manual/bulk',
+  canInsert('bank_statement_imports'),
+  createRateLimit,
+  validateSchema(manualBulkEntrySchema),
+  (req, res) => bankStatementImportController.manualBulkEntry(req as ManualBulkEntryReq, res)
+)
+
+// ==================== HARD DELETE ROUTES ====================
+
+// Hard delete single statement
+router.delete(
+  '/statements/:id/hard',
+  canDelete('bank_statement_imports'),
+  validateSchema(hardDeleteStatementSchema),
+  (req, res) => bankStatementImportController.hardDeleteStatement(req as HardDeleteStatementReq, res)
+)
+
+// Hard delete bulk statements
+router.post(
+  '/statements/hard-delete',
+  canDelete('bank_statement_imports'),
+  validateSchema(hardDeleteBulkStatementsSchema),
+  (req, res) => bankStatementImportController.hardDeleteBulkStatements(req as HardDeleteBulkStatementsReq, res)
+)
+
+// ==================== FILE UPLOAD ROUTES ====================
 
 // Query middleware for GET endpoints with pagination, sorting, and filtering
 router.use(queryMiddleware({

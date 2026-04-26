@@ -48,11 +48,19 @@ export {
   listBankStatementsQuerySchema,
   getImportStatementsSchema,
   bankStatementRowSchema,
+  manualEntrySchema,
+  manualBulkEntrySchema,
+  hardDeleteStatementSchema,
+  hardDeleteBulkStatementsSchema,
   type UploadBankStatementInput,
   type ConfirmImportInput,
   type ListImportsQueryInput,
   type ListBankStatementsQueryInput,
-  type GetImportStatementsInput
+  type GetImportStatementsInput,
+  type ManualEntryInput,
+  type ManualBulkEntryInput,
+  type HardDeleteStatementInput,
+  type HardDeleteBulkStatementsInput,
 } from './bank-statement-import.schema'
 
 // Repository

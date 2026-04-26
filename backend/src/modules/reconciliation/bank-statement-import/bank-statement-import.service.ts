@@ -1105,6 +1105,210 @@ export class BankStatementImportService {
     }
   }
 
+  // ==================== MANUAL ENTRY METHODS ====================
+
+  /**
+   * Create single manual bank statement entry
+   */
+  async createManualEntry(
+    bankAccountId: number,
+    entry: {
+      transaction_date: string
+      description: string
+      debit_amount: number
+      credit_amount: number
+      reference_number?: string
+      balance?: number
+    },
+    companyId: string,
+    userId?: string,
+  ): Promise<BankStatement> {
+    logInfo('BankStatementImport: Creating manual entry', {
+      bank_account_id: bankAccountId,
+      transaction_date: entry.transaction_date,
+      company_id: companyId,
+    })
+
+    const statement = await this.repository.insertManualStatement({
+      company_id: companyId,
+      bank_account_id: bankAccountId,
+      transaction_date: entry.transaction_date,
+      description: entry.description,
+      debit_amount: entry.debit_amount,
+      credit_amount: entry.credit_amount,
+      reference_number: entry.reference_number,
+      balance: entry.balance,
+      created_by: userId,
+    })
+
+    await AuditService.log(
+      'CREATE',
+      'bank_statement_manual',
+      String(statement.id),
+      userId || null,
+      null,
+      {
+        bank_account_id: bankAccountId,
+        transaction_date: entry.transaction_date,
+        debit_amount: entry.debit_amount,
+        credit_amount: entry.credit_amount,
+        source: 'MANUAL_ENTRY',
+      },
+    )
+
+    return statement
+  }
+
+  /**
+   * Create bulk manual bank statement entries
+   */
+  async createManualBulkEntries(
+    bankAccountId: number,
+    entries: Array<{
+      transaction_date: string
+      description: string
+      debit_amount: number
+      credit_amount: number
+      reference_number?: string
+      balance?: number
+    }>,
+    companyId: string,
+    userId?: string,
+  ): Promise<{ inserted: number; ids: number[] }> {
+    logInfo('BankStatementImport: Creating bulk manual entries', {
+      bank_account_id: bankAccountId,
+      count: entries.length,
+      company_id: companyId,
+    })
+
+    const statements = entries.map((e, idx) => ({
+      company_id: companyId,
+      bank_account_id: bankAccountId,
+      transaction_date: e.transaction_date,
+      description: e.description,
+      debit_amount: e.debit_amount,
+      credit_amount: e.credit_amount,
+      reference_number: e.reference_number,
+      balance: e.balance,
+      row_number: idx + 1,
+      created_by: userId,
+    }))
+
+    const result = await this.repository.insertManualStatements(statements)
+
+    await AuditService.log(
+      'CREATE',
+      'bank_statement_manual_bulk',
+      result.ids.join(','),
+      userId || null,
+      null,
+      {
+        bank_account_id: bankAccountId,
+        count: result.inserted,
+        source: 'MANUAL_ENTRY',
+      },
+    )
+
+    logInfo('BankStatementImport: Bulk manual entries created', {
+      bank_account_id: bankAccountId,
+      inserted: result.inserted,
+    })
+
+    return result
+  }
+
+  // ==================== HARD DELETE METHODS ====================
+
+  /**
+   * Hard delete single bank statement
+   * Statement must NOT be reconciled — undo first if reconciled
+   */
+  async hardDeleteStatement(
+    statementId: number,
+    companyId: string,
+    userId?: string,
+  ): Promise<void> {
+    const statement = await this.repository.findStatementById(statementId, companyId)
+    if (!statement) {
+      throw new Error(`Bank statement dengan ID ${statementId} tidak ditemukan`)
+    }
+
+    if (statement.is_reconciled) {
+      throw new Error('Statement sudah ter-reconcile. Undo reconciliation terlebih dahulu sebelum menghapus.')
+    }
+
+    await this.repository.hardDeleteStatement(statementId, companyId)
+
+    await AuditService.log(
+      'DELETE',
+      'bank_statement_hard_delete',
+      String(statementId),
+      userId || null,
+      {
+        transaction_date: statement.transaction_date,
+        description: statement.description,
+        debit_amount: statement.debit_amount,
+        credit_amount: statement.credit_amount,
+        source_file: statement.source_file,
+      },
+      null,
+    )
+
+    logInfo('BankStatementImport: Statement hard deleted', {
+      statement_id: statementId,
+      user_id: userId,
+    })
+  }
+
+  /**
+   * Hard delete multiple bank statements
+   * All statements must NOT be reconciled
+   */
+  async hardDeleteStatements(
+    statementIds: number[],
+    companyId: string,
+    userId?: string,
+  ): Promise<{ deleted: number; skipped: number; errors: Array<{ id: number; reason: string }> }> {
+    const statements = await this.repository.findStatementsByIds(statementIds, companyId)
+
+    const toDelete: number[] = []
+    const errors: Array<{ id: number; reason: string }> = []
+
+    for (const id of statementIds) {
+      const stmt = statements.find(s => s.id === id)
+      if (!stmt) {
+        errors.push({ id, reason: 'Statement tidak ditemukan' })
+      } else if (stmt.is_reconciled) {
+        errors.push({ id, reason: 'Sudah ter-reconcile, undo dulu' })
+      } else {
+        toDelete.push(id)
+      }
+    }
+
+    let deleted = 0
+    if (toDelete.length > 0) {
+      deleted = await this.repository.hardDeleteStatements(toDelete, companyId)
+
+      await AuditService.log(
+        'DELETE',
+        'bank_statement_hard_delete_bulk',
+        toDelete.join(','),
+        userId || null,
+        { count: deleted, ids: toDelete },
+        null,
+      )
+    }
+
+    logInfo('BankStatementImport: Bulk hard delete completed', {
+      requested: statementIds.length,
+      deleted,
+      skipped: errors.length,
+      user_id: userId,
+    })
+
+    return { deleted, skipped: errors.length, errors }
+  }
+
   // ==================== CSV PARSING METHODS ====================
 
   /**

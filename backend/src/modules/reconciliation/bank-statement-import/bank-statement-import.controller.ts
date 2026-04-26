@@ -8,24 +8,23 @@ import { BankStatementImportService } from './bank-statement-import.service'
 import { BankStatementImportRepository } from './bank-statement-import.repository'
 import { sendSuccess } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
-import { withValidated } from '../../../utils/handler'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../../types/request.types'
 import { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
 import crypto from 'crypto'
 import { createReadStream } from 'fs'
-import { readFile } from 'fs/promises'
 import { validateUploadedFile } from './bank-statement-import.schema'
-import { BankStatementImportStatus } from './bank-statement-import.types'
 import { BankStatementImportErrors } from './bank-statement-import.errors'
 import {
   uploadBankStatementSchema,
   confirmBankStatementImportSchema,
   getImportByIdSchema,
   deleteImportSchema,
-  listImportsQuerySchema,
-  getImportStatementsSchema,
+
+  manualEntrySchema,
+  manualBulkEntrySchema,
+  hardDeleteStatementSchema,
+  hardDeleteBulkStatementsSchema,
 } from './bank-statement-import.schema'
-import type { ListImportsQueryInput } from './bank-statement-import.schema'
 
 export type UploadBankStatementReq = ValidatedAuthRequest<typeof uploadBankStatementSchema>
 export type ConfirmImportReq = ValidatedAuthRequest<typeof confirmBankStatementImportSchema>
@@ -37,6 +36,11 @@ export type GetSummaryReq = AuthenticatedQueryRequest
 export type CancelReq = AuthenticatedQueryRequest
 export type RetryReq = AuthenticatedQueryRequest
 export type PreviewReq = AuthenticatedQueryRequest
+
+export type ManualEntryReq = ValidatedAuthRequest<typeof manualEntrySchema>
+export type ManualBulkEntryReq = ValidatedAuthRequest<typeof manualBulkEntrySchema>
+export type HardDeleteStatementReq = ValidatedAuthRequest<typeof hardDeleteStatementSchema>
+export type HardDeleteBulkStatementsReq = ValidatedAuthRequest<typeof hardDeleteBulkStatementsSchema>
 
 export class BankStatementImportController {
   constructor(private readonly service: BankStatementImportService) {}
@@ -314,6 +318,94 @@ export class BankStatementImportController {
       handleError(res, error)
     }
   }
+
+  // ==================== MANUAL ENTRY ENDPOINTS ====================
+
+  /**
+   * Create single manual bank statement entry
+   * POST /api/v1/bank-statement-imports/manual
+   */
+  manualEntry = async (req: ManualEntryReq, res: Response): Promise<void> => {
+    try {
+      const { bank_account_id, transaction_date, description, debit_amount, credit_amount, reference_number, balance } = req.validated.body
+      const companyId = String(req.context?.company_id)
+      const userId = String(req.user?.id)
+
+      const result = await this.service.createManualEntry(
+        bank_account_id,
+        { transaction_date, description, debit_amount, credit_amount, reference_number, balance },
+        companyId,
+        userId,
+      )
+
+      sendSuccess(res, result, 'Manual entry berhasil disimpan', 201)
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  }
+
+  /**
+   * Create bulk manual bank statement entries
+   * POST /api/v1/bank-statement-imports/manual/bulk
+   */
+  manualBulkEntry = async (req: ManualBulkEntryReq, res: Response): Promise<void> => {
+    try {
+      const { bank_account_id, entries } = req.validated.body
+      const companyId = String(req.context?.company_id)
+      const userId = String(req.user?.id)
+
+      const result = await this.service.createManualBulkEntries(
+        bank_account_id,
+        entries,
+        companyId,
+        userId,
+      )
+
+      sendSuccess(res, result, `${result.inserted} manual entries berhasil disimpan`, 201)
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  }
+
+  // ==================== HARD DELETE ENDPOINTS ====================
+
+  /**
+   * Hard delete single bank statement
+   * DELETE /api/v1/bank-statement-imports/statements/:id/hard
+   */
+  hardDeleteStatement = async (req: HardDeleteStatementReq, res: Response): Promise<void> => {
+    try {
+      const statementId = parseInt(req.validated.params.id, 10)
+      const companyId = String(req.context?.company_id)
+      const userId = String(req.user?.id)
+
+      await this.service.hardDeleteStatement(statementId, companyId, userId)
+
+      sendSuccess(res, null, 'Statement berhasil dihapus permanen', 200)
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  }
+
+  /**
+   * Hard delete multiple bank statements
+   * POST /api/v1/bank-statement-imports/statements/hard-delete
+   */
+  hardDeleteBulkStatements = async (req: HardDeleteBulkStatementsReq, res: Response): Promise<void> => {
+    try {
+      const { ids } = req.validated.body
+      const companyId = String(req.context?.company_id)
+      const userId = String(req.user?.id)
+
+      const result = await this.service.hardDeleteStatements(ids, companyId, userId)
+
+      sendSuccess(res, result, `${result.deleted} statement berhasil dihapus permanen`, 200)
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  }
+
+  // ==================== PREVIEW / EXISTING ENDPOINTS ====================
 
   /**
    * Preview import data (first N rows, or all rows if limit is 0)
