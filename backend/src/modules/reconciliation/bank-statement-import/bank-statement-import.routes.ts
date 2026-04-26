@@ -27,6 +27,7 @@ import {
   manualBulkEntrySchema,
   hardDeleteStatementSchema,
   hardDeleteBulkStatementsSchema,
+  listManualEntriesSchema,
 } from './bank-statement-import.schema'
 import { FILE_UPLOAD } from './bank-statement-import.constants'
 
@@ -54,6 +55,14 @@ const router = Router()
 router.use(authenticate, resolveBranchContext)
 
 // ==================== MANUAL ENTRY ROUTES ====================
+
+// List manual entries grouped by month
+router.get(
+  '/manual',
+  canView('bank_statement_imports'),
+  validateSchema(listManualEntriesSchema),
+  (req, res) => bankStatementImportController.listManualEntries(req as ValidatedAuthRequest<typeof listManualEntriesSchema>, res)
+)
 
 // Single manual entry
 router.post(

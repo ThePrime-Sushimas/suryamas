@@ -89,10 +89,72 @@ export const bankStatementImportApi = {
   }> {
     const response = await api.get(`/bank-statement-imports/${id}/preview`, {
       params: { limit },
-      signal  // AbortSignal support
+      signal
     })
     return response.data.data
   },
 
+  async manualEntry(data: {
+    bank_account_id: number
+    transaction_date: string
+    description: string
+    debit_amount: number
+    credit_amount: number
+    reference_number?: string
+    balance?: number
+  }) {
+    const response = await api.post('/bank-statement-imports/manual', data)
+    return response.data.data
+  },
+
+  async manualBulkEntry(data: {
+    bank_account_id: number
+    entries: Array<{
+      transaction_date: string
+      description: string
+      debit_amount: number
+      credit_amount: number
+      reference_number?: string
+      balance?: number
+    }>
+  }): Promise<{ inserted: number; ids: number[] }> {
+    const response = await api.post('/bank-statement-imports/manual/bulk', data)
+    return response.data.data
+  },
+
+  async hardDeleteStatement(id: number): Promise<void> {
+    await api.delete(`/bank-statement-imports/statements/${id}/hard`)
+  },
+
+  async hardDeleteBulkStatements(ids: number[]): Promise<{ deleted: number; skipped: number; errors: Array<{ id: number; reason: string }> }> {
+    const response = await api.post('/bank-statement-imports/statements/hard-delete', { ids })
+    return response.data.data
+  },
+
+  async listManualEntries(bankAccountId: number): Promise<Array<{
+    month: string
+    entries: Array<{
+      id: number
+      transaction_date: string
+      description: string
+      debit_amount: number
+      credit_amount: number
+      reference_number?: string
+      balance?: number
+      is_reconciled: boolean
+    }>
+    suggestions: Array<{
+      transaction_date: string
+      description: string
+      credit_amount: number
+      debit_amount: number
+      payment_method_id: number
+    }>
+  }>> {
+    const response = await api.get('/bank-statement-imports/manual', {
+      params: { bank_account_id: bankAccountId },
+    })
+    return response.data.data
+  },
 }
 

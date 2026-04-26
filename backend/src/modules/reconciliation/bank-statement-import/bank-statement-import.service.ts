@@ -1108,6 +1108,104 @@ export class BankStatementImportService {
   // ==================== MANUAL ENTRY METHODS ====================
 
   /**
+   * List manual entries grouped by month for a bank account,
+   * with auto-generated suggestions from POS aggregates
+   */
+  async listManualEntries(
+    bankAccountId: number,
+    companyId: string,
+  ): Promise<{ month: string; entries: BankStatement[]; suggestions: Array<{ transaction_date: string; description: string; credit_amount: number; debit_amount: number; payment_method_id: number }> }[]> {
+    const [entries, paymentMethods, branchIds] = await Promise.all([
+      this.repository.listManualEntries(companyId, bankAccountId),
+      this.repository.getPaymentMethodsByBankAccount(companyId, bankAccountId),
+      this.repository.getBranchIdsByCompany(companyId),
+    ])
+
+    const pmIds = paymentMethods.map(pm => pm.id)
+
+    const grouped = new Map<string, { entries: BankStatement[]; savedDates: Set<string> }>()
+    for (const entry of entries) {
+      const d = entry.transaction_date?.split('T')[0] || ''
+      const key = d.substring(0, 7)
+      if (!grouped.has(key)) grouped.set(key, { entries: [], savedDates: new Set() })
+      const g = grouped.get(key)!
+      g.entries.push(entry)
+      g.savedDates.add(d)
+    }
+
+    const now = new Date()
+    const curMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    if (!grouped.has(curMonth)) grouped.set(curMonth, { entries: [], savedDates: new Set() })
+
+    const allMonths = Array.from(grouped.keys()).sort((a, b) => b.localeCompare(a))
+
+    let allAggregates: Array<{ transaction_date: string; payment_method_id: number; payment_method_name: string; total_bill: number; total_nett: number }> = []
+
+    if (pmIds.length > 0 && branchIds.length > 0 && allMonths.length > 0) {
+      const earliest = allMonths[allMonths.length - 1]
+      const latest = allMonths[0]
+      const [ey, em] = earliest.split('-').map(Number)
+      const [ly, lm] = latest.split('-').map(Number)
+      const prevLastDay = new Date(Date.UTC(ey, em - 1, 0)).getDate()
+      const prevMonth = em === 1 ? `${ey - 1}-12` : `${ey}-${String(em - 1).padStart(2, '0')}`
+      const dateFrom = `${prevMonth}-${String(prevLastDay).padStart(2, '0')}`
+      const lastDay = new Date(Date.UTC(ly, lm, 0)).getDate()
+      const dateTo = `${latest}-${String(lastDay).padStart(2, '0')}`
+
+      allAggregates = await this.repository.getAggregatedByDateAndPM(branchIds, pmIds, dateFrom, dateTo)
+    }
+
+    type SuggestionRow = { transaction_date: string; description: string; credit_amount: number; debit_amount: number; payment_method_id: number }
+
+    const result: { month: string; entries: BankStatement[]; suggestions: SuggestionRow[] }[] = []
+
+    const suggestionsByMonth = new Map<string, SuggestionRow[]>()
+
+    if (pmIds.length > 0) {
+      for (const agg of allAggregates) {
+        const posDate = agg.transaction_date?.split('T')[0]
+        if (!posDate) continue
+
+        const bankDate = this.addDays(posDate, 1)
+        const bankMonth = bankDate.substring(0, 7)
+
+        if (!grouped.has(bankMonth)) continue
+        const g = grouped.get(bankMonth)!
+        if (g.savedDates.has(bankDate)) continue
+
+        const pmName = agg.payment_method_name || paymentMethods.find(p => p.id === agg.payment_method_id)?.name || ''
+        const suggestion: SuggestionRow = {
+          transaction_date: bankDate,
+          description: `${pmName} | Bill: ${Math.round(agg.total_bill).toLocaleString('id-ID')}`,
+          credit_amount: Math.round(agg.total_nett * 100) / 100,
+          debit_amount: 0,
+          payment_method_id: agg.payment_method_id,
+        }
+
+        if (!suggestionsByMonth.has(bankMonth)) suggestionsByMonth.set(bankMonth, [])
+        suggestionsByMonth.get(bankMonth)!.push(suggestion)
+      }
+    }
+
+    for (const month of allMonths) {
+      const g = grouped.get(month)!
+      const suggestions = (suggestionsByMonth.get(month) || []).sort((a, b) => a.transaction_date.localeCompare(b.transaction_date))
+
+      if (g.entries.length > 0 || suggestions.length > 0) {
+        result.push({ month, entries: g.entries, suggestions })
+      }
+    }
+
+    return result
+  }
+
+  private addDays(dateStr: string, days: number): string {
+    const [y, m, d] = dateStr.split('-').map(Number)
+    const date = new Date(Date.UTC(y, m - 1, d + days))
+    return date.toISOString().split('T')[0]
+  }
+
+  /**
    * Create single manual bank statement entry
    */
   async createManualEntry(

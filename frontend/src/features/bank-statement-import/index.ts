@@ -1,6 +1,7 @@
 // Pages
 export { BankStatementImportListPage } from './pages/BankStatementImportListPage'
 export { BankStatementImportDetailPage } from './pages/BankStatementImportDetailPage'
+export { ManualEntryPanel } from './pages/ManualEntryPage'
 
 // Modals
 export { UploadModal } from './components/UploadModal'

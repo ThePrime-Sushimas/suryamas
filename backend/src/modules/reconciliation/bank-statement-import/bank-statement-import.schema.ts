@@ -169,17 +169,24 @@ export const bankStatementRowSchema = z.object({
 // MANUAL ENTRY SCHEMAS
 // ============================================================================
 
-const manualEntryItem = z.object({
+const manualEntryFields = {
   transaction_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD'),
   description: z.string().min(1, 'Deskripsi wajib diisi').max(1000),
   debit_amount: z.number().min(0).default(0),
   credit_amount: z.number().min(0).default(0),
   reference_number: z.string().max(100).optional(),
   balance: z.number().optional(),
-}).refine(
-  (d) => d.debit_amount > 0 || d.credit_amount > 0,
-  { message: 'Debit atau credit harus lebih dari 0', path: ['debit_amount'] }
-)
+}
+
+const manualEntryRefine = (d: { debit_amount: number; credit_amount: number }) =>
+  d.debit_amount > 0 || d.credit_amount > 0
+
+const manualEntryRefineMsg = {
+  message: 'Debit atau credit harus lebih dari 0',
+  path: ['debit_amount'] as string[],
+}
+
+const manualEntryItem = z.object(manualEntryFields).refine(manualEntryRefine, manualEntryRefineMsg)
 
 /**
  * Single manual entry
@@ -187,7 +194,8 @@ const manualEntryItem = z.object({
 export const manualEntrySchema = z.object({
   body: z.object({
     bank_account_id: z.coerce.number().int().positive('Bank account ID wajib'),
-  }).merge(manualEntryItem),
+    ...manualEntryFields,
+  }).refine(manualEntryRefine, manualEntryRefineMsg),
 })
 
 /**
@@ -197,6 +205,15 @@ export const manualBulkEntrySchema = z.object({
   body: z.object({
     bank_account_id: z.coerce.number().int().positive('Bank account ID wajib'),
     entries: z.array(manualEntryItem).min(1, 'Minimal 1 entry').max(500, 'Maksimal 500 entry per batch'),
+  }),
+})
+
+/**
+ * List manual entries for a bank account
+ */
+export const listManualEntriesSchema = z.object({
+  query: z.object({
+    bank_account_id: z.coerce.number().int().positive('Bank account ID wajib'),
   }),
 })
 

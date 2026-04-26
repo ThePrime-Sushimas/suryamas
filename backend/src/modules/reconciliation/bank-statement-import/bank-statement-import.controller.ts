@@ -19,7 +19,7 @@ import {
   confirmBankStatementImportSchema,
   getImportByIdSchema,
   deleteImportSchema,
-
+  listManualEntriesSchema,
   manualEntrySchema,
   manualBulkEntrySchema,
   hardDeleteStatementSchema,
@@ -320,6 +320,23 @@ export class BankStatementImportController {
   }
 
   // ==================== MANUAL ENTRY ENDPOINTS ====================
+
+  /**
+   * List manual entries grouped by month
+   * GET /api/v1/bank-statement-imports/manual?bank_account_id=5
+   */
+  listManualEntries = async (req: ValidatedAuthRequest<typeof listManualEntriesSchema>, res: Response): Promise<void> => {
+    try {
+      const { bank_account_id } = req.validated.query
+      const companyId = String(req.context?.company_id)
+
+      const result = await this.service.listManualEntries(bank_account_id, companyId)
+
+      sendSuccess(res, result, 'Manual entries retrieved', 200)
+    } catch (error: any) {
+      handleError(res, error)
+    }
+  }
 
   /**
    * Create single manual bank statement entry

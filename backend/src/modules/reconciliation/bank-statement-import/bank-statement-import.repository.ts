@@ -1389,6 +1389,126 @@ export class BankStatementImportRepository {
 
     return (data || []) as BankStatement[]
   }
+
+  /**
+   * List manual entries for a bank account, ordered by date desc
+   */
+  async listManualEntries(
+    companyId: string,
+    bankAccountId: number,
+  ): Promise<BankStatement[]> {
+    const { data, error } = await supabase
+      .from('bank_statements')
+      .select('*')
+      .eq('company_id', companyId)
+      .eq('bank_account_id', bankAccountId)
+      .eq('source_file', 'MANUAL_ENTRY')
+      .is('deleted_at', null)
+      .order('transaction_date', { ascending: false })
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      logError('BankStatementImportRepository.listManualEntries error', { error: error.message })
+      throw new Error(`Gagal memuat manual entries: ${error.message}`)
+    }
+
+    return (data || []) as BankStatement[]
+  }
+
+  /**
+   * Get payment method IDs linked to a bank account
+   */
+  async getPaymentMethodsByBankAccount(
+    companyId: string,
+    bankAccountId: number,
+  ): Promise<Array<{ id: number; name: string }>> {
+    const { data, error } = await supabase
+      .from('payment_methods')
+      .select('id, name')
+      .eq('company_id', companyId)
+      .eq('bank_account_id', bankAccountId)
+      .eq('is_active', true)
+      .is('deleted_at', null)
+
+    if (error) {
+      logError('BankStatementImportRepository.getPaymentMethodsByBankAccount error', { error: error.message })
+      return []
+    }
+
+    return (data || []) as Array<{ id: number; name: string }>
+  }
+
+  /**
+   * Get branch IDs for a company
+   */
+  async getBranchIdsByCompany(companyId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('branches')
+      .select('id')
+      .eq('company_id', companyId)
+      .is('deleted_at', null)
+
+    if (error) {
+      logError('BankStatementImportRepository.getBranchIdsByCompany error', { error: error.message })
+      return []
+    }
+
+    return (data || []).map((b: { id: string }) => b.id)
+  }
+
+  /**
+   * Get POS aggregates summed by date + payment_method_id for a date range
+   */
+  async getAggregatedByDateAndPM(
+    branchIds: string[],
+    paymentMethodIds: number[],
+    dateFrom: string,
+    dateTo: string,
+  ): Promise<Array<{
+    transaction_date: string
+    payment_method_id: number
+    payment_method_name: string
+    total_bill: number
+    total_nett: number
+  }>> {
+    if (paymentMethodIds.length === 0 || branchIds.length === 0) return []
+
+    const { data, error } = await supabase
+      .from('aggregated_transactions')
+      .select('transaction_date, payment_method_id, bill_after_discount, nett_amount, payment_methods:payment_method_id(name)')
+      .in('payment_method_id', paymentMethodIds)
+      .in('branch_id', branchIds)
+      .gte('transaction_date', dateFrom)
+      .lte('transaction_date', dateTo)
+      .is('deleted_at', null)
+      .is('superseded_by', null)
+
+    if (error) {
+      logError('BankStatementImportRepository.getAggregatedByDateAndPM error', { error: error.message })
+      return []
+    }
+
+    const grouped = new Map<string, { transaction_date: string; payment_method_id: number; payment_method_name: string; total_bill: number; total_nett: number }>()
+    for (const row of (data || []) as any[]) {
+      const pmName = row.payment_methods?.name || ''
+      const key = `${row.transaction_date}|${row.payment_method_id}`
+      const existing = grouped.get(key)
+      if (existing) {
+        existing.total_bill += Number(row.bill_after_discount) || 0
+        existing.total_nett += Number(row.nett_amount) || 0
+      } else {
+        grouped.set(key, {
+          transaction_date: row.transaction_date,
+          payment_method_id: row.payment_method_id,
+          payment_method_name: pmName,
+          total_bill: Number(row.bill_after_discount) || 0,
+          total_nett: Number(row.nett_amount) || 0,
+        })
+      }
+    }
+
+    return Array.from(grouped.values())
+  }
 }
 
 export const bankStatementImportRepository = new BankStatementImportRepository()

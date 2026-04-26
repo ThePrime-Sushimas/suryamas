@@ -23,6 +23,9 @@ import { id as idLocale } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/contexts/ToastContext";
 import { useJobPolling } from "@/hooks/_shared/useJobPolling";
+import { ManualEntryPanel } from "./ManualEntryPage";
+
+type Tab = 'import' | 'manual'
 
 export function BankStatementImportListPage() {
   const navigate = useNavigate();
@@ -59,6 +62,7 @@ export function BankStatementImportListPage() {
   const [showBulkDeleteConfirmation, setShowBulkDeleteConfirmation] =
     useState(false);
   const [filters, setFilters] = useState({ search: "", status: "" });
+  const [activeTab, setActiveTab] = useState<Tab>('import');
 
   // Derived values - MUST be declared before useEffect that uses them
   const importsArray = useMemo(
@@ -257,6 +261,46 @@ export function BankStatementImportListPage() {
           </button>
         </div>
       </div>
+
+      {/* Tab Bar */}
+      <div className="flex items-center border-b border-gray-200 dark:border-gray-700">
+        <button
+          onClick={() => setActiveTab('import')}
+          className={`px-4 py-2.5 text-[13px] font-medium transition-colors relative ${
+            activeTab === 'import'
+              ? 'text-gray-900 dark:text-gray-100'
+              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          File import
+          {activeTab === 'import' && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900 dark:bg-gray-100" />
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('manual')}
+          className={`px-4 py-2.5 text-[13px] font-medium transition-colors relative ${
+            activeTab === 'manual'
+              ? 'text-gray-900 dark:text-gray-100'
+              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          Manual entry
+          {activeTab === 'manual' && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900 dark:bg-gray-100" />
+          )}
+        </button>
+      </div>
+
+      {/* Manual Entry Tab */}
+      <div className={activeTab === 'manual' ? '' : 'hidden'}>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <ManualEntryPanel />
+        </div>
+      </div>
+
+      {/* File Import Tab */}
+      <div className={activeTab === 'import' ? 'space-y-6' : 'hidden'}>
 
       {/* Error Message */}
       {errors.general && (
@@ -659,6 +703,8 @@ export function BankStatementImportListPage() {
           </div>
         </div>
       )}
+      
+      </div>
     </div>
   );
 }
