@@ -377,9 +377,11 @@ export class SettlementGroupService {
         endDate,
       );
 
-    // Filter out reconciled aggregates
+    // Filter out reconciled aggregates and zero-amount
     const unreconciledAggregates = aggregates.filter(
-      (a) => !a.reconciliation_status || a.reconciliation_status === "PENDING",
+      (a) =>
+        (!a.reconciliation_status || a.reconciliation_status === "PENDING") &&
+        (a.nett_amount > 0),
     );
 
     // Apply search filter if provided
@@ -431,9 +433,11 @@ export class SettlementGroupService {
         date,
       );
 
-    // Filter out reconciled aggregates
+    // Filter out reconciled aggregates and zero-amount
     const unreconciledAggregates = aggregates.filter(
-      (a) => !a.reconciliation_status || a.reconciliation_status === "PENDING",
+      (a) =>
+        (!a.reconciliation_status || a.reconciliation_status === "PENDING") &&
+        (a.nett_amount > 0),
     );
 
     // Transform to match frontend format

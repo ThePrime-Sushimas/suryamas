@@ -1081,7 +1081,8 @@ export class SettlementGroupRepository {
         )
         .eq("is_reconciled", false)
         .is("deleted_at", null)
-        .is("superseded_by", null);
+        .is("superseded_by", null)
+        .gt("nett_amount", 0);
 
       // Apply date range filter
       if (options?.startDate) {
