@@ -71,3 +71,92 @@ export const useDashboardStats = (companyId: string | undefined) =>
     },
     enabled: !!companyId,
   })
+
+// All branches (for sync alert cross-check)
+export const useAllBranches = () =>
+  useQuery({
+    queryKey: ['dashboard', 'all-branches'],
+    queryFn: async () => {
+      const { data } = await api.get('/branches', { params: { limit: 200, status: 'active' } })
+      return data.data as Array<{ id: string; branch_name: string; status: string }>
+    },
+    staleTime: 5 * 60_000,
+  })
+
+// Bank accounts with owner = company (for statement status)
+export const useBankAccountsList = (companyId: string | undefined) =>
+  useQuery({
+    queryKey: ['dashboard', 'bank-accounts', companyId],
+    queryFn: async () => {
+      const { data } = await api.get('/bank-accounts', {
+        params: { owner_type: 'company', owner_id: companyId },
+      })
+      return data.data as Array<{
+        id: number
+        bank_name: string
+        account_name: string
+        account_number: string
+        is_active: boolean
+      }>
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60_000,
+  })
+
+// Bank statement imports — recent (for checking which accounts have imports)
+export const useRecentBankStatementImports = () => {
+  const now = new Date()
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  return useQuery({
+    queryKey: ['dashboard', 'bank-statement-imports-month', monthStart],
+    queryFn: async () => {
+      const { data } = await api.get('/bank-statement-imports', {
+        params: { page: 1, limit: 100, date_from: monthStart, date_to: today },
+      })
+      const payload = data.data
+      const list = Array.isArray(payload) ? payload : (payload?.data ?? [])
+      return list as Array<{
+        id: number
+        bank_account_id: number
+        status: string
+        created_at: string
+        total_entries: number
+      }>
+    },
+    staleTime: 5 * 60_000,
+  })
+}
+
+// Fiscal periods — current year
+export const useFiscalPeriodsStatus = () =>
+  useQuery({
+    queryKey: ['dashboard', 'fiscal-periods'],
+    queryFn: async () => {
+      const { data } = await api.get('/accounting/fiscal-periods', {
+        params: { fiscal_year: new Date().getFullYear(), limit: 20 },
+      })
+      return data.data as Array<{
+        id: string
+        period: string
+        period_start: string
+        period_end: string
+        is_open: boolean
+        fiscal_year: number
+      }>
+    },
+    staleTime: 5 * 60_000,
+  })
+
+// Failed transactions count
+export const useFailedTransactionsCount = () =>
+  useQuery({
+    queryKey: ['dashboard', 'failed-trx-count'],
+    queryFn: async () => {
+      const { data } = await api.get('/aggregated-transactions/failed', {
+        params: { page: 1, limit: 1 },
+      })
+      return (data.pagination?.total as number) || 0
+    },
+    staleTime: 60_000,
+  })

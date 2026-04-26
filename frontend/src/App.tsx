@@ -9,7 +9,6 @@ import {
 import { ToastProvider } from "./contexts/ToastContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import Layout from "./components/layout/Layout";
-import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
@@ -18,6 +17,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Create a client
 const queryClient = new QueryClient();
+
+// Lazy load features
+const DashboardPage = lazy(() =>
+  import("./features/dashboard/pages/DashboardPage").then((m) => ({ default: m.default }))
+);
 
 // Lazy load features
 const EmployeesPage = lazy(() =>
@@ -475,7 +479,13 @@ function App() {
                     </BranchSelectionGuard>
                   }
                 >
-                  <Route index element={<HomePage />} />
+                  <Route index element={
+                    <ProtectedRoute>
+                      <Suspense fallback={<LoadingFallback />}>
+                        <DashboardPage />
+                      </Suspense>
+                    </ProtectedRoute>
+                  } />
                   <Route
                     path="profile"
                     element={

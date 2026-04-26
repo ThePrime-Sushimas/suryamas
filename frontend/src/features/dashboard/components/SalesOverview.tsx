@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { TrendingUp, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
+import { paymentDotColor } from '../utils/paymentDotColor'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)
 
@@ -51,51 +52,55 @@ export function SalesOverview({ data, isLoading, isFetching, onRefresh }: Props)
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-      <div className="px-4 sm:px-5 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+      <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-emerald-600" />
-          <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wide">Live Penjualan</h3>
+          <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+          <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Detail Hari Ini</h3>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-400">{grandTrx} trx</span>
-          <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{fmt(grandTotal)}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-gray-400">{grandTrx} trx</span>
+          <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">{fmt(grandTotal)}</span>
           <button onClick={onRefresh} disabled={isFetching} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3 h-3 ${isFetching ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="p-5 space-y-3">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-10 bg-gray-50 dark:bg-gray-700 rounded-lg animate-pulse" />)}
+        <div className="p-3 space-y-2">
+          {[...Array(3)].map((_, i) => <div key={i} className="h-8 bg-gray-50 dark:bg-gray-700 rounded animate-pulse" />)}
         </div>
       ) : grouped.length === 0 ? (
-        <div className="p-8 text-center text-gray-400 dark:text-gray-500 text-sm">Belum ada data penjualan hari ini</div>
+        <div className="p-6 text-center text-gray-400 dark:text-gray-500 text-xs">Belum ada data penjualan hari ini</div>
       ) : (
         <div>
           {grouped.map(([branch, g]) => {
             const isOpen = openBranches.has(branch)
             return (
               <div key={branch} className="border-b border-gray-50 dark:border-gray-700 last:border-0">
-                <button onClick={() => toggle(branch)} className="w-full flex items-center px-4 sm:px-5 py-3 hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors text-left">
+                <button onClick={() => toggle(branch)} className="w-full flex items-center px-3 py-2 hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors text-left">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    {isOpen ? <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />}
-                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{branch}</span>
-                    <span className="text-xs text-gray-400 shrink-0">{g.trx} trx</span>
+                    {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
+                    <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{branch}</span>
+                    <span className="text-[11px] text-gray-400 shrink-0">{g.trx} trx</span>
                   </div>
-                  <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400 shrink-0 ml-2">{fmt(g.total)}</span>
+                  <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 shrink-0 ml-2">{fmt(g.total)}</span>
                 </button>
                 {isOpen && (
-                  <div className="px-4 sm:px-5 pb-3 space-y-1">
-                    {g.rows.map((row, i) => (
-                      <div key={i} className="flex items-center gap-2 py-1.5 pl-6">
-                        <span className="flex-1 text-sm text-gray-600 dark:text-gray-400 truncate">{row.payment_methods?.name || 'Unknown'}</span>
-                        <span className="text-xs text-gray-400 shrink-0">{row.transaction_count} trx</span>
-                        <span className="text-sm font-medium text-gray-800 dark:text-gray-200 w-28 text-right shrink-0">{fmt(row.grand_total)}</span>
+                  <div className="px-3 pb-2 space-y-0.5">
+                    {g.rows.map((row, i) => {
+                      const dotColor = paymentDotColor(row.payment_methods?.payment_type || '')
+                      return (
+                      <div key={i} className="flex items-center gap-2 py-1 pl-5">
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
+                        <span className="flex-1 text-xs text-gray-600 dark:text-gray-400 truncate">{row.payment_methods?.name || 'Unknown'}</span>
+                        <span className="text-[11px] text-gray-400 shrink-0">{row.transaction_count} trx</span>
+                        <span className="text-xs font-medium text-gray-800 dark:text-gray-200 w-24 text-right shrink-0">{fmt(row.grand_total)}</span>
                       </div>
-                    ))}
+                      )
+                    })}
                     {g.fee > 0 && (
-                      <div className="flex items-center gap-2 py-1.5 pl-6 border-t border-gray-100 dark:border-gray-700 mt-1 pt-2">
+                      <div className="flex items-center gap-2 py-1 pl-5 border-t border-gray-100 dark:border-gray-700 mt-1 pt-1.5">
                         <span className="flex-1 text-xs text-gray-400">Fee</span>
                         <span className="text-xs text-rose-500">{fmt(g.fee)}</span>
                       </div>
