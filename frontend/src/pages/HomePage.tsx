@@ -8,7 +8,7 @@ import {
   ArrowRight, CheckCircle2, AlertTriangle, Clock,
 } from 'lucide-react'
 
-import { usePosSalesToday, useReconSummary, useCashCountPending, useDashboardStats } from '@/features/dashboard/api/useDashboardApi'
+import { usePosSalesRange, useReconSummary, useCashCountPending, useDashboardStats } from '@/features/dashboard/api/useDashboardApi'
 import { SalesOverview } from '@/features/dashboard/components/SalesOverview'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)
@@ -19,13 +19,13 @@ export default function HomePage() {
   const currentBranch = useBranchContext()
   const today = fmtDate(new Date())
 
-  const sales = usePosSalesToday(today, today)
+  const sales = usePosSalesRange(today, today)
   const recon = useReconSummary()
   const cashCount = useCashCountPending()
   const stats = useDashboardStats(currentBranch?.company_id)
 
-  const totalSales = useMemo(() => sales.data?.reduce((s, r) => s + r.grand_total, 0) || 0, [sales.data])
-  const totalTrx = useMemo(() => sales.data?.reduce((s, r) => s + r.transaction_count, 0) || 0, [sales.data])
+  const totalSales = useMemo(() => sales.data?.reduce((s: number, r: { grand_total: number }) => s + r.grand_total, 0) || 0, [sales.data])
+  const totalTrx = useMemo(() => sales.data?.reduce((s: number, r: { transaction_count: number }) => s + r.transaction_count, 0) || 0, [sales.data])
   const reconPct = recon.data && recon.data.total_statements > 0
     ? Math.round((recon.data.reconciled_count / recon.data.total_statements) * 100) : null
 
