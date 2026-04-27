@@ -2,31 +2,53 @@ import { useQuery } from '@tanstack/react-query'
 import api from '@/lib/axios'
 
 // POS Sync Aggregates — live sales per branch/payment method
-export const usePosSalesToday = (dateFrom: string, dateTo: string) =>
-  useQuery({
-    queryKey: ['dashboard', 'pos-sales', dateFrom, dateTo],
+// Uses fields=slim to reduce egress (~60-70% less data)
+// dateFrom is extended to include yesterday for delta calculation (single query)
+
+type SalesRow = {
+  id: string
+  sales_date: string
+  branch_name: string | null
+  payment_methods: { id: number; name: string; payment_type: string } | null
+  grand_total: number
+  nett_amount: number
+  transaction_count: number
+  void_transaction_count: number
+  total_fee_amount: number
+  status: string
+  is_reconciled: boolean
+  skip_reason: string | null
+}
+
+const fmtD = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+function dayBefore(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  d.setDate(d.getDate() - 1)
+  return fmtD(d)
+}
+
+const todayStr = () => fmtD(new Date())
+
+export const usePosSalesRange = (dateFrom: string, dateTo: string) => {
+  // Extend range to include yesterday for delta calc
+  const extendedFrom = dayBefore(dateFrom)
+  const includesLive = dateTo >= todayStr()
+
+  return useQuery({
+    queryKey: ['dashboard', 'pos-sales', extendedFrom, dateTo],
     queryFn: async () => {
       const { data } = await api.get('/pos-sync-aggregates', {
-        params: { date_from: dateFrom, date_to: dateTo, limit: 500 },
+        params: { date_from: extendedFrom, date_to: dateTo, limit: 500, fields: 'slim' },
       })
-      return data.data as Array<{
-        id: string
-        sales_date: string
-        branch_name: string | null
-        payment_methods: { id: number; name: string; payment_type: string } | null
-        grand_total: number
-        nett_amount: number
-        transaction_count: number
-        void_transaction_count: number
-        total_fee_amount: number
-        status: string
-        is_reconciled: boolean
-        skip_reason: string | null
-      }>
+      return data.data as SalesRow[]
     },
     enabled: !!dateFrom && !!dateTo,
-    refetchInterval: 60_000,
+    refetchInterval: includesLive ? 60_000 : false,
+    staleTime: includesLive ? 30_000 : 30 * 60_000,
   })
+}
 
 // Bank Reconciliation summary
 export const useReconSummary = () =>

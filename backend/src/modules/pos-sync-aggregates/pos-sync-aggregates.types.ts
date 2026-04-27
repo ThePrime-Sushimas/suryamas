@@ -76,6 +76,7 @@ export interface ListAggregatesParams {
   search?: string;
   page?: number;
   limit?: number;
+  fields?: 'slim' | 'full';
 }
 
 export interface ReconcilePosSyncAggregateDto {

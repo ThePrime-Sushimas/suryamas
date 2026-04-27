@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react'
-import { useAuthStore } from '@/features/auth'
 import { useBranchContext } from '@/features/branch_context'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, TrendingUp, TrendingDown, ArrowRight, Search, CheckCircle2 } from 'lucide-react'
@@ -28,8 +27,7 @@ const fmt = (n: number) =>
 function firstOfMonth() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1) }
 function yesterday() { const d = new Date(); d.setDate(d.getDate() - 1); return d }
 
-export default function DashboardPage() {
-  const { user } = useAuthStore()
+export default function DashboardSalesPage() {
   const currentBranch = useBranchContext()
   const allUserBranches = useBranchContextStore((s) => s.branches)
 
@@ -156,29 +154,11 @@ export default function DashboardPage() {
 
   const periodLabel = `${appliedFrom} — ${appliedTo}`
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center max-w-md w-full">
-          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-2xl mx-auto mb-6">S</div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Suryamas</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-8">Finance Management System</p>
-          <div className="flex gap-3">
-            <Link to="/login" className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold text-center">Login</Link>
-            <Link to="/register" className="flex-1 px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-semibold text-center">Register</Link>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto space-y-4">
-
-        {/* Top bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+    <>
+      {/* Top bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Sales</h1>
           <div className="flex items-center gap-2">
             <input type="date" value={draftFrom} onChange={(e) => setDraftFrom(e.target.value)} className="text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5 text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
             <span className="text-xs text-gray-400">—</span>
@@ -241,13 +221,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <footer className="pt-4 pb-2 text-center text-xs text-gray-400 dark:text-gray-500">
-          © {new Date().getFullYear()} CV Suryamas Pangan · {currentBranch?.branch_name || ''}
-        </footer>
-
-        <VoidDetailModal isOpen={showVoidModal} onClose={() => setShowVoidModal(false)} data={voidRows} />
-      </div>
-    </div>
+      <VoidDetailModal isOpen={showVoidModal} onClose={() => setShowVoidModal(false)} data={voidRows} />
+    </>
   )
 }
 

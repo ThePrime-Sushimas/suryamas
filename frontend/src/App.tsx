@@ -19,8 +19,20 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const queryClient = new QueryClient();
 
 // Lazy load features
-const DashboardPage = lazy(() =>
-  import("./features/dashboard/pages/DashboardPage").then((m) => ({ default: m.default }))
+const DashboardLayout = lazy(() =>
+  import("./features/dashboard/layouts/DashboardLayout").then((m) => ({ default: m.default }))
+);
+const DashboardSalesPage = lazy(() =>
+  import("./features/dashboard/pages/DashboardSalesPage").then((m) => ({ default: m.default }))
+);
+const DashboardAccountingPage = lazy(() =>
+  import("./features/dashboard/pages/DashboardAccountingPage").then((m) => ({ default: m.default }))
+);
+const DashboardHRDPage = lazy(() =>
+  import("./features/dashboard/pages/DashboardHRDPage").then((m) => ({ default: m.default }))
+);
+const DashboardFinancePage = lazy(() =>
+  import("./features/dashboard/pages/DashboardFinancePage").then((m) => ({ default: m.default }))
 );
 
 // Lazy load features
@@ -479,13 +491,20 @@ function App() {
                     </BranchSelectionGuard>
                   }
                 >
-                  <Route index element={
+                  <Route index element={<Navigate to="/dashboard/sales" replace />} />
+                  <Route path="dashboard" element={
                     <ProtectedRoute>
                       <Suspense fallback={<LoadingFallback />}>
-                        <DashboardPage />
+                        <DashboardLayout />
                       </Suspense>
                     </ProtectedRoute>
-                  } />
+                  }>
+                    <Route index element={<Navigate to="/dashboard/sales" replace />} />
+                    <Route path="sales" element={<Suspense fallback={<LoadingFallback />}><DashboardSalesPage /></Suspense>} />
+                    <Route path="accounting" element={<Suspense fallback={<LoadingFallback />}><DashboardAccountingPage /></Suspense>} />
+                    <Route path="hrd" element={<Suspense fallback={<LoadingFallback />}><DashboardHRDPage /></Suspense>} />
+                    <Route path="finance" element={<Suspense fallback={<LoadingFallback />}><DashboardFinancePage /></Suspense>} />
+                  </Route>
                   <Route
                     path="profile"
                     element={

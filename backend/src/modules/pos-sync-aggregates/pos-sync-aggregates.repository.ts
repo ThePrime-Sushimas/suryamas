@@ -16,19 +16,18 @@ export const posSyncAggregatesRepository = {
       search,
       page = 1,
       limit = 50,
+      fields,
     } = params;
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
+    const selectFields = fields === 'slim'
+      ? `id, sales_date, branch_id, branch_name, status, grand_total, nett_amount, total_fee_amount, transaction_count, void_transaction_count, skip_reason, is_reconciled, payment_method_id, payment_methods ( id, name, payment_type )`
+      : `*, payment_methods ( id, name, payment_type )`;
+
     let query = supabase
       .from("pos_sync_aggregates")
-      .select(
-        `
-      *,
-      payment_methods ( id, name, payment_type )
-    `,
-        { count: "exact" },
-      )
+      .select(selectFields, { count: "exact" })
       .order("sales_date", { ascending: false })
       .order("branch_name", { ascending: true })
       .range(from, to);

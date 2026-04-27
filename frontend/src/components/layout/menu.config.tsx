@@ -24,8 +24,37 @@ export const menuItems: MenuItem[] = [
   {
     id: "dashboard",
     name: "Dashboard",
-    href: "/",
     icon: <LayoutDashboard size={18} />,
+    submenu: [
+      {
+        id: "dashboard-sales",
+        name: "Sales",
+        href: "/dashboard/sales",
+        icon: <LayoutDashboard size={16} />,
+        module: "dashboard_sales",
+      },
+      {
+        id: "dashboard-accounting",
+        name: "Accounting",
+        href: "/dashboard/accounting",
+        icon: <Calculator size={16} />,
+        module: "dashboard_accounting",
+      },
+      {
+        id: "dashboard-hrd",
+        name: "HRD",
+        href: "/dashboard/hrd",
+        icon: <Users size={16} />,
+        module: "dashboard_hrd",
+      },
+      {
+        id: "dashboard-finance",
+        name: "Finance",
+        href: "/dashboard/finance",
+        icon: <DollarSign size={16} />,
+        module: "dashboard_finance",
+      },
+    ],
   },
   {
     id: "master-data",

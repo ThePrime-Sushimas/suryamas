@@ -255,6 +255,12 @@ const registerModules = async () => {
       "Permission Management System",
     );
 
+    // Register dashboard modules
+    await PermissionService.registerModule("dashboard_sales", "Dashboard Sales");
+    await PermissionService.registerModule("dashboard_accounting", "Dashboard Accounting");
+    await PermissionService.registerModule("dashboard_hrd", "Dashboard HRD");
+    await PermissionService.registerModule("dashboard_finance", "Dashboard Finance");
+
     logInfo("Permission modules registered successfully");
   } catch (error) {
     // Silently fail - module will be registered via seed later

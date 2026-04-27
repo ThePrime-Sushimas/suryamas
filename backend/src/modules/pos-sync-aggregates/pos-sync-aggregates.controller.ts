@@ -19,6 +19,7 @@ export const posSyncAggregatesController = {
         search: req.query.search as string,
         page: req.query.page ? Number(req.query.page) : 1,
         limit: req.query.limit ? Number(req.query.limit) : 50,
+        fields: req.query.fields as 'slim' | 'full' | undefined,
       };
       const result = await posSyncAggregatesRepository.list(params);
       res.json({ success: true, ...result });
