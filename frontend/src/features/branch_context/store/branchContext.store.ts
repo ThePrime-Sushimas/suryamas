@@ -4,6 +4,8 @@ import type { BranchContext } from '@/features/branch_context/types'
 import { branchApi } from '@/features/branch_context/api/branchContext.api'
 import { usePermissionStore } from './permission.store'
 
+let _refetchPromise: Promise<void> | null = null
+
 interface BranchContextState {
   currentBranch: BranchContext | null
   branches: BranchContext[]
@@ -92,16 +94,22 @@ export const useBranchContextStore = create<BranchContextState>()(
       },
 
       refetchBranches: async () => {
-        set({ isLoading: true, error: null })
-        try {
-          const userBranches = await branchApi.getUserBranches()
-          get().setBranches(userBranches)
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to refresh branches'
-          set({ error: errorMessage })
-        } finally {
-          set({ isLoading: false })
-        }
+        // Dedup: reuse in-flight promise
+        if (_refetchPromise) return _refetchPromise
+        _refetchPromise = (async () => {
+          set({ isLoading: true, error: null })
+          try {
+            const userBranches = await branchApi.getUserBranches()
+            get().setBranches(userBranches)
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to refresh branches'
+            set({ error: errorMessage })
+          } finally {
+            set({ isLoading: false })
+            _refetchPromise = null
+          }
+        })()
+        return _refetchPromise
       },
 
       setLoading: (loading) => {

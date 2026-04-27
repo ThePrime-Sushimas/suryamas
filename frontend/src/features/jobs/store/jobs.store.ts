@@ -6,10 +6,13 @@ import { create } from 'zustand'
 import { jobsApi } from '../api/jobs.api'
 import type { Job } from '../types/jobs.types'
 
+const STALE_TIME = 5_000 // 5s dedup window
+
 interface JobsState {
   jobs: Job[]
   loading: boolean
   error: string | null
+  _lastFetchedAt: number
   
   fetchRecentJobs: () => Promise<void>
   downloadFile: (job: Job) => void
@@ -17,20 +20,24 @@ interface JobsState {
   clearAllJobs: () => Promise<void>
 }
 
-export const useJobsStore = create<JobsState>((set) => ({
+export const useJobsStore = create<JobsState>((set, get) => ({
   jobs: [],
   loading: false,
   error: null,
+  _lastFetchedAt: 0,
 
   fetchRecentJobs: async () => {
-    set({ loading: true, error: null })
+    const now = Date.now()
+    if (now - get()._lastFetchedAt < STALE_TIME) return // dedup
+    set({ loading: true, error: null, _lastFetchedAt: now })
     try {
       const jobs = await jobsApi.getRecentJobs()
       set({ jobs, loading: false })
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to fetch jobs',
-        loading: false 
+        loading: false,
+        _lastFetchedAt: 0,
       })
     }
   },

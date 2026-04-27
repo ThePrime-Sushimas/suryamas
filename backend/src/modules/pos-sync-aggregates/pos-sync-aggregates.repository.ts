@@ -173,38 +173,10 @@ export const posSyncAggregatesRepository = {
     return data;
   },
 
-  // ══════════════════════════════════════════════════════════════
-  // ⚠️ JANGAN HAPUS COMMENT INI — untuk referensi rollback
-  //
-  // VERSI AWAL (Supabase client, gagal karena PostgREST tidak mengenali
-  // branch_id di .or() / .eq() pada tabel aggregated_transactions):
-  //
-  //   let query = supabase
-  //     .from("aggregated_transactions")
-  //     .update({ superseded_by, status: "SUPERSEDED", updated_at })
-  //     .eq("source_type", "POS")
-  //     .eq("transaction_date", params.transactionDate)
-  //     .eq("payment_method_id", params.paymentMethodId)
-  //     .eq("is_reconciled", false)
-  //     .is("superseded_by", null)
-  //     .is("deleted_at", null);
-  //
-  //   if (params.branchId && params.branchName) {
-  //     query = query.or(
-  //       `branch_id.eq.${params.branchId},branch_name.eq."${params.branchName}"`
-  //     );
-  //   } else if (params.branchId) {
-  //     query = query.eq("branch_id", params.branchId);
-  //   } else if (params.branchName) {
-  //     query = query.eq("branch_name", params.branchName);
-  //   }
-  //
-  // ALASAN MIGRASI KE RPC:
-  //   PostgREST schema cache tidak mengenali kolom branch_id untuk
-  //   filter query (.eq/.or) pada aggregated_transactions, meskipun
-  //   kolom ada di database. Upsert (data payload) berhasil, tapi
-  //   filter gagal. RPC bypass PostgREST dan query langsung ke PostgreSQL.
-  // ══════════════════════════════════════════════════════════════
+  /**
+   * @deprecated Digantikan oleh sync_pos_aggregates_batch RPC.
+   * Retained untuk fallback/debugging. Akan dihapus setelah RPC stabil di production.
+   */
   async supersedeManualEntries(params: {
     supersededById: string;
     transactionDate: string;
@@ -225,8 +197,8 @@ export const posSyncAggregatesRepository = {
   },
 
   /**
-   * Migrate reconciliation from a reconciled POS record to its POS_SYNC twin.
-   * Handles bank_statements link migration and supersede atomically via RPC.
+   * @deprecated Digantikan oleh sync_pos_aggregates_batch RPC.
+   * Retained untuk fallback/debugging. Akan dihapus setelah RPC stabil di production.
    */
   async migrateReconciledPosToSync(posId: string, syncId: string): Promise<boolean> {
     const { data, error } = await supabase.rpc('migrate_reconciled_pos_to_sync', {
@@ -260,14 +232,10 @@ export const posSyncAggregatesRepository = {
   },
 
   /**
-   * Find aggregated_transactions record linked to a pos_sync_aggregate.
-   * Returns null if not yet synced.
+   * @deprecated Digantikan oleh sync_pos_aggregates_batch RPC.
+   * Retained untuk fallback/debugging. Akan dihapus setelah RPC stabil di production.
    */
-  /**
-   * Find reconciled POS record that matches a POS_SYNC record by date/branch/payment.
-   */
-  // pos-sync-aggregates.repository.ts
-async findReconciledPosTwin(params: {
+  async findReconciledPosTwin(params: {
   transactionDate: string;
   paymentMethodId: number;
   branchId: string | null;

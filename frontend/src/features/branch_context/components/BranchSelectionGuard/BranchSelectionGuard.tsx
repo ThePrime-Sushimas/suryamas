@@ -1,7 +1,6 @@
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
-import { branchApi } from '@/features/branch_context/api/branchContext.api'
 import { useAuthStore } from '@/features/auth'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 
 interface BranchSelectionGuardProps {
@@ -10,48 +9,22 @@ interface BranchSelectionGuardProps {
 
 export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) => {
   const { token } = useAuthStore()
-  const { currentBranch, branches, setBranches, switchBranch, isLoading, error, setLoading, setError } = useBranchContextStore()
-  const [initialLoad, setInitialLoad] = useState(true)
+  const { currentBranch, branches, switchBranch, isLoading, isLoaded, error, refetchBranches } = useBranchContextStore()
 
   useEffect(() => {
-    if (!token) return
+    if (!token || isLoaded) return
+    refetchBranches()
+  }, [token, isLoaded, refetchBranches])
 
-    const controller = new AbortController()
-    
-    const loadBranches = async () => {
-      setLoading(true)
-      try {
-        const userBranches = await branchApi.getUserBranches(controller.signal)
-        
-        if (userBranches.length === 0) {
-          setError('No branch assignments found')
-          return
-        }
-
-        setBranches(userBranches)
-        
-        // Auto-switch hanya saat initial load dan ada 1 branch
-        if (initialLoad && userBranches.length === 1) {
-          switchBranch(userBranches[0].branch_id)
-        }
-        
-        setInitialLoad(false)
-      } catch (err) {
-        if (err instanceof Error && err.name !== 'AbortError') {
-          setError(err.message || 'Failed to load branches')
-        }
-      } finally {
-        setLoading(false)
-      }
+  // Auto-select when only 1 branch
+  useEffect(() => {
+    if (isLoaded && branches.length === 1 && !currentBranch) {
+      switchBranch(branches[0].branch_id)
     }
-
-    loadBranches()
-    return () => controller.abort()
-  }, [initialLoad, setBranches, setError, setLoading, switchBranch, token])
+  }, [isLoaded, branches, currentBranch, switchBranch])
 
   const handleRetry = () => {
-    setError(null)
-    setInitialLoad(true)
+    refetchBranches()
   }
 
   if (!token) {

@@ -26,6 +26,8 @@ interface AuthState {
   checkAuth: () => Promise<void>
 }
 
+let _checkAuthPromise: Promise<void> | null = null
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: localStorage.getItem('token'),
@@ -74,18 +76,24 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   checkAuth: async () => {
-    const token = localStorage.getItem('token')
-    if (!token) {
-      set({ user: null, token: null, isInitialized: true })
-      return
-    }
-    
-    try {
-      const { data } = await api.get<ApiResponse<User>>('/employees/profile')
-      set({ user: data.data, token, isInitialized: true })
-    } catch {
-      localStorage.removeItem('token')
-      set({ user: null, token: null, isInitialized: true })
-    }
+    // Dedup: reuse in-flight promise (React StrictMode double-mount)
+    if (_checkAuthPromise) return _checkAuthPromise
+    _checkAuthPromise = (async () => {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        set({ user: null, token: null, isInitialized: true })
+        return
+      }
+      try {
+        const { data } = await api.get<ApiResponse<User>>('/employees/profile')
+        set({ user: data.data, token, isInitialized: true })
+      } catch {
+        localStorage.removeItem('token')
+        set({ user: null, token: null, isInitialized: true })
+      } finally {
+        _checkAuthPromise = null
+      }
+    })()
+    return _checkAuthPromise
   },
 }))

@@ -76,10 +76,14 @@ export default function DashboardPage() {
   const fiscalPeriods = useFiscalPeriodsStatus()
   const failedTrxCount = useFailedTransactionsCount()
   const todayStr = fmtDate(new Date())
-  const todaySales = usePosSalesToday(todayStr, todayStr)
+
+  // Derive today's sales from the full range query instead of a separate request
+  const todaySalesData = useMemo(() =>
+    sales.data?.filter(r => r.sales_date?.slice(0, 10) === todayStr) || []
+  , [sales.data, todayStr])
 
   // Computed
-  const todayTotal = useMemo(() => todaySales.data?.reduce((s, r) => s + r.grand_total, 0) || 0, [todaySales.data])
+  const todayTotal = useMemo(() => todaySalesData.reduce((s, r) => s + r.grand_total, 0), [todaySalesData])
   const totalFee = useMemo(() => sales.data?.reduce((s, r) => s + r.total_fee_amount, 0) || 0, [sales.data])
   const yesterdayTotal = useMemo(() => yesterdaySales.data?.reduce((s, r) => s + r.grand_total, 0) || 0, [yesterdaySales.data])
   const unreconciledCount = recon.data?.unreconciled_count || 0
@@ -148,10 +152,10 @@ export default function DashboardPage() {
 
         {/* Summary bar */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <SyncStatusCell allBranches={allBranches.data} salesData={todaySales.data} isLoading={allBranches.isLoading || todaySales.isLoading} />
+          <SyncStatusCell allBranches={allBranches.data} salesData={todaySalesData} isLoading={allBranches.isLoading || sales.isLoading} />
           <div className="bg-gray-100 dark:bg-gray-800/60 rounded-lg p-3">
             <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">Penjualan Hari Ini</p>
-            {todaySales.isLoading ? <div className="h-5 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /> : (
+            {sales.isLoading ? <div className="h-5 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /> : (
               <>
                 <p className="text-base font-semibold text-gray-900 dark:text-white">{fmt(todayTotal)}</p>
                 {deltaPercent !== null && (
@@ -192,7 +196,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-[58fr_42fr] gap-4 items-start">
           <WorkflowTracker periodLabel={periodLabel} totalStatements={recon.data?.total_statements || 0} unmatchedCount={recon.data?.unreconciled_count || 0} reconciledCount={recon.data?.reconciled_count || 0} unreconciledCount={unreconciledCount} cashPending={cashCount.data?.pendingCount || 0} feeDiscrepancyCount={feeDiscrepancyCount} />
           <div className="space-y-4">
-            <SalesOverview data={todaySales.data || []} isLoading={todaySales.isLoading} isFetching={todaySales.isFetching} onRefresh={() => todaySales.refetch()} />
+            <SalesOverview data={todaySalesData} isLoading={sales.isLoading} isFetching={sales.isFetching} onRefresh={() => sales.refetch()} />
             <FinanceOverview bankAccounts={bankAccounts.data} bankImports={bankImports.data} fiscalPeriods={fiscalPeriods.data} totalFee={totalFee} isLoading={bankAccounts.isLoading || fiscalPeriods.isLoading} />
           </div>
         </div>
