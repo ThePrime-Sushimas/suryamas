@@ -1446,7 +1446,6 @@ export class BankStatementImportRepository {
       .from('branches')
       .select('id')
       .eq('company_id', companyId)
-      .is('deleted_at', null)
 
     if (error) {
       logError('BankStatementImportRepository.getBranchIdsByCompany error', { error: error.message })
