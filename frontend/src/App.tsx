@@ -487,7 +487,7 @@ function App() {
                     </BranchSelectionGuard>
                   }
                 >
-                  {/* <Route index element={<Navigate to="/dashboard/sales" replace />} />  */}
+                  <Route index element={<Navigate to="/dashboard/sales" replace />} /> 
                   <Route path="dashboard" element={
                     <RequirePermission>
                       <Suspense fallback={<LoadingFallback />}>
