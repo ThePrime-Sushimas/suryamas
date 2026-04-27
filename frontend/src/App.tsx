@@ -8,6 +8,7 @@ import {
 } from "@/features/branch_context";
 import { ToastProvider } from "./contexts/ToastContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { RequirePermission } from "./components/RequirePermission";
 import Layout from "./components/layout/Layout";
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
@@ -427,19 +428,6 @@ const LoadingFallback = () => (
   </div>
 );
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { token, isInitialized } = useAuthStore();
-
-  if (!isInitialized) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        Loading...
-      </div>
-    );
-  }
-
-  return token ? children : <Navigate to="/login" />;
-}
 
 function App() {
   const { checkAuth, isInitialized } = useAuthStore();
@@ -491,13 +479,12 @@ function App() {
                     </BranchSelectionGuard>
                   }
                 >
-                  <Route index element={<Navigate to="/dashboard/sales" replace />} />
                   <Route path="dashboard" element={
-                    <ProtectedRoute>
+                    <RequirePermission>
                       <Suspense fallback={<LoadingFallback />}>
                         <DashboardLayout />
                       </Suspense>
-                    </ProtectedRoute>
+                    </RequirePermission>
                   }>
                     <Route index element={<Navigate to="/dashboard/sales" replace />} />
                     <Route path="sales" element={<Suspense fallback={<LoadingFallback />}><DashboardSalesPage /></Suspense>} />
@@ -508,897 +495,897 @@ function App() {
                   <Route
                     path="profile"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission>
                         <Suspense fallback={<LoadingFallback />}>
                           <ProfilePage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="employees"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="employees">
                         <Suspense fallback={<LoadingFallback />}>
                           <EmployeesPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="employees/create"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="employees">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreateEmployeePage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="employees/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="employees">
                         <Suspense fallback={<LoadingFallback />}>
                           <EmployeeDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="employees/edit/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="employees">
                         <Suspense fallback={<LoadingFallback />}>
                           <EditEmployeePage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="companies"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="companies">
                         <Suspense fallback={<LoadingFallback />}>
                           <CompaniesPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="companies/new"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="companies">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreateCompanyPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="companies/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="companies">
                         <Suspense fallback={<LoadingFallback />}>
                           <CompaniesDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="companies/:id/edit"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="companies">
                         <Suspense fallback={<LoadingFallback />}>
                           <EditCompanyPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="branches"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="branches">
                         <Suspense fallback={<LoadingFallback />}>
                           <BranchesPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="branches/new"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="branches">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreateBranchPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="branches/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="branches">
                         <Suspense fallback={<LoadingFallback />}>
                           <BranchDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="branches/:id/edit"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="branches">
                         <Suspense fallback={<LoadingFallback />}>
                           <EditBranchPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="bank-statement-import/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="bank_statement_imports">
                         <Suspense fallback={<LoadingFallback />}>
                           <BankStatementImportDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="permissions"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="permissions">
                         <Suspense fallback={<LoadingFallback />}>
                           <PermissionsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="monitoring"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="monitoring">
                         <Suspense fallback={<LoadingFallback />}>
                           <MonitoringPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="users"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="users">
                         <Suspense fallback={<LoadingFallback />}>
                           <UsersPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="users/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="users">
                         <Suspense fallback={<LoadingFallback />}>
                           <UserDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="users/edit/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="users">
                         <Suspense fallback={<LoadingFallback />}>
                           <UserEditPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="categories"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="categories">
                         <Suspense fallback={<LoadingFallback />}>
                           <CategoriesPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="categories/new"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="categories">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreateCategoryPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="categories/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="categories">
                         <Suspense fallback={<LoadingFallback />}>
                           <CategoryDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="categories/:id/edit"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="categories">
                         <Suspense fallback={<LoadingFallback />}>
                           <EditCategoryPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="sub-categories"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="sub_categories">
                         <Suspense fallback={<LoadingFallback />}>
                           <SubCategoriesPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="sub-categories/new"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="sub_categories">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreateSubCategoryPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="sub-categories/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="sub_categories">
                         <Suspense fallback={<LoadingFallback />}>
                           <SubCategoryDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="sub-categories/:id/edit"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="sub_categories">
                         <Suspense fallback={<LoadingFallback />}>
                           <EditSubCategoryPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="metric-units"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="metric_units">
                         <Suspense fallback={<LoadingFallback />}>
                           <MetricUnitsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="metric-units/new"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="metric_units">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreateMetricUnitPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="metric-units/:id/edit"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="metric_units">
                         <Suspense fallback={<LoadingFallback />}>
                           <EditMetricUnitPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="products"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="products">
                         <Suspense fallback={<LoadingFallback />}>
                           <ProductsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="products/create"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="products">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreateProductPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="products/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="products">
                         <Suspense fallback={<LoadingFallback />}>
                           <ProductDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="products/:id/edit"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="products">
                         <Suspense fallback={<LoadingFallback />}>
                           <EditProductPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="products/:productId/uoms"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="products">
                         <Suspense fallback={<LoadingFallback />}>
                           <ProductUomsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="employee-branches"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="employee_branches">
                         <Suspense fallback={<LoadingFallback />}>
                           <EmployeeBranchesPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="employees/:employeeId/branches"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="employee_branches">
                         <Suspense fallback={<LoadingFallback />}>
                           <EmployeeBranchDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="payment-terms"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="payment_terms">
                         <Suspense fallback={<LoadingFallback />}>
                           <PaymentTermsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="payment-terms/new"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="payment_terms">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreatePaymentTermPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="payment-terms/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="payment_terms">
                         <Suspense fallback={<LoadingFallback />}>
                           <PaymentTermDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="payment-terms/:id/edit"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="payment_terms">
                         <Suspense fallback={<LoadingFallback />}>
                           <EditPaymentTermPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="payment-methods"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="payment_methods">
                         <Suspense fallback={<LoadingFallback />}>
                           <PaymentMethodsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="pos-imports"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="pos_imports">
                         <Suspense fallback={<LoadingFallback />}>
                           <PosImportsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="pos-imports/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="pos_imports">
                         <Suspense fallback={<LoadingFallback />}>
                           <PosImportDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="pos-staging"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="pos_imports">
                         <Suspense fallback={<LoadingFallback />}>
                           <PosStagingPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="pos-transactions"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="pos_imports">
                         <Suspense fallback={<LoadingFallback />}>
                           <PosTransactionsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="suppliers"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="suppliers">
                         <Suspense fallback={<LoadingFallback />}>
                           <SuppliersPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="suppliers/create"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="suppliers">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreateSupplierPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="suppliers/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="suppliers">
                         <Suspense fallback={<LoadingFallback />}>
                           <SupplierDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="suppliers/:id/edit"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="suppliers">
                         <Suspense fallback={<LoadingFallback />}>
                           <EditSupplierPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="pricelists"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="pricelists">
                         <Suspense fallback={<LoadingFallback />}>
                           <PricelistsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="pricelists/new"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="pricelists">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreatePricelistPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="pricelists/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="pricelists">
                         <Suspense fallback={<LoadingFallback />}>
                           <PricelistDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="pricelists/:id/edit"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="pricelists">
                         <Suspense fallback={<LoadingFallback />}>
                           <EditPricelistPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="supplier-products"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="supplier_products">
                         <Suspense fallback={<LoadingFallback />}>
                           <SupplierProductsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="supplier-products/create"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="supplier_products">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreateSupplierProductPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="supplier-products/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="supplier_products">
                         <Suspense fallback={<LoadingFallback />}>
                           <SupplierProductDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="supplier-products/:id/edit"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="supplier_products">
                         <Suspense fallback={<LoadingFallback />}>
                           <EditSupplierProductPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="supplier-products/:supplierProductId/pricelists"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="supplier_products">
                         <Suspense fallback={<LoadingFallback />}>
                           <SupplierProductPricelistsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="supplier-products/:supplierProductId/pricelists/create"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="supplier_products">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreatePricelistFromSupplierProductPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="supplier-products/:supplierProductId/pricelists/:pricelistId"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="supplier_products">
                         <Suspense fallback={<LoadingFallback />}>
                           <PricelistDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="supplier-products/:supplierProductId/pricelists/:pricelistId/edit"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="supplier_products">
                         <Suspense fallback={<LoadingFallback />}>
                           <EditPricelistPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="settings/banks"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="banks">
                         <Suspense fallback={<LoadingFallback />}>
                           <BanksListPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="settings/banks/create"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="banks">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreateBankPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="settings/banks/:id/edit"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="banks">
                         <Suspense fallback={<LoadingFallback />}>
                           <EditBankPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="chart-of-accounts"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="chart_of_accounts">
                         <Suspense fallback={<LoadingFallback />}>
                           <ChartOfAccountsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="chart-of-accounts/new"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="chart_of_accounts">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreateChartOfAccountPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="chart-of-accounts/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="chart_of_accounts">
                         <Suspense fallback={<LoadingFallback />}>
                           <ChartOfAccountDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="chart-of-accounts/:id/edit"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="chart_of_accounts">
                         <Suspense fallback={<LoadingFallback />}>
                           <EditChartOfAccountPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="accounting-purposes"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="accounting_purposes">
                         <Suspense fallback={<LoadingFallback />}>
                           <AccountingPurposesPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="accounting-purposes/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="accounting_purposes">
                         <Suspense fallback={<LoadingFallback />}>
                           <AccountingPurposesPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="accounting-purpose-accounts/*"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="accounting_purpose_accounts">
                         <Suspense fallback={<LoadingFallback />}>
                           <AccountingPurposeAccountsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="accounting/fiscal-periods/*"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="fiscal_periods">
                         <Suspense fallback={<LoadingFallback />}>
                           <FiscalPeriodsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="accounting/journals/*"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="journals">
                         <Suspense fallback={<LoadingFallback />}>
                           <JournalHeadersPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="accounting/trial-balance"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="journals">
                         <Suspense fallback={<LoadingFallback />}>
                           <TrialBalancePage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route path="pos-sync-aggregates" element={
-                    <ProtectedRoute><Suspense fallback={<LoadingFallback />}><PosSyncAggregatesPage /></Suspense></ProtectedRoute>
+                    <RequirePermission module="pos_sync_aggregates"><Suspense fallback={<LoadingFallback />}><PosSyncAggregatesPage /></Suspense></RequirePermission>
                   } />
                   <Route path="pos-sync-aggregates/:id" element={
-                    <ProtectedRoute><Suspense fallback={<LoadingFallback />}><PosSyncAggregateDetailPage /></Suspense></ProtectedRoute>
+                    <RequirePermission module="pos_sync_aggregates"><Suspense fallback={<LoadingFallback />}><PosSyncAggregateDetailPage /></Suspense></RequirePermission>
                   } />
                   <Route
                     path="pos-aggregates/create"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="pos_aggregates">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreatePosAggregatePage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="pos-aggregates/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="pos_aggregates">
                         <Suspense fallback={<LoadingFallback />}>
                           <PosAggregateDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="pos-aggregates/:id/edit"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="pos_aggregates">
                         <Suspense fallback={<LoadingFallback />}>
                           <EditPosAggregatePage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="pos-aggregates"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="pos_aggregates">
                         <Suspense fallback={<LoadingFallback />}>
                           <PosAggregatesPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="pos-aggregates/failed-transactions"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="pos_aggregates">
                         <Suspense fallback={<LoadingFallback />}>
                           <FailedTransactionsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="bank-statement-import"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="bank_statement_imports">
                         <Suspense fallback={<LoadingFallback />}>
                           <BankStatementImportListPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="bank-statement-import/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="bank_statement_imports">
                         <Suspense fallback={<LoadingFallback />}>
                           <BankStatementImportDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="bank-reconciliation"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="bank_reconciliation">
                         <Suspense fallback={<LoadingFallback />}>
                           <BankReconciliationPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="bank-reconciliation/settlement-groups"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="bank_reconciliation">
                         <Suspense fallback={<LoadingFallback />}>
                           <SettlementGroupsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="bank-reconciliation/settlement-groups/:id"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="bank_reconciliation">
                         <Suspense fallback={<LoadingFallback />}>
                           <SettlementGroupDetailPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="bank-reconciliation/fee-discrepancy-review"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="fee_discrepancy_review">
                         <Suspense fallback={<LoadingFallback />}>
                           <FeeDiscrepancyReviewPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="cash-counts"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="cash_counts">
                         <Suspense fallback={<LoadingFallback />}>
                           <CashCountsManagementPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="cash-flow"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="cash_flow">
                         <Suspense fallback={<LoadingFallback />}>
                           <CashFlowPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                   <Route
                     path="cash-flow/settings"
                     element={
-                      <ProtectedRoute>
+                      <RequirePermission module="cash_flow">
                         <Suspense fallback={<LoadingFallback />}>
                           <CashFlowSettingsPage />
                         </Suspense>
-                      </ProtectedRoute>
+                      </RequirePermission>
                     }
                   />
                 </Route>

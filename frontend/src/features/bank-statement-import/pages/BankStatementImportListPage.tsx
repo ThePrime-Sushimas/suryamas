@@ -24,10 +24,12 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/contexts/ToastContext";
 import { useJobPolling } from "@/hooks/_shared/useJobPolling";
 import { ManualEntryPanel } from "./ManualEntryPage";
+import { usePermission } from "@/features/branch_context/hooks/usePermission";
 
 type Tab = 'import' | 'manual'
 
 export function BankStatementImportListPage() {
+  const { hasPermission: canViewManualEntry } = usePermission('bank_mutation_entries', 'view');
   const navigate = useNavigate();
   const toast = useToast();
 
@@ -277,27 +279,31 @@ export function BankStatementImportListPage() {
             <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900 dark:bg-gray-100" />
           )}
         </button>
-        <button
-          onClick={() => setActiveTab('manual')}
-          className={`px-4 py-2.5 text-[13px] font-medium transition-colors relative ${
-            activeTab === 'manual'
-              ? 'text-gray-900 dark:text-gray-100'
-              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-          }`}
-        >
-          Manual entry
-          {activeTab === 'manual' && (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900 dark:bg-gray-100" />
-          )}
-        </button>
+        {canViewManualEntry && (
+          <button
+            onClick={() => setActiveTab('manual')}
+            className={`px-4 py-2.5 text-[13px] font-medium transition-colors relative ${
+              activeTab === 'manual'
+                ? 'text-gray-900 dark:text-gray-100'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            Manual entry
+            {activeTab === 'manual' && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900 dark:bg-gray-100" />
+            )}
+          </button>
+        )}
       </div>
 
       {/* Manual Entry Tab */}
-      <div className={activeTab === 'manual' ? '' : 'hidden'}>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <ManualEntryPanel />
+      {canViewManualEntry && (
+        <div className={activeTab === 'manual' ? '' : 'hidden'}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+            <ManualEntryPanel />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* File Import Tab */}
       <div className={activeTab === 'import' ? 'space-y-6' : 'hidden'}>
