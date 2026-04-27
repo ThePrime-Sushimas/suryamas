@@ -8,3 +8,4 @@ logs/
 .DS_Store
 .vercel
 dev.log
+frontend/.env.production
