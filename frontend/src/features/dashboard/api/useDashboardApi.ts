@@ -21,6 +21,7 @@ export const usePosSalesToday = (dateFrom: string, dateTo: string) =>
         total_fee_amount: number
         status: string
         is_reconciled: boolean
+        skip_reason: string | null
       }>
     },
     enabled: !!dateFrom && !!dateTo,

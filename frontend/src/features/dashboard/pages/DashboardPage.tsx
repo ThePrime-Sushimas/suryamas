@@ -17,6 +17,7 @@ import { SalesOverview } from '../components/SalesOverview'
 import { FinanceOverview } from '../components/FinanceOverview'
 import { DailySalesChart } from '../components/DailySalesChart'
 import { paymentDotColor } from '../utils/paymentDotColor'
+import { VoidDetailModal } from '../components/VoidDetailModal'
 
 const fmtDate = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -128,6 +129,18 @@ export default function DashboardPage() {
   }, [sales.data, companyBranchNames])
 
   const pmTotal = useMemo(() => paymentMethods.filter(pm => !pm.isVoid).reduce((s, pm) => s + pm.total, 0), [paymentMethods])
+
+  const voidRows = useMemo(() =>
+    (sales.data || []).filter(isVoid).map(r => ({
+      sales_date: r.sales_date,
+      branch_name: r.branch_name,
+      grand_total: r.grand_total,
+      void_transaction_count: r.void_transaction_count ?? 0,
+      skip_reason: r.skip_reason,
+    }))
+  , [sales.data])
+  const [showVoidModal, setShowVoidModal] = useState(false)
+
   const periodLabel = `${appliedFrom} — ${appliedTo}`
 
   if (!user) {
@@ -191,6 +204,7 @@ export default function DashboardPage() {
             branchRanking={branchRanking} paymentMethods={paymentMethods} pmTotal={pmTotal}
             companies={companies} activePmCompany={activePmCompany} onCompanyTab={setPmCompanyTab}
             isLoading={sales.isLoading}
+            onVoidClick={() => setShowVoidModal(true)}
           />
         </div>
 
@@ -217,6 +231,8 @@ export default function DashboardPage() {
         <footer className="pt-4 pb-2 text-center text-xs text-gray-400 dark:text-gray-500">
           © {new Date().getFullYear()} CV Suryamas Pangan · {currentBranch?.branch_name || ''}
         </footer>
+
+        <VoidDetailModal isOpen={showVoidModal} onClose={() => setShowVoidModal(false)} data={voidRows} />
       </div>
     </div>
   )
@@ -226,7 +242,7 @@ export default function DashboardPage() {
 
 type SidebarTab = 'cabang' | 'payment'
 
-function SidebarTabs({ branchRanking, paymentMethods, pmTotal, companies, activePmCompany, onCompanyTab, isLoading }: {
+function SidebarTabs({ branchRanking, paymentMethods, pmTotal, companies, activePmCompany, onCompanyTab, isLoading, onVoidClick }: {
   branchRanking: Array<{ name: string; total: number; trx: number }>
   paymentMethods: Array<{ name: string; type: string; total: number; trx: number; isVoid: boolean }>
   pmTotal: number
@@ -234,6 +250,7 @@ function SidebarTabs({ branchRanking, paymentMethods, pmTotal, companies, active
   activePmCompany: string | null
   onCompanyTab: (id: string) => void
   isLoading: boolean
+  onVoidClick: () => void
 }) {
   const [tab, setTab] = useState<SidebarTab>('cabang')
 
@@ -296,13 +313,13 @@ function SidebarTabs({ branchRanking, paymentMethods, pmTotal, companies, active
             {pmTotal > 0 && <p className="text-[10px] text-gray-400 text-right mb-1">Total: {fmt(pmTotal)}</p>}
             {paymentMethods.map((pm) => {
               if (pm.isVoid) return (
-                <div key="VOID" className="flex items-center gap-2 py-1 border-t border-dashed border-gray-200 dark:border-gray-700 mt-1 pt-1.5">
+                <button key="VOID" onClick={onVoidClick} className="flex items-center gap-2 py-1 w-full border-t border-dashed border-gray-200 dark:border-gray-700 mt-1 pt-1.5 hover:bg-rose-50 dark:hover:bg-rose-900/10 rounded transition-colors cursor-pointer">
                   <span className="w-2 h-2 rounded-full shrink-0 bg-rose-500" />
-                  <span className="flex-1 text-xs text-rose-600 dark:text-rose-400 line-through truncate">VOID</span>
+                  <span className="flex-1 text-xs text-rose-600 dark:text-rose-400 line-through truncate text-left">VOID</span>
                   <span className="text-[10px] text-rose-400 shrink-0">—</span>
                   <span className="text-[11px] text-rose-400 shrink-0">{pm.trx} trx</span>
                   <span className="text-xs font-medium text-rose-600 dark:text-rose-400 w-24 text-right shrink-0">{fmt(pm.total)}</span>
-                </div>
+                </button>
               )
               const dotColor = paymentDotColor(pm.type)
               const share = pmTotal > 0 ? ((pm.total / pmTotal) * 100).toFixed(1) : '0'
