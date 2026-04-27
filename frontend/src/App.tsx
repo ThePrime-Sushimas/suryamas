@@ -17,7 +17,15 @@ import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Create a client
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 2 * 60_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 // Lazy load features
 const DashboardLayout = lazy(() =>

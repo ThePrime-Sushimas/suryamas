@@ -1,19 +1,13 @@
 import { useState, useMemo } from 'react'
-import { useBranchContext } from '@/features/branch_context'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, TrendingUp, TrendingDown, ArrowRight, Search, CheckCircle2 } from 'lucide-react'
-import { feeDiscrepancyApi } from '@/features/bank-reconciliation/fee-discrepancy-review/api/fee-discrepancy.api'
 import {
-  usePosSalesRange, useReconSummary, useCashCountPending,
-  useAllBranches, useBankAccountsList, useRecentBankStatementImports,
-  useFiscalPeriodsStatus, useFailedTransactionsCount,
+  usePosSalesRange, useAllBranches, useFailedTransactionsCount,
 } from '../api/useDashboardApi'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useQuery } from '@tanstack/react-query'
 import { companiesApi } from '@/features/companies/api/companies.api'
-import { WorkflowTracker } from '../components/WorkflowTracker'
 import { SalesOverview } from '../components/SalesOverview'
-import { FinanceOverview } from '../components/FinanceOverview'
 import { DailySalesChart } from '../components/DailySalesChart'
 import { paymentDotColor } from '../utils/paymentDotColor'
 import { VoidDetailModal } from '../components/VoidDetailModal'
@@ -28,7 +22,6 @@ function firstOfMonth() { const d = new Date(); return new Date(d.getFullYear(),
 function yesterday() { const d = new Date(); d.setDate(d.getDate() - 1); return d }
 
 export default function DashboardSalesPage() {
-  const currentBranch = useBranchContext()
   const allUserBranches = useBranchContextStore((s) => s.branches)
 
   // Companies
@@ -60,18 +53,7 @@ export default function DashboardSalesPage() {
 
   // Data hooks — single query covers appliedFrom..appliedTo + yesterday for delta
   const sales = usePosSalesRange(appliedFrom, appliedTo)
-  const recon = useReconSummary()
-  const cashCount = useCashCountPending()
-  const feeSummary = useQuery({
-    queryKey: ['dashboard', 'fee-discrepancy-summary', appliedFrom, appliedTo],
-    queryFn: () => feeDiscrepancyApi.summary({ dateFrom: appliedFrom, dateTo: appliedTo }),
-    enabled: !!appliedFrom && !!appliedTo,
-    retry: false,
-  })
   const allBranches = useAllBranches()
-  const bankAccounts = useBankAccountsList(currentBranch?.company_id)
-  const bankImports = useRecentBankStatementImports()
-  const fiscalPeriods = useFiscalPeriodsStatus()
   const failedTrxCount = useFailedTransactionsCount()
   const todayStr = fmtDate(new Date())
   const yesterdayStr = fmtDate(yesterday())
@@ -100,8 +82,6 @@ export default function DashboardSalesPage() {
   const todayTotal = useMemo(() => todaySalesData.filter(r => !isVoid(r)).reduce((s, r) => s + r.grand_total, 0), [todaySalesData])
   const totalFee = useMemo(() => rangeData.filter(r => !isVoid(r)).reduce((s, r) => s + r.total_fee_amount, 0), [rangeData])
   const yesterdayTotal = useMemo(() => yesterdayData.filter(r => !isVoid(r)).reduce((s, r) => s + r.grand_total, 0), [yesterdayData])
-  const unreconciledCount = recon.data?.unreconciled_count || 0
-  const feeDiscrepancyCount = feeSummary.data?.totalPending || recon.data?.discrepancy_count || 0
   const failedCount = failedTrxCount.data || 0
 
   const deltaPercent = useMemo(() => {
@@ -152,7 +132,6 @@ export default function DashboardSalesPage() {
   , [rangeData])
   const [showVoidModal, setShowVoidModal] = useState(false)
 
-  const periodLabel = `${appliedFrom} — ${appliedTo}`
 
   return (
     <>
@@ -170,7 +149,7 @@ export default function DashboardSalesPage() {
         </div>
 
         {/* Summary bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <SyncStatusCell allBranches={allBranches.data} salesData={todaySalesData} isLoading={allBranches.isLoading || sales.isLoading} />
           <div className="bg-gray-100 dark:bg-gray-800/60 rounded-lg p-3">
             <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">Penjualan Hari Ini</p>
@@ -186,8 +165,10 @@ export default function DashboardSalesPage() {
               </>
             )}
           </div>
-          <MetricCard label="Belum Rekon" value={recon.isLoading ? '...' : `${unreconciledCount}`} loading={recon.isLoading} color={unreconciledCount > 0 ? 'warn' : undefined} />
-          <MetricCard label="Fee Discrepancy" value={feeSummary.isLoading && recon.isLoading ? '...' : `${feeDiscrepancyCount}`} loading={feeSummary.isLoading && recon.isLoading} color={feeDiscrepancyCount > 2 ? 'danger' : feeDiscrepancyCount > 0 ? 'warn' : undefined} />
+          <div className="bg-gray-100 dark:bg-gray-800/60 rounded-lg p-3">
+            <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">Total Fee (MDR)</p>
+            {sales.isLoading ? <div className="h-5 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /> : <p className="text-base font-semibold text-gray-900 dark:text-white">{fmt(totalFee)}</p>}
+          </div>
         </div>
 
         {/* Chart + Sidebar (Cabang / Payment Method tabs) */}
@@ -212,14 +193,7 @@ export default function DashboardSalesPage() {
           </Link>
         )}
 
-        {/* Workflow + Detail Hari Ini + Finance */}
-        <div className="grid grid-cols-1 lg:grid-cols-[58fr_42fr] gap-4 items-start">
-          <WorkflowTracker periodLabel={periodLabel} totalStatements={recon.data?.total_statements || 0} unmatchedCount={recon.data?.unreconciled_count || 0} reconciledCount={recon.data?.reconciled_count || 0} unreconciledCount={unreconciledCount} cashPending={cashCount.data?.pendingCount || 0} feeDiscrepancyCount={feeDiscrepancyCount} />
-          <div className="space-y-4">
-            <SalesOverview data={todaySalesData} isLoading={sales.isLoading} isFetching={sales.isFetching} onRefresh={() => sales.refetch()} />
-            <FinanceOverview bankAccounts={bankAccounts.data} bankImports={bankImports.data} fiscalPeriods={fiscalPeriods.data} totalFee={totalFee} isLoading={bankAccounts.isLoading || fiscalPeriods.isLoading} />
-          </div>
-        </div>
+        <SalesOverview data={todaySalesData} isLoading={sales.isLoading} isFetching={sales.isFetching} onRefresh={() => sales.refetch()} />
 
       <VoidDetailModal isOpen={showVoidModal} onClose={() => setShowVoidModal(false)} data={voidRows} />
     </>
@@ -329,16 +303,6 @@ function SidebarTabs({ branchRanking, paymentMethods, pmTotal, companies, active
 }
 
 /* ── Small components ── */
-
-function MetricCard({ label, value, loading, color }: { label: string; value: string; loading: boolean; color?: 'warn' | 'danger' }) {
-  const vc = color === 'danger' ? 'text-rose-600 dark:text-rose-400' : color === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-white'
-  return (
-    <div className="bg-gray-100 dark:bg-gray-800/60 rounded-lg p-3">
-      <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">{label}</p>
-      {loading ? <div className="h-5 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /> : <p className={`text-base font-semibold ${vc}`}>{value}</p>}
-    </div>
-  )
-}
 
 function SyncStatusCell({ allBranches, salesData, isLoading }: { allBranches: Array<{ id: string; branch_name: string }> | undefined; salesData: Array<{ branch_name: string | null }> | undefined; isLoading: boolean }) {
   const [expanded, setExpanded] = useState(false)

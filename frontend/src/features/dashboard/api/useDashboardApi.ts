@@ -65,6 +65,7 @@ export const useReconSummary = () =>
         unreconciled_amount: number
       }
     },
+    staleTime: 2 * 60_000,
   })
 
 // Cash Count deposits pending
@@ -77,6 +78,7 @@ export const useCashCountPending = () =>
       const pendingCount = deposits.filter((d: { status: string }) => d.status === 'PENDING').length
       return { pendingCount, recentDeposits: deposits.slice(0, 3) }
     },
+    staleTime: 2 * 60_000,
   })
 
 // Basic stats
@@ -182,5 +184,39 @@ export const useFailedTransactionsCount = () =>
       })
       return (data.pagination?.total as number) || 0
     },
-    staleTime: 60_000,
   })
+
+// Journal summary — count by status
+export const useJournalSummary = () =>
+  useQuery({
+    queryKey: ['dashboard', 'journal-summary'],
+    queryFn: async () => {
+      const [all, posted, draft, approved] = await Promise.all([
+        api.get('/accounting/journals', { params: { limit: 1, page: 1 } }),
+        api.get('/accounting/journals', { params: { limit: 1, page: 1, status: 'POSTED' } }),
+        api.get('/accounting/journals', { params: { limit: 1, page: 1, status: 'DRAFT' } }),
+        api.get('/accounting/journals', { params: { limit: 1, page: 1, status: 'APPROVED' } }),
+      ])
+      return {
+        total: all.data.pagination?.total || 0,
+        posted: posted.data.pagination?.total || 0,
+        draft: draft.data.pagination?.total || 0,
+        approved: approved.data.pagination?.total || 0,
+      }
+    },
+    staleTime: 5 * 60_000,
+  })
+
+// Fee discrepancy summary
+export const useFeeDiscrepancySummary = (dateFrom: string, dateTo: string) => {
+  const feeApi = import('@/features/bank-reconciliation/fee-discrepancy-review/api/fee-discrepancy.api')
+  return useQuery({
+    queryKey: ['dashboard', 'fee-discrepancy-summary', dateFrom, dateTo],
+    queryFn: async () => {
+      const { feeDiscrepancyApi } = await feeApi
+      return feeDiscrepancyApi.summary({ dateFrom, dateTo })
+    },
+    enabled: !!dateFrom && !!dateTo,
+    retry: false,
+  })
+}
