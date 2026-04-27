@@ -391,6 +391,18 @@ export const posSyncAggregatesRepository = {
     );
   },
 
+  async findVoidSalesDetails(salesNums: string[]) {
+    if (salesNums.length === 0) return []
+    const { data, error } = await supabase
+      .from('tr_saleshead')
+      .select('sales_num, sales_date, sales_date_in, sales_date_out, branch_id, queue_num, pax_total, subtotal, discount_total, vat_total, grand_total, additional_info, created_by')
+      .in('sales_num', salesNums)
+      .eq('status_id', 12)
+      .order('sales_date_in', { ascending: false })
+    if (error) throw error
+    return data ?? []
+  },
+
   async getVoidSummary(startDate: string, endDate: string) {
     const { data, error } = await supabase
       .from("pos_sync_aggregates")

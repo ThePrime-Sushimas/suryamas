@@ -16,6 +16,7 @@ PermissionService.registerModule('pos_sync_aggregates', 'POS Sync Aggregates Man
 router.get("/", authenticate, resolveBranchContext, canView('pos_sync_aggregates'), posSyncAggregatesController.list);
 router.get("/:id", authenticate, resolveBranchContext, canView('pos_sync_aggregates'), posSyncAggregatesController.getById);
 router.get("/:id/lines", authenticate, resolveBranchContext, canView('pos_sync_aggregates'), posSyncAggregatesController.getLines);
+router.post("/void-details", authenticate, resolveBranchContext, canView('pos_sync_aggregates'), posSyncAggregatesController.getVoidDetails);
 
 export default router;
 

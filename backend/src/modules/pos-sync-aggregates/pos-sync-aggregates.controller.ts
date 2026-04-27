@@ -48,4 +48,18 @@ export const posSyncAggregatesController = {
       res.status(500).json({ success: false, message: err?.message });
     }
   },
+
+  getVoidDetails: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { sales_nums } = req.body;
+      if (!Array.isArray(sales_nums) || sales_nums.length === 0) {
+        res.status(400).json({ success: false, message: 'sales_nums array is required' });
+        return;
+      }
+      const data = await posSyncAggregatesRepository.findVoidSalesDetails(sales_nums.slice(0, 200));
+      res.json({ success: true, data });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err?.message });
+    }
+  },
 };
