@@ -17,6 +17,7 @@ export const usePosSalesToday = (dateFrom: string, dateTo: string) =>
         grand_total: number
         nett_amount: number
         transaction_count: number
+        void_transaction_count: number
         total_fee_amount: number
         status: string
         is_reconciled: boolean

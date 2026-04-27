@@ -77,15 +77,17 @@ export default function DashboardPage() {
   const failedTrxCount = useFailedTransactionsCount()
   const todayStr = fmtDate(new Date())
 
+  const isVoid = (r: { status: string }) => r.status === 'VOID'
+
   // Derive today's sales from the full range query instead of a separate request
   const todaySalesData = useMemo(() =>
     sales.data?.filter(r => r.sales_date?.slice(0, 10) === todayStr) || []
   , [sales.data, todayStr])
 
-  // Computed
-  const todayTotal = useMemo(() => todaySalesData.reduce((s, r) => s + r.grand_total, 0), [todaySalesData])
-  const totalFee = useMemo(() => sales.data?.reduce((s, r) => s + r.total_fee_amount, 0) || 0, [sales.data])
-  const yesterdayTotal = useMemo(() => yesterdaySales.data?.reduce((s, r) => s + r.grand_total, 0) || 0, [yesterdaySales.data])
+  // Computed — exclude VOID from totals
+  const todayTotal = useMemo(() => todaySalesData.filter(r => !isVoid(r)).reduce((s, r) => s + r.grand_total, 0), [todaySalesData])
+  const totalFee = useMemo(() => sales.data?.filter(r => !isVoid(r)).reduce((s, r) => s + r.total_fee_amount, 0) || 0, [sales.data])
+  const yesterdayTotal = useMemo(() => yesterdaySales.data?.filter(r => !isVoid(r)).reduce((s, r) => s + r.grand_total, 0) || 0, [yesterdaySales.data])
   const unreconciledCount = recon.data?.unreconciled_count || 0
   const feeDiscrepancyCount = feeSummary.data?.totalPending || recon.data?.discrepancy_count || 0
   const failedCount = failedTrxCount.data || 0
@@ -99,22 +101,33 @@ export default function DashboardPage() {
   const branchRanking = useMemo(() => {
     if (!sales.data) return []
     const map = new Map<string, { total: number; trx: number }>()
-    for (const r of sales.data) { const n = r.branch_name || 'Unknown'; const e = map.get(n); if (e) { e.total += r.grand_total; e.trx += r.transaction_count } else map.set(n, { total: r.grand_total, trx: r.transaction_count }) }
+    for (const r of sales.data) {
+      if (isVoid(r)) continue
+      const n = r.branch_name || 'Unknown'; const e = map.get(n); if (e) { e.total += r.grand_total; e.trx += r.transaction_count } else map.set(n, { total: r.grand_total, trx: r.transaction_count })
+    }
     return [...map.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.total - a.total)
   }, [sales.data])
 
   const paymentMethods = useMemo(() => {
     if (!sales.data) return []
-    const map = new Map<string, { name: string; type: string; total: number; trx: number }>()
+    const map = new Map<string, { name: string; type: string; total: number; trx: number; isVoid: boolean }>()
+    let voidTotal = 0, voidTrx = 0
     for (const r of sales.data) {
       if (companyBranchNames && r.branch_name && !companyBranchNames.has(r.branch_name.toLowerCase())) continue
+      if (isVoid(r)) {
+        voidTotal += r.grand_total
+        voidTrx += r.void_transaction_count ?? 0
+        continue
+      }
       const n = r.payment_methods?.name || 'Unknown'; const e = map.get(n)
-      if (e) { e.total += r.grand_total; e.trx += r.transaction_count } else map.set(n, { name: n, type: r.payment_methods?.payment_type || '', total: r.grand_total, trx: r.transaction_count })
+      if (e) { e.total += r.grand_total; e.trx += r.transaction_count } else map.set(n, { name: n, type: r.payment_methods?.payment_type || '', total: r.grand_total, trx: r.transaction_count, isVoid: false })
     }
-    return [...map.values()].sort((a, b) => b.total - a.total)
+    const sorted = [...map.values()].sort((a, b) => b.total - a.total)
+    if (voidTrx > 0) sorted.push({ name: 'VOID', type: 'void', total: voidTotal, trx: voidTrx, isVoid: true })
+    return sorted
   }, [sales.data, companyBranchNames])
 
-  const pmTotal = useMemo(() => paymentMethods.reduce((s, pm) => s + pm.total, 0), [paymentMethods])
+  const pmTotal = useMemo(() => paymentMethods.filter(pm => !pm.isVoid).reduce((s, pm) => s + pm.total, 0), [paymentMethods])
   const periodLabel = `${appliedFrom} — ${appliedTo}`
 
   if (!user) {
@@ -215,7 +228,7 @@ type SidebarTab = 'cabang' | 'payment'
 
 function SidebarTabs({ branchRanking, paymentMethods, pmTotal, companies, activePmCompany, onCompanyTab, isLoading }: {
   branchRanking: Array<{ name: string; total: number; trx: number }>
-  paymentMethods: Array<{ name: string; type: string; total: number; trx: number }>
+  paymentMethods: Array<{ name: string; type: string; total: number; trx: number; isVoid: boolean }>
   pmTotal: number
   companies: Array<{ id: string; name: string }>
   activePmCompany: string | null
@@ -282,6 +295,15 @@ function SidebarTabs({ branchRanking, paymentMethods, pmTotal, companies, active
           <div className="p-3 flex-1 overflow-y-auto max-h-80 space-y-1.5">
             {pmTotal > 0 && <p className="text-[10px] text-gray-400 text-right mb-1">Total: {fmt(pmTotal)}</p>}
             {paymentMethods.map((pm) => {
+              if (pm.isVoid) return (
+                <div key="VOID" className="flex items-center gap-2 py-1 border-t border-dashed border-gray-200 dark:border-gray-700 mt-1 pt-1.5">
+                  <span className="w-2 h-2 rounded-full shrink-0 bg-rose-500" />
+                  <span className="flex-1 text-xs text-rose-600 dark:text-rose-400 line-through truncate">VOID</span>
+                  <span className="text-[10px] text-rose-400 shrink-0">—</span>
+                  <span className="text-[11px] text-rose-400 shrink-0">{pm.trx} trx</span>
+                  <span className="text-xs font-medium text-rose-600 dark:text-rose-400 w-24 text-right shrink-0">{fmt(pm.total)}</span>
+                </div>
+              )
               const dotColor = paymentDotColor(pm.type)
               const share = pmTotal > 0 ? ((pm.total / pmTotal) * 100).toFixed(1) : '0'
               return (
