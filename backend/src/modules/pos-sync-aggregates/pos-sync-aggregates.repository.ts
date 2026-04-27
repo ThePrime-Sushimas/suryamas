@@ -1,4 +1,5 @@
 import { supabase } from "@/config/supabase";
+import { logError } from "@/config/logger";
 import { ListAggregatesParams } from "./pos-sync-aggregates.types";
 
 export const posSyncAggregatesRepository = {
@@ -239,67 +240,23 @@ export const posSyncAggregatesRepository = {
   /**
    * Auto-supersede newly inserted manual (POS) entries if POS_SYNC already exists
    * for the same (date, branch, payment_method). Called after bulk CSV import.
+   *
+   * Before: N+1 queries (fetch chunks + per-record lookup + per-record update)
+   * After:  1 RPC call via supersede_manual_if_sync_exists_batch
    */
   async supersedeManualIfPosSyncExists(manualIds: string[]): Promise<number> {
     if (manualIds.length === 0) return 0;
 
-    let supersededCount = 0;
-    const CHUNK = 50;
-    const allManualEntries: any[] = [];
+    const { data, error } = await supabase.rpc(
+      'supersede_manual_if_sync_exists_batch',
+      { p_manual_ids: manualIds }
+    );
 
-    // Fetch in chunks to avoid Supabase .in() limit
-    for (let i = 0; i < manualIds.length; i += CHUNK) {
-      const chunk = manualIds.slice(i, i + CHUNK);
-      const { data, error: fetchErr } = await supabase
-        .from("aggregated_transactions")
-        .select("id, transaction_date, branch_id, branch_name, payment_method_id")
-        .in("id", chunk)
-        .eq("source_type", "POS")
-        .is("superseded_by", null)
-        .is("deleted_at", null);
-
-      if (fetchErr) continue;
-      if (data) allManualEntries.push(...data);
+    if (error) {
+      logError('supersedeManualIfPosSyncExists failed', { error: error.message });
+      return 0;
     }
-
-    if (!allManualEntries.length) return 0;
-
-    for (const manual of allManualEntries) {
-      if (!manual.payment_method_id) continue;
-      if (!manual.branch_id && !manual.branch_name) continue;
-
-      let query = supabase
-        .from("aggregated_transactions")
-        .select("id")
-        .eq("source_type", "POS_SYNC")
-        .eq("transaction_date", manual.transaction_date)
-        .eq("payment_method_id", manual.payment_method_id)
-        .is("deleted_at", null)
-        .is("superseded_by", null)
-        .limit(1);
-
-      if (manual.branch_id) {
-        query = query.eq("branch_id", manual.branch_id);
-      } else {
-        query = query.eq("branch_name", manual.branch_name);
-      }
-
-      const { data: posSync } = await query.maybeSingle();
-
-      if (posSync) {
-        const { error: updateErr } = await supabase
-          .from("aggregated_transactions")
-          .update({
-            superseded_by: posSync.id,
-            status: "SUPERSEDED",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", manual.id);
-
-        if (!updateErr) supersededCount++;
-      }
-    }
-    return supersededCount;
+    return data ?? 0;
   },
 
   /**
