@@ -210,7 +210,7 @@ export const stagingRepository = {
 export const aggregateRepository = {
   async getSalesNumsByDate(salesDate: string): Promise<string[]> {
     const { rows } = await pool.query(
-      `SELECT sales_num FROM tr_saleshead WHERE sales_date = $1`,
+      `SELECT sales_num FROM tr_saleshead WHERE sales_date = $1::date`,
       [salesDate]
     );
     if (rows.length === 0) throw new Error(`No sales found for date ${salesDate}`);
