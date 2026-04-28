@@ -1,4 +1,4 @@
-import { supabase } from '../../config/supabase'
+import { pool } from '../../config/db'
 import { MetricUnit, CreateMetricUnitDto, UpdateMetricUnitDto } from './metricUnits.types'
 import { METRIC_UNIT_CONFIG } from './metricUnits.constants'
 import { DuplicateMetricUnitError } from './metric-units.errors'
@@ -12,100 +12,78 @@ export class MetricUnitsRepository {
     sort?: { field: string; order: 'asc' | 'desc' },
     filter?: { metric_type?: string; is_active?: boolean; q?: string }
   ): Promise<{ data: MetricUnit[]; total: number }> {
-    let query = supabase.from(this.tableName).select('*')
-    let countQuery = supabase.from(this.tableName).select('id', { count: 'exact', head: true })
+    const conditions: string[] = []
+    const params: (string | boolean)[] = []
+    let idx = 1
 
-    if (filter?.metric_type) {
-      query = query.eq('metric_type', filter.metric_type)
-      countQuery = countQuery.eq('metric_type', filter.metric_type)
-    }
+    if (filter?.metric_type) { params.push(filter.metric_type); conditions.push(`metric_type = $${idx}`); idx++ }
+    if (filter?.is_active !== undefined) { params.push(filter.is_active); conditions.push(`is_active = $${idx}`); idx++ }
+    if (filter?.q) { params.push(`%${filter.q}%`); conditions.push(`(unit_name ILIKE $${idx} OR notes ILIKE $${idx})`); idx++ }
 
-    if (filter?.is_active !== undefined) {
-      query = query.eq('is_active', filter.is_active)
-      countQuery = countQuery.eq('is_active', filter.is_active)
-    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    const sortField = sort?.field && this.sortableFields.includes(sort.field as typeof METRIC_UNIT_CONFIG.SORTABLE_FIELDS[number]) ? sort.field : null
+    const orderBy = sortField
+      ? `ORDER BY ${sortField} ${sort?.order === 'desc' ? 'DESC' : 'ASC'}`
+      : 'ORDER BY metric_type ASC, unit_name ASC, id ASC'
 
-    if (filter?.q) {
-      const searchTerm = `%${filter.q}%`
-      query = query.or(`unit_name.ilike.${searchTerm},notes.ilike.${searchTerm}`)
-      countQuery = countQuery.or(`unit_name.ilike.${searchTerm},notes.ilike.${searchTerm}`)
-    }
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(`SELECT * FROM ${this.tableName} ${where} ${orderBy} LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
+      pool.query(`SELECT COUNT(*)::int AS total FROM ${this.tableName} ${where}`, params)
+    ])
 
-    if (sort?.field && this.sortableFields.includes(sort.field as typeof METRIC_UNIT_CONFIG.SORTABLE_FIELDS[number])) {
-      query = query.order(sort.field, { ascending: sort.order === 'asc' })
-    } else {
-      query = query.order('metric_type', { ascending: true }).order('unit_name', { ascending: true }).order('id', { ascending: true })
-    }
-
-    query = query.range(pagination.offset, pagination.offset + pagination.limit - 1)
-
-    const [{ data, error }, { count, error: countError }] = await Promise.all([query, countQuery])
-
-    if (error) throw error
-    if (countError) throw countError
-    return { data: data || [], total: count || 0 }
+    return { data: dataRes.rows, total: countRes.rows[0].total }
   }
 
   async listActiveFromView(
     pagination: { page: number; limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' }
   ): Promise<{ data: MetricUnit[]; total: number }> {
-    let query = supabase.from(this.tableName).select('*').eq('is_active', true)
-    let countQuery = supabase.from(this.tableName).select('id', { count: 'exact', head: true }).eq('is_active', true)
-
-    if (sort?.field && this.sortableFields.includes(sort.field as typeof METRIC_UNIT_CONFIG.SORTABLE_FIELDS[number])) {
-      query = query.order(sort.field, { ascending: sort.order === 'asc' })
-    } else {
-      query = query.order('metric_type', { ascending: true }).order('unit_name', { ascending: true }).order('id', { ascending: true })
-    }
-
-    query = query.range(pagination.offset, pagination.offset + pagination.limit - 1)
-
-    const [{ data, error }, { count }] = await Promise.all([query, countQuery])
-
-    if (error) throw error
-    return { data: data || [], total: count || 0 }
+    return this.list(pagination, sort, { is_active: true })
   }
 
   async findById(id: string): Promise<MetricUnit | null> {
-    const { data, error } = await supabase.from(this.tableName).select('*').eq('id', id).maybeSingle()
-    if (error) throw error
-    return data
+    const { rows } = await pool.query(`SELECT * FROM ${this.tableName} WHERE id = $1`, [id])
+    return rows[0] ?? null
   }
 
   async create(dto: CreateMetricUnitDto): Promise<MetricUnit> {
-    const { data, error } = await supabase.from(this.tableName).insert([dto]).select().single()
-    if (error) {
-      if (error.code === '23505') {
-        throw new DuplicateMetricUnitError(dto.metric_type, dto.unit_name)
-      }
-      throw error
+    const keys = Object.keys(dto)
+    const values = Object.values(dto)
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO ${this.tableName} (${keys.join(', ')}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
+        values
+      )
+      return rows[0]
+    } catch (err: unknown) {
+      if ((err as { code?: string }).code === '23505') throw new DuplicateMetricUnitError(dto.metric_type, dto.unit_name)
+      throw err
     }
-    return data
   }
 
   async updateById(id: string, dto: UpdateMetricUnitDto): Promise<MetricUnit | null> {
-    const { data, error } = await supabase.from(this.tableName).update(dto).eq('id', id).select().maybeSingle()
-    if (error) {
-      if (error.code === '23505') {
-        throw new DuplicateMetricUnitError(dto.metric_type, dto.unit_name)
-      }
-      throw error
+    const keys = Object.keys(dto)
+    if (!keys.length) return this.findById(id)
+    const values = Object.values(dto)
+    try {
+      const { rows } = await pool.query(
+        `UPDATE ${this.tableName} SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')} WHERE id = $${keys.length + 1} RETURNING *`,
+        [...values, id]
+      )
+      return rows[0] ?? null
+    } catch (err: unknown) {
+      if ((err as { code?: string }).code === '23505') throw new DuplicateMetricUnitError(dto.metric_type, dto.unit_name)
+      throw err
     }
-    return data
   }
 
   async delete(id: string): Promise<void> {
-    const { error } = await supabase.from(this.tableName).delete().eq('id', id)
-    if (error) throw error
+    await pool.query(`DELETE FROM ${this.tableName} WHERE id = $1`, [id])
   }
 
   async bulkUpdateStatus(ids: string[], is_active: boolean): Promise<void> {
-    if (!ids || ids.length === 0) {
-      throw new Error('No IDs provided for bulk update')
-    }
-    const { error } = await supabase.from(this.tableName).update({ is_active }).in('id', ids)
-    if (error) throw error
+    if (!ids?.length) throw new Error('No IDs provided for bulk update')
+    await pool.query(`UPDATE ${this.tableName} SET is_active = $1 WHERE id = ANY($2::uuid[])`, [is_active, ids])
   }
 }
 

@@ -1,4 +1,4 @@
-import { supabase } from '../../config/supabase'
+import { pool } from '../../config/db'
 import { Bank, CreateBankDto, UpdateBankDto, BankListQuery, BankOption } from './banks.types'
 import { DatabaseError } from '../../utils/error-handler.util'
 import { logDebug, logError } from '../../config/logger'
@@ -9,53 +9,28 @@ export class BanksRepository {
     query?: BankListQuery
   ): Promise<{ data: Bank[]; total: number }> {
     const startTime = Date.now()
-    
     try {
-      let dbQuery = supabase.from('banks').select('*')
-      let countQuery = supabase.from('banks').select('*', { count: 'exact', head: true })
+      const conditions: string[] = []
+      const params: (string | boolean)[] = []
+      let idx = 1
 
       if (query?.search) {
         const searchTerm = query.search.replace(/[%_]/g, '\\$&')
-        const pattern = `%${searchTerm}%`
-        dbQuery = dbQuery.or(`bank_code.ilike.${pattern},bank_name.ilike.${pattern}`)
-        countQuery = countQuery.or(`bank_code.ilike.${pattern},bank_name.ilike.${pattern}`)
+        params.push(`%${searchTerm}%`)
+        conditions.push(`(bank_code ILIKE $${idx} OR bank_name ILIKE $${idx})`)
+        idx++
       }
+      if (query?.is_active !== undefined) { params.push(query.is_active); conditions.push(`is_active = $${idx}`); idx++ }
 
-      if (query?.is_active !== undefined) {
-        dbQuery = dbQuery.eq('is_active', query.is_active)
-        countQuery = countQuery.eq('is_active', query.is_active)
-      }
+      const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
-      dbQuery = dbQuery.order('bank_name', { ascending: true })
-
-      const [{ data, error }, { count, error: countError }] = await Promise.all([
-        dbQuery.range(pagination.offset, pagination.offset + pagination.limit - 1),
-        countQuery,
+      const [dataRes, countRes] = await Promise.all([
+        pool.query(`SELECT * FROM banks ${where} ORDER BY bank_name ASC LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
+        pool.query(`SELECT COUNT(*)::int AS total FROM banks ${where}`, params)
       ])
 
-      if (error) {
-        throw new DatabaseError('Failed to fetch banks', {
-          cause: error,
-          context: { query: 'findAll', filters: query, pagination }
-        })
-      }
-      
-      if (countError) {
-        throw new DatabaseError('Failed to count banks', {
-          cause: countError,
-          context: { query: 'findAll', filters: query }
-        })
-      }
-
-      const duration = Date.now() - startTime
-      logDebug('Banks query executed', {
-        query: 'findAll',
-        duration,
-        rowCount: data?.length ?? 0,
-        total: count ?? 0
-      })
-
-      return { data: data ?? [], total: count ?? 0 }
+      logDebug('Banks query executed', { query: 'findAll', duration: Date.now() - startTime, rowCount: dataRes.rows.length, total: countRes.rows[0].total })
+      return { data: dataRes.rows, total: countRes.rows[0].total }
     } catch (error) {
       logError('Banks repository error', { method: 'findAll', error })
       throw error
@@ -63,163 +38,52 @@ export class BanksRepository {
   }
 
   async findById(id: number): Promise<Bank | null> {
-    try {
-      const { data, error } = await supabase
-        .from('banks')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle()
-
-      if (error) {
-        throw new DatabaseError('Failed to fetch bank by ID', {
-          cause: error,
-          context: { bankId: id }
-        })
-      }
-      
-      return data
-    } catch (error) {
-      logError('Banks repository error', { method: 'findById', bankId: id, error })
-      throw error
-    }
+    const { rows } = await pool.query('SELECT * FROM banks WHERE id = $1', [id])
+    return rows[0] ?? null
   }
 
   async findByCode(code: string, excludeId?: number): Promise<Bank | null> {
-    try {
-      let query = supabase
-        .from('banks')
-        .select('*')
-        .eq('bank_code', code)
-
-      if (excludeId) {
-        query = query.neq('id', excludeId)
-      }
-
-      const { data, error } = await query.maybeSingle()
-
-      if (error) {
-        throw new DatabaseError('Failed to fetch bank by code', {
-          cause: error,
-          context: { bankCode: code, excludeId }
-        })
-      }
-      
-      return data
-    } catch (error) {
-      logError('Banks repository error', { method: 'findByCode', bankCode: code, error })
-      throw error
-    }
+    const params: (string | number)[] = [code]
+    let query = 'SELECT * FROM banks WHERE bank_code = $1'
+    if (excludeId) { params.push(excludeId); query += ' AND id != $2' }
+    const { rows } = await pool.query(query, params)
+    return rows[0] ?? null
   }
 
   async create(data: CreateBankDto): Promise<Bank> {
-    try {
-      const { data: bank, error } = await supabase
-        .from('banks')
-        .insert({
-          ...data,
-          is_active: data.is_active ?? true,
-        })
-        .select()
-        .single()
-
-      if (error) {
-        throw new DatabaseError('Failed to create bank', {
-          cause: error,
-          context: { bankData: data }
-        })
-      }
-      
-      return bank
-    } catch (error) {
-      logError('Banks repository error', { method: 'create', data, error })
-      throw error
-    }
+    const insertData = { ...data, is_active: data.is_active ?? true }
+    const keys = Object.keys(insertData)
+    const values = Object.values(insertData)
+    const { rows } = await pool.query(
+      `INSERT INTO banks (${keys.join(', ')}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
+      values
+    )
+    return rows[0]
   }
 
   async updateById(id: number, updates: UpdateBankDto): Promise<Bank | null> {
-    try {
-      const { data, error } = await supabase
-        .from('banks')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .maybeSingle()
-
-      if (error) {
-        throw new DatabaseError('Failed to update bank', {
-          cause: error,
-          context: { bankId: id, updates }
-        })
-      }
-      
-      return data
-    } catch (error) {
-      logError('Banks repository error', { method: 'updateById', bankId: id, error })
-      throw error
-    }
+    const keys = Object.keys(updates)
+    if (!keys.length) return this.findById(id)
+    const values = Object.values(updates)
+    const { rows } = await pool.query(
+      `UPDATE banks SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')} WHERE id = $${keys.length + 1} RETURNING *`,
+      [...values, id]
+    )
+    return rows[0] ?? null
   }
 
   async deleteById(id: number): Promise<void> {
-    try {
-      const { error } = await supabase
-        .from('banks')
-        .update({ is_active: false })
-        .eq('id', id)
-
-      if (error) {
-        throw new DatabaseError('Failed to delete bank', {
-          cause: error,
-          context: { bankId: id }
-        })
-      }
-    } catch (error) {
-      logError('Banks repository error', { method: 'deleteById', bankId: id, error })
-      throw error
-    }
+    await pool.query('UPDATE banks SET is_active = false WHERE id = $1', [id])
   }
 
   async isUsedInBankAccounts(id: number): Promise<boolean> {
-    try {
-      const { count, error } = await supabase
-        .from('bank_accounts')
-        .select('*', { count: 'exact', head: true })
-        .eq('bank_id', id)
-        .is('deleted_at', null)
-
-      if (error) {
-        throw new DatabaseError('Failed to check bank usage', {
-          cause: error,
-          context: { bankId: id }
-        })
-      }
-      
-      return (count ?? 0) > 0
-    } catch (error) {
-      logError('Banks repository error', { method: 'isUsedInBankAccounts', bankId: id, error })
-      throw error
-    }
+    const { rows } = await pool.query('SELECT COUNT(*)::int AS cnt FROM bank_accounts WHERE bank_id = $1 AND deleted_at IS NULL', [id])
+    return rows[0].cnt > 0
   }
 
   async getActiveOptions(): Promise<BankOption[]> {
-    try {
-      const { data, error } = await supabase
-        .from('banks')
-        .select('id, bank_code, bank_name')
-        .eq('is_active', true)
-        .order('bank_name')
-
-      if (error) {
-        throw new DatabaseError('Failed to fetch bank options', {
-          cause: error,
-          context: { query: 'getActiveOptions' }
-        })
-      }
-      
-      return data ?? []
-    } catch (error) {
-      logError('Banks repository error', { method: 'getActiveOptions', error })
-      throw error
-    }
+    const { rows } = await pool.query("SELECT id, bank_code, bank_name FROM banks WHERE is_active = true ORDER BY bank_name")
+    return rows
   }
 }
 

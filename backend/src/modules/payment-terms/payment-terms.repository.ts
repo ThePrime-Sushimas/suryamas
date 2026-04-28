@@ -1,6 +1,4 @@
-// backend/src/modules/payment-terms/payment-terms.repository.ts
-
-import { supabase } from '../../config/supabase'
+import { pool } from '../../config/db'
 import { PaymentTerm, CreatePaymentTermDto, UpdatePaymentTermDto, CalculationType } from './payment-terms.types'
 import { mapPaymentTermFromDb } from './payment-terms.mapper'
 
@@ -11,126 +9,71 @@ export class PaymentTermsRepository {
     filter?: { is_active?: boolean; calculation_type?: CalculationType },
     includeDeleted = false
   ): Promise<{ data: PaymentTerm[]; total: number }> {
-    let query = supabase.from('payment_terms').select('*')
-    let countQuery = supabase.from('payment_terms').select('*', { count: 'exact', head: true })
+    const conditions: string[] = []
+    const params: (string | boolean)[] = []
+    let idx = 1
 
-    if (!includeDeleted) {
-      query = query.is('deleted_at', null)
-      countQuery = countQuery.is('deleted_at', null)
-    }
+    if (!includeDeleted) conditions.push('deleted_at IS NULL')
+    if (filter?.is_active !== undefined) { params.push(filter.is_active); conditions.push(`is_active = $${idx}`); idx++ }
+    if (filter?.calculation_type) { params.push(filter.calculation_type); conditions.push(`calculation_type = $${idx}`); idx++ }
 
-    if (filter?.is_active !== undefined) {
-      query = query.eq('is_active', filter.is_active)
-      countQuery = countQuery.eq('is_active', filter.is_active)
-    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    const sortField = sort?.field === 'id' ? 'id_payment_term' : (sort?.field || 'term_name')
+    const sortOrder = sort?.order === 'desc' ? 'DESC' : 'ASC'
 
-    if (filter?.calculation_type) {
-      query = query.eq('calculation_type', filter.calculation_type)
-      countQuery = countQuery.eq('calculation_type', filter.calculation_type)
-    }
-
-    if (sort) {
-      // Map id to id_payment_term for payment_terms table
-      const sortField = sort.field === 'id' ? 'id_payment_term' : sort.field
-      query = query.order(sortField, { ascending: sort.order === 'asc' })
-    } else {
-      query = query.order('term_name', { ascending: true })
-    }
-
-    const [{ data, error }, { count, error: countError }] = await Promise.all([
-      query.range(pagination.offset, pagination.offset + pagination.limit - 1),
-      countQuery,
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(`SELECT * FROM payment_terms ${where} ORDER BY ${sortField} ${sortOrder} LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
+      pool.query(`SELECT COUNT(*)::int AS total FROM payment_terms ${where}`, params)
     ])
 
-    if (error) throw new Error(error.message)
-    if (countError) throw new Error(countError.message)
-
-    return { data: (data || []).map(mapPaymentTermFromDb), total: count || 0 }
+    return { data: dataRes.rows.map(mapPaymentTermFromDb), total: countRes.rows[0].total }
   }
 
   async findById(id: number, includeDeleted = false): Promise<PaymentTerm | null> {
-    let query = supabase
-      .from('payment_terms')
-      .select('*')
-      .eq('id_payment_term', id)
-
-    if (!includeDeleted) {
-      query = query.is('deleted_at', null)
-    }
-
-    const { data, error } = await query.maybeSingle()
-
-    if (error) throw new Error(error.message)
-    if (!data) return null
-    return mapPaymentTermFromDb(data)
+    const condition = includeDeleted ? '' : ' AND deleted_at IS NULL'
+    const { rows } = await pool.query(`SELECT * FROM payment_terms WHERE id_payment_term = $1${condition}`, [id])
+    return rows[0] ? mapPaymentTermFromDb(rows[0]) : null
   }
 
   async findByTermCode(code: string): Promise<PaymentTerm | null> {
-    const { data, error } = await supabase
-      .from('payment_terms')
-      .select('*')
-      .eq('term_code', code)
-      .is('deleted_at', null)
-      .maybeSingle()
-
-    if (error) throw new Error(error.message)
-    if (!data) return null
-    return mapPaymentTermFromDb(data)
+    const { rows } = await pool.query('SELECT * FROM payment_terms WHERE term_code = $1 AND deleted_at IS NULL', [code])
+    return rows[0] ? mapPaymentTermFromDb(rows[0]) : null
   }
 
   async create(data: CreatePaymentTermDto & { created_by?: string }): Promise<PaymentTerm> {
-    const { data: term, error } = await supabase
-      .from('payment_terms')
-      .insert(data)
-      .select()
-      .single()
-
-    if (error) throw new Error(error.message)
-    return mapPaymentTermFromDb(term)
+    const keys = Object.keys(data)
+    const values = Object.values(data)
+    const { rows } = await pool.query(
+      `INSERT INTO payment_terms (${keys.join(', ')}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
+      values
+    )
+    return mapPaymentTermFromDb(rows[0])
   }
 
   async updateById(id: number, updates: UpdatePaymentTermDto): Promise<PaymentTerm | null> {
-    const { data, error } = await supabase
-      .from('payment_terms')
-      .update(updates)
-      .eq('id_payment_term', id)
-      .is('deleted_at', null)
-      .select()
-      .maybeSingle()
-
-    if (error) throw new Error(error.message)
-    return data ? mapPaymentTermFromDb(data) : null
+    const keys = Object.keys(updates)
+    if (!keys.length) return this.findById(id)
+    const values = Object.values(updates)
+    const { rows } = await pool.query(
+      `UPDATE payment_terms SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')} WHERE id_payment_term = $${keys.length + 1} AND deleted_at IS NULL RETURNING *`,
+      [...values, id]
+    )
+    return rows[0] ? mapPaymentTermFromDb(rows[0]) : null
   }
 
   async delete(id: number, userId?: string): Promise<void> {
-    const { error } = await supabase
-      .from('payment_terms')
-      .update({ deleted_at: new Date().toISOString(), deleted_by: userId })
-      .eq('id_payment_term', id)
-
-    if (error) throw new Error(error.message)
+    await pool.query('UPDATE payment_terms SET deleted_at = NOW(), deleted_by = $1 WHERE id_payment_term = $2', [userId || null, id])
   }
 
   async restore(id: number): Promise<void> {
-    const { error } = await supabase
-      .from('payment_terms')
-      .update({ deleted_at: null, deleted_by: null })
-      .eq('id_payment_term', id)
-
-    if (error) throw new Error(error.message)
+    await pool.query('UPDATE payment_terms SET deleted_at = NULL, deleted_by = NULL WHERE id_payment_term = $1', [id])
   }
 
   async minimalActive(): Promise<{ id: number; term_name: string }[]> {
-    const { data, error } = await supabase
-      .from('payment_terms')
-      .select('id_payment_term, term_name')
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .order('term_name')
-      .limit(1000)
-
-    if (error) throw new Error(error.message)
-    return (data || []).map((row) => ({ id: row.id_payment_term, term_name: row.term_name }))
+    const { rows } = await pool.query(
+      "SELECT id_payment_term, term_name FROM payment_terms WHERE is_active = true AND deleted_at IS NULL ORDER BY term_name LIMIT 1000"
+    )
+    return rows.map((r: { id_payment_term: number; term_name: string }) => ({ id: r.id_payment_term, term_name: r.term_name }))
   }
 }
 

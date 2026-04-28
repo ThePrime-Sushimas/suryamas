@@ -1,122 +1,81 @@
-import { supabase } from '../../config/supabase'
+import { pool } from '../../config/db'
 import { ProductUom, CreateProductUomDto, UpdateProductUomDto } from '../products/products.types'
 
 export class ProductUomsRepository {
   async findByProductId(productId: string, includeDeleted = false): Promise<ProductUom[]> {
-    let query = supabase
-      .from('product_uoms')
-      .select('*, metric_units(id, unit_name, metric_type)')
-      .eq('product_id', productId)
-
-    if (!includeDeleted) {
-      query = query.eq('is_deleted', false)
-    }
-
-    const { data, error } = await query.order('is_base_unit', { ascending: false })
-
-    if (error) throw new Error(`[product_uoms] ${error.message}`)
-    return data || []
+    const deletedFilter = includeDeleted ? '' : ' AND pu.is_deleted = false'
+    const { rows } = await pool.query(
+      `SELECT pu.*, mu.id AS mu_id, mu.unit_name AS mu_unit_name, mu.metric_type AS mu_metric_type
+       FROM product_uoms pu
+       LEFT JOIN metric_units mu ON mu.id = pu.metric_unit_id
+       WHERE pu.product_id = $1${deletedFilter}
+       ORDER BY pu.is_base_unit DESC`,
+      [productId]
+    )
+    return rows.map((r: Record<string, unknown>) => ({
+      ...r,
+      metric_units: r.mu_id ? { id: r.mu_id, unit_name: r.mu_unit_name, metric_type: r.mu_metric_type } : null,
+    })) as unknown as ProductUom[]
   }
 
   async findByProductIdAndMetricUnit(productId: string, metricUnitId: string): Promise<ProductUom | null> {
-    const { data, error } = await supabase
-      .from('product_uoms')
-      .select('*')
-      .eq('product_id', productId)
-      .eq('metric_unit_id', metricUnitId)
-      .eq('is_deleted', false)
-      .maybeSingle()
-
-    if (error) throw new Error(`[product_uoms] ${error.message}`)
-    return data
+    const { rows } = await pool.query(
+      'SELECT * FROM product_uoms WHERE product_id = $1 AND metric_unit_id = $2 AND is_deleted = false',
+      [productId, metricUnitId]
+    )
+    return rows[0] ?? null
   }
 
   async findById(id: string, includeDeleted = false): Promise<ProductUom | null> {
-    let query = supabase
-      .from('product_uoms')
-      .select('*')
-      .eq('id', id)
-
-    if (!includeDeleted) {
-      query = query.eq('is_deleted', false)
-    }
-
-    const { data, error } = await query.maybeSingle()
-
-    if (error) throw new Error(`[product_uoms] ${error.message}`)
-    return data
+    const deletedFilter = includeDeleted ? '' : ' AND is_deleted = false'
+    const { rows } = await pool.query(`SELECT * FROM product_uoms WHERE id = $1${deletedFilter}`, [id])
+    return rows[0] ?? null
   }
 
   async findBaseUom(productId: string): Promise<ProductUom | null> {
-    const { data, error } = await supabase
-      .from('product_uoms')
-      .select('*')
-      .eq('product_id', productId)
-      .eq('is_base_unit', true)
-      .eq('is_deleted', false)
-      .maybeSingle()
-
-    if (error) throw new Error(`[product_uoms] ${error.message}`)
-    return data
+    const { rows } = await pool.query(
+      'SELECT * FROM product_uoms WHERE product_id = $1 AND is_base_unit = true AND is_deleted = false LIMIT 1',
+      [productId]
+    )
+    return rows[0] ?? null
   }
 
   async create(data: CreateProductUomDto & { product_id: string; created_by?: string; updated_by?: string }): Promise<ProductUom> {
-    const { data: uom, error } = await supabase
-      .from('product_uoms')
-      .insert(data)
-      .select()
-      .single()
-
-    if (error) throw new Error(`[product_uoms] ${error.message}`)
-    return uom
+    const keys = Object.keys(data)
+    const values = Object.values(data)
+    const { rows } = await pool.query(
+      `INSERT INTO product_uoms (${keys.join(', ')}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
+      values
+    )
+    return rows[0]
   }
 
   async updateById(id: string, updates: UpdateProductUomDto & { updated_by?: string }): Promise<ProductUom | null> {
-    const { data, error } = await supabase
-      .from('product_uoms')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .maybeSingle()
-
-    if (error) throw new Error(`[product_uoms] ${error.message}`)
-    return data
+    const keys = Object.keys(updates)
+    if (!keys.length) return this.findById(id)
+    const values = Object.values(updates)
+    const { rows } = await pool.query(
+      `UPDATE product_uoms SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')} WHERE id = $${keys.length + 1} RETURNING *`,
+      [...values, id]
+    )
+    return rows[0] ?? null
   }
 
   async delete(id: string): Promise<void> {
-    const { error } = await supabase.from('product_uoms').update({ is_deleted: true }).eq('id', id)
-
-    if (error) throw new Error(`[product_uoms] ${error.message}`)
+    await pool.query('UPDATE product_uoms SET is_deleted = true WHERE id = $1', [id])
   }
 
   async restore(id: string): Promise<ProductUom | null> {
-    const { data, error } = await supabase
-      .from('product_uoms')
-      .update({ is_deleted: false })
-      .eq('id', id)
-      .select()
-      .maybeSingle()
-
-    if (error) throw new Error(`[product_uoms] ${error.message}`)
-    return data
+    const { rows } = await pool.query('UPDATE product_uoms SET is_deleted = false WHERE id = $1 RETURNING *', [id])
+    return rows[0] ?? null
   }
 
-  async findDefaultByProduct(
-    productId: string,
-    field: 'is_default_stock_unit' | 'is_default_purchase_unit' | 'is_default_transfer_unit'
-  ): Promise<ProductUom | null> {
-    // Use limit to ensure we only get one row, avoiding multiple row errors
-    const { data, error } = await supabase
-      .from('product_uoms')
-      .select('*')
-      .eq('product_id', productId)
-      .eq(field, true)
-      .eq('is_deleted', false)
-      .limit(1)
-      .maybeSingle()
-
-    if (error) throw new Error(`[product_uoms] ${error.message}`)
-    return data
+  async findDefaultByProduct(productId: string, field: 'is_default_stock_unit' | 'is_default_purchase_unit' | 'is_default_transfer_unit'): Promise<ProductUom | null> {
+    const { rows } = await pool.query(
+      `SELECT * FROM product_uoms WHERE product_id = $1 AND ${field} = true AND is_deleted = false LIMIT 1`,
+      [productId]
+    )
+    return rows[0] ?? null
   }
 }
 

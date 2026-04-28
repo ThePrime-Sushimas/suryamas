@@ -1,4 +1,4 @@
-import { supabase } from '../../config/supabase'
+import { pool } from '../../config/db'
 import { Supplier, CreateSupplierDto, UpdateSupplierDto, SupplierListQuery, SupplierOption } from './suppliers.types'
 import { mapSupplierResponse, mapSupplierOption } from './suppliers.mapper'
 
@@ -7,158 +7,82 @@ export class SuppliersRepository {
     pagination: { limit: number; offset: number },
     query?: SupplierListQuery
   ): Promise<{ data: Supplier[]; total: number }> {
-    let dbQuery = supabase.from('suppliers').select('*')
-    let countQuery = supabase.from('suppliers').select('*', { count: 'exact', head: true })
+    const conditions: string[] = []
+    const params: (string | boolean)[] = []
+    let idx = 1
 
-    // Filter deleted
-    if (!query?.include_deleted) {
-      dbQuery = dbQuery.is('deleted_at', null)
-      countQuery = countQuery.is('deleted_at', null)
-    }
+    if (!query?.include_deleted) conditions.push('deleted_at IS NULL')
+    if (query?.search) { params.push(`%${query.search}%`); conditions.push(`(supplier_code ILIKE $${idx} OR supplier_name ILIKE $${idx})`); idx++ }
+    if (query?.supplier_type) { params.push(query.supplier_type); conditions.push(`supplier_type = $${idx}`); idx++ }
+    if (query?.is_active !== undefined) { params.push(query.is_active); conditions.push(`is_active = $${idx}`); idx++ }
 
-    // Search filter
-    if (query?.search) {
-      const searchTerm = `%${query.search}%`
-      dbQuery = dbQuery.or(`supplier_code.ilike.${searchTerm},supplier_name.ilike.${searchTerm}`)
-      countQuery = countQuery.or(`supplier_code.ilike.${searchTerm},supplier_name.ilike.${searchTerm}`)
-    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    const VALID_SORT_FIELDS = ['supplier_name', 'supplier_code', 'supplier_type', 'created_at', 'is_active']
+    const sortBy = query?.sort_by && VALID_SORT_FIELDS.includes(query.sort_by) ? query.sort_by : 'supplier_name'
+    const sortOrder = query?.sort_order === 'desc' ? 'DESC' : 'ASC'
 
-    // Type filter
-    if (query?.supplier_type) {
-      dbQuery = dbQuery.eq('supplier_type', query.supplier_type)
-      countQuery = countQuery.eq('supplier_type', query.supplier_type)
-    }
-
-    // Active filter
-    if (query?.is_active !== undefined) {
-      dbQuery = dbQuery.eq('is_active', query.is_active)
-      countQuery = countQuery.eq('is_active', query.is_active)
-    }
-
-    // Sorting
-    const sortBy = query?.sort_by || 'supplier_name'
-    const sortOrder = query?.sort_order || 'asc'
-    dbQuery = dbQuery.order(sortBy, { ascending: sortOrder === 'asc' })
-
-    const [{ data, error }, { count, error: countError }] = await Promise.all([
-      dbQuery.range(pagination.offset, pagination.offset + pagination.limit - 1),
-      countQuery,
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(`SELECT * FROM suppliers ${where} ORDER BY ${sortBy} ${sortOrder} LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
+      pool.query(`SELECT COUNT(*)::int AS total FROM suppliers ${where}`, params)
     ])
 
-    if (error) throw new Error(error.message)
-    if (countError) throw new Error(countError.message)
-
-    return { data: (data || []).map(mapSupplierResponse), total: count || 0 }
+    return { data: dataRes.rows.map(mapSupplierResponse), total: countRes.rows[0].total }
   }
 
   async findById(id: string, includeDeleted = false): Promise<Supplier | null> {
-    let query = supabase
-      .from('suppliers')
-      .select('*')
-      .eq('id', id)
-
-    if (!includeDeleted) {
-      query = query.is('deleted_at', null)
-    }
-
-    const { data, error } = await query.maybeSingle()
-
-    if (error) throw new Error(error.message)
-    return data ? mapSupplierResponse(data) : null
+    const condition = includeDeleted ? '' : ' AND deleted_at IS NULL'
+    const { rows } = await pool.query(`SELECT * FROM suppliers WHERE id = $1${condition}`, [id])
+    return rows[0] ? mapSupplierResponse(rows[0]) : null
   }
 
   async findByCode(code: string, excludeId?: string): Promise<Supplier | null> {
-    let query = supabase
-      .from('suppliers')
-      .select('*')
-      .eq('supplier_code', code)
-      .is('deleted_at', null)
-
-    if (excludeId) {
-      query = query.neq('id', excludeId)
-    }
-
-    const { data, error } = await query.maybeSingle()
-
-    if (error) throw new Error(error.message)
-    return data ? mapSupplierResponse(data) : null
+    const params: string[] = [code]
+    let query = 'SELECT * FROM suppliers WHERE supplier_code = $1 AND deleted_at IS NULL'
+    if (excludeId) { params.push(excludeId); query += ` AND id != $2` }
+    const { rows } = await pool.query(query, params)
+    return rows[0] ? mapSupplierResponse(rows[0]) : null
   }
 
   async create(data: CreateSupplierDto & { created_by?: string }): Promise<Supplier> {
-    const { data: supplier, error } = await supabase
-      .from('suppliers')
-      .insert({
-        ...data,
-        lead_time_days: data.lead_time_days ?? 1,
-        minimum_order: data.minimum_order ?? 0,
-        is_active: data.is_active ?? true,
-      })
-      .select()
-      .single()
-
-    if (error) throw new Error(error.message)
-    return mapSupplierResponse(supplier)
+    const insertData = { ...data, lead_time_days: data.lead_time_days ?? 1, minimum_order: data.minimum_order ?? 0, is_active: data.is_active ?? true }
+    const keys = Object.keys(insertData)
+    const values = Object.values(insertData)
+    const { rows } = await pool.query(
+      `INSERT INTO suppliers (${keys.join(', ')}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
+      values
+    )
+    return mapSupplierResponse(rows[0])
   }
 
   async updateById(id: string, updates: UpdateSupplierDto & { updated_by?: string }): Promise<Supplier | null> {
-    const { data, error } = await supabase
-      .from('suppliers')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .is('deleted_at', null)
-      .select()
-      .maybeSingle()
-
-    if (error) throw new Error(error.message)
-    return data ? mapSupplierResponse(data) : null
+    const fullUpdates = { ...updates, updated_at: new Date().toISOString() }
+    const keys = Object.keys(fullUpdates)
+    const values = Object.values(fullUpdates)
+    const { rows } = await pool.query(
+      `UPDATE suppliers SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')} WHERE id = $${keys.length + 1} AND deleted_at IS NULL RETURNING *`,
+      [...values, id]
+    )
+    return rows[0] ? mapSupplierResponse(rows[0]) : null
   }
 
   async softDelete(id: string, userId?: string): Promise<void> {
-    const { error } = await supabase
-      .from('suppliers')
-      .update({
-        deleted_at: new Date().toISOString(),
-        is_active: false,
-        updated_by: userId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .is('deleted_at', null)
-
-    if (error) throw new Error(error.message)
+    await pool.query(
+      'UPDATE suppliers SET deleted_at = NOW(), is_active = false, updated_by = $1, updated_at = NOW() WHERE id = $2 AND deleted_at IS NULL',
+      [userId || null, id]
+    )
   }
 
   async restore(id: string, userId?: string): Promise<Supplier | null> {
-    const { data, error } = await supabase
-      .from('suppliers')
-      .update({
-        deleted_at: null,
-        is_active: true,
-        updated_by: userId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .not('deleted_at', 'is', null)
-      .select()
-      .maybeSingle()
-
-    if (error) throw new Error(error.message)
-    return data ? mapSupplierResponse(data) : null
+    const { rows } = await pool.query(
+      'UPDATE suppliers SET deleted_at = NULL, is_active = true, updated_by = $1, updated_at = NOW() WHERE id = $2 AND deleted_at IS NOT NULL RETURNING *',
+      [userId || null, id]
+    )
+    return rows[0] ? mapSupplierResponse(rows[0]) : null
   }
 
   async getActiveOptions(): Promise<SupplierOption[]> {
-    const { data, error } = await supabase
-      .from('suppliers')
-      .select('id, supplier_name')
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .order('supplier_name')
-
-    if (error) throw new Error(error.message)
-    return (data || []).map(mapSupplierOption)
+    const { rows } = await pool.query("SELECT id, supplier_name FROM suppliers WHERE is_active = true AND deleted_at IS NULL ORDER BY supplier_name")
+    return rows.map(mapSupplierOption)
   }
 }
 
