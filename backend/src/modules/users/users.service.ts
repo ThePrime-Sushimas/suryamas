@@ -1,9 +1,4 @@
-// =====================================================
-// USERS SERVICE
-// =====================================================
-
 import { UsersRepository } from './users.repository'
-import { supabase } from '../../config/supabase'
 import { PermissionService as CorePermissionService } from '../../services/permission.service'
 import { logInfo, logError } from '../../config/logger'
 import { EmployeeRow, UserDTO } from './users.types'
@@ -18,71 +13,59 @@ export class UsersService {
   }
 
   async getAllUsers(): Promise<UserDTO[]> {
-    const { data: employees } = await supabase
-      .from('employees')
-      .select('employee_id, full_name, job_position, email, user_id, employee_branches(branch_id, is_primary, branches(id, branch_name))')
+    const { employees, profiles } = await this.repository.getAllUsersWithEmployees()
 
-    const { data: profiles } = await supabase
-      .from('perm_user_profiles')
-      .select('user_id, role_id, perm_roles(id, name, description)')
-
-
-
-    return ((employees as any[] | null) || []).map((emp: any) => {
-      // Transform the data to match our types - match pattern from employees.repository.ts
+    return employees.map((emp: Record<string, unknown>) => {
       const transformedEmp: EmployeeRow = {
-        employee_id: emp.employee_id,
-        full_name: emp.full_name,
-        job_position: emp.job_position,
-        email: emp.email,
-        user_id: emp.user_id,
-        employee_branches: emp.employee_branches?.map((eb: any) => ({
-          is_primary: eb.is_primary,
-          branches: eb.branches
-        })) || null
+        employee_id: emp.employee_id as string,
+        full_name: emp.full_name as string,
+        job_position: emp.job_position as string,
+        email: emp.email as string,
+        user_id: emp.user_id as string,
+        employee_branches: emp.branch_id ? [{ is_primary: emp.is_primary as boolean, branches: { id: emp.branch_id as string, branch_name: emp.branch_name as string } }] : null,
       }
-      
-      return mapToUserDTO(
-        transformedEmp,
-        profiles?.find(p => p.user_id === emp.user_id)
-      )
+      const profile = profiles.find((p: { user_id: string }) => p.user_id === emp.user_id)
+      const mappedProfile = profile ? {
+        user_id: profile.user_id,
+        role_id: profile.role_id,
+        perm_roles: profile.role_ref_id ? { id: profile.role_ref_id, name: profile.role_name, description: profile.role_description } : null,
+      } : undefined
+      return mapToUserDTO(transformedEmp, mappedProfile)
     })
   }
 
   async getUserByEmployeeId(employeeId: string): Promise<UserDTO | null> {
-    const { data: employee } = await supabase
-      .from('employees')
-      .select('employee_id, full_name, job_position, email, user_id, employee_branches(branch_id, is_primary, branches(id, branch_name))')
-      .eq('employee_id', employeeId)
-      .single()
+    const emp = await this.repository.getEmployeeWithBranchByEmployeeId(employeeId)
+    if (!emp) return null
 
-    if (!employee) return null
-
-    const { data: profile } = await supabase
-      .from('perm_user_profiles')
-      .select('user_id, role_id, perm_roles(id, name, description)')
-      .eq('user_id', employee.user_id)
-      .single()
-
-    const transformedEmployee: EmployeeRow = {
-      employee_id: employee.employee_id,
-      full_name: employee.full_name,
-      job_position: employee.job_position,
-      email: employee.email,
-      user_id: employee.user_id,
-      employee_branches: employee.employee_branches?.map((eb: any) => ({
-        is_primary: eb.is_primary,
-        branches: eb.branches
-      })) || null
+    let mappedProfile
+    if (emp.user_id) {
+      const profile = await this.repository.getProfileByUserId(emp.user_id)
+      if (profile) {
+        mappedProfile = {
+          user_id: profile.user_id,
+          role_id: profile.role_id,
+          perm_roles: profile.role_ref_id ? { id: profile.role_ref_id, name: profile.role_name, description: profile.role_description } : null,
+        }
+      }
     }
 
-    return mapToUserDTO(transformedEmployee, profile)
+    const transformedEmp: EmployeeRow = {
+      employee_id: emp.employee_id,
+      full_name: emp.full_name,
+      job_position: emp.job_position,
+      email: emp.email,
+      user_id: emp.user_id,
+      employee_branches: emp.branch_id ? [{ is_primary: emp.is_primary, branches: { id: emp.branch_id, branch_name: emp.branch_name } }] : null,
+    }
+
+    return mapToUserDTO(transformedEmp, mappedProfile)
   }
 
   async getUserRoleByEmployeeId(employeeId: string) {
-    const { data: employee } = await supabase.from('employees').select('user_id').eq('employee_id', employeeId).single()
-    if (!employee?.user_id) return null
-    return await this.repository.getUserRole(employee.user_id)
+    const userId = await this.repository.getUserIdByEmployeeId(employeeId)
+    if (!userId) return null
+    return await this.repository.getUserRole(userId)
   }
 
   async getUserRole(userId: string) {
@@ -92,22 +75,17 @@ export class UsersService {
   async assignRole(userId: string, roleId: string, changedBy?: string) {
     try {
       const result = await this.repository.assignRole(userId, roleId)
-      
-      await supabase.from('perm_cache').delete().eq('user_id', userId)
+      await this.repository.invalidatePermCache(userId)
       await CorePermissionService.invalidateAllCache()
-      
-      // Audit log for UPDATE (assign role)
+
       if (changedBy) {
-        await AuditService.log('UPDATE', 'user_role', userId, changedBy, 
-          { role_id: null }, 
-          { role_id: roleId }
-        )
+        await AuditService.log('UPDATE', 'user_role', userId, changedBy, { role_id: null }, { role_id: roleId })
       }
-      
       logInfo('User role assigned', { userId, roleId, changedBy })
       return result
-    } catch (error: any) {
-      logError('Failed to assign role', { error: error.message })
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown'
+      logError('Failed to assign role', { error: msg })
       throw error
     }
   }
@@ -115,37 +93,32 @@ export class UsersService {
   async removeRole(userId: string, changedBy?: string) {
     try {
       await this.repository.removeRole(userId)
-      
-      await supabase.from('perm_cache').delete().eq('user_id', userId)
+      await this.repository.invalidatePermCache(userId)
       await CorePermissionService.invalidateAllCache()
-      
-      // Audit log for UPDATE (remove role)
+
       if (changedBy) {
-        await AuditService.log('UPDATE', 'user_role', userId, changedBy, 
-          { role_id: 'existing' }, 
-          { role_id: null }
-        )
+        await AuditService.log('UPDATE', 'user_role', userId, changedBy, { role_id: 'existing' }, { role_id: null })
       }
-      
       logInfo('User role removed', { userId, changedBy })
       return true
-    } catch (error: any) {
-      logError('Failed to remove role', { error: error.message })
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown'
+      logError('Failed to remove role', { error: msg })
       throw error
     }
   }
 
   async assignRoleByEmployeeId(employeeId: string, roleId: string, changedBy?: string) {
-    const { data: employee } = await supabase.from('employees').select('user_id, full_name').eq('employee_id', employeeId).single()
-    if (!employee?.user_id) {
-      throw new Error(`Employee ${employee?.full_name || employeeId} has not registered yet. Please register first.`)
+    const emp = await this.repository.getEmployeeUserIdByEmployeeId(employeeId)
+    if (!emp?.user_id) {
+      throw new Error(`Employee ${emp?.full_name || employeeId} has not registered yet. Please register first.`)
     }
-    return this.assignRole(employee.user_id, roleId, changedBy)
+    return this.assignRole(emp.user_id, roleId, changedBy)
   }
 
   async removeRoleByEmployeeId(employeeId: string, changedBy?: string) {
-    const { data: employee } = await supabase.from('employees').select('user_id').eq('employee_id', employeeId).single()
-    if (!employee?.user_id) throw new Error('This employee does not have a user account')
-    return this.removeRole(employee.user_id, changedBy)
+    const userId = await this.repository.getUserIdByEmployeeId(employeeId)
+    if (!userId) throw new Error('This employee does not have a user account')
+    return this.removeRole(userId, changedBy)
   }
 }

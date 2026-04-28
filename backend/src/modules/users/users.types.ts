@@ -5,6 +5,7 @@
 export type EmployeeBranchRow = {
   is_primary: boolean
   branches: {
+    id?: string
     branch_name: string
   } | null
 }

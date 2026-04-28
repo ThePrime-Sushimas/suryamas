@@ -1,218 +1,109 @@
-import { supabase } from '../../config/supabase'
+import { pool } from '../../config/db'
 import { Company, CreateCompanyDTO, UpdateCompanyDTO } from './companies.types'
-import { logError } from '../../config/logger'
 
 export class CompaniesRepository {
-  async findAll(pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: any): Promise<{ data: Company[]; total: number }> {
-    let query = supabase.from('companies').select('*')
-    let countQuery = supabase.from('companies').select('*', { count: 'exact', head: true })
-    
-    // Handle search filter
-    if (filter?.search) {
-      const searchPattern = `%${filter.search}%`
-      query = query.or(`company_name.ilike.${searchPattern},company_code.ilike.${searchPattern}`)
-      countQuery = countQuery.or(`company_name.ilike.${searchPattern},company_code.ilike.${searchPattern}`)
-    }
-    
-    if (filter) {
-      if (filter.status) {
-        query = query.eq('status', filter.status)
-        countQuery = countQuery.eq('status', filter.status)
-      }
-      if (filter.company_type) {
-        query = query.eq('company_type', filter.company_type)
-        countQuery = countQuery.eq('company_type', filter.company_type)
-      }
-    }
-    
-    if (sort) {
-      const validFields = ['company_name', 'company_code', 'status', 'company_type', 'created_at']
-      if (validFields.includes(sort.field)) {
-        query = query.order(sort.field, { ascending: sort.order === 'asc' })
-      }
-    } else {
-      query = query.order('company_name', { ascending: true })
-    }
-    
-    const [{ data, error }, { count, error: countError }] = await Promise.all([
-      query.range(pagination.offset, pagination.offset + pagination.limit - 1),
-      countQuery
-    ])
+  private buildFilter(filter?: { search?: string; status?: string; company_type?: string }): { conditions: string[]; params: (string)[] } {
+    const conditions: string[] = []
+    const params: string[] = []
+    let idx = 1
 
-    if (error) throw new Error(error.message)
-    if (countError) throw new Error(countError.message)
-    
-    return { data: data || [], total: count || 0 }
+    if (filter?.search) {
+      params.push(`%${filter.search}%`)
+      conditions.push(`(company_name ILIKE $${idx} OR company_code ILIKE $${idx})`)
+      idx++
+    }
+    if (filter?.status) { params.push(filter.status); conditions.push(`status = $${idx}`); idx++ }
+    if (filter?.company_type) { params.push(filter.company_type); conditions.push(`company_type = $${idx}`); idx++ }
+
+    return { conditions, params }
   }
 
-  async search(searchTerm: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: any): Promise<{ data: Company[]; total: number }> {
-    let query = supabase.from('companies').select('*')
-    let countQuery = supabase.from('companies').select('*', { count: 'exact', head: true })
-    
-    if (searchTerm && searchTerm.trim()) {
-      const searchPattern = `%${searchTerm}%`
-      query = query.or(`company_name.ilike.${searchPattern},company_code.ilike.${searchPattern}`)
-      countQuery = countQuery.or(`company_name.ilike.${searchPattern},company_code.ilike.${searchPattern}`)
-    }
-    
-    if (filter) {
-      if (filter.status) {
-        query = query.eq('status', filter.status)
-        countQuery = countQuery.eq('status', filter.status)
-      }
-      if (filter.company_type) {
-        query = query.eq('company_type', filter.company_type)
-        countQuery = countQuery.eq('company_type', filter.company_type)
-      }
-    }
-    
-    if (sort) {
-      const validFields = ['company_name', 'company_code', 'status', 'company_type', 'created_at']
-      if (validFields.includes(sort.field)) {
-        query = query.order(sort.field, { ascending: sort.order === 'asc' })
-      }
-    }
-    
-    const [{ data, error }, { count, error: countError }] = await Promise.all([
-      query.range(pagination.offset, pagination.offset + pagination.limit - 1),
-      countQuery
+  async findAll(pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: { search?: string; status?: string; company_type?: string }): Promise<{ data: Company[]; total: number }> {
+    const validFields = ['company_name', 'company_code', 'status', 'company_type', 'created_at']
+    const sortField = sort && validFields.includes(sort.field) ? sort.field : 'company_name'
+    const sortOrder = sort?.order === 'desc' ? 'DESC' : 'ASC'
+    const { conditions, params } = this.buildFilter(filter)
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(`SELECT * FROM companies ${where} ORDER BY ${sortField} ${sortOrder} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`, [...params, pagination.limit, pagination.offset]),
+      pool.query(`SELECT COUNT(*)::int AS total FROM companies ${where}`, params)
     ])
-  
-    if (error) {
-      logError('Repository search error', { error: error.message })
-      throw new Error(error.message)
-    }
-    if (countError) {
-      logError('Repository count error', { error: countError.message })
-      throw new Error(countError.message)
-    }
-    
-    return { data: data || [], total: count || 0 }
+
+    return { data: dataRes.rows, total: countRes.rows[0].total }
+  }
+
+  async search(searchTerm: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: { status?: string; company_type?: string }): Promise<{ data: Company[]; total: number }> {
+    return this.findAll(pagination, sort, { ...filter, search: searchTerm })
   }
 
   async create(data: CreateCompanyDTO): Promise<Company | null> {
-    const { data: company, error } = await supabase
-      .from('companies')
-      .insert(data)
-      .select()
-      .single()
-
-    if (error) {
-      logError('Repository create error', { error: error.message, code: error.code })
-      throw error
-    }
-    return company
+    const keys = Object.keys(data)
+    const values = Object.values(data)
+    const cols = keys.join(', ')
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ')
+    const { rows } = await pool.query(`INSERT INTO companies (${cols}) VALUES (${placeholders}) RETURNING *`, values)
+    return rows[0]
   }
 
-  invalidateCache(): void {
-    // Cache invalidation logic can be implemented here if needed
-  }
+  invalidateCache(): void {}
 
   async findById(id: string): Promise<Company | null> {
-    const { data, error } = await supabase
-      .from('companies')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle()
-
-    if (error) throw new Error(error.message)
-    return data
+    const { rows } = await pool.query('SELECT * FROM companies WHERE id = $1', [id])
+    return rows[0] ?? null
   }
 
   async findByCode(code: string): Promise<Company | null> {
-    const { data, error } = await supabase
-      .from('companies')
-      .select('*')
-      .eq('company_code', code)
-      .maybeSingle()
-
-    if (error) throw new Error(error.message)
-    return data
+    const { rows } = await pool.query('SELECT * FROM companies WHERE company_code = $1', [code])
+    return rows[0] ?? null
   }
 
   async findByNpwp(npwp: string): Promise<Company | null> {
-    const { data, error } = await supabase
-      .from('companies')
-      .select('*')
-      .eq('npwp', npwp)
-      .maybeSingle()
-
-    if (error) throw new Error(error.message)
-    return data
+    const { rows } = await pool.query('SELECT * FROM companies WHERE npwp = $1', [npwp])
+    return rows[0] ?? null
   }
 
   async update(id: string, updates: UpdateCompanyDTO): Promise<Company | null> {
-    const { data, error } = await supabase
-      .from('companies')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .maybeSingle()
-
-    if (error) {
-      logError('Repository update error', { error: error.message, code: error.code })
-      throw error
-    }
-    this.invalidateCache()
-    return data
+    const keys = Object.keys(updates)
+    if (!keys.length) return this.findById(id)
+    const values = Object.values(updates)
+    const set = keys.map((k, i) => `${k} = $${i + 1}`).join(', ')
+    const { rows } = await pool.query(`UPDATE companies SET ${set} WHERE id = $${keys.length + 1} RETURNING *`, [...values, id])
+    return rows[0] ?? null
   }
 
   async delete(id: string): Promise<void> {
-    // Soft delete: update status to 'inactive' instead of hard delete
-    const { error } = await supabase
-      .from('companies')
-      .update({ status: 'inactive' })
-      .eq('id', id)
-
-    if (error) throw new Error(error.message)
-    this.invalidateCache()
+    await pool.query("UPDATE companies SET status = 'inactive' WHERE id = $1", [id])
   }
 
   async bulkUpdateStatus(ids: string[], status: string): Promise<void> {
-    const { error } = await supabase
-      .from('companies')
-      .update({ status })
-      .in('id', ids)
-
-    if (error) throw new Error(error.message)
-    this.invalidateCache()
+    await pool.query('UPDATE companies SET status = $1 WHERE id = ANY($2::uuid[])', [status, ids])
   }
 
   async bulkDelete(ids: string[]): Promise<void> {
-    const { error } = await supabase
-      .from('companies')
-      .delete()
-      .in('id', ids)
-
-    if (error) throw new Error(error.message)
-    this.invalidateCache()
+    await pool.query('DELETE FROM companies WHERE id = ANY($1::uuid[])', [ids])
   }
 
-  async exportData(filter?: any, limit: number = 10000): Promise<Company[]> {
-    let query = supabase.from('companies').select('*').limit(limit)
-    
-    if (filter) {
-      if (filter.status) query = query.eq('status', filter.status)
-      if (filter.company_type) query = query.eq('company_type', filter.company_type)
-    }
-    
-    const { data, error } = await query
-    if (error) {
-      logError('Repository export error', { error: error.message })
-      throw new Error(error.message)
-    }
-    return data || []
+  async exportData(filter?: { status?: string; company_type?: string }, limit = 10000): Promise<Company[]> {
+    const { conditions, params } = this.buildFilter(filter)
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    const { rows } = await pool.query(`SELECT * FROM companies ${where} LIMIT $${params.length + 1}`, [...params, limit])
+    return rows
   }
 
   async bulkCreate(companies: CreateCompanyDTO[]): Promise<void> {
-    const { error } = await supabase.from('companies').insert(companies)
-    if (error) throw new Error(error.message)
+    if (!companies.length) return
+    const keys = [...new Set(companies.flatMap(c => Object.keys(c)))]
+    const cols = keys.join(', ')
+    const placeholders = companies.map((_, i) =>
+      `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(', ')})`
+    ).join(', ')
+    const values = companies.flatMap(c => keys.map(k => (c as unknown as Record<string, unknown>)[k] ?? null))
+    await pool.query(`INSERT INTO companies (${cols}) VALUES ${placeholders}`, values)
   }
 
   async getFilterOptions(): Promise<{ statuses: string[]; types: string[] }> {
-    const statuses = ['active', 'inactive', 'suspended', 'closed']
-    const types = ['PT', 'CV', 'Firma', 'Koperasi', 'Yayasan']
-    return { statuses, types }
+    return { statuses: ['active', 'inactive', 'suspended', 'closed'], types: ['PT', 'CV', 'Firma', 'Koperasi', 'Yayasan'] }
   }
 }
 

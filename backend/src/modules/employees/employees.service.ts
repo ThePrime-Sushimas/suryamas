@@ -5,7 +5,6 @@ import { ExportService } from '../../services/export.service'
 import { ImportService } from '../../services/import.service'
 import { AuditService } from '../monitoring/monitoring.service'
 import { calculateAge, calculateYearsOfService } from '../../utils/age.util'
-import { supabase } from '../../config/supabase'
 
 export class EmployeesService {
   async list(params: PaginationParams): Promise<PaginatedResponse<EmployeeResponse>> {
@@ -222,14 +221,7 @@ export class EmployeesService {
   }
 
   private async generateEmployeeId(payload: Pick<EmployeeCreatePayload, 'brand_name' | 'join_date' | 'job_position'>): Promise<string> {
-    const { data: generatedId, error } = await supabase.rpc('generate_employee_id', {
-      p_branch_name: payload.brand_name,
-      p_join_date: payload.join_date,
-      p_job_position: payload.job_position,
-    })
-    
-    if (error) throw new Error(`Failed to generate employee ID: ${error.message}`)
-    return generatedId
+    return employeesRepository.generateEmployeeId(payload.brand_name, payload.join_date, payload.job_position)
   }
 
   private async uploadFile(file: Express.Multer.File, prefix?: string): Promise<string> {
