@@ -1,248 +1,148 @@
-import { supabase } from '../../config/supabase'
+import { pool } from '../../config/db'
 import { Product, CreateProductDto, UpdateProductDto, ProductStatus } from './products.types'
 import { mapProductFromDb, mapProductWithRelations } from './products.mapper'
 import { PRODUCT_SORT_FIELDS, PRODUCT_LIMITS } from './products.constants'
 
 export class ProductsRepository {
+  private buildFilter(filter?: { status?: string; product_type?: string; category_id?: string; sub_category_id?: string }, search?: string, includeDeleted = false) {
+    const conditions: string[] = []
+    const params: (string | boolean)[] = []
+    let idx = 1
+
+    if (!includeDeleted) conditions.push('p.is_deleted = false')
+    if (search) { params.push(`%${search}%`); conditions.push(`(p.product_name ILIKE $${idx} OR p.product_code ILIKE $${idx})`); idx++ }
+    if (filter?.status) { params.push(filter.status); conditions.push(`p.status = $${idx}`); idx++ }
+    if (filter?.product_type) { params.push(filter.product_type); conditions.push(`p.product_type = $${idx}`); idx++ }
+    if (filter?.category_id) { params.push(filter.category_id); conditions.push(`p.category_id = $${idx}`); idx++ }
+    if (filter?.sub_category_id) { params.push(filter.sub_category_id); conditions.push(`p.sub_category_id = $${idx}`); idx++ }
+
+    return { where: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '', params, idx }
+  }
+
   async findAll(
     pagination: { limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: any,
+    filter?: { status?: string; product_type?: string; category_id?: string; sub_category_id?: string },
     includeDeleted = false
   ): Promise<{ data: Product[]; total: number }> {
-    let query = supabase.from('products').select(`
-      id, product_code, product_name, category_id, sub_category_id, product_type, average_cost, status, is_deleted, is_requestable, is_purchasable, created_at,
-      categories(category_name),
-      sub_categories(sub_category_name)
-    `)
-    let countQuery = supabase.from('products').select('*', { count: 'exact', head: true })
+    const { where, params, idx } = this.buildFilter(filter, undefined, includeDeleted)
+    const sortField = sort?.field && PRODUCT_SORT_FIELDS.includes(sort.field as typeof PRODUCT_SORT_FIELDS[number]) ? `p.${sort.field}` : 'p.product_name'
+    const sortOrder = sort?.order === 'desc' ? 'DESC' : 'ASC'
 
-    if (!includeDeleted) {
-      query = query.eq('is_deleted', false)
-      countQuery = countQuery.eq('is_deleted', false)
-    }
-
-    if (filter) {
-      if (filter.status) {
-        query = query.eq('status', filter.status)
-        countQuery = countQuery.eq('status', filter.status)
-      }
-      if (filter.product_type) {
-        query = query.eq('product_type', filter.product_type)
-        countQuery = countQuery.eq('product_type', filter.product_type)
-      }
-      if (filter.category_id) {
-        query = query.eq('category_id', filter.category_id)
-        countQuery = countQuery.eq('category_id', filter.category_id)
-      }
-      if (filter.sub_category_id) {
-        query = query.eq('sub_category_id', filter.sub_category_id)
-        countQuery = countQuery.eq('sub_category_id', filter.sub_category_id)
-      }
-    }
-
-    if (sort && PRODUCT_SORT_FIELDS.includes(sort.field as any)) {
-      query = query.order(sort.field, { ascending: sort.order === 'asc' })
-    } else {
-      query = query.order('product_name', { ascending: true })
-    }
-
-    const [{ data, error }, { count, error: countError }] = await Promise.all([
-      query.range(pagination.offset, pagination.offset + pagination.limit - 1),
-      countQuery,
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(
+        `SELECT p.*, c.category_name, sc.sub_category_name
+         FROM products p
+         LEFT JOIN categories c ON c.id = p.category_id
+         LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
+         ${where} ORDER BY ${sortField} ${sortOrder} LIMIT $${idx} OFFSET $${idx + 1}`,
+        [...params, pagination.limit, pagination.offset]
+      ),
+      pool.query(`SELECT COUNT(*)::int AS total FROM products p ${where}`, params)
     ])
 
-    if (error) throw new Error(error.message)
-    if (countError) throw new Error(countError.message)
-
-    const rows = (data || []).map(mapProductWithRelations)
-
-    return { data: rows, total: count || 0 }
+    return { data: dataRes.rows.map(mapProductWithRelations), total: countRes.rows[0].total }
   }
 
   async search(
     searchTerm: string,
     pagination: { limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: any,
+    filter?: { status?: string; product_type?: string; category_id?: string; sub_category_id?: string },
     includeDeleted = false
   ): Promise<{ data: Product[]; total: number }> {
-    let query = supabase.from('products').select('*')
-    let countQuery = supabase.from('products').select('*', { count: 'exact', head: true })
+    const { where, params, idx } = this.buildFilter(filter, searchTerm, includeDeleted)
+    const sortField = sort?.field && PRODUCT_SORT_FIELDS.includes(sort.field as typeof PRODUCT_SORT_FIELDS[number]) ? `p.${sort.field}` : 'p.product_name'
+    const sortOrder = sort?.order === 'desc' ? 'DESC' : 'ASC'
 
-    if (!includeDeleted) {
-      query = query.eq('is_deleted', false)
-      countQuery = countQuery.eq('is_deleted', false)
-    }
-
-    if (searchTerm && searchTerm.trim()) {
-      const pattern = `%${searchTerm}%`
-      query = query.or(`product_name.ilike.${pattern},product_code.ilike.${pattern}`)
-      countQuery = countQuery.or(`product_name.ilike.${pattern},product_code.ilike.${pattern}`)
-    }
-
-    if (filter) {
-      if (filter.status) {
-        query = query.eq('status', filter.status)
-        countQuery = countQuery.eq('status', filter.status)
-      }
-      if (filter.product_type) {
-        query = query.eq('product_type', filter.product_type)
-        countQuery = countQuery.eq('product_type', filter.product_type)
-      }
-      if (filter.category_id) {
-        query = query.eq('category_id', filter.category_id)
-        countQuery = countQuery.eq('category_id', filter.category_id)
-      }
-      if (filter.sub_category_id) {
-        query = query.eq('sub_category_id', filter.sub_category_id)
-        countQuery = countQuery.eq('sub_category_id', filter.sub_category_id)
-      }
-    }
-
-    if (sort && PRODUCT_SORT_FIELDS.includes(sort.field as any)) {
-      query = query.order(sort.field, { ascending: sort.order === 'asc' })
-    } else {
-      query = query.order('product_name', { ascending: true })
-    }
-
-    const [{ data, error }, { count, error: countError }] = await Promise.all([
-      query.range(pagination.offset, pagination.offset + pagination.limit - 1),
-      countQuery,
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(
+        `SELECT p.*, c.category_name, sc.sub_category_name
+         FROM products p
+         LEFT JOIN categories c ON c.id = p.category_id
+         LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
+         ${where} ORDER BY ${sortField} ${sortOrder} LIMIT $${idx} OFFSET $${idx + 1}`,
+        [...params, pagination.limit, pagination.offset]
+      ),
+      pool.query(`SELECT COUNT(*)::int AS total FROM products p ${where}`, params)
     ])
 
-    if (error) throw new Error(error.message)
-    if (countError) throw new Error(countError.message)
-
-    return { data: (data || []).map(mapProductFromDb), total: count || 0 }
+    return { data: dataRes.rows.map(mapProductWithRelations), total: countRes.rows[0].total }
   }
 
   async findById(id: string, includeDeleted = false): Promise<Product | null> {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle()
-
-    if (error) throw new Error(error.message)
-    if (!data) return null
-    if (data.is_deleted && !includeDeleted) return null
-    return mapProductFromDb(data)
+    const { rows } = await pool.query('SELECT * FROM products WHERE id = $1', [id])
+    if (!rows[0]) return null
+    if (rows[0].is_deleted && !includeDeleted) return null
+    return mapProductFromDb(rows[0])
   }
 
   async findByProductCode(code: string): Promise<Product | null> {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('product_code', code)
-      .eq('is_deleted', false)
-      .maybeSingle()
-
-    if (error) throw new Error(error.message)
-    if (!data) return null
-    return mapProductFromDb(data)
+    const { rows } = await pool.query('SELECT * FROM products WHERE product_code = $1 AND is_deleted = false', [code])
+    return rows[0] ? mapProductFromDb(rows[0]) : null
   }
 
   async findByProductName(name: string, excludeId?: string): Promise<Product | null> {
-    let query = supabase
-      .from('products')
-      .select('*')
-      .ilike('product_name', name)
-      .eq('is_deleted', false)
-
-    if (excludeId) {
-      query = query.neq('id', excludeId)
-    }
-
-    const { data, error } = await query.maybeSingle()
-
-    if (error) throw new Error(error.message)
-    if (!data) return null
-    return mapProductFromDb(data)
+    const params: string[] = [name]
+    let query = 'SELECT * FROM products WHERE product_name ILIKE $1 AND is_deleted = false'
+    if (excludeId) { params.push(excludeId); query += ' AND id != $2' }
+    const { rows } = await pool.query(query, params)
+    return rows[0] ? mapProductFromDb(rows[0]) : null
   }
 
   async create(data: CreateProductDto & { created_by?: string; updated_by?: string }): Promise<Product> {
-    const { data: product, error } = await supabase
-      .from('products')
-      .insert(data)
-      .select()
-      .single()
-
-    if (error) throw new Error(error.message)
-    return mapProductFromDb(product)
+    const keys = Object.keys(data)
+    const values = Object.values(data)
+    const { rows } = await pool.query(
+      `INSERT INTO products (${keys.join(', ')}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
+      values
+    )
+    return mapProductFromDb(rows[0])
   }
 
   async updateById(id: string, updates: UpdateProductDto & { updated_by?: string; is_deleted?: boolean }): Promise<Product | null> {
-    const { data, error } = await supabase
-      .from('products')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .maybeSingle()
-
-    if (error) throw new Error(error.message)
-    return data ? mapProductFromDb(data) : null
+    const keys = Object.keys(updates)
+    if (!keys.length) return this.findById(id)
+    const values = Object.values(updates)
+    const { rows } = await pool.query(
+      `UPDATE products SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')} WHERE id = $${keys.length + 1} RETURNING *`,
+      [...values, id]
+    )
+    return rows[0] ? mapProductFromDb(rows[0]) : null
   }
 
   async delete(id: string): Promise<void> {
-    const { error } = await supabase.from('products').update({ is_deleted: true }).eq('id', id)
-
-    if (error) throw new Error(error.message)
+    await pool.query('UPDATE products SET is_deleted = true WHERE id = $1', [id])
   }
 
   async bulkDelete(ids: string[]): Promise<void> {
-    if (!Array.isArray(ids) || ids.length === 0) {
-      throw new Error('Invalid ids array')
-    }
-    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) {
-      throw new Error(`Bulk operation exceeds maximum limit of ${PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE}`)
-    }
-    const { error } = await supabase.from('products').update({ is_deleted: true }).in('id', ids)
-
-    if (error) throw new Error(error.message)
+    if (!ids?.length) throw new Error('Invalid ids array')
+    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) throw new Error(`Bulk operation exceeds maximum limit of ${PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE}`)
+    await pool.query('UPDATE products SET is_deleted = true WHERE id = ANY($1::uuid[])', [ids])
   }
 
   async bulkUpdateStatus(ids: string[], status: ProductStatus): Promise<void> {
-    if (!Array.isArray(ids) || ids.length === 0) {
-      throw new Error('Invalid ids array')
-    }
-    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) {
-      throw new Error(`Bulk operation exceeds maximum limit of ${PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE}`)
-    }
-    const { error } = await supabase.from('products').update({ status }).in('id', ids)
-
-    if (error) throw new Error(error.message)
+    if (!ids?.length) throw new Error('Invalid ids array')
+    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) throw new Error(`Bulk operation exceeds maximum limit of ${PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE}`)
+    await pool.query('UPDATE products SET status = $1 WHERE id = ANY($2::uuid[])', [status, ids])
   }
 
   async bulkRestore(ids: string[]): Promise<void> {
-    if (!Array.isArray(ids) || ids.length === 0) {
-      throw new Error('Invalid ids array')
-    }
-    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) {
-      throw new Error(`Bulk operation exceeds maximum limit of ${PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE}`)
-    }
-    const { error } = await supabase.from('products').update({ is_deleted: false }).in('id', ids)
-
-    if (error) throw new Error(error.message)
+    if (!ids?.length) throw new Error('Invalid ids array')
+    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) throw new Error(`Bulk operation exceeds maximum limit of ${PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE}`)
+    await pool.query('UPDATE products SET is_deleted = false WHERE id = ANY($1::uuid[])', [ids])
   }
 
   async getFilterOptions(): Promise<{ statuses: string[]; productTypes: string[] }> {
-    const statuses = ['ACTIVE', 'INACTIVE', 'DISCONTINUED']
-    const productTypes = ['raw', 'semi_finished', 'finished_goods']
-    return { statuses, productTypes }
+    return { statuses: ['ACTIVE', 'INACTIVE', 'DISCONTINUED'], productTypes: ['raw', 'semi_finished', 'finished_goods'] }
   }
 
   async minimalActive(): Promise<{ id: string; product_name: string }[]> {
-    const { data, error } = await supabase
-      .from('products')
-      .select('id, product_name')
-      .eq('status', 'ACTIVE')
-      .eq('is_deleted', false)
-      .order('product_name')
-      .limit(PRODUCT_LIMITS.MAX_MINIMAL_PRODUCTS)
-
-    if (error) throw new Error(error.message)
-    return data || []
+    const { rows } = await pool.query(
+      `SELECT id, product_name FROM products WHERE status = 'ACTIVE' AND is_deleted = false ORDER BY product_name LIMIT $1`,
+      [PRODUCT_LIMITS.MAX_MINIMAL_PRODUCTS]
+    )
+    return rows
   }
 }
 

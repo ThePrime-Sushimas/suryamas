@@ -2,53 +2,32 @@ import { bankAccountsRepository } from './bankAccounts.repository'
 import { BankAccount, BankAccountWithBank, CreateBankAccountDto, UpdateBankAccountDto, BankAccountListQuery, OwnerType } from './bankAccounts.types'
 import { BankAccountNotFoundError, DuplicateBankAccountError, InvalidOwnerError, BankNotActiveError } from './bankAccounts.errors'
 import { getPaginationParams, createPaginatedResponse } from '../../utils/pagination.util'
-import { supabase } from '../../config/supabase'
 import { logInfo } from '../../config/logger'
 import { AuditService } from '../monitoring/monitoring.service'
 
 export class BankAccountsService {
   // FIX #2 & #3: Whitelist tables and check soft delete
   private async validateOwner(ownerType: OwnerType, ownerId: string): Promise<void> {
-    const VALID_TABLES = {
-      company: 'companies',
-      supplier: 'suppliers'
-    } as const
+    if (!['company', 'supplier'].includes(ownerType)) throw new Error('Invalid owner type')
     
-    const table = VALID_TABLES[ownerType]
-    if (!table) throw new Error('Invalid owner type')
-    
-    // Companies use status field, suppliers use deleted_at
-    const selectFields = ownerType === 'company' ? 'id, status' : 'id, deleted_at'
-    
-    const { data, error } = await supabase
-      .from(table)
-      .select(selectFields)
-      .eq('id', ownerId)
-      .maybeSingle()
+    const data = await bankAccountsRepository.findOwner(ownerType, ownerId)
 
-    if (error) throw new Error(error.message)
     if (!data) throw new InvalidOwnerError(ownerType, ownerId)
     
-    // Check if owner is deleted/inactive
     if (ownerType === 'company') {
-      if ((data as any).status === 'closed') {
+      if ((data as { status?: string }).status === 'closed') {
         throw new Error('This company is closed and cannot have bank accounts')
       }
     } else {
-      if ((data as any).deleted_at) {
+      if ((data as { deleted_at?: string }).deleted_at) {
         throw new Error('This supplier has been deleted and cannot have bank accounts')
       }
     }
   }
 
   private async validateBank(bankId: number): Promise<void> {
-    const { data, error } = await supabase
-      .from('banks')
-      .select('id, is_active')
-      .eq('id', bankId)
-      .maybeSingle()
+    const data = await bankAccountsRepository.findBank(bankId)
 
-    if (error) throw new Error(error.message)
     if (!data) throw new Error(`Bank with ID ${bankId} not found`)
     if (!data.is_active) throw new BankNotActiveError(bankId)
   }
@@ -56,14 +35,8 @@ export class BankAccountsService {
   private async validateCoaAccount(coaAccountId: string | null | undefined): Promise<void> {
     if (!coaAccountId) return
 
-    const { data, error } = await supabase
-      .from('chart_of_accounts')
-      .select('id, account_code, account_name, account_type, is_active')
-      .eq('id', coaAccountId)
-      .is('deleted_at', null)
-      .maybeSingle()
+    const data = await bankAccountsRepository.findCoaAccount(coaAccountId)
 
-    if (error) throw new Error(error.message)
     if (!data) throw new Error(`COA account with ID ${coaAccountId} not found`)
     if (!data.is_active) throw new Error('COA account is not active')
     
