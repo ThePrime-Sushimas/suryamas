@@ -24,7 +24,7 @@
  *   Phase 2 — for now, debit-only rows are skipped with a warning
  */
 
-import { supabase } from '@/config/supabase'
+import { pool } from '@/config/db'
 import { logInfo, logError, logWarn } from '@/config/logger'
 
 // ============================================================
@@ -147,31 +147,25 @@ function getRetryDelay(attempt: number): number {
  * DEBIT account comes from bank_accounts.coa_account_id at runtime
  */
 async function loadBankRecConfig(companyId: string): Promise<BankRecConfig> {
-  const { data: purpose, error: purposeError } = await supabase
-    .from('accounting_purposes')
-    .select('id')
-    .eq('purpose_code', BANK_REC_PURPOSE_CODE)
-    .eq('company_id', companyId)
-    .eq('is_active', true)
-    .eq('is_deleted', false)
-    .maybeSingle()
+  const { rows: purposeRows } = await pool.query(
+    `SELECT id FROM accounting_purposes
+     WHERE purpose_code = $1 AND company_id = $2 AND is_active = true AND is_deleted = false`,
+    [BANK_REC_PURPOSE_CODE, companyId]
+  )
+  const purpose = purposeRows[0]
 
-  if (purposeError || !purpose) {
+  if (!purpose) {
     throw new Error(
       `BANK-REC purpose tidak ditemukan atau tidak aktif untuk company ${companyId}. ` +
       `Pastikan purpose BANK-REC sudah dibuat via SQL migration.`
     )
   }
 
-  const { data: accounts, error: accountsError } = await supabase
-    .from('accounting_purpose_accounts')
-    .select('account_id, side, priority')
-    .eq('purpose_id', purpose.id)
-    .eq('is_active', true)
-    .eq('is_deleted', false)
-    .order('priority', { ascending: true })
-
-  if (accountsError) throw new Error(`Gagal load BANK-REC accounts: ${accountsError.message}`)
+  const { rows: accounts } = await pool.query(
+    `SELECT account_id, side, priority FROM accounting_purpose_accounts
+     WHERE purpose_id = $1 AND is_active = true AND is_deleted = false ORDER BY priority ASC`,
+    [purpose.id]
+  )
   if (!accounts || accounts.length === 0) {
     throw new Error('BANK-REC tidak memiliki akun yang aktif. Tambahkan account mapping via SQL.')
   }
@@ -195,31 +189,23 @@ async function loadBankRecConfig(companyId: string): Promise<BankRecConfig> {
  * CREDIT account comes from bank_accounts.coa_account_id at runtime
  */
 async function loadBankFeeConfig(companyId: string): Promise<BankFeeConfig | null> {
-  const { data: purpose } = await supabase
-    .from('accounting_purposes')
-    .select('id')
-    .eq('purpose_code', BANK_FEE_PURPOSE_CODE)
-    .eq('company_id', companyId)
-    .eq('is_active', true)
-    .eq('is_deleted', false)
-    .maybeSingle()
+  const { rows: purposeRows2 } = await pool.query(
+    `SELECT id FROM accounting_purposes
+     WHERE purpose_code = $1 AND company_id = $2 AND is_active = true AND is_deleted = false`,
+    [BANK_FEE_PURPOSE_CODE, companyId]
+  )
+  if (!purposeRows2[0]) return null
 
-  if (!purpose) return null
-
-  const { data: accounts } = await supabase
-    .from('accounting_purpose_accounts')
-    .select('account_id, side')
-    .eq('purpose_id', purpose.id)
-    .eq('is_active', true)
-    .eq('is_deleted', false)
-    .eq('side', 'DEBIT')
-    .order('priority', { ascending: true })
-    .limit(1)
-
-  if (!accounts || accounts.length === 0) return null
+  const { rows: accounts2 } = await pool.query(
+    `SELECT account_id, side FROM accounting_purpose_accounts
+     WHERE purpose_id = $1 AND is_active = true AND is_deleted = false AND side = 'DEBIT'
+     ORDER BY priority ASC LIMIT 1`,
+    [purposeRows2[0].id]
+  )
+  if (accounts2.length === 0) return null
 
   const config: BankFeeConfig = {
-    debitAccountId: accounts[0].account_id as string,
+    debitAccountId: accounts2[0].account_id as string,
   }
 
   logInfo('BANK-FEE config loaded', config)
@@ -231,29 +217,22 @@ async function loadBankFeeConfig(companyId: string): Promise<BankFeeConfig | nul
  * Returns the account_id (610105 Fee Discrepancy)
  */
 async function loadFeeDiscConfig(companyId: string): Promise<FeeDiscConfig | null> {
-  const { data: purpose } = await supabase
-    .from('accounting_purposes')
-    .select('id')
-    .eq('purpose_code', FEE_DISC_PURPOSE_CODE)
-    .eq('company_id', companyId)
-    .eq('is_active', true)
-    .eq('is_deleted', false)
-    .maybeSingle()
+  const { rows: purposeRows3 } = await pool.query(
+    `SELECT id FROM accounting_purposes
+     WHERE purpose_code = $1 AND company_id = $2 AND is_active = true AND is_deleted = false`,
+    [FEE_DISC_PURPOSE_CODE, companyId]
+  )
+  if (!purposeRows3[0]) return null
 
-  if (!purpose) return null
+  const { rows: accounts3 } = await pool.query(
+    `SELECT account_id, side FROM accounting_purpose_accounts
+     WHERE purpose_id = $1 AND is_active = true AND is_deleted = false
+     ORDER BY priority ASC LIMIT 1`,
+    [purposeRows3[0].id]
+  )
+  if (accounts3.length === 0) return null
 
-  const { data: accounts } = await supabase
-    .from('accounting_purpose_accounts')
-    .select('account_id, side')
-    .eq('purpose_id', purpose.id)
-    .eq('is_active', true)
-    .eq('is_deleted', false)
-    .order('priority', { ascending: true })
-    .limit(1)
-
-  if (!accounts || accounts.length === 0) return null
-
-  const config: FeeDiscConfig = { accountId: accounts[0].account_id as string }
+  const config: FeeDiscConfig = { accountId: accounts3[0].account_id as string }
   logInfo('FEE-DISC config loaded', config)
   return config
 }
@@ -268,18 +247,11 @@ async function resolveBankAccounts(
   const result = new Map<number, BankAccountResolved>()
   if (bankAccountIds.length === 0) return result
 
-  const { data, error } = await supabase
-    .from('bank_accounts')
-    .select('id, account_number, account_name, coa_account_id, owner_id')
-    .in('id', bankAccountIds)
-    .eq('owner_id', companyId)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-
-  if (error || !data) {
-    logError('resolveBankAccounts failed', { error })
-    return result
-  }
+  const { rows: data } = await pool.query(
+    `SELECT id, account_number, account_name, coa_account_id, owner_id
+     FROM bank_accounts WHERE id = ANY($1::int[]) AND owner_id = $2 AND is_active = true AND deleted_at IS NULL`,
+    [bankAccountIds, companyId]
+  )
 
   for (const ba of data) {
     result.set(ba.id as number, {
@@ -311,21 +283,13 @@ async function createJournalHeaderWithRetry(
   attempt = 0
 ): Promise<{ id: string; journalNumber: string; isExisting: boolean } | null> {
   try {
-    const { data, error } = await supabase.rpc('create_journal_header_atomic', {
-      p_company_id:     params.companyId,
-      p_branch_id:      params.branchId,
-      p_journal_number: params.journalNumber,
-      p_journal_type:   'GENERAL',
-      p_journal_date:   params.journalDate,
-      p_period:         params.period,
-      p_description:    params.description,
-      p_total_amount:   params.totalAmount,
-      p_source_module:  'BANK_RECONCILIATION',
-    })
+    const { rows } = await pool.query(
+      `SELECT * FROM create_journal_header_atomic($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [params.companyId, params.branchId, params.journalNumber, 'GENERAL',
+       params.journalDate, params.period, params.description, params.totalAmount, 'BANK_RECONCILIATION']
+    )
 
-    if (error) throw new Error(error.message)
-
-    const row = Array.isArray(data) ? data[0] : data
+    const row = rows[0]
     if (!row?.id) return null
 
     return {
@@ -349,7 +313,7 @@ async function createJournalHeaderWithRetry(
 
 async function rollbackJournalHeader(journalHeaderId: string): Promise<void> {
   try {
-    await supabase.from('journal_headers').delete().eq('id', journalHeaderId)
+    await pool.query(`DELETE FROM journal_headers WHERE id = $1`, [journalHeaderId])
     logInfo('Rolled back journal header', { journalHeaderId })
   } catch (err) {
     logError('Rollback failed', { journalHeaderId, err })
@@ -406,41 +370,24 @@ export async function generateBankRecJournals(
   // ── PHASE 2: Load fiscal periods ─────────────────────────────────────
   onProgress?.({ current: 10, total: 100, phase: 'fiscal', message: 'Loading fiscal periods...' })
 
-  const { data: fiscalPeriods, error: periodError } = await supabase
-    .from('fiscal_periods')
-    .select('id, period, period_start, period_end, is_open')
-    .eq('company_id', companyId)
-    .is('deleted_at', null)
-
-  if (periodError) throw new Error(`Gagal load fiscal periods: ${periodError.message}`)
+  const { rows: fiscalPeriods } = await pool.query(
+    `SELECT id, period, period_start, period_end, is_open
+     FROM fiscal_periods WHERE company_id = $1 AND deleted_at IS NULL`,
+    [companyId]
+  )
 
   const periods = (fiscalPeriods ?? []) as FiscalPeriod[]
 
   // ── PHASE 3: Fetch bank statements ───────────────────────────────────
   onProgress?.({ current: 15, total: 100, phase: 'fetch', message: 'Fetching bank statements...' })
 
-  const { data: statementsRaw, error: stmtError } = await supabase
-    .from('bank_statements')
-    .select(`
-      id,
-      bank_account_id,
-      company_id,
-      transaction_date,
-      description,
-      credit_amount,
-      debit_amount,
-      is_reconciled,
-      is_pending,
-      journal_id,
-      payment_method_id,
-      reconciliation_id,
-      reconciliation_group_id
-    `)
-    .in('id', bankStatementIds)
-    .eq('company_id', companyId)
-    .is('deleted_at', null)
-
-  if (stmtError) throw new Error(`Gagal fetch bank statements: ${stmtError.message}`)
+  const { rows: statementsRaw } = await pool.query(
+    `SELECT id, bank_account_id, company_id, transaction_date, description,
+            credit_amount, debit_amount, is_reconciled, is_pending, journal_id,
+            payment_method_id, reconciliation_id, reconciliation_group_id
+     FROM bank_statements WHERE id = ANY($1::bigint[]) AND company_id = $2 AND deleted_at IS NULL`,
+    [bankStatementIds, companyId]
+  )
   if (!statementsRaw || statementsRaw.length === 0) {
     return { success: [], failed: [], total_statements: 0, total_journals: 0, duration_ms: 0 }
   }
@@ -609,13 +556,12 @@ export async function generateBankRecJournals(
       const journalNumber = `${journalPrefix}-${acctSuffix}-${journalDate}`
 
       // Check existing active journal (not soft-deleted)
-      const { data: existingJournal } = await supabase
-        .from('journal_headers')
-        .select('id, status')
-        .eq('company_id', companyId)
-        .eq('journal_number', journalNumber)
-        .is('deleted_at', null)
-        .maybeSingle()
+      const { rows: existingRows } = await pool.query(
+        `SELECT id, status FROM journal_headers
+         WHERE company_id = $1 AND journal_number = $2 AND deleted_at IS NULL LIMIT 1`,
+        [companyId, journalNumber]
+      )
+      const existingJournal = existingRows[0]
 
       if (existingJournal) {
         if (existingJournal.status === 'POSTED') {
@@ -628,11 +574,12 @@ export async function generateBankRecJournals(
         }
 
         // Active DRAFT -> clean up lines & references, then hard delete to recreate
-        await supabase.from('journal_lines').delete().eq('journal_header_id', existingJournal.id)
-        await supabase.from('bank_statements')
-          .update({ journal_id: null, updated_at: new Date().toISOString() })
-          .eq('journal_id', existingJournal.id)
-        await supabase.from('journal_headers').delete().eq('id', existingJournal.id)
+        await pool.query(`DELETE FROM journal_lines WHERE journal_header_id = $1`, [existingJournal.id])
+        await pool.query(
+          `UPDATE bank_statements SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1`,
+          [existingJournal.id]
+        )
+        await pool.query(`DELETE FROM journal_headers WHERE id = $1`, [existingJournal.id])
 
         logInfo('Cleaned up existing DRAFT journal for re-generation', {
           journalId: existingJournal.id, journalNumber,
@@ -655,12 +602,11 @@ export async function generateBankRecJournals(
 
       // ── 7.5b Re-validate reconciliation status ───────────────────
       const revalidateIds = groupStmts.map(s => s.id)
-      const { data: revalidated } = await supabase
-        .from('bank_statements')
-        .select('id, is_reconciled')
-        .in('id', revalidateIds)
-        .eq('is_reconciled', true)
-        .is('deleted_at', null)
+      const { rows: revalidated } = await pool.query(
+        `SELECT id, is_reconciled FROM bank_statements
+         WHERE id = ANY($1::bigint[]) AND is_reconciled = true AND deleted_at IS NULL`,
+        [revalidateIds]
+      )
 
       const stillReconciledIds = new Set((revalidated || []).map((r: any) => String(r.id)))
       const invalidated = groupStmts.filter(s => !stillReconciledIds.has(String(s.id)))
@@ -734,13 +680,12 @@ export async function generateBankRecJournals(
         const groupAggMap: Record<string, string> = {} // groupId → aggregateId
 
         if (groupIds.length > 0) {
-          const { data: groups } = await supabase
-            .from('bank_reconciliation_groups')
-            .select('id, aggregate_id')
-            .in('id', groupIds)
-            .is('deleted_at', null)
-
-          for (const g of groups || []) {
+          const { rows: groups } = await pool.query(
+            `SELECT id, aggregate_id FROM bank_reconciliation_groups
+             WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL`,
+            [groupIds]
+          )
+          for (const g of groups) {
             if (g.aggregate_id) {
               groupAggIds.push(g.aggregate_id as string)
               groupAggMap[g.id as string] = g.aggregate_id as string
@@ -756,16 +701,17 @@ export async function generateBankRecJournals(
         let settlementGroupDifference = 0 // total difference from settlement groups
 
         if (stmtIdsForSettlement.length > 0) {
-          const { data: settlements } = await supabase
-            .from('bank_settlement_groups')
-            .select(`
-              id, bank_statement_id, difference,
-              bank_settlement_aggregates ( aggregate_id )
-            `)
-            .in('bank_statement_id', stmtIdsForSettlement)
-            .is('deleted_at', null)
+          const { rows: settlements } = await pool.query(
+            `SELECT sg.id, sg.bank_statement_id, sg.difference,
+             json_agg(json_build_object('aggregate_id', bsa.aggregate_id)) FILTER (WHERE bsa.aggregate_id IS NOT NULL) AS bank_settlement_aggregates
+             FROM bank_settlement_groups sg
+             LEFT JOIN bank_settlement_aggregates bsa ON bsa.settlement_group_id = sg.id
+             WHERE sg.bank_statement_id = ANY($1::int[]) AND sg.deleted_at IS NULL
+             GROUP BY sg.id`,
+            [stmtIdsForSettlement]
+          )
 
-          for (const sg of settlements || []) {
+          for (const sg of settlements) {
             const bsId = String(sg.bank_statement_id)
             const aggIds = ((sg as any).bank_settlement_aggregates || []).map((a: any) => a.aggregate_id as string)
             settlementMap[bsId] = aggIds
@@ -777,10 +723,11 @@ export async function generateBankRecJournals(
 
         const allAggIds = [...new Set([...reconIds, ...groupAggIds, ...settlementAggIds])]
 
-        const { data: linkedAggs, error: aggError } = await supabase
-          .from('aggregated_transactions')
-          .select('id, bill_after_discount, total_fee_amount, actual_fee_amount, fee_discrepancy, payment_method_id')
-          .in('id', allAggIds.length > 0 ? allAggIds : ['__none__'])
+        const { rows: linkedAggs } = await pool.query(
+          `SELECT id, bill_after_discount, total_fee_amount, actual_fee_amount, fee_discrepancy, payment_method_id
+           FROM aggregated_transactions WHERE id = ANY($1::uuid[])`,
+          [allAggIds.length > 0 ? allAggIds : ['00000000-0000-0000-0000-000000000000']]
+        )
 
         // Build aggregate map (by aggregate id)
         const aggMap: Record<string, any> = {}
@@ -800,11 +747,12 @@ export async function generateBankRecJournals(
 
         let pmMap: Record<number, { coa_account_id: string; fee_liability_coa_account_id: string | null; name: string }> = {}
         if (allPmIds.length > 0) {
-          const { data: pms } = await supabase
-            .from('payment_methods')
-            .select('id, name, coa_account_id, fee_liability_coa_account_id')
-            .in('id', allPmIds)
-          for (const pm of pms || []) {
+          const { rows: pms } = await pool.query(
+            `SELECT id, name, coa_account_id, fee_liability_coa_account_id
+             FROM payment_methods WHERE id = ANY($1::int[])`,
+            [allPmIds]
+          )
+          for (const pm of pms) {
             pmMap[pm.id] = {
               coa_account_id: pm.coa_account_id || '',
               fee_liability_coa_account_id: (pm as any).fee_liability_coa_account_id || null,
@@ -952,10 +900,10 @@ export async function generateBankRecJournals(
         const recalcCredit = round2(lines.reduce((s, l) => s + l.credit_amount, 0))
 
         // Update header with correct totals
-        await supabase
-          .from('journal_headers')
-          .update({ total_debit: recalcDebit, total_credit: recalcCredit, updated_at: now })
-          .eq('id', journalHeader.id)
+        await pool.query(
+          `UPDATE journal_headers SET total_debit = $1, total_credit = $2, updated_at = NOW() WHERE id = $3`,
+          [recalcDebit, recalcCredit, journalHeader.id]
+        )
       }
 
 
@@ -978,15 +926,11 @@ export async function generateBankRecJournals(
       }
 
       try {
-        const { error: rpcError } = await supabase.rpc('post_journal_lines_atomic', {
-          p_journal_header_id: journalHeader.id,
-          p_lines: lines.map(({ journal_header_id: _, created_at: __, ...rest }) => rest),
-          p_bank_statement_ids: groupStmts.map(s => Number(s.id)),
-          p_aggregate_ids: [],
-          p_set_processing: false,
-        })
-
-        if (rpcError) throw new Error(rpcError.message)
+        await pool.query(
+          `SELECT * FROM post_journal_lines_atomic($1, $2::jsonb, $3::bigint[], $4::uuid[], $5)`,
+          [journalHeader.id, JSON.stringify(lines.map(({ journal_header_id: _, created_at: __, ...rest }) => rest)),
+           groupStmts.map(s => Number(s.id)), [], false]
+        )
       } catch (postErr) {
         await rollbackJournalHeader(journalHeader.id)
         failedResults.push({

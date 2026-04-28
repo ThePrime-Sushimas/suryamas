@@ -29,7 +29,7 @@
  *   ASSET types    → DEBIT to coa_account_id
  */
 
-import { supabase } from '../../../config/supabase'
+import { pool } from '../../../config/db'
 import { logInfo, logError, logWarn } from '../../../config/logger'
 import type {
   AggregatedTransaction,
@@ -122,17 +122,11 @@ async function resolvePaymentMethods(
   if (paymentMethodIds.length === 0) return result
 
   // Query 1: Get payment methods (no join)
-  const { data: pms, error: pmError } = await supabase
-    .from('payment_methods')
-    .select('id, name, code, payment_type, coa_account_id, fee_coa_account_id, fee_liability_coa_account_id')
-    .in('id', paymentMethodIds)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-
-  if (pmError) {
-    logError('resolvePaymentMethods: PM query failed', { error: pmError })
-    return result
-  }
+  const { rows: pms } = await pool.query(
+    `SELECT id, name, code, payment_type, coa_account_id, fee_coa_account_id, fee_liability_coa_account_id
+     FROM payment_methods WHERE id = ANY($1::int[]) AND is_active = true AND deleted_at IS NULL`,
+    [paymentMethodIds]
+  )
 
   if (!pms || pms.length === 0) {
     logError('resolvePaymentMethods: no payment methods returned', { ids: paymentMethodIds })
@@ -144,17 +138,12 @@ async function resolvePaymentMethods(
   const coaTypeMap = new Map<string, string>()
 
   if (coaIds.length > 0) {
-    const { data: coas, error: coaError } = await supabase
-      .from('chart_of_accounts')
-      .select('id, account_type')
-      .in('id', coaIds)
-
-    if (coaError) {
-      logError('resolvePaymentMethods: COA query failed', { error: coaError })
-    } else {
-      for (const coa of coas ?? []) {
-        coaTypeMap.set(coa.id, coa.account_type)
-      }
+    const { rows: coas } = await pool.query(
+      `SELECT id, account_type FROM chart_of_accounts WHERE id = ANY($1::uuid[])`,
+      [coaIds]
+    )
+    for (const coa of coas) {
+      coaTypeMap.set(coa.id, coa.account_type)
     }
   }
 
@@ -189,30 +178,26 @@ async function resolvePaymentMethods(
  * Scoped as a factory — caller manages cache lifetime.
  */
 async function loadSalInvConfig(companyId: string): Promise<SalInvConfig> {
-  const { data: purpose, error: purposeError } = await supabase
-    .from('accounting_purposes')
-    .select('id')
-    .eq('purpose_code', SAL_INV_PURPOSE_CODE)
-    .eq('company_id', companyId)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
+  const { rows: purposeRows } = await pool.query(
+    `SELECT id FROM accounting_purposes
+     WHERE purpose_code = $1 AND company_id = $2 AND is_active = true AND deleted_at IS NULL`,
+    [SAL_INV_PURPOSE_CODE, companyId]
+  )
+  const purpose = purposeRows[0]
 
-  if (purposeError || !purpose) {
+  if (!purpose) {
     throw new Error(
       `SAL-INV purpose tidak ditemukan atau tidak aktif untuk company ${companyId}`
     )
   }
 
-  const { data: accounts, error: accountsError } = await supabase
-    .from('accounting_purpose_accounts')
-    .select('account_id, side, priority, field_mapping')
-    .eq('purpose_id', purpose.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .order('priority', { ascending: true })
-
-  if (accountsError) throw new Error(`Gagal load SAL-INV accounts: ${accountsError.message}`)
+  const { rows: accounts } = await pool.query(
+    `SELECT account_id, side, priority, field_mapping
+     FROM accounting_purpose_accounts
+     WHERE purpose_id = $1 AND is_active = true AND deleted_at IS NULL
+     ORDER BY priority ASC`,
+    [purpose.id]
+  )
   if (!accounts || accounts.length === 0) throw new Error('SAL-INV tidak memiliki akun yang aktif')
 
   // Build field_mapping lookup
@@ -248,12 +233,13 @@ async function loadSalInvConfig(companyId: string): Promise<SalInvConfig> {
   if (creditAccounts.length === 0) throw new Error('SAL-INV tidak memiliki akun CREDIT yang aktif')
 
   const allCoaIds = [...new Set(accounts.map(a => a.account_id))]
-  const { data: coas, error: coaError } = await supabase
-    .from('chart_of_accounts').select('id, account_type').in('id', allCoaIds)
-  if (coaError) throw new Error(`Gagal load COA types: ${coaError.message}`)
+  const { rows: coas } = await pool.query(
+    `SELECT id, account_type FROM chart_of_accounts WHERE id = ANY($1::uuid[])`,
+    [allCoaIds]
+  )
 
   const coaTypeMap = new Map<string, string>()
-  for (const coa of coas ?? []) coaTypeMap.set(coa.id, coa.account_type)
+  for (const coa of coas) coaTypeMap.set(coa.id, coa.account_type)
 
   const revenueAccount  = creditAccounts.find(a => coaTypeMap.get(a.account_id) === 'REVENUE')
   if (!revenueAccount) throw new Error('SAL-INV tidak memiliki akun CREDIT REVENUE')
@@ -286,15 +272,11 @@ async function resolveBranch(
   const key = `${companyId}|${branchName}`
   if (cache.has(key)) return cache.get(key)!
 
-  const { data, error } = await supabase
-    .from('branches')
-    .select('id')
-    .ilike('branch_name', branchName.trim())
-    .eq('company_id', companyId)
-    .eq('status', 'active')
-    .maybeSingle()
-
-  const id = error || !data ? null : data.id
+  const { rows } = await pool.query(
+    `SELECT id FROM branches WHERE branch_name ILIKE $1 AND company_id = $2 AND status = 'active' LIMIT 1`,
+    [branchName.trim(), companyId]
+  )
+  const id = rows[0]?.id ?? null
   cache.set(key, id)
   return id
 }
@@ -344,21 +326,13 @@ async function createJournalHeaderWithRetry(
   attempt = 0
 ): Promise<JournalHeaderResult | null> {
   try {
-    const { data, error } = await supabase.rpc('create_journal_header_atomic', {
-      p_company_id:    params.companyId,
-      p_branch_id:     params.branchId,
-      p_journal_number: params.journalNumber,
-      p_journal_type:  'SALES',
-      p_journal_date:  params.journalDate,
-      p_period:        params.period,
-      p_description:   params.description,
-      p_total_amount:  params.totalAmount,
-      p_source_module: 'POS_AGGREGATES',
-    })
+    const { rows } = await pool.query(
+      `SELECT * FROM create_journal_header_atomic($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [params.companyId, params.branchId, params.journalNumber, 'SALES',
+       params.journalDate, params.period, params.description, params.totalAmount, 'POS_AGGREGATES']
+    )
 
-    if (error) throw new Error(error.message)
-
-    const row = Array.isArray(data) ? data[0] : data
+    const row = rows[0]
     if (!row?.id) return null
 
     return {
@@ -384,7 +358,7 @@ async function createJournalHeaderWithRetry(
 
 async function rollbackJournalHeader(journalHeaderId: string): Promise<void> {
   try {
-    await supabase.from('journal_headers').delete().eq('id', journalHeaderId)
+    await pool.query(`DELETE FROM journal_headers WHERE id = $1`, [journalHeaderId])
     logInfo('Rolled back journal header', { journalHeaderId })
   } catch (err) {
     logError('Rollback failed', { journalHeaderId, err })
@@ -476,13 +450,11 @@ export async function generateJournalsOptimized(
   // ── PHASE 2: Load fiscal periods ─────────────────────────────────────
   onProgress?.({ current: 10, total: 100, phase: 'fiscal', message: 'Loading fiscal periods...' })
 
-  const { data: fiscalPeriods, error: periodError } = await supabase
-    .from('fiscal_periods')
-    .select('id, period, period_start, period_end, is_open')
-    .eq('company_id', companyId)
-    .is('deleted_at', null)
-
-  if (periodError) throw new Error(`Gagal load fiscal periods: ${periodError.message}`)
+  const { rows: fiscalPeriods } = await pool.query(
+    `SELECT id, period, period_start, period_end, is_open
+     FROM fiscal_periods WHERE company_id = $1 AND deleted_at IS NULL`,
+    [companyId]
+  )
 
   // ── PHASE 3: Group transactions by date + branch ──────────────────────
   onProgress?.({ current: 15, total: 100, phase: 'grouping', message: 'Grouping transactions...' })
@@ -704,11 +676,11 @@ export async function generateJournalsOptimized(
       // ── 5.8 Idempotency check ──────────────────────────────────────
       if (journalHeader.isExisting) {
         // Fetch status untuk cek apakah sudah POSTED
-        const { data: existingHeader } = await supabase
-          .from('journal_headers')
-          .select('status')
-          .eq('id', journalHeader.id)
-          .single()
+        const { rows: existingRows } = await pool.query(
+          `SELECT status FROM journal_headers WHERE id = $1`,
+          [journalHeader.id]
+        )
+        const existingHeader = existingRows[0]
 
         if (existingHeader?.status === 'POSTED') {
           // Jurnal sudah final — jangan sentuh apapun
@@ -728,20 +700,16 @@ export async function generateJournalsOptimized(
         // Existing tapi belum POSTED — hapus lines lama dan re-generate
         // Ini mencegah stale lines dari run sebelumnya yang mungkin sudah tidak akurat
         // (misal: amount berubah karena re-reconciliation)
-        await supabase
-          .from('journal_lines')
-          .delete()
-          .eq('journal_header_id', journalHeader.id)
+        await pool.query(
+          `DELETE FROM journal_lines WHERE journal_header_id = $1`,
+          [journalHeader.id]
+        )
 
-        await supabase
-          .from('journal_headers')
-          .update({
-            total_debit:  grandTotalDebit,
-            total_credit: grandTotalDebit,
-            description:  `POS Sales ${date} - ${branchName}`,
-            updated_at:   new Date().toISOString(),
-          })
-          .eq('id', journalHeader.id)
+        await pool.query(
+          `UPDATE journal_headers SET total_debit = $1, total_credit = $1, description = $2, updated_at = NOW()
+           WHERE id = $3`,
+          [grandTotalDebit, `POS Sales ${date} - ${branchName}`, journalHeader.id]
+        )
 
         logInfo('Replacing DRAFT journal lines', {
           journalId: journalHeader.id,
@@ -894,15 +862,10 @@ export async function generateJournalsOptimized(
       try {
         const linesPayload = lines.map(({ journal_header_id: _, created_at: __, ...rest }) => rest)
 
-        const { error: rpcError } = await supabase.rpc('post_journal_lines_atomic', {
-          p_journal_header_id: journalHeader.id,
-          p_lines: linesPayload,
-          p_bank_statement_ids: [],
-          p_aggregate_ids: groupTxs.map(t => t.id),
-          p_set_processing: true,
-        })
-
-        if (rpcError) throw new Error(rpcError.message)
+        await pool.query(
+          `SELECT * FROM post_journal_lines_atomic($1, $2::jsonb, $3::uuid[], $4::uuid[], $5)`,
+          [journalHeader.id, JSON.stringify(linesPayload), [], groupTxs.map(t => t.id), true]
+        )
       } catch (postErr) {
         await rollbackJournalHeader(journalHeader.id)
         throw postErr
