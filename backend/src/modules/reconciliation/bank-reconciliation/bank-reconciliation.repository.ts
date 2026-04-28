@@ -1,4 +1,5 @@
 import { pool } from "../../../config/db";
+import { PoolClient } from "pg";
 import { logError } from "../../../config/logger";
 import { BankReconciliationStatus } from "./bank-reconciliation.types";
 import {
@@ -727,11 +728,17 @@ export class BankReconciliationRepository {
   }
 
   /**
-   * Get reconciliation group by ID with all details
+   * Get reconciliation group by ID with all details.
+   *
+   * @param groupId - The group UUID to fetch
+   * @param client  - Optional PoolClient to run within an existing transaction.
+   *                  Pass the transactional client so reads see uncommitted writes
+   *                  made earlier in the same transaction.
    */
-  async getReconciliationGroupById(groupId: string): Promise<any> {
+  async getReconciliationGroupById(groupId: string, client?: PoolClient): Promise<any> {
+    const db = client ?? pool;
     try {
-      const { rows: groupRows } = await pool.query(
+      const { rows: groupRows } = await db.query(
         `SELECT 
            brg.*,
            jsonb_build_object(
@@ -750,7 +757,7 @@ export class BankReconciliationRepository {
 
       if (groupRows.length === 0) return null;
 
-      const { rows: detailRows } = await pool.query(
+      const { rows: detailRows } = await db.query(
         `SELECT 
            brgd.*,
            jsonb_build_object(
@@ -820,7 +827,8 @@ export class BankReconciliationRepository {
     try {
       await client.query("BEGIN");
 
-      const group = await this.getReconciliationGroupById(groupId);
+      // Pass the transactional client so the read runs within the same transaction
+      const group = await this.getReconciliationGroupById(groupId, client);
       if (!group) throw new Error("Group not found");
 
       const statementIds = (group.bank_reconciliation_group_details || []).map((d: any) => d.statement_id);
