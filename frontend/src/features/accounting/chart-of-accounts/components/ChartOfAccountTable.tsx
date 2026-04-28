@@ -67,9 +67,12 @@ export const ChartOfAccountTable = ({
     useEffect(() => {
       if (openDropdown === account.id && buttonRef.current) {
         const rect = buttonRef.current.getBoundingClientRect()
+        const spaceBelow = window.innerHeight - rect.bottom
+        const dropdownH = 200
+        const top = spaceBelow < dropdownH ? rect.top - dropdownH : rect.bottom + 4
         setDropdownPosition({
-          top: rect.bottom + window.scrollY,
-          left: rect.right - 192 + window.scrollX // 192px = w-48
+          top,
+          left: Math.min(rect.right - 192, window.innerWidth - 200)
         })
       }
     }, [account.id])
