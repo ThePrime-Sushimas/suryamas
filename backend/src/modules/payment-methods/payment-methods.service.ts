@@ -12,7 +12,6 @@ import { AuditService } from '../monitoring/monitoring.service'
 import { PaymentMethodErrors } from './payment-methods.errors'
 import { PaymentMethodsConfig } from './payment-methods.errors'
 import { logInfo, logError, logWarn } from '../../config/logger'
-import { supabase } from '../../config/supabase'
 
 // Fee calculation service untuk validasi
 import { feeCalculationService, FeeConfig } from '../reconciliation/fee-reconciliation/fee-calculation.service'
@@ -21,7 +20,7 @@ import { feeCalculationService, FeeConfig } from '../reconciliation/fee-reconcil
  * Transaction context interface for database operations
  */
 interface TransactionContext {
-  client: typeof supabase
+  client: unknown
 }
 
 export class PaymentMethodsService {
@@ -58,29 +57,24 @@ export class PaymentMethodsService {
       company_id: data.company_id
     })
     
-    return await this.repository.withTransaction(async (trx) => {
+    return await this.repository.withTransaction(async () => {
       try {
         // Validate company exists
-        const { data: company, error: companyError } = await supabase
-          .from('companies')
-          .select('id')
-          .eq('id', data.company_id)
-          .maybeSingle()
+        const companyExists = await paymentMethodsRepository.companyExists(data.company_id)
 
-        if (companyError) throw new Error(companyError.message)
-        if (!company) {
+        if (!companyExists) {
           throw PaymentMethodErrors.COMPANY_NOT_FOUND(data.company_id)
         }
 
         // Check for duplicate code
-        const existing = await this.repository.findByCode(data.company_id, data.code, trx)
+        const existing = await this.repository.findByCode(data.company_id, data.code)
         if (existing) {
           throw PaymentMethodErrors.CODE_EXISTS(data.code, data.company_id)
         }
 
         // Validate bank account if provided
         if (data.bank_account_id) {
-          const bankAccount = await this.validateBankAccount(data.bank_account_id, data.company_id, trx)
+          const bankAccount = await this.validateBankAccount(data.bank_account_id, data.company_id)
           if (!bankAccount.is_active) {
             throw PaymentMethodErrors.BANK_ACCOUNT_INACTIVE(data.bank_account_id)
           }
@@ -88,13 +82,13 @@ export class PaymentMethodsService {
 
         // Validate COA if provided
         if (data.coa_account_id) {
-          await this.validateCoaAccount(data.coa_account_id, data.company_id, trx)
+          await this.validateCoaAccount(data.coa_account_id, data.company_id)
         }
         if (data.fee_coa_account_id) {
-          await this.validateCoaAccount(data.fee_coa_account_id, data.company_id, trx)
+          await this.validateCoaAccount(data.fee_coa_account_id, data.company_id)
         }
         if (data.fee_liability_coa_account_id) {
-          await this.validateCoaAccount(data.fee_liability_coa_account_id, data.company_id, trx)
+          await this.validateCoaAccount(data.fee_liability_coa_account_id, data.company_id)
         }
 
         // === 🔥 VALIDATE FEE CONFIGURATION ===
@@ -106,10 +100,10 @@ export class PaymentMethodsService {
 
         // Handle default payment method
         if (data.is_default) {
-          await this.repository.unsetDefault(data.company_id, undefined, trx)
+          await this.repository.unsetDefault(data.company_id, undefined)
         }
 
-        const paymentMethod = await this.repository.create(data, userId, trx)
+        const paymentMethod = await this.repository.create(data, userId)
 
         if (!paymentMethod) {
           throw PaymentMethodErrors.CREATE_FAILED()
@@ -132,8 +126,8 @@ export class PaymentMethodsService {
   async update(id: number, data: UpdatePaymentMethodDto, userId: string, companyId?: string): Promise<PaymentMethod> {
     logInfo('Updating payment method', { id, user: userId })
     
-    return await this.repository.withTransaction(async (trx) => {
-      const existing = await this.repository.findById(id, trx)
+    return await this.repository.withTransaction(async () => {
+      const existing = await this.repository.findById(id)
       if (!existing) {
         throw PaymentMethodErrors.NOT_FOUND(id)
       }
@@ -148,8 +142,7 @@ export class PaymentMethodsService {
           const existingCode = await this.repository.findByCodeExcludeId(
             existing.company_id, 
             data.code, 
-            id, 
-            trx
+            id
           )
           if (existingCode) {
             throw PaymentMethodErrors.CODE_EXISTS(data.code, existing.company_id)
@@ -158,7 +151,7 @@ export class PaymentMethodsService {
 
         // Validate bank account if provided
         if (data.bank_account_id) {
-          const bankAccount = await this.validateBankAccount(data.bank_account_id, existing.company_id, trx)
+          const bankAccount = await this.validateBankAccount(data.bank_account_id, existing.company_id)
           if (!bankAccount.is_active) {
             throw PaymentMethodErrors.BANK_ACCOUNT_INACTIVE(data.bank_account_id)
           }
@@ -166,13 +159,13 @@ export class PaymentMethodsService {
 
         // Validate COA if provided
         if (data.coa_account_id) {
-          await this.validateCoaAccount(data.coa_account_id, existing.company_id, trx)
+          await this.validateCoaAccount(data.coa_account_id, existing.company_id)
         }
         if (data.fee_coa_account_id) {
-          await this.validateCoaAccount(data.fee_coa_account_id, existing.company_id, trx)
+          await this.validateCoaAccount(data.fee_coa_account_id, existing.company_id)
         }
         if (data.fee_liability_coa_account_id) {
-          await this.validateCoaAccount(data.fee_liability_coa_account_id, existing.company_id, trx)
+          await this.validateCoaAccount(data.fee_liability_coa_account_id, existing.company_id)
         }
 
         // === 🔥 VALIDATE FEE CONFIGURATION ===
@@ -184,7 +177,7 @@ export class PaymentMethodsService {
 
         // Handle default payment method
         if (data.is_default && !existing.is_default) {
-          await this.repository.unsetDefault(existing.company_id, id, trx)
+          await this.repository.unsetDefault(existing.company_id, id)
         }
 
         // Prevent deactivating default payment method
@@ -197,7 +190,7 @@ export class PaymentMethodsService {
           throw PaymentMethodErrors.CANNOT_DELETE_DEFAULT(id)
         }
 
-        const paymentMethod = await this.repository.updateWithUser(id, data, userId, trx)
+        const paymentMethod = await this.repository.updateWithUser(id, data, userId)
         if (!paymentMethod) {
           throw PaymentMethodErrors.UPDATE_FAILED(id)
         }
@@ -215,8 +208,8 @@ export class PaymentMethodsService {
   async delete(id: number, userId: string, companyId?: string): Promise<void> {
     logInfo('Deleting payment method', { id, user: userId })
     
-    return await this.repository.withTransaction(async (trx) => {
-      const paymentMethod = await this.repository.findById(id, trx)
+    return await this.repository.withTransaction(async () => {
+      const paymentMethod = await this.repository.findById(id)
       if (!paymentMethod) {
         throw PaymentMethodErrors.NOT_FOUND(id)
       }
@@ -230,7 +223,7 @@ export class PaymentMethodsService {
         throw PaymentMethodErrors.CANNOT_DELETE_DEFAULT(id)
       }
 
-      await this.repository.softDelete(id, userId, trx)
+      await this.repository.softDelete(id, userId)
       await AuditService.log('DELETE', 'payment_methods', id.toString(), userId, paymentMethod, null)
       logInfo('Payment method deleted successfully', { id })
     })
@@ -239,10 +232,10 @@ export class PaymentMethodsService {
   async bulkUpdateStatus(ids: number[], isActive: boolean, userId: string, companyId?: string): Promise<void> {
     logInfo('Bulk updating payment method status', { count: ids.length, is_active: isActive, user: userId })
     
-    return await this.repository.withTransaction(async (trx) => {
+    return await this.repository.withTransaction(async () => {
       // Validate all records belong to the company
       for (const id of ids) {
-        const paymentMethod = await this.repository.findById(id, trx)
+        const paymentMethod = await this.repository.findById(id)
         if (!paymentMethod) {
           throw PaymentMethodErrors.NOT_FOUND(id)
         }
@@ -257,7 +250,7 @@ export class PaymentMethodsService {
         }
       }
 
-      await this.repository.bulkUpdateStatus(ids, isActive, userId, trx)
+      await this.repository.bulkUpdateStatus(ids, isActive, userId)
       await AuditService.log('BULK_UPDATE_STATUS', 'payment_methods', ids.join(','), userId, null, { is_active: isActive })
       logInfo('Bulk status update completed', { count: ids.length })
     })
@@ -266,10 +259,10 @@ export class PaymentMethodsService {
   async bulkDelete(ids: number[], userId: string, companyId?: string): Promise<void> {
     logInfo('Bulk deleting payment methods', { count: ids.length, user: userId })
     
-    return await this.repository.withTransaction(async (trx) => {
+    return await this.repository.withTransaction(async () => {
       // Validate all records
       for (const id of ids) {
-        const paymentMethod = await this.repository.findById(id, trx)
+        const paymentMethod = await this.repository.findById(id)
         if (!paymentMethod) {
           throw PaymentMethodErrors.NOT_FOUND(id)
         }
@@ -284,7 +277,7 @@ export class PaymentMethodsService {
         }
       }
 
-      await this.repository.bulkDelete(ids, userId, trx)
+      await this.repository.bulkDelete(ids, userId)
       await AuditService.log('BULK_DELETE', 'payment_methods', ids.join(','), userId, null, { count: ids.length })
       logInfo('Bulk delete completed', { count: ids.length })
     })
@@ -327,51 +320,37 @@ export class PaymentMethodsService {
     owner_type: string
     owner_id: string
   }> {
-    const client = trx?.client || supabase
-    const { data, error } = await client
-      .from('bank_accounts')
-      .select('id, is_active, owner_type, owner_id')
-      .eq('id', bankAccountId)
-      .is('deleted_at', null)
-      .maybeSingle()
+    const bankAccount = await paymentMethodsRepository.findBankAccount(bankAccountId)
 
-    if (error) throw new Error(error.message)
-    if (!data) {
+    if (!bankAccount) {
       throw PaymentMethodErrors.BANK_ACCOUNT_NOT_FOUND(bankAccountId)
     }
 
-    return data as { id: number; is_active: boolean; owner_type: string; owner_id: string }
+    return bankAccount as { id: number; is_active: boolean; owner_type: string; owner_id: string }
   }
 
-  private async validateCoaAccount(coaAccountId: string, companyId: string, trx?: TransactionContext): Promise<{
+  private async validateCoaAccount(coaAccountId: string, companyId: string, _trx?: TransactionContext): Promise<{
     id: string
     account_code: string
     account_type: string
     is_postable: boolean
     company_id: string
   }> {
-    const client = trx?.client || supabase
-    const { data, error } = await client
-      .from('chart_of_accounts')
-      .select('id, account_code, account_type, is_postable, company_id')
-      .eq('id', coaAccountId)
-      .is('deleted_at', null)
-      .maybeSingle()
+    const coaAccount = await paymentMethodsRepository.findCoaAccount(coaAccountId)
 
-    if (error) throw new Error(error.message)
-    if (!data) {
+    if (!coaAccount) {
       throw PaymentMethodErrors.COA_ACCOUNT_NOT_FOUND(coaAccountId)
     }
 
-    if (data.company_id !== companyId) {
+    if (coaAccount.company_id !== companyId) {
       throw PaymentMethodErrors.COMPANY_ACCESS_DENIED(companyId)
     }
 
-    if (!data.is_postable) {
-      throw PaymentMethodErrors.COA_NOT_POSTABLE(data.account_code)
+    if (!coaAccount.is_postable) {
+      throw PaymentMethodErrors.COA_NOT_POSTABLE(coaAccount.account_code)
     }
 
-    return data as { id: string; account_code: string; account_type: string; is_postable: boolean; company_id: string }
+    return coaAccount as { id: string; account_code: string; account_type: string; is_postable: boolean; company_id: string }
   }
 
   /**

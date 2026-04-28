@@ -1,388 +1,214 @@
-import { supabase } from '../../config/supabase'
-import { 
-  SupplierProduct, 
-  SupplierProductWithRelations, 
-  CreateSupplierProductDto, 
-  UpdateSupplierProductDto, 
-  SupplierProductListQuery,
-  SupplierProductOption
+import { pool } from '../../config/db'
+import {
+  SupplierProduct, SupplierProductWithRelations, CreateSupplierProductDto,
+  UpdateSupplierProductDto, SupplierProductListQuery, SupplierProductOption
 } from './supplier-products.types'
-import { 
-  mapSupplierProductFromDb, 
-  mapSupplierProductWithRelations,
-  mapSupplierProductOption
-} from './supplier-products.mapper'
+import { mapSupplierProductFromDb, mapSupplierProductWithRelations, mapSupplierProductOption } from './supplier-products.mapper'
 import { SUPPLIER_PRODUCT_SORT_FIELDS } from './supplier-products.constants'
 
+const RELATIONS_SELECT = `
+  sp.*,
+  s.id AS s_id, s.supplier_name, s.supplier_code, s.is_active AS s_is_active,
+  p.id AS p_id, p.product_name, p.product_code, p.product_type, p.status AS p_status, p.default_purchase_unit
+`
+const RELATIONS_FROM = `
+  FROM supplier_products sp
+  LEFT JOIN suppliers s ON s.id = sp.supplier_id
+  LEFT JOIN products p ON p.id = sp.product_id
+`
+
+function mapRowWithRelations(row: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...row,
+    suppliers: row.s_id ? { id: row.s_id, supplier_name: row.supplier_name, supplier_code: row.supplier_code, is_active: row.s_is_active } : null,
+    products: row.p_id ? { id: row.p_id, product_name: row.product_name, product_code: row.product_code, product_type: row.product_type, status: row.p_status, default_purchase_unit: row.default_purchase_unit } : null,
+  }
+}
+
 export class SupplierProductsRepository {
-  /**
-   * Find all supplier products with pagination and filtering
-   */
   async findAll(
     pagination: { limit: number; offset: number },
     query?: SupplierProductListQuery,
     includeRelations = false
   ): Promise<{ data: SupplierProduct[] | SupplierProductWithRelations[]; total: number }> {
-    const selectFields = includeRelations 
-      ? `*, suppliers(id, supplier_name, supplier_code, is_active), products(id, product_name, product_code, product_type, status, default_purchase_unit)`
-      : '*'
+    const conditions: string[] = []
+    const params: (string | boolean)[] = []
+    let idx = 1
 
-    let dbQuery = supabase.from('supplier_products').select(selectFields)
-    let countQuery = supabase.from('supplier_products').select('*', { count: 'exact', head: true })
+    if (!query?.include_deleted) conditions.push('sp.deleted_at IS NULL')
+    if (query?.supplier_id) { params.push(query.supplier_id); conditions.push(`sp.supplier_id = $${idx}`); idx++ }
+    if (query?.product_id) { params.push(query.product_id); conditions.push(`sp.product_id = $${idx}`); idx++ }
+    if (query?.is_preferred !== undefined) { params.push(query.is_preferred); conditions.push(`sp.is_preferred = $${idx}`); idx++ }
+    if (query?.is_active !== undefined) { params.push(query.is_active); conditions.push(`sp.is_active = $${idx}`); idx++ }
 
-    // Exclude soft deleted (unless include_deleted is true)
-    if (!query?.include_deleted) {
-      dbQuery = dbQuery.is('deleted_at', null)
-      countQuery = countQuery.is('deleted_at', null)
-    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    const sortBy = query?.sort_by && SUPPLIER_PRODUCT_SORT_FIELDS.includes(query.sort_by as string) ? `sp.${query.sort_by}` : 'sp.created_at'
+    const sortOrder = query?.sort_order === 'asc' ? 'ASC' : 'DESC'
 
-    // Apply filters
-    if (query?.supplier_id) {
-      dbQuery = dbQuery.eq('supplier_id', query.supplier_id)
-      countQuery = countQuery.eq('supplier_id', query.supplier_id)
-    }
+    const selectFields = includeRelations ? RELATIONS_SELECT : 'sp.*'
+    const fromClause = includeRelations ? RELATIONS_FROM : 'FROM supplier_products sp'
 
-    if (query?.product_id) {
-      dbQuery = dbQuery.eq('product_id', query.product_id)
-      countQuery = countQuery.eq('product_id', query.product_id)
-    }
-
-    if (query?.is_preferred !== undefined) {
-      dbQuery = dbQuery.eq('is_preferred', query.is_preferred)
-      countQuery = countQuery.eq('is_preferred', query.is_preferred)
-    }
-
-    if (query?.is_active !== undefined) {
-      dbQuery = dbQuery.eq('is_active', query.is_active)
-      countQuery = countQuery.eq('is_active', query.is_active)
-    }
-
-    // Sorting
-    const sortBy = query?.sort_by && SUPPLIER_PRODUCT_SORT_FIELDS.includes(query.sort_by as string) 
-      ? query.sort_by 
-      : 'created_at'
-    const sortOrder = query?.sort_order || 'desc'
-    dbQuery = dbQuery.order(sortBy, { ascending: sortOrder === 'asc' })
-
-    const [{ data, error }, { count, error: countError }] = await Promise.all([
-      dbQuery.range(pagination.offset, pagination.offset + pagination.limit - 1),
-      countQuery,
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(`SELECT ${selectFields} ${fromClause} ${where} ORDER BY ${sortBy} ${sortOrder} LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
+      pool.query(`SELECT COUNT(*)::int AS total FROM supplier_products sp ${where}`, params)
     ])
 
-    if (error) throw new Error(`Database query failed: ${error.message}`)
-    if (countError) throw new Error(`Count query failed: ${countError.message}`)
-
     let mappedData = includeRelations
-      ? (data || []).map(mapSupplierProductWithRelations)
-      : (data || []).map(mapSupplierProductFromDb)
+      ? dataRes.rows.map((r: Record<string, unknown>) => mapSupplierProductWithRelations(mapRowWithRelations(r)))
+      : dataRes.rows.map(mapSupplierProductFromDb)
 
-    // Enrich with current prices from pricelists if including relations
-    if (includeRelations && data && data.length > 0) {
+    if (includeRelations && dataRes.rows.length > 0) {
       mappedData = await this.enrichWithCurrentPrices(mappedData as SupplierProductWithRelations[])
     }
 
-    return { data: mappedData, total: count || 0 }
+    return { data: mappedData, total: countRes.rows[0].total }
   }
 
-  /**
-   * Find supplier product by ID
-   */
   async findById(id: string, includeRelations = false, includeDeleted = false): Promise<SupplierProduct | SupplierProductWithRelations | null> {
-    const selectFields = includeRelations 
-      ? `*, suppliers(id, supplier_name, supplier_code, is_active), products(id, product_name, product_code, product_type, status, default_purchase_unit)`
-      : '*'
+    const deletedFilter = includeDeleted ? '' : ' AND sp.deleted_at IS NULL'
+    const selectFields = includeRelations ? RELATIONS_SELECT : 'sp.*'
+    const fromClause = includeRelations ? RELATIONS_FROM : 'FROM supplier_products sp'
 
-    let query = supabase
-      .from('supplier_products')
-      .select(selectFields)
-      .eq('id', id)
+    const { rows } = await pool.query(`SELECT ${selectFields} ${fromClause} WHERE sp.id = $1${deletedFilter}`, [id])
+    if (!rows[0]) return null
 
-    if (!includeDeleted) {
-      query = query.is('deleted_at', null)
-    }
-
-    const { data, error } = await query.maybeSingle()
-
-    if (error) throw new Error(`Database query failed: ${error.message}`)
-    if (!data) return null
-
-    return includeRelations 
-      ? mapSupplierProductWithRelations(data)
-      : mapSupplierProductFromDb(data)
+    return includeRelations
+      ? mapSupplierProductWithRelations(mapRowWithRelations(rows[0]))
+      : mapSupplierProductFromDb(rows[0])
   }
 
-  /**
-   * Find supplier products by supplier ID
-   */
   async findBySupplier(supplierId: string, includeRelations = false): Promise<SupplierProduct[] | SupplierProductWithRelations[]> {
-    const selectFields = includeRelations 
-      ? `*, products(id, product_name, product_code, product_type, status, default_purchase_unit)`
-      : '*'
+    const selectFields = includeRelations ? RELATIONS_SELECT : 'sp.*'
+    const fromClause = includeRelations ? RELATIONS_FROM : 'FROM supplier_products sp'
 
-    const { data, error } = await supabase
-      .from('supplier_products')
-      .select(selectFields)
-      .eq('supplier_id', supplierId)
-      .is('deleted_at', null)
-      .eq('is_active', true)
-      .order('is_preferred', { ascending: false })
-      .order('price', { ascending: true })
-
-    if (error) throw new Error(`Database query failed: ${error.message}`)
+    const { rows } = await pool.query(
+      `SELECT ${selectFields} ${fromClause} WHERE sp.supplier_id = $1 AND sp.deleted_at IS NULL AND sp.is_active = true ORDER BY sp.is_preferred DESC, sp.price ASC`,
+      [supplierId]
+    )
 
     return includeRelations
-      ? (data || []).map(mapSupplierProductWithRelations)
-      : (data || []).map(mapSupplierProductFromDb)
+      ? rows.map((r: Record<string, unknown>) => mapSupplierProductWithRelations(mapRowWithRelations(r)))
+      : rows.map(mapSupplierProductFromDb)
   }
 
-  /**
-   * Find supplier products by product ID
-   */
   async findByProduct(productId: string, includeRelations = false): Promise<SupplierProduct[] | SupplierProductWithRelations[]> {
-    const selectFields = includeRelations 
-      ? `*, suppliers(id, supplier_name, supplier_code, is_active)`
-      : '*'
+    const selectFields = includeRelations ? RELATIONS_SELECT : 'sp.*'
+    const fromClause = includeRelations ? RELATIONS_FROM : 'FROM supplier_products sp'
 
-    const { data, error } = await supabase
-      .from('supplier_products')
-      .select(selectFields)
-      .eq('product_id', productId)
-      .is('deleted_at', null)
-      .eq('is_active', true)
-      .order('is_preferred', { ascending: false })
-      .order('price', { ascending: true })
-
-    if (error) throw new Error(`Database query failed: ${error.message}`)
+    const { rows } = await pool.query(
+      `SELECT ${selectFields} ${fromClause} WHERE sp.product_id = $1 AND sp.deleted_at IS NULL AND sp.is_active = true ORDER BY sp.is_preferred DESC, sp.price ASC`,
+      [productId]
+    )
 
     return includeRelations
-      ? (data || []).map(mapSupplierProductWithRelations)
-      : (data || []).map(mapSupplierProductFromDb)
+      ? rows.map((r: Record<string, unknown>) => mapSupplierProductWithRelations(mapRowWithRelations(r)))
+      : rows.map(mapSupplierProductFromDb)
   }
 
-  /**
-   * Check if supplier-product combination exists
-   */
   async findBySupplierAndProduct(supplierId: string, productId: string, excludeId?: string): Promise<SupplierProduct | null> {
-    let query = supabase
-      .from('supplier_products')
-      .select('*')
-      .eq('supplier_id', supplierId)
-      .eq('product_id', productId)
-      .is('deleted_at', null)
-
-    if (excludeId) {
-      query = query.neq('id', excludeId)
-    }
-
-    const { data, error } = await query.maybeSingle()
-
-    if (error) throw new Error(`Database query failed: ${error.message}`)
-    return data ? mapSupplierProductFromDb(data) : null
+    const params: string[] = [supplierId, productId]
+    let query = 'SELECT * FROM supplier_products WHERE supplier_id = $1 AND product_id = $2 AND deleted_at IS NULL'
+    if (excludeId) { params.push(excludeId); query += ' AND id != $3' }
+    const { rows } = await pool.query(query, params)
+    return rows[0] ? mapSupplierProductFromDb(rows[0]) : null
   }
 
-  /**
-   * Count preferred suppliers for a product
-   */
   async countPreferredByProduct(productId: string, excludeId?: string): Promise<number> {
-    let query = supabase
-      .from('supplier_products')
-      .select('*', { count: 'exact', head: true })
-      .eq('product_id', productId)
-      .eq('is_preferred', true)
-      .eq('is_active', true)
-      .is('deleted_at', null)
-
-    if (excludeId) {
-      query = query.neq('id', excludeId)
-    }
-
-    const { count, error } = await query
-
-    if (error) throw new Error(`Database query failed: ${error.message}`)
-    return count || 0
+    const params: string[] = [productId]
+    let query = 'SELECT COUNT(*)::int AS cnt FROM supplier_products WHERE product_id = $1 AND is_preferred = true AND is_active = true AND deleted_at IS NULL'
+    if (excludeId) { params.push(excludeId); query += ' AND id != $2' }
+    const { rows } = await pool.query(query, params)
+    return rows[0].cnt
   }
 
-  /**
-   * Create new supplier product
-   */
   async create(data: CreateSupplierProductDto & { created_by?: string; updated_by?: string }): Promise<SupplierProduct> {
-    const { data: supplierProduct, error } = await supabase
-      .from('supplier_products')
-      .insert(data)
-      .select()
-      .single()
-
-    if (error) throw new Error(`Database insert failed: ${error.message}`)
-    return mapSupplierProductFromDb(supplierProduct)
+    const keys = Object.keys(data)
+    const values = Object.values(data)
+    const { rows } = await pool.query(
+      `INSERT INTO supplier_products (${keys.join(', ')}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
+      values
+    )
+    return mapSupplierProductFromDb(rows[0])
   }
 
-  /**
-   * Update supplier product by ID
-   */
   async updateById(id: string, updates: UpdateSupplierProductDto & { updated_by?: string }): Promise<SupplierProduct | null> {
-    const { data, error } = await supabase
-      .from('supplier_products')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .select()
-      .maybeSingle()
-
-    if (error) throw new Error(`Database update failed: ${error.message}`)
-    return data ? mapSupplierProductFromDb(data) : null
+    const fullUpdates = { ...updates, updated_at: new Date().toISOString() }
+    const keys = Object.keys(fullUpdates)
+    const values = Object.values(fullUpdates)
+    const { rows } = await pool.query(
+      `UPDATE supplier_products SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')} WHERE id = $${keys.length + 1} RETURNING *`,
+      [...values, id]
+    )
+    return rows[0] ? mapSupplierProductFromDb(rows[0]) : null
   }
 
-  /**
-   * Delete supplier product (soft delete)
-   */
   async delete(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('supplier_products')
-      .update({
-        deleted_at: new Date().toISOString(),
-        is_active: false,
-      })
-      .eq('id', id)
-      .is('deleted_at', null)
-
-    if (error) throw new Error(`Database delete failed: ${error.message}`)
+    await pool.query('UPDATE supplier_products SET deleted_at = NOW(), is_active = false WHERE id = $1 AND deleted_at IS NULL', [id])
   }
 
-  /**
-   * Bulk delete supplier products (soft delete)
-   */
   async bulkDelete(ids: string[]): Promise<void> {
-    if (!Array.isArray(ids) || ids.length === 0) {
-      throw new Error('Invalid ids array')
-    }
-
-    const { error } = await supabase
-      .from('supplier_products')
-      .update({
-        deleted_at: new Date().toISOString(),
-        is_active: false,
-      })
-      .in('id', ids)
-      .is('deleted_at', null)
-
-    if (error) throw new Error(`Database bulk delete failed: ${error.message}`)
+    if (!ids?.length) throw new Error('Invalid ids array')
+    await pool.query('UPDATE supplier_products SET deleted_at = NOW(), is_active = false WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL', [ids])
   }
 
-  /**
-   * Restore soft-deleted supplier product
-   */
   async restore(id: string): Promise<SupplierProduct | null> {
-    const { data, error } = await supabase
-      .from('supplier_products')
-      .update({
-        deleted_at: null,
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .not('deleted_at', 'is', null)
-      .select()
-      .maybeSingle()
-
-    if (error) throw new Error(`Database restore failed: ${error.message}`)
-    return data ? mapSupplierProductFromDb(data) : null
+    const { rows } = await pool.query(
+      'UPDATE supplier_products SET deleted_at = NULL, is_active = true, updated_at = NOW() WHERE id = $1 AND deleted_at IS NOT NULL RETURNING *',
+      [id]
+    )
+    return rows[0] ? mapSupplierProductFromDb(rows[0]) : null
   }
 
-  /**
-   * Bulk restore supplier products
-   */
   async bulkRestore(ids: string[]): Promise<void> {
-    if (!Array.isArray(ids) || ids.length === 0) {
-      throw new Error('Invalid ids array')
-    }
-
-    const { error } = await supabase
-      .from('supplier_products')
-      .update({
-        deleted_at: null,
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      })
-      .in('id', ids)
-      .not('deleted_at', 'is', null)
-
-    if (error) throw new Error(`Database bulk restore failed: ${error.message}`)
+    if (!ids?.length) throw new Error('Invalid ids array')
+    await pool.query('UPDATE supplier_products SET deleted_at = NULL, is_active = true, updated_at = NOW() WHERE id = ANY($1::uuid[]) AND deleted_at IS NOT NULL', [ids])
   }
 
-  /**
-   * Get active supplier products for dropdown/options
-   */
   async getActiveOptions(): Promise<SupplierProductOption[]> {
-    const { data, error } = await supabase
-      .from('supplier_products')
-      .select(`
-        id,
-        price,
-        currency,
-        suppliers(supplier_name),
-        products(product_name)
-      `)
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .order('suppliers(supplier_name)')
-      .order('products(product_name)')
-
-    if (error) throw new Error(`Database query failed: ${error.message}`)
-    return (data || []).map(mapSupplierProductOption)
+    const { rows } = await pool.query(
+      `SELECT sp.id, sp.price, sp.currency, s.supplier_name, p.product_name
+       FROM supplier_products sp
+       LEFT JOIN suppliers s ON s.id = sp.supplier_id
+       LEFT JOIN products p ON p.id = sp.product_id
+       WHERE sp.is_active = true AND sp.deleted_at IS NULL
+       ORDER BY s.supplier_name, p.product_name`
+    )
+    return rows.map((r: Record<string, unknown>) => mapSupplierProductOption({
+      ...r,
+      suppliers: { supplier_name: r.supplier_name },
+      products: { product_name: r.product_name },
+    }))
   }
 
-  /**
-   * Enrich supplier products with current prices from active pricelists
-   */
   private async enrichWithCurrentPrices(supplierProducts: SupplierProductWithRelations[]): Promise<SupplierProductWithRelations[]> {
     if (!supplierProducts.length) return supplierProducts
 
     const today = new Date().toISOString().split('T')[0]
-    
-    // Get all active pricelists for these supplier-product combinations
-    const { data: pricelists, error } = await supabase
-      .from('pricelists')
-      .select('supplier_id, product_id, uom_id, price, currency, product_uoms(metric_unit_id, metric_units(unit_name))')
-      .eq('status', 'APPROVED')
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .lte('valid_from', today)
-      .or(`valid_to.is.null,valid_to.gte.${today}`)
-      .in('supplier_id', supplierProducts.map(sp => sp.supplier_id))
-      .in('product_id', supplierProducts.map(sp => sp.product_id))
+    const supplierIds = supplierProducts.map(sp => sp.supplier_id)
+    const productIds = supplierProducts.map(sp => sp.product_id)
 
-    if (error) {
-      console.error('Failed to fetch current prices:', error.message)
-      return supplierProducts
+    const { rows: pricelists } = await pool.query(
+      `SELECT pl.supplier_id, pl.product_id, pl.price, pl.currency, pl.uom_id, mu.unit_name
+       FROM pricelists pl
+       LEFT JOIN product_uoms pu ON pu.id = pl.uom_id
+       LEFT JOIN metric_units mu ON mu.id = pu.metric_unit_id
+       WHERE pl.status = 'APPROVED' AND pl.is_active = true AND pl.deleted_at IS NULL
+         AND pl.valid_from <= $1 AND (pl.valid_to IS NULL OR pl.valid_to >= $1)
+         AND pl.supplier_id = ANY($2::uuid[]) AND pl.product_id = ANY($3::uuid[])`,
+      [today, supplierIds, productIds]
+    )
+
+    const priceMap = new Map<string, { price: number; currency: string; unit: string }>()
+    for (const p of pricelists) {
+      const key = `${p.supplier_id}-${p.product_id}`
+      if (!priceMap.has(key)) {
+        priceMap.set(key, { price: parseFloat(p.price), currency: p.currency, unit: p.unit_name || '' })
+      }
     }
 
-    // Create a map for quick lookup (using supplier_id + product_id for now)
-    const priceMap = new Map<string, { price: number; currency: string; unit: string }>()
-    pricelists?.forEach((p: any) => {
-      const key = `${p.supplier_id}-${p.product_id}`
-      // For now, take the first price found (should be enhanced with UOM logic)
-      if (!priceMap.has(key)) {
-        priceMap.set(key, { 
-          price: parseFloat(p.price), 
-          currency: p.currency,
-          unit: p.product_uoms?.metric_units?.unit_name || ''
-        })
-      }
-    })
-
-    // Enrich supplier products with current prices
     return supplierProducts.map(sp => {
-      const key = `${sp.supplier_id}-${sp.product_id}`
-      const currentPrice = priceMap.get(key)
-      
-      return {
-        ...sp,
-        current_price: currentPrice?.price,
-        current_currency: currentPrice?.currency,
-        current_unit: currentPrice?.unit
-      }
+      const currentPrice = priceMap.get(`${sp.supplier_id}-${sp.product_id}`)
+      return { ...sp, current_price: currentPrice?.price, current_currency: currentPrice?.currency, current_unit: currentPrice?.unit }
     })
   }
 }
