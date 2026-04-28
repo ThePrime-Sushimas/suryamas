@@ -1,563 +1,320 @@
-/**
- * POS Import Lines Repository
- * Handles bulk insertion of POS transaction lines
- */
-
-import { supabase } from '../../../config/supabase'
-import { logInfo, logError } from '../../../config/logger'
+import { pool } from '../../../config/db'
+import { logInfo } from '../../../config/logger'
 import type { PosImportLine, CreatePosImportLineDto } from './pos-import-lines.types'
 
+// All known columns for pos_import_lines (for insert whitelist)
+const LINE_COLUMNS = [
+  'pos_import_id', 'row_number', 'sales_number', 'bill_number', 'sales_type',
+  'batch_order', 'table_section', 'table_name', 'sales_date', 'sales_date_in',
+  'sales_date_out', 'branch', 'brand', 'city', 'area', 'visit_purpose',
+  'regular_member_code', 'regular_member_name', 'loyalty_member_code',
+  'loyalty_member_name', 'loyalty_member_type', 'employee_code', 'employee_name',
+  'external_employee_code', 'external_employee_name', 'customer_name',
+  'payment_method', 'menu_category', 'menu_category_detail', 'menu',
+  'custom_menu_name', 'menu_code', 'menu_notes', 'order_mode', 'qty', 'price',
+  'subtotal', 'discount', 'service_charge', 'tax', 'vat', 'total', 'nett_sales',
+  'dpp', 'bill_discount', 'total_after_bill_discount', 'waiter', 'order_time',
+] as const
+
+function escapeSearch(s: string): string {
+  return s.replace(/[%_\\]/g, '\\$&')
+}
+
 export class PosImportLinesRepository {
-  /**
-   * Bulk insert lines for an import
-   */
   async bulkInsert(lines: CreatePosImportLineDto[]): Promise<void> {
-    try {
-      if (lines.length === 0) return
+    if (lines.length === 0) return
 
-      const { error } = await supabase
-        .from('pos_import_lines')
-        .insert(lines)
+    const BATCH_SIZE = 500
+    for (let i = 0; i < lines.length; i += BATCH_SIZE) {
+      const batch = lines.slice(i, i + BATCH_SIZE)
+      const valueRows: string[] = []
+      const params: unknown[] = []
+      let idx = 1
 
-      if (error) throw error
-
-      logInfo('PosImportLinesRepository bulkInsert success', {
-        pos_import_id: lines[0]?.pos_import_id,
-        count: lines.length
-      })
-    } catch (error) {
-      logError('PosImportLinesRepository bulkInsert error', { count: lines.length, error })
-      throw error
-    }
-  }
-
-  /**
-   * Find lines by import ID with pagination
-   */
-  async findByImportId(
-    importId: string,
-    page: number = 1,
-    limit: number = 50
-  ): Promise<{ data: PosImportLine[]; total: number }> {
-    try {
-      const offset = (page - 1) * limit
-
-      const [dataResult, countResult] = await Promise.all([
-        supabase
-          .from('pos_import_lines')
-          .select('*')
-          .eq('pos_import_id', importId)
-          .order('row_number', { ascending: true })
-          .range(offset, offset + limit - 1),
-        supabase
-          .from('pos_import_lines')
-          .select('*', { count: 'exact', head: true })
-          .eq('pos_import_id', importId)
-      ])
-
-      if (dataResult.error) throw dataResult.error
-      if (countResult.error) throw countResult.error
-
-      return {
-        data: dataResult.data || [],
-        total: countResult.count || 0
-      }
-    } catch (error) {
-      logError('PosImportLinesRepository findByImportId error', { importId, error })
-      throw error
-    }
-  }
-
-  /**
-   * Find all lines by import ID (handles unlimited rows with chunking)
-   */
-  async findAllByImportId(importId: string): Promise<PosImportLine[]> {
-    try {
-      let offset = 0
-      const limit = 1000
-      let hasMore = true
-      const allLines: PosImportLine[] = []
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('pos_import_lines')
-          .select('*')
-          .eq('pos_import_id', importId)
-          .order('row_number', { ascending: true })
-          .range(offset, offset + limit - 1)
-
-        if (error) throw error
-
-        if (!data || data.length === 0) {
-          hasMore = false
-          break
+      for (const line of batch) {
+        const placeholders: string[] = []
+        for (const col of LINE_COLUMNS) {
+          placeholders.push(`$${idx++}`)
+          params.push((line as Record<string, unknown>)[col] ?? null)
         }
-
-        allLines.push(...data)
-        hasMore = data.length === limit
-        offset += limit
+        valueRows.push(`(${placeholders.join(', ')})`)
       }
 
-      return allLines
-    } catch (error) {
-      logError('PosImportLinesRepository findAllByImportId error', { importId, error })
-      throw error
+      await pool.query(
+        `INSERT INTO pos_import_lines (${LINE_COLUMNS.join(', ')}) VALUES ${valueRows.join(', ')}`,
+        params
+      )
     }
+
+    logInfo('PosImportLinesRepository bulkInsert success', {
+      pos_import_id: lines[0]?.pos_import_id,
+      count: lines.length
+    })
   }
 
-  /**
-   * Check for existing transactions using database function
-   */
+  async findByImportId(importId: string, page: number = 1, limit: number = 50): Promise<{ data: PosImportLine[]; total: number }> {
+    const offset = (page - 1) * limit
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(
+        `SELECT * FROM pos_import_lines WHERE pos_import_id = $1 ORDER BY row_number ASC LIMIT $2 OFFSET $3`,
+        [importId, limit, offset]
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS total FROM pos_import_lines WHERE pos_import_id = $1`,
+        [importId]
+      ),
+    ])
+    return { data: dataRes.rows, total: countRes.rows[0]?.total ?? 0 }
+  }
+
+  async findAllByImportId(importId: string): Promise<PosImportLine[]> {
+    const CHUNK = 1000
+    let offset = 0
+    const all: PosImportLine[] = []
+
+    while (true) {
+      const { rows } = await pool.query(
+        `SELECT * FROM pos_import_lines WHERE pos_import_id = $1 ORDER BY row_number ASC LIMIT $2 OFFSET $3`,
+        [importId, CHUNK, offset]
+      )
+      if (rows.length === 0) break
+      all.push(...rows)
+      if (rows.length < CHUNK) break
+      offset += CHUNK
+    }
+    return all
+  }
+
   async findExistingTransactions(
     transactions: Array<{ bill_number: string; sales_number: string; sales_date: string }>
   ): Promise<Array<{ bill_number: string; sales_number: string; sales_date: string; pos_import_id: string }>> {
+    if (transactions.length === 0) return []
+
+    // Try RPC first
     try {
-      if (transactions.length === 0) return []
-
-      // Try RPC function first (optimal)
-      try {
-        const { data, error } = await supabase
-          .rpc('check_duplicate_transactions', { transactions })
-
-        if (!error && data) {
-          return data
-        }
-      } catch {
-        // Fall through to fallback
-      }
-
-      // Fallback: Fetch by bill_numbers and filter in memory
-      const billNumbers = [...new Set(transactions.map(t => t.bill_number))]
-      
-      const { data, error } = await supabase
-        .from('pos_import_lines')
-        .select('bill_number, sales_number, sales_date, pos_import_id')
-        .in('bill_number', billNumbers)
-
-      if (error) throw error
-
-      const transactionSet = new Set(
-        transactions.map(t => `${t.bill_number}|${t.sales_number}|${t.sales_date}`)
+      const { rows } = await pool.query(
+        `SELECT * FROM check_duplicate_transactions($1::jsonb)`,
+        [JSON.stringify(transactions)]
       )
-
-      return (data || []).filter(row => 
-        transactionSet.has(`${row.bill_number}|${row.sales_number}|${row.sales_date}`)
-      )
-    } catch (error) {
-      logError('PosImportLinesRepository findExistingTransactions error', { count: transactions.length, error })
-      throw error
+      if (rows.length > 0) return rows
+    } catch {
+      // Fall through to fallback
     }
+
+    // Fallback: fetch by bill_numbers
+    const billNumbers = [...new Set(transactions.map(t => t.bill_number))]
+    const { rows } = await pool.query(
+      `SELECT bill_number, sales_number, sales_date, pos_import_id
+       FROM pos_import_lines WHERE bill_number = ANY($1::text[])`,
+      [billNumbers]
+    )
+
+    const txSet = new Set(transactions.map(t => `${t.bill_number}|${t.sales_number}|${t.sales_date}`))
+    return rows.filter(r => txSet.has(`${r.bill_number}|${r.sales_number}|${r.sales_date}`))
   }
 
-  /**
-   * Delete lines by import ID
-   */
   async deleteByImportId(importId: string): Promise<void> {
-    try {
-      const { error } = await supabase
-        .from('pos_import_lines')
-        .delete()
-        .eq('pos_import_id', importId)
-
-      if (error) throw error
-
-      logInfo('PosImportLinesRepository deleteByImportId success', { importId })
-    } catch (error) {
-      logError('PosImportLinesRepository deleteByImportId error', { importId, error })
-      throw error
-    }
+    await pool.query(`DELETE FROM pos_import_lines WHERE pos_import_id = $1`, [importId])
+    logInfo('PosImportLinesRepository deleteByImportId success', { importId })
   }
 
-  /**
-   * Count lines by import ID
-   */
   async countByImportId(importId: string): Promise<number> {
-    try {
-      const { count, error } = await supabase
-        .from('pos_import_lines')
-        .select('*', { count: 'exact', head: true })
-        .eq('pos_import_id', importId)
-
-      if (error) throw error
-
-      return count || 0
-    } catch (error) {
-      logError('PosImportLinesRepository countByImportId error', { importId, error })
-      throw error
-    }
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM pos_import_lines WHERE pos_import_id = $1`,
+      [importId]
+    )
+    return rows[0]?.total ?? 0
   }
 
-  /**
-   * Get financial summary for import (handles unlimited rows with chunking)
-   */
   async getSummaryByImportId(importId: string): Promise<{
-    totalAmount: number
-    totalTax: number
-    totalDiscount: number
-    totalBillDiscount: number
-    totalAfterBillDiscount: number
-    transactionCount: number
+    totalAmount: number; totalTax: number; totalDiscount: number;
+    totalBillDiscount: number; totalAfterBillDiscount: number; transactionCount: number
   }> {
-    try {
-      // Always use chunking approach to ensure we get all fields
-      // The RPC function may not include all required fields
-      let offset = 0
-      const limit = 1000
-      let hasMore = true
-      const summary = { 
-        totalAmount: 0, 
-        totalTax: 0, 
-        totalDiscount: 0, 
-        totalBillDiscount: 0,
-        totalAfterBillDiscount: 0,
-        transactionCount: 0 
-      }
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('pos_import_lines')
-          .select('total, tax, discount, bill_discount, total_after_bill_discount')
-          .eq('pos_import_id', importId)
-          .range(offset, offset + limit - 1)
-
-        if (error) throw error
-
-        if (!data || data.length === 0) {
-          hasMore = false
-          break
-        }
-
-        data.forEach(line => {
-          summary.totalAmount += Number(line.total) || 0
-          summary.totalTax += Number(line.tax) || 0
-          summary.totalDiscount += Number(line.discount) || 0
-          summary.totalBillDiscount += Number(line.bill_discount) || 0
-          summary.totalAfterBillDiscount += Number(line.total_after_bill_discount) || 0
-          summary.transactionCount += 1
-        })
-
-        hasMore = data.length === limit
-        offset += limit
-      }
-
-      logInfo('PosImportLinesRepository getSummaryByImportId', { 
-        importId, 
-        totalAmount: summary.totalAmount,
-        totalBillDiscount: summary.totalBillDiscount,
-        totalAfterBillDiscount: summary.totalAfterBillDiscount,
-        transactionCount: summary.transactionCount
-      })
-
-      return summary
-    } catch (error) {
-      logError('PosImportLinesRepository getSummaryByImportId error', { importId, error })
-      throw error
+    const { rows } = await pool.query(
+      `SELECT
+         COALESCE(SUM(total), 0)::float AS total_amount,
+         COALESCE(SUM(tax), 0)::float AS total_tax,
+         COALESCE(SUM(discount), 0)::float AS total_discount,
+         COALESCE(SUM(bill_discount), 0)::float AS total_bill_discount,
+         COALESCE(SUM(total_after_bill_discount), 0)::float AS total_after_bill_discount,
+         COUNT(*)::int AS transaction_count
+       FROM pos_import_lines WHERE pos_import_id = $1`,
+      [importId]
+    )
+    const r = rows[0]
+    return {
+      totalAmount: r.total_amount,
+      totalTax: r.total_tax,
+      totalDiscount: r.total_discount,
+      totalBillDiscount: r.total_bill_discount,
+      totalAfterBillDiscount: r.total_after_bill_discount,
+      transactionCount: r.transaction_count,
     }
   }
 
-  /**
-   * Find all transactions with filters (for consolidated report)
-   */
   async findAllWithFilters(
     companyId: string,
     filters: {
-      dateFrom?: string
-      dateTo?: string
-      salesNumber?: string
-      billNumber?: string
-      branches?: string // comma-separated
-      area?: string
-      brand?: string
-      city?: string
-      menuName?: string
-      paymentMethods?: string // comma-separated
-      regularMemberName?: string
-      customerName?: string
-      visitPurpose?: string
-      salesType?: string
-      menuCategory?: string
-      menuCategoryDetail?: string
-      menuCode?: string
-      customMenuName?: string
-      tableSection?: string
-      tableName?: string
+      dateFrom?: string; dateTo?: string; salesNumber?: string; billNumber?: string;
+      branches?: string; area?: string; brand?: string; city?: string; menuName?: string;
+      paymentMethods?: string; regularMemberName?: string; customerName?: string;
+      visitPurpose?: string; salesType?: string; menuCategory?: string;
+      menuCategoryDetail?: string; menuCode?: string; customMenuName?: string;
+      tableSection?: string; tableName?: string;
     },
     pagination: { page: number; limit: number }
-  ): Promise<{ data: PosImportLine[]; total: number; summary: { totalAmount: number; totalTax: number; totalDiscount: number; totalBillDiscount: number; totalAfterBillDiscount: number; totalSubtotal: number; transactionCount: number } }> {
-    try {
-      const offset = (pagination.page - 1) * pagination.limit
+  ): Promise<{
+    data: PosImportLine[]; total: number;
+    summary: { totalAmount: number; totalTax: number; totalDiscount: number; totalBillDiscount: number; totalAfterBillDiscount: number; totalSubtotal: number; transactionCount: number }
+  }> {
+    const conditions: string[] = [
+      'pi.company_id = $1',
+      'pi.is_deleted = false',
+    ]
+    const values: unknown[] = [companyId]
+    let idx = 2
 
-      // Build query
-      let query = supabase
-        .from('pos_import_lines')
-        .select('*, pos_imports!inner(company_id)', { count: 'exact' })
-        .eq('pos_imports.company_id', companyId)
+    if (filters.dateFrom) { conditions.push(`pil.sales_date >= $${idx++}`); values.push(filters.dateFrom) }
+    if (filters.dateTo) { conditions.push(`pil.sales_date <= $${idx++}`); values.push(filters.dateTo) }
+    if (filters.salesNumber) { conditions.push(`pil.sales_number ILIKE $${idx++}`); values.push(`%${escapeSearch(filters.salesNumber)}%`) }
+    if (filters.billNumber) { conditions.push(`pil.bill_number ILIKE $${idx++}`); values.push(`%${escapeSearch(filters.billNumber)}%`) }
 
-      // Apply filters
-      if (filters.dateFrom) query = query.gte('sales_date', filters.dateFrom)
-      if (filters.dateTo) query = query.lte('sales_date', filters.dateTo)
-      if (filters.salesNumber) query = query.ilike('sales_number', `%${filters.salesNumber}%`)
-      if (filters.billNumber) query = query.ilike('bill_number', `%${filters.billNumber}%`)
-      
-      // Multi-select branches - CASE INSENSITIVE
-      if (filters.branches) {
-        const branchList = filters.branches.split(',').map(b => b.trim()).filter(Boolean)
-        logInfo('Branch filter applied', { branches: branchList })
-        
-        if (branchList.length > 0) {
-          const orConditions = branchList.map(b => `branch.ilike.%${b}%`).join(',')
-          query = query.or(orConditions)
-        }
+    if (filters.branches) {
+      const branchList = filters.branches.split(',').map(b => b.trim()).filter(Boolean)
+      if (branchList.length > 0) {
+        const orParts = branchList.map(b => { const p = `$${idx++}`; values.push(`%${escapeSearch(b)}%`); return `pil.branch ILIKE ${p}` })
+        conditions.push(`(${orParts.join(' OR ')})`)
       }
-      
-      if (filters.area) query = query.eq('area', filters.area)
-      if (filters.brand) query = query.eq('brand', filters.brand)
-      if (filters.city) query = query.eq('city', filters.city)
-      if (filters.menuName) query = query.ilike('menu', `%${filters.menuName}%`)
-      
-      // Multi-select payment methods - CASE INSENSITIVE
-      if (filters.paymentMethods) {
-        const paymentList = filters.paymentMethods.split(',').map(p => p.trim()).filter(Boolean)
-        if (paymentList.length > 0) {
-          const orConditions = paymentList.map(p => `payment_method.ilike.%${p}%`).join(',')
-          query = query.or(orConditions)
-        }
+    }
+
+    if (filters.area) { conditions.push(`pil.area = $${idx++}`); values.push(filters.area) }
+    if (filters.brand) { conditions.push(`pil.brand = $${idx++}`); values.push(filters.brand) }
+    if (filters.city) { conditions.push(`pil.city = $${idx++}`); values.push(filters.city) }
+    if (filters.menuName) { conditions.push(`pil.menu ILIKE $${idx++}`); values.push(`%${escapeSearch(filters.menuName)}%`) }
+
+    if (filters.paymentMethods) {
+      const pmList = filters.paymentMethods.split(',').map(p => p.trim()).filter(Boolean)
+      if (pmList.length > 0) {
+        const orParts = pmList.map(p => { const ph = `$${idx++}`; values.push(`%${escapeSearch(p)}%`); return `pil.payment_method ILIKE ${ph}` })
+        conditions.push(`(${orParts.join(' OR ')})`)
       }
-      
-      if (filters.regularMemberName) query = query.eq('regular_member_name', filters.regularMemberName)
-      if (filters.customerName) query = query.ilike('customer_name', `%${filters.customerName}%`)
-      if (filters.visitPurpose) query = query.eq('visit_purpose', filters.visitPurpose)
-      if (filters.salesType) query = query.eq('sales_type', filters.salesType)
-      if (filters.menuCategory) query = query.eq('menu_category', filters.menuCategory)
-      if (filters.menuCategoryDetail) query = query.eq('menu_category_detail', filters.menuCategoryDetail)
-      if (filters.menuCode) query = query.eq('menu_code', filters.menuCode)
-      if (filters.customMenuName) query = query.ilike('custom_menu_name', `%${filters.customMenuName}%`)
-      if (filters.tableSection) query = query.eq('table_section', filters.tableSection)
-      if (filters.tableName) query = query.eq('table_name', filters.tableName)
+    }
 
-      const { data, error, count } = await query
-        .order('sales_date', { ascending: false })
-        .order('sales_number', { ascending: false })
-        .range(offset, offset + pagination.limit - 1)
+    if (filters.regularMemberName) { conditions.push(`pil.regular_member_name = $${idx++}`); values.push(filters.regularMemberName) }
+    if (filters.customerName) { conditions.push(`pil.customer_name ILIKE $${idx++}`); values.push(`%${escapeSearch(filters.customerName)}%`) }
+    if (filters.visitPurpose) { conditions.push(`pil.visit_purpose = $${idx++}`); values.push(filters.visitPurpose) }
+    if (filters.salesType) { conditions.push(`pil.sales_type = $${idx++}`); values.push(filters.salesType) }
+    if (filters.menuCategory) { conditions.push(`pil.menu_category = $${idx++}`); values.push(filters.menuCategory) }
+    if (filters.menuCategoryDetail) { conditions.push(`pil.menu_category_detail = $${idx++}`); values.push(filters.menuCategoryDetail) }
+    if (filters.menuCode) { conditions.push(`pil.menu_code = $${idx++}`); values.push(filters.menuCode) }
+    if (filters.customMenuName) { conditions.push(`pil.custom_menu_name ILIKE $${idx++}`); values.push(`%${escapeSearch(filters.customMenuName)}%`) }
+    if (filters.tableSection) { conditions.push(`pil.table_section = $${idx++}`); values.push(filters.tableSection) }
+    if (filters.tableName) { conditions.push(`pil.table_name = $${idx++}`); values.push(filters.tableName) }
 
-      if (error) throw error
+    const where = `WHERE ${conditions.join(' AND ')}`
+    const fromClause = `FROM pos_import_lines pil INNER JOIN pos_imports pi ON pi.id = pil.pos_import_id`
+    const offset = (pagination.page - 1) * pagination.limit
 
-      // Calculate summary from filtered data (for current page)
-      const summary = {
-        totalAmount: 0,
-        totalTax: 0,
-        totalDiscount: 0,
-        totalBillDiscount: 0,
-        totalAfterBillDiscount: 0,
-        totalSubtotal: 0,
-        transactionCount: count || 0
-      }
+    const [dataRes, countRes, summaryRes] = await Promise.all([
+      pool.query(
+        `SELECT pil.* ${fromClause} ${where}
+         ORDER BY pil.sales_date DESC, pil.sales_number DESC
+         LIMIT $${idx} OFFSET $${idx + 1}`,
+        [...values, pagination.limit, offset]
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS total ${fromClause} ${where}`,
+        values
+      ),
+      pool.query(
+        `SELECT
+           COALESCE(SUM(pil.total), 0)::float AS total_amount,
+           COALESCE(SUM(pil.tax), 0)::float AS total_tax,
+           COALESCE(SUM(pil.discount), 0)::float AS total_discount,
+           COALESCE(SUM(pil.bill_discount), 0)::float AS total_bill_discount,
+           COALESCE(SUM(pil.total_after_bill_discount), 0)::float AS total_after_bill_discount,
+           COALESCE(SUM(pil.subtotal), 0)::float AS total_subtotal
+         ${fromClause} ${where}`,
+        values
+      ),
+    ])
 
-      // Get summary for ALL filtered data (not just current page)
-      if (count && count > 0) {
-        // Fetch in chunks to handle large datasets
-        let summaryOffset = 0
-        const summaryLimit = 1000
-        let hasMoreSummary = true
+    const total = countRes.rows[0]?.total ?? 0
+    const s = summaryRes.rows[0]
 
-        while (hasMoreSummary) {
-          let summaryQuery = supabase
-            .from('pos_import_lines')
-            .select('total, tax, discount, subtotal, bill_discount, total_after_bill_discount, pos_imports!inner(company_id)')
-            .eq('pos_imports.company_id', companyId)
-
-          // Apply same filters for summary
-          if (filters.dateFrom) summaryQuery = summaryQuery.gte('sales_date', filters.dateFrom)
-          if (filters.dateTo) summaryQuery = summaryQuery.lte('sales_date', filters.dateTo)
-          if (filters.salesNumber) summaryQuery = summaryQuery.ilike('sales_number', `%${filters.salesNumber}%`)
-          if (filters.billNumber) summaryQuery = summaryQuery.ilike('bill_number', `%${filters.billNumber}%`)
-          if (filters.branches) {
-            const branchList = filters.branches.split(',').map(b => b.trim()).filter(Boolean)
-            if (branchList.length > 0) {
-              const orConditions = branchList.map(b => `branch.ilike.%${b}%`).join(',')
-              summaryQuery = summaryQuery.or(orConditions)
-            }
-          }
-          if (filters.area) summaryQuery = summaryQuery.eq('area', filters.area)
-          if (filters.brand) summaryQuery = summaryQuery.eq('brand', filters.brand)
-          if (filters.city) summaryQuery = summaryQuery.eq('city', filters.city)
-          if (filters.menuName) summaryQuery = summaryQuery.ilike('menu', `%${filters.menuName}%`)
-          if (filters.paymentMethods) {
-            const paymentList = filters.paymentMethods.split(',').map(p => p.trim()).filter(Boolean)
-            if (paymentList.length > 0) {
-              const orConditions = paymentList.map(p => `payment_method.ilike.%${p}%`).join(',')
-              summaryQuery = summaryQuery.or(orConditions)
-            }
-          }
-          if (filters.regularMemberName) summaryQuery = summaryQuery.eq('regular_member_name', filters.regularMemberName)
-          if (filters.customerName) summaryQuery = summaryQuery.ilike('customer_name', `%${filters.customerName}%`)
-          if (filters.visitPurpose) summaryQuery = summaryQuery.eq('visit_purpose', filters.visitPurpose)
-          if (filters.salesType) summaryQuery = summaryQuery.eq('sales_type', filters.salesType)
-          if (filters.menuCategory) summaryQuery = summaryQuery.eq('menu_category', filters.menuCategory)
-          if (filters.menuCategoryDetail) summaryQuery = summaryQuery.eq('menu_category_detail', filters.menuCategoryDetail)
-          if (filters.menuCode) summaryQuery = summaryQuery.eq('menu_code', filters.menuCode)
-          if (filters.customMenuName) summaryQuery = summaryQuery.ilike('custom_menu_name', `%${filters.customMenuName}%`)
-          if (filters.tableSection) summaryQuery = summaryQuery.eq('table_section', filters.tableSection)
-          if (filters.tableName) summaryQuery = summaryQuery.eq('table_name', filters.tableName)
-
-          const { data: summaryData, error: summaryError } = await summaryQuery
-            .range(summaryOffset, summaryOffset + summaryLimit - 1)
-
-          if (summaryError) {
-            logError('PosImportLinesRepository summary query error', { error: summaryError })
-            break
-          }
-
-          if (!summaryData || summaryData.length === 0) {
-            hasMoreSummary = false
-            break
-          }
-
-          summaryData.forEach(line => {
-            summary.totalAmount += Number(line.total) || 0
-            summary.totalTax += Number(line.tax) || 0
-            summary.totalDiscount += Number(line.discount) || 0
-            summary.totalBillDiscount += Number(line.bill_discount) || 0
-            summary.totalAfterBillDiscount += Number(line.total_after_bill_discount) || 0
-            summary.totalSubtotal += Number(line.subtotal) || 0
-          })
-
-          hasMoreSummary = summaryData.length === summaryLimit
-          summaryOffset += summaryLimit
-
-          logInfo('PosImportLinesRepository summary chunk processed', { 
-            offset: summaryOffset, 
-            chunkSize: summaryData.length,
-            hasMore: hasMoreSummary 
-          })
-        }
-
-        logInfo('PosImportLinesRepository summary complete', { 
-          totalAmount: summary.totalAmount,
-          totalBillDiscount: summary.totalBillDiscount,
-          totalAfterBillDiscount: summary.totalAfterBillDiscount,
-          totalRows: count
-        })
-      }
-
-      return {
-        data: data || [],
-        total: count || 0,
-        summary
-      }
-    } catch (error) {
-      logError('PosImportLinesRepository findAllWithFilters error', { error })
-      throw error
+    return {
+      data: dataRes.rows,
+      total,
+      summary: {
+        totalAmount: s.total_amount,
+        totalTax: s.total_tax,
+        totalDiscount: s.total_discount,
+        totalBillDiscount: s.total_bill_discount,
+        totalAfterBillDiscount: s.total_after_bill_discount,
+        totalSubtotal: s.total_subtotal,
+        transactionCount: total,
+      },
     }
   }
-  /**
-   * Find existing bills (per bill_number + sales_date)
-   * Digunakan untuk duplicate check di level bill, bukan line
-   */
+
   async findExistingBills(
     bills: Array<{ bill_number: string; sales_date: string }>
   ): Promise<Set<string>> {
-    if (bills.length === 0) return new Set();
+    if (bills.length === 0) return new Set()
 
-    const billNumbers = [...new Set(bills.map(b => b.bill_number))];
-    const requestedKeys = new Set(bills.map(b => `${b.bill_number}|${b.sales_date}`));
-    const result = new Set<string>();
-    const batchSize = 50;
+    const billNumbers = [...new Set(bills.map(b => b.bill_number))]
+    const requestedKeys = new Set(bills.map(b => `${b.bill_number}|${b.sales_date}`))
+    const result = new Set<string>()
 
-    for (let i = 0; i < billNumbers.length; i += batchSize) {
-      const batch = billNumbers.slice(i, i + batchSize);
-      const { data, error } = await supabase
-        .from('pos_import_lines')
-        .select('bill_number, sales_date')
-        .in('bill_number', batch);
-
-      if (error) {
-        logError('PosImportLinesRepository findExistingBills error', { 
-          message: error.message, 
-          code: error.code 
-        });
-        throw new Error(`findExistingBills failed: ${error.message} (code: ${error.code})`);
-      }
-
-      for (const row of data || []) {
-        const key = `${row.bill_number}|${row.sales_date}`;
-        if (requestedKeys.has(key)) {
-          result.add(key);
-        }
+    const BATCH = 50
+    for (let i = 0; i < billNumbers.length; i += BATCH) {
+      const batch = billNumbers.slice(i, i + BATCH)
+      const { rows } = await pool.query(
+        `SELECT DISTINCT bill_number, sales_date FROM pos_import_lines WHERE bill_number = ANY($1::text[])`,
+        [batch]
+      )
+      for (const row of rows) {
+        const key = `${row.bill_number}|${row.sales_date}`
+        if (requestedKeys.has(key)) result.add(key)
       }
     }
-
-    return result;
+    return result
   }
 
-  /**
-   * Delete lines by bill_numbers (untuk upsert/replace scenario)
-   * HANYA dipanggil setelah validasi status di service layer
-   */
-  /**
-   * Delete lines by bill_numbers (untuk upsert/replace scenario)
-   * HANYA dipanggil setelah validasi status di service layer
-   */
   async deleteByBillNumbers(
     bills: Array<{ bill_number: string; sales_date: string }>,
     posImportId: string
   ): Promise<void> {
-    if (bills.length === 0) return;
+    if (bills.length === 0) return
 
-    // Delete per kombinasi bill_number + sales_date + pos_import_id
-    // Tidak bisa pakai single .in() untuk composite key di Supabase
-    // Jadi batch delete per bill
-    const errors: string[] = [];
+    // Batch delete using VALUES list
+    const valueRows: string[] = []
+    const params: unknown[] = [posImportId]
+    let idx = 2
 
     for (const bill of bills) {
-      const { error } = await supabase
-        .from('pos_import_lines')
-        .delete()
-        .eq('bill_number', bill.bill_number)
-        .eq('sales_date', bill.sales_date)
-        .eq('pos_import_id', posImportId);
-
-      if (error) {
-        errors.push(`${bill.bill_number}: ${error.message}`);
-      }
+      valueRows.push(`($${idx++}, $${idx++})`)
+      params.push(bill.bill_number, bill.sales_date)
     }
 
-    if (errors.length > 0) {
-      logError('deleteByBillNumbers partial failure', { errors });
-      throw new Error(`Failed to delete some bills: ${errors.join('; ')}`);
-    }
-
-    logInfo('deleteByBillNumbers success', { count: bills.length, posImportId });
+    await pool.query(
+      `DELETE FROM pos_import_lines
+       WHERE pos_import_id = $1
+         AND (bill_number, sales_date) IN (VALUES ${valueRows.join(', ')})`,
+      params
+    )
+    logInfo('deleteByBillNumbers success', { count: bills.length, posImportId })
   }
 
-  /**
-   * Find bill_number → pos_import_id mapping for given bill numbers
-   * Returns pairs for per-bill import tracking
-   */
   async findBillImportMapping(billNumbers: string[]): Promise<Array<{ bill_number: string; pos_import_id: string }>> {
-    if (billNumbers.length === 0) return [];
+    if (billNumbers.length === 0) return []
 
-    const batchSize = 50;
-    const results: Array<{ bill_number: string; pos_import_id: string }> = [];
-
-    for (let i = 0; i < billNumbers.length; i += batchSize) {
-      const batch = billNumbers.slice(i, i + batchSize);
-      const { data, error } = await supabase
-        .from('pos_import_lines')
-        .select('bill_number, pos_import_id')
-        .in('bill_number', batch);
-
-      if (error) {
-        logError('PosImportLinesRepository findBillImportMapping error', { error, batch: i / batchSize });
-        throw error;
-      }
-
-      if (data) results.push(...data);
-    }
-
-    return results;
+    const { rows } = await pool.query(
+      `SELECT DISTINCT bill_number, pos_import_id FROM pos_import_lines WHERE bill_number = ANY($1::text[])`,
+      [billNumbers]
+    )
+    return rows
   }
-
 }
 
 export const posImportLinesRepository = new PosImportLinesRepository()

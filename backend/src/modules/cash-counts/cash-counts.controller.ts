@@ -65,7 +65,7 @@ export class CashCountsController {
 
       const ext = file.originalname.split('.').pop() || 'jpg'
       const fileName = `${id}-${Date.now()}.${ext}`
-      const uploaded = await storageService.upload(file.buffer, fileName, file.mimetype)
+      const uploaded = await storageService.upload(file.buffer, fileName, file.mimetype, 'buktisetoran')
 
       const depositedAt = req.body?.deposited_at || new Date().toISOString().split('T')[0]
       const result = await cashCountsService.confirmDeposit(id, { proof_url: uploaded.publicUrl, deposited_at: depositedAt }, req.context?.employee_id)

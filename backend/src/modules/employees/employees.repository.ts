@@ -307,7 +307,7 @@ export class EmployeesRepository {
   }
 
   async uploadFile(fileName: string, buffer: Buffer, contentType: string) {
-    return storageService.upload(buffer, fileName, contentType)
+    return storageService.upload(buffer, fileName, contentType, 'profilepictures')
   }
 
   getPublicUrl(fileName: string): string {

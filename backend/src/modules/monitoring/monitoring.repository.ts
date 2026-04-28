@@ -1,807 +1,243 @@
-/**
- * Monitoring Repository
- * Repository layer untuk audit log dan error monitoring operations
- */
-
-import { supabase } from "../../config/supabase";
+import { pool } from "../../config/db";
 import {
-  AuditLogCreationError,
-  AuditLogFetchError,
-  ErrorReportCreationError,
-  ErrorReportFetchError,
-  ErrorStatsFetchError,
-  CleanupOperationError,
-  ArchiveOperationError,
+  AuditLogCreationError, AuditLogFetchError, ErrorReportCreationError,
+  ErrorReportFetchError, ErrorStatsFetchError, 
 } from "./monitoring.errors";
-import type {
-  AuditLogRecord,
-  ErrorLogRecord,
-  ErrorStats,
-  CleanupPreview,
-  CleanupResult,
-  ArchiveResult,
-} from "./monitoring.types";
+import type { AuditLogRecord, ErrorLogRecord, ErrorStats, CleanupPreview, CleanupResult, ArchiveResult } from "./monitoring.types";
 import { cleanupConfig } from "./monitoring.config";
 import { logInfo, logError } from "../../config/logger";
 
-export interface AuditLogFilters {
-  entityType?: string;
-  entityId?: string;
-  userId?: string;
-  action?: string;
-  startDate?: string;
-  endDate?: string;
-  search?: string;
-}
-
-export interface AuditLogPagination {
-  limit: number;
-  offset: number;
-}
-
-export interface PaginatedAuditLogs {
-  data: AuditLogRecord[];
-  total: number;
-  limit: number;
-  offset: number;
-}
+export interface AuditLogFilters { entityType?: string; entityId?: string; userId?: string; action?: string; startDate?: string; endDate?: string; search?: string }
+export interface AuditLogPagination { limit: number; offset: number }
+export interface PaginatedAuditLogs { data: AuditLogRecord[]; total: number; limit: number; offset: number }
 
 export class MonitoringRepository {
-  // =========================================================================
-  // AUDIT LOG OPERATIONS
-  // =========================================================================
-
-  /**
-   * Create audit log entry
-   */
-  async createAuditLog(auditData: {
-    action: string;
-    entityType: string;
-    entityId: string;
-    changedBy: string | null;
-    changedByName?: string | null;
-    oldValue?: any;
-    newValue?: any;
-    ipAddress?: string;
-    userAgent?: string;
-  }): Promise<void> {
-    const { error } = await supabase.from("perm_audit_log").insert({
-      action: auditData.action,
-      entity_type: auditData.entityType,
-      entity_id: auditData.entityId,
-      changed_by: auditData.changedBy,
-      changed_by_name: auditData.changedByName || null,
-      old_value: auditData.oldValue ? JSON.stringify(auditData.oldValue) : null,
-      new_value: auditData.newValue ? JSON.stringify(auditData.newValue) : null,
-      ip_address: auditData.ipAddress,
-      user_agent: auditData.userAgent,
-    });
-
-    if (error) {
-      throw new AuditLogCreationError(error as Error);
-    }
+  async createAuditLog(auditData: { action: string; entityType: string; entityId: string; changedBy: string | null; changedByName?: string | null; oldValue?: unknown; newValue?: unknown; ipAddress?: string; userAgent?: string }): Promise<void> {
+    try {
+      await pool.query(
+        'INSERT INTO perm_audit_log (action, entity_type, entity_id, changed_by, changed_by_name, old_value, new_value, ip_address, user_agent) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+        [auditData.action, auditData.entityType, auditData.entityId, auditData.changedBy, auditData.changedByName || null,
+         auditData.oldValue ? JSON.stringify(auditData.oldValue) : null, auditData.newValue ? JSON.stringify(auditData.newValue) : null,
+         auditData.ipAddress, auditData.userAgent]
+      )
+    } catch (error) { throw new AuditLogCreationError(error as Error) }
   }
 
-  /**
-   * Get audit logs with filters and pagination
-   */
-  async getAuditLogs(
-    filters: AuditLogFilters,
-    pagination: AuditLogPagination,
-  ): Promise<PaginatedAuditLogs> {
-    let query = supabase.from("perm_audit_log").select("*", { count: "exact" });
+  async getAuditLogs(filters: AuditLogFilters, pagination: AuditLogPagination): Promise<PaginatedAuditLogs> {
+    const conditions: string[] = []
+    const params: string[] = []
+    let idx = 1
 
-    // Apply filters
-    if (filters.entityType) {
-      query = query.eq("entity_type", filters.entityType);
-    }
-
-    if (filters.entityId) {
-      query = query.eq("entity_id", filters.entityId);
-    }
-
-    if (filters.userId) {
-      query = query.eq("changed_by", filters.userId);
-    }
-
-    if (filters.action) {
-      query = query.eq("action", filters.action);
-    }
-
-    if (filters.startDate) {
-      query = query.gte("created_at", filters.startDate);
-    }
-
-    if (filters.endDate) {
-      query = query.lte("created_at", filters.endDate);
-    }
-
+    if (filters.entityType) { params.push(filters.entityType); conditions.push(`entity_type = $${idx}`); idx++ }
+    if (filters.entityId) { params.push(filters.entityId); conditions.push(`entity_id = $${idx}`); idx++ }
+    if (filters.userId) { params.push(filters.userId); conditions.push(`changed_by = $${idx}`); idx++ }
+    if (filters.action) { params.push(filters.action); conditions.push(`action = $${idx}`); idx++ }
+    if (filters.startDate) { params.push(filters.startDate); conditions.push(`created_at >= $${idx}`); idx++ }
+    if (filters.endDate) { params.push(filters.endDate); conditions.push(`created_at <= $${idx}`); idx++ }
     if (filters.search) {
-      // Search in action, entity_type, and changed_by_name
-      // Note: PostgREST doesn't support ::text cast, so we only search in text fields
-      const searchTerm = `%${filters.search}%`;
-      query = query.or(
-        `action.ilike.${searchTerm},entity_type.ilike.${searchTerm},changed_by_name.ilike.${searchTerm}`,
-      );
+      const term = `%${filters.search.replace(/[%_\\]/g, '\\$&')}%`
+      params.push(term); conditions.push(`(action ILIKE $${idx} OR entity_type ILIKE $${idx} OR changed_by_name ILIKE $${idx})`); idx++
     }
 
-    // Apply sorting
-    query = query.order("created_at", { ascending: false });
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
-    // Apply pagination
-    const { data, error, count } = await query.range(
-      pagination.offset,
-      pagination.offset + pagination.limit - 1,
-    );
+    try {
+      const [dataRes, countRes] = await Promise.all([
+        pool.query(`SELECT * FROM perm_audit_log ${where} ORDER BY created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
+        pool.query(`SELECT COUNT(*)::int AS total FROM perm_audit_log ${where}`, params)
+      ])
 
-    if (error) {
-      throw new AuditLogFetchError(error as Error);
-    }
-
-    // Map database fields to interface
-    const mappedData = (data || []).map((row: any) => ({
-      ...row,
-      user_id: row.changed_by,
-      user_name: row.changed_by_name || null,
-      // user_email and branch_name are not in this table,
-      // they would require a join or separate fetch if needed.
-      // But we ensure user_id is populated from changed_by.
-    }))
-
-    return {
-      data: mappedData as AuditLogRecord[],
-      total: count || 0,
-      limit: pagination.limit,
-      offset: pagination.offset,
-    };
+      const mappedData = dataRes.rows.map((row: Record<string, unknown>) => ({ ...row, user_id: row.changed_by, user_name: row.changed_by_name || null }))
+      return { data: mappedData as AuditLogRecord[], total: countRes.rows[0].total, limit: pagination.limit, offset: pagination.offset }
+    } catch (error) { throw new AuditLogFetchError(error as Error) }
   }
 
-  /**
-   * Get single audit log by ID
-   */
   async getAuditLogById(id: string): Promise<AuditLogRecord | null> {
-    const { data, error } = await supabase
-      .from("perm_audit_log")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (error) {
-      throw new AuditLogFetchError(error as Error);
-    }
-
-    return data as AuditLogRecord | null;
+    const { rows } = await pool.query('SELECT * FROM perm_audit_log WHERE id = $1', [id])
+    return (rows[0] as AuditLogRecord) ?? null
   }
 
-  // =========================================================================
-  // ERROR REPORT OPERATIONS
-  // =========================================================================
-
-  /**
-   * Create error report entry
-   */
-  async createErrorReport(errorData: {
-    errorName: string;
-    errorMessage: string;
-    errorStack?: string;
-    errorType: string;
-    severity: string;
-    module: string;
-    submodule?: string;
-    userId?: string;
-    branchId?: string;
-    url: string;
-    route: string;
-    userAgent: string;
-    businessImpact?: string;
-    context?: Record<string, any>;
-  }): Promise<void> {
-    const { error } = await supabase.from("error_logs").insert({
-      error_name: errorData.errorName,
-      error_message: errorData.errorMessage,
-      error_stack: errorData.errorStack,
-      error_type: errorData.errorType,
-      severity: errorData.severity,
-      module: errorData.module,
-      submodule: errorData.submodule,
-      user_id: errorData.userId,
-      branch_id: errorData.branchId,
-      url: errorData.url,
-      route: errorData.route,
-      user_agent: errorData.userAgent,
-      business_impact: errorData.businessImpact,
-      context: errorData.context ? JSON.stringify(errorData.context) : null,
-    });
-
-    if (error) {
-      throw new ErrorReportCreationError(error as Error);
-    }
+  async createErrorReport(errorData: { errorName: string; errorMessage: string; errorStack?: string; errorType: string; severity: string; module: string; submodule?: string; userId?: string; branchId?: string; url: string; route: string; userAgent: string; businessImpact?: string; context?: Record<string, unknown> }): Promise<void> {
+    try {
+      await pool.query(
+        'INSERT INTO error_logs (error_name, error_message, error_stack, error_type, severity, module, submodule, user_id, branch_id, url, route, user_agent, business_impact, context) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',
+        [errorData.errorName, errorData.errorMessage, errorData.errorStack, errorData.errorType, errorData.severity, errorData.module, errorData.submodule, errorData.userId, errorData.branchId, errorData.url, errorData.route, errorData.userAgent, errorData.businessImpact, errorData.context ? JSON.stringify(errorData.context) : null]
+      )
+    } catch (error) { throw new ErrorReportCreationError(error as Error) }
   }
 
-  /**
-   * Get error logs with filters and pagination
-   */
-  async getErrorLogs(
-    filters: {
-      severity?: string;
-      errorType?: string;
-      module?: string;
-      userId?: string;
-      startDate?: string;
-      endDate?: string;
-      search?: string;
-    },
-    pagination: { limit: number; offset: number },
-  ): Promise<{ data: ErrorLogRecord[]; total: number }> {
-    let query = supabase.from("error_logs").select("*", { count: "exact" });
+  async getErrorLogs(filters: { severity?: string; errorType?: string; module?: string; userId?: string; startDate?: string; endDate?: string; search?: string }, pagination: { limit: number; offset: number }): Promise<{ data: ErrorLogRecord[]; total: number }> {
+    const conditions: string[] = []
+    const params: string[] = []
+    let idx = 1
 
-    // Apply filters
-    if (filters.severity) {
-      query = query.eq("severity", filters.severity);
-    }
-
-    if (filters.errorType) {
-      query = query.eq("error_type", filters.errorType);
-    }
-
-    if (filters.module) {
-      query = query.eq("module", filters.module);
-    }
-
-    if (filters.userId) {
-      query = query.eq("user_id", filters.userId);
-    }
-
-    if (filters.startDate) {
-      query = query.gte("created_at", filters.startDate);
-    }
-
-    if (filters.endDate) {
-      query = query.lte("created_at", filters.endDate);
-    }
-
+    if (filters.severity) { params.push(filters.severity); conditions.push(`severity = $${idx}`); idx++ }
+    if (filters.errorType) { params.push(filters.errorType); conditions.push(`error_type = $${idx}`); idx++ }
+    if (filters.module) { params.push(filters.module); conditions.push(`module = $${idx}`); idx++ }
+    if (filters.userId) { params.push(filters.userId); conditions.push(`user_id = $${idx}`); idx++ }
+    if (filters.startDate) { params.push(filters.startDate); conditions.push(`created_at >= $${idx}`); idx++ }
+    if (filters.endDate) { params.push(filters.endDate); conditions.push(`created_at <= $${idx}`); idx++ }
     if (filters.search) {
-      // Search in error_message and error_name
-      const searchTerm = `%${filters.search}%`;
-      query = query.or(
-        `error_message.ilike.${searchTerm},error_name.ilike.${searchTerm}`,
-      );
+      const term = `%${filters.search.replace(/[%_\\]/g, '\\$&')}%`
+      params.push(term); conditions.push(`(error_message ILIKE $${idx} OR error_name ILIKE $${idx})`); idx++
     }
 
-    // Apply sorting
-    query = query.order("created_at", { ascending: false });
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
-    // Apply pagination
-    const { data, error, count } = await query.range(
-      pagination.offset,
-      pagination.offset + pagination.limit - 1,
-    );
-
-    if (error) {
-      throw new ErrorReportFetchError(error as Error);
-    }
-
-    return {
-      data: (data || []) as ErrorLogRecord[],
-      total: count || 0,
-    };
+    try {
+      const [dataRes, countRes] = await Promise.all([
+        pool.query(`SELECT * FROM error_logs ${where} ORDER BY created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
+        pool.query(`SELECT COUNT(*)::int AS total FROM error_logs ${where}`, params)
+      ])
+      return { data: dataRes.rows as ErrorLogRecord[], total: countRes.rows[0].total }
+    } catch (error) { throw new ErrorReportFetchError(error as Error) }
   }
 
-  /**
-   * Get error statistics
-   */
   async getErrorStats(): Promise<ErrorStats> {
-    const { data: allData, error } = await supabase
-      .from("error_logs")
-      .select("severity, error_type, module, created_at")
-      .is("deleted_at", null);
+    try {
+      const { rows } = await pool.query('SELECT severity, error_type, module, created_at FROM error_logs WHERE deleted_at IS NULL')
+      const by_severity: Record<string, number> = {}
+      const by_type: Record<string, number> = {}
+      const by_module: Record<string, number> = {}
+      let total_errors = 0, recent_errors = 0
+      const oneDayAgo = new Date(); oneDayAgo.setHours(oneDayAgo.getHours() - 24)
 
-    if (error) {
-      throw new ErrorStatsFetchError(error as Error);
-    }
-
-    const by_severity: Record<string, number> = {};
-    const by_type: Record<string, number> = {};
-    const by_module: Record<string, number> = {};
-    let total_errors = 0;
-    let recent_errors = 0;
-
-    const oneDayAgo = new Date();
-    oneDayAgo.setHours(oneDayAgo.getHours() - 24);
-
-    for (const item of allData || []) {
-      total_errors++;
-      by_severity[item.severity || "UNKNOWN"] =
-        (by_severity[item.severity || "UNKNOWN"] || 0) + 1;
-      by_type[item.error_type || "UNKNOWN"] =
-        (by_type[item.error_type || "UNKNOWN"] || 0) + 1;
-      by_module[item.module || "UNKNOWN"] =
-        (by_module[item.module || "UNKNOWN"] || 0) + 1;
-
-      if (new Date(item.created_at) > oneDayAgo) {
-        recent_errors++;
+      for (const item of rows) {
+        total_errors++
+        by_severity[item.severity || 'UNKNOWN'] = (by_severity[item.severity || 'UNKNOWN'] || 0) + 1
+        by_type[item.error_type || 'UNKNOWN'] = (by_type[item.error_type || 'UNKNOWN'] || 0) + 1
+        by_module[item.module || 'UNKNOWN'] = (by_module[item.module || 'UNKNOWN'] || 0) + 1
+        if (new Date(item.created_at) > oneDayAgo) recent_errors++
       }
-    }
-
-    return {
-      total_errors,
-      by_severity,
-      by_type,
-      by_module,
-      recent_errors,
-    };
+      return { total_errors, by_severity, by_type, by_module, recent_errors }
+    } catch (error) { throw new ErrorStatsFetchError(error as Error) }
   }
 
-  // =========================================================================
-  // CLEANUP OPERATIONS (Retention Policy)
-  // =========================================================================
-
-  /**
-   * Cleanup old audit logs (retention policy)
-   * @param olderThan - Date older than which logs should be deleted
-   * @returns Number of deleted records
-   */
   async cleanupOldAuditLogs(olderThan: Date): Promise<number> {
-    const { count, error } = await supabase
-      .from("perm_audit_log")
-      .delete()
-      .lt("created_at", olderThan.toISOString());
-
-    if (error) {
-      throw new AuditLogFetchError(error as Error);
-    }
-
-    return count || 0;
+    const { rowCount } = await pool.query('DELETE FROM perm_audit_log WHERE created_at < $1', [olderThan.toISOString()])
+    return rowCount ?? 0
   }
 
-  /**
-   * Cleanup old error logs (retention policy)
-   * @param olderThan - Date older than which logs should be deleted
-   * @returns Number of deleted records
-   */
   async cleanupOldErrorLogs(olderThan: Date): Promise<number> {
-    const { count, error } = await supabase
-      .from("error_logs")
-      .delete()
-      .lt("created_at", olderThan.toISOString());
-
-    if (error) {
-      throw new ErrorReportFetchError(error as Error);
-    }
-
-    return count || 0;
+    const { rowCount } = await pool.query('DELETE FROM error_logs WHERE created_at < $1', [olderThan.toISOString()])
+    return rowCount ?? 0
   }
 
-  // =========================================================================
-  // ADVANCED CLEANUP OPERATIONS
-  // =========================================================================
-
-  /**
-   * Cleanup old audit logs with batching (untuk dataset besar)
-   * @param olderThan - Date older than which logs should be deleted
-   * @param batchSize - Number of records per batch (default from config)
-   * @returns Object with total deleted count and number of batches
-   */
-  async cleanupOldAuditLogsBatched(
-    olderThan: Date,
-    batchSize: number = cleanupConfig.defaultBatchSize,
-  ): Promise<CleanupResult> {
-    let totalDeleted = 0;
-    let batches = 0;
-
+  async cleanupOldAuditLogsBatched(olderThan: Date, batchSize = cleanupConfig.defaultBatchSize): Promise<CleanupResult> {
+    let totalDeleted = 0, batches = 0
     while (true) {
-      // Ambil IDs yang akan dihapus (limit batchSize)
-      const { data: ids, error: selectError } = await supabase
-        .from("perm_audit_log")
-        .select("id")
-        .lt("created_at", olderThan.toISOString())
-        .limit(batchSize);
-
-      if (selectError) {
-        logError("Error fetching audit log IDs for cleanup", {
-          error: selectError,
-        });
-        throw new AuditLogFetchError(selectError as Error);
-      }
-
-      if (!ids || ids.length === 0) {
-        break;
-      }
-
-      // Delete batch
-      const { count, error: deleteError } = await supabase
-        .from("perm_audit_log")
-        .delete()
-        .in(
-          "id",
-          ids.map((i) => i.id),
-        );
-
-      if (deleteError) {
-        logError("Error deleting audit log batch", { error: deleteError });
-        throw new CleanupOperationError(
-          "Failed to delete audit log batch",
-          deleteError as Error,
-        );
-      }
-
-      totalDeleted += count || 0;
-      batches++;
-
-      logInfo(`Audit cleanup batch ${batches}: deleted ${count} records`);
-
-      // Optional: delay antar batch
-      await new Promise((resolve) =>
-        setTimeout(resolve, cleanupConfig.batchDelayMs),
-      );
+      const { rows: ids } = await pool.query('SELECT id FROM perm_audit_log WHERE created_at < $1 LIMIT $2', [olderThan.toISOString(), batchSize])
+      if (!ids.length) break
+      const { rowCount } = await pool.query('DELETE FROM perm_audit_log WHERE id = ANY($1::uuid[])', [ids.map((i: { id: string }) => i.id)])
+      totalDeleted += rowCount ?? 0; batches++
+      logInfo(`Audit cleanup batch ${batches}: deleted ${rowCount} records`)
+      await new Promise(resolve => setTimeout(resolve, cleanupConfig.batchDelayMs))
     }
-
-    logInfo(
-      `Audit cleanup completed: ${totalDeleted} records deleted in ${batches} batches`,
-    );
-
-    return { deleted: totalDeleted, batches };
+    return { deleted: totalDeleted, batches }
   }
 
-  /**
-   * Preview what will be deleted (dry run)
-   * @param olderThan - Date older than which logs would be deleted
-   * @returns Preview object with estimated records, size, and distribution
-   */
   async previewCleanupAuditLogs(olderThan: Date): Promise<CleanupPreview> {
-    // Hitung total records
-    const { count, error: countError } = await supabase
-      .from("perm_audit_log")
-      .select("*", { count: "exact", head: true })
-      .lt("created_at", olderThan.toISOString());
+    const { rows: countRows } = await pool.query('SELECT COUNT(*)::int AS cnt FROM perm_audit_log WHERE created_at < $1', [olderThan.toISOString()])
+    const totalRecords = countRows[0].cnt
+    const { rows: sample } = await pool.query('SELECT created_at, entity_type FROM perm_audit_log WHERE created_at < $1 LIMIT 1000', [olderThan.toISOString()])
 
-    if (countError) {
-      throw new AuditLogFetchError(countError as Error);
+    const byEntityType: Record<string, number> = {}
+    let oldest = new Date(), newest = new Date(0)
+    for (const item of sample) {
+      byEntityType[item.entity_type] = (byEntityType[item.entity_type] || 0) + 1
+      const date = new Date(item.created_at)
+      if (date < oldest) oldest = date
+      if (date > newest) newest = date
     }
 
-    // Ambil sample untuk estimasi size (PostgreSQL)
-    const { data: sample, error: sampleError } = await supabase
-      .from("perm_audit_log")
-      .select("created_at, entity_type")
-      .lt("created_at", olderThan.toISOString())
-      .limit(1000);
-
-    if (sampleError) {
-      throw new AuditLogFetchError(sampleError as Error);
-    }
-
-    // Group by entity type
-    const byEntityType: Record<string, number> = {};
-    let oldest = new Date();
-    let newest = new Date(0);
-
-    for (const item of sample || []) {
-      byEntityType[item.entity_type] =
-        (byEntityType[item.entity_type] || 0) + 1;
-
-      const date = new Date(item.created_at);
-      if (date < oldest) oldest = date;
-      if (date > newest) newest = date;
-    }
-
-    // Estimasi: 1KB per record (average)
-    const estimatedSizeMB = ((count || 0) * 1024) / (1024 * 1024);
-
-    return {
-      totalRecords: count || 0,
-      totalSize: `${estimatedSizeMB.toFixed(2)} MB`,
-      dateRange: { oldest, newest },
-      byEntityType,
-    };
+    return { totalRecords, totalSize: `${((totalRecords * 1024) / (1024 * 1024)).toFixed(2)} MB`, dateRange: { oldest, newest }, byEntityType }
   }
 
-  /**
-   * Archive ke cold storage sebelum delete
-   * @param olderThan - Date older than which logs should be archived and deleted
-   * @param archivePath - Path untuk menyimpan file archive
-   * @returns Object with archived count, deleted count, and archive path
-   */
-  async archiveAndCleanupAuditLogs(
-    olderThan: Date,
-    archivePath: string,
-  ): Promise<ArchiveResult> {
-    // 1. Ambil data yang akan dihapus
-    const { data: logsToArchive, error: fetchError } = await supabase
-      .from("perm_audit_log")
-      .select("*")
-      .lt("created_at", olderThan.toISOString());
+  async archiveAndCleanupAuditLogs(olderThan: Date, archivePath: string): Promise<ArchiveResult> {
+    const { rows } = await pool.query('SELECT * FROM perm_audit_log WHERE created_at < $1', [olderThan.toISOString()])
+    if (!rows.length) return { archived: 0, deleted: 0, archivePath: '' }
 
-    if (fetchError) {
-      throw new AuditLogFetchError(fetchError as Error);
-    }
+    const fs = require('fs').promises
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const archiveFile = `${archivePath}/audit-logs-${timestamp}.json`
+    await fs.mkdir(archivePath, { recursive: true })
+    await fs.writeFile(archiveFile, JSON.stringify(rows, null, 2))
 
-    if (!logsToArchive || logsToArchive.length === 0) {
-      return { archived: 0, deleted: 0, archivePath: "" };
-    }
-
-    // 2. Simpan ke file (JSON)
-    const fs = require("fs").promises;
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const archiveFile = `${archivePath}/audit-logs-${timestamp}.json`;
-
-    // Ensure directory exists
-    await fs.mkdir(archivePath, { recursive: true });
-    await fs.writeFile(archiveFile, JSON.stringify(logsToArchive, null, 2));
-
-    // 3. Delete dari database
-    const { count, error: deleteError } = await supabase
-      .from("perm_audit_log")
-      .delete()
-      .lt("created_at", olderThan.toISOString());
-
-    if (deleteError) {
-      logError("Error deleting archived audit logs", { error: deleteError });
-      throw new CleanupOperationError(
-        "Failed to delete archived audit logs",
-        deleteError as Error,
-      );
-    }
-
-    // 4. Log archival
-    logInfo(`Archived ${logsToArchive.length} records to ${archiveFile}`);
-
-    return {
-      archived: logsToArchive.length,
-      deleted: count || 0,
-      archivePath: archiveFile,
-    };
+    const { rowCount } = await pool.query('DELETE FROM perm_audit_log WHERE created_at < $1', [olderThan.toISOString()])
+    logInfo(`Archived ${rows.length} records to ${archiveFile}`)
+    return { archived: rows.length, deleted: rowCount ?? 0, archivePath: archiveFile }
   }
 
-  /**
-   * Soft delete (mark as deleted) - tambahkan deleted_at
-   * @param olderThan - Date older than which logs should be soft-deleted
-   * @returns Number of records soft-deleted
-   */
   async softDeleteOldAuditLogs(olderThan: Date): Promise<number> {
-    const { count, error } = await supabase
-      .from("perm_audit_log")
-      .update({ deleted_at: new Date().toISOString() })
-      .lt("created_at", olderThan.toISOString())
-      .is("deleted_at", null); // Yang belum di-soft-delete
-
-    if (error) {
-      throw new CleanupOperationError(
-        "Failed to soft delete audit logs",
-        error as Error,
-      );
-    }
-
-    logInfo(`Soft deleted ${count || 0} audit log records`);
-    return count || 0;
+    const { rowCount } = await pool.query('UPDATE perm_audit_log SET deleted_at = NOW() WHERE created_at < $1 AND deleted_at IS NULL', [olderThan.toISOString()])
+    return rowCount ?? 0
   }
 
-  /**
-   * Hard delete (permanent) - untuk data yang sudah di-soft-delete > 30 hari
-   * @param olderThan - Date older than which soft-deleted logs should be permanently deleted
-   * @returns Number of records permanently deleted
-   */
   async hardDeleteSoftDeletedLogs(olderThan: Date): Promise<number> {
-    const { count, error } = await supabase
-      .from("perm_audit_log")
-      .delete()
-      .lt("deleted_at", olderThan.toISOString())
-      .not("deleted_at", "is", null);
-
-    if (error) {
-      throw new CleanupOperationError(
-        "Failed to hard delete audit logs",
-        error as Error,
-      );
-    }
-
-    logInfo(`Hard deleted ${count || 0} audit log records`);
-    return count || 0;
+    const { rowCount } = await pool.query('DELETE FROM perm_audit_log WHERE deleted_at < $1 AND deleted_at IS NOT NULL', [olderThan.toISOString()])
+    return rowCount ?? 0
   }
 
-  /**
-   * Cleanup old error logs with batching (untuk dataset besar)
-   * @param olderThan - Date older than which logs should be deleted
-   * @param batchSize - Number of records per batch (default from config)
-   * @returns Object with total deleted count and number of batches
-   */
-  async cleanupOldErrorLogsBatched(
-    olderThan: Date,
-    batchSize: number = cleanupConfig.defaultBatchSize,
-  ): Promise<CleanupResult> {
-    let totalDeleted = 0;
-    let batches = 0;
-
+  async cleanupOldErrorLogsBatched(olderThan: Date, batchSize = cleanupConfig.defaultBatchSize): Promise<CleanupResult> {
+    let totalDeleted = 0, batches = 0
     while (true) {
-      // Ambil IDs yang akan dihapus (limit batchSize)
-      const { data: ids, error: selectError } = await supabase
-        .from("error_logs")
-        .select("id")
-        .lt("created_at", olderThan.toISOString())
-        .limit(batchSize);
-
-      if (selectError) {
-        logError("Error fetching error log IDs for cleanup", {
-          error: selectError,
-        });
-        throw new ErrorReportFetchError(selectError as Error);
-      }
-
-      if (!ids || ids.length === 0) {
-        break;
-      }
-
-      // Delete batch
-      const { count, error: deleteError } = await supabase
-        .from("error_logs")
-        .delete()
-        .in(
-          "id",
-          ids.map((i) => i.id),
-        );
-
-      if (deleteError) {
-        logError("Error deleting error log batch", { error: deleteError });
-        throw new CleanupOperationError(
-          "Failed to delete error log batch",
-          deleteError as Error,
-        );
-      }
-
-      totalDeleted += count || 0;
-      batches++;
-
-      logInfo(`Error log cleanup batch ${batches}: deleted ${count} records`);
-
-      // Optional: delay antar batch
-      await new Promise((resolve) =>
-        setTimeout(resolve, cleanupConfig.batchDelayMs),
-      );
+      const { rows: ids } = await pool.query('SELECT id FROM error_logs WHERE created_at < $1 LIMIT $2', [olderThan.toISOString(), batchSize])
+      if (!ids.length) break
+      const { rowCount } = await pool.query('DELETE FROM error_logs WHERE id = ANY($1::uuid[])', [ids.map((i: { id: string }) => i.id)])
+      totalDeleted += rowCount ?? 0; batches++
+      logInfo(`Error log cleanup batch ${batches}: deleted ${rowCount} records`)
+      await new Promise(resolve => setTimeout(resolve, cleanupConfig.batchDelayMs))
     }
-
-    logInfo(
-      `Error log cleanup completed: ${totalDeleted} records deleted in ${batches} batches`,
-    );
-
-    return { deleted: totalDeleted, batches };
+    return { deleted: totalDeleted, batches }
   }
 
-  /**
-   * Preview error logs cleanup (dry run)
-   * @param olderThan - Date older than which logs would be deleted
-   * @returns Preview object with estimated records and distribution
-   */
   async previewCleanupErrorLogs(olderThan: Date): Promise<CleanupPreview> {
-    // Hitung total records
-    const { count, error: countError } = await supabase
-      .from("error_logs")
-      .select("*", { count: "exact", head: true })
-      .lt("created_at", olderThan.toISOString());
+    const { rows: countRows } = await pool.query('SELECT COUNT(*)::int AS cnt FROM error_logs WHERE created_at < $1', [olderThan.toISOString()])
+    const totalRecords = countRows[0].cnt
+    const { rows: sample } = await pool.query('SELECT created_at, error_type, severity FROM error_logs WHERE created_at < $1 LIMIT 1000', [olderThan.toISOString()])
 
-    if (countError) {
-      throw new ErrorReportFetchError(countError as Error);
+    const byEntityType: Record<string, number> = {}
+    let oldest = new Date(), newest = new Date(0)
+    for (const item of sample) {
+      const key = `${item.error_type}_${item.severity}`
+      byEntityType[key] = (byEntityType[key] || 0) + 1
+      const date = new Date(item.created_at)
+      if (date < oldest) oldest = date
+      if (date > newest) newest = date
     }
 
-    // Ambil sample untuk estimasi
-    const { data: sample, error: sampleError } = await supabase
-      .from("error_logs")
-      .select("created_at, error_type, severity")
-      .lt("created_at", olderThan.toISOString())
-      .limit(1000);
-
-    if (sampleError) {
-      throw new ErrorReportFetchError(sampleError as Error);
-    }
-
-    // Group by error type dan severity
-    const byEntityType: Record<string, number> = {};
-    let oldest = new Date();
-    let newest = new Date(0);
-
-    for (const item of sample || []) {
-      const key = `${item.error_type}_${item.severity}`;
-      byEntityType[key] = (byEntityType[key] || 0) + 1;
-
-      const date = new Date(item.created_at);
-      if (date < oldest) oldest = date;
-      if (date > newest) newest = date;
-    }
-
-    // Estimasi: 2KB per record (average)
-    const estimatedSizeMB = ((count || 0) * 2048) / (1024 * 1024);
-
-    return {
-      totalRecords: count || 0,
-      totalSize: `${estimatedSizeMB.toFixed(2)} MB`,
-      dateRange: { oldest, newest },
-      byEntityType,
-    };
+    return { totalRecords, totalSize: `${((totalRecords * 2048) / (1024 * 1024)).toFixed(2)} MB`, dateRange: { oldest, newest }, byEntityType }
   }
 
-  // =========================================================================
-  // BULK OPERATIONS
-  // =========================================================================
-
-  /**
-   * Bulk delete audit logs
-   */
   async bulkDeleteAuditLogs(ids: string[]): Promise<number> {
-    const chunkSize = 1000;
-    let totalDeleted = 0;
-
-    for (let i = 0; i < ids.length; i += chunkSize) {
-      const chunk = ids.slice(i, i + chunkSize);
-      const { count, error } = await supabase
-        .from("perm_audit_log")
-        .delete()
-        .in("id", chunk);
-
-      if (error)
-        throw new CleanupOperationError("Bulk delete failed", error as Error);
-      totalDeleted += count || 0;
+    let totalDeleted = 0
+    for (let i = 0; i < ids.length; i += 1000) {
+      const chunk = ids.slice(i, i + 1000)
+      const { rowCount } = await pool.query('DELETE FROM perm_audit_log WHERE id = ANY($1::uuid[])', [chunk])
+      totalDeleted += rowCount ?? 0
     }
-
-    return totalDeleted;
+    return totalDeleted
   }
 
-  /**
-   * Bulk soft delete audit logs
-   */
   async bulkSoftDeleteAuditLogs(ids: string[]): Promise<number> {
-    const { count, error } = await supabase
-      .from("perm_audit_log")
-      .update({ deleted_at: new Date().toISOString() })
-      .in("id", ids);
-
-    if (error)
-      throw new CleanupOperationError(
-        "Bulk soft delete failed",
-        error as Error,
-      );
-    return count || 0;
+    const { rowCount } = await pool.query('UPDATE perm_audit_log SET deleted_at = NOW() WHERE id = ANY($1::uuid[])', [ids])
+    return rowCount ?? 0
   }
 
-  /**
-   * Bulk delete error logs
-   */
   async bulkDeleteErrorLogs(ids: string[]): Promise<number> {
-    const chunkSize = 1000;
-    let totalDeleted = 0;
-
-    for (let i = 0; i < ids.length; i += chunkSize) {
-      const chunk = ids.slice(i, i + chunkSize);
-      const { count, error } = await supabase
-        .from("error_logs")
-        .delete()
-        .in("id", chunk);
-
-      if (error)
-        throw new CleanupOperationError(
-          "Bulk delete error logs failed",
-          error as Error,
-        );
-      totalDeleted += count || 0;
+    let totalDeleted = 0
+    for (let i = 0; i < ids.length; i += 1000) {
+      const chunk = ids.slice(i, i + 1000)
+      const { rowCount } = await pool.query('DELETE FROM error_logs WHERE id = ANY($1::uuid[])', [chunk])
+      totalDeleted += rowCount ?? 0
     }
-
-    return totalDeleted;
+    return totalDeleted
   }
 
-  /**
-   * Bulk soft delete error logs
-   */
   async bulkSoftDeleteErrorLogs(ids: string[]): Promise<number> {
-    const { count, error } = await supabase
-      .from("error_logs")
-      .update({ deleted_at: new Date().toISOString() })
-      .in("id", ids);
-
-    if (error)
-      throw new CleanupOperationError(
-        "Bulk soft delete error logs failed",
-        error as Error,
-      );
-    return count || 0;
+    const { rowCount } = await pool.query('UPDATE error_logs SET deleted_at = NOW() WHERE id = ANY($1::uuid[])', [ids])
+    return rowCount ?? 0
   }
 }
 
-// Export singleton instance
 export const monitoringRepository = new MonitoringRepository();

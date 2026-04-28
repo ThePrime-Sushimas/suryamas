@@ -24,8 +24,10 @@ import {
   parseToLocalDate,
   parseToLocalDateTime,
 } from "../shared/excel-date.util";
-import { supabase } from "../../../config/supabase";
+import { storageService } from "../../../services/storage.service";
 import { logInfo, logError, logWarn } from "../../../config/logger";
+
+const TEMP_BUCKET = 'pos-imports-temp'
 import { jobsService } from "../../jobs/jobs.service";
 import { AuditService } from "../../monitoring/monitoring.service";
 import type {
@@ -463,17 +465,7 @@ class PosImportsService {
 
     // Single file if small
     if (jsonSize <= 4 * 1024 * 1024) {
-      const { error } = await supabase.storage
-        .from('pos-imports-temp')
-        .upload(`${importId}.json`, jsonString, {
-          contentType: 'application/json',
-          upsert: true
-        })
-
-      if (error) {
-        logError('Single file upload failed', { importId, error })
-        throw new Error('Storage upload failed')
-      }
+      await storageService.uploadToPath(jsonString, `${importId}.json`, 'application/json', TEMP_BUCKET)
       
       logInfo('Single file stored', { import_id: importId })
       return { total_chunks: 1, original_size_mb: parseFloat(originalSizeMB) }
@@ -517,18 +509,7 @@ class PosImportsService {
     let chunkIndex = 1
     for (const chunkJson of chunks) {
       const chunkKey = `${importId}-part${chunkIndex}.json`
-      
-      const { error } = await supabase.storage
-        .from('pos-imports-temp')
-        .upload(chunkKey, chunkJson, { 
-          contentType: 'application/json',
-          upsert: true 
-        })
-
-      if (error) {
-        logError('Chunk upload failed', { importId, chunk: chunkIndex, error })
-        throw new Error(`Chunk ${chunkIndex} upload failed`)
-      }
+      await storageService.uploadToPath(chunkJson, chunkKey, 'application/json', TEMP_BUCKET)
       
       const chunkRows = JSON.parse(chunkJson)
       logInfo('Chunk uploaded', { importId, chunk: chunkIndex, rows_in_chunk: chunkRows.length })
@@ -566,20 +547,7 @@ class PosImportsService {
 
       for (let i = 1; i <= chunkInfo.total_chunks; i++) {
         const chunkKey = `${importId}-part${i}.json`;
-        const { data, error } = await supabase.storage
-          .from("pos-imports-temp")
-          .download(chunkKey);
-
-        if (error) {
-          logError("retrieveTemporaryData chunk download failed", {
-            importId,
-            chunk: i,
-            error,
-          });
-          throw new Error(`Chunk ${i} not found. Please re-upload the file.`);
-        }
-
-        const text = await data.text();
+        const text = await storageService.download(chunkKey, TEMP_BUCKET);
         const chunkRows = JSON.parse(text);
         allRows.push(...chunkRows);
 
@@ -601,13 +569,7 @@ class PosImportsService {
 
     // Step 3: Single file
     try {
-      const { data, error } = await supabase.storage
-        .from("pos-imports-temp")
-        .download(`${importId}.json`);
-
-      if (error) throw error;
-
-      const text = await data.text();
+      const text = await storageService.download(`${importId}.json`, TEMP_BUCKET);
       return JSON.parse(text);
     } catch (error) {
       logError("retrieveTemporaryData single file failed", { importId, error });
@@ -838,7 +800,7 @@ class PosImportsService {
           (_, i) => `${importId}-part${i + 1}.json`,
         );
 
-        await supabase.storage.from("pos-imports-temp").remove(filesToRemove);
+        await storageService.remove(filesToRemove, TEMP_BUCKET);
 
         logInfo("cleanupTemporaryData chunks removed", {
           importId,
@@ -846,9 +808,7 @@ class PosImportsService {
         });
       } else {
         // Single file
-        await supabase.storage
-          .from("pos-imports-temp")
-          .remove([`${importId}.json`]);
+        await storageService.remove([`${importId}.json`], TEMP_BUCKET);
 
         logInfo("cleanupTemporaryData single file removed", { importId });
       }

@@ -3,7 +3,7 @@ import { salesService, masterService, stagingService, aggregateService } from ".
 import { ImportSalesPayload, ImportMasterPayload, StagingTable, StagingUpdatePayload } from "./pos-sync.types";
 import { logWarn } from "../../config/logger";
 import { AuditService } from "../monitoring/monitoring.service";
-import { supabase } from "@/config/supabase";
+import { pool } from "@/config/db";
 
 export const salesController = {
   import: async (req: Request, res: Response): Promise<void> => {
@@ -115,11 +115,17 @@ export const stagingController = {
       }
 
       // Get OLD data for audit
-      const { data: oldData } = await supabase
-        .from(`pos_staging_${table}`)
-        .select("*")
-        .eq("pos_id", posId)
-        .single();
+      const tableName = `pos_staging_${table}`;
+      const validTables = ['pos_staging_branches', 'pos_staging_payment_methods', 'pos_staging_menu_categories', 'pos_staging_menu_groups', 'pos_staging_menus'];
+      if (!validTables.includes(tableName)) {
+        res.status(400).json({ error: 'Invalid table' });
+        return;
+      }
+      const { rows: oldRows } = await pool.query(
+        `SELECT * FROM ${tableName} WHERE pos_id = $1 LIMIT 1`,
+        [posId]
+      );
+      const oldData = oldRows[0] ?? null;
 
       const data = await stagingService.update(table, posId, payload)
 

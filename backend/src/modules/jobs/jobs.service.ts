@@ -5,12 +5,12 @@
  * FINAL: 100% mengikuti JobsRepository
  */
 
-import { supabase } from '@/config/supabase'
+import { storageService } from '@/services/storage.service'
 import { logInfo, logError } from '@/config/logger'
 import { Job, CreateJobDto } from './jobs.types'
 import { JobErrors } from './jobs.errors'
 import { jobsRepository } from './jobs.repository'
-import { STORAGE_BUCKET, JOB_QUEUE_CONFIG } from './jobs.constants'
+import { JOB_QUEUE_CONFIG } from './jobs.constants'
 import { AuditService } from '../monitoring/monitoring.service'
 import * as fs from 'fs'
 
@@ -67,17 +67,14 @@ export class JobsService {
     const fileBuffer = fs.readFileSync(filePath)
     const storagePath = `${userId}/${jobId}/${fileName}`
 
-    const { error: uploadError } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(storagePath, fileBuffer, { contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', upsert: false })
+    const { error: uploadError } = await storageService.uploadToPath(fileBuffer, storagePath, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'jobresults').then(() => ({ error: null })).catch(e => ({ error: e }))
     if (uploadError) throw uploadError
 
     const expiresIn = Math.floor(JOB_QUEUE_CONFIG.resultExpiration / 1000)
-    const { data: urlData } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(storagePath, expiresIn)
-    if (!urlData?.signedUrl) throw new Error('Failed to generate signed URL')
+    const signedUrl = await storageService.createSignedUrl(storagePath, expiresIn, 'jobresults')
 
     logInfo('Service uploadResultFile success', { job_id: jobId, path: storagePath, size: fileSize })
-    return { url: urlData.signedUrl, path: storagePath, size: fileSize }
+    return { url: signedUrl, path: storagePath, size: fileSize }
   }
 
   /**
@@ -142,7 +139,7 @@ export class JobsService {
 
       if (uploadedFilePath) {
         try {
-          await supabase.storage.from(STORAGE_BUCKET).remove([uploadedFilePath])
+          await storageService.remove([uploadedFilePath], 'jobresults')
           logInfo('Rolled back uploaded file', { job_id: jobId, path: uploadedFilePath })
         } catch (rollbackError) {
           logError('Failed rollback uploaded file', { job_id: jobId, error: rollbackError })
@@ -229,8 +226,11 @@ export class JobsService {
     for (const job of expiredJobs) {
       try {
         if (job.file_path) {
-          const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([job.file_path])
-          if (error) logError('Failed to delete file from storage', { job_id: job.id, path: job.file_path, error })
+          try {
+            await storageService.remove([job.file_path], 'jobresults')
+          } catch (storageErr) {
+            logError('Failed to delete file from storage', { job_id: job.id, path: job.file_path, error: storageErr })
+          }
         }
         await jobsRepository.delete(job.id, job.user_id)
         logInfo('Cleaned up expired job', { job_id: job.id })
