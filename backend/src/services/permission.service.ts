@@ -1,8 +1,4 @@
-// =====================================================
-// PERMISSION SERVICE - Core Permission Logic
-// =====================================================
-
-import { supabase } from '../config/supabase'
+import { pool } from '../config/db'
 import { logError } from '../config/logger'
 import type {
   Module,
@@ -11,596 +7,296 @@ import type {
   PermissionAction,
   PermissionMatrix,
   PermissionCheckResult,
-  CreateModuleDto,
   UpdateRolePermissionsDto,
 } from '../modules/permissions/permissions.types'
 import {
   isPublicModule,
   createDefaultPermissions,
-  getPermissionColumn,
   PERMISSION_CACHE_TTL,
 } from '../utils/permissions.util'
 
 export class PermissionService {
   private static memoryCache = new Map<string, { permissions: PermissionMatrix; expiresAt: number }>()
   private static userPermissionsCache = new Map<string, { permissions: PermissionMatrix; expiresAt: number }>()
-  private static readonly MEMORY_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
-  private static readonly USER_PERMISSIONS_CACHE_TTL = 10 * 60 * 1000 // 10 minutes
+  private static readonly MEMORY_CACHE_TTL = 5 * 60 * 1000
+  private static readonly USER_PERMISSIONS_CACHE_TTL = 10 * 60 * 1000
 
-  // =====================================================
-  // MODULE REGISTRATION
-  // =====================================================
-
-  /**
-   * Register a new module in the system
-   * Auto-creates default permissions for all existing roles
-   */
-  static async registerModule(
-    name: string,
-    description: string,
-    defaultPermissions?: Record<string, any>
-  ): Promise<Module | null> {
+  static async registerModule(name: string, description: string, defaultPermissions?: Record<string, Record<string, boolean>>): Promise<Module | null> {
     try {
-      // Check if module already exists
-      const { data: existing } = await supabase
-        .from('perm_modules')
-        .select('*')
-        .eq('name', name)
-        .single()
+      const { rows: existing } = await pool.query('SELECT * FROM perm_modules WHERE name = $1', [name])
+      if (existing.length > 0) return existing[0] as Module
 
-      if (existing) {
-        return existing as Module
-      }
+      const { rows: created } = await pool.query(
+        'INSERT INTO perm_modules (name, description, is_active) VALUES ($1, $2, true) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING *',
+        [name, description]
+      )
+      const mod = created[0] as Module
 
-      // Create new module
-      const { data: module, error: moduleError } = await supabase
-        .from('perm_modules')
-        .insert({ name, description, is_active: true })
-        .select()
-        .single()
-
-      if (moduleError) {
-        // Handle duplicate key error (race condition)
-        if (moduleError.code === '23505') {
-          const { data: existingModule } = await supabase
-            .from('perm_modules')
-            .select('*')
-            .eq('name', name)
-            .single()
-          return existingModule as Module
+      const { rows: roles } = await pool.query('SELECT * FROM perm_roles')
+      if (roles.length > 0) {
+        const values: string[] = []
+        const params: (string | boolean)[] = []
+        let idx = 1
+        for (const role of roles) {
+          const defaults = defaultPermissions?.[role.name] || createDefaultPermissions(role.name)
+          values.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7})`)
+          params.push(role.id, mod.id, defaults.can_view ?? false, defaults.can_insert ?? false, defaults.can_update ?? false, defaults.can_delete ?? false, defaults.can_approve ?? false, defaults.can_release ?? false)
+          idx += 8
         }
-        throw moduleError
+        await pool.query(
+          `INSERT INTO perm_role_permissions (role_id, module_id, can_view, can_insert, can_update, can_delete, can_approve, can_release) VALUES ${values.join(', ')} ON CONFLICT DO NOTHING`,
+          params
+        ).catch(e => logError('Failed to create default permissions', { error: e.message }))
       }
 
-      // Create default permissions for all roles
-      const { data: roles } = await supabase.from('perm_roles').select('*')
-
-      if (roles && roles.length > 0) {
-        const permissions = roles.map((role: Role) => ({
-          role_id: role.id,
-          module_id: module.id,
-          ...(defaultPermissions?.[role.name] || createDefaultPermissions(role.name)),
-        }))
-
-        const { error: permError } = await supabase
-          .from('perm_role_permissions')
-          .insert(permissions)
-
-        if (permError) {
-          logError('Failed to create default permissions', { error: permError.message })
-        }
-      }
-
-      return module as Module
-    } catch (error: any) {
-      logError('Module registration failed', { module: name, error: error.message })
+      return mod
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown'
+      logError('Module registration failed', { module: name, error: msg })
       return null
     }
   }
 
-  /**
-   * Get all registered modules
-   */
   static async getAllModules(): Promise<Module[]> {
-    const { data, error } = await supabase
-      .from('perm_modules')
-      .select('*')
-      .order('name')
-
-    if (error) {
-      logError('Failed to fetch modules', { error: error.message })
-      return []
-    }
-
-    return (data as Module[]) || []
+    const { rows } = await pool.query('SELECT * FROM perm_modules ORDER BY name')
+    return rows as Module[]
   }
 
-  /**
-   * Update module status
-   */
   static async updateModuleStatus(moduleId: string, isActive: boolean): Promise<boolean> {
-    const { error } = await supabase
-      .from('perm_modules')
-      .update({ is_active: isActive })
-      .eq('id', moduleId)
-
-    if (error) {
-      logError('Failed to update module status', { moduleId, error: error.message })
-      return false
-    }
-
-    // Invalidate cache for all users
-    await this.invalidateAllCache()
-
-    return true
+    const { rowCount } = await pool.query('UPDATE perm_modules SET is_active = $1 WHERE id = $2', [isActive, moduleId])
+    if ((rowCount ?? 0) > 0) await this.invalidateAllCache()
+    return (rowCount ?? 0) > 0
   }
 
-  // =====================================================
-  // PERMISSION CHECKING
-  // =====================================================
-
-  /**
-   * Check if user has specific permission
-   * Uses memory cache first, then database cache, then queries database
-   */
-  static async hasPermission(
-    userId: string,
-    moduleName: string,
-    action: PermissionAction
-  ): Promise<PermissionCheckResult> {
+  static async hasPermission(userId: string, moduleName: string, action: PermissionAction): Promise<PermissionCheckResult> {
     try {
-      // Skip check for public modules
-      if (isPublicModule(moduleName)) {
-        return { allowed: true, reason: 'Public module' }
-      }
+      if (isPublicModule(moduleName)) return { allowed: true, reason: 'Public module' }
 
-      // Try memory cache first
       const memCached = this.memoryCache.get(userId)
       if (memCached && memCached.expiresAt > Date.now()) {
-        const allowed = memCached.permissions[moduleName]?.[action] || false
-        return { allowed, cached: true }
+        return { allowed: memCached.permissions[moduleName]?.[action] || false, cached: true }
       }
 
-      // Try database cache
       const cached = await this.getFromCache(userId)
       if (cached && Object.keys(cached).length > 0) {
-        const allowed = cached[moduleName]?.[action] || false
-        // Update memory cache
-        this.memoryCache.set(userId, {
-          permissions: cached,
-          expiresAt: Date.now() + this.MEMORY_CACHE_TTL,
-        })
-        return { allowed, cached: true }
+        this.memoryCache.set(userId, { permissions: cached, expiresAt: Date.now() + this.MEMORY_CACHE_TTL })
+        return { allowed: cached[moduleName]?.[action] || false, cached: true }
       }
 
-      // Query database
-      const { data, error } = await supabase.rpc('user_has_permission', {
-        p_user_id: userId,
-        p_module_name: moduleName,
-        p_action: action,
-      })
-
-      if (error) {
-        logError('RPC user_has_permission failed', { userId, moduleName, action, error: error.message })
-        throw error
-      }
-
-      const allowed = data === true
-
-      // Update both caches
       await this.updateCache(userId)
-
-      return { allowed, cached: false }
-    } catch (error: any) {
-      logError('Permission check failed', {
-        userId,
-        moduleName,
-        action,
-        error: error.message,
-      })
+      const perms = this.memoryCache.get(userId)?.permissions || {}
+      return { allowed: perms[moduleName]?.[action] || false, cached: false }
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown'
+      logError('Permission check failed', { userId, moduleName, action, error: msg })
       return { allowed: false, reason: 'Permission check error' }
     }
   }
 
-  /**
-   * Batch check multiple permissions for a user
-   */
-  static async hasPermissions(
-    userId: string,
-    checks: Array<{ module: string; action: PermissionAction }>
-  ): Promise<Record<string, boolean>> {
-    const results: Record<string, boolean> = {}
-
-    for (const check of checks) {
-      const key = `${check.module}:${check.action}`
-      const result = await this.hasPermission(userId, check.module, check.action)
-      results[key] = result.allowed
-    }
-
-    return results
-  }
-
-  /**
-   * Get all permissions for a user (flattened)
-   * Uses cache to avoid repeated database queries
-   */
   static async getUserPermissions(userId: string): Promise<PermissionMatrix> {
     try {
-      // Check cache first
       const cached = this.userPermissionsCache.get(userId)
-      if (cached && cached.expiresAt > Date.now()) {
-        return cached.permissions
-      }
+      if (cached && cached.expiresAt > Date.now()) return cached.permissions
 
-      // Get user's role
-      const { data: profile, error: profileError } = await supabase
-        .from('perm_user_profiles')
-        .select('role_id')
-        .eq('user_id', userId)
-        .single()
+      const { rows } = await pool.query('SELECT role_id FROM perm_user_profiles WHERE user_id = $1', [userId])
+      if (rows.length === 0) return {}
 
-      if (profileError || !profile) throw profileError || new Error('User profile not found')
-
-      return await this.getUserPermissionsByRole(profile.role_id)
-    } catch (error: any) {
-      logError('Failed to get user permissions', { userId, error: error.message })
+      return await this.getUserPermissionsByRole(rows[0].role_id)
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown'
+      logError('Failed to get user permissions', { userId, error: msg })
       return {}
     }
   }
 
-  /**
-   * Get permissions by role ID
-   */
   static async getUserPermissionsByRole(roleId: string): Promise<PermissionMatrix> {
     try {
-      // Get role permissions
-      const { data: permissions, error: permError } = await supabase
-        .from('perm_role_permissions')
-        .select(`
-          can_view,
-          can_insert,
-          can_update,
-          can_delete,
-          can_approve,
-          can_release,
-          perm_modules!inner (name)
-        `)
-        .eq('role_id', roleId)
-
-      if (permError) throw permError
+      const { rows } = await pool.query(
+        `SELECT rp.can_view, rp.can_insert, rp.can_update, rp.can_delete, rp.can_approve, rp.can_release, m.name AS module_name
+         FROM perm_role_permissions rp
+         JOIN perm_modules m ON m.id = rp.module_id
+         WHERE rp.role_id = $1`,
+        [roleId]
+      )
 
       const matrix: PermissionMatrix = {}
-
-      for (const perm of permissions || []) {
-        const moduleName = (perm as any).perm_modules.name
-        matrix[moduleName] = {
-          view: perm.can_view,
-          insert: perm.can_insert,
-          update: perm.can_update,
-          delete: perm.can_delete,
-          approve: perm.can_approve,
-          release: perm.can_release,
+      for (const row of rows) {
+        matrix[row.module_name] = {
+          view: row.can_view,
+          insert: row.can_insert,
+          update: row.can_update,
+          delete: row.can_delete,
+          approve: row.can_approve,
+          release: row.can_release,
         }
       }
-
       return matrix
-    } catch (error: any) {
-      logError('Failed to get permissions by role', { roleId, error: error.message })
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown'
+      logError('Failed to get permissions by role', { roleId, error: msg })
       return {}
     }
   }
 
-  // =====================================================
-  // ROLE MANAGEMENT
-  // =====================================================
-
-  /**
-   * Get all roles with their permissions
-   */
   static async getAllRoles(): Promise<Role[]> {
-    const { data, error } = await supabase
-      .from('perm_roles')
-      .select('*')
-      .order('name')
-
-    if (error) {
-      logError('Failed to fetch roles', { error: error.message })
-      return []
-    }
-
-    return (data as Role[]) || []
+    const { rows } = await pool.query('SELECT * FROM perm_roles ORDER BY name')
+    return rows as Role[]
   }
 
-  /**
-   * Get role with all its permissions
-   */
   static async getRoleWithPermissions(roleId: string) {
-    const { data, error } = await supabase
-      .from('perm_roles')
-      .select(
-        `
-        *,
-        perm_role_permissions (
-          *,
-          perm_modules (*)
-        )
-      `
-      )
-      .eq('id', roleId)
-      .single()
+    const { rows: roleRows } = await pool.query('SELECT * FROM perm_roles WHERE id = $1', [roleId])
+    if (roleRows.length === 0) return null
 
-    if (error) {
-      logError('Failed to fetch role permissions', { roleId, error: error.message })
-      return null
+    const { rows: permRows } = await pool.query(
+      `SELECT rp.*, m.name AS module_name, m.description AS module_description, m.is_active AS module_is_active, m.id AS module_id_ref
+       FROM perm_role_permissions rp
+       JOIN perm_modules m ON m.id = rp.module_id
+       WHERE rp.role_id = $1
+       ORDER BY m.name`,
+      [roleId]
+    )
+
+    return {
+      ...roleRows[0],
+      perm_role_permissions: permRows.map(rp => ({
+        ...rp,
+        perm_modules: { id: rp.module_id_ref, name: rp.module_name, description: rp.module_description, is_active: rp.module_is_active },
+      })),
     }
-
-    return data
   }
 
-  /**
-   * Update role permissions for a specific module
-   * Auto-creates permission if it doesn't exist
-   */
-  static async updateRolePermissions(
-    roleId: string,
-    moduleId: string,
-    permissions: UpdateRolePermissionsDto,
-    changedBy?: string
-  ): Promise<RolePermission | null> {
+  static async updateRolePermissions(roleId: string, moduleId: string, permissions: UpdateRolePermissionsDto, changedBy?: string): Promise<RolePermission | null> {
     try {
-      // Check if permission exists
-      const { data: existing, error: existError } = await supabase
-        .from('perm_role_permissions')
-        .select('*')
-        .eq('role_id', roleId)
-        .eq('module_id', moduleId)
+      const { rows: existing } = await pool.query(
+        'SELECT * FROM perm_role_permissions WHERE role_id = $1 AND module_id = $2',
+        [roleId, moduleId]
+      )
 
-      if (existError) throw existError
+      const oldPerm = existing[0] || null
+      let result: RolePermission
 
-      let oldPerm = existing?.[0]
-      let updated
-
-      if (!existing || existing.length === 0) {
-        // Auto-create permission if not found
-        const { data: created, error: createError } = await supabase
-          .from('perm_role_permissions')
-          .insert({ 
-            role_id: roleId, 
-            module_id: moduleId, 
-            can_view: false,
-            can_insert: false,
-            can_update: false,
-            can_delete: false,
-            can_approve: false,
-            can_release: false,
-            ...permissions 
-          })
-          .select()
-
-        if (createError) throw createError
-        updated = created
+      if (!oldPerm) {
+        const { rows } = await pool.query(
+          `INSERT INTO perm_role_permissions (role_id, module_id, can_view, can_insert, can_update, can_delete, can_approve, can_release)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+          [roleId, moduleId, permissions.can_view ?? false, permissions.can_insert ?? false, permissions.can_update ?? false, permissions.can_delete ?? false, permissions.can_approve ?? false, permissions.can_release ?? false]
+        )
+        result = rows[0]
       } else {
-        // Update existing permission
-        const { error: updateError } = await supabase
-          .from('perm_role_permissions')
-          .update(permissions)
-          .eq('role_id', roleId)
-          .eq('module_id', moduleId)
-
-        if (updateError) throw updateError
-        
-        // Fetch updated record with ALL fields
-        const { data: fetchedData, error: fetchError } = await supabase
-          .from('perm_role_permissions')
-          .select('*')
-          .eq('role_id', roleId)
-          .eq('module_id', moduleId)
-          .single()
-        
-        if (fetchError) throw fetchError
-        updated = [fetchedData]
+        const sets: string[] = []
+        const params: (string | boolean)[] = []
+        let idx = 1
+        for (const [key, val] of Object.entries(permissions)) {
+          if (val !== undefined) { sets.push(`${key} = $${idx}`); params.push(val); idx++ }
+        }
+        if (sets.length === 0) return oldPerm as RolePermission
+        params.push(roleId, moduleId)
+        const { rows } = await pool.query(
+          `UPDATE perm_role_permissions SET ${sets.join(', ')} WHERE role_id = $${idx} AND module_id = $${idx + 1} RETURNING *`,
+          params
+        )
+        result = rows[0]
       }
 
-      if (!updated || updated.length === 0) {
-        throw new Error('Update failed - no data returned')
-      }
-
-      // Log audit trail
       if (changedBy) {
-        await this.logAudit({
-          action: oldPerm ? 'UPDATE' : 'CREATE',
-          entity_type: 'permission',
-          entity_id: roleId,
-          changed_by: changedBy,
-          old_value: oldPerm,
-          new_value: permissions,
-        })
+        await this.logAudit({ action: oldPerm ? 'UPDATE' : 'CREATE', entity_type: 'permission', entity_id: roleId, changed_by: changedBy, old_value: oldPerm, new_value: permissions })
       }
 
-      // Invalidate cache
       await this.invalidateRoleCache(roleId)
       await this.invalidateAllCache()
-
-      return updated[0] as RolePermission
-    } catch (error: any) {
-      logError('Failed to update role permissions', {
-        roleId,
-        moduleId,
-        error: error.message,
-      })
+      return result
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown'
+      logError('Failed to update role permissions', { roleId, moduleId, error: msg })
       throw error
     }
   }
 
-  /**
-   * Bulk update permissions for a role
-   * Invalidates cache once at the end for efficiency
-   */
-  static async bulkUpdateRolePermissions(
-    roleId: string,
-    updates: Array<{ moduleId: string; permissions: UpdateRolePermissionsDto }>,
-    changedBy?: string
-  ): Promise<boolean> {
+  static async bulkUpdateRolePermissions(roleId: string, updates: Array<{ moduleId: string; permissions: UpdateRolePermissionsDto }>, changedBy?: string): Promise<boolean> {
     try {
       for (const update of updates) {
-        const { data: oldPerm } = await supabase
-          .from('perm_role_permissions')
-          .select('*')
-          .eq('role_id', roleId)
-          .eq('module_id', update.moduleId)
-          .single()
-
-        const { error } = await supabase
-          .from('perm_role_permissions')
-          .update(update.permissions)
-          .eq('role_id', roleId)
-          .eq('module_id', update.moduleId)
-
-        if (error) throw error
-
-        if (changedBy) {
-          await this.logAudit({
-            action: 'UPDATE',
-            entity_type: 'permission',
-            entity_id: roleId,
-            changed_by: changedBy,
-            old_value: oldPerm,
-            new_value: update.permissions,
-          })
-        }
+        await this.updateRolePermissions(roleId, update.moduleId, update.permissions, changedBy)
       }
-
-      await this.invalidateRoleCache(roleId)
-      await this.invalidateAllCache()
       return true
-    } catch (error: any) {
-      logError('Bulk update failed', { roleId, error: error.message })
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown'
+      logError('Bulk update failed', { roleId, error: msg })
       return false
     }
   }
 
-  // =====================================================
-  // CACHE MANAGEMENT
-  // =====================================================
-
-  /**
-   * Get permissions from cache
-   */
   private static async getFromCache(userId: string): Promise<PermissionMatrix | null> {
     try {
-      const { data, error } = await supabase
-        .from('perm_cache')
-        .select('*')
-        .eq('user_id', userId)
-        .gt('expires_at', new Date().toISOString())
-        .single()
-
-      if (error || !data) return null
-
-      const permissions = data.permissions as PermissionMatrix
-      if (!permissions || Object.keys(permissions).length === 0) return null
-      
-      return permissions
+      const { rows } = await pool.query(
+        'SELECT permissions FROM perm_cache WHERE user_id = $1 AND expires_at > NOW()',
+        [userId]
+      )
+      if (rows.length === 0) return null
+      const permissions = rows[0].permissions as PermissionMatrix
+      return permissions && Object.keys(permissions).length > 0 ? permissions : null
     } catch {
       return null
     }
   }
 
-  /**
-   * Update permission cache for user
-   */
   private static async updateCache(userId: string): Promise<void> {
     try {
       const permissions = await this.getUserPermissions(userId)
       const expiresAt = new Date(Date.now() + PERMISSION_CACHE_TTL).toISOString()
-
-      await supabase.from('perm_cache').upsert({
-        user_id: userId,
-        permissions,
-        expires_at: expiresAt,
-      })
-    } catch (error: any) {
-      logError('Cache update failed', { userId, error: error.message })
+      await pool.query(
+        `INSERT INTO perm_cache (user_id, permissions, expires_at) VALUES ($1, $2, $3)
+         ON CONFLICT (user_id) DO UPDATE SET permissions = $2, expires_at = $3`,
+        [userId, JSON.stringify(permissions), expiresAt]
+      )
+      this.memoryCache.set(userId, { permissions, expiresAt: Date.now() + this.MEMORY_CACHE_TTL })
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown'
+      logError('Cache update failed', { userId, error: msg })
     }
   }
 
-  /**
-   * Invalidate cache for all users with specific role
-   */
   static async invalidateRoleCache(roleId: string): Promise<void> {
     try {
-      const { data: users } = await supabase
-        .from('perm_user_profiles')
-        .select('user_id')
-        .eq('role_id', roleId)
-
-      if (users && users.length > 0) {
-        const userIds = users.map((u) => u.user_id)
-        await supabase.from('perm_cache').delete().in('user_id', userIds)
-        userIds.forEach((id) => {
-          this.memoryCache.delete(id)
-          this.userPermissionsCache.delete(id)
-        })
+      const { rows } = await pool.query('SELECT user_id FROM perm_user_profiles WHERE role_id = $1', [roleId])
+      if (rows.length > 0) {
+        const userIds = rows.map(r => r.user_id)
+        await pool.query('DELETE FROM perm_cache WHERE user_id = ANY($1::uuid[])', [userIds])
+        userIds.forEach(id => { this.memoryCache.delete(id); this.userPermissionsCache.delete(id) })
       }
-    } catch (error: any) {
-      logError('Cache invalidation failed', { roleId, error: error.message })
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown'
+      logError('Cache invalidation failed', { roleId, error: msg })
     }
   }
 
-  /**
-   * Invalidate all permission cache
-   */
   static async invalidateAllCache(): Promise<void> {
     try {
-      await supabase.from('perm_cache').delete().neq('user_id', '00000000-0000-0000-0000-000000000000')
+      await pool.query("DELETE FROM perm_cache WHERE user_id != '00000000-0000-0000-0000-000000000000'")
       this.memoryCache.clear()
       this.userPermissionsCache.clear()
-    } catch (error: any) {
-      logError('Cache invalidation failed', { error: error.message })
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown'
+      logError('Cache invalidation failed', { error: msg })
     }
   }
 
-  // =====================================================
-  // AUDIT LOGGING
-  // =====================================================
-
-  /**
-   * Log permission change to audit trail
-   */
-  private static async logAudit(audit: {
-    action: 'CREATE' | 'UPDATE' | 'DELETE'
-    entity_type: 'role' | 'module' | 'permission'
-    entity_id: string
-    changed_by: string
-    old_value?: any
-    new_value?: any
-    ip_address?: string
-    user_agent?: string
-  }): Promise<void> {
+  private static async logAudit(audit: { action: string; entity_type: string; entity_id: string; changed_by: string; old_value?: unknown; new_value?: unknown }): Promise<void> {
     try {
-      await supabase.from('perm_audit_log').insert(audit)
-    } catch (error: any) {
-      logError('Audit logging failed', { error: error.message })
+      await pool.query(
+        'INSERT INTO perm_audit_log (action, entity_type, entity_id, changed_by, old_value, new_value) VALUES ($1, $2, $3, $4, $5, $6)',
+        [audit.action, audit.entity_type, audit.entity_id, audit.changed_by, JSON.stringify(audit.old_value), JSON.stringify(audit.new_value)]
+      )
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown'
+      logError('Audit logging failed', { error: msg })
     }
   }
 
-  /**
-   * Get audit logs for entity
-   */
   static async getAuditLogs(entityType: string, entityId: string, limit = 50) {
-    const { data, error } = await supabase
-      .from('perm_audit_log')
-      .select('*')
-      .eq('entity_type', entityType)
-      .eq('entity_id', entityId)
-      .order('created_at', { ascending: false })
-      .limit(limit)
-
-    if (error) {
-      logError('Failed to fetch audit logs', { error: error.message })
-      return []
-    }
-
-    return data || []
+    const { rows } = await pool.query(
+      'SELECT * FROM perm_audit_log WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC LIMIT $3',
+      [entityType, entityId, limit]
+    )
+    return rows
   }
 }

@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express'
 import { AuthRequest, BranchContext } from '../types/common.types'
-import { supabase } from '../config/supabase'
+import { pool } from '../config/db'
 import { sendError } from '../utils/response.util'
 import { logWarn } from '../config/logger'
 
@@ -21,66 +21,59 @@ export const resolveBranchContext = async (
     const branchId = req.headers['x-branch-id'] as string
 
     if (!branchId) {
-      // Use primary branch
-      const { data: primary, error } = await supabase
-        .from('employee_branches')
-        .select(`
-          *,
-          branches!inner(id, branch_name, company_id),
-          employees!inner(id, user_id)
-        `)
-        .eq('employees.user_id', req.user.id)
-        .eq('is_primary', true)
-        .eq('status', 'active')
-        .single()
+      const { rows } = await pool.query(
+        `SELECT eb.*, b.id AS b_id, b.branch_name, b.company_id
+         FROM employee_branches eb
+         JOIN branches b ON b.id = eb.branch_id
+         JOIN employees e ON e.id = eb.employee_id
+         WHERE e.user_id = $1 AND eb.is_primary = true AND eb.status = 'active'
+         LIMIT 1`,
+        [req.user.id]
+      )
 
-      if (error || !primary) {
+      if (rows.length === 0) {
         logWarn('No active primary branch', { user_id: req.user.id })
         sendError(res, 'No active branch assignment', 403)
         return
       }
 
+      const primary = rows[0]
       req.context = {
-        company_id: (primary as any).branches.company_id,
+        company_id: primary.company_id,
         branch_id: primary.branch_id,
-        branch_name: (primary as any).branches.branch_name,
+        branch_name: primary.branch_name,
         employee_id: primary.employee_id,
         role_id: primary.role_id,
         approval_limit: primary.approval_limit,
       }
     } else {
-      // Validate user has access to specified branch
       const cacheKey = `${req.user.id}:${branchId}`
       const cached = branchContextCache.get(cacheKey)
 
       if (cached && cached.expiresAt > Date.now()) {
         req.context = cached.context
       } else {
-        const { data: assignment, error } = await supabase
-          .from('employee_branches')
-          .select(`
-            *,
-            branches!inner(id, branch_name, company_id),
-            employees!inner(id, user_id)
-          `)
-          .eq('employees.user_id', req.user.id)
-          .eq('branch_id', branchId)
-          .eq('status', 'active')
-          .single()
+        const { rows } = await pool.query(
+          `SELECT eb.*, b.id AS b_id, b.branch_name, b.company_id
+           FROM employee_branches eb
+           JOIN branches b ON b.id = eb.branch_id
+           JOIN employees e ON e.id = eb.employee_id
+           WHERE e.user_id = $1 AND eb.branch_id = $2 AND eb.status = 'active'
+           LIMIT 1`,
+          [req.user.id, branchId]
+        )
 
-        if (error || !assignment) {
-          logWarn('Branch access denied', {
-            user_id: req.user.id,
-            branch_id: branchId,
-          })
+        if (rows.length === 0) {
+          logWarn('Branch access denied', { user_id: req.user.id, branch_id: branchId })
           sendError(res, 'No access to this branch', 403)
           return
         }
 
+        const assignment = rows[0]
         req.context = {
-          company_id: (assignment as any).branches.company_id,
+          company_id: assignment.company_id,
           branch_id: assignment.branch_id,
-          branch_name: (assignment as any).branches.branch_name,
+          branch_name: assignment.branch_name,
           employee_id: assignment.employee_id,
           role_id: assignment.role_id,
           approval_limit: assignment.approval_limit,
@@ -93,16 +86,13 @@ export const resolveBranchContext = async (
       }
     }
 
-    // Load permissions based on branch role
     const PermissionService = require('../services/permission.service').PermissionService
     req.permissions = await PermissionService.getUserPermissionsByRole(req.context.role_id)
 
     next()
-  } catch (error: any) {
-    logWarn('Branch context resolution failed', {
-      user_id: req.user?.id,
-      error: error.message,
-    })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Unknown'
+    logWarn('Branch context resolution failed', { user_id: req.user?.id, error: msg })
     sendError(res, 'Failed to resolve branch context', 500)
   }
 }
