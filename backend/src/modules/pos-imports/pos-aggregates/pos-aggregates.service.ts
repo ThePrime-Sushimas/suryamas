@@ -1,6 +1,6 @@
-import { supabase } from "../../../config/supabase";
 import { posAggregatesRepository } from "./pos-aggregates.repository";
 import { paymentMethodsRepository } from "../../payment-methods/payment-methods.repository";
+import { branchesRepository } from "../../branches/branches.repository";
 import { AuditService } from "../../monitoring/monitoring.service";
 import {
   AggregatedTransaction,
@@ -20,129 +20,57 @@ import {
   createPaginatedResponse,
 } from "../../../utils/pagination.util";
 import { logInfo, logError } from "../../../config/logger";
-import { feeCalculationService } from "../../reconciliation/fee-reconciliation/fee-calculation.service";
 
 export class PosAggregatesService {
   /**
    * Validate that branch exists (if provided)
-   * Note: branchId can be either UUID (id) or branch name (string)
-   * Uses case-insensitive search for branch names
    */
   private async validateBranch(branchId: string | null): Promise<void> {
     if (!branchId) return;
 
-    // Check if branchId is a valid UUID (5fdd0a7b-etc format)
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        branchId,
-      );
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(branchId);
 
-    let query = supabase.from("branches").select("id, status, branch_name");
+    const branch = isUuid 
+      ? await branchesRepository.findById(branchId)
+      : await branchesRepository.findByName(branchId);
 
-    if (isUuid) {
-      // Query by UUID id
-      query = query.eq("id", branchId);
-    } else {
-      // Query by branch_name (string) - use ilike for case-insensitive search
-      query = query.ilike("branch_name", branchId.trim());
-    }
-
-    const { data, error } = await query.maybeSingle();
-
-    if (error)
-      throw AggregatedTransactionErrors.DATABASE_ERROR(
-        "Failed to validate branch",
-        error,
-      );
-    if (!data) throw AggregatedTransactionErrors.BRANCH_NOT_FOUND(branchId);
-    if ((data as any).status !== "active") {
+    if (!branch) throw AggregatedTransactionErrors.BRANCH_NOT_FOUND(branchId);
+    if (branch.status !== "active") {
       throw AggregatedTransactionErrors.BRANCH_INACTIVE(branchId);
     }
   }
 
   /**
    * Find branch by name
-   * Note: Uses case-insensitive search to handle differences in branch name capitalization
    */
   private async findBranchByName(
     branchName: string,
   ): Promise<{ id: string; branch_name: string } | null> {
-    // Normalize branch name: trim + collapse multiple spaces to single space
-    const normalizedBranchName = branchName.trim().replace(/\s+/g, " ");
-
-    // Try exact match first (case-insensitive via ilike)
-    const { data, error } = await supabase
-      .from("branches")
-      .select("id, branch_name")
-      .ilike("branch_name", normalizedBranchName)
-      .eq("status", "active")
-      .maybeSingle();
-
-    if (error) {
-      logError("Failed to find branch by name", {
-        branch_name: branchName,
-        normalized_name: normalizedBranchName,
-        error,
-      });
-      throw AggregatedTransactionErrors.DATABASE_ERROR(
-        "Failed to find branch by name",
-        error,
-      );
-    }
-
-    logInfo("Branch lookup result", {
-      original_name: branchName,
-      normalized_name: normalizedBranchName,
-      found: !!data,
-      branch_id: data?.id,
-    });
-
-    return data;
+    const branch = await branchesRepository.findByName(branchName);
+    return branch ? { id: branch.id, branch_name: branch.branch_name } : null;
   }
 
   /**
    * Find branch by ID
-   * Returns branch name for display purposes
    */
   private async findBranchById(
     branchId: string,
   ): Promise<{ id: string; branch_name: string } | null> {
-    const { data, error } = await supabase
-      .from("branches")
-      .select("id, branch_name")
-      .eq("id", branchId)
-      .maybeSingle();
-
-    if (error) {
-      logError("Failed to find branch by ID", {
-        branch_id: branchId,
-        error,
-      });
-      throw AggregatedTransactionErrors.DATABASE_ERROR(
-        "Failed to find branch by ID",
-        error,
-      );
-    }
-
-    return data;
+    const branch = await branchesRepository.findById(branchId);
+    return branch ? { id: branch.id, branch_name: branch.branch_name } : null;
   }
 
   /**
    * Resolve branch_id and branch_name
-   * If only branch_id is provided, lookup branch_name
-   * If only branch_name is provided, lookup branch_id
-   * If both provided, validate they match
    */
   private async resolveBranch(
     branchId?: string | null,
     branchName?: string | null,
   ): Promise<{ branch_id: string | null; branch_name: string | null }> {
-    // If both are null, return null
     if (!branchId && !branchName) {
       return { branch_id: null, branch_name: null };
     }
 
-    // If branch_id is provided, get branch_name from it
     if (branchId) {
       const branch = await this.findBranchById(branchId);
       return {
@@ -151,7 +79,6 @@ export class PosAggregatesService {
       };
     }
 
-    // If only branch_name is provided, get branch_id from it
     if (branchName) {
       const branch = await this.findBranchByName(branchName);
       return {
@@ -165,52 +92,28 @@ export class PosAggregatesService {
 
   /**
    * Validate that payment method exists and is active
-   * Accepts either numeric ID or string name
    */
   private async validatePaymentMethod(
     paymentMethodId: number | string,
   ): Promise<number> {
-    let query = supabase.from("payment_methods").select("id, is_active");
+    const pm = typeof paymentMethodId === "number"
+      ? await paymentMethodsRepository.findById(paymentMethodId)
+      : await paymentMethodsRepository.findByName(paymentMethodId);
 
-    // If it's a number, search by ID; if string, search by name (case-insensitive)
-    if (typeof paymentMethodId === "number") {
-      query = query.eq("id", paymentMethodId);
-    } else {
-      query = query.ilike("name", paymentMethodId.trim());
+    if (!pm) throw AggregatedTransactionErrors.PAYMENT_METHOD_NOT_FOUND(paymentMethodId.toString());
+    if (!pm.is_active) {
+      throw AggregatedTransactionErrors.PAYMENT_METHOD_INACTIVE(paymentMethodId.toString());
     }
 
-    const { data, error } = await query.maybeSingle();
-
-    if (error)
-      throw AggregatedTransactionErrors.DATABASE_ERROR(
-        "Failed to validate payment method",
-        error,
-      );
-    if (!data)
-      throw AggregatedTransactionErrors.PAYMENT_METHOD_NOT_FOUND(
-        paymentMethodId.toString(),
-      );
-    if (!(data as any).is_active) {
-      throw AggregatedTransactionErrors.PAYMENT_METHOD_INACTIVE(
-        paymentMethodId.toString(),
-      );
-    }
-
-    return data.id;
+    return pm.id;
   }
 
   /**
-   * Resolve payment method ID from either number ID or string name
-   * Returns the actual numeric ID
+   * Resolve payment method ID
    */
   private async resolvePaymentMethodId(
     paymentMethodId: number | string,
   ): Promise<number> {
-    // If already a number, validate it exists
-    if (typeof paymentMethodId === "number") {
-      return this.validatePaymentMethod(paymentMethodId);
-    }
-    // If string, look up by name and return the ID
     return this.validatePaymentMethod(paymentMethodId);
   }
 
@@ -245,8 +148,6 @@ export class PosAggregatesService {
 
   /**
    * Convert CreateDto to Repository insert format
-   * Note: paymentMethodId is the resolved numeric ID (already converted from name if needed)
-   * Also calculates fee from payment method configuration
    */
   private toInsertData(
     data: Omit<CreateAggregatedTransactionDto, "payment_method_id">,
@@ -260,8 +161,6 @@ export class PosAggregatesService {
     AggregatedTransaction,
     "id" | "created_at" | "updated_at" | "version"
   > {
-    // Calculate bill after discount = gross + tax + SC + otherVat + delivery + orderFee
-    //                                  - discount - promoDiscount - voucherDiscount ± rounding
     const billAfterDiscount =
       Number(data.gross_amount) +
       Number(data.tax_amount ?? 0) +
@@ -274,26 +173,17 @@ export class PosAggregatesService {
       Number(data.voucher_discount_amount ?? 0) +
       Number(data.rounding_amount ?? 0)
 
-    // Calculate percentage fee from payment method configuration
-    // percentage_fee = bill_after_discount × fee_percentage / 100
     const percentageFeeAmount =
       feeConfig && feeConfig.fee_percentage > 0
         ? billAfterDiscount * (feeConfig.fee_percentage / 100)
         : Number(data.percentage_fee_amount ?? 0)
 
-    // Calculate fixed fee from payment method configuration
-    // fee_fixed_per_transaction = true: fixed fee per transaction
-    // fee_fixed_per_transaction = false: fixed fee is total amount based (handled at settlement level)
-    // For per-transaction calculation, we use fee_fixed_amount directly
     const fixedFeeAmount =
       feeConfig && feeConfig.fee_fixed_amount > 0
         ? feeConfig.fee_fixed_amount
         : Number(data.fixed_fee_amount ?? 0)
 
-    // total_fee = percentage_fee + fixed_fee
     const totalFeeAmount = percentageFeeAmount + fixedFeeAmount
-
-    // nett_amount = bill_after_discount - total_fee
     const nettAmount = billAfterDiscount - totalFeeAmount
 
     return {
@@ -335,7 +225,6 @@ export class PosAggregatesService {
 
   /**
    * Get payment method with fee configuration
-   * Looks up payment method by ID and returns fee config
    */
   private async getPaymentMethodFeeConfig(
     paymentMethodId: number,
@@ -352,9 +241,9 @@ export class PosAggregatesService {
       }
 
       return {
-        fee_percentage: (paymentMethod as any).fee_percentage ?? 0,
-        fee_fixed_amount: (paymentMethod as any).fee_fixed_amount ?? 0,
-        fee_fixed_per_transaction: (paymentMethod as any).fee_fixed_per_transaction ?? false,
+        fee_percentage: paymentMethod.fee_percentage ?? 0,
+        fee_fixed_amount: paymentMethod.fee_fixed_amount ?? 0,
+        fee_fixed_per_transaction: paymentMethod.fee_fixed_per_transaction ?? false,
       }
     } catch (error) {
       logError("Failed to get payment method fee config", {
@@ -367,21 +256,14 @@ export class PosAggregatesService {
 
   /**
    * Create new aggregated transaction
-   * Automatically calculates fee from payment method configuration
    */
   async createTransaction(
     data: CreateAggregatedTransactionDto,
     skipPaymentMethodValidation = false,
   ): Promise<AggregatedTransaction> {
-    // Resolve branch_id and branch_name
-    // If only branch_id is provided, lookup branch_name
-    // If only branch_name is provided, lookup branch_id
-    // This ensures both values are stored for proper reference and display
     const resolvedBranch = await this.resolveBranch(data.branch_id, data.branch_name)
 
-    // Resolve payment method ID (handles both number ID and string name)
     let resolvedPaymentMethodId: number;
-    
     if (data.payment_method_id === null) {
       throw new Error('payment_method_id required');
     }
@@ -389,9 +271,7 @@ export class PosAggregatesService {
     if (skipPaymentMethodValidation && typeof data.payment_method_id === 'number') {
       resolvedPaymentMethodId = data.payment_method_id;
     } else {
-      resolvedPaymentMethodId = await this.resolvePaymentMethodId(
-        data.payment_method_id
-      );
+      resolvedPaymentMethodId = await this.resolvePaymentMethodId(data.payment_method_id);
     }
 
     const exists = await posAggregatesRepository.sourceExists(
@@ -400,26 +280,14 @@ export class PosAggregatesService {
       data.source_ref,
     );
 
-if (exists) {
+    if (exists) {
       throw AggregatedTransactionErrors.DUPLICATE_SOURCE();
     }
 
-    // Get fee configuration from payment method
     const feeConfig = await this.getPaymentMethodFeeConfig(resolvedPaymentMethodId);
 
-    logInfo("Creating aggregated transaction with fee calculation", {
-      source_type: data.source_type,
-      source_id: data.source_id,
-      source_ref: data.source_ref,
-      payment_method_id: resolvedPaymentMethodId,
-      fee_percentage: feeConfig?.fee_percentage ?? 0,
-      fee_fixed_amount: feeConfig?.fee_fixed_amount ?? 0,
-    });
-
-    // Create a modified data object without payment_method_id (will be passed separately)
     const { payment_method_id, branch_id, branch_name, ...dataWithoutPaymentMethod } = data;
 
-    // Use resolved branch data
     const insertData = this.toInsertData(
       {
         ...dataWithoutPaymentMethod,
@@ -432,35 +300,16 @@ if (exists) {
     
     const created = await posAggregatesRepository.create(insertData);
 
-    // Auto-supersede: if POS_SYNC already exists for same (date, branch, payment_method),
-    // mark this manual entry as SUPERSEDED immediately
     if (insertData.source_type === 'POS' && (insertData.branch_id || insertData.branch_name) && resolvedPaymentMethodId) {
-      let posSyncQuery = supabase
-        .from('aggregated_transactions')
-        .select('id')
-        .eq('source_type', 'POS_SYNC')
-        .eq('transaction_date', insertData.transaction_date)
-        .eq('payment_method_id', resolvedPaymentMethodId)
-        .is('deleted_at', null)
-        .is('superseded_by', null);
-
-      if (insertData.branch_id) {
-        posSyncQuery = posSyncQuery.eq('branch_id', insertData.branch_id);
-      } else {
-        posSyncQuery = posSyncQuery.eq('branch_name', insertData.branch_name);
-      }
-
-      const { data: existingPosSync } = await posSyncQuery.maybeSingle();
+      const existingPosSync = await posAggregatesRepository.findExistingSync({
+        transaction_date: insertData.transaction_date,
+        payment_method_id: resolvedPaymentMethodId,
+        branch_id: insertData.branch_id,
+        branch_name: insertData.branch_name
+      });
 
       if (existingPosSync) {
-        await supabase
-          .from('aggregated_transactions')
-          .update({
-            superseded_by: existingPosSync.id,
-            status: 'SUPERSEDED',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', created.id);
+        await posAggregatesRepository.setSuperseded(created.id, existingPosSync.id);
 
         logInfo('Manual CSV auto-superseded by existing POS_SYNC', {
           manual_id: created.id,
@@ -472,7 +321,6 @@ if (exists) {
       }
     }
 
-    // Audit log for CREATE
     const userId = (data as any).userId;
     if (userId) {
       await AuditService.log('CREATE', 'aggregated_transaction', created.id, userId, undefined, {
@@ -572,14 +420,11 @@ if (exists) {
       this.validateStatusTransition(existing.status, updates.status);
     }
 
-    // Resolve payment method ID if provided as string
-    // We need to create a new object with the resolved payment method ID
-    // to avoid type conflicts between UpdateAggregatedTransactionDto and Partial<AggregatedTransaction>
-    // Use type assertion to handle the spread operator type preservation issue
     type ResolvedUpdateData = Omit<
       UpdateAggregatedTransactionDto,
       "payment_method_id"
     > & { payment_method_id?: number };
+
     const resolvedUpdates: ResolvedUpdateData = {
       branch_id: updates.branch_id,
       branch_name: updates.branch_name,
@@ -591,7 +436,7 @@ if (exists) {
       discount_amount: updates.discount_amount,
       tax_amount: updates.tax_amount,
       service_charge_amount: updates.service_charge_amount,
-bill_after_discount: updates.bill_after_discount,
+      bill_after_discount: updates.bill_after_discount,
       percentage_fee_amount: updates.percentage_fee_amount,
       fixed_fee_amount: updates.fixed_fee_amount,
       total_fee_amount: updates.total_fee_amount,
@@ -608,15 +453,11 @@ bill_after_discount: updates.bill_after_discount,
 
     if (updates.payment_method_id !== undefined) {
       if (typeof updates.payment_method_id === "string") {
-        const resolvedId = await this.resolvePaymentMethodId(
-          updates.payment_method_id,
-        );
+        const resolvedId = await this.resolvePaymentMethodId(updates.payment_method_id);
         resolvedUpdates.payment_method_id = resolvedId;
       }
-      // If it's a number, it's already set above
     }
 
-    // Resolve branch_id and branch_name if either is provided
     if (updates.branch_id !== undefined || updates.branch_name !== undefined) {
       const resolvedBranch = await this.resolveBranch(updates.branch_id, updates.branch_name);
       resolvedUpdates.branch_id = resolvedBranch.branch_id;
@@ -632,11 +473,10 @@ bill_after_discount: updates.bill_after_discount,
     try {
       const updated = await posAggregatesRepository.update(
         id,
-        resolvedUpdates,
+        resolvedUpdates as Partial<AggregatedTransaction>,
         expectedVersion,
       );
 
-      // Audit log for UPDATE
       const userId = (updates as any).userId;
       if (userId) {
         await AuditService.log('UPDATE', 'aggregated_transaction', id, userId, existing, updated);
@@ -676,7 +516,6 @@ bill_after_discount: updates.bill_after_discount,
 
     await posAggregatesRepository.softDelete(id, deletedBy);
 
-    // Audit log for DELETE
     if (deletedBy) {
       await AuditService.log('DELETE', 'aggregated_transaction', id, deletedBy, existing, null);
     }
@@ -694,7 +533,6 @@ bill_after_discount: updates.bill_after_discount,
     logInfo("Restoring aggregated transaction", { id });
     await posAggregatesRepository.restore(id);
 
-    // Audit log for RESTORE
     if (restoredBy) {
       await AuditService.log('RESTORE', 'aggregated_transaction', id, restoredBy, null, existing);
     }
@@ -720,7 +558,6 @@ bill_after_discount: updates.bill_after_discount,
       await posAggregatesRepository.updateNote(id, reason);
     }
 
-    // Audit log for RECONCILE
     if (reconciledBy) {
       await AuditService.log('RECONCILE', 'aggregated_transaction', id, reconciledBy, { is_reconciled: false }, { is_reconciled: true, reason });
     }
@@ -854,10 +691,8 @@ bill_after_discount: updates.bill_after_discount,
     return { assigned, skipped };
   }
 
-  // batas pindah generateJournalPerDate
-
   /**
-   * Check source existence (for external use)
+   * Check source existence
    */
   async checkSourceExists(
     sourceType: AggregatedTransactionSourceType,
@@ -872,169 +707,31 @@ bill_after_discount: updates.bill_after_discount,
   }
 
   /**
-   * Get payment method ID by name (helper method)
-   * Note: Global search with company_id filter to handle duplicate names across companies
+   * Get payment method ID by name
    */
   private async getPaymentMethodId(
     paymentMethodName: string,
     companyId?: string,
   ): Promise<{ id: number; isFallback: boolean }> {
-    // Log the raw input
-    logInfo("getPaymentMethodId: Starting lookup", {
-      raw_input: paymentMethodName,
-      input_type: typeof paymentMethodName,
-      input_length: paymentMethodName?.length,
-      input_trimmed: paymentMethodName?.trim(),
-      company_id: companyId,
-    });
-
-    // Validate input
     if (!paymentMethodName || typeof paymentMethodName !== "string") {
-      logError("getPaymentMethodId: Invalid input", {
-        payment_method_name: paymentMethodName,
-        input_type: typeof paymentMethodName,
-      });
       return { id: 20, isFallback: true };
     }
 
     const trimmedName = paymentMethodName.trim();
+    const pm = await paymentMethodsRepository.findByName(trimmedName, companyId);
 
-    // Try to find payment method with company_id filter if provided
-    logInfo("getPaymentMethodId: Executing database query", {
-      query_name: trimmedName,
-      query_ilike: true,
-      is_active_filter: true,
-      company_id_filter: companyId || "none (global search)",
-    });
+    if (pm) {
+      return { id: pm.id, isFallback: false };
+    }
 
-    let query = supabase
-      .from("payment_methods")
-      .select("id, name, code, is_active, coa_account_id, company_id")
-      .ilike("name", trimmedName)
-      .eq("is_active", true);
-
-    // Add company_id filter if provided to avoid duplicate name issues
+    // Try global search if company search failed
     if (companyId) {
-      query = query.eq("company_id", companyId);
-    }
-
-    const { data, error } = await query.limit(1).maybeSingle();
-
-    // Log raw database response
-    logInfo("getPaymentMethodId: Database query result", {
-      query_name: trimmedName,
-      data_found: !!data,
-      error_occurred: !!error,
-      error_message: error?.message,
-      error_details: error,
-      returned_data: data,
-      company_filter_applied: !!companyId,
-    });
-
-    if (error) {
-      logError("getPaymentMethodId: Database error", {
-        name: trimmedName,
-        error_code: error.code,
-        error_message: error.message,
-        error_details: error,
-      });
-      logInfo("getPaymentMethodId: Using fallback due to database error", {
-        requested: trimmedName,
-        fallback_reason: "database_error",
-        default_id: 20,
-      });
-      return { id: 20, isFallback: true };
-    }
-
-    if (data) {
-      logInfo("getPaymentMethodId: Found payment method", {
-        requested: trimmedName,
-        found_id: data.id,
-        found_name: data.name,
-        found_code: data.code,
-        found_is_active: data.is_active,
-        found_coa_account_id: data.coa_account_id,
-        found_company_id: data.company_id,
-        is_fallback: false,
-      });
-      return { id: data.id, isFallback: false };
-    }
-
-    // If not found with company filter, try global search (for backward compatibility)
-    if (companyId) {
-      logInfo(
-        "getPaymentMethodId: Not found with company filter, trying global search",
-        {
-          requested: trimmedName,
-          company_id: companyId,
-        },
-      );
-
-      const { data: globalData, error: globalError } = await supabase
-        .from("payment_methods")
-        .select("id, name, code, is_active, coa_account_id, company_id")
-        .ilike("name", trimmedName)
-        .eq("is_active", true)
-        .limit(1)
-        .maybeSingle();
-
-      if (!globalError && globalData) {
-        logInfo("getPaymentMethodId: Found in global search", {
-          requested: trimmedName,
-          found_id: globalData.id,
-          found_name: globalData.name,
-          found_company_id: globalData.company_id,
-          coa_account_id: globalData.coa_account_id,
-          warning: "Different company than expected!",
-        });
-        return { id: globalData.id, isFallback: true };
+      const globalPm = await paymentMethodsRepository.findByName(trimmedName);
+      if (globalPm) {
+        return { id: globalPm.id, isFallback: true };
       }
     }
 
-    // No data found - log all possible reasons
-    logInfo("getPaymentMethodId: Payment method not found, using default", {
-      requested: trimmedName,
-      fallback_reason: "not_found_in_database",
-      default_id: 20,
-      company_filter: companyId || "none",
-      search_attempted: {
-        table: "payment_methods",
-        column: "name",
-        operator: "ilike (case-insensitive)",
-        value: trimmedName,
-        is_active_filter: true,
-      },
-      troubleshooting_suggestions: [
-        "Check if payment_method name exists in payment_methods table",
-        "Check if name has trailing/leading spaces",
-        "Check if payment_method is_active = true",
-        'Check if there are similar names with different casing (e.g., "Cash" vs "CASH")',
-        "Verify the exact name in the source data",
-        "Check for duplicate payment method names across companies",
-      ],
-    });
-
-    // Log available payment methods for debugging (limited to first 10)
-    const { data: allPaymentMethods, error: listError } = await supabase
-      .from("payment_methods")
-      .select("id, name, code, is_active, company_id")
-      .limit(10);
-
-    if (!listError) {
-      logInfo("getPaymentMethodId: Available payment methods (sample)", {
-        requested: trimmedName,
-        available_count: allPaymentMethods?.length,
-        available_methods: allPaymentMethods?.map((pm) => ({
-          id: pm.id,
-          name: pm.name,
-          code: pm.code,
-          is_active: pm.is_active,
-          company_id: pm.company_id,
-        })),
-      });
-    }
-
-    // Default to CASH PT (id 20) if not found
     return { id: 20, isFallback: true };
   }
 
@@ -1047,7 +744,6 @@ bill_after_discount: updates.bill_after_discount,
   ) {
     const { page, limit, offset } = getPaginationParams(filter as any);
 
-    // Add FAILED status filter by default
     const failedFilter: AggregatedTransactionFilterParams = {
       ...filter,
       status: "FAILED",
@@ -1063,7 +759,7 @@ bill_after_discount: updates.bill_after_discount,
   }
 
   /**
-   * Get failed transaction by ID with error details
+   * Get failed transaction by ID
    */
   async getFailedTransactionById(
     id: string,
@@ -1080,7 +776,6 @@ bill_after_discount: updates.bill_after_discount,
 
   /**
    * Fix and retry a failed transaction
-   * Updates the failed transaction with corrected data and sets status back to READY
    */
   async fixFailedTransaction(
     id: string,
@@ -1094,23 +789,11 @@ bill_after_discount: updates.bill_after_discount,
       throw new Error("Only FAILED transactions can be fixed");
     }
 
-    logInfo("Fixing failed transaction", {
-      id,
-      source_ref: existing.source_ref,
-      current_failed_reason: existing.failed_reason,
-      updates: Object.keys(updates),
-    });
-
-    // Resolve payment method if provided as string
     if (typeof updates.payment_method_id === "string") {
-      const resolvedId = await this.resolvePaymentMethodId(
-        updates.payment_method_id,
-      );
+      const resolvedId = await this.resolvePaymentMethodId(updates.payment_method_id);
       (updates as any).payment_method_id = resolvedId;
     }
 
-    // Clear failed fields and set status to READY
-    // NOTE: failed_at and failed_reason are NOT cleared to preserve history
     const fixData: any = {
       ...updates,
       status: "READY" as AggregatedTransactionStatus,
@@ -1123,17 +806,10 @@ bill_after_discount: updates.bill_after_discount,
         existing.version,
       );
 
-      // Audit log for FIX_FAILED
       const userId = (updates as any).userId;
       if (userId) {
         await AuditService.log('FIX_FAILED', 'aggregated_transaction', id, userId, { status: 'FAILED', failed_reason: existing.failed_reason }, { status: 'READY' });
       }
-
-      logInfo("Successfully fixed failed transaction", {
-        id,
-        source_ref: existing.source_ref,
-        new_status: "READY",
-      });
 
       return updated;
     } catch (err: any) {
@@ -1169,12 +845,6 @@ bill_after_discount: updates.bill_after_discount,
       }
     }
 
-    logInfo("Batch fix completed", {
-      total: ids.length,
-      fixed: results.fixed.length,
-      failed: results.failed.length,
-    });
-
     return results;
   }
 
@@ -1190,23 +860,8 @@ bill_after_discount: updates.bill_after_discount,
       throw new Error("Only FAILED transactions can be deleted");
     }
 
-    logInfo("Deleting failed transaction", {
-      id,
-      source_ref: existing.source_ref,
-      failed_reason: existing.failed_reason,
-    });
+    await posAggregatesRepository.hardDelete(id);
 
-    // Hard delete for failed transactions
-    const { error } = await supabase
-      .from("aggregated_transactions")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      throw new Error(`Failed to delete failed transaction: ${error.message}`);
-    }
-
-    // Audit log for DELETE (failed transaction)
     if (deletedBy) {
       await AuditService.log('DELETE', 'aggregated_transaction', id, deletedBy, existing, null);
     }
@@ -1214,36 +869,20 @@ bill_after_discount: updates.bill_after_discount,
 
   /**
    * Recalculate fee for POS Import records by date
-   * Ambil fee config terbaru dari payment_methods, hitung ulang fee
-   * Skip records yang sudah reconciled
    */
   async recalculateFeeByDate(
     transactionDate: string,
     userId?: string,
   ): Promise<{ updated: number; skipped: number; errors: string[] }> {
-    // 1. Get all POS records for this date that are NOT reconciled
-    const { data: records, error: fetchErr } = await supabase
-      .from('aggregated_transactions')
-      .select('id, payment_method_id, gross_amount, bill_after_discount, is_reconciled, source_type')
-      .eq('transaction_date', transactionDate)
-      .eq('source_type', 'POS')
-      .is('deleted_at', null)
-      .is('superseded_by', null)
-
-    if (fetchErr) throw new Error(`Failed to fetch records: ${fetchErr.message}`)
+    const records = await posAggregatesRepository.findForFeeRecalculation(transactionDate);
     if (!records || records.length === 0) return { updated: 0, skipped: 0, errors: [] }
 
-    // 2. Get fee config for all payment methods
-    const pmIds = [...new Set(records.map(r => r.payment_method_id).filter(Boolean))]
+    const pmIds = [...new Set(records.map(r => r.payment_method_id).filter(Boolean))] as number[]
     const feeMap = new Map<number, { fee_percentage: number; fee_fixed_amount: number; fee_fixed_per_transaction: boolean }>()
 
     if (pmIds.length > 0) {
-      const { data: pmRows } = await supabase
-        .from('payment_methods')
-        .select('id, fee_percentage, fee_fixed_amount, fee_fixed_per_transaction')
-        .in('id', pmIds)
-
-      for (const pm of pmRows ?? []) {
+      const pms = await paymentMethodsRepository.findByIds(pmIds);
+      for (const pm of pms) {
         feeMap.set(pm.id, {
           fee_percentage: Number(pm.fee_percentage ?? 0),
           fee_fixed_amount: Number(pm.fee_fixed_amount ?? 0),
@@ -1252,7 +891,6 @@ bill_after_discount: updates.bill_after_discount,
       }
     }
 
-    // 3. Recalculate each record
     let updated = 0
     let skipped = 0
     const errors: string[] = []
@@ -1275,21 +913,16 @@ bill_after_discount: updates.bill_after_discount,
       const totalFee = percentageFee + fixedFee
       const nettAmount = billAfterDiscount - totalFee
 
-      const { error: updateErr } = await supabase
-        .from('aggregated_transactions')
-        .update({
+      try {
+        await posAggregatesRepository.updateFee(record.id, {
           percentage_fee_amount: percentageFee,
           fixed_fee_amount: fixedFee,
           total_fee_amount: totalFee,
           nett_amount: nettAmount,
-          updated_at: new Date().toISOString(),
         })
-        .eq('id', record.id)
-
-      if (updateErr) {
-        errors.push(`${record.id}: ${updateErr.message}`)
-      } else {
         updated++
+      } catch (err: any) {
+        errors.push(`${record.id}: ${err.message}`)
       }
     }
 

@@ -1,4 +1,4 @@
-import { supabase } from '../../../config/supabase'
+import { pool } from '../../../config/db'
 import { DatabaseError } from '../../../utils/error-handler.util'
 import { 
   AggregatedTransaction, 
@@ -40,281 +40,284 @@ export class PosAggregatesRepository {
     filter?: AggregatedTransactionFilterParams,
     sort?: AggregatedTransactionSortParams
   ): Promise<{ data: AggregatedTransactionListItem[]; total: number }> {
-    let dbQuery = supabase
-      .from('aggregated_transactions')
-      .select(`
-        id,
-        branch_id,
-        branch_name,
-        source_type,
-        source_id,
-        source_ref,
-        transaction_date,
-        payment_method_id,
-        gross_amount,
-        discount_amount,
-        tax_amount,
-        service_charge_amount,
-bill_after_discount,
-        percentage_fee_amount,
-        fixed_fee_amount,
-        total_fee_amount,
-        nett_amount,
-        actual_nett_amount,
-        actual_fee_amount,
-        fee_discrepancy,
-        fee_discrepancy_note,
-        currency,
-        status,
-        is_reconciled,
-        created_at,
-        updated_at,
-        deleted_at,
-        deleted_by,
-        version,
-        failed_at,
-        failed_reason,
-        payment_methods(id, code, name)
-      `, { count: 'exact' })
+    const conditions: string[] = []
+    const params: any[] = []
+
+    // Base conditions
+    conditions.push('at.superseded_by IS NULL')
+    if (!filter?.show_deleted) {
+      conditions.push('at.deleted_at IS NULL')
+    }
 
     // Apply filters
-
-    // Filter by branch_id (UUID)
     if (filter?.branch_id) {
-      dbQuery = dbQuery.eq('branch_id', filter.branch_id)
+      params.push(filter.branch_id)
+      conditions.push(`at.branch_id = $${params.length}`)
     }
 
     if (filter?.branch_name !== undefined) {
       if (filter.branch_name === null) {
-        dbQuery = dbQuery.is('branch_name', null)
+        conditions.push('at.branch_name IS NULL')
       } else {
-        dbQuery = dbQuery.eq('branch_name', filter.branch_name)
+        params.push(filter.branch_name)
+        conditions.push(`at.branch_name = $${params.length}`)
       }
     }
 
-    // Support multiple branch_names (array or comma-separated string) - use case-insensitive ilike
     const branchNamesArray = normalizeStringArray(filter?.branch_names)
     if (branchNamesArray && branchNamesArray.length > 0) {
-      // Use or() with ilike for case-insensitive matching
-      const orConditions = branchNamesArray.map(b => `branch_name.ilike.%${b}%`).join(',')
-      dbQuery = dbQuery.or(orConditions)
+      const orConditions = branchNamesArray.map(b => {
+        params.push(`%${b}%`)
+        return `at.branch_name ILIKE $${params.length}`
+      }).join(' OR ')
+      conditions.push(`(${orConditions})`)
     }
 
     if (filter?.source_type) {
-      dbQuery = dbQuery.eq('source_type', filter.source_type)
+      params.push(filter.source_type)
+      conditions.push(`at.source_type = $${params.length}`)
     }
 
     if (filter?.source_id) {
-      dbQuery = dbQuery.eq('source_id', filter.source_id)
+      params.push(filter.source_id)
+      conditions.push(`at.source_id = $${params.length}`)
     }
 
     if (filter?.payment_method_id) {
-      dbQuery = dbQuery.eq('payment_method_id', filter.payment_method_id)
+      params.push(filter.payment_method_id)
+      conditions.push(`at.payment_method_id = $${params.length}`)
     }
 
-    // Support multiple payment_method_ids (array or comma-separated string)
     const paymentMethodIdsArray = normalizeNumberArray(filter?.payment_method_ids)
     if (paymentMethodIdsArray && paymentMethodIdsArray.length > 0) {
-      dbQuery = dbQuery.in('payment_method_id', paymentMethodIdsArray)
+      params.push(paymentMethodIdsArray)
+      conditions.push(`at.payment_method_id = ANY($${params.length})`)
     }
 
     if (filter?.transaction_date) {
-      dbQuery = dbQuery.eq('transaction_date', filter.transaction_date)
+      params.push(filter.transaction_date)
+      conditions.push(`at.transaction_date = $${params.length}`)
     }
 
     if (filter?.transaction_date_from) {
-      dbQuery = dbQuery.gte('transaction_date', filter.transaction_date_from)
+      params.push(filter.transaction_date_from)
+      conditions.push(`at.transaction_date >= $${params.length}`)
     }
 
     if (filter?.transaction_date_to) {
-      dbQuery = dbQuery.lte('transaction_date', filter.transaction_date_to)
+      params.push(filter.transaction_date_to)
+      conditions.push(`at.transaction_date <= $${params.length}`)
     }
 
     if (filter?.status) {
-      dbQuery = dbQuery.eq('status', filter.status)
+      params.push(filter.status)
+      conditions.push(`at.status = $${params.length}`)
     }
 
     if (filter?.is_reconciled !== undefined) {
-      dbQuery = dbQuery.eq('is_reconciled', filter.is_reconciled)
+      params.push(filter.is_reconciled)
+      conditions.push(`at.is_reconciled = $${params.length}`)
     }
 
     if (filter?.has_journal !== undefined) {
       if (filter.has_journal) {
-        dbQuery = dbQuery.not('journal_id', 'is', null)
+        conditions.push('at.journal_id IS NOT NULL')
       } else {
-        dbQuery = dbQuery.is('journal_id', null)
+        conditions.push('at.journal_id IS NULL')
       }
     }
 
     if (filter?.search) {
-      dbQuery = dbQuery.or(`source_ref.ilike.%${filter.search}%,branch_name.ilike.%${filter.search}%`)
+      params.push(`%${filter.search}%`)
+      const idx = params.length
+      conditions.push(`(at.source_ref ILIKE $${idx} OR at.branch_name ILIKE $${idx})`)
     }
 
-    // Soft delete filter - exclude deleted by default
-    if (!filter?.show_deleted) {
-      dbQuery = dbQuery.is('deleted_at', null)
-    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
-    // Exclude superseded entries
-    dbQuery = dbQuery.is('superseded_by', null)
-
-    // Apply sorting
+    // Sorting
+    let orderBy = 'ORDER BY at.transaction_date DESC, at.created_at DESC'
     if (sort) {
-      dbQuery = dbQuery.order(sort.field, { ascending: sort.order === 'asc' })
-    } else {
-      dbQuery = dbQuery.order('transaction_date', { ascending: false })
-      dbQuery = dbQuery.order('created_at', { ascending: false })
+      const validSortFields = ['transaction_date', 'created_at', 'gross_amount', 'nett_amount', 'status', 'branch_name']
+      const field = validSortFields.includes(sort.field) ? sort.field : 'transaction_date'
+      const order = sort.order === 'desc' ? 'DESC' : 'ASC'
+      orderBy = `ORDER BY at.${field} ${order}`
     }
 
-    const { data, error, count } = await dbQuery.range(
-      pagination.offset, 
-      pagination.offset + pagination.limit - 1
-    )
+    try {
+      const dataQuery = `
+        SELECT at.*, pm.code as pm_code, pm.name as pm_name
+        FROM aggregated_transactions at
+        LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
+        ${where}
+        ${orderBy}
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+      `
+      const countQuery = `
+        SELECT COUNT(*)::int as total
+        FROM aggregated_transactions at
+        ${where}
+      `
 
-    if (error) throw new DatabaseError('Failed to fetch aggregated transactions', { cause: error })
+      const [dataRes, countRes] = await Promise.all([
+        pool.query(dataQuery, [...params, pagination.limit, pagination.offset]),
+        pool.query(countQuery, params)
+      ])
 
-    const mapped = (data || []).map((item) => this.mapToListItem(item))
-    return { data: mapped, total: count || 0 }
+      const mapped = dataRes.rows.map(item => this.mapToListItem({
+        ...item,
+        payment_methods: item.payment_method_id ? { id: item.payment_method_id, code: item.pm_code, name: item.pm_name } : null
+      }))
+
+      return { data: mapped, total: countRes.rows[0].total }
+    } catch (error: any) {
+      throw new DatabaseError('Failed to fetch aggregated transactions', { cause: error })
+    }
   }
 
   /**
    * Find single aggregated transaction by ID
-   * Join dengan bank_statements melalui reconciliation_id (ada di bank_statements)
    */
   async findById(id: string): Promise<AggregatedTransactionWithDetails | null> {
-    // First get the aggregated transaction
-    const { data: aggData, error: aggError } = await supabase
-      .from('aggregated_transactions')
-      .select(`
-        *,
-        payment_methods(id, code, name),
-        journal:journal_headers(id, journal_number, status, is_auto)
-      `)
-      .eq('id', id)
-      .is('deleted_at', null)
-      .is('superseded_by', null)
-      .maybeSingle()
+    try {
+      // 1. Get aggregated transaction
+      const aggQuery = `
+        SELECT at.*, 
+          pm.id as pm_id, pm.code as pm_code, pm.name as pm_name,
+          jh.id as jh_id, jh.journal_number, jh.status as jh_status, jh.is_auto
+        FROM aggregated_transactions at
+        LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
+        LEFT JOIN journal_headers jh ON at.journal_id = jh.id
+        WHERE at.id = $1 AND at.deleted_at IS NULL AND at.superseded_by IS NULL
+      `
+      const { rows: aggRows } = await pool.query(aggQuery, [id])
+      const aggData = aggRows[0]
+      if (!aggData) return null
 
-    if (aggError) throw new DatabaseError('Failed to fetch aggregated transaction', { cause: aggError })
-    if (!aggData) return null
+      // Attach payment_methods and journal nested objects for mapToWithDetails
+      aggData.payment_methods = aggData.pm_id ? { id: aggData.pm_id, code: aggData.pm_code, name: aggData.pm_name } : null
+      aggData.journal = aggData.jh_id ? { id: aggData.jh_id, journal_number: aggData.journal_number, status: aggData.jh_status, is_auto: aggData.is_auto } : null
 
-    // Then get the bank statement(s) via reconciliation_id
-    // Note: multiple bank_statements may share the same reconciliation_id
-    const { data: bankRows, error: bankError } = await supabase
-      .from('bank_statements')
-      .select(`
-        id,
-        transaction_date,
-        description,
-        debit_amount,
-        credit_amount,
-        is_reconciled,
-        bank_accounts(
-          account_name,
-          account_number,
-          banks(
-            bank_name,
-            bank_code
-          )
-        )
-      `)
-      .eq('reconciliation_id', id)
-      .is('deleted_at', null)
-      .limit(1)
-
-    if (bankError) {
-      console.error('Error fetching bank statement:', bankError)
-    }
-
-    const bankData = bankRows?.[0] ?? null
-
-    // Query settlement group (bulk settlement)
-    const { data: settlementAgg } = await supabase
-      .from('bank_settlement_aggregates')
-      .select(`
-        settlement_group_id,
-        bank_settlement_groups(
-          id, settlement_number, settlement_date, status, bank_name,
-          bank_statements(id, description, credit_amount, debit_amount)
-        )
-      `)
-      .eq('aggregate_id', id)
-      .maybeSingle()
-
-    // Query multi-match group
-    const { data: multiMatchAgg } = await supabase
-      .from('bank_reconciliation_groups')
-      .select(`
-        id, status, difference, total_bank_amount, aggregate_amount,
-        bank_reconciliation_group_details(
-          statement_id,
-          amount,
-          bank_statements(id, description, credit_amount, debit_amount, transaction_date)
-        )
-      `)
-      .eq('aggregate_id', id)
-      .is('deleted_at', null)
-      .maybeSingle()
-
-    // Query cash deposit match via cash_counts → cash_deposits
-    // aggregated_transactions matched by date/branch/payment_method to cash_counts
-    let cashDepositData: Record<string, unknown> | null = null
-    if (aggData.is_reconciled && !bankData && !settlementAgg) {
-      const { data: depositMatch } = await supabase
-        .from('bank_statements')
-        .select(`
-          id,
-          transaction_date,
-          description,
-          credit_amount,
-          debit_amount,
-          cash_deposit_id,
-          cash_deposits(
-            id, deposit_amount, deposit_date, branch_name, status, proof_url, deposited_at, bank_account_id
-          )
-        `)
-        .not('cash_deposit_id', 'is', null)
-        .is('deleted_at', null)
-        .limit(50)
-
-      // Find the cash deposit that matches this aggregate's date/branch/payment
-      if (depositMatch) {
-        for (const stmt of depositMatch) {
-          const dep = Array.isArray(stmt.cash_deposits) ? stmt.cash_deposits[0] : stmt.cash_deposits
-          if (dep && dep.branch_name === aggData.branch_name) {
-            // Verify via cash_counts link
-            const { data: ccMatch } = await supabase
-              .from('cash_counts')
-              .select('id')
-              .eq('cash_deposit_id', dep.id)
-              .eq('payment_method_id', aggData.payment_method_id)
-              .gte('start_date', aggData.transaction_date)
-              .lte('end_date', aggData.transaction_date)
-              .is('deleted_at', null)
-              .limit(1)
-
-            if (ccMatch && ccMatch.length > 0) {
-              cashDepositData = {
-                cash_deposit_id: dep.id,
-                deposit_amount: dep.deposit_amount,
-                deposit_date: dep.deposit_date,
-                deposit_branch_name: dep.branch_name,
-                deposit_status: dep.status,
-                deposit_proof_url: dep.proof_url,
-                deposit_deposited_at: dep.deposited_at,
-                bank_statement_id: stmt.id,
-                bank_statement_date: stmt.transaction_date,
-                bank_statement_description: stmt.description,
-                bank_statement_amount: (Number(stmt.credit_amount) || 0) - (Number(stmt.debit_amount) || 0),
-              }
-              break
+      // 2. Get bank statement via reconciliation_id
+      const bankQuery = `
+        SELECT bs.id, bs.transaction_date, bs.description, bs.debit_amount, bs.credit_amount, bs.is_reconciled,
+          ba.account_name, ba.account_number, b.bank_name, b.bank_code
+        FROM bank_statements bs
+        LEFT JOIN bank_accounts ba ON bs.bank_account_id = ba.id
+        LEFT JOIN banks b ON ba.bank_id = b.id
+        WHERE bs.reconciliation_id = $1 AND bs.deleted_at IS NULL
+        LIMIT 1
+      `
+      const { rows: bankRows } = await pool.query(bankQuery, [id])
+      const bankDataRaw = bankRows[0]
+      let bankData = null
+      if (bankDataRaw) {
+        bankData = {
+          ...bankDataRaw,
+          bank_accounts: {
+            account_name: bankDataRaw.account_name,
+            account_number: bankDataRaw.account_number,
+            banks: {
+              bank_name: bankDataRaw.bank_name,
+              bank_code: bankDataRaw.bank_code
             }
           }
         }
       }
-    }
 
-    return this.mapToWithDetails(aggData, bankData || null, settlementAgg || null, multiMatchAgg || null, cashDepositData)
+      // 3. Query settlement group
+      const settlementQuery = `
+        SELECT bsa.settlement_group_id,
+          bsg.id, bsg.settlement_number, bsg.settlement_date, bsg.status, bsg.bank_name,
+          bs.id as statement_id, bs.description, bs.credit_amount, bs.debit_amount
+        FROM bank_settlement_aggregates bsa
+        JOIN bank_settlement_groups bsg ON bsa.settlement_group_id = bsg.id
+        LEFT JOIN bank_statements bs ON bsg.bank_statement_id = bs.id
+        WHERE bsa.aggregate_id = $1
+        LIMIT 1
+      `
+      const { rows: settleRows } = await pool.query(settlementQuery, [id])
+      let settlementAgg = null
+      if (settleRows[0]) {
+        const s = settleRows[0]
+        settlementAgg = {
+          settlement_group_id: s.settlement_group_id,
+          bank_settlement_groups: {
+            id: s.id,
+            settlement_number: s.settlement_number,
+            settlement_date: s.settlement_date,
+            status: s.status,
+            bank_name: s.bank_name,
+            bank_statements: s.statement_id ? [{ id: s.statement_id, description: s.description, credit_amount: s.credit_amount, debit_amount: s.debit_amount }] : []
+          }
+        }
+      }
+
+      // 4. Query multi-match group
+      const multiMatchQuery = `
+        SELECT brg.id, brg.status, brg.difference, brg.total_bank_amount, brg.aggregate_amount,
+          brgd.statement_id, brgd.amount as match_amount,
+          bs.id as bs_id, bs.description, bs.credit_amount, bs.debit_amount, bs.transaction_date as bs_date
+        FROM bank_reconciliation_groups brg
+        LEFT JOIN bank_reconciliation_group_details brgd ON brg.id = brgd.group_id
+        LEFT JOIN bank_statements bs ON brgd.statement_id = bs.id
+        WHERE brg.aggregate_id = $1 AND brg.deleted_at IS NULL
+      `
+      const { rows: multiRows } = await pool.query(multiMatchQuery, [id])
+      let multiMatchAgg = null
+      if (multiRows.length > 0) {
+        multiMatchAgg = {
+          id: multiRows[0].id,
+          status: multiRows[0].status,
+          difference: multiRows[0].difference,
+          total_bank_amount: multiRows[0].total_bank_amount,
+          aggregate_amount: multiRows[0].aggregate_amount,
+          bank_reconciliation_group_details: multiRows.map(r => ({
+            statement_id: r.statement_id,
+            amount: r.match_amount,
+            bank_statements: r.bs_id ? { id: r.bs_id, description: r.description, credit_amount: r.credit_amount, debit_amount: r.debit_amount, transaction_date: r.bs_date } : null
+          })).filter(d => d.statement_id)
+        }
+      }
+
+      // 5. Query cash deposit match
+      let cashDepositData: Record<string, unknown> | null = null
+      if (aggData.is_reconciled && !bankData && !settlementAgg) {
+        const depositMatchQuery = `
+          SELECT bs.id as bs_id, bs.transaction_date as bs_date, bs.description as bs_desc, bs.credit_amount as bs_credit, bs.debit_amount as bs_debit,
+            cd.id as cd_id, cd.deposit_amount, cd.deposit_date, cd.branch_name, cd.status, cd.proof_url, cd.deposited_at, cd.bank_account_id
+          FROM bank_statements bs
+          JOIN cash_deposits cd ON bs.cash_deposit_id = cd.id
+          JOIN cash_counts cc ON cd.id = cc.cash_deposit_id
+          WHERE cd.branch_name = $1
+            AND cc.payment_method_id = $2
+            AND cc.start_date <= $3 AND cc.end_date >= $3
+            AND bs.deleted_at IS NULL AND cc.deleted_at IS NULL
+          LIMIT 1
+        `
+        const { rows: depositRows } = await pool.query(depositMatchQuery, [aggData.branch_name, aggData.payment_method_id, aggData.transaction_date])
+        if (depositRows[0]) {
+          const d = depositRows[0]
+          cashDepositData = {
+            cash_deposit_id: d.cd_id,
+            deposit_amount: d.deposit_amount,
+            deposit_date: d.deposit_date,
+            deposit_branch_name: d.branch_name,
+            deposit_status: d.status,
+            deposit_proof_url: d.proof_url,
+            deposit_deposited_at: d.deposited_at,
+            bank_statement_id: d.bs_id,
+            bank_statement_date: d.bs_date,
+            bank_statement_description: d.bs_desc,
+            bank_statement_amount: (Number(d.bs_credit) || 0) - (Number(d.bs_debit) || 0),
+          }
+        }
+      }
+
+      return this.mapToWithDetails(aggData, bankData || null, settlementAgg || null, multiMatchAgg || null, cashDepositData)
+    } catch (error: any) {
+      throw new DatabaseError('Failed to fetch aggregated transaction', { cause: error })
+    }
   }
 
   /**
@@ -325,17 +328,15 @@ bill_after_discount,
     sourceId: string, 
     sourceRef: string
   ): Promise<AggregatedTransaction | null> {
-    const { data, error } = await supabase
-      .from('aggregated_transactions')
-      .select('*')
-      .eq('source_type', sourceType)
-      .eq('source_id', sourceId)
-      .eq('source_ref', sourceRef)
-      .is('deleted_at', null)
-      .maybeSingle()
-
-    if (error) throw new DatabaseError('Failed to find transaction by source', { cause: error })
-    return data
+    try {
+      const { rows } = await pool.query(
+        'SELECT * FROM aggregated_transactions WHERE source_type = $1 AND source_id = $2 AND source_ref = $3 AND deleted_at IS NULL',
+        [sourceType, sourceId, sourceRef]
+      )
+      return rows[0] || null
+    } catch (error: any) {
+      throw new DatabaseError('Failed to find transaction by source', { cause: error })
+    }
   }
 
   /**
@@ -347,48 +348,44 @@ bill_after_discount,
     sourceRef: string,
     excludeId?: string
   ): Promise<boolean> {
-    let dbQuery = supabase
-      .from('aggregated_transactions')
-      .select('id', { count: 'exact', head: true })
-      .eq('source_type', sourceType)
-      .eq('source_id', sourceId)
-      .eq('source_ref', sourceRef)
-      .is('deleted_at', null)
-
-    if (excludeId) {
-      dbQuery = dbQuery.neq('id', excludeId)
+    try {
+      const params: any[] = [sourceType, sourceId, sourceRef]
+      let query = 'SELECT COUNT(*)::int as count FROM aggregated_transactions WHERE source_type = $1 AND source_id = $2 AND source_ref = $3 AND deleted_at IS NULL'
+      if (excludeId) {
+        params.push(excludeId)
+        query += ` AND id != $${params.length}`
+      }
+      const { rows } = await pool.query(query, params)
+      return rows[0].count > 0
+    } catch (error: any) {
+      throw new DatabaseError('Failed to check source existence', { cause: error })
     }
-
-    const { count, error } = await dbQuery
-
-    if (error) throw new DatabaseError('Failed to check source existence', { cause: error })
-    return (count || 0) > 0
   }
 
-/**
+  /**
    * Create new aggregated transaction
    */
   async create(data: Omit<AggregatedTransaction, 'id' | 'created_at' | 'updated_at' | 'version'>): Promise<AggregatedTransaction> {
-    const { data: result, error } = await supabase
-      .from('aggregated_transactions')
-      .insert(data)
-      .select()
-      .single()
-
-if (error) {
-      // Check for unique constraint violation
+    try {
+      const keys = Object.keys(data)
+      const values = Object.values(data)
+      const cols = keys.join(', ')
+      const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ')
+      const { rows } = await pool.query(
+        `INSERT INTO aggregated_transactions (${cols}) VALUES (${placeholders}) RETURNING *`,
+        values
+      )
+      return rows[0]
+    } catch (error: any) {
       if (error.code === '23505') {
         throw AggregatedTransactionErrors.DUPLICATE_SOURCE()
       }
       throw new DatabaseError('Failed to create aggregated transaction', { cause: error })
     }
-
-    return result
   }
 
   /**
    * Create multiple aggregated transactions (TRUE BULK INSERT)
-   * Uses Supabase bulk insert for better performance
    */
   async createBatchBulk(
     transactions: Array<Omit<AggregatedTransaction, 'id' | 'created_at' | 'updated_at' | 'version'>>,
@@ -398,68 +395,64 @@ if (error) {
     failed: Array<{ source_ref: string; error: string }>
     total_processed: number
   }> {
-    const BATCH_SIZE = 100 // Process in batches of 100
+    const BATCH_SIZE = 100
     const success: string[] = []
     const failed: Array<{ source_ref: string; error: string }> = []
     
-    // Process in batches
-    const batches: Array<typeof transactions> = []
     for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
-      batches.push(transactions.slice(i, i + BATCH_SIZE))
-    }
+      const batch = transactions.slice(i, i + BATCH_SIZE)
+      if (onProgress) onProgress(i, transactions.length)
 
-    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-      const batch = batches[batchIndex]
-      const batchNum = batchIndex + 1
-      const startIndex = batchIndex * BATCH_SIZE
-      
-      // Report progress
-      if (onProgress) {
-        onProgress(startIndex, transactions.length)
-      }
+      try {
+        const columns = [
+          'branch_id', 'branch_name', 'source_type', 'source_id', 'source_ref', 
+          'transaction_date', 'payment_method_id', 'gross_amount', 'discount_amount', 
+          'tax_amount', 'service_charge_amount', 'bill_after_discount', 
+          'percentage_fee_amount', 'fixed_fee_amount', 'total_fee_amount', 
+          'nett_amount', 'rounding_amount', 'delivery_cost', 'order_fee', 
+          'voucher_discount_amount', 'promotion_discount_amount', 'menu_discount_amount', 
+          'voucher_payment_amount', 'other_vat_amount', 'pax_total', 'currency', 
+          'journal_id', 'is_reconciled', 'status', 'deleted_at', 'deleted_by', 
+          'failed_at', 'failed_reason'
+        ]
+        const cols = columns.join(', ')
+        const values: any[] = []
+        const placeholders = batch.map((tx, txIdx) => {
+          const rowPlaceholders = columns.map((col, colIdx) => {
+            values.push((tx as any)[col] ?? null)
+            return `$${txIdx * columns.length + colIdx + 1}`
+          })
+          return `(${rowPlaceholders.join(', ')})`
+        }).join(', ')
 
-      // Bulk insert for this batch
-      const { data, error } = await supabase
-        .from('aggregated_transactions')
-        .insert(batch)
-        .select('id, source_ref')
-
-      if (error) {
-        // If bulk insert fails, try one-by-one for detailed error tracking
+        const { rows } = await pool.query(
+          `INSERT INTO aggregated_transactions (${cols}) VALUES ${placeholders} RETURNING source_ref`,
+          values
+        )
+        rows.forEach(r => success.push(r.source_ref))
+      } catch (error: any) {
+        // Fallback: one-by-one
         for (const tx of batch) {
           try {
             await this.create(tx)
             success.push(tx.source_ref)
-          } catch (err) {
+          } catch (err: any) {
             failed.push({
               source_ref: tx.source_ref,
-              error: err instanceof Error ? err.message : 'Unknown error'
+              error: err.message || 'Unknown error'
             })
           }
-        }
-      } else if (data) {
-        // Success - collect source_refs
-        for (const row of data) {
-          success.push(row.source_ref)
         }
       }
     }
 
-    // Report final progress
-    if (onProgress) {
-      onProgress(transactions.length, transactions.length)
-    }
+    if (onProgress) onProgress(transactions.length, transactions.length)
 
-    return {
-      success,
-      failed,
-      total_processed: transactions.length
-    }
+    return { success, failed, total_processed: transactions.length }
   }
 
   /**
    * Create failed transaction record
-   * Stores transaction with FAILED status and error details
    */
   async createFailedTransaction(
     data: Omit<AggregatedTransaction, 'id' | 'created_at' | 'updated_at' | 'version'>,
@@ -471,27 +464,11 @@ if (error) {
       failed_at: new Date().toISOString(),
       failed_reason: failedReason,
     }
-
-    const { data: result, error } = await supabase
-      .from('aggregated_transactions')
-      .insert(failedData)
-      .select()
-      .single()
-
-    if (error) {
-      // Log but don't throw - failed transaction recording should not break the process
-      console.error('Failed to record failed transaction:', {
-        source_ref: data.source_ref,
-        error: error.message
-      })
-      throw new Error(`Failed to record error: ${error.message}`)
-    }
-
-    return result
+    return this.create(failedData)
   }
 
   /**
-   * Create multiple failed transactions (bulk) with FAILED status
+   * Create multiple failed transactions (bulk)
    */
   async createFailedBatch(
     transactions: Array<{
@@ -499,40 +476,15 @@ if (error) {
       error: string
     }>
   ): Promise<{ created: number; failed: number }> {
-    const BATCH_SIZE = 100
-    let created = 0
-    let failed = 0
-
-    for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
-      const batch = transactions.slice(i, i + BATCH_SIZE)
-      
-      const records = batch.map(tx => ({
-        ...tx.data,
-        status: 'FAILED' as AggregatedTransactionStatus,
-        failed_at: new Date().toISOString(),
-        failed_reason: tx.error,
-      }))
-
-      const { error } = await supabase
-        .from('aggregated_transactions')
-        .insert(records)
-
-      if (error) {
-        // Fallback: one-by-one
-        for (const tx of batch) {
-          try {
-            await this.createFailedTransaction(tx.data, tx.error)
-            created++
-          } catch {
-            failed++
-          }
-        }
-      } else {
-        created += records.length
-      }
-    }
-
-    return { created, failed }
+    const records = transactions.map(tx => ({
+      ...tx.data,
+      status: 'FAILED' as AggregatedTransactionStatus,
+      failed_at: new Date().toISOString(),
+      failed_reason: tx.error,
+    }))
+    
+    const result = await this.createBatchBulk(records)
+    return { created: result.success.length, failed: result.failed.length }
   }
 
   /**
@@ -543,84 +495,80 @@ if (error) {
     updates: Partial<AggregatedTransaction>,
     expectedVersion?: number
   ): Promise<AggregatedTransaction> {
-    // Build update data with version increment
-    const updateData = {
-      ...updates,
-      version: (expectedVersion || 0) + 1,
-      updated_at: new Date().toISOString(),
-    }
+    try {
+      const keys = Object.keys(updates)
+      const values = Object.values(updates)
+      
+      const newVersion = (expectedVersion || 0) + 1
+      keys.push('version', 'updated_at')
+      values.push(newVersion, new Date().toISOString())
 
-    let dbQuery = supabase
-      .from('aggregated_transactions')
-      .update(updateData)
-      .eq('id', id)
+      const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ')
+      
+      let query = `UPDATE aggregated_transactions SET ${setClause} WHERE id = $${keys.length + 1}`
+      const queryParams = [...values, id]
 
-    // Optimistic locking
-    if (expectedVersion !== undefined) {
-      dbQuery = dbQuery.eq('version', expectedVersion)
-    }
-
-    const { data, error } = await dbQuery.select().single()
-
-    if (error) {
-      // Check for version conflict
-      if (error.code === 'P0001' || error.message?.includes('version')) {
-        throw AggregatedTransactionErrors.VERSION_CONFLICT(id, expectedVersion || 0, (expectedVersion || 0) + 1)
+      if (expectedVersion !== undefined) {
+        queryParams.push(expectedVersion)
+        query += ` AND version = $${queryParams.length}`
       }
+
+      query += ' RETURNING *'
+      
+      const { rows } = await pool.query(query, queryParams)
+      if (rows.length === 0) {
+        if (expectedVersion !== undefined) {
+          throw AggregatedTransactionErrors.VERSION_CONFLICT(id, expectedVersion, newVersion)
+        }
+        throw new DatabaseError('Aggregated transaction not found or version conflict')
+      }
+      return rows[0]
+    } catch (error: any) {
+      if (error instanceof DatabaseError || error.name === 'AggregatedTransactionError') throw error
       throw new DatabaseError('Failed to update aggregated transaction', { cause: error })
     }
-
-    return data
   }
 
   /**
    * Soft delete aggregated transaction
    */
   async softDelete(id: string, deletedBy?: string): Promise<void> {
-    const { error } = await supabase
-      .from('aggregated_transactions')
-      .update({
-        deleted_at: new Date().toISOString(),
-        deleted_by: deletedBy || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .is('deleted_at', null)
-
-    if (error) throw new DatabaseError('Failed to delete aggregated transaction', { cause: error })
+    try {
+      await pool.query(
+        'UPDATE aggregated_transactions SET deleted_at = $1, deleted_by = $2, updated_at = $1 WHERE id = $3 AND deleted_at IS NULL',
+        [new Date().toISOString(), deletedBy || null, id]
+      )
+    } catch (error: any) {
+      throw new DatabaseError('Failed to delete aggregated transaction', { cause: error })
+    }
   }
 
   /**
    * Restore soft-deleted transaction
    */
   async restore(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('aggregated_transactions')
-      .update({
-        deleted_at: null,
-        deleted_by: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .not('deleted_at', 'is', null)
-
-    if (error) throw new DatabaseError('Failed to restore aggregated transaction', { cause: error })
+    try {
+      await pool.query(
+        'UPDATE aggregated_transactions SET deleted_at = NULL, deleted_by = NULL, updated_at = $1 WHERE id = $2 AND deleted_at IS NOT NULL',
+        [new Date().toISOString(), id]
+      )
+    } catch (error: any) {
+      throw new DatabaseError('Failed to restore aggregated transaction', { cause: error })
+    }
   }
 
   /**
    * Update journal_id for transaction
    */
   async assignJournal(id: string, journalId: string): Promise<void> {
-    const { error } = await supabase
-      .from('aggregated_transactions')
-      .update({
-        journal_id: journalId,
-        status: 'PROCESSING' as AggregatedTransactionStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-
-    if (error) throw new DatabaseError('Failed to assign journal', { cause: error })
+    try {
+      await pool.query(
+        'UPDATE aggregated_transactions SET journal_id = $1, status = \'PROCESSING\', updated_at = $2 WHERE id = $3',
+        [journalId, new Date().toISOString(), id]
+      )
+    } catch (error: any) {
+      throw new DatabaseError('Failed to assign journal', { cause: error })
+    }
   }
 
   /**
@@ -630,56 +578,99 @@ if (error) {
     transactionIds: string[], 
     journalId: string
   ): Promise<void> {
-    const { error } = await supabase
-      .from('aggregated_transactions')
-      .update({
-        journal_id: journalId,
-        status: 'PROCESSING' as AggregatedTransactionStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .in('id', transactionIds)
+    try {
+      await pool.query(
+        'UPDATE aggregated_transactions SET journal_id = $1, status = \'PROCESSING\', updated_at = $2 WHERE id = ANY($3)',
+        [journalId, new Date().toISOString(), transactionIds]
+      )
+    } catch (error: any) {
+      if (error) throw new DatabaseError('Failed to assign journal to transactions', { cause: error })
+    }
+  }
 
-    if (error) throw new DatabaseError('Failed to assign journal to transactions', { cause: error })
+  async findExistingSync(params: {
+    transaction_date: string,
+    payment_method_id: number,
+    branch_id?: string | null,
+    branch_name?: string | null
+  }): Promise<{ id: string } | null> {
+    try {
+      const conditions: string[] = [
+        'source_type = \'POS_SYNC\'',
+        'transaction_date = $1',
+        'payment_method_id = $2',
+        'deleted_at IS NULL',
+        'superseded_by IS NULL'
+      ]
+      const values: any[] = [params.transaction_date, params.payment_method_id]
+
+      if (params.branch_id) {
+        values.push(params.branch_id)
+        conditions.push(`branch_id = $${values.length}`)
+      } else if (params.branch_name) {
+        values.push(params.branch_name)
+        conditions.push(`branch_name = $${values.length}`)
+      }
+
+      const { rows } = await pool.query(
+        `SELECT id FROM aggregated_transactions WHERE ${conditions.join(' AND ')} LIMIT 1`,
+        values
+      )
+      return rows[0] || null
+    } catch (error: any) {
+      throw new DatabaseError('Failed to find existing POS sync', { cause: error })
+    }
+  }
+
+  async setSuperseded(id: string, supersededById: string): Promise<void> {
+    try {
+      await pool.query(
+        'UPDATE aggregated_transactions SET superseded_by = $1, status = \'SUPERSEDED\', updated_at = $2 WHERE id = $3',
+        [supersededById, new Date().toISOString(), id]
+      )
+    } catch (error: any) {
+      throw new DatabaseError('Failed to set superseded status', { cause: error })
+    }
   }
 
   /**
    * Mark transactions as reconciled
    */
   async markReconciled(transactionIds: string[], _reconciledBy: string): Promise<void> {
-    const { error } = await supabase
-      .from('aggregated_transactions')
-      .update({
-        is_reconciled: true,
-        updated_at: new Date().toISOString(),
-      })
-      .in('id', transactionIds)
-      .eq('is_reconciled', false)
-
-    if (error) throw new DatabaseError('Failed to mark transactions as reconciled', { cause: error })
+    try {
+      await pool.query(
+        'UPDATE aggregated_transactions SET is_reconciled = true, updated_at = $1 WHERE id = ANY($2) AND is_reconciled = false',
+        [new Date().toISOString(), transactionIds]
+      )
+    } catch (error: any) {
+      throw new DatabaseError('Failed to mark transactions as reconciled', { cause: error })
+    }
   }
 
   async updateNote(id: string, note: string): Promise<void> {
-    const { error } = await supabase
-      .from('aggregated_transactions')
-      .update({ fee_discrepancy_note: note, updated_at: new Date().toISOString() })
-      .eq('id', id)
-
-    if (error) throw new DatabaseError('Failed to update note', { cause: error })
+    try {
+      await pool.query(
+        'UPDATE aggregated_transactions SET fee_discrepancy_note = $1, updated_at = $2 WHERE id = $3',
+        [note, new Date().toISOString(), id]
+      )
+    } catch (error: any) {
+      throw new DatabaseError('Failed to update note', { cause: error })
+    }
   }
 
   /**
    * Find transactions by import source
    */
   async findBySourceId(sourceId: string): Promise<AggregatedTransaction[]> {
-    const { data, error } = await supabase
-      .from('aggregated_transactions')
-      .select('*')
-      .eq('source_id', sourceId)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: true })
-
-    if (error) throw new DatabaseError('Failed to fetch transactions by source', { cause: error })
-    return data || []
+    try {
+      const { rows } = await pool.query(
+        'SELECT * FROM aggregated_transactions WHERE source_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC',
+        [sourceId]
+      )
+      return rows
+    } catch (error: any) {
+      throw new DatabaseError('Failed to fetch transactions by source', { cause: error })
+    }
   }
 
   /**
@@ -690,33 +681,36 @@ if (error) {
     dateTo?: string,
     branchName?: string
   ): Promise<AggregatedTransaction[]> {
-    let dbQuery = supabase
-      .from('aggregated_transactions')
-      .select('*')
-      .eq('is_reconciled', false)
-      .is('deleted_at', null)
-      .is('superseded_by', null)
+    const conditions: string[] = ['is_reconciled = false', 'deleted_at IS NULL', 'superseded_by IS NULL']
+    const params: any[] = []
 
     if (dateFrom) {
-      dbQuery = dbQuery.gte('transaction_date', dateFrom)
+      params.push(dateFrom)
+      conditions.push(`transaction_date >= $${params.length}`)
     }
     if (dateTo) {
-      dbQuery = dbQuery.lte('transaction_date', dateTo)
+      params.push(dateTo)
+      conditions.push(`transaction_date <= $${params.length}`)
     }
-
     if (branchName) {
-      dbQuery = dbQuery.eq('branch_name', branchName)
+      params.push(branchName)
+      conditions.push(`branch_name = $${params.length}`)
     }
 
-    const { data, error } = await dbQuery.order('transaction_date', { ascending: true })
-
-    if (error) throw new DatabaseError('Failed to fetch unreconciled transactions', { cause: error })
-    return data || []
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+    try {
+      const { rows } = await pool.query(
+        `SELECT * FROM aggregated_transactions ${where} ORDER BY transaction_date ASC`,
+        params
+      )
+      return rows
+    } catch (error: any) {
+      throw new DatabaseError('Failed to fetch unreconciled transactions', { cause: error })
+    }
   }
 
   /**
    * Get summary statistics
-   * Uses Supabase's .or() with ilike for case-insensitive branch name matching
    */
   async getSummary(
     dateFrom?: string,
@@ -739,79 +733,83 @@ if (error) {
     total_actual_nett_amount: number
     total_fee_discrepancy: number
   }> {
-    const applyFilters = (query: any) => {
-      query = query.is('deleted_at', null).is('superseded_by', null)
-      // Exclude VOID by default unless explicitly filtering for it
-      if (status) {
-        query = query.eq('status', status)
-      } else {
-        query = query.not('status', 'in', '(VOID,SUPERSEDED)')
-      }
-      if (isReconciled !== undefined) query = query.eq('is_reconciled', isReconciled)
-      if (dateFrom) query = query.gte('transaction_date', dateFrom)
-      if (dateTo) query = query.lte('transaction_date', dateTo)
-      if (branchNames && branchNames.length > 0) {
-        query = query.or(branchNames.map(b => `branch_name.ilike.%${b}%`).join(','))
-      }
-      if (paymentMethodIds && paymentMethodIds.length > 0) {
-        query = query.in('payment_method_id', paymentMethodIds)
-      }
-      return query
+    const conditions: string[] = ['deleted_at IS NULL', 'superseded_by IS NULL']
+    const params: any[] = []
+
+    if (status) {
+      params.push(status)
+      conditions.push(`status = $${params.length}`)
+    } else {
+      conditions.push('status NOT IN (\'VOID\', \'SUPERSEDED\')')
     }
 
-    // Count query
-    let countQuery = supabase
-      .from('aggregated_transactions')
-      .select('*', { count: 'exact', head: true })
-    countQuery = applyFilters(countQuery)
-    const { count, error: countError } = await countQuery
-    if (countError) throw new DatabaseError('Failed to get summary count', { cause: countError })
+    if (isReconciled !== undefined) {
+      params.push(isReconciled)
+      conditions.push(`is_reconciled = $${params.length}`)
+    }
+    if (dateFrom) {
+      params.push(dateFrom)
+      conditions.push(`transaction_date >= $${params.length}`)
+    }
+    if (dateTo) {
+      params.push(dateTo)
+      conditions.push(`transaction_date <= $${params.length}`)
+    }
+    if (branchNames && branchNames.length > 0) {
+      const orConditions = branchNames.map(b => {
+        params.push(`%${b}%`)
+        return `branch_name ILIKE $${params.length}`
+      }).join(' OR ')
+      conditions.push(`(${orConditions})`)
+    }
+    if (paymentMethodIds && paymentMethodIds.length > 0) {
+      params.push(paymentMethodIds)
+      conditions.push(`payment_method_id = ANY($${params.length})`)
+    }
 
-    // Data query
-    let dataQuery = supabase
-      .from('aggregated_transactions')
-      .select('gross_amount, discount_amount, tax_amount, service_charge_amount, bill_after_discount, percentage_fee_amount, fixed_fee_amount, total_fee_amount, nett_amount, actual_nett_amount, fee_discrepancy')
-    dataQuery = applyFilters(dataQuery)
-    const { data: allData, error: dataError } = await dataQuery
-    if (dataError) throw new DatabaseError('Failed to get summary data', { cause: dataError })
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
-    const totals = (allData || []).reduce((acc, row) => ({
-      gross_amount: (acc.gross_amount || 0) + Number(row.gross_amount || 0),
-      discount_amount: (acc.discount_amount || 0) + Number(row.discount_amount || 0),
-      tax_amount: (acc.tax_amount || 0) + Number(row.tax_amount || 0),
-      service_charge_amount: (acc.service_charge_amount || 0) + Number(row.service_charge_amount || 0),
-      bill_after_discount: (acc.bill_after_discount || 0) + Number(row.bill_after_discount || 0),
-      percentage_fee_amount: (acc.percentage_fee_amount || 0) + Number(row.percentage_fee_amount || 0),
-      fixed_fee_amount: (acc.fixed_fee_amount || 0) + Number(row.fixed_fee_amount || 0),
-      total_fee_amount: (acc.total_fee_amount || 0) + Number(row.total_fee_amount || 0),
-      nett_amount: (acc.nett_amount || 0) + Number(row.nett_amount || 0),
-      actual_nett_amount: (acc.actual_nett_amount || 0) + Number(row.actual_nett_amount || 0),
-      fee_discrepancy: (acc.fee_discrepancy || 0) + Number(row.fee_discrepancy || 0),
-    }), {
-      gross_amount: 0, discount_amount: 0, tax_amount: 0, service_charge_amount: 0,
-      bill_after_discount: 0, percentage_fee_amount: 0, fixed_fee_amount: 0,
-      total_fee_amount: 0, nett_amount: 0, actual_nett_amount: 0, fee_discrepancy: 0,
-    })
-
-    return {
-      total_count: count || 0,
-      total_gross_amount: totals.gross_amount,
-      total_discount_amount: totals.discount_amount,
-      total_tax_amount: totals.tax_amount,
-      total_service_charge_amount: totals.service_charge_amount,
-      total_bill_after_discount: totals.bill_after_discount,
-      total_percentage_fee_amount: totals.percentage_fee_amount,
-      total_fixed_fee_amount: totals.fixed_fee_amount,
-      total_fee_amount: totals.total_fee_amount,
-      total_nett_amount: totals.nett_amount,
-      total_actual_nett_amount: totals.actual_nett_amount,
-      total_fee_discrepancy: totals.fee_discrepancy,
+    try {
+      const query = `
+        SELECT 
+          COUNT(*)::int as total_count,
+          COALESCE(SUM(gross_amount), 0) as total_gross_amount,
+          COALESCE(SUM(discount_amount), 0) as total_discount_amount,
+          COALESCE(SUM(tax_amount), 0) as total_tax_amount,
+          COALESCE(SUM(service_charge_amount), 0) as total_service_charge_amount,
+          COALESCE(SUM(bill_after_discount), 0) as total_bill_after_discount,
+          COALESCE(SUM(percentage_fee_amount), 0) as total_percentage_fee_amount,
+          COALESCE(SUM(fixed_fee_amount), 0) as total_fixed_fee_amount,
+          COALESCE(SUM(total_fee_amount), 0) as total_fee_amount,
+          COALESCE(SUM(nett_amount), 0) as total_nett_amount,
+          COALESCE(SUM(actual_nett_amount), 0) as total_actual_nett_amount,
+          COALESCE(SUM(fee_discrepancy), 0) as total_fee_discrepancy
+        FROM aggregated_transactions
+        ${where}
+      `
+      const { rows } = await pool.query(query, params)
+      const res = rows[0]
+      return {
+        total_count: res.total_count,
+        total_gross_amount: Number(res.total_gross_amount),
+        total_discount_amount: Number(res.total_discount_amount),
+        total_tax_amount: Number(res.total_tax_amount),
+        total_service_charge_amount: Number(res.total_service_charge_amount),
+        total_bill_after_discount: Number(res.total_bill_after_discount),
+        total_percentage_fee_amount: Number(res.total_percentage_fee_amount),
+        total_fixed_fee_amount: Number(res.total_fixed_fee_amount),
+        total_fee_amount: Number(res.total_fee_amount),
+        total_nett_amount: Number(res.total_nett_amount),
+        total_actual_nett_amount: Number(res.total_actual_nett_amount),
+        total_fee_discrepancy: Number(res.total_fee_discrepancy)
+      }
+    } catch (error: any) {
+      throw new DatabaseError('Failed to get summary statistics', { cause: error })
     }
   }
 
   /**
-   * Get transaction counts by status with optional filters
-   * Uses Supabase's .or() with ilike for case-insensitive branch name matching
+   * Get transaction counts by status
    */
   async getStatusCounts(
     dateFrom?: string,
@@ -819,52 +817,47 @@ if (error) {
     branchNames?: string[],
     paymentMethodIds?: number[]
   ): Promise<Record<AggregatedTransactionStatus, number>> {
-    // Fallback: get counts individually for each status
-    const statuses: AggregatedTransactionStatus[] = ['READY', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED', 'VOID', 'SUPERSEDED']
+    const conditions: string[] = ['deleted_at IS NULL', 'superseded_by IS NULL']
+    const params: any[] = []
+
+    if (dateFrom) {
+      params.push(dateFrom)
+      conditions.push(`transaction_date >= $${params.length}`)
+    }
+    if (dateTo) {
+      params.push(dateTo)
+      conditions.push(`transaction_date <= $${params.length}`)
+    }
+    if (branchNames && branchNames.length > 0) {
+      const orConditions = branchNames.map(b => {
+        params.push(`%${b}%`)
+        return `branch_name ILIKE $${params.length}`
+      }).join(' OR ')
+      conditions.push(`(${orConditions})`)
+    }
+    if (paymentMethodIds && paymentMethodIds.length > 0) {
+      params.push(paymentMethodIds)
+      conditions.push(`payment_method_id = ANY($${params.length})`)
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+    
     const counts: Record<AggregatedTransactionStatus, number> = {
-      READY: 0,
-      PENDING: 0,
-      PROCESSING: 0,
-      COMPLETED: 0,
-      CANCELLED: 0,
-      FAILED: 0,
-      VOID: 0,
-      SUPERSEDED: 0,
+      READY: 0, PENDING: 0, PROCESSING: 0, COMPLETED: 0, CANCELLED: 0, FAILED: 0, VOID: 0, SUPERSEDED: 0
     }
 
-    for (const status of statuses) {
-      let query = supabase
-        .from('aggregated_transactions')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', status)
-        .is('deleted_at', null)
-        .is('superseded_by', null)
-
-      // Apply filters
-      if (dateFrom) {
-        query = query.gte('transaction_date', dateFrom)
-      }
-      if (dateTo) {
-        query = query.lte('transaction_date', dateTo)
-      }
-      
-      // Use case-insensitive ilike for branch names
-      if (branchNames && branchNames.length > 0) {
-        const orConditions = branchNames.map(b => `branch_name.ilike.%${b}%`).join(',')
-        query = query.or(orConditions)
-      }
-
-      // Filter by payment method IDs
-      if (paymentMethodIds && paymentMethodIds.length > 0) {
-        query = query.in('payment_method_id', paymentMethodIds)
-      }
-
-      const { count } = await query
-      
-      counts[status] = count || 0
+    try {
+      const { rows } = await pool.query(
+        `SELECT status, COUNT(*)::int as count FROM aggregated_transactions ${where} GROUP BY status`,
+        params
+      )
+      rows.forEach(r => {
+        if (r.status in counts) counts[r.status as AggregatedTransactionStatus] = r.count
+      })
+      return counts
+    } catch (error: any) {
+      throw new DatabaseError('Failed to get status counts', { cause: error })
     }
-
-    return counts
   }
 
   /**
@@ -885,7 +878,7 @@ if (error) {
       discount_amount: Number(row.discount_amount),
       tax_amount: Number(row.tax_amount),
       service_charge_amount: Number(row.service_charge_amount),
-bill_after_discount: Number(row.bill_after_discount || 0),
+      bill_after_discount: Number(row.bill_after_discount || 0),
       percentage_fee_amount: Number(row.percentage_fee_amount || 0),
       fixed_fee_amount: Number(row.fixed_fee_amount || 0),
       total_fee_amount: Number(row.total_fee_amount || 0),
@@ -911,8 +904,6 @@ bill_after_discount: Number(row.bill_after_discount || 0),
 
   /**
    * Map database row to WithDetails
-   * @param aggData - aggregated transaction data from database
-   * @param bankData - bank statement data (nullable, jika belum direkonsiliasi)
    */
   private mapToWithDetails(
     aggData: Record<string, unknown>, 
@@ -924,7 +915,6 @@ bill_after_discount: Number(row.bill_after_discount || 0),
     const paymentMethod = Array.isArray(aggData.payment_methods) ? aggData.payment_methods[0] : aggData.payment_methods
     const journal = Array.isArray(aggData.journal) ? aggData.journal[0] : aggData.journal
 
-    // Extract nested bank data dari bank statement
     const bankAccount = Array.isArray(bankData?.bank_accounts) ? bankData.bank_accounts[0] : bankData?.bank_accounts
     const bank = Array.isArray(bankAccount?.banks) ? bankAccount.banks[0] : bankAccount?.banks
 
@@ -933,7 +923,6 @@ bill_after_discount: Number(row.bill_after_discount || 0),
       ? settlementGroup?.bank_statements[0]
       : settlementGroup?.bank_statements as Record<string, unknown> | null
 
-    // Multi-match
     const multiMatchDetails = Array.isArray(multiMatchAgg?.bank_reconciliation_group_details)
       ? multiMatchAgg.bank_reconciliation_group_details
       : []
@@ -992,7 +981,6 @@ bill_after_discount: Number(row.bill_after_discount || 0),
       journal: journal as AggregatedTransactionWithDetails['journal'],
       failed_at: aggData.failed_at as string | null,
       failed_reason: aggData.failed_reason as string | null,
-      // Bank mutation / reconciliation details
       bank_mutation_id: bankData?.id as string | null,
       bank_mutation_date: bankData?.transaction_date as string | null,
       bank_name: (bank as Record<string, unknown>)?.bank_name as string | null,
@@ -1000,8 +988,6 @@ bill_after_discount: Number(row.bill_after_discount || 0),
       bank_account_number: bankAccount?.account_number as string | null,
       reconciled_at: bankData?.is_reconciled ? new Date().toISOString() : null,
       reconciled_by: aggData.reconciled_by as string | null,
-
-      // Settlement group fields
       settlement_group_id: settlementGroup?.id as string | null ?? null,
       settlement_number: settlementGroup?.settlement_number as string | null ?? null,
       settlement_date: settlementGroup?.settlement_date as string | null ?? null,
@@ -1012,15 +998,11 @@ bill_after_discount: Number(row.bill_after_discount || 0),
       settlement_bank_statement_amount: settlementStmt
         ? (Number(settlementStmt.credit_amount) || 0) - (Number(settlementStmt.debit_amount) || 0)
         : null,
-
-      // Multi-match fields
       multi_match_group_id: multiMatchAgg?.id as string | null ?? null,
       multi_match_status: multiMatchAgg?.status as string | null ?? null,
       multi_match_difference: multiMatchAgg?.difference != null ? Number(multiMatchAgg.difference) : null,
       multi_match_total_bank_amount: multiMatchAgg?.total_bank_amount != null ? Number(multiMatchAgg.total_bank_amount) : null,
       multi_match_statements: multiMatchStatements.length > 0 ? multiMatchStatements : null,
-
-      // Cash deposit fields
       cash_deposit_id: cashDepositData?.cash_deposit_id as string | null ?? null,
       cash_deposit_amount: cashDepositData?.deposit_amount != null ? Number(cashDepositData.deposit_amount) : null,
       cash_deposit_date: cashDepositData?.deposit_date as string | null ?? null,
@@ -1033,59 +1015,70 @@ bill_after_discount: Number(row.bill_after_discount || 0),
       cash_deposit_bank_statement_amount: cashDepositData?.bank_statement_amount != null ? Number(cashDepositData.bank_statement_amount) : null,
     }
   }
+
   /**
-   * Find source_ids (pos_import_id) yang sudah punya aggregated transactions
-   * dengan status READY/PROCESSING/COMPLETED — tidak boleh di-replace
+   * Find source_ids yang sudah punya aggregated transactions
    */
   async findMappedImports(posImportIds: string[]): Promise<Set<string>> {
     if (posImportIds.length === 0) return new Set();
-
     const result = new Set<string>();
-    const batchSize = 50;
-
-    for (let i = 0; i < posImportIds.length; i += batchSize) {
-      const batch = posImportIds.slice(i, i + batchSize);
-      const { data, error } = await supabase
-        .from('aggregated_transactions')
-        .select('source_id')
-        .in('source_id', batch)
-        .in('status', ['READY', 'PROCESSING', 'COMPLETED'])
-        .is('deleted_at', null);
-
-      if (error) {
-        throw new DatabaseError('Failed to find mapped imports', { cause: error });
-      }
-
-      (data || []).forEach(d => result.add(d.source_id));
+    try {
+      const { rows } = await pool.query(
+        'SELECT source_id FROM aggregated_transactions WHERE source_id = ANY($1) AND status IN (\'READY\', \'PROCESSING\', \'COMPLETED\') AND deleted_at IS NULL',
+        [posImportIds]
+      )
+      rows.forEach(d => result.add(d.source_id));
+      return result;
+    } catch (error: any) {
+      throw new DatabaseError('Failed to find mapped imports', { cause: error });
     }
-
-    return result;
   }
 
   /**
    * Void semua aggregated transactions dari import tertentu
-   * yang masih FAILED atau READY (belum masuk journal)
    */
   async voidByImportId(posImportId: string): Promise<number> {
-    const { data, error } = await supabase
-      .from('aggregated_transactions')
-      .update({
-        status: 'CANCELLED',
-        deleted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('source_id', posImportId)
-      .in('status', ['FAILED', 'READY'])
-      .is('deleted_at', null)
-      .select('id');
-
-    if (error) {
+    try {
+      const { rowCount } = await pool.query(
+        'UPDATE aggregated_transactions SET status = \'CANCELLED\', deleted_at = $1, updated_at = $1 WHERE source_id = $2 AND status IN (\'FAILED\', \'READY\') AND deleted_at IS NULL',
+        [new Date().toISOString(), posImportId]
+      )
+      return rowCount || 0;
+    } catch (error: any) {
       throw new DatabaseError('Failed to void aggregated transactions', { cause: error });
     }
-
-    return (data || []).length;
   }
 
+  async hardDelete(id: string): Promise<void> {
+    try {
+      await pool.query('DELETE FROM aggregated_transactions WHERE id = $1', [id])
+    } catch (error: any) {
+      throw new DatabaseError('Failed to hard delete aggregated transaction', { cause: error })
+    }
+  }
+
+  async findForFeeRecalculation(transactionDate: string): Promise<any[]> {
+    try {
+      const { rows } = await pool.query(
+        'SELECT id, payment_method_id, gross_amount, bill_after_discount, is_reconciled, source_type FROM aggregated_transactions WHERE transaction_date = $1 AND source_type = \'POS\' AND deleted_at IS NULL AND superseded_by IS NULL',
+        [transactionDate]
+      )
+      return rows
+    } catch (error: any) {
+      throw new DatabaseError('Failed to fetch transactions for fee recalculation', { cause: error })
+    }
+  }
+
+  async updateFee(id: string, feeData: { percentage_fee_amount: number, fixed_fee_amount: number, total_fee_amount: number, nett_amount: number }): Promise<void> {
+    try {
+      await pool.query(
+        'UPDATE aggregated_transactions SET percentage_fee_amount = $1, fixed_fee_amount = $2, total_fee_amount = $3, nett_amount = $4, updated_at = $5 WHERE id = $6',
+        [feeData.percentage_fee_amount, feeData.fixed_fee_amount, feeData.total_fee_amount, feeData.nett_amount, new Date().toISOString(), id]
+      )
+    } catch (error: any) {
+      throw new DatabaseError('Failed to update fee for transaction', { cause: error })
+    }
+  }
 }
 
 export const posAggregatesRepository = new PosAggregatesRepository()

@@ -184,6 +184,14 @@ export class BranchesRepository {
     )
     return rows
   }
+
+  async findByName(name: string): Promise<Branch | null> {
+    const { rows } = await pool.query(
+      'SELECT * FROM branches WHERE branch_name ILIKE $1 AND status = \'active\' LIMIT 1',
+      [name.trim()]
+    )
+    return rows[0] || null
+  }
 }
 
 export const branchesRepository = new BranchesRepository()

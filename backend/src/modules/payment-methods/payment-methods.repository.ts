@@ -90,6 +90,12 @@ export class PaymentMethodsRepository {
     return rows[0] ? mapDetail(rows[0]) : null
   }
 
+  async findByIds(ids: number[]): Promise<PaymentMethodWithDetails[]> {
+    if (ids.length === 0) return []
+    const { rows } = await pool.query(`SELECT ${DETAIL_SELECT} ${DETAIL_FROM} WHERE pm.id = ANY($1) AND pm.deleted_at IS NULL`, [ids])
+    return rows.map(mapDetail)
+  }
+
   async findByCode(companyId: string, code: string): Promise<PaymentMethod | null> {
     const { rows } = await pool.query('SELECT * FROM payment_methods WHERE company_id = $1 AND code = $2 AND deleted_at IS NULL', [companyId, code.toUpperCase()])
     return rows[0] ?? null
@@ -217,6 +223,18 @@ export class PaymentMethodsRepository {
   async findCoaAccount(coaAccountId: string): Promise<{ id: string; account_code: string; account_type: string; is_postable: boolean; company_id: string } | null> {
     const { rows } = await pool.query('SELECT id, account_code, account_type, is_postable, company_id FROM chart_of_accounts WHERE id = $1 AND deleted_at IS NULL', [coaAccountId])
     return rows[0] ?? null
+  }
+
+  async findByName(name: string, companyId?: string): Promise<PaymentMethod | null> {
+    const params: any[] = [name.trim()]
+    let query = 'SELECT * FROM payment_methods WHERE name ILIKE $1 AND is_active = true AND deleted_at IS NULL'
+    if (companyId) {
+      params.push(companyId)
+      query += ` AND company_id = $${params.length}`
+    }
+    query += ' LIMIT 1'
+    const { rows } = await pool.query(query, params)
+    return rows[0] || null
   }
 }
 

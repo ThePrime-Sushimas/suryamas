@@ -1,16 +1,13 @@
-import { supabase } from '../../config/supabase'
-import { logError, logInfo } from '../../config/logger'
+import { pool } from '../../config/db'
+import { logError } from '../../config/logger'
 import { DatabaseError } from '../../utils/error-handler.util'
 import type {
   PaymentMethodGroup,
-  PaymentMethodGroupMapping,
   CreateGroupDto,
   UpdateGroupDto,
   AvailablePaymentMethod,
   SalesBreakdownItem,
   SalesGroup,
-  RunningBalanceRow,
-  CashFlowSummary,
   GetCashFlowParams,
   AccountPeriodBalance,
   CreatePeriodBalanceDto,
@@ -27,22 +24,17 @@ export class CashFlowSalesRepository {
   async getBankAccountInfo(bankAccountId: number, companyId: string): Promise<{
     id: number; bank_name: string; account_number: string; account_name: string
   } | null> {
-    const { data, error } = await supabase
-      .from('bank_accounts')
-      .select('id, account_number, account_name, banks!inner(bank_name)')
-      .eq('id', bankAccountId)
-      .eq('owner_id', companyId)
-      .eq('owner_type', 'company')
-      .is('deleted_at', null)
-      .maybeSingle()
-
-    if (error || !data) return null
-    return {
-      id: data.id,
-      bank_name: (data.banks as any)?.bank_name || '',
-      account_number: data.account_number,
-      account_name: data.account_name,
-    }
+    const query = `
+      SELECT ba.id, ba.account_number, ba.account_name, b.bank_name
+      FROM bank_accounts ba
+      INNER JOIN banks b ON ba.bank_id = b.id
+      WHERE ba.id = $1 
+        AND ba.owner_id = $2 
+        AND ba.owner_type = 'company'
+        AND ba.deleted_at IS NULL
+    `
+    const { rows } = await pool.query(query, [bankAccountId, companyId])
+    return rows[0] || null
   }
 
   // ============================================================
@@ -50,85 +42,131 @@ export class CashFlowSalesRepository {
   // ============================================================
 
   async createPeriodBalance(dto: CreatePeriodBalanceDto): Promise<AccountPeriodBalance> {
-    const { data, error } = await supabase
-      .from('account_period_balances')
-      .insert({
-        company_id: dto.company_id, bank_account_id: dto.bank_account_id,
-        period_start: dto.period_start, period_end: dto.period_end,
-        opening_balance: dto.opening_balance, source: dto.source || 'MANUAL',
-        previous_period_id: dto.previous_period_id || null,
-        notes: dto.notes || null, created_by: dto.created_by || null,
-      })
-      .select().single()
-    if (error) throw new DatabaseError('Failed to create period balance', { cause: error })
-    return data as AccountPeriodBalance
+    try {
+      const keys = [
+        'company_id', 'bank_account_id', 'period_start', 'period_end',
+        'opening_balance', 'source', 'previous_period_id', 'notes', 'created_by'
+      ]
+      const values = [
+        dto.company_id, dto.bank_account_id, dto.period_start, dto.period_end,
+        dto.opening_balance, dto.source || 'MANUAL', dto.previous_period_id || null,
+        dto.notes || null, dto.created_by || null
+      ]
+      const cols = keys.join(', ')
+      const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ')
+
+      const { rows } = await pool.query(
+        `INSERT INTO account_period_balances (${cols}) VALUES (${placeholders}) RETURNING *`,
+        values
+      )
+      return rows[0] as AccountPeriodBalance
+    } catch (error: any) {
+      throw new DatabaseError('Failed to create period balance', { cause: error })
+    }
   }
 
   async updatePeriodBalance(id: string, companyId: string, dto: UpdatePeriodBalanceDto): Promise<AccountPeriodBalance> {
-    const updateData: Record<string, any> = { updated_by: dto.updated_by || null }
-    if (dto.period_start !== undefined) updateData.period_start = dto.period_start
-    if (dto.period_end !== undefined) updateData.period_end = dto.period_end
-    if (dto.opening_balance !== undefined) updateData.opening_balance = dto.opening_balance
-    if (dto.source !== undefined) updateData.source = dto.source
-    if (dto.notes !== undefined) updateData.notes = dto.notes
+    try {
+      const updateFields: string[] = []
+      const values: any[] = []
 
-    const { data, error } = await supabase
-      .from('account_period_balances').update(updateData)
-      .eq('id', id).eq('company_id', companyId).select().single()
-    if (error) throw new DatabaseError('Failed to update period balance', { cause: error })
-    return data as AccountPeriodBalance
+      if (dto.period_start !== undefined) { values.push(dto.period_start); updateFields.push(`period_start = $${values.length}`) }
+      if (dto.period_end !== undefined) { values.push(dto.period_end); updateFields.push(`period_end = $${values.length}`) }
+      if (dto.opening_balance !== undefined) { values.push(dto.opening_balance); updateFields.push(`opening_balance = $${values.length}`) }
+      if (dto.source !== undefined) { values.push(dto.source); updateFields.push(`source = $${values.length}`) }
+      if (dto.notes !== undefined) { values.push(dto.notes); updateFields.push(`notes = $${values.length}`) }
+      
+      values.push(dto.updated_by || null)
+      updateFields.push(`updated_by = $${values.length}`)
+      
+      values.push(id, companyId)
+      const query = `
+        UPDATE account_period_balances 
+        SET ${updateFields.join(', ')} 
+        WHERE id = $${values.length - 1} AND company_id = $${values.length} 
+        RETURNING *
+      `
+      const { rows } = await pool.query(query, values)
+      if (rows.length === 0) throw new DatabaseError('Failed to update period balance: Not found')
+      return rows[0] as AccountPeriodBalance
+    } catch (error: any) {
+      if (error instanceof DatabaseError) throw error
+      throw new DatabaseError('Failed to update period balance', { cause: error })
+    }
   }
 
   async deletePeriodBalance(id: string, companyId: string): Promise<void> {
-    const { error } = await supabase.from('account_period_balances').delete().eq('id', id).eq('company_id', companyId)
-    if (error) throw new DatabaseError('Failed to delete period balance', { cause: error })
+    try {
+      const { rowCount } = await pool.query(
+        'DELETE FROM account_period_balances WHERE id = $1 AND company_id = $2',
+        [id, companyId]
+      )
+      if (rowCount === 0) throw new DatabaseError('Failed to delete period balance: Not found')
+    } catch (error: any) {
+      if (error instanceof DatabaseError) throw error
+      throw new DatabaseError('Failed to delete period balance', { cause: error })
+    }
   }
 
   async findPeriodBalanceById(id: string, companyId: string): Promise<AccountPeriodBalance | null> {
-    const { data, error } = await supabase
-      .from('account_period_balances').select('*').eq('id', id).eq('company_id', companyId).maybeSingle()
-    if (error) return null
-    return data as AccountPeriodBalance
+    const { rows } = await pool.query(
+      'SELECT * FROM account_period_balances WHERE id = $1 AND company_id = $2',
+      [id, companyId]
+    )
+    return (rows[0] as AccountPeriodBalance) || null
   }
 
   async listPeriodBalances(bankAccountId: number, companyId: string, page = 1, limit = 20): Promise<{ data: AccountPeriodBalance[]; total: number }> {
     const offset = (page - 1) * limit
-    const { data, error, count } = await supabase
-      .from('account_period_balances').select('*', { count: 'exact' })
-      .eq('bank_account_id', bankAccountId).eq('company_id', companyId)
-      .order('period_start', { ascending: false }).range(offset, offset + limit - 1)
-    if (error) return { data: [], total: 0 }
-    return { data: (data || []) as AccountPeriodBalance[], total: count || 0 }
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(
+        'SELECT * FROM account_period_balances WHERE bank_account_id = $1 AND company_id = $2 ORDER BY period_start DESC LIMIT $3 OFFSET $4',
+        [bankAccountId, companyId, limit, offset]
+      ),
+      pool.query(
+        'SELECT COUNT(*)::int AS total FROM account_period_balances WHERE bank_account_id = $1 AND company_id = $2',
+        [bankAccountId, companyId]
+      )
+    ])
+    return {
+      data: dataRes.rows as AccountPeriodBalance[],
+      total: countRes.rows[0].total
+    }
   }
 
   async getActivePeriodBalance(bankAccountId: number, companyId: string, onOrBeforeDate: string): Promise<AccountPeriodBalance | null> {
-    const { data, error } = await supabase
-      .from('account_period_balances').select('*')
-      .eq('bank_account_id', bankAccountId).eq('company_id', companyId)
-      .lte('period_start', onOrBeforeDate)
-      .order('period_start', { ascending: false }).limit(1).maybeSingle()
-    if (error) return null
-    return data as AccountPeriodBalance
+    const { rows } = await pool.query(
+      'SELECT * FROM account_period_balances WHERE bank_account_id = $1 AND company_id = $2 AND period_start <= $3 ORDER BY period_start DESC LIMIT 1',
+      [bankAccountId, companyId, onOrBeforeDate]
+    )
+    return (rows[0] as AccountPeriodBalance) || null
   }
 
   async suggestOpeningBalance(bankAccountId: number, companyId: string, periodStart: string): Promise<OpeningBalanceSuggestion> {
-    const { data: prevPeriod, error } = await supabase
-      .from('account_period_balances').select('*')
-      .eq('bank_account_id', bankAccountId).eq('company_id', companyId)
-      .lt('period_start', periodStart)
-      .order('period_start', { ascending: false }).limit(1).maybeSingle()
+    const prevPeriodQuery = `
+      SELECT * FROM account_period_balances 
+      WHERE bank_account_id = $1 AND company_id = $2 AND period_start < $3 
+      ORDER BY period_start DESC LIMIT 1
+    `
+    const { rows: prevRows } = await pool.query(prevPeriodQuery, [bankAccountId, companyId, periodStart])
+    const prevPeriod = prevRows[0] as AccountPeriodBalance | undefined
 
-    if (error || !prevPeriod) return { suggested_balance: null, source: 'NO_DATA', prev_period_id: null, prev_period_start: null, prev_period_end: null }
+    if (!prevPeriod) {
+      return { suggested_balance: null, source: 'NO_DATA', prev_period_id: null, prev_period_start: null, prev_period_end: null }
+    }
 
-    const { data: txData } = await supabase
-      .from('bank_statements').select('credit_amount, debit_amount')
-      .eq('bank_account_id', bankAccountId).eq('company_id', companyId)
-      .gte('transaction_date', prevPeriod.period_start).lte('transaction_date', prevPeriod.period_end)
-      .is('deleted_at', null)
+    const txQuery = `
+      SELECT COALESCE(SUM(credit_amount), 0) - COALESCE(SUM(debit_amount), 0) as net
+      FROM bank_statements
+      WHERE bank_account_id = $1 AND company_id = $2 
+        AND transaction_date >= $3 AND transaction_date <= $4
+        AND deleted_at IS NULL
+    `
+    const { rows: txRows } = await pool.query(txQuery, [bankAccountId, companyId, prevPeriod.period_start, prevPeriod.period_end])
+    const net = Number(txRows[0].net || 0)
 
-    const net = (txData || []).reduce((s, r) => s + (r.credit_amount || 0) - (r.debit_amount || 0), 0)
     return {
-      suggested_balance: prevPeriod.opening_balance + net,
+      suggested_balance: Number(prevPeriod.opening_balance) + net,
       source: 'PREV_PERIOD',
       prev_period_id: prevPeriod.id,
       prev_period_start: prevPeriod.period_start,
@@ -141,81 +179,106 @@ export class CashFlowSalesRepository {
   // ============================================================
 
   async createGroup(dto: CreateGroupDto): Promise<PaymentMethodGroup> {
+    const client = await pool.connect()
     try {
-      const { data, error } = await supabase
-        .from('payment_method_groups')
-        .insert({
-          company_id: dto.company_id,
-          name: dto.name,
-          description: dto.description || null,
-          color: dto.color || '#6366f1',
-          icon: dto.icon || null,
-          display_order: dto.display_order ?? 0,
-          created_by: dto.created_by || null,
-        })
-        .select()
-        .single()
-
-      if (error) {
-        if (error.code === '23505') {
-          throw new Error(`Group "${dto.name}" already exists for this company`)
-        }
-        throw new DatabaseError('Failed to create payment method group', { cause: error })
-      }
+      await client.query('BEGIN')
+      
+      const insertGroupQuery = `
+        INSERT INTO payment_method_groups (company_id, name, description, color, icon, display_order, created_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id
+      `
+      const { rows } = await client.query(insertGroupQuery, [
+        dto.company_id, dto.name, dto.description || null, dto.color || '#6366f1',
+        dto.icon || null, dto.display_order ?? 0, dto.created_by || null
+      ])
+      const groupId = rows[0].id
 
       if (dto.payment_method_ids && dto.payment_method_ids.length > 0) {
-        await this.replaceGroupMappings(data.id, dto.company_id, dto.payment_method_ids, dto.created_by)
+        const mappingValues: any[] = []
+        const mappingPlaceholders = dto.payment_method_ids.map((pmId, i) => {
+          const base = i * 4
+          mappingValues.push(groupId, dto.company_id, pmId, dto.created_by || null)
+          return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`
+        }).join(', ')
+
+        await client.query(
+          `INSERT INTO payment_method_group_mappings (group_id, company_id, payment_method_id, created_by) VALUES ${mappingPlaceholders}`,
+          mappingValues
+        )
       }
 
-      return this.findGroupById(data.id, dto.company_id) as Promise<PaymentMethodGroup>
-    } catch (error) {
+      await client.query('COMMIT')
+      return (await this.findGroupById(groupId, dto.company_id)) as PaymentMethodGroup
+    } catch (error: any) {
+      await client.query('ROLLBACK')
+      if (error.code === '23505') {
+        throw new Error(`Group "${dto.name}" already exists for this company`)
+      }
       logError('CashFlowSalesRepository.createGroup error', { error })
       throw error
+    } finally {
+      client.release()
     }
   }
 
   async updateGroup(id: string, companyId: string, dto: UpdateGroupDto): Promise<PaymentMethodGroup> {
+    const client = await pool.connect()
     try {
-      const updateData: Record<string, any> = { updated_by: dto.updated_by || null }
-      if (dto.name !== undefined) updateData.name = dto.name
-      if (dto.description !== undefined) updateData.description = dto.description
-      if (dto.color !== undefined) updateData.color = dto.color
-      if (dto.icon !== undefined) updateData.icon = dto.icon
-      if (dto.display_order !== undefined) updateData.display_order = dto.display_order
-      if (dto.is_active !== undefined) updateData.is_active = dto.is_active
+      await client.query('BEGIN')
 
-      const { error } = await supabase
-        .from('payment_method_groups')
-        .update(updateData)
-        .eq('id', id)
-        .eq('company_id', companyId)
+      const updateFields: string[] = []
+      const values: any[] = []
 
-      if (error) {
-        throw new DatabaseError('Failed to update payment method group', { cause: error })
+      if (dto.name !== undefined) { values.push(dto.name); updateFields.push(`name = $${values.length}`) }
+      if (dto.description !== undefined) { values.push(dto.description); updateFields.push(`description = $${values.length}`) }
+      if (dto.color !== undefined) { values.push(dto.color); updateFields.push(`color = $${values.length}`) }
+      if (dto.icon !== undefined) { values.push(dto.icon); updateFields.push(`icon = $${values.length}`) }
+      if (dto.display_order !== undefined) { values.push(dto.display_order); updateFields.push(`display_order = $${values.length}`) }
+      if (dto.is_active !== undefined) { values.push(dto.is_active); updateFields.push(`is_active = $${values.length}`) }
+
+      values.push(dto.updated_by || null)
+      updateFields.push(`updated_by = $${values.length}`)
+
+      if (updateFields.length > 1) { // more than just updated_by
+        values.push(id, companyId)
+        await client.query(
+          `UPDATE payment_method_groups SET ${updateFields.join(', ')} WHERE id = $${values.length - 1} AND company_id = $${values.length}`,
+          values
+        )
       }
 
       if (dto.payment_method_ids !== undefined) {
-        await this.replaceGroupMappings(id, companyId, dto.payment_method_ids, dto.updated_by)
+        await client.query('DELETE FROM payment_method_group_mappings WHERE group_id = $1', [id])
+        if (dto.payment_method_ids.length > 0) {
+          const mappingValues: any[] = []
+          const mappingPlaceholders = dto.payment_method_ids.map((pmId, i) => {
+            const base = i * 4
+            mappingValues.push(id, companyId, pmId, dto.updated_by || null)
+            return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`
+          }).join(', ')
+
+          await client.query(
+            `INSERT INTO payment_method_group_mappings (group_id, company_id, payment_method_id, created_by) VALUES ${mappingPlaceholders}`,
+            mappingValues
+          )
+        }
       }
 
-      return this.findGroupById(id, companyId) as Promise<PaymentMethodGroup>
+      await client.query('COMMIT')
+      return (await this.findGroupById(id, companyId)) as PaymentMethodGroup
     } catch (error) {
+      await client.query('ROLLBACK')
       logError('CashFlowSalesRepository.updateGroup error', { id, error })
       throw error
+    } finally {
+      client.release()
     }
   }
 
   async deleteGroup(id: string, companyId: string): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('payment_method_groups')
-        .delete()
-        .eq('id', id)
-        .eq('company_id', companyId)
-
-      if (error) {
-        throw new DatabaseError('Failed to delete payment method group', { cause: error })
-      }
+      await pool.query('DELETE FROM payment_method_groups WHERE id = $1 AND company_id = $2', [id, companyId])
     } catch (error) {
       logError('CashFlowSalesRepository.deleteGroup error', { id, error })
       throw error
@@ -223,37 +286,36 @@ export class CashFlowSalesRepository {
   }
 
   async findGroupById(id: string, companyId: string): Promise<PaymentMethodGroup | null> {
-    const { data, error } = await supabase
-      .from('payment_method_groups')
-      .select(`
-        *,
-        mappings:payment_method_group_mappings(*)
-      `)
-      .eq('id', id)
-      .eq('company_id', companyId)
-      .maybeSingle()
-
-    if (error || !data) return null
-    return data as unknown as PaymentMethodGroup
+    const query = `
+      SELECT pmg.*, 
+        COALESCE(
+          json_agg(pmgm.*) FILTER (WHERE pmgm.id IS NOT NULL), 
+          '[]'
+        ) as mappings
+      FROM payment_method_groups pmg
+      LEFT JOIN payment_method_group_mappings pmgm ON pmg.id = pmgm.group_id
+      WHERE pmg.id = $1 AND pmg.company_id = $2
+      GROUP BY pmg.id
+    `
+    const { rows } = await pool.query(query, [id, companyId])
+    return rows[0] || null
   }
 
   async listGroups(companyId: string): Promise<PaymentMethodGroup[]> {
-    const { data, error } = await supabase
-      .from('payment_method_groups')
-      .select(`
-        *,
-        mappings:payment_method_group_mappings(*)
-      `)
-      .eq('company_id', companyId)
-      .order('display_order', { ascending: true })
-      .order('created_at', { ascending: true })
-
-    if (error) {
-      logError('CashFlowSalesRepository.listGroups error', { companyId, error: error.message })
-      return []
-    }
-
-    return (data || []) as unknown as PaymentMethodGroup[]
+    const query = `
+      SELECT pmg.*, 
+        COALESCE(
+          json_agg(pmgm.*) FILTER (WHERE pmgm.id IS NOT NULL), 
+          '[]'
+        ) as mappings
+      FROM payment_method_groups pmg
+      LEFT JOIN payment_method_group_mappings pmgm ON pmg.id = pmgm.group_id
+      WHERE pmg.company_id = $1
+      GROUP BY pmg.id
+      ORDER BY pmg.display_order ASC, pmg.created_at ASC
+    `
+    const { rows } = await pool.query(query, [companyId])
+    return rows as PaymentMethodGroup[]
   }
 
   async replaceGroupMappings(
@@ -262,75 +324,63 @@ export class CashFlowSalesRepository {
     paymentMethodIds: number[],
     userId?: string | null
   ): Promise<void> {
+    const client = await pool.connect()
     try {
-      await supabase
-        .from('payment_method_group_mappings')
-        .delete()
-        .eq('group_id', groupId)
+      await client.query('BEGIN')
+      await client.query('DELETE FROM payment_method_group_mappings WHERE group_id = $1', [groupId])
 
-      if (paymentMethodIds.length === 0) return
+      if (paymentMethodIds.length > 0) {
+        const mappingValues: any[] = []
+        const mappingPlaceholders = paymentMethodIds.map((pmId, i) => {
+          const base = i * 4
+          mappingValues.push(groupId, companyId, pmId, userId || null)
+          return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`
+        }).join(', ')
 
-      const insertData = paymentMethodIds.map((pmId) => ({
-        group_id: groupId,
-        company_id: companyId,
-        payment_method_id: pmId,
-        created_by: userId || null,
-      }))
-
-      const { error } = await supabase
-        .from('payment_method_group_mappings')
-        .insert(insertData)
-
-      if (error) {
-        if (error.code === '23505') {
-          throw new Error('One or more payment methods are already assigned to another group.')
-        }
-        throw new DatabaseError('Failed to insert group mappings', { cause: error })
+        await client.query(
+          `INSERT INTO payment_method_group_mappings (group_id, company_id, payment_method_id, created_by) VALUES ${mappingPlaceholders}`,
+          mappingValues
+        )
       }
-    } catch (error) {
+      await client.query('COMMIT')
+    } catch (error: any) {
+      await client.query('ROLLBACK')
+      if (error.code === '23505') {
+        throw new Error('One or more payment methods are already assigned to another group.')
+      }
       logError('CashFlowSalesRepository.replaceGroupMappings error', { groupId, error })
       throw error
+    } finally {
+      client.release()
     }
   }
 
   async reorderGroups(companyId: string, orderedIds: string[]): Promise<void> {
     if (orderedIds.length === 0) return
 
-    // Fetch current versions for optimistic locking
-    const { data: currentGroups, error: fetchError } = await supabase
-      .from('payment_method_groups')
-      .select('id, updated_at')
-      .eq('company_id', companyId)
-      .in('id', orderedIds)
-
-    if (fetchError) {
-      throw new DatabaseError('Failed to fetch current group versions', { cause: new Error(fetchError.message) })
-    }
-
-    const versionMap = new Map((currentGroups || []).map(g => [g.id, g.updated_at]))
-    const now = new Date().toISOString()
-
-    const results = await Promise.all(
-      orderedIds.map((id, i) =>
-        supabase
-          .from('payment_method_groups')
-          .update({ display_order: i, updated_at: now })
-          .eq('id', id)
-          .eq('company_id', companyId)
-          .eq('updated_at', versionMap.get(id) || '')
-      )
-    )
-
-    const failed = results.filter(r => r.error)
-    if (failed.length > 0) {
-      logError('CashFlowSalesRepository.reorderGroups failed', {
-        failedCount: failed.length,
-        errors: failed.map(f => f.error?.message),
-      })
-      throw new DatabaseError(
-        `Reorder failed: ${failed.length} groups were modified concurrently. Please try again.`,
-        { cause: new Error(failed[0].error?.message || 'Concurrent modification detected') }
-      )
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const now = new Date().toISOString()
+      
+      for (let i = 0; i < orderedIds.length; i++) {
+        const id = orderedIds[i]
+        const { rowCount } = await client.query(
+          `UPDATE payment_method_groups SET display_order = $1, updated_at = $2 WHERE id = $3 AND company_id = $4`,
+          [i, now, id, companyId]
+        )
+        if (rowCount === 0) {
+           throw new Error(`Group ${id} not found or not in company`)
+        }
+      }
+      
+      await client.query('COMMIT')
+    } catch (error: any) {
+      await client.query('ROLLBACK')
+      logError('CashFlowSalesRepository.reorderGroups failed', { error: error.message })
+      throw new DatabaseError(`Reorder failed: ${error.message}`, { cause: error })
+    } finally {
+      client.release()
     }
   }
 
@@ -340,41 +390,27 @@ export class CashFlowSalesRepository {
 
   async getAvailablePaymentMethods(companyId: string): Promise<AvailablePaymentMethod[]> {
     try {
-      const { data: pms, error } = await supabase
-        .from('payment_methods')
-        .select('id, name, payment_type')
-        .eq('company_id', companyId)
-        .eq('is_active', true)
-        .is('deleted_at', null)
-        .order('name')
-
-      if (error) {
-        logError('CashFlowSalesRepository.getAvailablePaymentMethods: query failed', { companyId, error: error.message })
-        throw new DatabaseError('Failed to fetch available payment methods', { cause: error })
-      }
-
-      if (!pms || pms.length === 0) return []
-
-      const { data: mappings } = await supabase
-        .from('payment_method_group_mappings')
-        .select('payment_method_id, group_id, payment_method_groups!inner(id, name)')
-        .eq('company_id', companyId)
-
-      const mappingMap = new Map<number, { id: string; name: string }>()
-      for (const m of (mappings || []) as any[]) {
-        if (m.payment_method_groups) mappingMap.set(m.payment_method_id, m.payment_method_groups)
-      }
-
-      return pms.map(pm => {
-        const group = mappingMap.get(pm.id)
-        return {
-          id: pm.id,
-          name: pm.name,
-          payment_type: pm.payment_type,
-          current_group_id: group?.id || null,
-          current_group_name: group?.name || null,
-        }
-      })
+      const query = `
+        SELECT 
+          pm.id, pm.name, pm.payment_type,
+          pmg.id as current_group_id,
+          pmg.name as current_group_name
+        FROM payment_methods pm
+        LEFT JOIN payment_method_group_mappings pmgm ON pm.id = pmgm.payment_method_id
+        LEFT JOIN payment_method_groups pmg ON pmgm.group_id = pmg.id
+        WHERE pm.company_id = $1 
+          AND pm.is_active = true 
+          AND pm.deleted_at IS NULL
+        ORDER BY pm.name
+      `
+      const { rows } = await pool.query(query, [companyId])
+      return rows.map(r => ({
+        id: r.id,
+        name: r.name,
+        payment_type: r.payment_type,
+        current_group_id: r.current_group_id,
+        current_group_name: r.current_group_name
+      }))
     } catch (error) {
       logError('CashFlowSalesRepository.getAvailablePaymentMethods error', { error })
       throw error
@@ -397,140 +433,106 @@ export class CashFlowSalesRepository {
     unreconciled_debit_amount: number
   }> {
     try {
-      // 1. Get reconciled bank_statements + unreconciled breakdown
-      const [reconResult, unreconResult] = await Promise.all([
-        supabase
-          .from('bank_statements')
-          .select('id, reconciliation_id, reconciliation_group_id, cash_deposit_id, credit_amount')
-          .eq('bank_account_id', params.bank_account_id)
-          .gte('transaction_date', params.date_from)
-          .lte('transaction_date', params.date_to)
-          .eq('is_reconciled', true)
-          .is('deleted_at', null),
-        supabase
-          .from('bank_statements')
-          .select('credit_amount, debit_amount')
-          .eq('bank_account_id', params.bank_account_id)
-          .gte('transaction_date', params.date_from)
-          .lte('transaction_date', params.date_to)
-          .eq('is_reconciled', false)
-          .eq('is_pending', false)
-          .is('deleted_at', null),
-      ])
+      // 1. Get bank statements status counts in one go
+      const statusQuery = `
+        SELECT 
+          COUNT(*) FILTER (WHERE NOT is_reconciled AND NOT is_pending) as unrecon_count,
+          COUNT(*) FILTER (WHERE NOT is_reconciled AND NOT is_pending AND credit_amount > 0) as unrecon_credit_count,
+          COALESCE(SUM(credit_amount) FILTER (WHERE NOT is_reconciled AND NOT is_pending AND credit_amount > 0), 0) as unrecon_credit_amount,
+          COUNT(*) FILTER (WHERE NOT is_reconciled AND NOT is_pending AND debit_amount > 0) as unrecon_debit_count,
+          COALESCE(SUM(debit_amount) FILTER (WHERE NOT is_reconciled AND NOT is_pending AND debit_amount > 0), 0) as unrecon_debit_amount
+        FROM bank_statements
+        WHERE bank_account_id = $1 
+          AND transaction_date >= $2 
+          AND transaction_date <= $3
+          AND deleted_at IS NULL
+      `
+      const { rows: [statusRow] } = await pool.query(statusQuery, [params.bank_account_id, params.date_from, params.date_to])
 
-      if (reconResult.error) throw new DatabaseError('Failed to get bank statements for sales', { cause: reconResult.error })
+      // 2. Fetch all aggregates involved in reconciliation for this period
+      // This is a complex query that replaces multiple roundtrips in the original code
+      const aggregatesQuery = `
+        WITH reconciliation_aggregates AS (
+          -- Direct reconciliation
+          SELECT reconciliation_id as agg_id
+          FROM bank_statements
+          WHERE bank_account_id = $1 
+            AND transaction_date >= $2 
+            AND transaction_date <= $3
+            AND is_reconciled = true
+            AND reconciliation_id IS NOT NULL
+            AND deleted_at IS NULL
+          
+          UNION
+          
+          -- Multi-match reconciliation groups
+          SELECT brg.aggregate_id
+          FROM bank_statements bs
+          JOIN bank_reconciliation_groups brg ON bs.reconciliation_group_id = brg.id
+          WHERE bs.bank_account_id = $1 
+            AND bs.transaction_date >= $2 
+            AND bs.transaction_date <= $3
+            AND bs.is_reconciled = true
+            AND bs.reconciliation_id IS NULL
+            AND bs.reconciliation_group_id IS NOT NULL
+            AND bs.deleted_at IS NULL
+            
+          UNION
+          
+          -- Settlement groups
+          SELECT bsa.aggregate_id
+          FROM bank_statements bs
+          JOIN bank_settlement_groups bsg ON bs.id = bsg.bank_statement_id
+          JOIN bank_settlement_aggregates bsa ON bsg.id = bsa.group_id
+          WHERE bs.bank_account_id = $1 
+            AND bs.transaction_date >= $2 
+            AND bs.transaction_date <= $3
+            AND bs.is_reconciled = true
+            AND bs.reconciliation_id IS NULL
+            AND bs.reconciliation_group_id IS NULL
+            AND bs.cash_deposit_id IS NULL
+            AND bs.deleted_at IS NULL
+            AND bsg.deleted_at IS NULL
+        )
+        SELECT 
+          at.id, at.branch_id, at.branch_name, at.payment_method_id, 
+          at.actual_nett_amount, at.nett_amount,
+          pm.name as payment_method_name, pm.payment_type,
+          pmg.id as group_id, pmg.name as group_name, pmg.color as group_color, pmg.display_order as group_display_order
+        FROM aggregated_transactions at
+        JOIN reconciliation_aggregates ra ON at.id = ra.agg_id
+        LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
+        LEFT JOIN payment_method_group_mappings pmgm ON pm.id = pmgm.payment_method_id
+        LEFT JOIN payment_method_groups pmg ON pmgm.group_id = pmg.id AND pmg.company_id = $4
+        WHERE at.deleted_at IS NULL
+          ${params.branch_id ? 'AND at.branch_id = $5' : ''}
+      `
+      const aggParams = [params.bank_account_id, params.date_from, params.date_to, params.company_id]
+      if (params.branch_id) aggParams.push(params.branch_id)
+      
+      const { rows: aggs } = await pool.query(aggregatesQuery, aggParams)
 
-      const allBs = reconResult.data || []
-      const unreconRows = unreconResult.data || []
-      const unreconCreditRows = unreconRows.filter(r => (r.credit_amount || 0) > 0)
-      const unreconDebitRows = unreconRows.filter(r => (r.debit_amount || 0) > 0)
+      // 3. Process aggregates into groups (same logic as original but with data from joined query)
+      const groupMap = new Map<string, any>()
 
-      const reconAggIds = allBs.filter(r => r.reconciliation_id).map(r => r.reconciliation_id)
-
-      const multiMatchGroupIds = [...new Set(allBs.filter(r => r.reconciliation_group_id && !r.reconciliation_id).map(r => r.reconciliation_group_id))]
-      let multiMatchAggIds: string[] = []
-      if (multiMatchGroupIds.length > 0) {
-        const { data: groups } = await supabase
-          .from('bank_reconciliation_groups')
-          .select('aggregate_id')
-          .in('id', multiMatchGroupIds)
-        multiMatchAggIds = (groups || []).map((g: any) => g.aggregate_id).filter(Boolean)
-      }
-
-      const settleStatementIds = allBs
-        .filter(r => !r.reconciliation_id && !r.reconciliation_group_id && !r.cash_deposit_id)
-        .map(r => String(r.id))
-      let settlementAggIds: string[] = []
-      if (settleStatementIds.length > 0) {
-        for (let i = 0; i < settleStatementIds.length; i += 100) {
-          const batch = settleStatementIds.slice(i, i + 100)
-          const { data: settlements } = await supabase
-            .from('bank_settlement_groups')
-            .select('bank_settlement_aggregates(aggregate_id)')
-            .in('bank_statement_id', batch)
-            .is('deleted_at', null)
-          const batchIds = (settlements as any[] || []).flatMap(sg =>
-            (sg.bank_settlement_aggregates || []).map((a: any) => a.aggregate_id)
-          ).filter(Boolean)
-          settlementAggIds.push(...batchIds)
-        }
-      }
-
-      // 2. Fetch all aggregates in batches (avoid headers overflow with large IN clauses)
-      const allAggIds = [...new Set([...reconAggIds, ...multiMatchAggIds, ...settlementAggIds])]
-
-      if (allAggIds.length === 0 ) {
-        return { groups: [], total_income: 0, unreconciled_count: unreconRows.length, unreconciled_credit_count: unreconCreditRows.length, unreconciled_credit_amount: unreconCreditRows.reduce((s, r) => s + (r.credit_amount || 0), 0), unreconciled_debit_count: unreconDebitRows.length, unreconciled_debit_amount: unreconDebitRows.reduce((s, r) => s + (r.debit_amount || 0), 0) }
-      }
-
-      const BATCH_SIZE = 100
-      const aggs: any[] = []
-      for (let i = 0; i < allAggIds.length; i += BATCH_SIZE) {
-        const batch = allAggIds.slice(i, i + BATCH_SIZE)
-        let aggQuery = supabase
-          .from('aggregated_transactions')
-          .select('id, branch_id, branch_name, transaction_date, payment_method_id, actual_nett_amount, nett_amount, payment_methods!inner(name, payment_type)')
-          .in('id', batch)
-          .is('deleted_at', null)
-
-        if (params.branch_id) {
-          aggQuery = aggQuery.eq('branch_id', params.branch_id)
-        }
-
-        const { data, error: aggError } = await aggQuery
-        if (aggError) throw new DatabaseError('Failed to get aggregates for sales', { cause: aggError })
-        if (data) aggs.push(...data)
-      }
-
-      // 3. Get group mappings
-      const pmIds = [...new Set((aggs || []).map((a: any) => a.payment_method_id).filter(Boolean))]
-      const groupLookup = new Map<number, { group_id: string; group_name: string; group_color: string; display_order: number }>()
-      if (pmIds.length > 0) {
-        const { data: mappings } = await supabase
-          .from('payment_method_group_mappings')
-          .select('payment_method_id, group_id, payment_method_groups!inner(id, name, color, display_order)')
-          .eq('company_id', params.company_id)
-          .in('payment_method_id', pmIds)
-        for (const m of (mappings || []) as any[]) {
-          if (m.payment_method_groups) {
-            groupLookup.set(m.payment_method_id, {
-              group_id: m.payment_method_groups.id,
-              group_name: m.payment_method_groups.name,
-              group_color: m.payment_method_groups.color,
-              display_order: m.payment_method_groups.display_order ?? 0,
-            })
-          }
-        }
-      }
-
-      // 4. Build groups
-      type GroupKey = string
-      type MethodKey = string
-      const groupMap = new Map<GroupKey, {
-        group_id: string | null; group_name: string; group_color: string; display_order: number
-        items: Map<MethodKey, { payment_type: string; total: number; count: number; branches: Map<string, { name: string; total: number; count: number }> }>
-      }>()
-
-      for (const row of (aggs || []) as any[]) {
-        const pm = row.payment_methods
-        const grp = groupLookup.get(row.payment_method_id)
-        const groupKey = grp?.group_id || 'UNGROUPED'
+      for (const row of aggs) {
+        const groupKey = row.group_id || 'UNGROUPED'
         const amount = Number(row.actual_nett_amount ?? row.nett_amount ?? 0)
-        const methodName = pm?.name || 'Lainnya'
+        const methodName = row.payment_method_name || 'Lainnya'
 
         if (!groupMap.has(groupKey)) {
           groupMap.set(groupKey, {
-            group_id: grp?.group_id || null,
-            group_name: grp?.group_name || 'Lainnya',
-            group_color: grp?.group_color || '#9ca3af',
-            display_order: grp?.display_order ?? 999,
+            group_id: row.group_id || null,
+            group_name: row.group_name || 'Lainnya',
+            group_color: row.group_color || '#9ca3af',
+            display_order: row.group_display_order ?? 999,
             items: new Map(),
           })
         }
 
         const group = groupMap.get(groupKey)!
         if (!group.items.has(methodName)) {
-          group.items.set(methodName, { payment_type: pm?.payment_type || 'OTHER', total: 0, count: 0, branches: new Map() })
+          group.items.set(methodName, { payment_type: row.payment_type || 'OTHER', total: 0, count: 0, branches: new Map() })
         }
         const item = group.items.get(methodName)!
         item.total += amount
@@ -571,11 +573,11 @@ export class CashFlowSalesRepository {
       return {
         groups,
         total_income: groups.reduce((s, g) => s + g.subtotal, 0),
-        unreconciled_count: unreconRows.length,
-        unreconciled_credit_count: unreconCreditRows.length,
-        unreconciled_credit_amount: unreconCreditRows.reduce((s, r) => s + (r.credit_amount || 0), 0),
-        unreconciled_debit_count: unreconDebitRows.length,
-        unreconciled_debit_amount: unreconDebitRows.reduce((s, r) => s + (r.debit_amount || 0), 0),
+        unreconciled_count: Number(statusRow.unrecon_count),
+        unreconciled_credit_count: Number(statusRow.unrecon_credit_count),
+        unreconciled_credit_amount: Number(statusRow.unrecon_credit_amount),
+        unreconciled_debit_count: Number(statusRow.unrecon_debit_count),
+        unreconciled_debit_amount: Number(statusRow.unrecon_debit_amount),
       }
     } catch (error) {
       logError('CashFlowSalesRepository.getSalesBreakdown error', { params, error })
@@ -591,201 +593,112 @@ export class CashFlowSalesRepository {
     try {
       const offset = (page - 1) * limit
 
-      const { data, error, count } = await supabase
-        .from('bank_statements')
-        .select(`
-          id, bank_account_id, company_id, import_id,
-          transaction_date, row_number, description,
-          credit_amount, debit_amount, balance,
-          is_pending, is_reconciled, reference_number, transaction_type,
-          reconciliation_id, reconciliation_group_id, cash_deposit_id,
-          created_at
-        `, { count: 'exact' })
-        .eq('bank_account_id', params.bank_account_id)
-        .eq('company_id', params.company_id)
-        .gte('transaction_date', params.date_from)
-        .lte('transaction_date', params.date_to)
-        .is('deleted_at', null)
-        .order('transaction_date', { ascending: true })
-        .order('row_number', { ascending: true })
-        .range(offset, offset + limit - 1)
-
-      if (error) {
-        throw new DatabaseError('Failed to get running balance with sales', { cause: error })
-      }
-
-      const rows = data || []
-
-      type EnrichInfo = {
-        payment_method_name: string
-        payment_type: string
-        group_name: string | null
-        group_color: string | null
-        branch_name: string | null
-      }
-
-      // ── Step 1: Collect all IDs from different reconciliation paths ──
-      const reconIds = rows.filter(r => r.reconciliation_id).map(r => r.reconciliation_id)
-      const groupIds = [...new Set(rows.filter(r => r.reconciliation_group_id && !r.reconciliation_id).map(r => r.reconciliation_group_id))]
-      const settleStatementIds = rows
-        .filter(r => r.is_reconciled && !r.reconciliation_id && !r.reconciliation_group_id && !r.cash_deposit_id)
-        .map(r => String(r.id))
-      const cashDepositIds = rows.filter(r => r.cash_deposit_id).map(r => r.cash_deposit_id)
-
-      // ── Step 2: Resolve reconciliation_group_id → aggregate_id & settlement → aggregate_id in parallel ──
-      const [reconGroupsResult, settlementsResult, depositsResult] = await Promise.all([
-        groupIds.length > 0
-          ? supabase.from('bank_reconciliation_groups').select('id, aggregate_id').in('id', groupIds)
-          : { data: [] as any[] },
-        settleStatementIds.length > 0
-          ? supabase.from('bank_settlement_groups').select('bank_statement_id, bank_settlement_aggregates(aggregate_id)').in('bank_statement_id', settleStatementIds).is('deleted_at', null)
-          : { data: [] as any[] },
-        cashDepositIds.length > 0
-          ? supabase.from('cash_deposits').select('id, branch_name, payment_method_id').in('id', cashDepositIds)
-          : { data: [] as any[] },
+      const [dataRes, countRes] = await Promise.all([
+        pool.query(`
+          SELECT 
+            id, bank_account_id, company_id, import_id,
+            transaction_date, row_number, description,
+            credit_amount, debit_amount, balance,
+            is_pending, is_reconciled, reference_number, transaction_type,
+            reconciliation_id, reconciliation_group_id, cash_deposit_id,
+            created_at
+          FROM bank_statements
+          WHERE bank_account_id = $1 AND company_id = $2
+            AND transaction_date >= $3 AND transaction_date <= $4
+            AND deleted_at IS NULL
+          ORDER BY transaction_date ASC, row_number ASC
+          LIMIT $5 OFFSET $6
+        `, [params.bank_account_id, params.company_id, params.date_from, params.date_to, limit, offset]),
+        pool.query(`
+          SELECT COUNT(*)::int as total
+          FROM bank_statements
+          WHERE bank_account_id = $1 AND company_id = $2
+            AND transaction_date >= $3 AND transaction_date <= $4
+            AND deleted_at IS NULL
+        `, [params.bank_account_id, params.company_id, params.date_from, params.date_to])
       ])
 
-      const reconGroups = (reconGroupsResult.data || []) as any[]
-      const settlements = (settlementsResult.data || []) as any[]
-      const deposits = (depositsResult.data || []) as any[]
+      const rows = dataRes.rows
+      if (rows.length === 0) return { rows: [], total: countRes.rows[0].total }
 
-      const multiMatchAggIds = reconGroups.map(g => g.aggregate_id).filter(Boolean)
-      const settlementAggIds = settlements.flatMap(sg =>
-        (sg.bank_settlement_aggregates || []).map((a: any) => a.aggregate_id)
-      ).filter(Boolean)
+      // Enrich info logic - optimized with joined query for all rows in batch
+      const statementIds = rows.map(r => r.id)
+      
+      const enrichmentQuery = `
+        WITH enriched_info AS (
+          -- Direct reconciliation
+          SELECT bs.id as statement_id, at.branch_name, pm.name as pm_name, pm.payment_type, pmg.name as g_name, pmg.color as g_color
+          FROM bank_statements bs
+          JOIN aggregated_transactions at ON bs.reconciliation_id = at.id
+          LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
+          LEFT JOIN payment_method_group_mappings pmgm ON pm.id = pmgm.payment_method_id
+          LEFT JOIN payment_method_groups pmg ON pmgm.group_id = pmg.id AND pmg.company_id = $2
+          WHERE bs.id = ANY($1) AND bs.reconciliation_id IS NOT NULL
+          
+          UNION ALL
+          
+          -- Group reconciliation
+          SELECT bs.id as statement_id, at.branch_name, pm.name as pm_name, pm.payment_type, pmg.name as g_name, pmg.color as g_color
+          FROM bank_statements bs
+          JOIN bank_reconciliation_groups brg ON bs.reconciliation_group_id = brg.id
+          JOIN aggregated_transactions at ON brg.aggregate_id = at.id
+          LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
+          LEFT JOIN payment_method_group_mappings pmgm ON pm.id = pmgm.payment_method_id
+          LEFT JOIN payment_method_groups pmg ON pmgm.group_id = pmg.id AND pmg.company_id = $2
+          WHERE bs.id = ANY($1) AND bs.reconciliation_id IS NULL AND bs.reconciliation_group_id IS NOT NULL
+          
+          UNION ALL
+          
+          -- Cash deposits
+          SELECT bs.id as statement_id, cd.branch_name, pm.name as pm_name, 'CASH' as payment_type, pmg.name as g_name, pmg.color as g_color
+          FROM bank_statements bs
+          JOIN cash_deposits cd ON bs.cash_deposit_id = cd.id
+          LEFT JOIN payment_methods pm ON cd.payment_method_id = pm.id
+          LEFT JOIN payment_method_group_mappings pmgm ON pm.id = pmgm.payment_method_id
+          LEFT JOIN payment_method_groups pmg ON pmgm.group_id = pmg.id AND pmg.company_id = $2
+          WHERE bs.id = ANY($1) AND bs.cash_deposit_id IS NOT NULL
+          
+          UNION ALL
+          
+          -- Settlements
+          SELECT bs.id as statement_id, at.branch_name, pm.name as pm_name, pm.payment_type, pmg.name as g_name, pmg.color as g_color
+          FROM bank_statements bs
+          JOIN bank_settlement_groups bsg ON bs.id = bsg.bank_statement_id
+          JOIN bank_settlement_aggregates bsa ON bsg.id = bsa.group_id
+          JOIN aggregated_transactions at ON bsa.aggregate_id = at.id
+          LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
+          LEFT JOIN payment_method_group_mappings pmgm ON pm.id = pmgm.payment_method_id
+          LEFT JOIN payment_method_groups pmg ON pmgm.group_id = pmg.id AND pmg.company_id = $2
+          WHERE bs.id = ANY($1) 
+            AND bs.is_reconciled = true 
+            AND bs.reconciliation_id IS NULL 
+            AND bs.reconciliation_group_id IS NULL 
+            AND bs.cash_deposit_id IS NULL
+        )
+        -- Keep only one entry per statement_id (in case of multiple aggregates in settlement, though display logic only needs one)
+        SELECT DISTINCT ON (statement_id) * FROM enriched_info ORDER BY statement_id
+      `
+      const { rows: enrichments } = await pool.query(enrichmentQuery, [statementIds, params.company_id])
+      const enrichmentMap = new Map(enrichments.map(e => [e.statement_id, e]))
 
-      // ── Step 3: Batch ALL aggregated_transactions in ONE query (deduplicated) ──
-      const allAggIds = [...new Set([...reconIds, ...multiMatchAggIds, ...settlementAggIds])]
-      const { data: allAggs } = allAggIds.length > 0
-        ? await supabase
-            .from('aggregated_transactions')
-            .select('id, branch_name, payment_method_id, payment_methods!inner(name, payment_type)')
-            .in('id', allAggIds)
-        : { data: [] as any[] }
-
-      // ── Step 4: Batch ALL payment_method_group_mappings in ONE query ──
-      const aggPmIds = (allAggs || []).map((a: any) => a.payment_method_id).filter(Boolean)
-      const depositPmIds = deposits.map(d => d.payment_method_id).filter(Boolean)
-      const allPmIds = [...new Set([...aggPmIds, ...depositPmIds])]
-
-      const [mappingsResult, depositPmsResult] = await Promise.all([
-        allPmIds.length > 0
-          ? supabase
-              .from('payment_method_group_mappings')
-              .select('payment_method_id, payment_method_groups!inner(name, color)')
-              .eq('company_id', params.company_id)
-              .in('payment_method_id', allPmIds)
-          : { data: [] as any[] },
-        depositPmIds.length > 0
-          ? supabase.from('payment_methods').select('id, name').in('id', depositPmIds)
-          : { data: [] as any[] },
-      ])
-
-      // ── Step 5: Build shared lookup maps ──
-      const groupLookup = new Map<number, { name: string; color: string }>()
-      for (const m of (mappingsResult.data || []) as any[]) {
-        if (m.payment_method_groups) {
-          groupLookup.set(m.payment_method_id, {
-            name: m.payment_method_groups.name,
-            color: m.payment_method_groups.color,
-          })
-        }
-      }
-
-      const buildEnrichInfo = (a: any): EnrichInfo => {
-        const pm = a.payment_methods
-        const grp = groupLookup.get(a.payment_method_id)
-        return {
-          payment_method_name: pm?.name || 'Lainnya',
-          payment_type: pm?.payment_type || 'OTHER',
-          group_name: grp?.name || null,
-          group_color: grp?.color || null,
-          branch_name: a.branch_name || null,
-        }
-      }
-
-      // Aggregate lookup (shared across all paths)
-      const aggLookup = new Map<string, EnrichInfo>()
-      for (const a of (allAggs || []) as any[]) {
-        aggLookup.set(String(a.id), buildEnrichInfo(a))
-      }
-
-      // 1:1 reconciliation_id → aggregate
-      const aggregateMap = new Map<string, EnrichInfo>()
-      for (const id of reconIds) {
-        const info = aggLookup.get(String(id))
-        if (info) aggregateMap.set(String(id), info)
-      }
-
-      // Multi-match reconciliation_group_id → aggregate
-      const multiMatchMap = new Map<string, EnrichInfo>()
-      for (const g of reconGroups) {
-        const info = aggLookup.get(String(g.aggregate_id))
-        if (info) multiMatchMap.set(String(g.id), info)
-      }
-
-      // Settlement → aggregate
-      const settlementMap = new Map<string, EnrichInfo>()
-      for (const sg of settlements) {
-        const firstAggId = sg.bank_settlement_aggregates?.[0]?.aggregate_id
-        const info = firstAggId ? aggLookup.get(String(firstAggId)) : null
-        if (info) settlementMap.set(String(sg.bank_statement_id), info)
-      }
-
-      // Cash deposits — merge PM name + group in one lookup
-      const cashDepositMap = new Map<string, EnrichInfo>()
-      if (deposits.length > 0) {
-        const depositPmLookup = new Map<number, { name: string; group_name: string | null; group_color: string | null }>()
-        for (const pm of (depositPmsResult.data || []) as any[]) {
-          const grp = groupLookup.get(pm.id)
-          depositPmLookup.set(pm.id, {
-            name: pm.name,
-            group_name: grp?.name || null,
-            group_color: grp?.color || null,
-          })
-        }
-
-        for (const d of deposits) {
-          const pm = d.payment_method_id ? depositPmLookup.get(d.payment_method_id) : null
-          cashDepositMap.set(String(d.id), {
-            payment_method_name: pm?.name || 'Setoran Tunai',
-            payment_type: 'CASH',
-            group_name: pm?.group_name || null,
-            group_color: pm?.group_color || null,
-            branch_name: d.branch_name || null,
-          })
-        }
-      }
-
-      // ── Step 6: Enrich rows ──
       const enriched = rows.map((row) => {
-        let info: EnrichInfo | null = null
-
-        if (row.reconciliation_id && aggregateMap.has(String(row.reconciliation_id))) {
-          info = aggregateMap.get(String(row.reconciliation_id))!
-        } else if (row.reconciliation_group_id && multiMatchMap.has(String(row.reconciliation_group_id))) {
-          info = multiMatchMap.get(String(row.reconciliation_group_id))!
-        } else if (row.cash_deposit_id && cashDepositMap.has(String(row.cash_deposit_id))) {
-          info = cashDepositMap.get(String(row.cash_deposit_id))!
-        } else if (row.is_reconciled && settlementMap.has(String(row.id))) {
-          info = settlementMap.get(String(row.id))!
-        }
+        const info = enrichmentMap.get(row.id) as any
 
         return {
           ...row,
           display_description: info
-            ? `${info.payment_method_name}${info.branch_name ? ` - ${info.branch_name}` : ''}`
+            ? `${info.pm_name || (row.cash_deposit_id ? 'Setoran Tunai' : 'Lainnya')}${info.branch_name ? ` - ${info.branch_name}` : ''}`
             : row.description,
-          payment_method_name: info?.payment_method_name || null,
-          payment_type: info?.payment_type || null,
-          group_name: info?.group_name || null,
-          group_color: info?.group_color || null,
+          payment_method_name: info?.pm_name || (row.cash_deposit_id ? 'Setoran Tunai' : null),
+          payment_type: info?.payment_type || (row.cash_deposit_id ? 'CASH' : null),
+          group_name: info?.g_name || null,
+          group_color: info?.g_color || null,
           branch_name: info?.branch_name || null,
           expense_category: null,
         }
       })
 
-      return { rows: enriched, total: count || 0 }
+      return { rows: enriched, total: countRes.rows[0].total }
     } catch (error) {
       logError('CashFlowSalesRepository.getRunningBalanceWithSales error', { params, error })
       throw error
@@ -793,69 +706,65 @@ export class CashFlowSalesRepository {
   }
 
   async getBranches(companyId: string): Promise<Array<{ branch_id: string; branch_name: string }>> {
-    const { data, error } = await supabase
-      .from('branches')
-      .select('id, branch_name')
-      .eq('company_id', companyId)
-      .eq('status', 'active')
-      .order('branch_name')
-
-    if (error || !data) return []
-    return data.map(b => ({ branch_id: b.id, branch_name: b.branch_name }))
+    const { rows } = await pool.query(
+      'SELECT id, branch_name FROM branches WHERE company_id = $1 AND status = \'active\' ORDER BY branch_name',
+      [companyId]
+    )
+    return rows.map(b => ({ branch_id: b.id, branch_name: b.branch_name }))
   }
 
   async getCumulativeNetBeforeOffset(
     bankAccountId: number, companyId: string,
     fromDate: string, beforeDate: string, beforeRowNumber: number
   ): Promise<number> {
-    const { data: d1 } = await supabase
-      .from('bank_statements')
-      .select('credit_amount, debit_amount')
-      .eq('bank_account_id', bankAccountId).eq('company_id', companyId)
-      .gte('transaction_date', fromDate).lt('transaction_date', beforeDate)
-      .is('deleted_at', null)
-
-    const { data: d2 } = await supabase
-      .from('bank_statements')
-      .select('credit_amount, debit_amount')
-      .eq('bank_account_id', bankAccountId).eq('company_id', companyId)
-      .eq('transaction_date', beforeDate).lt('row_number', beforeRowNumber)
-      .is('deleted_at', null)
-
-    const all = [...(d1 || []), ...(d2 || [])]
-    return all.reduce((s, r) => s + (r.credit_amount || 0) - (r.debit_amount || 0), 0)
+    const query = `
+      SELECT COALESCE(SUM(credit_amount), 0) - COALESCE(SUM(debit_amount), 0) as net
+      FROM bank_statements
+      WHERE bank_account_id = $1 AND company_id = $2
+        AND (
+          (transaction_date >= $3 AND transaction_date < $4)
+          OR (transaction_date = $4 AND row_number < $5)
+        )
+        AND deleted_at IS NULL
+    `
+    const { rows } = await pool.query(query, [bankAccountId, companyId, fromDate, beforeDate, beforeRowNumber])
+    return Number(rows[0].net || 0)
   }
 
   async getCumulativeNetUpToDate(
     bankAccountId: number, companyId: string,
     fromDate: string, toDate: string
   ): Promise<number> {
-    const { data } = await supabase
-      .from('bank_statements')
-      .select('credit_amount, debit_amount')
-      .eq('bank_account_id', bankAccountId).eq('company_id', companyId)
-      .gte('transaction_date', fromDate).lte('transaction_date', toDate)
-      .is('deleted_at', null)
-
-    return (data || []).reduce((s, r) => s + (r.credit_amount || 0) - (r.debit_amount || 0), 0)
+    const query = `
+      SELECT COALESCE(SUM(credit_amount), 0) - COALESCE(SUM(debit_amount), 0) as net
+      FROM bank_statements
+      WHERE bank_account_id = $1 AND company_id = $2
+        AND transaction_date >= $3 AND transaction_date <= $4
+        AND deleted_at IS NULL
+    `
+    const { rows } = await pool.query(query, [bankAccountId, companyId, fromDate, toDate])
+    return Number(rows[0].net || 0)
   }
 
   async getPendingCount(
     bankAccountId: number, companyId: string,
     dateFrom: string, dateTo: string
   ): Promise<{ count: number; estimated_credit: number; estimated_debit: number }> {
-    const { data } = await supabase
-      .from('bank_statements')
-      .select('credit_amount, debit_amount')
-      .eq('bank_account_id', bankAccountId).eq('company_id', companyId)
-      .gte('transaction_date', dateFrom).lte('transaction_date', dateTo)
-      .eq('is_pending', true).is('deleted_at', null)
-
-    const rows = data || []
+    const query = `
+      SELECT 
+        COUNT(*)::int as count,
+        COALESCE(SUM(credit_amount), 0) as estimated_credit,
+        COALESCE(SUM(debit_amount), 0) as estimated_debit
+      FROM bank_statements
+      WHERE bank_account_id = $1 AND company_id = $2
+        AND transaction_date >= $3 AND transaction_date <= $4
+        AND is_pending = true AND deleted_at IS NULL
+    `
+    const { rows } = await pool.query(query, [bankAccountId, companyId, dateFrom, dateTo])
     return {
-      count: rows.length,
-      estimated_credit: rows.reduce((s, r) => s + (r.credit_amount || 0), 0),
-      estimated_debit: rows.reduce((s, r) => s + (r.debit_amount || 0), 0),
+      count: rows[0].count,
+      estimated_credit: Number(rows[0].estimated_credit),
+      estimated_debit: Number(rows[0].estimated_debit)
     }
   }
 
@@ -883,102 +792,50 @@ export class CashFlowSalesRepository {
     group_display_order: number | null
   }>> {
     try {
-      // Get bank_statements with cash_deposit_id in range
-      let bsQuery = supabase
-        .from('bank_statements')
-        .select('id, cash_deposit_id, credit_amount, transaction_date')
-        .eq('bank_account_id', bankAccountId)
-        .eq('company_id', companyId)
-        .gte('transaction_date', dateFrom)
-        .lte('transaction_date', dateTo)
-        .not('cash_deposit_id', 'is', null)
-        .is('deleted_at', null)
+      const query = `
+        SELECT 
+          cd.id as deposit_id,
+          cd.deposit_amount,
+          cd.deposit_date,
+          cd.branch_name,
+          b.id as branch_id,
+          cd.payment_method_id,
+          pm.name as payment_method_name,
+          pmg.id as group_id,
+          pmg.name as group_name,
+          pmg.color as group_color,
+          pmg.display_order as group_display_order
+        FROM bank_statements bs
+        JOIN cash_deposits cd ON bs.cash_deposit_id = cd.id
+        LEFT JOIN branches b ON cd.branch_name = b.branch_name AND b.company_id = $1 AND b.status = 'active'
+        LEFT JOIN payment_methods pm ON cd.payment_method_id = pm.id
+        LEFT JOIN payment_method_group_mappings pmgm ON pm.id = pmgm.payment_method_id
+        LEFT JOIN payment_method_groups pmg ON pmgm.group_id = pmg.id AND pmg.company_id = $1
+        WHERE bs.bank_account_id = $2
+          AND bs.company_id = $1
+          AND bs.transaction_date >= $3
+          AND bs.transaction_date <= $4
+          AND bs.cash_deposit_id IS NOT NULL
+          AND bs.deleted_at IS NULL
+          ${branchId ? 'AND b.id = $5' : ''}
+      `
+      const params: any[] = [companyId, bankAccountId, dateFrom, dateTo]
+      if (branchId) params.push(branchId)
 
-      const { data: bsRows, error: bsError } = await bsQuery
-      if (bsError) {
-        logError('CashFlowSalesRepository.getCashDepositBreakdown: bank statements query failed', { bsError, bankAccountId, companyId })
-        throw new DatabaseError('Failed to get bank statements for cash deposits', { cause: bsError })
-      }
-      if (!bsRows || bsRows.length === 0) return []
-
-      const depositIds = bsRows.map(r => r.cash_deposit_id)
-
-      // Parallel: fetch deposits + all company branches
-      const [depositsResult, branchesResult] = await Promise.all([
-        supabase
-          .from('cash_deposits')
-          .select('id, deposit_amount, deposit_date, branch_name, payment_method_id')
-          .in('id', depositIds),
-        supabase
-          .from('branches')
-          .select('id, branch_name')
-          .eq('company_id', companyId)
-          .eq('status', 'active'),
-      ])
-
-      if (depositsResult.error) {
-        logError('CashFlowSalesRepository.getCashDepositBreakdown: deposits query failed', { error: depositsResult.error.message })
-        throw new DatabaseError('Failed to get cash deposits', { cause: depositsResult.error })
-      }
-
-      const deposits = depositsResult.data || []
-      if (deposits.length === 0) return []
-
-      const branchMap = new Map<string, string>(
-        (branchesResult.data || []).map((b: any) => [b.branch_name, b.id])
-      )
-
-      // Parallel: fetch payment methods + group mappings
-      const pmIds = [...new Set(deposits.map(d => d.payment_method_id).filter(Boolean))] as number[]
-      let pmMap = new Map<number, { name: string; group_id: string | null; group_name: string | null; group_color: string | null; group_display_order: number | null }>()
-      if (pmIds.length > 0) {
-        const [pmsResult, mappingsResult] = await Promise.all([
-          supabase.from('payment_methods').select('id, name').in('id', pmIds),
-          supabase
-            .from('payment_method_group_mappings')
-            .select('payment_method_id, group_id, payment_method_groups!inner(id, name, color, display_order)')
-            .eq('company_id', companyId)
-            .in('payment_method_id', pmIds),
-        ])
-
-        for (const pm of (pmsResult.data || []) as any[]) {
-          pmMap.set(pm.id, { name: pm.name, group_id: null, group_name: null, group_color: null, group_display_order: null })
-        }
-        for (const m of (mappingsResult.data || []) as any[]) {
-          const existing = pmMap.get(m.payment_method_id)
-          if (existing && m.payment_method_groups) {
-            existing.group_id = m.payment_method_groups.id
-            existing.group_name = m.payment_method_groups.name
-            existing.group_color = m.payment_method_groups.color
-            existing.group_display_order = m.payment_method_groups.display_order
-          }
-        }
-      }
-
-      let result = deposits.map(d => {
-        const pm = d.payment_method_id ? pmMap.get(d.payment_method_id) : null
-        const resolvedBranchId = d.branch_name ? (branchMap.get(d.branch_name) || null) : null
-        return {
-          deposit_id: d.id,
-          deposit_amount: Number(d.deposit_amount) || 0,
-          deposit_date: d.deposit_date,
-          branch_name: d.branch_name || null,
-          branch_id: resolvedBranchId,
-          payment_method_id: d.payment_method_id || null,
-          payment_method_name: pm?.name || 'Setoran Tunai',
-          group_id: pm?.group_id || null,
-          group_name: pm?.group_name || null,
-          group_color: pm?.group_color || null,
-          group_display_order: pm?.group_display_order ?? null,
-        }
-      })
-
-      // Filter by branch if specified
-      if (branchId) {
-        result = result.filter(r => r.branch_id === branchId)
-      }
-
-      return result
+      const { rows } = await pool.query(query, params)
+      return rows.map(r => ({
+        deposit_id: r.deposit_id,
+        deposit_amount: Number(r.deposit_amount) || 0,
+        deposit_date: r.deposit_date,
+        branch_name: r.branch_name,
+        branch_id: r.branch_id,
+        payment_method_id: r.payment_method_id,
+        payment_method_name: r.payment_method_name || 'Setoran Tunai',
+        group_id: r.group_id,
+        group_name: r.group_name,
+        group_color: r.group_color,
+        group_display_order: r.group_display_order
+      }))
     } catch (error) {
       logError('CashFlowSalesRepository.getCashDepositBreakdown error', { error })
       return []
