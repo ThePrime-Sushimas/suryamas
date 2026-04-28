@@ -18,6 +18,33 @@ import { AppError } from '../utils/errors.base'
 import { enrichErrorContext, logStructuredError } from '../utils/error-context.util'
 import { ErrorTransformer, transformError, getUserFriendlyMessage } from '../utils/error-transformer.util'
 import { isRegisteredError } from '../utils/error-registry.util'
+import { monitoringRepository } from '../modules/monitoring/monitoring.repository'
+import type { AuthRequest } from '../types/common.types'
+
+function persistError(err: Error, req: Request, statusCode: number, severity: string): void {
+  const authReq = req as AuthRequest
+  monitoringRepository.createErrorReport({
+    errorName: err.name || 'Error',
+    errorMessage: err.message,
+    errorStack: err.stack,
+    errorType: (err as AppError).code || (err as any).code || 'UNEXPECTED_ERROR',
+    severity,
+    module: req.path.split('/').filter(Boolean)[0] || 'unknown',
+    submodule: req.path.split('/').filter(Boolean)[1],
+    userId: authReq.user?.id,
+    branchId: (req as any).branchContext?.branch_id,
+    url: req.originalUrl,
+    route: `${req.method} ${req.route?.path || req.path}`,
+    userAgent: req.headers['user-agent'] || '',
+    context: { statusCode, query: req.query, body: req.method !== 'GET' ? '[redacted]' : undefined },
+  }).catch(e => logWarn('Failed to persist error to DB', { error: e instanceof Error ? e.message : String(e) }))
+}
+
+function getSeverity(statusCode: number): string {
+  if (statusCode >= 500) return 'CRITICAL'
+  if (statusCode >= 400) return 'MEDIUM'
+  return 'LOW'
+}
 
 /**
  * Main error handler middleware
@@ -43,6 +70,7 @@ export const errorHandler = (
     const appError = err as AppError
     const response = ErrorTransformer.toResponse(appError)
     logStructuredError(appError, context, response.statusCode)
+    if (response.statusCode >= 500) persistError(appError, req, response.statusCode, getSeverity(response.statusCode))
     return sendError(res, response.message, response.statusCode, response.details)
   }
 
@@ -52,6 +80,7 @@ export const errorHandler = (
     if (isMatch) {
       const response = ErrorTransformer.toResponse(err)
       logStructuredError(err, context, response.statusCode)
+      if (response.statusCode >= 500) persistError(err, req, response.statusCode, getSeverity(response.statusCode))
       return sendError(res, response.message, response.statusCode, response.details)
     }
     
@@ -68,6 +97,7 @@ export const errorHandler = (
     }
     
     logStructuredError(err, context, response.statusCode)
+    persistError(err, req, response.statusCode, getSeverity(response.statusCode))
     
     const userMessage = getUserFriendlyMessage(err)
     sendError(res, userMessage, response.statusCode, response.details)
@@ -116,6 +146,11 @@ export const unhandledRejectionHandler = (): void => {
       stack: error.stack,
       promise: promise.toString(),
     })
+    monitoringRepository.createErrorReport({
+      errorName: error.name, errorMessage: error.message, errorStack: error.stack,
+      errorType: 'UNHANDLED_REJECTION', severity: 'CRITICAL', module: 'system',
+      url: '', route: '', userAgent: '',
+    }).catch(() => {})
   })
 }
 
@@ -129,7 +164,11 @@ export const uncaughtExceptionHandler = (): void => {
       message: error.message,
       stack: error.stack,
     })
-    process.exit(1)
+    monitoringRepository.createErrorReport({
+      errorName: error.name, errorMessage: error.message, errorStack: error.stack,
+      errorType: 'UNCAUGHT_EXCEPTION', severity: 'CRITICAL', module: 'system',
+      url: '', route: '', userAgent: '',
+    }).catch(() => {}).finally(() => process.exit(1))
   })
 }
 
