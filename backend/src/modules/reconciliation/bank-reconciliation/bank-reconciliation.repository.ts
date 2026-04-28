@@ -8,6 +8,48 @@ import {
   DatabaseConnectionError,
 } from "./bank-reconciliation.errors";
 
+// ---------------------------------------------------------------------------
+// Local types for method return shapes
+// ---------------------------------------------------------------------------
+
+interface ReconciliationGroupDetail {
+  group_id: string;
+  statement_id: string;
+  amount: number;
+  bank_statements: {
+    id: string;
+    transaction_date: string;
+    description: string | null;
+    debit_amount: number;
+    credit_amount: number;
+  } | null;
+}
+
+/** Shape returned by getReconciliationGroupById */
+export interface ReconciliationGroupWithDetails {
+  id: string;
+  aggregate_id: string;
+  company_id: string | null;
+  total_bank_amount: number;
+  aggregate_amount: number;
+  difference: number;
+  status: string;
+  notes: string | null;
+  reconciled_by: string | null;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Joined aggregate data as jsonb */
+  aggregated_transactions: {
+    id: string;
+    transaction_date: string;
+    gross_amount: number;
+    nett_amount: number;
+    payment_methods: { name: string | null };
+  } | null;
+  bank_reconciliation_group_details: ReconciliationGroupDetail[];
+}
+
 export class BankReconciliationRepository {
   constructor() {}
 
@@ -735,7 +777,10 @@ export class BankReconciliationRepository {
    *                  Pass the transactional client so reads see uncommitted writes
    *                  made earlier in the same transaction.
    */
-  async getReconciliationGroupById(groupId: string, client?: PoolClient): Promise<any> {
+  async getReconciliationGroupById(
+    groupId: string,
+    client?: PoolClient,
+  ): Promise<ReconciliationGroupWithDetails | null> {
     const db = client ?? pool;
     try {
       const { rows: groupRows } = await db.query(
@@ -894,8 +939,14 @@ export class BankReconciliationRepository {
     }
   }
 
-  async softDeleteGroup(groupId: string): Promise<void> {
-    await pool.query(
+  /**
+   * Soft-delete a reconciliation group by marking it UNDO.
+   *
+   * @param client - Optional PoolClient to run within an existing transaction.
+   */
+  async softDeleteGroup(groupId: string, client?: PoolClient): Promise<void> {
+    const db = client ?? pool;
+    await db.query(
       `UPDATE bank_reconciliation_groups SET deleted_at = $1, status = 'UNDO', updated_at = $1 WHERE id = $2`,
       [new Date().toISOString(), groupId]
     );

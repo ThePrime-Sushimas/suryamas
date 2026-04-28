@@ -1222,7 +1222,7 @@ export class BankReconciliationService {
     // Audit log for UNDO_MULTI_MATCH
     if (userId) {
       await AuditService.log('DELETE', 'bank_reconciliation_multi_match', groupId, userId, 
-        { aggregateId: group.aggregate_id, statementIds: group.statement_ids }, 
+        { aggregateId: group.aggregate_id, statementIds: (group as any).statement_ids || [] }, 
         null
       )
     }
