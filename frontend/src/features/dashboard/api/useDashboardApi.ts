@@ -32,8 +32,7 @@ function dayBefore(dateStr: string): string {
 const todayStr = () => fmtD(new Date())
 
 export const usePosSalesRange = (dateFrom: string, dateTo: string) => {
-  // Extend range to include yesterday for delta calc
-  const extendedFrom = dayBefore(dateFrom)
+  const extendedFrom = dateFrom ? dayBefore(dateFrom) : ''
   const includesLive = dateTo >= todayStr()
 
   return useQuery({

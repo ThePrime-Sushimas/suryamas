@@ -87,9 +87,9 @@ export function DailySalesChart({ data, isLoading }: Props) {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-      <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
         <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Penjualan Harian</span>
-        <span className="text-[11px] text-gray-400">{daily.length} hari</span>
+        <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{daily.length} hari</span>
       </div>
 
       <div className="px-3 pt-2 pb-2">
@@ -156,10 +156,10 @@ export function DailySalesChart({ data, isLoading }: Props) {
         </div>
 
         {/* Summary */}
-        <div className="flex items-center gap-4 mt-1.5 pt-1.5 border-t border-gray-100 dark:border-gray-700 text-[10px] text-gray-400 flex-wrap">
+        <div className="flex items-center gap-4 mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 text-[10px] text-gray-400 flex-wrap">
           <span>Total <span className="font-semibold text-gray-700 dark:text-gray-300">{fmt(daily.reduce((s, d) => s + d.total, 0))}</span></span>
           <span>Avg <span className="font-semibold text-gray-700 dark:text-gray-300">{fmt(daily.reduce((s, d) => s + d.total, 0) / daily.length)}</span>/hari</span>
-          <span className="ml-auto flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500 dark:bg-emerald-400" />Hari ini</span>
+          <span className="ml-auto flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-emerald-500 dark:bg-emerald-400" />Hari ini</span>
         </div>
       </div>
 
