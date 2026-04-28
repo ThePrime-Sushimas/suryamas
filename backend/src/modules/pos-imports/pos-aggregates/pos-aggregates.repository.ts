@@ -96,17 +96,17 @@ export class PosAggregatesRepository {
 
     if (filter?.transaction_date) {
       params.push(filter.transaction_date)
-      conditions.push(`at.transaction_date = $${params.length}`)
+      conditions.push(`at.transaction_date = $${params.length}::date`)
     }
 
     if (filter?.transaction_date_from) {
       params.push(filter.transaction_date_from)
-      conditions.push(`at.transaction_date >= $${params.length}`)
+      conditions.push(`at.transaction_date >= $${params.length}::date`)
     }
 
     if (filter?.transaction_date_to) {
       params.push(filter.transaction_date_to)
-      conditions.push(`at.transaction_date <= $${params.length}`)
+      conditions.push(`at.transaction_date <= $${params.length}::date`)
     }
 
     if (filter?.status) {
@@ -597,7 +597,7 @@ export class PosAggregatesRepository {
     try {
       const conditions: string[] = [
         'source_type = \'POS_SYNC\'',
-        'transaction_date = $1',
+        'transaction_date = $1::date',
         'payment_method_id = $2',
         'deleted_at IS NULL',
         'superseded_by IS NULL'
@@ -686,11 +686,11 @@ export class PosAggregatesRepository {
 
     if (dateFrom) {
       params.push(dateFrom)
-      conditions.push(`transaction_date >= $${params.length}`)
+      conditions.push(`transaction_date >= $${params.length}::date`)
     }
     if (dateTo) {
       params.push(dateTo)
-      conditions.push(`transaction_date <= $${params.length}`)
+      conditions.push(`transaction_date <= $${params.length}::date`)
     }
     if (branchName) {
       params.push(branchName)
@@ -749,11 +749,11 @@ export class PosAggregatesRepository {
     }
     if (dateFrom) {
       params.push(dateFrom)
-      conditions.push(`transaction_date >= $${params.length}`)
+      conditions.push(`transaction_date >= $${params.length}::date`)
     }
     if (dateTo) {
       params.push(dateTo)
-      conditions.push(`transaction_date <= $${params.length}`)
+      conditions.push(`transaction_date <= $${params.length}::date`)
     }
     if (branchNames && branchNames.length > 0) {
       const orConditions = branchNames.map(b => {
@@ -822,11 +822,11 @@ export class PosAggregatesRepository {
 
     if (dateFrom) {
       params.push(dateFrom)
-      conditions.push(`transaction_date >= $${params.length}`)
+      conditions.push(`transaction_date >= $${params.length}::date`)
     }
     if (dateTo) {
       params.push(dateTo)
-      conditions.push(`transaction_date <= $${params.length}`)
+      conditions.push(`transaction_date <= $${params.length}::date`)
     }
     if (branchNames && branchNames.length > 0) {
       const orConditions = branchNames.map(b => {
@@ -1060,7 +1060,7 @@ export class PosAggregatesRepository {
   async findForFeeRecalculation(transactionDate: string): Promise<any[]> {
     try {
       const { rows } = await pool.query(
-        'SELECT id, payment_method_id, gross_amount, bill_after_discount, is_reconciled, source_type FROM aggregated_transactions WHERE transaction_date = $1 AND source_type = \'POS\' AND deleted_at IS NULL AND superseded_by IS NULL',
+        'SELECT id, payment_method_id, gross_amount, bill_after_discount, is_reconciled, source_type FROM aggregated_transactions WHERE transaction_date = $1::date AND source_type = \'POS\' AND deleted_at IS NULL AND superseded_by IS NULL',
         [transactionDate]
       )
       return rows

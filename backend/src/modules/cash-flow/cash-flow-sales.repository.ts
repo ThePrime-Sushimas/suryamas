@@ -159,7 +159,7 @@ export class CashFlowSalesRepository {
       SELECT COALESCE(SUM(credit_amount), 0) - COALESCE(SUM(debit_amount), 0) as net
       FROM bank_statements
       WHERE bank_account_id = $1 AND company_id = $2 
-        AND transaction_date >= $3 AND transaction_date <= $4
+        AND transaction_date >= $3::date AND transaction_date <= $4::date
         AND deleted_at IS NULL
     `
     const { rows: txRows } = await pool.query(txQuery, [bankAccountId, companyId, prevPeriod.period_start, prevPeriod.period_end])
@@ -443,8 +443,8 @@ export class CashFlowSalesRepository {
           COALESCE(SUM(debit_amount) FILTER (WHERE NOT is_reconciled AND NOT is_pending AND debit_amount > 0), 0) as unrecon_debit_amount
         FROM bank_statements
         WHERE bank_account_id = $1 
-          AND transaction_date >= $2 
-          AND transaction_date <= $3
+          AND transaction_date >= $2::date 
+          AND transaction_date <= $3::date
           AND deleted_at IS NULL
       `
       const { rows: [statusRow] } = await pool.query(statusQuery, [params.bank_account_id, params.date_from, params.date_to])
@@ -457,8 +457,8 @@ export class CashFlowSalesRepository {
           SELECT reconciliation_id as agg_id
           FROM bank_statements
           WHERE bank_account_id = $1 
-            AND transaction_date >= $2 
-            AND transaction_date <= $3
+            AND transaction_date >= $2::date 
+            AND transaction_date <= $3::date
             AND is_reconciled = true
             AND reconciliation_id IS NOT NULL
             AND deleted_at IS NULL
@@ -470,8 +470,8 @@ export class CashFlowSalesRepository {
           FROM bank_statements bs
           JOIN bank_reconciliation_groups brg ON bs.reconciliation_group_id = brg.id
           WHERE bs.bank_account_id = $1 
-            AND bs.transaction_date >= $2 
-            AND bs.transaction_date <= $3
+            AND bs.transaction_date >= $2::date 
+            AND bs.transaction_date <= $3::date
             AND bs.is_reconciled = true
             AND bs.reconciliation_id IS NULL
             AND bs.reconciliation_group_id IS NOT NULL
@@ -485,8 +485,8 @@ export class CashFlowSalesRepository {
           JOIN bank_settlement_groups bsg ON bs.id = bsg.bank_statement_id
           JOIN bank_settlement_aggregates bsa ON bsg.id = bsa.group_id
           WHERE bs.bank_account_id = $1 
-            AND bs.transaction_date >= $2 
-            AND bs.transaction_date <= $3
+            AND bs.transaction_date >= $2::date 
+            AND bs.transaction_date <= $3::date
             AND bs.is_reconciled = true
             AND bs.reconciliation_id IS NULL
             AND bs.reconciliation_group_id IS NULL
@@ -604,7 +604,7 @@ export class CashFlowSalesRepository {
             created_at
           FROM bank_statements
           WHERE bank_account_id = $1 AND company_id = $2
-            AND transaction_date >= $3 AND transaction_date <= $4
+            AND transaction_date >= $3::date AND transaction_date <= $4::date
             AND deleted_at IS NULL
           ORDER BY transaction_date ASC, row_number ASC
           LIMIT $5 OFFSET $6
@@ -613,7 +613,7 @@ export class CashFlowSalesRepository {
           SELECT COUNT(*)::int as total
           FROM bank_statements
           WHERE bank_account_id = $1 AND company_id = $2
-            AND transaction_date >= $3 AND transaction_date <= $4
+            AND transaction_date >= $3::date AND transaction_date <= $4::date
             AND deleted_at IS NULL
         `, [params.bank_account_id, params.company_id, params.date_from, params.date_to])
       ])
@@ -722,8 +722,8 @@ export class CashFlowSalesRepository {
       FROM bank_statements
       WHERE bank_account_id = $1 AND company_id = $2
         AND (
-          (transaction_date >= $3 AND transaction_date < $4)
-          OR (transaction_date = $4 AND row_number < $5)
+          (transaction_date >= $3::date AND transaction_date < $4::date)
+          OR (transaction_date = $4::date AND row_number < $5)
         )
         AND deleted_at IS NULL
     `
@@ -739,7 +739,7 @@ export class CashFlowSalesRepository {
       SELECT COALESCE(SUM(credit_amount), 0) - COALESCE(SUM(debit_amount), 0) as net
       FROM bank_statements
       WHERE bank_account_id = $1 AND company_id = $2
-        AND transaction_date >= $3 AND transaction_date <= $4
+        AND transaction_date >= $3::date AND transaction_date <= $4::date
         AND deleted_at IS NULL
     `
     const { rows } = await pool.query(query, [bankAccountId, companyId, fromDate, toDate])
@@ -757,7 +757,7 @@ export class CashFlowSalesRepository {
         COALESCE(SUM(debit_amount), 0) as estimated_debit
       FROM bank_statements
       WHERE bank_account_id = $1 AND company_id = $2
-        AND transaction_date >= $3 AND transaction_date <= $4
+        AND transaction_date >= $3::date AND transaction_date <= $4::date
         AND is_pending = true AND deleted_at IS NULL
     `
     const { rows } = await pool.query(query, [bankAccountId, companyId, dateFrom, dateTo])
@@ -813,8 +813,8 @@ export class CashFlowSalesRepository {
         LEFT JOIN payment_method_groups pmg ON pmgm.group_id = pmg.id AND pmg.company_id = $1
         WHERE bs.bank_account_id = $2
           AND bs.company_id = $1
-          AND bs.transaction_date >= $3
-          AND bs.transaction_date <= $4
+          AND bs.transaction_date >= $3::date
+          AND bs.transaction_date <= $4::date
           AND bs.cash_deposit_id IS NOT NULL
           AND bs.deleted_at IS NULL
           ${branchId ? 'AND b.id = $5' : ''}

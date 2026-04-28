@@ -11,7 +11,10 @@ types.setTypeParser(1700, (val: string) => parseFloat(val))
 // BIGINT (20) → return as number (safe for JS up to 2^53)
 types.setTypeParser(20, (val: string) => parseInt(val, 10))
 
+const dbUrl = process.env.DATABASE_URL || ''
+const isLocal = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1')
+
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  connectionString: dbUrl,
+  ssl: isLocal ? false : { rejectUnauthorized: false },
 })

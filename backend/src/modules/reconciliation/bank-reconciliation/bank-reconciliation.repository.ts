@@ -89,7 +89,7 @@ export class BankReconciliationRepository {
     try {
       const { rows } = await pool.query(
         `SELECT * FROM bank_statements 
-         WHERE transaction_date >= $1 AND transaction_date <= $2 
+         WHERE transaction_date >= $1::date AND transaction_date <= $2::date 
            AND is_reconciled = false AND deleted_at IS NULL 
          ORDER BY transaction_date DESC, created_at DESC`,
         [startDate.toISOString().split("T")[0], end.toISOString().split("T")[0]]
@@ -133,11 +133,11 @@ export class BankReconciliationRepository {
 
       if (startDate) {
         params.push(startDate.toISOString().split("T")[0]);
-        conditions.push(`bs.transaction_date >= $${params.length}`);
+        conditions.push(`bs.transaction_date >= $${params.length}::date`);
       }
       if (endDate) {
         params.push(endDate.toISOString().split("T")[0]);
-        conditions.push(`bs.transaction_date <= $${params.length}`);
+        conditions.push(`bs.transaction_date <= $${params.length}::date`);
       }
       if (bankAccountIds && bankAccountIds.length > 0) {
         params.push(bankAccountIds);
@@ -407,7 +407,7 @@ export class BankReconciliationRepository {
     try {
       const { rows: statsRows } = await pool.query(
         `SELECT bank_account_id, is_reconciled FROM bank_statements 
-         WHERE transaction_date >= $1 AND transaction_date <= $2 AND deleted_at IS NULL`,
+         WHERE transaction_date >= $1::date AND transaction_date <= $2::date AND deleted_at IS NULL`,
         [startDate.toISOString().split("T")[0], endDate.toISOString().split("T")[0]]
       );
 
@@ -574,7 +574,7 @@ export class BankReconciliationRepository {
       ];
       let query = `
         SELECT * FROM bank_statements 
-        WHERE transaction_date >= $1 AND transaction_date <= $2 
+        WHERE transaction_date >= $1::date AND transaction_date <= $2::date 
           AND is_reconciled = false AND deleted_at IS NULL
       `;
 
@@ -614,7 +614,7 @@ export class BankReconciliationRepository {
       ];
       let query = `
         SELECT COUNT(*)::int as count FROM bank_statements 
-        WHERE transaction_date >= $1 AND transaction_date <= $2 
+        WHERE transaction_date >= $1::date AND transaction_date <= $2::date 
           AND is_reconciled = false AND deleted_at IS NULL
       `;
 
@@ -963,7 +963,7 @@ export class BankReconciliationRepository {
       const { rows } = await pool.query(
         `SELECT id, transaction_date, description, debit_amount, credit_amount 
          FROM bank_statements 
-         WHERE transaction_date >= $1 AND transaction_date <= $2 
+         WHERE transaction_date >= $1::date AND transaction_date <= $2::date 
            AND is_reconciled = false AND deleted_at IS NULL 
          ORDER BY transaction_date DESC`,
         [startDate.toISOString().split("T")[0], endDate.toISOString().split("T")[0]]
@@ -1000,7 +1000,7 @@ export class BankReconciliationRepository {
          FROM bank_reconciliation_groups brg
          JOIN aggregated_transactions at ON brg.aggregate_id = at.id
          LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
-         WHERE at.transaction_date >= $1 AND at.transaction_date <= $2 
+         WHERE at.transaction_date >= $1::date AND at.transaction_date <= $2::date 
            AND brg.deleted_at IS NULL 
          ORDER BY brg.created_at DESC`,
         [startDate.toISOString().split("T")[0], endDate.toISOString().split("T")[0]]

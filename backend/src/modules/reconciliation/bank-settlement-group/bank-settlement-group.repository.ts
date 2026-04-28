@@ -329,11 +329,11 @@ export class SettlementGroupRepository {
 
       if (options?.startDate) {
         params.push(options.startDate);
-        conditions.push(`bsg.settlement_date >= $${params.length}`);
+        conditions.push(`bsg.settlement_date >= $${params.length}::date`);
       }
       if (options?.endDate) {
         params.push(options.endDate);
-        conditions.push(`bsg.settlement_date <= $${params.length}`);
+        conditions.push(`bsg.settlement_date <= $${params.length}::date`);
       }
       if (options?.status) {
         params.push(options.status);
@@ -523,11 +523,11 @@ export class SettlementGroupRepository {
 
       if (options?.startDate) {
         params.push(options.startDate);
-        conditions.push(`at.transaction_date >= $${params.length}`);
+        conditions.push(`at.transaction_date >= $${params.length}::date`);
       }
       if (options?.endDate) {
         params.push(options.endDate);
-        conditions.push(`at.transaction_date <= $${params.length}`);
+        conditions.push(`at.transaction_date <= $${params.length}::date`);
       }
       if (options?.paymentMethodId) {
         params.push(options.paymentMethodId);
